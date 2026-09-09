@@ -2,13 +2,18 @@ variable "project_name" {
   description = "Project name for resource naming"
   type        = string
   default     = "mays-ris"
+
+  validation {
+    condition     = length(var.project_name) >= 3 && can(regex("^[a-z0-9][a-z0-9-]*$", var.project_name))
+    error_message = "project_name must be at least 3 characters and contain only lowercase letters, numbers, and hyphens."
+  }
 }
 
 variable "environment" {
   description = "Deployment environment (dev, test, prod)"
   type        = string
   default     = "dev"
-  
+
   validation {
     condition     = var.environment in ["dev", "test", "prod"]
     error_message = "Environment must be dev, test, or prod."
@@ -16,7 +21,7 @@ variable "environment" {
 }
 
 variable "aws_region" {
-  description = "AWS region"
+  description = "AWS region for resources"
   type        = string
   default     = "eu-central-1"
 }
@@ -28,11 +33,11 @@ variable "tags" {
 }
 
 variable "queue_config" {
-  description = "Queue configuration"
+  description = "SQS queue configuration"
   type = object({
     visibility_timeout_seconds = number
     message_retention_seconds  = number
-    dlq_max_receive_count        = number
+    dlq_max_receive_count      = number
   })
   default = {
     visibility_timeout_seconds = 300
@@ -44,8 +49,8 @@ variable "queue_config" {
 variable "table_config" {
   description = "DynamoDB table configuration"
   type = object({
-    ttl_enabled    = bool
-    ttl_attribute  = string
+    ttl_enabled   = bool
+    ttl_attribute = string
   })
   default = {
     ttl_enabled   = true
@@ -54,17 +59,75 @@ variable "table_config" {
 }
 
 variable "lambda_config" {
-  description = "Lambda configuration"
+  description = "Lambda function configuration"
   type = object({
-    runtime          = string
-    timeout          = number
-    memory_size      = number
+    runtime            = string
+    handler            = string
+    timeout            = number
+    memory_size        = number
+    filename           = string
     log_retention_days = number
   })
   default = {
     runtime            = "python3.14"
+    handler            = "handler.lambda_handler"
     timeout              = 30
-    memory_size          = 128
+    memory_size        = 128
+    filename             = "lambda.zip"
     log_retention_days   = 14
   }
+}
+
+variable "monitoring_enabled" {
+  description = "Enable CloudWatch monitoring"
+  type        = bool
+  default     = true
+}
+
+variable "dashboard_enabled" {
+  description = "Enable CloudWatch dashboard"
+  type        = bool
+  default     = true
+}
+
+variable "api_5xx_threshold" {
+  description = "API 5xx error threshold"
+  type        = number
+  default     = 5
+}
+
+variable "api_4xx_threshold" {
+  description = "API 4xx error threshold"
+  type        = number
+  default     = 20
+}
+
+variable "lambda_error_threshold" {
+  description = "Lambda error threshold"
+  type        = number
+  default     = 1
+}
+
+variable "lambda_duration_threshold_ms" {
+  description = "Lambda duration threshold in milliseconds"
+  type        = number
+  default     = 30000
+}
+
+variable "lambda_throttle_threshold" {
+  description = "Lambda throttle threshold"
+  type        = number
+  default     = 1
+}
+
+variable "dynamodb_throttled_threshold" {
+  description = "DynamoDB throttled request threshold"
+  type        = number
+  default     = 1
+}
+
+variable "notification_endpoint" {
+  description = "Optional SNS topic ARN for notifications"
+  type        = string
+  default     = null
 }

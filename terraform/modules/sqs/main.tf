@@ -1,4 +1,4 @@
-# SQS Module
+# SQS Module - Ground Zero Work System
 
 resource "aws_sqs_queue" "work_queue" {
   name                       = "${var.project_name}-${var.environment}-work-queue"
@@ -7,6 +7,8 @@ resource "aws_sqs_queue" "work_queue" {
   max_message_size           = 256000
   delay_seconds              = 0
   receive_wait_time_seconds  = 20
+
+  kms_master_key_id = "alias/aws/sqs"
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.dlq.arn
@@ -19,13 +21,18 @@ resource "aws_sqs_queue" "work_queue" {
 resource "aws_sqs_queue" "dlq" {
   name                        = "${var.project_name}-${var.environment}-dlq"
   message_retention_seconds   = 1209600
-  tags                        = merge({ "Project" = var.project_name }, var.tags)
+
+  kms_master_key_id = "alias/aws/sqs"
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
 resource "aws_sqs_queue" "agent_cv_queue" {
   name                       = "${var.project_name}-${var.environment}-cv-queue"
   visibility_timeout_seconds = var.queue_config.visibility_timeout_seconds
   message_retention_seconds  = var.queue_config.message_retention_seconds
+
+  kms_master_key_id = "alias/aws/sqs"
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.dlq.arn
@@ -40,6 +47,8 @@ resource "aws_sqs_queue" "agent_ats_queue" {
   visibility_timeout_seconds = var.queue_config.visibility_timeout_seconds
   message_retention_seconds  = var.queue_config.message_retention_seconds
 
+  kms_master_key_id = "alias/aws/sqs"
+
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.dlq.arn
     maxReceiveCount     = var.queue_config.dlq_max_receive_count
@@ -53,6 +62,8 @@ resource "aws_sqs_queue" "agent_match_queue" {
   visibility_timeout_seconds = var.queue_config.visibility_timeout_seconds
   message_retention_seconds  = var.queue_config.message_retention_seconds
 
+  kms_master_key_id = "alias/aws/sqs"
+
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.dlq.arn
     maxReceiveCount     = var.queue_config.dlq_max_receive_count
@@ -62,34 +73,57 @@ resource "aws_sqs_queue" "agent_match_queue" {
 }
 
 output "work_queue_url" {
-  value = aws_sqs_queue.work_queue.id
+  description = "Work queue URL"
+  value       = aws_sqs_queue.work_queue.id
 }
 
 output "work_queue_arn" {
-  value = aws_sqs_queue.work_queue.arn
+  description = "Work queue ARN"
+  value       = aws_sqs_queue.work_queue.arn
 }
 
 output "cv_queue_url" {
-  value = aws_sqs_queue.agent_cv_queue.id
+  description = "CV agent queue URL"
+  value       = aws_sqs_queue.agent_cv_queue.id
 }
 
 output "ats_queue_url" {
-  value = aws_sqs_queue.agent_ats_queue.id
+  description = "ATS agent queue URL"
+  value       = aws_sqs_queue.agent_ats_queue.id
 }
 
 output "match_queue_url" {
-  value = aws_sqs_queue.agent_match_queue.id
+  description = "Match agent queue URL"
+  value       = aws_sqs_queue.agent_match_queue.id
 }
 
 output "dlq_url" {
-  value = aws_sqs_queue.dlq.id
+  description = "Dead letter queue URL"
+  value       = aws_sqs_queue.dlq.id
+}
+
+output "dlq_arn" {
+  description = "Dead letter queue ARN"
+  value       = aws_sqs_queue.dlq.arn
 }
 
 output "queue_urls" {
+  description = "All queue URLs"
   value = {
-    work = aws_sqs_queue.work_queue.id
-    cv   = aws_sqs_queue.agent_cv_queue.id
-    ats  = aws_sqs_queue.agent_ats_queue.id
+    work  = aws_sqs_queue.work_queue.id
+    cv    = aws_sqs_queue.agent_cv_queue.id
+    ats   = aws_sqs_queue.agent_ats_queue.id
     match = aws_sqs_queue.agent_match_queue.id
+  }
+}
+
+output "queue_arns" {
+  description = "All queue ARNs"
+  value = {
+    work  = aws_sqs_queue.work_queue.arn
+    cv    = aws_sqs_queue.agent_cv_queue.arn
+    ats   = aws_sqs_queue.agent_ats_queue.arn
+    match = aws_sqs_queue.agent_match_queue.arn
+    dlq   = aws_sqs_queue.dlq.arn
   }
 }
