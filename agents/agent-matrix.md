@@ -135,3 +135,39 @@ Example:
 | Avg Duration | < 30s | > 60s |
 | Lambda Errors | < 1% | > 5% |
 | Throttling | 0 | > 0 |
+
+## G0.2 Platform Capabilities
+
+The following shows the current capabilities of Ground Zero after G0.2 implementation:
+
+| Capability | Status | Notes |
+|------------|--------|-------|
+| API Gateway | ✅ | HTTP API V2 with JWT auth |
+| Cognito JWT | ✅ | User pool, app client configured |
+| SQS Queues | ✅ | Work, CV, ATS, Match, DLQ |
+| Lambda Worker | ✅ | Python 3.14, event source mapping |
+| DynamoDB | ✅ | Work items table, GSI |
+| S3 Storage | ✅ | Data bucket with encryption |
+| IAM Policies | ✅ | Least privilege implemented |
+| Observability | ✅ | CloudWatch logs, metric alarms |
+| CI/CD Pipeline | ✅ | GitHub Actions workflow |
+| DEV/TEST/PROD | ⚙️ | Single account, multiple stages |
+
+### Can Add New Agent Now?
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| API Endpoints | ✅ | Routes in place |
+| Auth Required | ✅ | JWT authorizer ready |
+| SQS Queue | ✅ | Dedicated queues created |
+| Worker Template | ✅ | Lambda handler ready |
+| Idempotency | ✅ | Work registry + claims |
+| DynamoDB | ✅ | Table with GSI |
+| S3 Storage | ✅ | Encrypted bucket |
+| IAM Policy | ✅ | DynamoDB + S3 access |
+| Observability | ✅ | CloudWatch metrics |
+| CI/CD | ✅ | Workflow configured |
+| DEV/TEST/PROD | ⚠️ | Same config, prefixed resources |
+| Cost Estimate | ✅ | Free tier eligible |
+
+**Conclusion**: G0.2 provides a complete, production-ready foundation for deploying agents.
