@@ -16,7 +16,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.6.0"
+          terraform_version: ">= 1.6, < 2.0"
       
       - name: Terraform Init
         run: terraform init -backend=false
@@ -38,7 +38,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.6.0"
+          terraform_version: ">= 1.6, < 2.0"
       
       - name: Terraform Init
         run: terraform init
@@ -62,7 +62,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.6.0"
+          terraform_version: ">= 1.6, < 2.0"
       
       - name: Terraform Init
         run: terraform init
