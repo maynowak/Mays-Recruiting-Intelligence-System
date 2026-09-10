@@ -1,25 +1,41 @@
-# T011-02 — DynamoDB-Outputs
-output "table_name" {
-  description = "Name der DynamoDB-Tabelle fuer May's Orders."
-  value       = aws_dynamodb_table.orders.name
+# DynamoDB Outputs
+
+output "work_items_table_name" {
+  value = aws_dynamodb_table.work_items.name
 }
 
-output "table_arn" {
-  description = "ARN der DynamoDB-Tabelle fuer May's Orders."
-  value       = aws_dynamodb_table.orders.arn
+output "work_items_table_arn" {
+  value = aws_dynamodb_table.work_items.arn
 }
 
-output "table_stream_arn" {
-  description = "ARN des DynamoDB-Streams (falls aktiviert)."
-  value       = aws_dynamodb_table.orders.stream_arn
+output "agent_state_table_name" {
+  value = aws_dynamodb_table.agent_state.name
 }
 
-output "gsi1_name" {
-  description = "Name des Global Secondary Index (GSI1)."
-  value       = "gsi1"
+output "agent_state_table_arn" {
+  value = aws_dynamodb_table.agent_state.arn
 }
 
-output "gsi1_arn" {
-  description = "ARN des Global Secondary Index (GSI1)."
-  value       = "${aws_dynamodb_table.orders.arn}/index/gsi1"
+output "user_profile_table_name" {
+  value = aws_dynamodb_table.user_profile.name
+}
+
+output "user_profile_table_arn" {
+  value = aws_dynamodb_table.user_profile.arn
+}
+
+output "agent_catalog_table_name" {
+  value = aws_dynamodb_table.agent_catalog.name
+}
+
+output "agent_catalog_table_arn" {
+  value = aws_dynamodb_table.agent_catalog.arn
+}
+
+output "entitlements_table_name" {
+  value = aws_dynamodb_table.entitlements.name
+}
+
+output "entitlements_table_arn" {
+  value = aws_dynamodb_table.entitlements.arn
 }

@@ -20,8 +20,18 @@ variable "cognito_user_pool_client_id" {
   type        = string
 }
 
+variable "cognito_user_pool_endpoint" {
+  description = "Cognito User Pool endpoint (URL)"
+  type        = string
+}
+
 variable "lambda_function_name" {
   description = "Lambda function name"
+  type        = string
+}
+
+variable "lambda_invoke_arn" {
+  description = "Lambda invoke ARN for API Gateway integration"
   type        = string
 }
 

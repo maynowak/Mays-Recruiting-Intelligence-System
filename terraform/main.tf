@@ -78,7 +78,9 @@ module "api" {
   environment                 = var.environment
   cognito_user_pool_id        = module.cognito.user_pool_id
   cognito_user_pool_client_id = module.cognito.user_pool_client_id
+  cognito_user_pool_endpoint  = module.cognito.user_pool_endpoint
   lambda_function_name        = "${local.prefix}-agent"
+  lambda_invoke_arn           = module.lambda.invoke_arn
   tags                        = var.tags
 }
 
