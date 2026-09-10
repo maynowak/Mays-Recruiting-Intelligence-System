@@ -23,7 +23,10 @@ from handler import (
     _is_entitlement_valid,
     _get_user_profile,
     _get_agent_catalog,
-    _get_entitlements
+    _get_entitlements,
+    _get_entitlement_for_agent,
+    _get_work_item,
+    _extract_path_param
 )
 
 
@@ -345,3 +348,160 @@ class TestSQSHandling:
         result = handler(event, None)
         
         assert result['statusCode'] == 200
+
+
+class TestAgentAPI:
+    """Test cases for Agent API routes."""
+
+    def test_list_agents(self):
+        """GET /api/agents returns agent list."""
+        event = {
+            'httpMethod': 'GET',
+            'path': '/api/agents',
+            'requestContext': {
+                'authorizer': {
+                    'jwt': {
+                        'claims': {
+                            'sub': 'user-123',
+                            'tenant_id': 'tenant-abc'
+                        }
+                    }
+                }
+            }
+        }
+        
+        with patch('handler._get_agent_catalog') as mock_catalog:
+            mock_catalog.return_value = {
+                'agent-1': {'agentId': 'agent-1', 'status': 'active'}
+            }
+            
+            result = handler(event, None)
+            
+            assert result['statusCode'] == 200
+
+    def test_get_agent_by_id(self):
+        """GET /api/agents/{agentId} returns agent."""
+        event = {
+            'httpMethod': 'GET',
+            'path': '/api/agents/agent-1',
+            'requestContext': {
+                'authorizer': {
+                    'jwt': {
+                        'claims': {
+                            'sub': 'user-123',
+                            'tenant_id': 'tenant-abc'
+                        }
+                    }
+                }
+            }
+        }
+        
+        with patch('handler._get_entitlement_for_agent') as mock_ent, \
+             patch('handler._get_agent_catalog') as mock_catalog:
+            mock_ent.return_value = {
+                'agentId': 'agent-1',
+                'validUntil': '2099-01-01'
+            }
+            mock_catalog.return_value = {
+                'agent-1': {'agentId': 'agent-1', 'status': 'active'}
+            }
+            
+            result = handler(event, None)
+            
+            assert result['statusCode'] == 200
+
+    def test_get_agent_unauthenticated(self):
+        """GET /api/agents requires authentication."""
+        event = {
+            'httpMethod': 'GET',
+            'path': '/api/agents/agent-1'
+        }
+        
+        result = handler(event, None)
+        
+        assert result['statusCode'] == 401
+
+    def test_execute_agent(self):
+        """POST /api/agents/{agentId}/execute creates work."""
+        event = {
+            'httpMethod': 'POST',
+            'path': '/api/agents/agent-1/execute',
+            'body': json.dumps({
+                'capability': 'analyze_cv',
+                'payload': {'cv': 'data'}
+            }),
+            'requestContext': {
+                'authorizer': {
+                    'jwt': {
+                        'claims': {
+                            'sub': 'user-123',
+                            'tenant_id': 'tenant-abc'
+                        }
+                    }
+                }
+            }
+        }
+        
+        with patch('handler._get_entitlement_for_agent') as mock_ent, \
+             patch('handler._get_agent_catalog') as mock_catalog, \
+             patch('handler._get_dynamodb') as mock_db, \
+             patch('handler._get_sqs') as mock_sqs:
+            mock_ent.return_value = {
+                'agentId': 'agent-1',
+                'validUntil': '2099-01-01'
+            }
+            mock_catalog.return_value = {
+                'agent-1': {'agentId': 'agent-1', 'status': 'active', 'version': '1.0.0'}
+            }
+            mock_db.return_value.Table.return_value.put_item.return_value = {}
+            mock_sqs.return_value.send_message.return_value = {}
+            
+            result = handler(event, None)
+            
+            assert result['statusCode'] == 202
+
+    def test_execute_agent_unauthorized(self):
+        """POST /api/agents/{agentId}/execute denies unauthorized."""
+        event = {
+            'httpMethod': 'POST',
+            'path': '/api/agents/agent-1/execute',
+            'body': json.dumps({'capability': 'analyze_cv'}),
+            'requestContext': {
+                'authorizer': {
+                    'jwt': {
+                        'claims': {
+                            'sub': 'user-123',
+                            'tenant_id': 'tenant-abc'
+                        }
+                    }
+                }
+            }
+        }
+        
+        with patch('handler._get_entitlement_for_agent') as mock_ent:
+            mock_ent.return_value = None
+            
+            result = handler(event, None)
+            
+            assert result['statusCode'] == 403
+
+
+class TestPathExtraction:
+    """Test cases for path parameter extraction."""
+
+    def test_extract_agent_id(self):
+        """Extracts agent ID from path."""
+        path = '/api/agents/agent-123'
+        result = _extract_path_param(path, 'agentId')
+        assert result == 'agent-123'
+
+    def test_extract_work_id(self):
+        """Extracts work ID from path."""
+        path = '/api/agents/agent-456/work/work-789'
+        result = _extract_path_param(path, 'workId')
+        assert result == 'work-789'
+
+    def test_extract_invalid_path(self):
+        """Returns None for invalid path."""
+        result = _extract_path_param('/invalid/path', 'agentId')
+        assert result is None
