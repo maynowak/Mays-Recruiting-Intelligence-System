@@ -62,6 +62,11 @@ variable "entitlements_table_arn" {
   type        = string
 }
 
+variable "work_queue_url" {
+  description = "SQS work queue URL for agent execution"
+  type        = string
+}
+
 variable "s3_bucket_arn" {
   description = "S3 bucket ARN for data storage"
   type        = string

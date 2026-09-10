@@ -1,13 +1,19 @@
 """
-Lambda Handler for Ground Zero Platform
+Lambda Handler for Ground Zero Platform API
 
-This module provides the Lambda entry point for all Platform API routes.
+This module provides the Lambda entry point for all Platform API routes including:
+- Platform information
+- User context
+- User profile
+- Agent catalog and selection
+- Agent execution
+- Work item management
 """
 
 import json
 import os
 import logging
-import re
+import uuid
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
@@ -23,6 +29,7 @@ PLATFORM_VERSION = os.environ.get('PLATFORM_VERSION', '1.0.0')
 PLATFORM_ENVIRONMENT = os.environ.get('PLATFORM_ENVIRONMENT', 'dev')
 
 _dynamodb = None
+_sqs = None
 
 
 def _get_dynamodb():
@@ -30,6 +37,13 @@ def _get_dynamodb():
     if _dynamodb is None:
         _dynamodb = boto3.resource('dynamodb')
     return _dynamodb
+
+
+def _get_sqs():
+    global _sqs
+    if _sqs is None:
+        _sqs = boto3.client('sqs')
+    return _sqs
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -125,6 +139,10 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_me_profile(event, context)
     elif method == 'GET' and path == '/agents':
         return _handle_agents(event, context)
+    elif method == 'GET' and path.startswith('/api/agents'):
+        return _handle_agent_api_event(event, context)
+    elif method == 'POST' and path.startswith('/api/agents'):
+        return _handle_agent_api_event(event, context)
     elif method == 'POST' and path == '/work':
         body = json.loads(event.get('body', '{}'))
         return _create_work(body, event)
@@ -236,6 +254,262 @@ def _handle_agents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     }
 
 
+def _handle_agent_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Handle Agent API routes."""
+    path = event.get('path', '/')
+    method = event.get('httpMethod', 'GET')
+    
+    if path == '/api/agents' and method == 'GET':
+        return _list_agents(event, context)
+    elif path == '/api/agents' and method == 'POST':
+        return _register_agent(event, context)
+    elif path.startswith('/api/agents/') and method == 'GET':
+        agent_id = _extract_path_param(path, 'agentId')
+        return _get_agent(event, context, agent_id)
+    elif path.startswith('/api/agents/') and method == 'POST':
+        agent_id = _extract_path_param(path, 'agentId')
+        return _execute_agent(event, context, agent_id)
+    elif path.startswith('/api/agents/') and path.endswith('/work'):
+        agent_id = _extract_path_param(path, 'agentId')
+        work_id = _extract_path_param(path, 'workId')
+        return _get_agent_work(event, context, agent_id, work_id)
+    
+    return {
+        'statusCode': 404,
+        'body': json.dumps({'error': 'Not found'})
+    }
+
+
+def _extract_path_param(path: str, param: str) -> Optional[str]:
+    """Extract path parameter from URL path."""
+    patterns = {
+        'agentId': r'/api/agents/([^/]+)',
+        'workId': r'/api/agents/[^/]+/work/([^/]+)'
+    }
+    
+    pattern = patterns.get(param)
+    if pattern:
+        match = re.search(pattern, path)
+        if match:
+            return match.group(1)
+    
+    return None
+
+
+def _list_agents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Handle GET /api/agents - List all available agents."""
+    user_context = _extract_user_context(event)
+    
+    if not user_context['userId']:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': 'Unauthenticated'})
+        }
+    
+    agent_catalog = _get_agent_catalog()
+    return {
+        'statusCode': 200,
+        'body': json.dumps({
+            'agents': list(agent_catalog.values())
+        })
+    }
+
+
+def _register_agent(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Handle POST /api/agents - Register a new agent."""
+    user_context = _extract_user_context(event)
+    
+    if not user_context['userId']:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': 'Unauthenticated'})
+        }
+    
+    body = json.loads(event.get('body', '{}'))
+    
+    return {
+        'statusCode': 400,
+        'body': json.dumps({
+            'error': 'Agent registration not supported in this version'
+        })
+    }
+
+
+def _get_agent(event: Dict[str, Any], context: Any, agent_id: Optional[str]) -> Dict[str, Any]:
+    """Handle GET /api/agents/{agentId} - Get specific agent details."""
+    user_context = _extract_user_context(event)
+    
+    if not user_context['userId']:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': 'Unauthenticated'})
+        }
+    
+    if not agent_id:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'Agent ID required'})
+        }
+    
+    entitlements = _get_entitlement_for_agent(user_context['userId'], agent_id, user_context['tenantId'])
+    
+    if not entitlements:
+        return {
+            'statusCode': 403,
+            'body': json.dumps({'error': 'Access denied to agent'})
+        }
+    
+    agent_catalog = _get_agent_catalog()
+    agent = agent_catalog.get(agent_id)
+    
+    if not agent:
+        return {
+            'statusCode': 404,
+            'body': json.dumps({'error': 'Agent not found'})
+        }
+    
+    return {
+        'statusCode': 200,
+        'body': json.dumps(agent)
+    }
+
+
+def _execute_agent(event: Dict[str, Any], context: Any, agent_id: Optional[str]) -> Dict[str, Any]:
+    """Handle POST /api/agents/{agentId}/execute - Execute an agent with capability."""
+    user_context = _extract_user_context(event)
+    
+    if not user_context['userId']:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': 'Unauthenticated'})
+        }
+    
+    if not agent_id:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'Agent ID required'})
+        }
+    
+    entitlements = _get_entitlement_for_agent(user_context['userId'], agent_id, user_context['tenantId'])
+    
+    if not entitlements:
+        return {
+            'statusCode': 403,
+            'body': json.dumps({'error': 'Access denied to agent'})
+        }
+    
+    body = json.loads(event.get('body', '{}'))
+    capability = body.get('capability')
+    payload = body.get('payload', {})
+    
+    agent_catalog = _get_agent_catalog()
+    agent = agent_catalog.get(agent_id)
+    
+    if not agent:
+        return {
+            'statusCode': 404,
+            'body': json.dumps({'error': 'Agent not found'})
+        }
+    
+    if agent.get('status') != 'active':
+        return {
+            'statusCode': 403,
+            'body': json.dumps({'error': 'Agent is not active'})
+        }
+    
+    request_id = str(uuid.uuid4())
+    
+    work_item = {
+        'workId': str(uuid.uuid4()),
+        'type': f'agent_{agent_id}',
+        'tenantId': user_context['tenantId'],
+        'userId': user_context['userId'],
+        'requestedBy': user_context['userId'],
+        'agentId': agent_id,
+        'capability': capability,
+        'idempotencyKey': body.get('idempotencyKey', str(uuid.uuid4())),
+        'payloadVersion': '1.0',
+        'agentVersion': agent.get('version', '1.0.0'),
+        'requestId': request_id,
+        'status': 'QUEUED',
+        'attempt': 0,
+        'payload': payload,
+        'createdAt': datetime.utcnow().isoformat(),
+        'expiresAt': (datetime.utcnow() + timedelta(days=30)).isoformat()
+    }
+    
+    try:
+        table_name = os.environ.get('WORK_ITEMS_TABLE')
+        if table_name:
+            dynamodb = _get_dynamodb()
+            table = dynamodb.Table(table_name)
+            table.put_item(Item=work_item)
+        
+        queue_url = os.environ.get('WORK_QUEUE_URL')
+        if queue_url:
+            sqs = _get_sqs()
+            sqs.send_message(
+                QueueUrl=queue_url,
+                MessageBody=json.dumps(work_item),
+                MessageAttributes={
+                    'workType': {'StringValue': work_item['type'], 'DataType': 'String'},
+                    'agentId': {'StringValue': agent_id, 'DataType': 'String'}
+                }
+            )
+        
+        return {
+            'statusCode': 202,
+            'body': json.dumps({
+                'workId': work_item['workId'],
+                'status': 'QUEUED',
+                'requestId': request_id
+            })
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating work item: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Failed to create work item'})
+        }
+
+
+def _get_agent_work(event: Dict[str, Any], context: Any, agent_id: Optional[str], work_id: Optional[str]) -> Dict[str, Any]:
+    """Handle GET /api/agents/{agentId}/work/{workId} - Get work status."""
+    user_context = _extract_user_context(event)
+    
+    if not user_context['userId']:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': 'Unauthenticated'})
+        }
+    
+    if not agent_id or not work_id:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'Agent ID and Work ID required'})
+        }
+    
+    work = _get_work_item(work_id)
+    
+    if not work:
+        return {
+            'statusCode': 404,
+            'body': json.dumps({'error': 'Work not found'})
+        }
+    
+    if work.get('tenantId') != user_context['tenantId']:
+        return {
+            'statusCode': 403,
+            'body': json.dumps({'error': 'Access denied'})
+        }
+    
+    return {
+        'statusCode': 200,
+        'body': json.dumps(work)
+    }
+
+
 def _get_user_profile(user_id: str, tenant_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Get user profile from DynamoDB."""
     try:
@@ -295,6 +569,38 @@ def _get_agent_catalog() -> Dict[str, Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Unexpected error getting agent catalog: {e}")
         return {}
+
+
+def _get_entitlement_for_agent(user_id: str, agent_id: str, tenant_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Get entitlement for specific agent for user."""
+    try:
+        table_name = os.environ.get('ENTITLEMENTS_TABLE')
+        if not table_name:
+            logger.warning("ENTITLEMENTS_TABLE not configured")
+            return None
+        
+        dynamodb = _get_dynamodb()
+        table = dynamodb.Table(table_name)
+        
+        response = table.query(
+            KeyConditionExpression=Key('userId').eq(user_id)
+        )
+        
+        for item in response.get('Items', []):
+            if item.get('agentId') == agent_id:
+                if tenant_id and item.get('tenantId') != tenant_id:
+                    continue
+                if _is_entitlement_valid(item):
+                    return item
+        
+        return None
+        
+    except ClientError as e:
+        logger.error(f"Error getting entitlements: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error getting entitlements: {e}")
+        return None
 
 
 def _get_entitlements(user_id: str, tenant_id: Optional[str] = None) -> list:
@@ -357,6 +663,32 @@ def _is_entitlement_valid(entitlement: Dict[str, Any]) -> bool:
     return True
 
 
+def _get_work_item(work_id: str) -> Optional[Dict[str, Any]]:
+    """Get work item from DynamoDB."""
+    try:
+        table_name = os.environ.get('WORK_ITEMS_TABLE')
+        if not table_name:
+            logger.warning("WORK_ITEMS_TABLE not configured")
+            return None
+        
+        dynamodb = _get_dynamodb()
+        table = dynamodb.Table(table_name)
+        
+        response = table.get_item(Key={'workId': work_id})
+        
+        if 'Item' not in response:
+            return None
+        
+        return response['Item']
+        
+    except ClientError as e:
+        logger.error(f"Error getting work item: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error getting work item: {e}")
+        return None
+
+
 def _process_work_item(work_item: Dict[str, Any]) -> Dict[str, Any]:
     """Process a work item."""
     work_id = work_item.get('workId')
@@ -372,8 +704,6 @@ def _process_work_item(work_item: Dict[str, Any]) -> Dict[str, Any]:
 
 def _create_work(body: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
     """Create a new work item."""
-    import uuid
-    
     user_context = _extract_user_context(context) if isinstance(context, dict) else {}
     
     work_item = {
@@ -402,11 +732,19 @@ def _create_work(body: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any
 
 def _get_work(work_id: Optional[str], context: Dict[str, Any]) -> Dict[str, Any]:
     """Get work item status."""
+    work = _get_work_item(work_id) if work_id else None
+    
+    if not work:
+        return {
+            'statusCode': 404,
+            'body': json.dumps({'error': 'Work not found'})
+        }
+    
     return {
         'statusCode': 200,
         'body': json.dumps({
-            'workId': work_id,
-            'status': 'COMPLETED',
+            'workId': work.get('workId'),
+            'status': work.get('status', 'COMPLETED'),
             'result': {'message': 'Work completed'}
         })
     }

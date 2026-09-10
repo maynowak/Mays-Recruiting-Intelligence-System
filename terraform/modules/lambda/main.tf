@@ -89,8 +89,29 @@ resource "aws_iam_role_policy" "lambda_dynamodb_work" {
         ]
         Resource = [
           var.dynamodb_table_arn,
-          "${var.dynamodb_table_arn}/table/${var.dynamodb_table_name}/*",
-          var.dynamodb_table_arn
+          "${var.dynamodb_table_arn}/table/${var.dynamodb_table_arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_sqs_send" {
+  name = "${var.project_name}-${var.environment}-lambda-sqs-send"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:SendMessage",
+          "sqs:GetQueueAttributes"
+        ]
+        Resource = [
+          var.sqs_queue_arn,
+          var.work_queue_url != "" ? var.work_queue_url : "*"
         ]
       }
     ]
@@ -156,6 +177,7 @@ resource "aws_lambda_function" "agent" {
       USER_PROFILE_TABLE    = var.user_profile_table_name
       AGENT_CATALOG_TABLE   = var.agent_catalog_table_name
       ENTITLEMENTS_TABLE    = var.entitlements_table_name
+      WORK_QUEUE_URL        = var.work_queue_url
       LOG_LEVEL             = var.log_level
     }
   }

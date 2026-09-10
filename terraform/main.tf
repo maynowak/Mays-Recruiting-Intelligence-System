@@ -100,6 +100,7 @@ module "lambda" {
   entitlements_table_arn   = module.dynamodb.entitlements_table_arn
   s3_bucket_arn              = aws_s3_bucket.data.arn
   sqs_queue_arn              = module.sqs.work_queue_arn
+  work_queue_url             = module.sqs.work_queue_url
   api_arn                    = module.api.api_id
   tags                       = var.tags
 }
