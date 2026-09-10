@@ -23,8 +23,55 @@ resource "aws_iam_role" "lambda_execution" {
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
-resource "aws_iam_role_policy" "lambda_dynamodb" {
-  name = "${var.project_name}-${var.environment}-lambda-dynamodb"
+resource "aws_iam_role_policy" "lambda_dynamodb_platform" {
+  name = "${var.project_name}-${var.environment}-lambda-dynamodb-platform"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:BatchGetItem"
+        ]
+        Resource = [
+          var.user_profile_table_arn,
+          "${var.user_profile_table_arn}/index/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:BatchGetItem"
+        ]
+        Resource = [
+          var.agent_catalog_table_arn,
+          "${var.agent_catalog_table_arn}/index/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:BatchGetItem"
+        ]
+        Resource = [
+          var.entitlements_table_arn,
+          "${var.entitlements_table_arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_dynamodb_work" {
+  name = "${var.project_name}-${var.environment}-lambda-dynamodb-work"
   role = aws_iam_role.lambda_execution.id
 
   policy = jsonencode({
@@ -105,13 +152,17 @@ resource "aws_lambda_function" "agent" {
 
   environment {
     variables = {
-      WORK_ITEMS_TABLE = var.dynamodb_table_name
-      LOG_LEVEL        = var.log_level
+      WORK_ITEMS_TABLE      = var.dynamodb_table_name
+      USER_PROFILE_TABLE    = var.user_profile_table_name
+      AGENT_CATALOG_TABLE   = var.agent_catalog_table_name
+      ENTITLEMENTS_TABLE    = var.entitlements_table_name
+      LOG_LEVEL             = var.log_level
     }
   }
 
   depends_on = [
-    aws_iam_role_policy.lambda_dynamodb,
+    aws_iam_role_policy.lambda_dynamodb_platform,
+    aws_iam_role_policy.lambda_dynamodb_work,
     aws_iam_role_policy.lambda_s3,
     aws_iam_role_policy.lambda_logs,
     aws_cloudwatch_log_group.lambda_logs

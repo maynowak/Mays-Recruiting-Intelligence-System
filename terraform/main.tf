@@ -87,15 +87,21 @@ module "api" {
 module "lambda" {
   source = "./modules/lambda"
 
-  project_name        = var.project_name
-  environment         = var.environment
-  iam_role_arn        = module.iam.lambda_role_arn
-  lambda_config       = var.lambda_config
-  dynamodb_table_name = module.dynamodb.work_items_table_name
-  s3_bucket_arn       = aws_s3_bucket.data.arn
-  sqs_queue_arn       = module.sqs.work_queue_arn
-  api_arn             = module.api.api_id
-  tags                = var.tags
+  project_name               = var.project_name
+  environment                = var.environment
+  iam_role_arn               = module.iam.lambda_role_arn
+  lambda_config              = var.lambda_config
+  dynamodb_table_name        = module.dynamodb.work_items_table_name
+  user_profile_table_name    = module.dynamodb.user_profile_table_name
+  agent_catalog_table_name   = module.dynamodb.agent_catalog_table_name
+  entitlements_table_name    = module.dynamodb.entitlements_table_name
+  user_profile_table_arn     = module.dynamodb.user_profile_table_arn
+  agent_catalog_table_arn  = module.dynamodb.agent_catalog_table_arn
+  entitlements_table_arn   = module.dynamodb.entitlements_table_arn
+  s3_bucket_arn              = aws_s3_bucket.data.arn
+  sqs_queue_arn              = module.sqs.work_queue_arn
+  api_arn                    = module.api.api_id
+  tags                       = var.tags
 }
 
 resource "aws_s3_bucket" "data" {

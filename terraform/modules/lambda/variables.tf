@@ -32,6 +32,36 @@ variable "dynamodb_table_name" {
   type        = string
 }
 
+variable "user_profile_table_name" {
+  description = "DynamoDB table name for user profiles"
+  type        = string
+}
+
+variable "agent_catalog_table_name" {
+  description = "DynamoDB table name for agent catalog"
+  type        = string
+}
+
+variable "entitlements_table_name" {
+  description = "DynamoDB table name for entitlements"
+  type        = string
+}
+
+variable "user_profile_table_arn" {
+  description = "DynamoDB table ARN for user profiles"
+  type        = string
+}
+
+variable "agent_catalog_table_arn" {
+  description = "DynamoDB table ARN for agent catalog"
+  type        = string
+}
+
+variable "entitlements_table_arn" {
+  description = "DynamoDB table ARN for entitlements"
+  type        = string
+}
+
 variable "s3_bucket_arn" {
   description = "S3 bucket ARN for data storage"
   type        = string
