@@ -1,30 +1,15 @@
 openapi: 3.1.0
 info:
   title: JobSearch API
-  description: |
-    Standard API for searching job listings across multiple sources.
-    
-    This API provides a unified interface for job search that abstracts
-    away the specifics of individual job sources (APIs, scrapers, Apify actors, etc.)
-    
-    Version: 1.0.0 (API Contract Version)
-    OpenAPI Spec Version: 3.1.0
-    
+  description: Standard API for searching job listings across multiple sources
   version: 1.0.0
-  contact:
-    name: JobSearch Team
-  license:
-    name: MIT
 
 servers:
   - url: http://localhost:8000
-    description: Local development server
 
 tags:
   - name: jobs
     description: Job search and retrieval operations
-  - name: sources
-    description: Job source configuration and management
 
 paths:
   /v1/jobs/search:
@@ -32,11 +17,6 @@ paths:
       tags:
         - jobs
       summary: Search for jobs
-      description: |
-        Search for jobs across enabled sources.
-        
-        The API accepts a search request with query, location, and optional
-        filters. Results are normalized to a canonical job format.
       operationId: searchJobs
       requestBody:
         required: true
@@ -57,37 +37,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
   /v1/jobs/{jobId}:
     get:
       tags:
         - jobs
       summary: Get job by ID
-      description: Retrieve a specific job by its unique identifier.
       operationId: getJob
       parameters:
         - name: jobId
           in: path
           required: true
-          description: Job unique identifier
           schema:
             type: string
       responses:
@@ -97,19 +57,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Job'
-        '404':
-          description: Job not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
   /v1/sources:
     get:
       tags:
-        - sources
+        - jobs
       summary: List available sources
-      description: Get list of configured job sources.
       operationId: listSources
       responses:
         '200':
@@ -121,35 +74,13 @@ paths:
                 items:
                   $ref: '#/components/schemas/SourceInfo'
 
-  /v1/sources/{sourceId}:
-    get:
-      tags:
-        - sources
-      summary: Get source details
-      description: Get information about a specific source.
-      operationId: getSource
-      parameters:
-        - name: sourceId
-          in: path
-          required: true
-          description: Source identifier
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Source details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SourceInfo'
-        '404':
-          description: Source not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
 components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
   schemas:
     SearchRequest:
       type: object
@@ -158,46 +89,13 @@ components:
       properties:
         query:
           type: string
-          description: Search query (job title, keywords, skills, etc.)
-          example: "Python Developer"
         location:
           type: string
-          description: Location filter (city, region, country)
-          example: "Germany"
-        locationRadius:
-          type: string
-          description: Location radius (e.g., "10mi", "50km")
-          example: "10mi"
-        employmentType:
-          type: array
-          description: Filter by employment type
-          items:
-            type: string
-            enum: [full_time, part_time, contract, temporary, internship, volunteer]
-        salaryMin:
-          type: integer
-          description: Minimum salary filter
-        remoteOnly:
-          type: boolean
-          description: Filter for remote jobs only
-          default: false
         limit:
           type: integer
-          description: Maximum number of results
           minimum: 1
           maximum: 100
           default: 50
-        offset:
-          type: integer
-          description: Pagination offset
-          minimum: 0
-          default: 0
-        sources:
-          type: array
-          description: Specific sources to search (default: all)
-          items:
-            type: string
-          example: ["linkedin", "indeed"]
 
     SearchResponse:
       type: object
@@ -208,15 +106,6 @@ components:
             $ref: '#/components/schemas/Job'
         total:
           type: integer
-          description: Total number of jobs matching the query
-        query:
-          type: string
-          description: Original search query
-        sourcesQueried:
-          type: array
-          description: Sources that were queried
-          items:
-            type: string
 
     Job:
       type: object
@@ -231,70 +120,20 @@ components:
       properties:
         id:
           type: string
-          description: Unique job identifier (source-agnostic)
-          example: "job-12345"
         sourceJobId:
           type: string
-          description: Original job ID from source
-          example: "abc-123-def-456"
         source:
           type: string
-          description: Source identifier
-          example: "linkedin"
         title:
           type: string
-          description: Job title
-          example: "Senior Python Developer"
         company:
           type: string
-          description: Company name
-          example: "Tech Corp"
         location:
           type: string
-          description: Job location
-          example: "Berlin, Germany"
         url:
           type: string
-          format: uri
-          description: Apply URL
-          example: "https://example.com/jobs/123"
         description:
           type: string
-          description: Job description
-          example: "Exciting opportunity for a senior developer..."
-        employmentType:
-          type: string
-          enum: [full_time, part_time, contract, temporary, internship, volunteer, other]
-          description: Employment type
-          example: "full_time"
-        salary:
-          type: string
-          description: Salary information (formatted string)
-          example: "$80,000 - $120,000"
-        salaryCurrency:
-          type: string
-          description: Currency code
-          example: "USD"
-        salaryMin:
-          type: integer
-          description: Minimum salary
-          example: 80000
-        salaryMax:
-          type: integer
-          description: Maximum salary
-          example: 120000
-        remote:
-          type: boolean
-          description: Is this a remote job?
-        requiredExperience:
-          type: string
-          description: Required experience level
-          example: "5+ years"
-        publishedAt:
-          type: string
-          format: date-time
-          description: Job publication date
-          example: "2024-01-15T10:30:00Z"
 
     SourceInfo:
       type: object
@@ -305,51 +144,16 @@ components:
       properties:
         id:
           type: string
-          description: Source identifier
-          example: "linkedin"
         name:
           type: string
-          description: Human-readable name
-          example: "LinkedIn Jobs"
         active:
           type: boolean
-          description: Whether source is available
-          example: true
-        capabilities:
-          type: array
-          description: Available capabilities
-          items:
-            type: string
-          example: ["search"]
-        lastUpdated:
-          type: string
-          format: date-time
-          description: Last synchronization timestamp
 
     ErrorResponse:
       type: object
       properties:
         error:
           type: object
-          properties:
-            code:
-              type: string
-              description: Error code
-              example: "VALIDATION_ERROR"
-            message:
-              type: string
-              description: Error message
-              example: "Invalid request parameter"
-            details:
-              type: object
-              description: Additional error details
 
 security:
   - ApiKeyAuth: []
-
-components:
-  securitySchemes:
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: X-API-Key
