@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mays-recursive-investment.com/schemas/jobsearch-request.json",
+  "title": "JobSearchRequest",
+  "description": "Request schema for job search",
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Search query (job title, keywords, skills, etc.)",
+      "minLength": 1,
+      "examples": ["Python Developer", "Machine Learning Engineer"]
+    },
+    "location": {
+      "type": "string",
+      "description": "Location filter (city, region, country)",
+      "examples": ["Germany", "Berlin", "Remote"]
+    },
+    "locationRadius": {
+      "type": "string",
+      "description": "Location radius (e.g., '10mi', '50km')",
+      "pattern": "^[0-9]+(mi|km)$"
+    },
+    "employmentType": {
+      "type": "array",
+      "description": "Filter by employment type",
+      "items": {
+        "type": "string",
+        "enum": ["full_time", "part_time", "contract", "temporary", "internship", "volunteer"]
+      }
+    },
+    "salaryMin": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Minimum salary filter"
+    },
+    "remoteOnly": {
+      "type": "boolean",
+      "description": "Filter for remote jobs only",
+      "default": false
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 50,
+      "description": "Maximum number of results to return"
+    },
+    "offset": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Pagination offset for results"
+    },
+    "sources": {
+      "type": "array",
+      "description": "Specific sources to search (default: all sources)",
+      "items": {
+        "type": "string",
+        "description": "Source identifier"
+      },
+      "examples": [["linkedin", "indeed"], ["apify-actors"]]
+    }
+  },
+  "required": ["query"],
+  "additionalProperties": false
+}
