@@ -58,7 +58,7 @@ class AgentExecutor:
             )
 
         try:
-            result = handler(work_item, context.get_context_dict())
+            result = handler(work_item)
             
             duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
             
