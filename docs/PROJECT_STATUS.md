@@ -11,9 +11,10 @@ Ground Zero — Mays Recruiting Intelligence System
 ├── G0.3 — ✅ COMPLETE (Development/Testing Strategy)
 ├── G0.4 — ✅ COMPLETE (Agent API + May's Orders Integration Boundary)
 ├── G0.5 — ✅ COMPLETE (Reference Agent + Agent Runtime)
-└── G2.5 — ✅ COMPLETE (Agent Body Integration Harness)
+├── G2.5 — ✅ COMPLETE (Agent Body Integration Harness)
+└── G2.7 — ✅ COMPLETE (Worker → Agent Body Runtime Wiring)
 
-Next: G2.7 — Worker → Agent Body Runtime Wiring
+Next: Ecosystem Integration (May's Orders, MicroVM, API Keys)
 ```
 
 ## Completion Status
@@ -62,6 +63,18 @@ Successfully implemented and verified:
 - Full integration path: WorkItem → Agent Body → Reference Agent
 - All tests passing
 - Handler signature compatible with AgentBase
+
+### G2.7: Worker → Agent Body Runtime Wiring
+- **Status**: ✅ COMPLETE
+- **Date**: 2026-09-12
+- **Commit**: d5092bc
+
+Successfully implemented:
+- Lambda handler now imports and uses Agent Body
+- `_process_work_item()` calls `AgentBody.execute()`
+- Graceful fallback mode when Agent Body unavailable
+- Result includes workId, workType, status, agentType
+- Full execution path: SQS → Worker → Agent Body → Domain Agent
 
 ## Architecture Overview
 

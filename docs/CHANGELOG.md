@@ -5,6 +5,17 @@ All notable changes to the Ground Zero platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [G2.7] - 2026-09-12
+
+### Added
+- Worker Lambda now uses Agent Body executor
+- `_process_work_item()` calls AgentBody.execute()
+- Graceful fallback mode for deployment safety
+- Result includes workId, workType, status, agentType
+
+### Changed
+- Wired Agent Body into the SQS work processing flow
+
 ## [G0.5] - 2026-09-10
 
 ### Added
