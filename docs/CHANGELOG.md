@@ -5,6 +5,18 @@ All notable changes to the Ground Zero platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [G2.8] - 2026-09-13
+
+### Added
+- InvocationContract for agent-to-agent calls
+- AgentInvoker class for execution
+- invoke_agent() convenience function
+- SYNC/ASYNC mode support
+- Parent work ID for traceability
+
+### Changed
+- Added agent invocation abstraction to Agent Body
+
 ## [G2.7] - 2026-09-12
 
 ### Added

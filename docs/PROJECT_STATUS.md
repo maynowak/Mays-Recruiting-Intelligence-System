@@ -12,7 +12,8 @@ Ground Zero — Mays Recruiting Intelligence System
 ├── G0.4 — ✅ COMPLETE (Agent API + May's Orders Integration Boundary)
 ├── G0.5 — ✅ COMPLETE (Reference Agent + Agent Runtime)
 ├── G2.5 — ✅ COMPLETE (Agent Body Integration Harness)
-└── G2.7 — ✅ COMPLETE (Worker → Agent Body Runtime Wiring)
+├── G2.7 — ✅ COMPLETE (Worker → Agent Body Runtime Wiring)
+└── G2.8 — ✅ COMPLETE (Agent Invocation / Processing Foundation)
 
 Next: Ecosystem Integration (May's Orders, MicroVM, API Keys)
 ```
@@ -75,6 +76,20 @@ Successfully implemented:
 - Graceful fallback mode when Agent Body unavailable
 - Result includes workId, workType, status, agentType
 - Full execution path: SQS → Worker → Agent Body → Domain Agent
+
+### G2.8: Agent Invocation / Processing Foundation
+- **Status**: ✅ COMPLETE
+- **Date**: 2026-09-13
+- **Commit**: 06ace23
+
+Successfully implemented:
+- `InvocationContract` class for agent-to-agent invocations
+- `AgentInvoker` class for executing invocations
+- `invoke_agent()` convenience function
+- SYNC and ASYNC mode support
+- Parent work ID for traceability
+- Integration with Agent Body execution pipeline
+- No new infrastructure required
 
 ## Architecture Overview
 
