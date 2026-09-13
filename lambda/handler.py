@@ -18,6 +18,16 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
 import boto3
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from agents.agent_body import AgentBody
+    AGENT_BODY = AgentBody()
+    AGENT_BODY_AVAILABLE = True
+except ImportError:
+    AGENT_BODY_AVAILABLE = False
+    AGENT_BODY = None
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key
 
@@ -690,16 +700,49 @@ def _get_work_item(work_id: str) -> Optional[Dict[str, Any]]:
 
 
 def _process_work_item(work_item: Dict[str, Any]) -> Dict[str, Any]:
-    """Process a work item."""
+    """Process a work item through the Agent Body pipeline."""
     work_id = work_item.get('workId')
     work_type = work_item.get('type')
     
     logger.info(f"Processing work item: {work_id}, type: {work_type}")
     
-    return {
-        'success': True,
-        'message': 'Work processed successfully'
-    }
+    if AGENT_BODY_AVAILABLE and AGENT_BODY is not None:
+        try:
+            result = AGENT_BODY.execute(work_item)
+            
+            result.setdefault('workId', work_id)
+            result.setdefault('workType', work_type)
+            
+            status = 'COMPLETED' if result.get('success') else 'FAILED'
+            result['status'] = status
+            result['agentType'] = work_item.get('agentId', 'unknown')
+            
+            logger.info(f"Work item {work_id} processed: {status}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Agent Body execution error for {work_id}: {e}")
+            return {
+                'success': False,
+                'workId': work_id,
+                'workType': work_type,
+                'error': {
+                    'message': str(e),
+                    'type': type(e).__name__
+                },
+                'metrics': {
+                    'durationMs': 0,
+                    'workId': work_id,
+                    'status': 'FAILED'
+                }
+            }
+    else:
+        logger.warning("Agent Body not available, using fallback processing")
+        return {
+            'success': True,
+            'message': 'Work processed (fallback mode)',
+            'workId': work_id
+        }
 
 
 def _create_work(body: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
