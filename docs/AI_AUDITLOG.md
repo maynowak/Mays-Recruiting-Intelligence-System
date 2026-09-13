@@ -1,6 +1,6 @@
-==================================================
+=================================================
 EXECUTION LOG / CRASH RECOVERY — MANDATORY
-==================================================
+=================================================
 
 Maintain a current execution log throughout the audit:
 
@@ -43,3 +43,70 @@ At the end, finalize the log with the complete audit summary.
 IMPORTANT:
 The execution log itself is part of the audit workflow and must be
 kept accurate even if the audit remains completely read-only.
+
+=================================================
+CHECKPOINT: 2026-09-12 — Agent Body Integration
+=================================================
+
+## CURRENT STATUS
+
+**Task**: Agent Body Integration Harness (S2.5)
+**Date**: 2026-09-12
+**Git Branch**: master
+**Git HEAD**: f6b38de
+
+## VERIFIED STATE
+
+### Agent Body Components
+| Component | File | Status |
+|-----------|------|--------|
+| Router | router.py | ✅ VERIFIED |
+| Context | context.py | ✅ VERIFIED |
+| Executor | executor.py | ✅ VERIFIED |
+| Result Handler | result.py | ✅ VERIFIED |
+| Monitor | monitor.py | ✅ VERIFIED |
+
+### Integration Tests
+All tests pass with ReferenceAgent:
+- ✅ Routing by work_type, capability, agentId
+- ✅ Context field extraction and validation
+- ✅ Executor lifecycle (validate → route → execute)
+- ✅ Result format correctness
+- ✅ End-to-end integration
+
+### No Duplicate Infrastructure
+- Agent Body uses existing Ground Zero SQS, DynamoDB, Lambda
+- Adds routing and orchestration layer only
+- NO duplicate idempotency, retry, or DLQ logic
+
+### Worker → Agent Body Boundary
+NOT YET IMPLEMENTED - Worker Lambda still has stub `_process_work_item()`.
+
+### May's Orders Boundary
+Documented as separate system - Agent cannot depend on it.
+
+## FILES CHANGED
+
+- docs/architecture/agent-body-runtime-guide.md (NEW)
+- docs/PROJECT_STATUS.md (UPDATED)
+- docs/CHANGELOG.md (UPDATED)
+- agents/agent_body/*.py (IMPLEMENTED)
+- tests/test_agent_body.py (IMPLEMENTED)
+
+## GIT STATUS
+
+```
+On branch master
+nothing to commit, working tree clean
+```
+
+## MORE WORK
+
+Next step: Worker → Agent Body Runtime Wiring (S2.7)
+- Update lambda/handler.py _process_work_item()
+- Wire Agent Body Executor
+- Enable E2E SQS processing
+
+===
+STATUS: GREEN — Documentation Complete
+RESUME: Worker → Agent Body Runtime Wiring
