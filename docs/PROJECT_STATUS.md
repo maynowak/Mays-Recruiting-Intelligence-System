@@ -250,12 +250,59 @@ Work items are tracked in DynamoDB with:
 | May's Orders integration | Medium | External system coordination |
 | Production deployment | High | Required AWS setup |
 
-## Next Steps
+## Documentation Baseline (S2.16-DOC)
 
-1. ✅ Agent Body architecture documented
-2. ✅ Agent Body tested with ReferenceAgent
-3. ⏳ Worker Lambda → Agent Body integration
-4. ⏳ May's Orders API integration
-5. ⏳ Full E2E SQS processing flow test
+### REPOSITORY ARCHITECTURE
+
+✅ **ARCHITECTURE.md** — Central architecture overview created
+
+Documented:
+- Overall system architecture
+- Component boundaries and ownership
+- Integration points and contracts
+- Current vs planned vs future state
+
+### TEAM COLLABORATION
+
+✅ **TEAM_COLLABORATION.md** — Cross-team collaboration model
+
+Documented:
+- Team responsibilities matrix
+- Integration contracts
+- Ownership boundaries
+
+### INTEGRATION BOUNDARIES
+
+✅ **INTEGRATION_BOUNDARIES.md** — System interfaces
+
+Documented:
+- Auth boundary (Cognito)
+- API boundary (MaysJobsearchApi)
+- Work system boundary (SQS)
+- Agent execution boundary
+- Agent invocation boundary
+- OrdersPort boundary
+- Future May's Orders connector boundary
+
+### CURRENT STATUS SUMMARY
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Ground Zero Platform | ✅ COMPLETE | G0.1-G0.5 |
+| Agent Body Runtime | ✅ COMPLETE | G2.5, G2.7, G2.8 |
+| Agent Ecosystem | ✅ COMPLETE | G2.9 |
+| Dev Orders Adapter | ✅ COMPLETE | S2.13 |
+| IAM Governance | ✅ VERIFIED | S2.16 |
+| Documentation | ✅ COMPLETE | S2.16-DOC |
+
+### NEXT STEPS
+
+1. ⏳ Review documentation baseline
+2. ⏳ Confirm integration contracts
+3. ⏳ Ready for May's Orders connector (when external)
+
+---
+
+**Status: GREEN** — Documentation baseline established. Ready for technical integration work.
 
 ---
