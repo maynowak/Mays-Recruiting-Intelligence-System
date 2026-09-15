@@ -301,8 +301,67 @@ Documented:
 2. ⏳ Confirm integration contracts
 3. ⏳ Ready for May's Orders connector (when external)
 
+## API Documentation Milestone (S2.17-DOC)
+
+### DOCUMENTS CREATED
+
+✅ **docs/API/API_DOCUMENTATION_STANDARD.md** — Reusable template for all API documentation
+
+✅ **docs/API/PLATFORM_FRONTEND_INTEGRATION.md** — Binding contract for JobSearch integration:
+- Login/Cognito boundary specification
+- `/me` endpoint contract
+- `/me/profile` endpoint contract
+- `/agents` endpoint contract
+- Agent execution workflow
+
+### CONTRACT VERIFICATION
+
+| Endpoint | Auth | Status | Location |
+|----------|------|--------|----------|
+| `/me` | JWT | ✅ Implemented | lambda/handler.py:183-201 |
+| `/me/profile` | JWT | ✅ Implemented | lambda/handler.py:204-225 |
+| `/agents` | JWT | ✅ Implemented | lambda/handler.py:228-264 |
+| Agent Execution | JWT | ❌ In Code | Not documented as contract yet |
+
+### PLATFORM API Read Operations
+
+All read-only operations are:
+- **SYNCHRONOUS** HTTP/JSON
+- **SECURED** by JWT authentication
+- **TENANT-ISOLATED** by server-side filtering
+
+### Job Search Integration Path
+
+```
+JobSearch Frontend
+    ↓ HTTPS
+Platform API (/me, /me/profile, /agents)
+    ↓ JWT Validated
+Cognito
+    ↓ Authenticated User
+```
+
+### API Documentation Standard
+
+**Goal**: Enable any developer to understand and use the API without knowing internal AWS details.
+
+**Key Principles**:
+- Auth via Cognito JWT at boundary
+- No direct AWS service access from frontend
+- Sync operations return immediate response
+- Async operations use work item pattern
+
 ---
 
-**Status: GREEN** — Documentation baseline established. Ready for technical integration work.
+### NEXT STEPS
+
+1. ✅ API documentation contract established
+2. ⏳ Create OpenAPI 3.0 specification from contract
+3. ⏳ Add contract tests for verification
+4. ⏳ JobSearch implementation using contracts
+
+---
+
+**Status: GREEN** — API contracts documented and ready for use.
 
 ---
