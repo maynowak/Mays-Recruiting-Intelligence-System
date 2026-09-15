@@ -269,3 +269,55 @@ CHECKPOINT: 2026-09-18 — Git Migration Execution
 - Working tree: CLEAN
 
 ================================================
+
+================================================
+CHECKPOINT: 2026-09-15 — API Documentation Standard
+
+## TASK
+Standardize API documentation for Platform-Frontend integration.
+
+## CONTEXT
+JobSearch frontend needs clear contract for integration with:
+- Login / Cognito
+- Platform API (/me, /me/profile, /agents)
+- Agent execution workflow
+
+## ARCHITECTURE VERIFICATION
+All referenced documents exist:
+- docs/ARCHITECTURE.md ✓
+- docs/INTEGRATION_BOUNDARIES.md ✓
+- docs/PROJECT_STATUS.md ✓
+- lambda/handler.py implements required endpoints ✓
+
+## CONTRACT
+Created:
+- docs/API/API_DOCUMENTATION_STANDARD.md — Reusable API documentation template
+- docs/API/PLATFORM_FRONTEND_INTEGRATION.md — Binding contract for JobSearch
+
+## VERIFICATION
+- Authentication: JWT via Cognito ✓
+- /me: Implemented in handler.py:183-201 ✓
+- /me/profile: Implemented in handler.py:204-225 ✓
+- /agents: Implemented in handler.py:228-264 ✓
+- Admin escapes: None found
+
+## TESTS
+No tests implemented (documentation only - per instructions)
+
+## GIT STATE
+- Working tree: CLEAN
+- Commit: efd2530
+- No remote changes
+
+## RISKS
+- Future implementation needs to use these contracts
+- OpenAPI spec remains to be created
+
+## OPEN POINTS
+- Create OpenAPI 3.0 spec from contract
+- Add contract tests for verification
+
+## NEXT STEP
+Document recommendations for creating OpenAPI specification from this contract.
+
+================================================
