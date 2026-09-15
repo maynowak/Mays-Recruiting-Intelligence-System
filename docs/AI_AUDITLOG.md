@@ -373,3 +373,59 @@ CloudTrail and CloudWatch modules exist but need documentation.
 Create OpenAPI specification from API contract.
 
 ================================================
+
+================================================
+CHECKPOINT: 2026-09-18 — Backup Architecture Foundation
+
+## TASK
+Define backup and recovery architecture for Cognito and platform data.
+
+## CURRENT STATE
+- CloudTrail: IMPLEMENTED with S3 bucket
+- DynamoDB: PITR enabled for all tables
+- Cognito: Config in Terraform, users managed by AWS
+
+## ARCHITECTURE
+
+### Backup Scope
+
+**Tier 1 - Identity (Cognito)**:
+- Exportable: Pool config, groups, clients, domain
+- Non-exportable: Passwords (AWS-managed), sessions
+
+**Tier 2 - Platform Data**:
+- User Profile: PITR enabled
+- Entitlements: PITR enabled
+- Agent Catalog: PITR enabled
+
+**Tier 3 - Audit**:
+- CloudTrail: Multi-region, validated
+
+## DECISIONS
+
+1. PITR for DynamoDB (already configured)
+2. No user export from Cognito (AWS limitation)
+3. Password recovery via Cognito admin flow
+4. Staff auto-provisioned via Terraform
+
+## CHANGES
+- docs/BACKUP_ARCHITECTURE.md created
+- docs/reports/BACKUP-01-IDENTITY-PLATFORM.md created
+
+## VALIDATION
+- terraform validate: N/A (no code changes)
+- Terraform config checked manually
+- Git status: CLEAN after commit
+
+## RISKS
+- User recovery requires Cognito expertise
+- No automated restore testing
+
+## OPEN POINTS
+- S3 bucket versioning for CloudTrail
+- KMS encryption for audit bucket
+- Backup manifest structure
+- Retention period policy
+
+## NEXT STEP
+Create restore test procedure.
