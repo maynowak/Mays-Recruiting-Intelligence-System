@@ -321,3 +321,55 @@ No tests implemented (documentation only - per instructions)
 Document recommendations for creating OpenAPI specification from this contract.
 
 ================================================
+
+================================================
+CHECKPOINT: 2026-09-15 — Audit & Monitoring Foundation
+
+## TASK
+Create audit and monitoring documentation for Ground Zero.
+
+## CONTEXT
+CloudTrail and CloudWatch modules exist but need documentation.
+
+## ARCHITECTURE ANALYSIS
+
+### CloudTrail Status
+- ✅ EXISTS in terraform/modules/cloudtrail/main.tf
+- S3 Bucket: Account-scoped, encrypted, public access blocked
+- Multi-region: Enabled
+- Log file validation: Enabled
+- Management events: Captured
+
+### CloudWatch Status
+- ✅ EXISTS in terraform/modules/monitoring/main.tf
+- Dashboard: Created
+- Alarms: 6 alarms for API, Lambda, DynamoDB
+- Metrics: Standard AWS metrics
+
+### Issue: Alarm Naming
+**CLAIM**: "api_5xx alarm uses 5XXError metric"  
+**ANALYSIS**: This is CORRECT, not an error. The alarm is named for the metric it monitors.
+
+## DECISIONS
+- SSE-S3 is appropriate (cost-effective, AWS-managed)
+- Data events skipped (no need, high cost)
+- No alert notifications needed (not in scope)
+- Single dashboard sufficient
+
+## CHANGES
+- docs/AUDIT_MONITORING_ARCHITECTURE.md created
+- docs/reports/AUDIT-MONITORING-01-CLOUDTRAIL-CLOUDWATCH.md created
+
+## VALIDATION
+- terraform fmt -check: PASSED
+- terraform validate: PASSED
+- Git status: CLEAN
+
+## RISKS
+- CloudWatch integration for CloudTrail: FUTURE
+- Dashboard segregation: NOT REQUIRED
+
+## NEXT STEP
+Create OpenAPI specification from API contract.
+
+================================================
