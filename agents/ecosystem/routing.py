@@ -223,3 +223,108 @@ class QueryRouter:
         )
         
         return self.router.select(candidates)
+
+
+class ExecutionEngine:
+    """
+    Executes agents based on routing decisions.
+    
+    Bridges RoutingDecision -> InvocationContract -> AgentInvoker -> AgentBody
+    
+    This layer:
+    - Takes RoutingDecision as input
+    - Creates InvocationContract with preserved context
+    - Uses AgentInvoker to execute through AgentBody
+    - Returns execution result
+    
+    Does NOT:
+    - Select agents (routing already done)
+    - Skip eligibility checks
+    - Execute without a valid decision
+    """
+    
+    def __init__(self, invoker=None, agent_body=None):
+        """
+        Initialize the execution engine.
+        
+        Args:
+            invoker: AgentInvoker instance (created if not provided)
+            agent_body: AgentBody instance for custom invoker
+        """
+        if invoker:
+            self.invoker = invoker
+        else:
+            from agents.agent_body.invocation import AgentInvoker
+            self.invoker = AgentInvoker(agent_body)
+    
+    def execute_from_decision(
+        self,
+        decision: RoutingDecision,
+        processing_envelope: 'ProcessingEnvelope',
+        override_capability: Optional[str] = None
+    ) -> dict:
+        """
+        Execute an agent based on routing decision.
+        
+        Args:
+            decision: RoutingDecision from AgentRouter
+            processing_envelope: Original envelope for context
+            override_capability: Optional capability to use instead of envelope
+            
+        Returns:
+            Result dictionary from agent execution
+            
+        Raises:
+            ValueError: If decision is invalid or None
+        """
+        if decision is None:
+            raise ValueError("Cannot execute: RoutingDecision is None")
+        
+        if not decision.agent_id:
+            raise ValueError("Cannot execute: agent_id is None in decision")
+        
+        capability = override_capability or processing_envelope.input.get('capability')
+        
+        from agents.agent_body.invocation import InvocationContract
+        
+        contract = InvocationContract(
+            target_agent_id=decision.agent_id,
+            capability=capability,
+            payload=processing_envelope.input,
+            parent_work_id=processing_envelope.processing_id,
+            tenant_id=processing_envelope.tenant_id,
+            mode=InvocationContract.SYNC
+        )
+        
+        logger.info(
+            f"Executing agent {decision.agent_id} "
+            f"[envelope: {processing_envelope.processing_id}, "
+            f"capability: {capability}]"
+        )
+        
+        result = self.invoker.invoke(contract)
+        
+        result['agent_id'] = decision.agent_id
+        result['routing_reason'] = decision.reason
+        
+        return result
+
+
+def execute_routing_decision(
+    decision: RoutingDecision,
+    processing_envelope: 'ProcessingEnvelope',
+    invoker=None
+) -> dict:
+    """
+    Convenience function to execute a routing decision.
+    
+    Args:
+        decision: RoutingDecision from router
+        processing_envelope: Original envelope for context
+        invoker: Optional custom invoker
+        
+    Returns:
+        Agent execution result
+    """
+    engine = ExecutionEngine(invoker=invoker)
+    return engine.execute_from_decision(decision, processing_envelope)
