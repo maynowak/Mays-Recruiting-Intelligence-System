@@ -468,3 +468,45 @@ Bridge DynamoDB agent_catalog to AgentRegistry for persistent agent discovery.
 
 ## NEXT STEP
 Integrate with Lambda initialization.
+
+================================================
+CHECKPOINT: 2026-09-15 — Runtime Registry Integration
+
+## TASK
+Integrate CatalogAdapter with Lambda runtime for registry lifecycle.
+
+## CURRENT STATE
+- CatalogAdapter: Created in AGENT-REG-02
+- AgentRegistry: In-memory (not populated in production)
+- Lambda Handler: Has module-level AgentBody init
+
+## ARCHITECTURE
+
+### Lambda Cold Start
+1. Module import
+2. AgentBody() created (global)
+3. Router initialized (empty)
+4. Handler ready
+
+### Needed Integration
+
+
+## DECISIONS
+- Use lazy initialization (first request populates)
+- Keep existing _get_agent_catalog() as fallback
+- Document lifecycle in Runtime Registry Integration guide
+
+## CHANGES
+- docs/RUNTIME_REGISTRY_INTEGRATION.md created
+
+## VALIDATION
+- Check lambda/handler.py initialization pattern
+- Check agent_body/__init__.py for integration points
+
+## RISKS
+- Cold start adds 100-500ms for DynamoDB scan
+- Registry not populated without explicit integration
+
+## NEXT STEP
+Implement integration in Lambda handler.
+
