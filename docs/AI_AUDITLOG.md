@@ -429,3 +429,42 @@ Define backup and recovery architecture for Cognito and platform data.
 
 ## NEXT STEP
 Create restore test procedure.
+
+================================================
+CHECKPOINT: 2026-09-15 — Agent Registry Adapter
+
+## TASK
+Bridge DynamoDB agent_catalog to AgentRegistry for persistent agent discovery.
+
+## CURRENT STATE
+- agent_catalog: DynamoDB table (implemented)
+- AgentRegistry: In-memory (implemented but not populated)
+- _get_agent_catalog(): Returns plain dict (implemented in Lambda)
+
+## IMPLEMENTATION
+- Created CatalogAdapter in agents/ecosystem/catalog_adapter.py
+- Converts DynamoDB items to AgentDescriptor
+- Provides populate_registry_from_catalog()
+- Updated ecosystem __init__.py exports
+
+## DECISIONS
+- Adapter reads from DynamoDB directly (not modify existing _get_agent_catalog)
+- Lazy loading for DynamoDB
+- Error handling for missing fields
+
+## CHANGES
+- Created: agents/ecosystem/catalog_adapter.py
+- Modified: agents/ecosystem/__init__.py
+- Created: docs/reports/AGENT-REG-02-CATALOG-ADAPTER.md
+
+## VALIDATION
+- Code follows existing patterns
+- Uses boto3 for DynamoDB
+- Compatible with AgentDescriptor dataclass
+
+## RISKS
+- Lambda cold start may need warm-up for catalog
+- No caching strategy yet
+
+## NEXT STEP
+Integrate with Lambda initialization.
