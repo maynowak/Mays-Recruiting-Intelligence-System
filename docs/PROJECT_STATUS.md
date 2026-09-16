@@ -19,6 +19,7 @@ Ground Zero — Mays Recruiting Intelligence System
 ├── AGENT-REG-02 — ✅ COMPLETE (CatalogAdapter)
 ├── AGENT-REG-03 — ✅ COMPLETE (Runtime Registry Integration)
 └── AGENT-HOOK-01 — ✅ COMPLETE (Event Hook & ProcessingEnvelope)
+├── AGENT-HOOK-02 — ✅ COMPLETE (Discovery & Eligibility Pipeline)
 
 Next: Ecosystem Integration (May's Orders, MicroVM, API Keys)
 ```
