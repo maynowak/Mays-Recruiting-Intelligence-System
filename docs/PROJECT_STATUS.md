@@ -14,7 +14,11 @@ Ground Zero — Mays Recruiting Intelligence System
 ├── G2.5 — ✅ COMPLETE (Agent Body Integration Harness)
 ├── G2.7 — ✅ COMPLETE (Worker → Agent Body Runtime Wiring)
 ├── G2.8 — ✅ COMPLETE (Agent Invocation / Processing Foundation)
-└── G2.9 — ✅ COMPLETE (Agent Ecosystem Foundation)
+├── G2.9 — ✅ COMPLETE (Agent Ecosystem Foundation)
+├── AGENT-REG-01 — ✅ COMPLETE (Registry Architecture)
+├── AGENT-REG-02 — ✅ COMPLETE (CatalogAdapter)
+├── AGENT-REG-03 — ✅ COMPLETE (Runtime Registry Integration)
+└── AGENT-HOOK-01 — ✅ COMPLETE (Event Hook & ProcessingEnvelope)
 
 Next: Ecosystem Integration (May's Orders, MicroVM, API Keys)
 ```
