@@ -635,3 +635,57 @@ No routing, no ranking, no selection.
 Integrate Event Hook pipeline into Lambda handler for event processing.
 
 ===============================================
+CHECKPOINT: 2026-09-16 — Agent Routing Foundation
+
+## TASK
+Implement routing layer to select a single agent from eligible candidates.
+
+## IMPLEMENTED
+
+### AGENT-ROUTING-01 Components
+
+1. **AgentRouter** - Selects ONE agent from candidates
+2. **RoutingDecision** - Result dataclass with agent_id, agent, reason, confidence
+3. **SelectionStrategy** - First match, last match, future extensible patterns
+4. **QueryRouter** - Convenience for capability-based routing
+
+## PIPELINE
+
+```
+ProcessingEnvelope
+      ↓
+AgentDiscovery
+      ↓
+EligibilityPipeline
+      ↓
+Eligible Candidates [A, B, C]
+      ↓
+AgentRouter
+      ↓
+RoutingDecision (single winner)
+```
+
+## FILES MODIFIED
+
+- agents/ecosystem/routing.py (created)
+- agents/ecosystem/__init__.py (added exports)
+
+## TESTS
+
+- tests/test_routing.py (10 tests, all passing)
+
+## VALIDATION
+
+- [x] Router selects from candidates
+- [x] Returns single winner
+- [x] No ranking algorithm
+- [x] No agent execution
+- [x] Multiple candidates handled
+- [x] Custom strategy supported
+- [x] Tests passing
+
+## NEXT STEP
+
+Integrate Router into Lambda handler for event processing.
+
+===============================================
