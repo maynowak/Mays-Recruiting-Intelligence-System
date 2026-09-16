@@ -510,3 +510,60 @@ Integrate CatalogAdapter with Lambda runtime for registry lifecycle.
 ## NEXT STEP
 Implement integration in Lambda handler.
 
+===============================================
+CHECKPOINT: 2026-09-16 — Agent Event Hook
+
+## TASK
+Implement Event Hook and ProcessingEnvelope for event-to-ecosystem integration.
+
+## CURRENT STATE
+- Event Hook: Created in AGENT-HOOK-01
+- ProcessingEnvelope: Implemented with identity separation
+- TriggerType: All 9 types supported
+- Event: Validated, normalized, mapped to envelope
+
+## ARCHITECTURE
+
+### Event → ProcessingEnvelope Flow
+
+1. Event received from external source
+2. EventHook.validate() - checks required fields
+3. EventHook.normalize() - standardizes format
+4. EventHook.create_processing_envelope() - creates internal representation
+5. Envelope ready for Discovery/Eligibility
+
+### Identity Separation
+
+| Level | Field | Example |
+|-------|-------|---------|
+| Order | order_id | ORDER-123 |
+| Processing | processing_id | PROC-456 |
+| Execution | execution_id | EXEC-789 |
+| Attempt | attempt_id | ATT-001 |
+
+## IMPLEMENTATION
+
+### Files Created
+- agents/ecosystem/event_hook.py
+
+### Files Modified
+- agents/ecosystem/__init__.py (added exports)
+
+### Tests
+- tests/test_event_hook.py (18 tests, all passing)
+
+## VALIDATION
+- [x] Event created with required fields
+- [x] Event validation rejects missing fields
+- [x] ProcessingEnvelope identity separation
+- [x] Trigger types validated
+- [x] Tenant context preserved
+- [x] No routing implemented
+- [x] No SQS implemented
+- [x] No May's Orders integration
+
+## NEXT STEP
+Integrate Event Hook into Lambda handler for event processing workflow.
+
+===============================================
+
