@@ -14,6 +14,7 @@ from agents.ecosystem.eligibility import EligibilityCheck, check_eligibility, El
 from agents.ecosystem.chain import ProcessingChain, ChainExecutor, ChainStep
 from agents.ecosystem.catalog_adapter import CatalogAdapter, populate_registry_from_catalog
 from agents.ecosystem.event_hook import Event, ProcessingEnvelope, EventHook, TriggerType, create_processing_envelope_from_event
+from agents.ecosystem.routing import AgentRouter, RoutingDecision, SelectionStrategy, QueryRouter
 
 __all__ = [
     'AgentRegistry',
@@ -37,6 +38,10 @@ __all__ = [
     'EventHook',
     'TriggerType',
     'create_processing_envelope_from_event',
+    'AgentRouter',
+    'RoutingDecision',
+    'SelectionStrategy',
+    'QueryRouter',
 ]
 
 
