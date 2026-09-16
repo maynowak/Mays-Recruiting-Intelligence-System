@@ -28,6 +28,48 @@ try:
 except ImportError:
     AGENT_BODY_AVAILABLE = False
     AGENT_BODY = None
+
+# Initialize agent catalog registry from DynamoDB
+try:
+    from agents.ecosystem.catalog_adapter import CatalogAdapter
+    from agents.ecosystem.registry import get_registry, AgentDescriptor, AgentStatus, ExecutionProfile
+    
+    _catalog_adapter = CatalogAdapter()
+    _catalog_agents = _catalog_adapter.get_all_agents()
+    _registry = get_registry()
+    
+    for _agent_id, _agent_data in _catalog_agents.items():
+        # Map DynamoDB item to AgentDescriptor
+        _status_str = _agent_data.get('status', 'ACTIVE')
+        _status_map = {
+            'ACTIVE': AgentStatus.ACTIVE,
+            'INACTIVE': AgentStatus.INACTIVE,
+            'DEPRECATED': AgentStatus.DEPRECATED,
+            'RETIRED': AgentStatus.RETIRED,
+            'FAILED': AgentStatus.FAILED,
+            'REGISTERED': AgentStatus.REGISTERED,
+            'AVAILABLE': AgentStatus.AVAILABLE,
+        }
+        _descriptor = AgentDescriptor(
+            agent_id=_agent_id,
+            name=_agent_data.get('name', _agent_id),
+            version=_agent_data.get('version', '1.0.0'),
+            status=_status_map.get(_status_str.upper(), AgentStatus.ACTIVE),
+            capabilities=_agent_data.get('capabilities', []),
+            supported_bodies=_agent_data.get('supported_bodies', ['1.0.0']),
+            supported_runtimes=_agent_data.get('supported_runtimes', ['python3.14']),
+            execution_profile=ExecutionProfile.LAMBDA,
+            risk_level=_agent_data.get('risk_level', 'low'),
+            description=_agent_data.get('description', ''),
+            metadata=_agent_data.get('metadata', {}),
+        )
+        _registry.register(_agent_id, _descriptor)
+    
+    logger.info(f"Catalog initialized: {len(_catalog_agents)} agents registered")
+except ImportError as e:
+    logger.warning(f"Catalog adapter not available: {e}")
+except Exception as e:
+    logger.warning(f"Catalog initialization failed: {e}")
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key
 
