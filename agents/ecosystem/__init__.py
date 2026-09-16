@@ -12,6 +12,7 @@ from agents.ecosystem.registry import AgentRegistry, AgentDescriptor, AgentStatu
 from agents.ecosystem.discovery import AgentDiscovery, CapabilityRegistry
 from agents.ecosystem.eligibility import EligibilityCheck, check_eligibility
 from agents.ecosystem.chain import ProcessingChain, ChainExecutor, ChainStep
+from agents.ecosystem.catalog_adapter import CatalogAdapter, populate_registry_from_catalog
 
 __all__ = [
     'AgentRegistry',
@@ -25,6 +26,8 @@ __all__ = [
     'ProcessingChain',
     'ChainExecutor',
     'ChainStep',
+    'CatalogAdapter',
+    'populate_registry_from_catalog',
 ]
 
 
