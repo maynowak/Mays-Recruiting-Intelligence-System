@@ -125,3 +125,75 @@ class EligibilityChecker:
         """Check eligibility for an agent."""
         descriptor = self.registry.get(agent_id)
         return check_eligibility(agent_id, descriptor, **kwargs)
+
+
+@dataclass
+class EligibilityPipelineResult:
+    """
+    Result of checking eligibility for a processing envelope.
+    
+    Contains both eligible and rejected candidates with reasons.
+    """
+    eligible: List[EligibilityCheck]
+    rejected: List[EligibilityCheck]
+
+
+class EligibilityPipeline:
+    """
+    Pipeline for checking eligibility of discovery candidates.
+    
+    Takes candidates from discovery and validates them against
+    the envelope's requirements and tenant context.
+    """
+    
+    def __init__(self, registry):
+        self.registry = registry
+    
+    def check_candidates(
+        self, 
+        candidates: List['DiscoveryResult'],
+        envelope: 'ProcessingEnvelope'
+    ) -> EligibilityPipelineResult:
+        """
+        Check eligibility for a list of candidates.
+        
+        Args:
+            candidates: List of DiscoveryResult candidates
+            envelope: ProcessingEnvelope with tenant context
+            
+        Returns:
+            EligibilityPipelineResult with eligible and rejected lists
+        """
+        eligible = []
+        rejected = []
+        
+        capability = envelope.input.get('capability')
+        body_version = envelope.body_version
+        runtime = envelope.runtime or envelope.execution_profile
+        
+        for candidate in candidates:
+            check = check_eligibility(
+                agent_id=candidate.agent_id,
+                descriptor=candidate.agent,
+                capability=capability,
+                body_version=body_version,
+                runtime=runtime,
+                tenant_id=envelope.tenant_id,
+            )
+            
+            if check.eligible:
+                eligible.append(check)
+                logger.debug(
+                    f"Agent {candidate.agent_id} is eligible: {check.reasons}"
+                )
+            else:
+                rejected.append(check)
+                logger.debug(
+                    f"Agent {candidate.agent_id} rejected: {check.reasons}"
+                )
+        
+        logger.info(
+            f"Eligibility check: {len(eligible)} eligible, {len(rejected)} rejected"
+        )
+        
+        return EligibilityPipelineResult(eligible=eligible, rejected=rejected)

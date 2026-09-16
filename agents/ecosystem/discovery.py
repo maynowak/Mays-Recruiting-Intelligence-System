@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
 from agents.ecosystem.registry import AgentRegistry, AgentDescriptor, AgentStatus
+from agents.ecosystem.event_hook import ProcessingEnvelope
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +111,43 @@ class AgentDiscovery:
         if source_agent_id:
             results = [r for r in results if r.agent_id != source_agent_id]
         return results
+    
+    def find_from_envelope(self, envelope: ProcessingEnvelope) -> List[DiscoveryResult]:
+        """
+        Discover agents matching a processing envelope.
+        
+        Uses the envelope's context to find candidates:
+        - explicit agent_id (if provided in envelope)
+        - capability (if present in envelope input)
+        - runtime compatibility
+        - body version compatibility
+        - status (only ACTIVE by default)
+        
+        Args:
+            envelope: ProcessingEnvelope with context
+            
+        Returns:
+            List of candidate agents with reasons
+        """
+        capability = envelope.input.get('capability')
+        required_runtime = envelope.runtime or envelope.execution_profile
+        required_body = envelope.body_version
+        
+        candidates = self.find(
+            agent_id=envelope.agent_id,
+            capability=capability,
+            required_runtime=required_runtime,
+            required_body=required_body,
+            status=AgentStatus.ACTIVE,
+            max_results=100
+        )
+        
+        logger.info(
+            f"Found {len(candidates)} candidates from envelope "
+            f"[trigger: {envelope.trigger_type.value if envelope.trigger_type else 'N/A'}]"
+        )
+        
+        return candidates
 
 
 class CapabilityRegistry:

@@ -9,8 +9,8 @@ clean separation between domain logic and infrastructure.
 """
 
 from agents.ecosystem.registry import AgentRegistry, AgentDescriptor, AgentStatus, ExecutionProfile
-from agents.ecosystem.discovery import AgentDiscovery, CapabilityRegistry
-from agents.ecosystem.eligibility import EligibilityCheck, check_eligibility
+from agents.ecosystem.discovery import AgentDiscovery, CapabilityRegistry, DiscoveryResult
+from agents.ecosystem.eligibility import EligibilityCheck, check_eligibility, EligibilityPipelineResult, EligibilityPipeline
 from agents.ecosystem.chain import ProcessingChain, ChainExecutor, ChainStep
 from agents.ecosystem.catalog_adapter import CatalogAdapter, populate_registry_from_catalog
 from agents.ecosystem.event_hook import Event, ProcessingEnvelope, EventHook, TriggerType, create_processing_envelope_from_event
@@ -22,8 +22,11 @@ __all__ = [
     'ExecutionProfile',
     'AgentDiscovery',
     'CapabilityRegistry',
+    'DiscoveryResult',
     'EligibilityCheck',
     'check_eligibility',
+    'EligibilityPipelineResult',
+    'EligibilityPipeline',
     'ProcessingChain',
     'ChainExecutor',
     'ChainStep',
