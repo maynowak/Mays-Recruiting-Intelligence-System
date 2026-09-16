@@ -567,3 +567,71 @@ Integrate Event Hook into Lambda handler for event processing workflow.
 
 ===============================================
 
+
+===============================================
+CHECKPOINT: 2026-09-16 — Agent Hook Pipeline
+
+## TASK
+Connect ProcessingEnvelope to AgentDiscovery and EligibilityCheck.
+
+## IMPLEMENTED
+
+### AGENT-HOOK-02 Components
+
+1. **Discovery.find_from_envelope()** - Takes ProcessingEnvelope, extracts:
+   - agent_id (explicit candidate)
+   - capability (from envelope.input)
+   - runtime compatibility
+   - body version compatibility
+   - status (ACTIVE only)
+
+2. **EligibilityPipeline** - Checks candidates against:
+   - Agent registration
+   - Agent status
+   - Capability support
+   - Body compatibility
+   - Runtime compatibility
+   - Tenant context
+
+3. **EligibilityPipelineResult** - Returns eligible/rejected lists
+
+## PIPELINE
+
+```
+ProcessingEnvelope → Discovery → Eligibility → [Eligible Candidates]
+```
+
+No routing, no ranking, no selection.
+
+## FILES MODIFIED
+
+- agents/ecosystem/discovery.py
+- agents/ecosystem/eligibility.py
+- agents/ecosystem/__init__.py
+
+## TESTS
+
+- tests/test_event_hook_pipeline.py (10 tests, all passing)
+
+## VALIDATION
+
+- [x] ProcessingEnvelope integrates with Discovery
+- [x] Discovery uses existing AgentRegistry
+- [x] Existing capability structure used
+- [x] Trigger compatibility considered
+- [x] Explicit agent_id works
+- [x] Multiple candidates returned
+- [x] Eligibility preserves candidates
+- [x] Tenant context preserved
+- [x] Agent status checked
+- [x] Runtime/body compatibility checked
+- [x] No auto-selection
+- [x] No ranking
+- [x] No agent execution
+- [x] Tests passing
+
+## NEXT STEP
+
+Integrate Event Hook pipeline into Lambda handler for event processing.
+
+===============================================
