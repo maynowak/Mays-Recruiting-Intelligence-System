@@ -12,6 +12,7 @@ This module provides the Lambda entry point for all Platform API routes includin
 
 import json
 import os
+import sys
 import logging
 import uuid
 from datetime import datetime, timedelta
@@ -20,6 +21,9 @@ from typing import Dict, Any, Optional
 import boto3
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+logger = logging.getLogger()
+logger.setLevel(os.environ.get('LOG_LEVEL', 'INFO'))
 
 try:
     from agents.agent_body import AgentBody
@@ -72,9 +76,6 @@ except Exception as e:
     logger.warning(f"Catalog initialization failed: {e}")
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key
-
-logger = logging.getLogger()
-logger.setLevel(os.environ.get('LOG_LEVEL', 'INFO'))
 
 PLATFORM_NAME = os.environ.get('PLATFORM_NAME', 'Mays RIS')
 PLATFORM_VERSION = os.environ.get('PLATFORM_VERSION', '1.0.0')
@@ -191,6 +192,19 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_me_profile(event, context)
     elif method == 'GET' and path == '/agents':
         return _handle_agents(event, context)
+    elif method == 'GET' and path == '/me/jobsearches':
+        return _handle_jobsearch_list(event, context)
+    elif method == 'POST' and path == '/me/jobsearches':
+        return _handle_jobsearch_create(event, context)
+    elif method == 'GET' and path.startswith('/me/jobsearches/'):
+        job_search_id = event.get('pathParameters', {}).get('jobSearchId')
+        return _handle_jobsearch_get(event, context, job_search_id)
+    elif method == 'PUT' and path.startswith('/me/jobsearches/'):
+        job_search_id = event.get('pathParameters', {}).get('jobSearchId')
+        return _handle_jobsearch_update(event, context, job_search_id)
+    elif method == 'DELETE' and path.startswith('/me/jobsearches/'):
+        job_search_id = event.get('pathParameters', {}).get('jobSearchId')
+        return _handle_jobsearch_delete(event, context, job_search_id)
     elif method == 'GET' and path.startswith('/api/agents'):
         return _handle_agent_api_event(event, context)
     elif method == 'POST' and path.startswith('/api/agents'):
@@ -833,6 +847,277 @@ def _get_work(work_id: Optional[str], context: Dict[str, Any]) -> Dict[str, Any]
             'result': {'message': 'Work completed'}
         })
     }
+
+
+
+def _handle_jobsearch_list(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Handle GET /me/jobsearches - List user's JobSearches."""
+    user_context = _extract_user_context(event)
+    
+    if not user_context['userId']:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': 'Unauthenticated'})
+        }
+    
+    try:
+        from jobsearch.repository import JobSearchRepository
+        from jobsearch.domain_models import JobSearchStatus
+        
+        repo = JobSearchRepository()
+        searches = repo.list_by_user(
+            user_id=user_context['userId'],
+            tenant_id=user_context['tenantId']
+        )
+        
+        active_searches = [
+            s for s in searches 
+            if s.status == JobSearchStatus.ACTIVE or s.status == JobSearchStatus.ARCHIVED
+        ]
+        
+        return {
+            'statusCode': 200,
+            'body': json.dumps({
+                'jobsearches': [s.to_dict() for s in active_searches]
+            })
+        }
+        
+    except Exception as e:
+        logger.error(f"Error listing JobSearches: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Failed to list JobSearches'})
+        }
+
+
+def _handle_jobsearch_get(event: Dict[str, Any], context: Any, job_search_id: Optional[str]) -> Dict[str, Any]:
+    """Handle GET /me/jobsearches/{jobSearchId} - Get single JobSearch."""
+    user_context = _extract_user_context(event)
+    
+    if not user_context['userId']:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': 'Unauthenticated'})
+        }
+    
+    if not job_search_id:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'jobSearchId is required'})
+        }
+    
+    try:
+        from jobsearch.repository import JobSearchRepository
+        
+        repo = JobSearchRepository()
+        search = repo.get(
+            job_search_id=job_search_id,
+            user_id=user_context['userId'],
+            tenant_id=user_context['tenantId']
+        )
+        
+        if not search:
+            return {
+                'statusCode': 404,
+                'body': json.dumps({'error': 'JobSearch not found'})
+            }
+        
+        return {
+            'statusCode': 200,
+            'body': json.dumps(search.to_dict())
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting JobSearch: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Failed to get JobSearch'})
+        }
+
+
+def _handle_jobsearch_create(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Handle POST /me/jobsearches - Create new JobSearch."""
+    user_context = _extract_user_context(event)
+    
+    if not user_context['userId']:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': 'Unauthenticated'})
+        }
+    
+    try:
+        body = json.loads(event.get('body', '{}'))
+        
+        from jobsearch.repository import JobSearchRepository
+        from jobsearch.domain_models import JobSearch, SearchConfiguration, ATSSearchProfile
+        
+        name = body.get('name')
+        if not name:
+            return {
+                'statusCode': 400,
+                'body': json.dumps({'error': 'name is required'})
+            }
+        
+        job_search_id = str(uuid.uuid4())
+        
+        search_config = SearchConfiguration.from_dict(
+            body.get('searchConfiguration', {})
+        )
+        ats_profile = ATSSearchProfile.from_dict(
+            body.get('atsSearchProfile', {})
+        )
+        
+        job_search = JobSearch(
+            job_search_id=job_search_id,
+            user_id=user_context['userId'],
+            tenant_id=user_context['tenantId'],
+            name=name,
+            search_configuration=search_config,
+            ats_search_profile=ats_profile,
+            metadata=body.get('metadata', {})
+        )
+        
+        repo = JobSearchRepository()
+        if not repo.save(job_search):
+            return {
+                'statusCode': 500,
+                'body': json.dumps({'error': 'Failed to save JobSearch'})
+            }
+        
+        return {
+            'statusCode': 201,
+            'body': json.dumps({
+                'jobSearch': job_search.to_dict()
+            })
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating JobSearch: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Failed to create JobSearch'})
+        }
+
+
+def _handle_jobsearch_update(event: Dict[str, Any], context: Any, job_search_id: Optional[str]) -> Dict[str, Any]:
+    """Handle PUT /me/jobsearches/{jobSearchId} - Update JobSearch."""
+    user_context = _extract_user_context(event)
+    
+    if not user_context['userId']:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': 'Unauthenticated'})
+        }
+    
+    if not job_search_id:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'jobSearchId is required'})
+        }
+    
+    try:
+        body = json.loads(event.get('body', '{}'))
+        
+        from jobsearch.repository import JobSearchRepository
+        from jobsearch.domain_models import SearchConfiguration, ATSSearchProfile, JobSearchStatus
+        
+        repo = JobSearchRepository()
+        
+        existing = repo.get(
+            job_search_id=job_search_id,
+            user_id=user_context['userId'],
+            tenant_id=user_context['tenantId']
+        )
+        
+        if not existing:
+            return {
+                'statusCode': 404,
+                'body': json.dumps({'error': 'JobSearch not found'})
+            }
+        
+        if 'name' in body:
+            existing.name = body['name']
+        if 'searchConfiguration' in body:
+            existing.search_configuration = SearchConfiguration.from_dict(
+                body['searchConfiguration']
+            )
+        if 'atsSearchProfile' in body:
+            existing.ats_search_profile = ATSSearchProfile.from_dict(
+                body['atsSearchProfile']
+            )
+        if 'status' in body:
+            existing.status = JobSearchStatus(body['status'])
+        if 'metadata' in body:
+            existing.metadata = body['metadata']
+        
+        existing.updated_at = datetime.utcnow()
+        
+        if not repo.save(existing):
+            return {
+                'statusCode': 500,
+                'body': json.dumps({'error': 'Failed to update JobSearch'})
+            }
+        
+        return {
+            'statusCode': 200,
+            'body': json.dumps({
+                'jobSearch': existing.to_dict()
+            })
+        }
+        
+    except Exception as e:
+        logger.error(f"Error updating JobSearch: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Failed to update JobSearch'})
+        }
+
+
+def _handle_jobsearch_delete(event: Dict[str, Any], context: Any, job_search_id: Optional[str]) -> Dict[str, Any]:
+    """Handle DELETE /me/jobsearches/{jobSearchId} - Delete JobSearch."""
+    user_context = _extract_user_context(event)
+    
+    if not user_context['userId']:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': 'Unauthenticated'})
+        }
+    
+    if not job_search_id:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'jobSearchId is required'})
+        }
+    
+    try:
+        from jobsearch.repository import JobSearchRepository
+        
+        repo = JobSearchRepository()
+        
+        if not repo.delete(
+            job_search_id=job_search_id,
+            user_id=user_context['userId'],
+            tenant_id=user_context['tenantId']
+        ):
+            return {
+                'statusCode': 404,
+                'body': json.dumps({'error': 'JobSearch not found'})
+            }
+        
+        return {
+            'statusCode': 200,
+            'body': json.dumps({
+                'message': 'JobSearch deleted',
+                'jobSearchId': job_search_id
+            })
+        }
+        
+    except Exception as e:
+        logger.error(f"Error deleting JobSearch: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Failed to delete JobSearch'})
+        }
 
 
 if __name__ == '__main__':
