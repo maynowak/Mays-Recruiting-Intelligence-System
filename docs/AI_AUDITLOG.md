@@ -1,691 +1,227 @@
-================================================
+==================================================
+==================================================
+EXECUTION LOG / CRASH RECOVERY — MANDATORY template
+==================================================
 
-EXECUTION LOG / CRASH RECOVERY — MANDATORY
+Maintain a current execution log throughout the audit:
 
-================================================
+docs/reports/[NO. OF TASK ++]-[SUBWORKING NO.]-[TASK]-EXECUTION_LOG.md
 
-CHECKPOINT: 2026-09-16 — Repository Recovery & Remote Synchronization
+This is mandatory even though the audit is READ-ONLY.
 
-## REPOSITORY RECOVERY VERIFICATION
+The execution log must be created or updated continuously after
+meaningful audit milestones, NOT only at the end.
 
-### Discovery
-- Local repository: `Mays-Recruiting-Intelligent-System` is the canonical development workspace
-- Remote repository: `https://github.com/maynowak/Mays-Recruiting-Intelligence-System.git`
-- Local branch: `master` contains complete project history through G2.9 (51 commits)
-- Remote branch: `origin/main` contains only one initial commit with no project content
-- **NO common ancestor between local master and origin/main**
+The log must preserve the latest verified state so that work can be
+resumed safely after an agent crash, terminal failure, streaming
+failure, IDE restart, or interrupted session.
 
-### Git Status Verification
-- Branch: master
-- HEAD: d0fa40b
-- Uncommitted changes: 0 (S2.16 report will be committed)
-- Deleted file: `lambda/__pycache__/handler.cpython-312.pyc` (intentional removal)
+Record only verified facts. Never invent findings or validation results.
 
-### Repository Status
-- **Local master is CONFIRMED AS CANONICAL**
-- All G2.8 and G2.9 commits exist locally
-- G2.8 commits: `06ace23`, `8847205`
-- G2.9 commits: `deb2954`, `da4c5d4`
-- Agent Body implementation verified in `agents/agent_body/` directory
-- **NO remote changes performed** - remote not touched
+The execution log must contain:
 
-### Action Taken
-- Committed S2.16 IAM deployment governance verification report
-- No force-push, no branch deletion, no rewrite of history performed
+- current status
+- audit date/time
+- current Git branch and HEAD
+- audit scope
+- completed audit sections
+- actual findings
+- evidence / file references
+- GREEN / YELLOW / ORANGE / RED / GRAY classification
+- Terraform checks actually executed and their results
+- Git status
+- files changed, if any
+- explicit confirmation when no files were changed
+- open questions
+- risks
+- recommended next actions
+- current resume point
 
-CHECKPOINT: 2026-09-17 — Git Migration Preparation
+After each major section, update the execution log before continuing.
 
-## MIGRATION VERIFICATION
+At the end, finalize the log with the complete audit summary.
 
-### Migration Intent
-- Publish local master history to GitHub main
-- Remote main has no project content (only initial commit)
-- Local master is canonical development history
-- No application/AWS changes involved
+IMPORTANT:
+The execution log itself is part of the audit workflow and must be
+kept accurate even if the audit remains completely read-only.
 
-### Repository States
-- Local HEAD: `605ed13f4285bb569f434d2ef813a13f78fe578b`
-- Remote main HEAD: `a7781e342f4aae214681c4b35a15e99b30bcacee`
-- No common ancestor between histories
-- Working tree: CLEAN
+==================================================
+==================================================
 
-### Migration Plan
-1. Local master contains 54 commits of project history
-2. Remote main is empty (only initial commit)
-3. Pushing local master to main will NOT lose any commits
-4. No force-push required if normal push works
+# REPORT INDEX — Archivierte CHECKPOINTs (2026-09-14 bis 2026-09-18)
 
-### Statement
-- NO application code changes
-- NO AWS changes
-- REMOTE URL changed from HTTPS to SSH for better authentication
+Alle CHECKPOINT-Inhalte aus AI_AUDITLOG.md wurden thematisch in
+docs/reports/ extrahiert. Dieses File bleibt nur Template + Index.
+Keine Log-Historie mehr inline — Resume via Index.
 
-CHECKPOINT: 2026-09-17 — Authentication Setup Verification
+## THEME: GIT / REPOSITORY MIGRATION — GREEN
 
-## GIT AUTHENTICATION VERIFICATION
+| CHECKPOINT | Report |
+|------------|--------|
+| 2026-09-16 — Repository Recovery & Remote Synchronization | docs/reports/GIT-MIGRATION-01-RECOVERY-PREPARATION-EXECUTION.md |
+| 2026-09-17 — Git Migration Preparation | docs/reports/GIT-MIGRATION-01-RECOVERY-PREPARATION-EXECUTION.md |
+| 2026-09-17 — Authentication Setup Verification | docs/reports/GIT-MIGRATION-01-RECOVERY-PREPARATION-EXECUTION.md |
+| 2026-09-18 — Git Migration Execution | docs/reports/GIT-MIGRATION-01-RECOVERY-PREPARATION-EXECUTION.md |
 
-### Installation Status
-- gh (GitHub CLI): NOT INSTALLED
-- SSH: INSTALLED (OpenSSH_9.6p1)
+Status: Migration COMPLETE, Local HEAD = Remote main, 57 Commits,
+G2.8/G2.9 erhalten, keine App-/AWS-Änderungen.
 
-### Authentication Status
-- SSH Keys: CONFIGURED
-  - Key: ~/.ssh/id_ed25519
-  - Public key: ~/.ssh/id_ed25519.pub
-- SSH GitHub connection: VERIFIED
-  - Command: `ssh -T git@github.com`
-  - Result: `Hi maynowak! You've successfully authenticated`
+## THEME: GOVERNANCE / E2E — GREEN
 
-### Repository Access
-- Remote URL: Changed from HTTPS to SSH
-  - Old: https://github.com/maynowak/Mays-Recruiting-Intelligence-System.git
-  - New: git@github.com:maynowak/Mays-Recruiting-Intelligence-System.git
-- Read access: VERIFIED
-  - `git ls-remote origin` returns remote commits
+| CHECKPOINT | Report |
+|------------|--------|
+| 2026-09-14 — Governance Target Model & E2E Verification (S2.11+S2.12) | docs/reports/G2-11-ARCHITECTURE-REVIEW-GOVERNANCE-TARGET-MODEL.md |
+| | docs/reports/S2-12-RUNTIME-E2E-VERIFICATION.md |
 
-### Current State
-- Local branch: master (54 commits)
-- Remote main: 1 commit (initial empty state)
-- Authentication: READY FOR PUSH (no credentials needed - SSH already works)
-- NO infrastructure modifications
-- Only Git history synchronization
+## THEME: API DOCUMENTATION — GREEN
 
-CHECKPOINT: 2026-09-14 — Governance Target Model & E2E Verification
+| CHECKPOINT | Report |
+|------------|--------|
+| 2026-09-15 — API Documentation Standard | docs/reports/API-DOC-01-PLATFORM-FRONTEND-STANDARD.md |
+| | docs/API/API_DOCUMENTATION_STANDARD.md |
+| | docs/API/PLATFORM_FRONTEND_INTEGRATION.md |
+
+## THEME: AUDIT & MONITORING — GREEN
+
+| CHECKPOINT | Report |
+|------------|--------|
+| 2026-09-15 — Audit & Monitoring Foundation | docs/reports/AUDIT-MONITORING-01-CLOUDTRAIL-CLOUDWATCH.md |
+| | docs/AUDIT_MONITORING_ARCHITECTURE.md |
+
+## THEME: BACKUP — GREEN
+
+| CHECKPOINT | Report |
+|------------|--------|
+| 2026-09-18 — Backup Architecture Foundation | docs/reports/BACKUP-01-IDENTITY-PLATFORM.md |
+| | docs/BACKUP_ARCHITECTURE.md |
+
+## THEME: AGENT REGISTRY — GREEN
+
+| CHECKPOINT | Report |
+|------------|--------|
+| 2026-09-15 — Agent Registry Adapter | docs/reports/AGENT-REG-02-CATALOG-ADAPTER.md |
+| 2026-09-15 — Runtime Registry Integration | docs/reports/AGENT-REG-03-RUNTIME-INTEGRATION.md |
+| | docs/RUNTIME_REGISTRY_INTEGRATION.md |
+
+## THEME: EVENT HOOK / PIPELINE / ROUTING — GREEN
+
+| CHECKPOINT | Report |
+|------------|--------|
+| 2026-09-16 — Agent Event Hook | docs/reports/AGENT-HOOK-01-EVENT-HOOK.md |
+| 2026-09-16 — Agent Hook Pipeline | docs/reports/AGENT-HOOK-02-DISCOVERY-ELIGIBILITY.md |
+| 2026-09-16 — Agent Routing Foundation | docs/reports/AGENT-ROUTING-01-ROUTING.md |
+
+==================================================
+CURRENT STATE (Template bereinigt: 2026-09-26)
+
+- Status: GREEN
+- Git status: siehe `git status --short`
+- Files changed in dieser Bereinigung:
+  - docs/reports/GIT-MIGRATION-01-RECOVERY-PREPARATION-EXECUTION.md (neu)
+  - docs/reports/API-DOC-01-PLATFORM-FRONTEND-STANDARD.md (neu)
+  - docs/AI_AUDITLOG.md (bereinigt zu Template + Index)
+- Explicit: Keine Anwendungs-/Terraform-/Lambda-Änderungen,
+  nur Doku-Extraktion + Template-Bereinigung.
+- Resume point: Neues Audit mit Blank-CHECKPOINT unten starten.
+
+==================================================
+CHECKPOINT: 2026-09-26 — CI-DEPLOY-PERMISSION-AUDIT-01
+==================================================
+
+## Objective
+CI/CD Deploy-Berechtigungskette im Repository vollständig dokumentieren.
+READ-ONLY AUDIT. Keine Architektur, keine Installer-/Pipeline-Änderungen.
+
+## Scope
+Git-Identität, bestehende Doku, Pipeline-Architektur aus Repo-Evidence,
+AWS-Identität (nur Read-Only APIs), Identity/IAM/PermissionBoundary/Trust,
+Deploy-Bedarf vs. Bestand, strikte Trennung Source (A) / DOWNLOAD_SOURCE (B) /
+Deploy (C). Keine Reparatur.
+
+## Read-only constraint
+Eingehalten. Verboten waren: IAM-/Rollen-/Policy-/Boundary-/Trust-Änderungen,
+Pipeline-/Build-/Terraform-Änderungen, apply/destroy, reset/clean, Löschen/
+Verschieben, Überschreiben lokaler Änderungen, Secrets-Ausgabe, Commit während
+Untersuchung. `terraform init -backend=false`, `validate`, `fmt -check` sowie
+AWS-Read-APIs ändern keine Tracked-Files (per `git status` verifiziert).
+
+## Evidence
+- Repo: main, HEAD c236cd4, origin git@github.com:maynowak/Mays-Recruiting-Intelligence-System.git (SSH)
+- KONSOLIDIERUNG-CICD-SOURCE-AUTH-AUDIT.md: NICHT VORHANDEN (nicht dupliziert, referenziert S2-16, CROSS-REPO-SOURCE-01, SOURCE-CONNECTIVITY-GATE-01/02)
+- Deploy-Pipeline dieses Repos = GitHub Actions `.github/workflows/ci-cd.yml` (validate→plan→prod-gated deploy mit Secrets-Namen); KEIN aws_codepipeline/aws_codebuild/Buildspec im Repo; Installer = lokaler Orchestrator ohne Deploy-Rolle
+- `terraform validate`: FAIL, 5x Duplicate output definition. `terraform fmt -check`: FAIL (variables.tf:18)
+- IAM-Modul: handler-Referenzen nichtexistent, `module.iam.lambda_role_arn` erwartet aber nicht exportiert, `permissions_boundary` tot (deklariert/nie verdrahtet)
+- AWS live: Account 992382612204 / User maymilly / eu-central-1; List-/Describe-Rechte für Pipeline/Build/IAM/DynamoDB-Lock: AccessDenied (BLOCKED, least-privilege korrekt); State-Bucket dev: NoSuchBucket
+- Keine Secrets gelesen/ausgegeben. Keine DOWNLOAD_SOURCE-Vermischung.
+
+## Repository state
+Working Tree DIRTY nur durch Vorarbeiten (M docs/AI_AUDITLOG.md + 8 untracked Reports, inkl. 2 aus Template-Bereinigung). Vom Audit keine davon verändert.
+
+## AWS verification state
+Caller verifiziert (sts). Pipeline-/Rollen-/Policy-Ebene: NOT VERIFIED (Berechtigungen des Mess-Prinzipals unzureichend — kein Kettenfehler). Deploy-Identität (GitHub Secrets): NOT VERIFIED.
+
+## Identity chain
+GitHub Push → Actions-Runner → Secrets-Identität (NOT VERIFIED) → Terraform Provider → State-Backend (S3+DynamoDB-Lock) → Module (cognito/sqs/dynamodb/iam/api/lambda/S3/CloudWatch) → AWS APIs. Kein Pipeline-/Build-/AssumeRole-Hop im Repo. Runtime-Rollen (lambda_role/lambda_execution, Trust nur lambda.amazonaws.com) ohne Deploy-Rechte.
+
+## IAM findings
+Doppel-Rollenstruktur, ungenutztes SQS-Dokument im iam-Modul, stale handler-Outputs, fehlender lambda_role_arn-Export. Keine Pipeline-/Deploy-Rolle im Repo.
+
+## Permission boundary findings
+Variable deklariert, nie gesetzt/verwendet → keine Boundary wirksam (POTENTIAL GAP). Live-Boundaries NOT VERIFIED.
+
+## Deploy permission findings
+Bedarf aus enthaltenen Ressourcen abgeleitet (State, S3, DynamoDB, Lambda+PassRole, IAM, API-GW, SQS, Cognito, CloudWatch, Tags). Abgleich NOT VERIFIED (Identität unbekannt). Kette bereits vor IAM blockiert (validate/fmt rot).
+
+## Unknowns
+Secrets-Identität (Policies/Boundary/Trust); Live-Pipeline-Rollen; State-Backend test/prod; `plan:`-Trigger-Auswirkung (GitHub-seitig).
+
+## Report reference
+docs/reports/CI-DEPLOY-PERMISSION-AUDIT-01.md — STATUS: RED (belegbar nicht ausführbar + unverifizierbare Deploy-Rechte; Runtime-Seite per S2-16 GREEN, ausgenommen).
+
+## Next step
+Separater Repair (nicht Teil des Audits): Duplikat-Outputs/handler-Refs/fmt bereinigen, validate grün, dann Secrets-Identität mit geeignetem Prinzipal prüfen. Installer/Pipeline unverändert lassen.
+
+## No infrastructure mutation performed
+Bestätigt: keine IAM-/Pipeline-/Terraform-Änderung, kein Apply, keine Secrets-Ausgabe, `git status` nach Checks unverändert.
+
+==================================================
+BLANK CHECKPOINT TEMPLATE (für nächstes Audit kopieren)
+==================================================
+
+CHECKPOINT: YYYY-MM-DD — [THEMA]
+
+## TASK
+[Was soll geprüft / getan werden]
 
 ## CURRENT STATE
+- Branch:
+- HEAD:
+- Scope:
 
-**Task**: S2.11 Governance Target Model + S2.12 E2E Verification
-**Date**: 2026-09-14
-**Git Branch**: master
-**Git HEAD**: 62f1039
+## FINDINGS
+- [nur verifizierte Fakten, mit File-Referenzen]
 
-## VERIFIED STATE
+## EVIDENCE
+- [Datei:Zeile, Commands + Output]
 
-### Git Status
-- Branch: master
-- HEAD: 62f1039 (docs: add S2.12 E2E verification tests)
-- Uncommitted: docs/AI_AUDITLOG.md (will be committed)
-
-### Implementation Summary
-
-S2.11: Agent Governance Target Model analyzed and documented.
-S2.12: E2E verification tests added and passing.
-
-## S2.11 — GOVERNANCE TARGET MODEL
-
-### Analysis Completed
-
-1. **Resource/Object Metadata** (NOT tags)
-   - AgentDescriptor fields: agent_id, version, capabilities, execution_profile
-   - Structure-based, not tag-based
-
-2. **Identity/Actor Metadata** (NOT static)
-   - JWT context from Cognito
-   - Runtime-only, not stored on agent
-
-3. **Governance Metadata** (NOT resource tags)
-   - Policy Gate at Terraform level
-   - EligibilityCheck for access control
-   - Process-level, not infrastructure tags
-
-### Environment Model
-
-| Environment | Implementation | Protection |
-|-------------|------------------|------------|
-| Development | Lambda env vars | IAM role + env vars |
-| Test | Lambda env vars | IAM role + env vars |
-| Production | To be hardened | IAM boundary + policy gate |
-
-### Governance Layers
-
-```
-Human Developer → Policy Gate → Terraform → AWS
-                               ↑
-                    Infrastructure changes
-
- User/Actor → Auth → Agent API → Eligibility → Agent Body → Agent
-```
-
-## S2.12 — RUNTIME E2E VERIFICATION
-
-### Test Results
-
-```
-PATH A — SQS → Worker → Agent Body:
-  [✓] SQS event processing exists (handler.py:80-105)
-  [✓] Worker Lambda calls AgentBody.execute() (handler.py:709-711)
-  [✓] Agent Body routes to Reference Agent
-  [✓] Result includes workId, success, metrics
-
-PATH B — Invocation Contract:
-  [✓] InvocationContract creates valid WorkItem
-  [✓] parentWorkId for traceability
-  [✓] tenantId for isolation
-  [✓] capability-based routing supported
-
-AWS E2E: NOT VERIFIED
-  - No AWS credentials in environment
-  - Integration tests use direct execution
-  - No architecture changes required
-```
-
-## ARCHITECTURE BOUNDARIES
-
-### Preserved Boundaries
-
-| Layer | Responsibility | Verified |
-|-------|----------------|----------|
-| Ground Zero | Infrastructure | ✅ |
-| Agent Body | Runtime | ✅ |
-| Agent Ecosystem | Management | ✅ |
-| May's Orders | External | ✅ UNCHANGED |
-
-### NO Duplicate Infrastructure
-- Single WorkItem model
-- Single Result model
-- Single Router
-- Single Registry
-
-## KEY FILES VERIFIED
-
-- `/lambda/handler.py` — Worker integration (lines 702-745)
-- `/agents/agent_body/executor.py` — Execution pipeline
-- `/agents/agent_body/context.py` — Context extraction
-- `/agents/agent_body/router.py` — Routing logic
-- `/agents/agent_body/invocation.py` — Invocation contract
-- `/agents/ecosystem/registry.py` — Agent registry
-- `/agents/ecosystem/discovery.py` — Agent discovery
-- `/agents/reference_agent/service.py` — Reference implementation
+## CLASSIFICATION
+- GREEN / YELLOW / ORANGE / RED / GRAY:
 
 ## GIT STATUS
+- Working tree:
+- Files changed:
+- Explicit confirmation when no files changed:
 
-```text
-62f1039 docs: add S2.12 E2E verification tests and report
-496f448 docs: fix filename typo in G2.11 report
-9c9a2aa docs: add G2.11 Agent Governance Target Model architecture review
-43a1f7b docs: add agent ecosystem governance alignment analysis
-c326d1a docs: add agent ecosystem metadata/governance alignment
-da4c5d4 docs: update PROJECT_STATUS for G2.9 completion
-deb2954 feat: add agent ecosystem foundation for G2.9
-```
-
-## OPEN ISSUES (NOT BLOCKERS)
-
-1. AWS E2E testing — Environment constraint, not code issue
-2. Agent-to-agent integration tests — Coverage gap, infrastructure ready
-
-## ENABLEMENT STATE
-
-| Feature | State | Next Step |
-|---------|-------|-----------|
-| S2.11 Governance Model | COMPLETE | Documentation review |
-| S2.12 E2E Verification | COMPLETE | Integration into CI |
-| AWS E2E Tests | NOT VERIFIED | Requires env/deployment |
-| May's Orders Connector | PENDING | External system |
-
-## RECOMMENDATION
-
-**STATUS: GREEN**
-
-The Agent Ecosystem correctly implements:
-- Governance separation (resource ≠ identity ≠ governance)
-- End-to-end execution paths
-- Full traceability chain
-- Error handling patterns
-
-No architectural changes required. Proceed to May's Orders integration when ready.
-
-================================================
-## HARD REQUIREMENTS IMPROVED ===
-
-[TRACKING STATE: VERSION 1.3]
-
-================================================
-================================================
-CHECKPOINT: 2026-09-18 — Git Migration Execution
-
-## MIGRATION EXECUTION
-
-### Commands Executed
-1. `git remote set-url origin git@github.com:maynowak/Mays-Recruiting-Intelligence-System.git`
-2. `git push origin --delete main` (REJECTED - cannot delete default branch)
-3. `git push -u origin master:main` (REJECTED - non-fast-forward)
-4. `git push --force-with-lease origin master:main` (SUCCESS)
-
-### Final State Verification
-- Local HEAD: dc03af82cfa755325f868a07c944f1b155bc266a
-- Remote main: dc03af82cfa755325f868a07c944f1b155bc266a
-- MATCH: YES
-- Total commits: 57
-
-### Commit Verification
-- G2.8 commits: PRESENT (06ace23, 8847205)
-- G2.9 commits: PRESENT (deb2954, da4c5d4)
-- All documentation commits: PRESENT
-
-### Status
-- Migration: ✅ COMPLETE
-- No commits lost
-- Working tree: CLEAN
-
-================================================
-
-================================================
-CHECKPOINT: 2026-09-15 — API Documentation Standard
-
-## TASK
-Standardize API documentation for Platform-Frontend integration.
-
-## CONTEXT
-JobSearch frontend needs clear contract for integration with:
-- Login / Cognito
-- Platform API (/me, /me/profile, /agents)
-- Agent execution workflow
-
-## ARCHITECTURE VERIFICATION
-All referenced documents exist:
-- docs/ARCHITECTURE.md ✓
-- docs/INTEGRATION_BOUNDARIES.md ✓
-- docs/PROJECT_STATUS.md ✓
-- lambda/handler.py implements required endpoints ✓
-
-## CONTRACT
-Created:
-- docs/API/API_DOCUMENTATION_STANDARD.md — Reusable API documentation template
-- docs/API/PLATFORM_FRONTEND_INTEGRATION.md — Binding contract for JobSearch
-
-## VERIFICATION
-- Authentication: JWT via Cognito ✓
-- /me: Implemented in handler.py:183-201 ✓
-- /me/profile: Implemented in handler.py:204-225 ✓
-- /agents: Implemented in handler.py:228-264 ✓
-- Admin escapes: None found
-
-## TESTS
-No tests implemented (documentation only - per instructions)
-
-## GIT STATE
-- Working tree: CLEAN
-- Commit: efd2530
-- No remote changes
+## OPEN QUESTIONS
+-
 
 ## RISKS
-- Future implementation needs to use these contracts
-- OpenAPI spec remains to be created
+-
 
-## OPEN POINTS
-- Create OpenAPI 3.0 spec from contract
-- Add contract tests for verification
+## NEXT ACTIONS
+-
 
-## NEXT STEP
-Document recommendations for creating OpenAPI specification from this contract.
+## RESUME POINT
+-
 
-================================================
-
-================================================
-CHECKPOINT: 2026-09-15 — Audit & Monitoring Foundation
-
-## TASK
-Create audit and monitoring documentation for Ground Zero.
-
-## CONTEXT
-CloudTrail and CloudWatch modules exist but need documentation.
-
-## ARCHITECTURE ANALYSIS
-
-### CloudTrail Status
-- ✅ EXISTS in terraform/modules/cloudtrail/main.tf
-- S3 Bucket: Account-scoped, encrypted, public access blocked
-- Multi-region: Enabled
-- Log file validation: Enabled
-- Management events: Captured
-
-### CloudWatch Status
-- ✅ EXISTS in terraform/modules/monitoring/main.tf
-- Dashboard: Created
-- Alarms: 6 alarms for API, Lambda, DynamoDB
-- Metrics: Standard AWS metrics
-
-### Issue: Alarm Naming
-**CLAIM**: "api_5xx alarm uses 5XXError metric"  
-**ANALYSIS**: This is CORRECT, not an error. The alarm is named for the metric it monitors.
-
-## DECISIONS
-- SSE-S3 is appropriate (cost-effective, AWS-managed)
-- Data events skipped (no need, high cost)
-- No alert notifications needed (not in scope)
-- Single dashboard sufficient
-
-## CHANGES
-- docs/AUDIT_MONITORING_ARCHITECTURE.md created
-- docs/reports/AUDIT-MONITORING-01-CLOUDTRAIL-CLOUDWATCH.md created
-
-## VALIDATION
-- terraform fmt -check: PASSED
-- terraform validate: PASSED
-- Git status: CLEAN
-
-## RISKS
-- CloudWatch integration for CloudTrail: FUTURE
-- Dashboard segregation: NOT REQUIRED
-
-## NEXT STEP
-Create OpenAPI specification from API contract.
-
-================================================
-
-================================================
-CHECKPOINT: 2026-09-18 — Backup Architecture Foundation
-
-## TASK
-Define backup and recovery architecture for Cognito and platform data.
-
-## CURRENT STATE
-- CloudTrail: IMPLEMENTED with S3 bucket
-- DynamoDB: PITR enabled for all tables
-- Cognito: Config in Terraform, users managed by AWS
-
-## ARCHITECTURE
-
-### Backup Scope
-
-**Tier 1 - Identity (Cognito)**:
-- Exportable: Pool config, groups, clients, domain
-- Non-exportable: Passwords (AWS-managed), sessions
-
-**Tier 2 - Platform Data**:
-- User Profile: PITR enabled
-- Entitlements: PITR enabled
-- Agent Catalog: PITR enabled
-
-**Tier 3 - Audit**:
-- CloudTrail: Multi-region, validated
-
-## DECISIONS
-
-1. PITR for DynamoDB (already configured)
-2. No user export from Cognito (AWS limitation)
-3. Password recovery via Cognito admin flow
-4. Staff auto-provisioned via Terraform
-
-## CHANGES
-- docs/BACKUP_ARCHITECTURE.md created
-- docs/reports/BACKUP-01-IDENTITY-PLATFORM.md created
-
-## VALIDATION
-- terraform validate: N/A (no code changes)
-- Terraform config checked manually
-- Git status: CLEAN after commit
-
-## RISKS
-- User recovery requires Cognito expertise
-- No automated restore testing
-
-## OPEN POINTS
-- S3 bucket versioning for CloudTrail
-- KMS encryption for audit bucket
-- Backup manifest structure
-- Retention period policy
-
-## NEXT STEP
-Create restore test procedure.
-
-================================================
-CHECKPOINT: 2026-09-15 — Agent Registry Adapter
-
-## TASK
-Bridge DynamoDB agent_catalog to AgentRegistry for persistent agent discovery.
-
-## CURRENT STATE
-- agent_catalog: DynamoDB table (implemented)
-- AgentRegistry: In-memory (implemented but not populated)
-- _get_agent_catalog(): Returns plain dict (implemented in Lambda)
-
-## IMPLEMENTATION
-- Created CatalogAdapter in agents/ecosystem/catalog_adapter.py
-- Converts DynamoDB items to AgentDescriptor
-- Provides populate_registry_from_catalog()
-- Updated ecosystem __init__.py exports
-
-## DECISIONS
-- Adapter reads from DynamoDB directly (not modify existing _get_agent_catalog)
-- Lazy loading for DynamoDB
-- Error handling for missing fields
-
-## CHANGES
-- Created: agents/ecosystem/catalog_adapter.py
-- Modified: agents/ecosystem/__init__.py
-- Created: docs/reports/AGENT-REG-02-CATALOG-ADAPTER.md
-
-## VALIDATION
-- Code follows existing patterns
-- Uses boto3 for DynamoDB
-- Compatible with AgentDescriptor dataclass
-
-## RISKS
-- Lambda cold start may need warm-up for catalog
-- No caching strategy yet
-
-## NEXT STEP
-Integrate with Lambda initialization.
-
-================================================
-CHECKPOINT: 2026-09-15 — Runtime Registry Integration
-
-## TASK
-Integrate CatalogAdapter with Lambda runtime for registry lifecycle.
-
-## CURRENT STATE
-- CatalogAdapter: Created in AGENT-REG-02
-- AgentRegistry: In-memory (not populated in production)
-- Lambda Handler: Has module-level AgentBody init
-
-## ARCHITECTURE
-
-### Lambda Cold Start
-1. Module import
-2. AgentBody() created (global)
-3. Router initialized (empty)
-4. Handler ready
-
-### Needed Integration
-
-
-## DECISIONS
-- Use lazy initialization (first request populates)
-- Keep existing _get_agent_catalog() as fallback
-- Document lifecycle in Runtime Registry Integration guide
-
-## CHANGES
-- docs/RUNTIME_REGISTRY_INTEGRATION.md created
-
-## VALIDATION
-- Check lambda/handler.py initialization pattern
-- Check agent_body/__init__.py for integration points
-
-## RISKS
-- Cold start adds 100-500ms for DynamoDB scan
-- Registry not populated without explicit integration
-
-## NEXT STEP
-Implement integration in Lambda handler.
-
-===============================================
-CHECKPOINT: 2026-09-16 — Agent Event Hook
-
-## TASK
-Implement Event Hook and ProcessingEnvelope for event-to-ecosystem integration.
-
-## CURRENT STATE
-- Event Hook: Created in AGENT-HOOK-01
-- ProcessingEnvelope: Implemented with identity separation
-- TriggerType: All 9 types supported
-- Event: Validated, normalized, mapped to envelope
-
-## ARCHITECTURE
-
-### Event → ProcessingEnvelope Flow
-
-1. Event received from external source
-2. EventHook.validate() - checks required fields
-3. EventHook.normalize() - standardizes format
-4. EventHook.create_processing_envelope() - creates internal representation
-5. Envelope ready for Discovery/Eligibility
-
-### Identity Separation
-
-| Level | Field | Example |
-|-------|-------|---------|
-| Order | order_id | ORDER-123 |
-| Processing | processing_id | PROC-456 |
-| Execution | execution_id | EXEC-789 |
-| Attempt | attempt_id | ATT-001 |
-
-## IMPLEMENTATION
-
-### Files Created
-- agents/ecosystem/event_hook.py
-
-### Files Modified
-- agents/ecosystem/__init__.py (added exports)
-
-### Tests
-- tests/test_event_hook.py (18 tests, all passing)
-
-## VALIDATION
-- [x] Event created with required fields
-- [x] Event validation rejects missing fields
-- [x] ProcessingEnvelope identity separation
-- [x] Trigger types validated
-- [x] Tenant context preserved
-- [x] No routing implemented
-- [x] No SQS implemented
-- [x] No May's Orders integration
-
-## NEXT STEP
-Integrate Event Hook into Lambda handler for event processing workflow.
-
-===============================================
-
-
-===============================================
-CHECKPOINT: 2026-09-16 — Agent Hook Pipeline
-
-## TASK
-Connect ProcessingEnvelope to AgentDiscovery and EligibilityCheck.
-
-## IMPLEMENTED
-
-### AGENT-HOOK-02 Components
-
-1. **Discovery.find_from_envelope()** - Takes ProcessingEnvelope, extracts:
-   - agent_id (explicit candidate)
-   - capability (from envelope.input)
-   - runtime compatibility
-   - body version compatibility
-   - status (ACTIVE only)
-
-2. **EligibilityPipeline** - Checks candidates against:
-   - Agent registration
-   - Agent status
-   - Capability support
-   - Body compatibility
-   - Runtime compatibility
-   - Tenant context
-
-3. **EligibilityPipelineResult** - Returns eligible/rejected lists
-
-## PIPELINE
-
-```
-ProcessingEnvelope → Discovery → Eligibility → [Eligible Candidates]
-```
-
-No routing, no ranking, no selection.
-
-## FILES MODIFIED
-
-- agents/ecosystem/discovery.py
-- agents/ecosystem/eligibility.py
-- agents/ecosystem/__init__.py
-
-## TESTS
-
-- tests/test_event_hook_pipeline.py (10 tests, all passing)
-
-## VALIDATION
-
-- [x] ProcessingEnvelope integrates with Discovery
-- [x] Discovery uses existing AgentRegistry
-- [x] Existing capability structure used
-- [x] Trigger compatibility considered
-- [x] Explicit agent_id works
-- [x] Multiple candidates returned
-- [x] Eligibility preserves candidates
-- [x] Tenant context preserved
-- [x] Agent status checked
-- [x] Runtime/body compatibility checked
-- [x] No auto-selection
-- [x] No ranking
-- [x] No agent execution
-- [x] Tests passing
-
-## NEXT STEP
-
-Integrate Event Hook pipeline into Lambda handler for event processing.
-
-===============================================
-CHECKPOINT: 2026-09-16 — Agent Routing Foundation
-
-## TASK
-Implement routing layer to select a single agent from eligible candidates.
-
-## IMPLEMENTED
-
-### AGENT-ROUTING-01 Components
-
-1. **AgentRouter** - Selects ONE agent from candidates
-2. **RoutingDecision** - Result dataclass with agent_id, agent, reason, confidence
-3. **SelectionStrategy** - First match, last match, future extensible patterns
-4. **QueryRouter** - Convenience for capability-based routing
-
-## PIPELINE
-
-```
-ProcessingEnvelope
-      ↓
-AgentDiscovery
-      ↓
-EligibilityPipeline
-      ↓
-Eligible Candidates [A, B, C]
-      ↓
-AgentRouter
-      ↓
-RoutingDecision (single winner)
-```
-
-## FILES MODIFIED
-
-- agents/ecosystem/routing.py (created)
-- agents/ecosystem/__init__.py (added exports)
-
-## TESTS
-
-- tests/test_routing.py (10 tests, all passing)
-
-## VALIDATION
-
-- [x] Router selects from candidates
-- [x] Returns single winner
-- [x] No ranking algorithm
-- [x] No agent execution
-- [x] Multiple candidates handled
-- [x] Custom strategy supported
-- [x] Tests passing
-
-## NEXT STEP
-
-Integrate Router into Lambda handler for event processing.
-
-===============================================
+==================================================
