@@ -347,6 +347,58 @@ fmt-Write, keine Datei gelöscht/verschoben/umbenannt, `git diff HEAD --
 terraform/` leer.
 
 ==================================================
+CHECKPOINT: 2026-09-26 — TERRAFORM-SOURCE-OF-TRUTH-DECISION-01
+==================================================
+
+## Objective
+Nur Source-of-Truth-Entscheidung (kein Fix) auf Basis CONSOLIDATION-AUDIT
+(d86c048). Canonical Repo, 1 Audit-Log (verifiziert).
+
+## Scope
+Historische Quellen je Variante, Root-Outputs, IAM/Lambda/Cognito/DynamoDB,
+Monitoring/CloudTrail, CI-Anbindung, Decision-Matrix. Keine Datei gelöscht/
+verschoben/umbenannt, kein Code verändert.
+
+## Repository HEAD
+main, d86c048 (verifiziert). SSH-Remote. 0 modified, 7 untracked (unberührt).
+
+## Decisions (CONFIRMED)
+- ACTIVE: Root-outputs.tf (G0.1-Original); Modul-Inline-Outputs
+  (iam/lambda/cognito/dynamodb, G0.1); `role_arn`-Name; `table_config`-Bedarf;
+  SQS/API; Root-Inline-CloudWatch; CI-Datei.
+- STALE: Root-Inline-Kopien (G0.2); Modul-outputs.tf-Kopien (G0.2/c83e3a2);
+  handler-Familie (nie existent); `lambda_role_arn`-Erwartung (G0.2-Einzeiler
+  ohne Output); Boundary/GSI1-Vars; Cognito-`environment`-Arg; GSI1-Vertrag;
+  CI-Schutzbehauptung.
+- HISTORICAL: `table_arn` (G0.1-Call); monitoring-Block (G0.1→G0.2 entfernt).
+- UNKNOWN (gültig): CloudTrail-Zweck; effektive Laufzeit-Rolle;
+  table_arn-Verbleib; Post-Fix-Validate; fmt-Rest; CI-nach-CWD-Fix; on.plan;
+  IAM-Runtime.
+
+## Key evidence
+G0.1: outputs.tf voll/0 Inline; G0.2-Diffs (`+output`, monitoring-Entfernung,
+`role_arn`→`lambda_role_arn`); c83e3a2-Neuanlagen (handler/boundary/outputs.tf/
+cloudtrail/monitoring); handler-Total-Historie leer; Consumer-Greps
+(invoke_arn→api aktiv; function_arn/table_arn/handler orphan); Tests/Installer
+NULL-Referenzen; CI ohne CWD (Vakuos-EXIT-0).
+
+## Report reference
+docs/reports/TERRAFORM-SOURCE-OF-TRUTH-DECISION-01.md — STATUS: GREEN
+(Entscheidung vollständig; Reparatur ausstehend, s.u.).
+
+## Next step
+Repair-Plan als Review-Dokument auf Matrix-Basis (eigener Checkpoint);
+UNKNOWN-Punkte mit Owner; Freigabe eigener Schritt.
+
+## NO MUTATION
+Bestätigt: keine Terraform-/IAM-/AWS-/CI-Änderung, kein fmt-Write/Plan/Apply,
+kein `git add .`, `git diff HEAD -- terraform/` leer.
+
+## Weiterhin NICHT repariert
+validate EXIT 1; fmt EXIT 2; alle Duplikate; handler-Inhalte;
+`lambda_role_arn`-Bruch; Variablen-Verträge; CI-CWD; alles aus Matrix.
+
+==================================================
 BLANK CHECKPOINT TEMPLATE (für nächstes Audit kopieren)
 ==================================================
 
