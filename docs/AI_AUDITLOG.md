@@ -502,6 +502,55 @@ Kein Terraform Plan/Apply/Destroy, keine Infra-/Code-Änderung (weder RIS noch
 mays-order-aws; Clone nur /tmp, kein Push). Nur 2 Doku-Dateien im RIS-Repo.
 
 ==================================================
+CHECKPOINT: 2026-09-26 — TERRAFORM-SOURCE-OF-TRUTH-DECISION-01 (formal A–T)
+==================================================
+
+## Objective
+Formale A–T-Entscheidung aus CONSOLIDATION-Evidence (kein Fix). Ersetzt
+inhaltlich den gleichnamigen Vor-Report (81459d2) durch Ticket-Struktur
+(Matrix A–T + Confidence + Repair Implication + Non-Decisions); keine
+Zweit-Entscheidung, keine neue Historienanalyse.
+
+## Evidence basis
+CONSOLIDATION-SOURCE-AUDIT-01 + AI_AUDITLOG gelesen; live rückbestätigt
+(`terraform/`-Diff leer, Output-Zählung, handler 2+1, lambda_role_arn 2,
+kein CI-CWD). Keine neuen Annahmen.
+
+## Repository HEAD
+main, 7b73036 (canonical, SSH). 0 modified, 7 untracked (unberührt).
+
+## Decision Matrix (A–T, Kern)
+- ACTIVE (HIGH): A Root, B Root-outputs.tf, D IAM/`lambda_role`, E/F/G
+  Module+Inline, H SQS, I API, M `role_arn`, R `table_config`-Bedarf.
+- STALE (HIGH): C Root-Inline-Kopien, Modul-outputs.tf-Kopien, N
+  `lambda_role_arn`-Erwartung, O handler-Familie, P Boundary-Vars, Q
+  `dynamodb_gsi1_arn`, S Cognito-`environment`, CI-Schutzbehauptung.
+- HISTORICAL: J monitoring-Block (HIGH), L `table_arn` (MEDIUM, Verbleib UNKNOWN).
+- UNKNOWN: K CloudTrail (+ effektive Rolle, table_arn-Verbleib, Post-Fix-Validate,
+  CI-nach-Fix, on.plan, IAM-Runtime).
+- T CI-CWD als CONFIRMED GAP (keine Terraform-Datei).
+
+## Active / Historical / Stale / Unknown
+Siehe Matrix; ACTIVE ≠ fehlerfrei (validate FAIL bis Repair); STALE = nicht als
+Repair-Basis; UNKNOWN nicht aufgelöst (gültig).
+
+## Repair implications
+ACTIVE → preserve/repair in place; STALE → removal-Kandidaten; HISTORICAL →
+nicht wiederbeleben; UNKNOWN → do not modify until resolved (Owner nötig).
+
+## Explicit non-decisions
+Keine Lösch-Reihenfolge, keine table_name-Lösung, kein CloudTrail-Schicksal,
+keine effektive Rolle, kein on.plan-Fix, kein Sharding-Urteil.
+
+## Report
+docs/reports/TERRAFORM-SOURCE-OF-TRUTH-DECISION-01.md — STATUS: GREEN
+(Entscheidung vollständig; kein Fix).
+
+## NO MUTATION
+Bestätigt: `git diff HEAD -- terraform/` leer, `diff --check` clean, nur
+2 Doku-Dateien, keine AWS-/IAM-/CI-Änderung.
+
+==================================================
 BLANK CHECKPOINT TEMPLATE (für nächstes Audit kopieren)
 ==================================================
 
