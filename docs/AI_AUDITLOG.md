@@ -267,6 +267,86 @@ Bestätigt: kein Terraform-/IAM-/AWS-Eingriff, kein init mit Backend, kein
 Plan/Apply, kein fmt-Write, keine Secrets, `git diff HEAD -- terraform/` leer.
 
 ==================================================
+CHECKPOINT: 2026-09-26 — TERRAFORM-CONSOLIDATION-SOURCE-AUDIT-01
+==================================================
+
+## Objective
+READ-ONLY: autoritative vs. parallele/ältere/kopierte Terraform-Strukturen
+bestimmen. Folge von INTEGRITY-AUDIT (92c72e7). KEINE Lösch-/Merge-Entscheidung.
+
+## Scope
+Inventar (26 Dateien), 5 Root- + 12 Modul-Duplikate, Inline-vs-outputs-Muster,
+Git-Origin (welche Seite zuerst, per Diffs), Parallel-Indizien, Contract-Graph,
+stale Handler, cloudtrail/monitoring, CI-Anbindung, Root-Intent, SoT-Matrix.
+
+## Repository HEAD
+main, 92c72e7 (verifiziert; Kette 346d6f4/c236cd4 existent). SSH-Remote.
+0 modified, 7 untracked (unberührt).
+
+## Working Tree
+Unverändert (nur Audit-Doku neu). Keine untracked Datei berührt.
+
+## Terraform inventory
+26 Dateien: Root 3 + 8 Module (outputs.tf in allen außer sqs). 6 Module aktiv
+verdrahtet; cloudtrail nie, monitoring seit G0.2 unverdrahtet. Keine tfvars.
+
+## Root duplicates
+5x, Values identisch. ORIGINAL = outputs.tf (G0.1, 0 Inline); Kopien = G0.2-Diff
+(`+output "lambda_functions"` belegt). Keine Behalte-Entscheidung.
+
+## Module duplicates
+iam 2 (WIDERSPRÜCHLICH: lambda_role vs nie existenter handler), lambda 4
+(identisch), cognito 3, dynamodb 3. outputs.tf-Dateien je NACH Inline-Stand
+erzeugt (G0.2 bzw. c83e3a2). api/sqs/monitoring/cloudtrail eindeutig.
+
+## Git history findings
+Historie G0.1→G0.4 (danach nur Doku). `lambda_role_arn`-Bruch = G0.2-Einzeiler
+(`-role_arn` → `+lambda_role_arn` ohne Output-Seite). handler-Familie +
+boundary-Vars = c83e3a2-Neuanlage gegen nie existente Ziele (Total-Historie
+leer → nie ACTIVE). monitoring-Block G0.1→G0.2 entfernt (Diff), Dateien erst
+c83e3a2. G0.1-Vertrag war `role_arn`/`table_arn` (evolutioniert).
+
+## Parallel implementation findings
+Systematisches outputs.tf-parallel-zu-Inline-Muster; Order-Domäne/T011-Tag/
+deutsche Texte als Fremdkontext-Indiz; Doppel-Rolle (effektiv UNKNOWN);
+table_arn-Verbleib UNKNOWN; cloudtrail-Zweck UNKNOWN.
+
+## Module contracts
+iam: 2 Pflicht-Inputs offen + `lambda_role_arn` nichtexistent (2 Refs);
+dynamodb: undeklarierte Args + undeklarierte Var-Nutzung (Z.24-25); cognito:
+undeklariertes `environment`-Arg. api/sqs intakt (Referenzebene).
+
+## Stale references
+3x STALE/HISTORICAL (nie ACTIVE): iam/outputs.tf:4/9/14. Niemand referenziert sie.
+
+## CI relation
+Gates blind (kein CWD → Root-Vakuos EXIT 0 statt terraform/-Prüfung); erklärt
+Akkumulation seit G0.2. `on.plan`-Anomalie (NOT VERIFIED). Workflow unverändert.
+
+## Source-of-truth assessment
+CURRENT ROOT = `terraform/` (eindeutig, keine Konkurrenz). Matrix: Root-Outputs
+→ outputs.tf HIGH; IAM-Rolle → lambda_role HIGH; Output-Name → role_arn HIGH
+(Bruch G0.2); lambda/cognito/dynamodb-Zwillinge MEDIUM (funktional egal);
+dynamodb-Vertrag/cloudtrail LOW/UNKNOWN; CI-Fixpunkt HIGH.
+
+## Unknowns
+cloudtrail-Zweck; effektive Rolle; table_arn-Verbleib; Post-Fix-Validate;
+fmt-Rest; CI-nach-CWD-Fix; on.plan; IAM-Runtime (NOT REACHED).
+
+## Report reference
+docs/reports/TERRAFORM-CONSOLIDATION-SOURCE-AUDIT-01.md — STATUS: RED (Subjekt
+unverändert; Ursachen jetzt herkunftsbelegt).
+
+## Next step
+Separater Repair-Plan als Review-Dokument (Schichten in Geburtsreihenfolge),
+ohne Löschen/Zusammenführen; Freigabe eigener Schritt.
+
+## NO MUTATION
+Bestätigt: keine Terraform-/IAM-/AWS-Änderung, kein Backend-init/Plan/Apply/
+fmt-Write, keine Datei gelöscht/verschoben/umbenannt, `git diff HEAD --
+terraform/` leer.
+
+==================================================
 BLANK CHECKPOINT TEMPLATE (für nächstes Audit kopieren)
 ==================================================
 
