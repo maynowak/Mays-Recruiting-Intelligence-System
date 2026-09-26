@@ -399,6 +399,62 @@ validate EXIT 1; fmt EXIT 2; alle Duplikate; handler-Inhalte;
 `lambda_role_arn`-Bruch; Variablen-Verträge; CI-CWD; alles aus Matrix.
 
 ==================================================
+CHECKPOINT: 2026-09-26 — TERRAFORM-CONSOLIDATION-REPAIR-PLAN-01
+==================================================
+
+## Objective
+PLANUNG ONLY: evidenzbasierter Repair-Plan aus Decision-Matrix. Keine Ausführung.
+
+## Evidence basis
+INTEGRITY-AUDIT + CONSOLIDATION-SOURCE-AUDIT + SOURCE-OF-TRUTH-DECISION
+(exakte Ticket-Namen, alle vorhanden gelesen) + AI_AUDITLOG. Basis 81459d2
+verifiziert (main, SSH, 0 modified, 7 untracked unberührt).
+
+## Source-of-Truth decision (übernommen)
+ACTIVE: Root-outputs.tf, Modul-Inline-Outputs, `role_arn`, `table_config`-Bedarf,
+SQS/API, Root-Inline-CloudWatch. STALE: alle Kopien, handler-Familie,
+`lambda_role_arn`-Erwartung, Boundary/GSI1-Vars, tote Args, CI-Schutzbehauptung.
+HISTORICAL: `table_arn`, monitoring-Block. UNKNOWN: CloudTrail, effektive Rolle,
+table_arn-Verbleib, Post-Fix-Validate, CI-nach-Fix, on.plan, IAM-Runtime.
+
+## Planned repairs (R01–R19, Kern)
+R19 Parse-Newline zuerst (blockiert alles) → R01–R06 Stale-Removals (Block-Ebene,
+nie pauschal) → R07 REWIRE role_arn → R08/R09 REMOVE-DECL (0 Referenzen belegt)
+→ R10 DECLARE table_config (Typ aus Root-Default) → R11 REMOVE-ARG →
+R12–R15 DEFER/KEEP (GSI1 erledigt, table_arn/CloudTrail/monitoring mit Owner) →
+R16/R17 CI-CWD nach lokalem Grün + Negativ-Probe → R18 INVESTIGATE (kein
+Trigger-Change ohne Beleg). Neu im Plan: `var.dynamodb_table_name`-Lücke
+(iam/main.tf:15, undeklariert) als Repair-Entscheidungspunkt.
+
+## Repair order
+A Parsing → B Duplikate → C Variablen/Contracts → D IAM/Lambda → E DynamoDB →
+F Cognito → G CloudTrail/Monitoring (DEFER) → H Format → I validate EXIT 0 →
+J CI-CWD → K Gates → L lesender Plan (eigener Checkpoint) → M Identitäts-Audit
+(eigener Checkpoint). Commits A–F klein/getrennt, je mit Check+Log.
+
+## Validation strategy
+Matrix je Repair (Static/`validate`/`fmt-check`/Plan/CI); `plan` nur nach
+A–K grün (nicht ausgeführt). Rollback via `git revert` (kein reset --hard/
+clean); scoped adds; untracked-Schutz per Status-Beleg.
+
+## Safety constraints
+Keine Terraform-/IAM-/AWS-/CI-Änderung, kein Backend-init/Plan/Apply/Destroy,
+kein fmt-Write, keine Löschung/Verschiebung/Umbenennung, kein `git add .`,
+kein Raten (DEFER statt Erfindung).
+
+## Unknowns
+Decision-Unknowns übernommen + plan-spezifisch: latente Validate-Schichten
+(STOP einkalkuliert), `table_name`-Behandlung (am validate-Feedback entscheiden).
+
+## Report
+docs/reports/TERRAFORM-CONSOLIDATION-REPAIR-PLAN-01.md — STATUS: GREEN (Plan
+vollständig/ausführbar; keine Ausführung).
+
+## Explicit NO MUTATION
+Bestätigt: `git diff HEAD -- terraform/` leer, nur 2 Doku-Dateien, 7 untracked
+unberührt.
+
+==================================================
 BLANK CHECKPOINT TEMPLATE (für nächstes Audit kopieren)
 ==================================================
 
