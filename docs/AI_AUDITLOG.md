@@ -455,6 +455,53 @@ Bestätigt: `git diff HEAD -- terraform/` leer, nur 2 Doku-Dateien, 7 untracked
 unberührt.
 
 ==================================================
+CHECKPOINT: 2026-09-26 — PARALLEL-PROCESSING-DOC-CHECK-01
+==================================================
+
+## Objective
+Git-only prüfen, ob Parallel Deployment/Processing-Semantik in
+`maynowak/mays-order-aws` bereits vollständig/eindeutig dokumentiert ist.
+Kein Redesign. R10 als GREEN vorausgesetzt (nicht erneut reparieren).
+
+## Source (Git-only)
+Remote-main SHA via `ls-remote`: 9c61237185d202e072b2304355ee836154368846.
+Shallow single-branch clone nach /tmp/opencode (HEAD identisch verifiziert,
+tree clean). Lokale Sibling-Dirs/Zips NICHT verwendet. Nur relevante Treffer-
+Dokumente gelesen (keine Vollinventur, 126 md-Dateien nicht alle gelesen).
+
+## Findings
+- Parallel Deployment = 1 Terraform-Workspace je project_name (auto-select,
+  09-04-Fix), getestet GREEN (09-01/09-02: mays-orders + mays-order-par
+  parallel, je 37 Ressourcen, restlos destroyed).
+- DeploymentId = account:project:environment (Version exkludiert); Plan-Identität
+  je Operation mit hardened Discovery; Destroy-Isolation; Ownership-Klassen;
+  kanonische Tags (H2-Report, 125/125 Tests).
+- State-Isolation via Workspaces; S3-Backend-Key-Strategie OFFEN (nur 09-01 Q2).
+- Ressourcen-Isolation via `${project_name}-*` + bare Projekt-Tabellen +
+  Tag-Guards + Tag-abgeleiteter Policy-Gate (09-02-Fix).
+- Runtime-Parallelismus: Auto-Scaling + idempotente Handler + Conditional
+  Writes + version-Attribut (reserviert) + SQS-E2E PASSED; keine explizite
+  Concurrency-Konfig (Defaults, dokumentiert unkritisch).
+- KEINE Widersprüche (09-01-Risiko → 09-02-Fix → 09-04-Härtung konsistent;
+  R10-Kette hält, workspace==project_name 1:1).
+- MISSING: Workspace-Note in Lifecycle/Architektur-Doku (09-05-YELLOW am
+  Analyse-Commit weiter offen); Backend-Key-Entscheidung; Test-
+  Parametrisierung. Folgerung: NICHT neu definieren — SoT bestätigen + 3 Lücken.
+
+## Report reference
+docs/reports/PARALLEL-PROCESSING-DOC-CHECK-01.md — STATUS: YELLOW
+(SoT existiert/getestet; kanonische Doku hinkt Execution-Logs hinterher).
+
+## Checks
+ls-remote + clone-SHA-Match; gezielte Greps (parallel/workspace/DeploymentId/
+naming/idempotency); H2-Abschnitt auf Workspace-Note geprüft (fehlt);
+Backend-Key-Suche leer; Tests/Installer des RIS-Repos unbeteiligt.
+
+## No mutation performed
+Kein Terraform Plan/Apply/Destroy, keine Infra-/Code-Änderung (weder RIS noch
+mays-order-aws; Clone nur /tmp, kein Push). Nur 2 Doku-Dateien im RIS-Repo.
+
+==================================================
 BLANK CHECKPOINT TEMPLATE (für nächstes Audit kopieren)
 ==================================================
 
