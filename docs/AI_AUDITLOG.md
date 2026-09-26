@@ -551,6 +551,64 @@ Bestätigt: `git diff HEAD -- terraform/` leer, `diff --check` clean, nur
 2 Doku-Dateien, keine AWS-/IAM-/CI-Änderung.
 
 ==================================================
+CHECKPOINT: 2026-09-26 — TERRAFORM-CONSOLIDATION-REPAIR-PLAN-01 (verbindlich R01–R21)
+==================================================
+
+## Objective
+Verbindlicher Repair-Plan aus Decision 9d5b603. PLANUNG ONLY, keine Ausführung.
+
+## Evidence basis
+DECISION-01 (verbindlich) + SOURCE-AUDIT + INTEGRITY-AUDIT + DEPLOY-AUDIT +
+AI_AUDITLOG gelesen. Konsistenz: keine Inkonsistenz zwischen Reports → keine
+SoT-Frage erneut geöffnet. Fehlendes = UNKNOWN (nicht geraten).
+
+## Source-of-Truth decision 9d5b603 (übernommen)
+ACTIVE = Reparaturbasis (≠ fehlerfrei): Root, Root-outputs.tf, role_arn,
+Lambda/Cognito/DynamoDB-SQS-API, table_config-Bedarf. STALE: alle Kopien,
+lambda_role_arn-Erwartung, handler, Boundary/GSI1-Vars, tote Args,
+CI-Schutzbehauptung. HISTORICAL: monitoring-Block, table_arn (Verbleib UNKNOWN).
+UNKNOWN: CloudTrail, effektive Rolle, table_arn-Verbleib, Post-Fix, CI-nach-Fix,
+on.plan, IAM-Runtime.
+
+## Repair Matrix (Kern)
+R01–R05 Stale-Removals Block-Ebene (Risiko niedrig, Commit 1); R06 REWIRE
+role_arn (mittel, Commit 3); R07 handler REMOVE-Kandidat (Grep-Bedingung);
+R08 Boundary REMOVE-DECL + table_name-Entscheidungspunkt; R09 erledigt via R08;
+R10 DECLARE table_config aus Root-Default (keine Erfindung); R11 REMOVE-ARG;
+R12 1-Zeichen-Newline zuerst (blockiert alles); R13–R16 CI-CWD+Gates nach
+lokalem Grün + Negativ-Probe (eigener Checkpoint, Commit 4); R17–R19/R21 DEFER
+(Owner); R20 erst nach validate→plan→Identity.
+
+## Repair Order
+Phase 0 Safety → 1 Root (R12→R01) → 2 Modul-Outputs (R02–R05+R07) → 3 Contracts
+(R06/R08/R10/R11) → 4 Static validation → 5 CI-CWD → 6/7 CI-Gates/Plan-Gate →
+8 lesender Plan → 9 Identitäts-Audit. UNKNOWN außerhalb bis Evidence.
+Dependency-Begründung aus Evidence (Parse abortet alles; validate meldet
+schichtweise; CI nie vakuos).
+
+## Validation Gates
+G1 Git-Checkpoint → G2 Static-Grep → G3 fmt-check → G4 validate EXIT 0 →
+G5 CWD → G6/G7 CI-Gates (Negativ-Probe) → G8 CI-Plan → G9 lesender Plan →
+G10 Identity → G11 IAM-Abgleich. Strikt sequenziell; Stops je Gate definiert.
+
+## Deferred Unknowns
+R17/R18/R19/R21 + R20 + Post-Fix-Latentes (STOP einkalkuliert).
+
+## Stop Conditions
+SoT-Widerspruch, aktiver STALE-Consumer, UNKNOWN nötig, neue Architektur,
+AWS-State/Runtime/Backend nötig, CI-Scope-Bruch, untracked betroffen, neue
+Validate-Schicht → Report + Log + Commit + HARD STOP.
+
+## Report
+docs/reports/TERRAFORM-CONSOLIDATION-REPAIR-PLAN-01.md — STATUS: GREEN
+(Plan vollständig/ausführbar; keine Ausführung).
+
+## NO MUTATION
+Bestätigt: `git diff HEAD -- terraform/` leer (geprüft nachher), nur 2
+Doku-Dateien, 7 untracked unberührt, kein Backend-init/Plan/Apply/Destroy/
+fmt-Write, keine Löschung/Verschiebung/Umbenennung.
+
+==================================================
 BLANK CHECKPOINT TEMPLATE (für nächstes Audit kopieren)
 ==================================================
 

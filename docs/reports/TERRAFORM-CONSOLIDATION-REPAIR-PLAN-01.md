@@ -2,247 +2,211 @@
 
 ## Status
 
-**GREEN** — Plan vollständig, ausführbar, evidenzbasiert. Alle R01–R19 mit
-Aktion, Dependency und Validierung. UNKNOWN-Positionen explizit DEFER.
-Dies ist PLANUNG ONLY: keine Terraform-/IAM-/AWS-/CI-Änderung enthalten.
+**GREEN** — Verbindlicher Plan vollständig: R01–R21 mit Risiko + Commit,
+Block-Aktionen mit Dependency-Check, Phasen 0–9, Gates G1–G11, Rollback,
+Commit-Strategie, Stops, Final State. PLANUNG ONLY — keine Implementierung.
 
 ## Objective
 
-Präziser, evidenzbasierter Reparaturplan für die Terraform-Konsolidierung auf
-Basis der abgeschlossenen Audits. Keine Ausführung in diesem Checkpoint.
+Verbindlicher, evidenzbasierter Reparaturplan für die Terraform-Konsolidierung
+auf Basis der formalen Decision 9d5b603. Kein Terraform-/IAM-/AWS-/CI-Eingriff.
 
 ## Evidence Basis
 
-Verwendete (nicht erfundene) Reports unter exakten Ticket-Namen, alle vorhanden:
-
-- `docs/reports/CI-TERRAFORM-INTEGRITY-AUDIT-01.md` (validate EXIT 1, fmt EXIT 2,
-  Contract-Brüche, Blind-Gate)
-- `docs/reports/TERRAFORM-CONSOLIDATION-SOURCE-AUDIT-01.md` (Herkunft je Schicht:
-  G0.1-Originale → G0.2-Kopien → c83e3a2-Neuanlagen)
-- `docs/reports/TERRAFORM-SOURCE-OF-TRUTH-DECISION-01.md` (Decision-Matrix:
-  ACTIVE / STALE / HISTORICAL / UNKNOWN)
-- `docs/AI_AUDITLOG.md` (CHECKPOINTs 92c72e7, 346d6f4, d86c048, 81459d2)
-
-Source of Truth (verifiziert): Repository `Mays-Recruiting-Intelligent-System`,
-Branch `main`, Decision-Commit `81459d2` (HEAD, `cat-file`/`log` belegt).
+Gelesen (exakte Ticket-Namen, alle vorhanden): DECISION-01 (9d5b603,
+verbindlich), CONSOLIDATION-SOURCE-AUDIT-01, INTEGRITY-AUDIT-01,
+DEPLOY-PERMISSION-AUDIT-01, AI_AUDITLOG.md. Konsistenzprüfung: keine
+Inkonsistenz zwischen den Reports entdeckt (SoT-Mengen identisch,
+Herkunftsketten widerspruchsfrei) → keine SoT-Frage erneut geöffnet.
+Fehlendes bleibt UNKNOWN (nicht ergänzt/geraten).
 
 ## Repository Baseline
 
-`main`, HEAD `81459d2`, SSH-Remote kanonisch, 0 modified, 7 untracked
-Vorarbeits-Dateien (geschützt, unberührt). `git diff HEAD -- terraform/` leer.
+Canonical Repo, `main`, HEAD `9d5b603` (erwarteter Stand, verifiziert —
+nicht blind übernommen), SSH-Remote, 0 modified, 7 untracked
+Vorarbeits-Dateien (geschützt). Kein clean/reset.
+
+## Source-of-Truth Dependency
+
+Verbindlich übernommen (ACTIVE ≠ fehlerfrei; ACTIVE = Reparaturbasis):
+ACTIVE: `terraform/`-Root, Root-`outputs.tf`, IAM role/`role_arn`, aktive
+Lambda-/Cognito-/DynamoDB-Strukturen, SQS, API, `table_config`-Bedarf.
+STALE: Root-Inline-Kopien, Modul-`outputs.tf`-Kopien, `lambda_role_arn`,
+handler-Familie, Boundary-Varianten, `dynamodb_gsi1_arn`,
+Cognito-`environment`, CI-Schutzbehauptung. HISTORICAL: Monitoring-Block,
+`table_arn` (Verbleib UNKNOWN). UNKNOWN: CloudTrail, effektive Runtime-Rolle,
+`table_arn`-Verbleib, Post-Fix-Validate, CI-nach-Fix, `on.plan`, IAM-Runtime.
 
 ## Repair Matrix
 
-| ID | Finding | Current Source of Truth | Planned Action | Dependency | Validation |
-|----|---------|-------------------------|----------------|------------|------------|
-| R01 | Root Duplicate Outputs (5) | ACTIVE: `outputs.tf` (G0.1) / STALE: Inline-`main.tf` (G0.2) | REMOVE-STALE (5 Inline-Blöcke main.tf:187-209) | R19 (parse zuerst) | `validate` (Root-Fehler weg), `grep ^output` je 1× |
-| R02 | IAM outputs.tf duplicates | ACTIVE: Inline main.tf:87-93 / STALE: outputs.tf `role_arn`/`role_name` (handler-Ziele) | REMOVE-STALE (outputs.tf-Blöcke role_arn/role_name) + REWIRE policy_name (s. R06) | R19, R01 | `validate` erreicht Modulebene |
-| R03 | Lambda outputs.tf duplicates | ACTIVE: Inline main.tf (G0.1) / STALE: outputs.tf-Kopie (G0.2) | REMOVE-STALE (outputs.tf-Dateiinhalt, 4 Blöcke) | R19, R01 | dto. |
-| R04 | Cognito outputs.tf duplicates | ACTIVE: Inline (G0.1) / STALE: outputs.tf (c83e3a2) | REMOVE-STALE (3 Blöcke) | R19, R01 | dto. |
-| R05 | DynamoDB outputs.tf duplicates | ACTIVE: Inline (G0.1) / STALE: outputs.tf (c83e3a2) | REMOVE-STALE (duplizierte Blöcke) | R19, R01 | dto. |
-| R06 | stale handler references (3) | CONFIRMED STALE, nie existent | REMOVE-STALE (outputs.tf:4/9/14-Blöcke; `policy_name`-Orphan gleich mit) | R02 (gleicher Commit sinnvoll) | `grep handler` in terraform/ leer (außer Doku) |
-| R07 | `lambda_role_arn`-Contract | STALE-Erwartung (G0.2-Einzeiler ohne Output-Seite) | REWIRE: main.tf:92 + outputs.tf:37-38 auf `module.iam.role_arn` (G0.1-Vertrag) zurückführen | R01, R02 | `validate` (unsupported-attribute weg) |
-| R08 | `dynamodb_gsi1_arn` + `var.dynamodb_table_name` (iam) | Var deklariert/nie genutzt/nie übergeben; `table_name` genutzt/nie deklariert | REMOVE-DECL (`dynamodb_gsi1_arn`-Block, 0 Referenzen belegt) + INVESTIGATE `table_name`-Bedarf (Policy-Zeile 15) | R02 | `validate` (required-variable + undeclared-ref weg) |
-| R09 | `permissions_boundary` | deklariert/nie genutzt/nie übergeben | REMOVE-DECL (Block variables.tf:22-25, 1 Treffer = Deklaration) | R02 | dto. |
-| R10 | `table_config`-Contract | Bedarf ACTIVE (TTL-Nutzung main.tf:24-25); Root-Default vorhanden (`{true,"expiresAt"}` variables.tf:49-59); Modul-Deklaration fehlt | DECLARE im Modul (Objekttyp spiegelgleich zum Root-Default — keine Werte-Erfindung) | R05 | `validate` (undeclared/unsupported weg) |
-| R11 | Cognito `environment`-Arg | STALE (totes Arg: undeklariert + ungenutzt) | REMOVE-ARG (Root-Call-Zeile) | R04 | `validate` |
-| R12 | DynamoDB GSI1-Vertrag | STALE (real: gsi-status/gsi-tenant/+1; Vertrag passt auf keinen, ungefüttert) | Keine Aktion (erledigt via R08 REMOVE-DECL); falls Repair einen GSI-ARN-Bedarf zeigt → DEFER mit Owner | R08 | `grep gsi1_arn` leer |
-| R13 | `table_arn`-Historie | HISTORICAL (nur G0.1-Call); Verbleib UNKNOWN | DEFER (kein aktiver Consumer; keine Wiederbelebung ohne Owner) | — | keine (beobachten) |
-| R14 | CloudTrail-Status | UNKNOWN (nie verdrahtet, Zweck unbelegt) | DEFER + DECISION REQUIRED (Owner klärt Zweck; kein Aktivieren/Löschen) | — | keine Code-Änderung |
-| R15 | Monitoring-Status | HISTORICAL (Block) / ACTIVE (Root-Inline-CloudWatch) / UNCONNECTED (Dateien) | KEEP (Inline aktiv lassen); Dateien DEFER (kein Löschen ohne Owner) | — | keine |
-| R16 | CI Terraform-CWD | Workflow ACTIVE, CWD nicht gesetzt | REWIRE (geplant): `defaults.run.working-directory: terraform` bzw. `-chdir=terraform` je Step — erst nach Phasen A–I grün | A–I lokal grün | CI-Log zeigt echte Prüfung |
-| R17 | CI "blind gate" | Schutzbehauptung STALE (Vakuos-EXIT-0 belegt) | Geheilt via R16 + Gate-Assertion (s. Validierung) | R16 | Gate wird bei kaputtem Code rot (Negativ-Probe im Repair) |
-| R18 | `on.plan`-Verhalten | NOT VERIFIED (kein GitHub-Event; Auswirkung GitHub-seitig) | INVESTIGATE (Workflow-Runs/Doku prüfen; keine Triggeränderung ohne Beleg) | — | DEFER bis Beleg |
-| R19 | fmt / variables.tf:18 | Parse-Fehler (kein Stil-, sondern Syntax-Problem) | FIX-PARSE: Newline nach `default = "dev"` (1 Zeichen, variables.tf:17/18) | KEINE (Phase A, zuerst — blockiert validate UND fmt) | `validate` + `fmt -check` passieren Parse-Stufe |
+| ID | Problem | Source of Truth | Geplante Änderung | Risiko | Validation | Commit |
+|----|---------|-----------------|-------------------|--------|------------|--------|
+| R01 | Root Duplicate Outputs (5) | ACTIVE outputs.tf / STALE Inline main.tf:187-209 | REMOVE-STALE: 5 Inline-Blöcke (kein Blind-Delete; outputs.tf bleibt) | NIEDRIG (Values identisch, keine externen Consumer belegt) | `validate` Root-Fehler weg; `grep ^output <name>` 1× | 1 |
+| R02 | IAM outputs.tf duplicates | ACTIVE Inline main.tf:87-93 / STALE outputs.tf (`role_arn`/`role_name` widersprüchlich, `policy_name` orphan) | REMOVE-STALE: 3 Blöcke nach Consumer-Grep | NIEDRIG-MITTEL (widersprüchliche Ziele → Grep zuerst) | Modulebene in `validate` erreicht | 1 |
+| R03 | Lambda outputs.tf duplicates | ACTIVE Inline (G0.1) / STALE Datei-Kopie (G0.2) | REMOVE-STALE: 4 Blöcke | NIEDRIG (identisch, `invoke_arn`-Consumer via Moduladresse unberührt) | dto. | 1 |
+| R04 | Cognito outputs.tf duplicates | ACTIVE Inline / STALE Kopie (c83e3a2) | REMOVE-STALE: 3 Blöcke | NIEDRIG | dto. | 1 |
+| R05 | DynamoDB outputs.tf duplicates | ACTIVE Inline / STALE Kopie | REMOVE-STALE: duplizierte Blöcke | NIEDRIG | dto. | 1 |
+| R06 | IAM role_arn Contract | ACTIVE `role_arn` / STALE `lambda_role_arn`-Erwartung | REWIRE main.tf:92 + outputs.tf:37-38 auf `module.iam.role_arn`; keine neue Rolle/Policy/Boundary | MITTEL (Vertragsänderung, 2 Stellen) | `unsupported attribute` weg | 3 |
+| R07 | stale handler references (3) | CONFIRMED STALE (nie existent) | REMOVE candidate nach Referenz-Grep (keine aktiven Consumer belegt; bei Fund STOP/DEFER) | NIEDRIG (tote Refs, derzeit parse-maskiert) | `grep handler` terraform/ leer (außer Doku) | 1 |
+| R08 | stale boundary variables | STALE (`permissions_boundary`, `dynamodb_gsi1_arn`: 0 Referenzen) | REMOVE candidate (Deklarationsblöcke) nach Grep-Beleg; `var.dynamodb_table_name`-Lücke (iam/main.tf:15, undeklariert) als Repair-Entscheidung am validate-Feedback | NIEDRIG (Deklaration) / OFFEN (table_name) | `required variable`/`undeclared` weg | 3 |
+| R09 | DynamoDB GSI1 contract | STALE (real gsi-status/gsi-tenant/+1; Vertrag ungefüttert) | Keine Aktion über R08 hinaus; bei aktivem Consumer im Repair → REPAIR CONTRACT, sonst erledigt | KEINS | `grep gsi1_arn` leer | 3 |
+| R10 | DynamoDB table_config | Bedarf ACTIVE; Root-Default vorhanden; Modul-Deklaration fehlt | DECLARE im Modul (Objekttyp = Root-Default `{ttl_enabled,ttl_attribute}` — keine Werte-Erfindung); Call-Kette Caller→Input→Variable→Resource (main.tf:24-25) belegt | NIEDRIG-MITTEL (neue Deklaration) | undeclared/unsupported weg | 3 |
+| R11 | Cognito environment | STALE (totes Arg) | REMOVE-ARG (1 Root-Call-Zeile); keine Variable wiederherstellen | NIEDRIG | `validate` | 3 |
+| R12 | variables.tf / formatting | Parse-Fehler (Syntax, kein Stil): Newline nach `default = "dev"` fehlt (Z.17/18) | Minimal-Edit (1 Zeichen); kein `fmt`-Write im Plan; später minimal edit → `fmt -check` → `validate` | MINIMAL | Parse-Stufe passiert (validate + fmt) | 1 |
+| R13 | CI Terraform CWD | Workflow ACTIVE; CWD nicht gesetzt | REWIRE (geplant): `terraform/` als Working Directory aller Terraform-Steps (Detail im Repair); EIGENER Checkpoint, nicht mit Code-Repair vermischt | MITTEL (macht blindes Grün ehrlich rot/grün) | CI-Log zeigt echte Prüfung | 4 |
+| R14 | CI validate gate | Blind (STALE als Schutz) | Geheilt via R13 + Negativ-Probe (kaputtes Fixture → rot erwartet) | MITTEL | Gate schlägt bei Fehlern an | 4 |
+| R15 | CI fmt gate | dto. | dto. | MITTEL | dto. | 4 |
+| R16 | CI plan gate | dto. (plus Backend-init nötig) | dto.; `plan` nur nach A–K grün | MITTEL | Plan-Artefakt lesbar | 4 |
+| R17 | CloudTrail | UNKNOWN | DEFER UNTIL EVIDENCE (NO REPAIR/DELETE/RESTORE/ENABLE) | KEINS (keine Aktion) | keine Code-Änderung | — |
+| R18 | Monitoring | HISTORICAL/UNCONNECTED | DEFER / EXPLICIT ARCHITECTURE DECISION (Inline-CloudWatch KEEP; Dateien weder löschen noch reaktivieren) | KEINS | keine | — |
+| R19 | table_arn | HISTORICAL, Verbleib UNKNOWN | DEFER; keine neue table_name/table_arn-Struktur erfinden | KEINS | keine | — |
+| R20 | effective IAM Runtime Role | NOT REACHED/UNKNOWN | Keine Runtime-Reparatur, keine Policy-Erweiterung; erst nach validate→plan→Identity-Verification (eigener Audit-Checkpoint) | KEINS (hier) | — | — |
+| R21 | on.plan | NOT VERIFIED | Separater CI-Trigger-Audit falls nach CWD-Fix relevant; keine Triggeränderung | KEINS | DEFER | — |
 
-## Duplicate Output Repair
+## Root Output Repair
 
-Grundsatz (Decision): Originale behalten, Kopien auf BLOCK-Ebene entfernen —
-nie "delete outputs.tf" pauschal (Root-outputs.tf IST das Original; dort fallen
-die 5 Inline-Blöcke in main.tf). Pro Output: authoritative Definition (s. R01–
-R05), stale Definition, Consumer (meist keine externen; `invoke_arn`→api,
-Namen→root), geplante Änderung (Block-Removal), Validierung (`validate` +
-`grep ^output <name>` genau 1 Treffer je Modul/Root). `function_arn`-Orphan
-bleibt als ACTIVE-Definition erhalten (ungenutzt, kein Consumer → kein Eingriff).
+Je der 5 Outputs: authoritative Definition (`outputs.tf`, G0.1), stale
+Definition (Inline `main.tf`, G0.2-Diff), Consumer (keine externen; CLI/Show),
+geplante Änderung (Inline-Block entfernen), Validierung (s. R01). Kein
+"delete outputs.tf" — die aktive Datei bleibt. `lambda_functions` kam erst mit
+der stale Schicht (belegt) — fällt mit ihr.
 
-## IAM / Lambda Repair
+## Module Output Repair
 
-CURRENT: `iam_role_arn = module.iam.lambda_role_arn` (2 Stellen), Provider:
-kein solcher Output; tatsächliche Rollen: `iam.lambda_role` (orphan, existent)
-+ `lambda.lambda_execution` (an Funktion + 5 Policies gebunden).
-EXPECTED (G0.1-Vertrag): `module.iam.role_arn`.
-CONSUMER: `module.lambda` (Input) + Root-Output.
-PLANNED CHANGE: REWIRE beider Stellen auf `module.iam.role_arn`; stale
-handler-Blöcke entfernen (R06); `dynamodb_gsi1_arn`/`permissions_boundary`-
-Deklarationen entfernen (R08/R09, je 0 Referenzen); `var.dynamodb_table_name`-
-Bedarf klären (Policy-Zeile 15: entweder deklarieren oder Ressourcen-Ausdruck
-auf ARN-Basis umstellen — Entscheidung im Repair nach `validate`-Feedback,
-keine Vorab-Erfindung).
-VALIDATION: `validate` ohne unsupported-attribute/required-variable-Fehler.
-Keine IAM Policy Expansion, keine neuen Permissions (explizit verboten).
+iam/lambda/cognito/dynamodb: Outputs + Consumer + Output-/Resource-Referenzen
+je Modul geprüft (Evidence §§E8–E13 der Audits). Ergebnis: Inline KEEP,
+`outputs.tf`-Kopien REMOVE (R02–R05), `policy_name`-Orphan REMOVE (R07),
+`function_arn`-Orphan KEEP (ACTIVE-Definition, ungenutzt — kein Eingriff).
+DEFER-Regel: bei nicht eindeutig überprüfbarem Consumer → DEFER statt REMOVE.
 
-## DynamoDB Repair
+## IAM / Lambda Contract Repair
 
-`dynamodb_gsi1_arn`: current = deklariert/unbenutzt/ungefüttert → REMOVE-DECL.
-`table_config`: current = Root-Default vorhanden, Modul-Nutzung aktiv,
-Deklaration fehlend → DECLARE (Typ aus Root-Default gespiegelt). Herkunftsfrage
-beantwortet: `table_config` kommt aus Root-`var.table_config` (belegt,
-variables.tf:49-59) — die Referenz ist aktiv, nicht stale; es fehlt nur die
-Modul-Deklaration. GSI1: kein Repair (R12). `table_arn`: DEFER (R13).
-Validierung: `validate` (kein undeclared/unsupported mehr).
+CURRENT Provider `module.iam` / Output `role_arn` / Broken Consumer
+`module.iam.lambda_role_arn` (2 Stellen) / TARGET `role_arn`-Vertrag.
+Änderung: REWIRE (R06). Gleichzeitig: Doppel-Rolle dokumentiert
+(`iam.lambda_role` orphan-existent vs. `lambda.lambda_execution` angebunden) —
+keine Rollen-Entscheidung im Repair ohne Live-Evidenz (R20). Keine Policy-
+Expansion, keine neuen Permissions, keine Boundary-Ergänzung (verboten).
 
-## Cognito Repair
+## DynamoDB Contract Repair
 
-CURRENT CONTRACT: Modul deklariert `project_name`/`tags`; Caller übergibt
-zusätzlich `environment` (undeklariert, ungenutzt).
-PLANNED ACTION: REMOVE-ARG (1 Zeile im Root-Call). Keine neue Variable.
-VALIDATION: `validate`.
+`dynamodb_gsi1_arn` REMOVE-Kandidat (R09: Consumer/ Input/Output/GSI/IAM-Refs
+alle NULL belegt). `table_config`: Call-Kette Root-Var (Default vorhanden) →
+Modul-Input (fehlt) → Variable (fehlt) → Resource-Nutzung (aktiv): DECLARE
+(R10). NICHT "Variable ergänzen damit grün" — Bedarf ist belegt (TTL-Nutzung),
+Typ aus bestehendem Default gespiegelt. Widerspruchsfrei (kein Gegenbeleg).
 
-## CloudTrail / Monitoring
+## Cognito Contract Repair
 
-DECISION REQUIRED / DEFER mit Evidence: CloudTrail nie verdrahtet, Zweck
-UNKNOWN → weder aktivieren noch löschen; Owner-Frage ("Zweck im RIS-Kontext?")
-offen. Monitoring: Root-Inline aktiv lassen (KEEP); Moduldateien weder
-reaktivieren noch löschen (DEFER). Doku-Aussagen ("IMPLEMENTED") beziehen sich
-belegt nur auf Datei-Existenz, nicht auf Verdrahtung — kein Widerspruch zum Plan.
+CURRENT: Caller übergibt `environment`; Modul deklariert nur
+`project_name`/`tags`; keine Resource-Nutzung. PLANNED: REMOVE-ARG (R11).
+Keine neue Variable. VALIDATION: `validate`.
 
-## CI Working Directory
+## Variables / Formatting Repair
 
-CURRENT: kein `working-directory`/`-chdir`; Jobs laufen in Root (keine `*.tf`).
-TARGET: alle Terraform-Steps laufen in `terraform/` (via Job-`defaults` oder
-pro Step `-chdir=terraform` — Detailentscheidung im Repair).
-Affected workflow: `.github/workflows/ci-cd.yml` (einzige Datei).
-Commands affected: `init -backend=false`, `validate`, `fmt -check`, `init`,
-`plan`, `apply` (alle).
-Validation: CI-Log muss echte Prüfung zeigen (bei kaputtem Fixture rot);
-Negativ-Probe im Repair einplanen. Reihenfolge-Hinweis: erst nach lokalem
-Grün (Phasen A–I), sonst schaltet der Repair CI bewusst auf Rot — das ist
-korrekt, aber als eigener Commit F (Gate) sichtbar zu machen. Keine CI-Änderung
-in diesem Plan-Checkpoint.
+A) Syntax/Parsing: JA (blockiert alles). B) Newline: die 1-Zeichen-Ursache.
+C) Semantik: nein (Validation-Block bleibt). D) Contract: separat (R10/R11).
+Änderung: Z.17/18 Newline. Validierung: `fmt -check` erreicht echte Prüfung +
+`validate` passiert Parse-Stufe.
 
-## on.plan
+## CI Working Directory Repair
 
-Aktuelle Triggerdefinition (`ci-cd.yml:4-7`): `push.branches: [main]` plus
-`plan.branches: [dev, test]` — `plan` ist kein GitHub-Events-Schlüssel.
-Betroffene Jobs: indirekt `plan`-Job (dessen `if`-Gates zusätzlich filtern).
-Erwartete Trigger (vermutet, NICHT belegt): vermutlich `pull_request` o.ä. —
-als Vermutung gekennzeichnet, kein Planungs-Faktum.
-GitHub-Semantik aus Repo belegbar: nur, dass der Schlüssel ungültig ist;
-Laufzeit-Verhalten NOT VERIFIED (braucht Workflow-Runs/Admin-Sicht).
-Unknowns: ob GitHub den Workflow wegen ungültigem Schlüssel ablehnt oder den
-Schlüssel ignoriert. Keine Triggeränderung im Plan (INVESTIGATE/DEFER).
+CURRENT: kein CWD (alle Steps Root). TARGET: `terraform/` für validate/fmt/
+plan/deploy + `init` davor im korrekten Root. VALIDATION: CI-Log-Beleg echter
+Prüfung. Eigener Checkpoint (Commit 4), nicht mit Code-Repair vermischt.
 
-## Formatting
+## CI Gate Repair
 
-`variables.tf:18` ist SYNTAX (Parser bricht ab), nicht Stil: `fmt -check`
-(EXIT 2) und `validate` (EXIT 1) scheitern beide daran. Datei: `terraform/
-variables.tf`, Änderung: Newline nach `default = "dev"` (Phase A, 1 Zeichen).
-Validierung: `fmt -check` erreicht danach echte Formatprüfung (dahinterliegende
-Diffs derzeit NOT VERIFIED — eigene Sichtung im Repair). Semantik unberührt
-(Validation-Block `in ["dev","test","prod"]` bleibt identisch).
+Nach CWD-Fix: validate-/fmt-/plan-Gates mit Negativ-Probe (R14–R16). `plan`
+braucht Backend-init (belegt via Plan-Job) — kein Backend-`init` in diesem
+Plan-Checkpoint ausgeführt.
+
+## Deferred UNKNOWN Areas
+
+R17/R18/R19/R20/R21: DEFER mit Owner-Bedarf (CloudTrail-Zweck, effektive Rolle,
+`table_arn`-Verbleib, Post-Fix-Validate, on.plan-Laufzeit). Kein Code, keine
+Platzhalter-Architektur.
 
 ## Repair Order
 
-Phasen A–M aus dem Ticket, Dependency-Anpassung aus Evidence begründet
-(Parse-Fehler blockiert ALLES → Phase A zuerst; Duplikate danach, weil
-`validate` sie schichtweise meldet; CI-CWD erst nach lokalem Grün, damit Gates
-nie vakuos-lügen):
+- PHASE 0 — Baseline/Git-Safety: Status-Beleg, untracked-Schutz, `terraform/`-Diff leer.
+- PHASE 1 — Root structural repair: R12 (zuerst — belegt ALLES blockierend) → R01.
+- PHASE 2 — Module output consolidation: R02–R05 + R07 (gleiche Fehlerschicht).
+- PHASE 3 — Module contracts: R06/R08 (REWIRE/REMOVE-DECL + table_name-Entscheid),
+  R10 (DECLARE), R11 (REMOVE-ARG).
+- PHASE 4 — Static validation: `fmt -check` (echte Prüfung) + `validate` EXIT-0-Ziel.
+- PHASE 5 — CI CWD (R13, eigener Checkpoint).
+- PHASE 6 — CI validate/fmt gates (R14/R15 + Negativ-Probe).
+- PHASE 7 — CI plan gate (R16).
+- PHASE 8 — Terraform plan (lesend, eigener Checkpoint, nur nach Phase 4–7 grün).
+- PHASE 9 — AWS identity / IAM runtime audit (R20, eigener Checkpoint).
+- UNKNOWN (R17–R19, R21) außerhalb der Sequenz bis Evidence.
+- Begründung aus Evidence (nicht Allgemeinwissen): Parse-Fehler abortet alle
+  Operationen → Phase 1 zuerst; `validate` meldet schichtweise (Root → Module →
+  Contracts) → Phasen 2–3 in dieser Reihenfolge; CI-CWD erst nach lokalem Grün,
+  damit Gates nie vakuos-lügen (Phasen 5–7).
 
-- PHASE A — Root/Parsing: R19 (Newline). Warum zuerst: belegt alle
-  Terraform-Operationen (validate + fmt).
-- PHASE B — Duplicate Outputs: R01–R05 (Block-Removals) + R06 (handler).
-  Warum danach: erste `validate`-Fehlerschicht.
-- PHASE C — Variables/Contracts: R10 (DECLARE table_config), R11 (REMOVE-ARG
-  environment), dynamodb-Call-Args. Warum: zweite Fehlerschicht.
-- PHASE D — IAM/Lambda: R07 (REWIRE role_arn), R08/R09 (REMOVE-DECLs),
-  `table_name`-Klärung. Warum: dritte Schicht (required/unsupported/undeclared).
-- PHASE E — DynamoDB-Vertrag: R12 erledigt (via R08), R13 DEFER festschreiben.
-- PHASE F — Cognito: R11-Ausführung (fällt ggf. mit C zusammen — klein halten).
-- PHASE G — CloudTrail/Monitoring: R14/R15 DEFER + Owner-Fragen (kein Code).
-- PHASE H — Formatting: `fmt -check` echte Prüfung; nur Whitespace-Fixes falls
-  gemeldet (keine Semantik).
-- PHASE I — `terraform validate`: Muss EXIT 0 liefern (CWD-verifiziert, wie in
-  Audits). STOP falls neue Strukturschicht erscheint (s. Stop-Conditions).
-- PHASE J — CI-CWD: R16 (Workflow-Änderung, 1 Datei).
-- PHASE K — CI-Gates: R17 (Negativ-Probe: kaputtes Fixture → rot) + R18-Status.
-- PHASE L — `terraform plan`: NUR lesend gegen Dev-Kontext, kein Apply;
- Ago nur wenn A–K grün. (Ausführung separater Checkpoint.)
-- PHASE M — AWS-Identität/Deploy-Audit: Secrets-Identität mit geeignetem
-  Prinzipal (separater Checkpoint; hier nur eingeplant).
+## Validation Gates
 
-## Validation Matrix
+| Gate | Voraussetzung | Check | Erfolg | Hard Stop |
+|------|---------------|-------|--------|-----------|
+| G1 | — | `git status` clean-Checkpoint (bis auf geschützte untracked) | Beleg je Schritt | untracked betroffen → STOP |
+| G2 | Phase 0 | Static source check (`grep`-Zählungen) | Duplikat-Zähler sinken wie geplant | unerwartete Treffer → STOP |
+| G3 | Phase 1–3 | `fmt -check` (CWD-pwd-belegt) | EXIT 0 | neue Parse-Schicht → STOP |
+| G4 | G3 | `terraform validate` | EXIT 0 | neue Strukturschicht → STOP |
+| G5 | G4 | CI CWD check (Workflow-Diff + Log-Pfad) | Steps laufen in `terraform/` | Scope-Bruch → STOP |
+| G6 | G5 | CI validate | echt grün (Negativ-Probe bestanden) | blind → STOP |
+| G7 | G5 | CI fmt | dto. | dto. |
+| G8 | G6+G7 | CI plan | Artefakt lesbar | Backend-Zwang ohne Freigabe → STOP |
+| G9 | G8 | Terraform plan (lesend) | keine unerwarteten Diffs ohne Owner | Überraschung → STOP |
+| G10 | G9 | AWS identity (lesend) | Identität bekannt | Mutation nötig → STOP |
+| G11 | G10 | IAM deploy permissions | Abgleich möglich | Runtime nötig ohne Checkpoint → STOP |
 
-| Repair | Static Check | terraform validate | fmt-check | plan | CI |
-|--------|--------------|--------------------|-----------|------|----|
-| R19 | Diff 1 Zeichen | Parse-Stufe passiert | Parse-Stufe passiert | — | — |
-| R01–R06 | `grep ^output` 1× je Name/Modul | Root-Fehler weg | — | — | — |
-| R07–R11 | Call↔Var-Abgleicheldet | EXIT 0 erwartet | — | — | — |
-| R08-DECL/R10-DECL | Deklaration vorhanden | dto. | — | — | — |
-| R13–R15 | keine Code-Änderung | unverändert | — | — | — |
-| Phase H | `git diff` nur Whitespace | EXIT 0 | EXIT 0 | — | — |
-| Phase I | — | EXIT 0 (CWD-pwd-belegt) | — | — | — |
-| R16/R17 | Workflow-Diff 1 Datei | — | — | — | echte Prüfung (Negativ-Probe) |
-| Phase L | — | — | — | lesend, nur nach A–K grün | — |
-| Phase M | — | — | — | — | separater Audit-Checkpoint |
-
-`plan` steht nur bei Phase L (nach allen Gates). Kein Plan wird hier ausgeführt.
+Kein späteres Gate erfolgreich ohne vorheriges (strikte Sequenz).
 
 ## Commit Strategy
 
-Kleine, fachlich getrennte Commits (Plan; Anpassung nach Evidence erlaubt).
-Jeder: Änderung → Check (`validate`/`fmt -check`/`grep`, CWD-pwd-belegt) →
-AI_AUDITLOG-Eintrag → `git commit` (scoped `add <Pfade>`, nie `add .`) →
-clean checkpoint (bis auf geschützte untracked Files):
+Getrennte Commits (Anpassung nach Evidence erlaubt): Commit 1 `terraform: repair
+root configuration` (R12+R01+R02–R05+R07) · Commit 2 `terraform: consolidate
+module outputs` (falls B/C-Trennung nötig, sonst in 1) · Commit 3 `terraform:
+repair module contracts` (R06/R08/R10/R11) · Commit 4 `ci: scope terraform
+gates to terraform root` (R13–R16). Je: Änderung → Validation → AI_AUDITLOG →
+Commit → Status → HARD STOP. Keine Sammel-Commits.
 
-- Commit A — Duplicate-Konsolidierung (R01–R06, R19): Parse-Fix + Stale-Removals.
-- Commit B — Modul-Verträge (R10, R11, dynamodb-Args): DECLARE/REMOVE-ARG.
-- Commit C — IAM/Lambda-Vertrag (R07–R09 + table_name-Klärung): REWIRE/REMOVE-DECL.
-- Commit D — DynamoDB/Cognito-Rest + Format (R12/R13-Festschreibung, Phase H).
-- Commit E — Validierungs-Gate (Phase I): `validate` EXIT-0-Beleg im Log.
-- Commit F — CI-CWD-Gate (R16/R17, R18-Status): Workflow-Änderung + Negativ-Probe.
+## Rollback Safety
 
-Keine Sammel-Commits. Untracked Vorarbeits-Dateien nie stagen.
-
-## Rollback / Safety
-
-Je Repair-Schritt: erwartete Dateien (1–3 .tf), erwartete Änderung (Block/Diff
-vorab im Commit-Log beschreiben), lokale Validierung (s. Matrix),
-Git-Checkpoint (Commit pro Schritt = atomarer Rollback-Punkt via `git revert`,
-kein `reset --hard`, kein `clean` — beide explizit verboten).
-Untracked-Schutz: ausschließlich scoped `git add <exakte Pfade>`; Vorab-`git
-status`-Beleg je Schritt, dass die 7 Dateien unangetastet sind.
-Bei Überraschung: STOP + REPORT (s. Stop-Conditions), kein eigenmächtiges
-Weiterarbeiten, kein Zurücksetzen fremder Änderungen.
+Je Schritt: erwartete Dateien (1–3 .tf / 1 Workflow), erwartete Diff-Größe
+(Blöcke/Zeilen vorab benannt), erwartete Validation (Matrix), Rollback via
+`git revert` des Schritt-Commits (atomar). Verboten als Standard: `git reset
+--hard`, `git clean`. Untracked-Schutz: nur scoped `git add <Pfade>` + Status-
+Beleg je Schritt.
 
 ## Stop Conditions
 
-HARD STOP + REPORT (kein Weiterarbeiten) wenn: Source-of-Truth widersprochen
-wird (neuer Beleg gegen Matrix) · Duplicate-Definition nicht eindeutig
-klassifizierbar · Contract nicht ableitbar (z. B. `table_name`-Bedarf unklar) ·
-AWS State nötig wäre · IAM-Runtime nicht verifizierbar · Scope-Überschreitung
-nötig wäre · untracked Files betroffen wären · `validate` nach Fix unerwartete
-neue Strukturschicht zeigt · CI-Negativ-Probe ausbleibt (Gate bleibt blind).
+HARD STOP + Report + AI_AUDITLOG + Commit bei: SoT-Widerspruch (neuer Beleg) ·
+aktiver Consumer einer STALE-Struktur gefunden · UNKNOWN für Reparatur
+erforderlich · neue Architektur nötig · AWS State nötig · IAM-Runtime nötig ·
+Backend-Zugriff nötig · CI-Scope-Bruch · untracked betroffen · `validate` zeigt
+neue Strukturschicht. Kein eigenmächtiges Weiterarbeiten.
 
-## Unknowns
+## Expected Final State
 
-Aus Decision übernommen (gültige Endzustände): CloudTrail-Zweck, effektive
-Laufzeit-Rolle, `table_arn`-Verbleib, Post-Fix-Validate, fmt-Rest,
-CI-nach-CWD-Fix, `on.plan`-Laufzeit, IAM-Runtime. Zusätzlich plan-spezifisch:
-ob Phase I weitere latente Schichten zeigt (einkalkuliert via STOP) und ob
-`table_name`-Policy-Zeile Deklaration oder Umschreibung braucht (Repair-
-Entscheidung an `validate`-Feedback, kein Raten).
+`terraform/` eindeutiger Root; EINE autoritative `outputs.tf`; je Modul EINE
+Output-Struktur (Inline-Originale); IAM `role_arn`; Lambda am IAM-Contract;
+DynamoDB konsistent (GSI/Tabelle ohne Phantom-Vertrag, `table_config`
+deklariert); Cognito konsistent (ohne Phantom-Arg); CI mit explizitem
+`terraform/`-CWD; `fmt -check` + `validate` PASS. Danach CI-Plan, danach
+AWS-Identity/IAM-Audit. Keine Aussage, dieser Zustand sei erreicht (ist er
+nicht — PLANUNG ONLY).
 
-## Recommended Execution Sequence
+## Next Checkpoint
 
-A (R19) → B (R01–R06) → C (R10/R11/Args) → D (R07–R09 + table_name) → E/F
-(Festschreibung) → G (DEFER/Owner) → H (Whitespace) → I (EXIT-0-Beleg) →
-J/K (CI-CWD + Negativ-Probe) → L (lesender Plan, eigener Checkpoint) → M
-(Identitäts-Audit, eigener Checkpoint). Jeder Pfeil = eigener validierter
-Commit (A–F). Freigabe des Plans und jedes Repairs bleiben eigene Schritte.
+Repair-Freigabe + Phase-0/1-Ausführung (Commit 1) als eigener Checkpoint mit
+eigenem AI_AUDITLOG-Eintrag. Freigabe bleibt eigene Entscheidung.
 
 ---
 
-*Plan: TERRAFORM-CONSOLIDATION-REPAIR-PLAN-01 · PLANUNG ONLY · keine
-Terraform-/IAM-/AWS-/CI-Änderung · kein Backend-init, kein Plan/Apply/Destroy,
-kein fmt-Write · keine Datei gelöscht/verschoben/umbenannt · keine Vermutung
-als Tatsache · keine untracked Datei berührt.*
+*Plan: TERRAFORM-CONSOLIDATION-REPAIR-PLAN-01 (verbindlich, R01–R21) ·
+PLANUNG ONLY · keine Terraform-/IAM-/AWS-/CI-Änderung · kein Backend-init,
+kein Plan/Apply/Destroy, kein fmt-Write · keine Datei gelöscht/verschoben/
+umbenannt · keine untracked Datei berührt.*
