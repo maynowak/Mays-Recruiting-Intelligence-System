@@ -185,6 +185,88 @@ Separater Repair (nicht Teil des Audits): Duplikat-Outputs/handler-Refs/fmt bere
 Bestätigt: keine IAM-/Pipeline-/Terraform-Änderung, kein Apply, keine Secrets-Ausgabe, `git status` nach Checks unverändert.
 
 ==================================================
+CHECKPOINT: 2026-09-26 — CI-TERRAFORM-INTEGRITY-AUDIT-01
+==================================================
+
+## Date/Time
+2026-09-26 (UTC). Read-Only, keine Reparatur.
+
+## Objective
+Technische Ursachen der Blocker aus CI-DEPLOY-PERMISSION-AUDIT-01 exakt
+ermitteln (validate-FAIL 5x Duplicate, fmt-FAIL, IAM-Inkonsistenz).
+
+## Scope
+Git-Baseline, Terraform-Struktur (aktiv/historisch), CI-Validate-Befehl im
+korrekten Verzeichnis, alle Duplicate Outputs, fmt, IAM-Modul,
+lambda_role_arn-Contract, stale handler, Modul-Contracts, CI-Workflow,
+Separation A-G, Root-Cause-Map. Keine Lösch-/Zusammenführungsentscheidung.
+
+## Repository HEAD
+main, 346d6f4 (verifiziert; Basis c236cd4 verifiziert existent). Remote SSH.
+0 modified, 7 untracked Vorarbeits-Dateien (unberührt).
+
+## Working Tree
+Unverändert durch Audit (nur neue Audit-Doku). Keine untracked Datei verändert.
+
+## Terraform validation result
+`terraform validate` in `terraform/` (CWD per pwd verifiziert, v1.16.1):
+EXIT 1 — 5x Duplicate output (Root outputs.tf:1/9/17/21/31 vs
+main.tf:187/191/195/199/205) + variables.tf:18 Missing newline.
+Modul-Fehler dahinter NOT VERIFIED via validate (liegen hinter Root-Fehlern).
+
+## Duplicate outputs
+Systematisch: root 5, iam 2 (role_arn/role_name), lambda 4, cognito 3,
+dynamodb 3 (jeweils outputs.tf parallel zu Inline-Outputs); api/cloudtrail/
+monitoring/sqs eindeutig. Keine Behalte-/Löschentscheidung (Ticket-Vorgabe).
+
+## fmt result
+`terraform fmt -check` in `terraform/`: EXIT 2, Befund variables.tf:18
+(derselbe Parse-Fehler). Kein `terraform fmt`. Dahinterliegendes NOT VERIFIED.
+
+## IAM module findings
+`module.iam.lambda_role_arn` an 2 Stellen erwartet (main.tf:92,
+outputs.tf:37-38), Output nichtexistent (BROKEN); Pflicht-Inputs
+`dynamodb_gsi1_arn`/`permissions_boundary` ungefüttert; SQS-Dokument ungenutzt;
+Doppel-Rolle iam.lambda_role vs lambda.lambda_execution.
+
+## Stale references
+3x STALE in modules/iam/outputs.tf:4/9/14 (`aws_iam_role.handler`,
+`aws_iam_role_policy.handler` — Ressourcen nichtexistent).
+
+## Module contracts
+dynamodb/cognito: undeklarierte Call-Args (`environment`, `table_config`);
+dynamodb: undeklarierte Var-Nutzung (main.tf:24-25). sqs/api Calls intakt auf
+Referenzebene. cloudtrail/monitoring unverdrahtet (HISTORICAL/UNKNOWN).
+
+## CI workflow findings
+Gates blind: kein working-directory/-chdir → validate/fmt laufen in Root ohne
+*.tf (vakuos grün, EXIT 0 belegt). `on.plan`-Trigger ist kein GitHub-Event
+(Auswirkung NOT VERIFIED). Erklärt unbemerkte Akkumulation. Workflow unverändert.
+
+## Root cause
+CI-Blindgate → echte Config nie geprüft → Root-Parse-Fehler blockieren
+validate (EXIT 1) → PLAN NOT REACHED → Modulschicht statisch belegt, via
+validate NOT VERIFIED → Provider/AWS-Identität NOT REACHED → keine
+IAM-Runtime-Aussage.
+
+## Unknowns
+Original-vs-Kopie-Historie; Post-Fix-Validate; dahinterliegende fmt-Diffs;
+CI-Verhalten nach CWD-Fix; on.plan-Auswirkung; cloudtrail/monitoring-Status;
+IAM-Runtime (NOT REACHED).
+
+## Report reference
+docs/reports/CI-TERRAFORM-INTEGRITY-AUDIT-01.md — STATUS: RED.
+
+## Next step
+Separater Repair-Checkpoint: CI-CWD auf terraform/ fixieren, dann schichtweise
+(Root → Module → Contracts) validierbar machen; historische Strukturen nicht
+löschen, nur entscheiden.
+
+## No mutation performed
+Bestätigt: kein Terraform-/IAM-/AWS-Eingriff, kein init mit Backend, kein
+Plan/Apply, kein fmt-Write, keine Secrets, `git diff HEAD -- terraform/` leer.
+
+==================================================
 BLANK CHECKPOINT TEMPLATE (für nächstes Audit kopieren)
 ==================================================
 
