@@ -183,27 +183,3 @@ resource "aws_cloudwatch_metric_alarm" "api_5xx" {
   alarm_actions = []
   tags          = merge({ "Project" = var.project_name }, var.tags)
 }
-
-output "cognito_user_pool_id" {
-  value = module.cognito.user_pool_id
-}
-
-output "api_endpoint" {
-  value = module.api.api_endpoint
-}
-
-output "sqs_queues" {
-  value = module.sqs.queue_urls
-}
-
-output "dynamodb_tables" {
-  value = {
-    work_items = module.dynamodb.work_items_table_name
-  }
-}
-
-output "lambda_functions" {
-  value = {
-    agent = module.lambda.function_name
-  }
-}

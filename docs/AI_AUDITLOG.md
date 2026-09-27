@@ -609,6 +609,38 @@ Doku-Dateien, 7 untracked unberührt, kein Backend-init/Plan/Apply/Destroy/
 fmt-Write, keine Löschung/Verschiebung/Umbenennung.
 
 ==================================================
+CHECKPOINT: 2026-09-26 — TERRAFORM-ROOT-OUTPUTS-CONSOLIDATION-01
+==================================================
+
+## Source analysis
+5 Root-Duplikate (outputs.tf G0.1-Original vs Inline main.tf G0.2-Kopien;
+Inline-Map lagging: nur work_items). Modul-Outputs 11/12 existent
+(nur iam.lambda_role_arn MISS). Referenz mays-order-aws outputs.tf @ 9c61237
+(Git-only): Export-Schicht + Descriptions + flache Namen + kein Monitoring.
+Keine externen Consumer (Repo-Grep leer); keine Test-Abhängigkeit.
+
+## Consolidation decision
+EINE kanonische terraform/outputs.tf (26 Outputs, Descriptions, flache RIS-
+Namen; DynamoDB flach name+arn je Tabelle; Monitoring/CloudTrail kein Export).
+Inline-Blöcke main.tf:187-209 entfernt. `lambda_role_arn`-Broken-Ref entfernt
+statt umgebogen. Exportiert `iam_role_arn ← module.iam.role_arn` (Existenz +
+G0.1-Vertrag + Referenzmuster, explizit begründet). Laufzeit-Rollenfrage
+NICHT entschieden (main.tf:92 weiter broken → IAM-Scope); Ambiguity im Report.
+
+## Files changed
+terraform/outputs.tf (rewrite), terraform/main.tf (-24 Inline-Blöcke),
+docs/reports/TERRAFORM-ROOT-OUTPUTS-CONSOLIDATION-01.md (neu),
+docs/AI_AUDITLOG.md (dieser Eintrag). Keine Modul-/CI-/Backend-Änderung.
+
+## Validation
+fmt -check: nur variables.tf:18 (R12, ausstehend). validate EXIT 1: nur
+variables.tf:18 — Duplicate-Klasse eliminiert (vorher 5×); Rest maskiert wie
+zuvor. 26/26 Werte existent; removed names consumerlos; diff-check PASS.
+
+## Commit
+refactor(terraform): consolidate root outputs (Scope: 4 Dateien, s. Status).
+
+==================================================
 BLANK CHECKPOINT TEMPLATE (für nächstes Audit kopieren)
 ==================================================
 
