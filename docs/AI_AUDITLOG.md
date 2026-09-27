@@ -641,6 +641,43 @@ zuvor. 26/26 Werte existent; removed names consumerlos; diff-check PASS.
 refactor(terraform): consolidate root outputs (Scope: 4 Dateien, s. Status).
 
 ==================================================
+CHECKPOINT: 2026-09-26 — TERRAFORM-REPAIR-R12-01
+==================================================
+
+## Ausgangspunkt
+c34e1e9 (Root-Outputs konsolidiert). Ziel R12 only. 0 TF-Diff vorher,
+7 untracked geschützt.
+
+## Ziel R12
+variables.tf:18-Blocker minimal beheben, keine Semantikänderung.
+
+## Änderung
+1 Zeile: `var.environment in [...]` → `contains([...], var.environment)`
+(HCL hat kein `in`; gleiche Membership-Prüfung; Rest unverändert).
+Keine Variable/Default/Typ/Description/Name geändert. Kein fmt-Write.
+
+## Validation
+- Diff-Gate: exakt 1 Zeile, `diff --check` PASS.
+- `fmt -check variables.tf`: EXIT 3 — nur pre-existing Alignment ab Z.71
+  (nicht angefasst, lesende `-diff`-Preview); Z.18 fmt-clean.
+- `validate` (ohne init): R12-Fehler WEG; nur noch `Module not installed`
+  (6×) — init ticketgemäß NICHT ausgeführt. Maskierte Schichten unberührt.
+
+## Neu sichtbare Fehler (NEXT, nicht repariert)
+fmt-Alignment Z.71+; init-Bedarf (Backend-Entscheidung); Modul-/Contract-
+Schichten (eigene Checkpoints).
+
+## Keine Folgeänderungen
+Nur variables.tf + Report + dieser Eintrag. Root Outputs c34e1e9 unverändert.
+Keine AWS-/Backend-/CI-Änderung. 7 untracked unberührt.
+
+## Commit
+fix(terraform): repair variables file formatting (Scope-Gates passiert).
+
+## Hard Stop
+Keine weitere Terraform-Reparatur in diesem Checkpoint.
+
+==================================================
 BLANK CHECKPOINT TEMPLATE (für nächstes Audit kopieren)
 ==================================================
 

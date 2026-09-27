@@ -15,7 +15,7 @@ variable "environment" {
   default     = "dev"
 
   validation {
-    condition     = var.environment in ["dev", "test", "prod"]
+    condition     = contains(["dev", "test", "prod"], var.environment)
     error_message = "Environment must be dev, test, or prod."
   }
 }
