@@ -731,6 +731,47 @@ Bestätigt: nur static Greps/Reads + Clone-/tmp-Lektüre (kein Push);
 `diff --check` clean; keine Implementierungsänderung.
 
 ==================================================
+CHECKPOINT: 2026-09-26 — TERRAFORM-IAM-CONTRACT-REPAIR-01
+==================================================
+
+## Ausgangspunkt
+3b42fc0 (IAM-Source-Audit). Scope: nur statisch bewiesene tote/fehlerhafte
+Verträge. 0 TF-Diff vorher, 7 untracked geschützt.
+
+## Re-Check (live)
+Toter Input (0 Leser), stale Erwartung (kein Provider), 2× undeklarierte
+Nutzung, 2× ungefütterte tote Deklarationen — je per Grep an HEAD belegt.
+
+## Repair (5 Dateien, +12/-27)
+- main.tf: Root-Arg (tot+broken) entfernt; iam-Call um table_name (aus
+  work_items_table_name, belegt) + s3_bucket_arn (aus aws_s3_bucket.data,
+  belegt) erweitert.
+- lambda/variables.tf: toter Input entfernt (No-Op).
+- iam/variables.tf: table_name + s3_bucket_arn deklariert; gsi1_arn +
+  boundary entfernt (No-Op).
+- iam/outputs.tf: 3 stale handler-Blöcke entfernt (Ziele nie existent).
+- outputs.tf: nur NOTE-Kommentar aktualisiert.
+- NICHT: Rollen, Policies, Runtime, andere Module, CI, Backend.
+
+## Unresolved (bewusst)
+Laufzeit-Rolle OPEN (kein Raten); lambda_role-Schicksal; SQS-Scope-Notiz;
+table_name-Ausdruck-Semantik; fmt-Rest (Phase H).
+
+## Validation
+Post-Greps alle leer (Code); Feed-Ziele belegt; fmt meldet main.tf-Alignment
+(doku., kein Write); validate ohne init: R12 weg, nur Module-not-installed;
+diff-check PASS; keine Test-Abhängigkeit.
+
+## AWS mutation
+NONE.
+
+## Commit
+fix(terraform): repair IAM contracts (Gates passiert).
+
+## Hard Stop
+Keine Konsolidierung in andere Module, keine Folge-Reparatur hier.
+
+==================================================
 BLANK CHECKPOINT TEMPLATE (für nächstes Audit kopieren)
 ==================================================
 

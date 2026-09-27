@@ -10,11 +10,6 @@ variable "environment" {
   type        = string
 }
 
-variable "iam_role_arn" {
-  description = "IAM role ARN for Lambda execution"
-  type        = string
-}
-
 variable "lambda_config" {
   description = "Lambda configuration"
   type = object({

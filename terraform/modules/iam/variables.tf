@@ -14,12 +14,12 @@ variable "dynamodb_table_arn" {
   type        = string
 }
 
-variable "dynamodb_gsi1_arn" {
-  description = "ARN des GSI1-Index fuer DynamoDB-Berechtigungen in der IAM-Policy."
+variable "dynamodb_table_name" {
+  description = "Name der DynamoDB-Tabelle fuer DynamoDB-Berechtigungen in der IAM-Policy."
   type        = string
 }
 
-variable "permissions_boundary" {
-  description = "ARN of the externally managed permissions boundary for the handler role"
+variable "s3_bucket_arn" {
+  description = "ARN des S3-Buckets fuer S3-Berechtigungen in der IAM-Policy."
   type        = string
 }

@@ -68,6 +68,8 @@ module "iam" {
 
   project_name        = var.project_name
   dynamodb_table_arn  = module.dynamodb.work_items_table_arn
+  dynamodb_table_name = module.dynamodb.work_items_table_name
+  s3_bucket_arn       = aws_s3_bucket.data.arn
   tags                = var.tags
 }
 
@@ -89,7 +91,6 @@ module "lambda" {
 
   project_name               = var.project_name
   environment                = var.environment
-  iam_role_arn               = module.iam.lambda_role_arn
   lambda_config              = var.lambda_config
   dynamodb_table_name        = module.dynamodb.work_items_table_name
   user_profile_table_name    = module.dynamodb.user_profile_table_name

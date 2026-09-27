@@ -8,9 +8,9 @@
 # outputs.tf (G0.1) is authoritative; main.tf inline copies were stale.
 # NOTE on roles: `iam_role_arn` exposes module.iam.role_arn (exists, G0.1
 # contract). Which role is authoritative for the Lambda runtime
-# (main.tf:92 still references nonexistent module.iam.lambda_role_arn)
-# is explicitly UNDECIDED here — IAM repair scope, see report
-# TERRAFORM-ROOT-OUTPUTS-CONSOLIDATION-01.
+# is explicitly UNDECIDED here — IAM repair scope, see reports
+# TERRAFORM-ROOT-OUTPUTS-CONSOLIDATION-01 and
+# TERRAFORM-IAM-CONTRACT-REPAIR-01 (dead input + broken wiring removed).
 
 # ============================================================
 # DynamoDB Outputs (explicit RIS table names)
