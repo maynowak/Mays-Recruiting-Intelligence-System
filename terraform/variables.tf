@@ -84,22 +84,10 @@ variable "monitoring_enabled" {
   default     = true
 }
 
-variable "dashboard_enabled" {
-  description = "Enable CloudWatch dashboard"
-  type        = bool
-  default     = true
-}
-
 variable "api_5xx_threshold" {
   description = "API 5xx error threshold"
   type        = number
   default     = 5
-}
-
-variable "api_4xx_threshold" {
-  description = "API 4xx error threshold"
-  type        = number
-  default     = 20
 }
 
 variable "lambda_error_threshold" {
@@ -124,10 +112,4 @@ variable "dynamodb_throttled_threshold" {
   description = "DynamoDB throttled request threshold"
   type        = number
   default     = 1
-}
-
-variable "notification_endpoint" {
-  description = "Optional SNS topic ARN for notifications"
-  type        = string
-  default     = null
 }
