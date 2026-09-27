@@ -772,6 +772,46 @@ fix(terraform): repair IAM contracts (Gates passiert).
 Keine Konsolidierung in andere Module, keine Folge-Reparatur hier.
 
 ==================================================
+CHECKPOINT: 2026-09-26 — TERRAFORM-LAMBDA-SOURCE-AUDIT-01
+==================================================
+
+## Objective
+Lambda-Bestand read-only: 4 Varianten klassifizieren, Wiring/Contracts/
+Events belegen. Keine Konsolidierung, kein Repair, kein IAM-Entscheid.
+
+## Varianten
+1 Funktion (`agent`), 1 Modul; 4 Output-Duplikate (Inline G0.1 ACTIVE vs
+outputs.tf-Kopien G0.2 DUPLICATE). Doppel-Permission (lambda+api-Modul) +
+Doppel-Log-Gruppe (Root+Modul, gleicher Name) als DUPLICATE belegt.
+`aws_region` UNREFERENCED; Rest 16/18 Vars aktiv.
+
+## Wiring
+Root→Lambda (17 Inputs); Funktion (python3.14/handler/30s/128MB/lambda.zip,
+kein arch/layers = Defaults); Env (4 Tabellen, Queue, LOG_LEVEL).
+IAM: nur `lambda_execution` gebunden; iam liefert nichts (toter Input bereits
+entfernt); Rollen-Entscheid offen (R20). Events: SQS-Mapping (batch 5) +
+API-Integration + doppelte Permission (Referenzen, kein Runtime-Schluss).
+
+## Consumer
+invoke_arn→api+root; function_name→root; function_arn→nur root;
+lambda_role_arn→niemand. Tests/Skripte/CI: keine Lambda-Output-Consumer.
+
+## Unknowns
+Effektive Rolle; SQS-Receive-Herkunft; Doppel-Ressourcen-Apply-Verhalten;
+batch_size; aws_region-Zukunft. DO NOT GUESS.
+
+## Next small repair (nach Review)
+LAMBDA-CONTRACT-REPAIR-01: outputs.tf-Kopien entfernen; Permission/Log-Gruppe
+je vereinzeln (Plan-Beleg zuerst); aws_region-Option. Kein Rollen-Eingriff.
+
+## Report
+docs/reports/TERRAFORM-LAMBDA-SOURCE-AUDIT-01.md — STATUS: YELLOW.
+
+## NO MUTATION
+Bestätigt: nur Reads/Greps (+ /tmp-Referenzlektüre); fmt nicht geschrieben;
+`diff --check` clean.
+
+==================================================
 BLANK CHECKPOINT TEMPLATE (für nächstes Audit kopieren)
 ==================================================
 
