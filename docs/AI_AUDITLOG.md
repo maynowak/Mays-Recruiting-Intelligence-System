@@ -678,6 +678,59 @@ fix(terraform): repair variables file formatting (Scope-Gates passiert).
 Keine weitere Terraform-Reparatur in diesem Checkpoint.
 
 ==================================================
+CHECKPOINT: 2026-09-26 — TERRAFORM-IAM-SOURCE-AUDIT-01
+==================================================
+
+## Objective
+Nur IAM-Varianten untersuchen (read-only). Basis c34e1e9 (Root-Outputs) +
+6d57f3a (R12). Keine Reparatur/Konsolidierung, kein init/plan/apply, keine
+AWS-Mutation.
+
+## Wiring (main.tf direkt)
+module.iam (Z.66): 2 Pflicht-Inputs ungefüttert, 2 genutzte Vars undeklariert
+(table_name Z.15, s3_bucket_arn Z.41). module.lambda (Z.87): Z.92
+`iam_role_arn = module.iam.lambda_role_arn` (BROKEN); Input wird im Modul
+IGNORIERT (0 Leser); Funktion nutzt eigene lambda_execution (Z.165).
+
+## Varianten
+EIN iam-Verzeichnis (keine Paralleldirs). lambda_role (G0.1, orphan, Trust
+lambda-only) + lambda_execution (G0.1, angebunden, 5 Policies) beide ACTIVE
+als Ressourcen. handler-Familie (c83e3a2, nie existent) + iam.lambda_role_arn-
+Erwartung (G0.2-Einzeiler ohne Provider) + toter Input: UNREFERENCED/STALE.
+lambda_role_arn-Output (lambda): ACTIVE-Definition, consumerlos.
+
+## Konflikt role_arn vs lambda_role_arn
+Kein Naming-Duplikat, kein Rollen-Rennen: gebrochener Vertrag + tote Struktur
+(Diffs/Historie/Greps belegt). Mays-Orders-Referenz (9c61237, Git-only):
+Ein-Rollen-Modell (consume var.iam_role_arn); RIS abweichend (Selbst-Rolle),
+eigene Architektur behalten.
+
+## Consumer
+Code: role_arn/name ← root outputs (c34e1e9); lambda_role_arn-Erwartung ← nur
+Z.92 (broken); Rest ← niemand. API/SQS/Skripte/Tests/CI: NULL.
+
+## Auswirkungen (lesend, unverändert)
+Runtime/Least-Privilege/ARN-Scope/Tenant/Env/Deployment-Identity: dokumentiert,
+nicht modifiziert/bewertet.
+
+## SoT-Decision (identifizierend)
+Authoritativ: beide Rollen-Ressourcen real (Export role_arn G0.1;
+Anbindung lambda_execution). Laufzeitwirkung: UNKNOWN (kein Plan/Live-Beleg).
+
+## Offen / Repair-Grenze
+Effektive Rolle (Live-Beleg); lambda_role-Schicksal; iam-Var-Lücken; SQS-Scope-
+Notiz. Nächster Checkpoint: Z.92-REWIRE + toter Input + stale Blöcke (R06–R08);
+Zusammenlegung/Boundary erst nach Evidenz (R20).
+
+## Report
+docs/reports/TERRAFORM-IAM-SOURCE-AUDIT-01.md — STATUS: YELLOW (identifiziert,
+nicht laufzeit-verifiziert).
+
+## NO MUTATION
+Bestätigt: nur static Greps/Reads + Clone-/tmp-Lektüre (kein Push);
+`diff --check` clean; keine Implementierungsänderung.
+
+==================================================
 BLANK CHECKPOINT TEMPLATE (für nächstes Audit kopieren)
 ==================================================
 
