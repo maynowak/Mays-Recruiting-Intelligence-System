@@ -3,6 +3,19 @@ variable "project_name" {
   type        = string
 }
 
+variable "environment" {
+  description = "Deployment environment (dev, test, prod)"
+  type        = string
+}
+
+variable "table_config" {
+  description = "DynamoDB table configuration"
+  type = object({
+    ttl_enabled   = bool
+    ttl_attribute = string
+  })
+}
+
 variable "tags" {
   description = "Zusaetzliche Tags, die der DynamoDB-Tabelle mitgegeben werden."
   type        = map(string)
