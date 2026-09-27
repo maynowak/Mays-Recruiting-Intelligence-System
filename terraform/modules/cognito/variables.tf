@@ -3,6 +3,11 @@ variable "project_name" {
   type        = string
 }
 
+variable "environment" {
+  description = "Deployment environment (dev, test, prod)"
+  type        = string
+}
+
 variable "tags" {
   description = "Zusaetzliche Tags, die den Cognito-Ressourcen mitgegeben werden."
   type        = map(string)

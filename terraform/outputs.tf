@@ -119,11 +119,6 @@ output "cognito_user_pool_client_id" {
   value       = module.cognito.user_pool_client_id
 }
 
-output "cognito_user_pool_group_staff_name" {
-  description = "Name of the Cognito staff group."
-  value       = module.cognito.user_pool_group_staff_name
-}
-
 # ============================================================
 # API Gateway Outputs
 # ============================================================
