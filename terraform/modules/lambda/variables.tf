@@ -72,21 +72,10 @@ variable "sqs_queue_arn" {
   type        = string
 }
 
-variable "api_arn" {
-  description = "API Gateway ARN for Lambda permission"
-  type        = string
-}
-
 variable "log_level" {
   description = "Log level for Lambda"
   type        = string
   default     = "INFO"
-}
-
-variable "aws_region" {
-  description = "AWS region"
-  type        = string
-  default     = "eu-central-1"
 }
 
 variable "tags" {

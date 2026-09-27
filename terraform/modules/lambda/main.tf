@@ -200,20 +200,10 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
-resource "aws_lambda_permission" "api_gateway" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.agent.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${var.api_arn}/*/*"
-}
-
 resource "aws_lambda_event_source_mapping" "sqs_mapping" {
   event_source_arn = var.sqs_queue_arn
   function_name    = aws_lambda_function.agent.arn
   batch_size       = 5
-
-  depends_on = [aws_lambda_permission.api_gateway]
 }
 
 output "function_name" {

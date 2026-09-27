@@ -1,21 +1,4 @@
 # Lambda outputs
-
-output "function_name" {
-  description = "Lambda function name"
-  value       = aws_lambda_function.agent.function_name
-}
-
-output "function_arn" {
-  description = "Lambda function ARN"
-  value       = aws_lambda_function.agent.arn
-}
-
-output "invoke_arn" {
-  description = "Lambda invoke ARN"
-  value       = aws_lambda_function.agent.invoke_arn
-}
-
-output "lambda_role_arn" {
-  description = "Lambda execution role ARN"
-  value       = aws_iam_role.lambda_execution.arn
-}
+# NOTE: function_name/function_arn/invoke_arn/lambda_role_arn live inline in
+# main.tf (G0.1 originals). The duplicate blocks formerly here (G0.2 copies)
+# were removed; see TERRAFORM-LAMBDA-CONTRACT-REPAIR-01.

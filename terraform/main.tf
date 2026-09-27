@@ -102,7 +102,6 @@ module "lambda" {
   s3_bucket_arn              = aws_s3_bucket.data.arn
   sqs_queue_arn              = module.sqs.work_queue_arn
   work_queue_url             = module.sqs.work_queue_url
-  api_arn                    = module.api.api_id
   tags                       = var.tags
 }
 
@@ -135,14 +134,6 @@ resource "aws_s3_bucket_public_access_block" "data" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
-}
-
-resource "aws_cloudwatch_log_group" "lambda" {
-  count             = var.monitoring_enabled ? 1 : 0
-  name              = "/aws/lambda/${local.prefix}-agent"
-  retention_in_days = var.lambda_config.log_retention_days
-
-  tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
 resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
