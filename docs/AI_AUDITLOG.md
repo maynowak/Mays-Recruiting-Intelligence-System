@@ -125,691 +125,277 @@ CURRENT STATE (Template bereinigt: 2026-09-26)
 - Resume point: Neues Audit mit Blank-CHECKPOINT unten starten.
 
 ==================================================
-CHECKPOINT: 2026-09-26 — CI-DEPLOY-PERMISSION-AUDIT-01
+CHECKPOINT: 2026-09-26 13:56 UTC — CI-DEPLOY-PERMISSION-AUDIT-01 (Branch: main, HEAD: 346d6f4)
 ==================================================
 
-## Objective
-CI/CD Deploy-Berechtigungskette im Repository vollständig dokumentieren.
-READ-ONLY AUDIT. Keine Architektur, keine Installer-/Pipeline-Änderungen.
-
-## Scope
-Git-Identität, bestehende Doku, Pipeline-Architektur aus Repo-Evidence,
-AWS-Identität (nur Read-Only APIs), Identity/IAM/PermissionBoundary/Trust,
-Deploy-Bedarf vs. Bestand, strikte Trennung Source (A) / DOWNLOAD_SOURCE (B) /
-Deploy (C). Keine Reparatur.
-
-## Read-only constraint
-Eingehalten. Verboten waren: IAM-/Rollen-/Policy-/Boundary-/Trust-Änderungen,
-Pipeline-/Build-/Terraform-Änderungen, apply/destroy, reset/clean, Löschen/
-Verschieben, Überschreiben lokaler Änderungen, Secrets-Ausgabe, Commit während
-Untersuchung. `terraform init -backend=false`, `validate`, `fmt -check` sowie
-AWS-Read-APIs ändern keine Tracked-Files (per `git status` verifiziert).
-
-## Evidence
-- Repo: main, HEAD c236cd4, origin git@github.com:maynowak/Mays-Recruiting-Intelligence-System.git (SSH)
-- KONSOLIDIERUNG-CICD-SOURCE-AUTH-AUDIT.md: NICHT VORHANDEN (nicht dupliziert, referenziert S2-16, CROSS-REPO-SOURCE-01, SOURCE-CONNECTIVITY-GATE-01/02)
-- Deploy-Pipeline dieses Repos = GitHub Actions `.github/workflows/ci-cd.yml` (validate→plan→prod-gated deploy mit Secrets-Namen); KEIN aws_codepipeline/aws_codebuild/Buildspec im Repo; Installer = lokaler Orchestrator ohne Deploy-Rolle
-- `terraform validate`: FAIL, 5x Duplicate output definition. `terraform fmt -check`: FAIL (variables.tf:18)
-- IAM-Modul: handler-Referenzen nichtexistent, `module.iam.lambda_role_arn` erwartet aber nicht exportiert, `permissions_boundary` tot (deklariert/nie verdrahtet)
-- AWS live: Account 992382612204 / User maymilly / eu-central-1; List-/Describe-Rechte für Pipeline/Build/IAM/DynamoDB-Lock: AccessDenied (BLOCKED, least-privilege korrekt); State-Bucket dev: NoSuchBucket
-- Keine Secrets gelesen/ausgegeben. Keine DOWNLOAD_SOURCE-Vermischung.
-
-## Repository state
-Working Tree DIRTY nur durch Vorarbeiten (M docs/AI_AUDITLOG.md + 8 untracked Reports, inkl. 2 aus Template-Bereinigung). Vom Audit keine davon verändert.
-
-## AWS verification state
-Caller verifiziert (sts). Pipeline-/Rollen-/Policy-Ebene: NOT VERIFIED (Berechtigungen des Mess-Prinzipals unzureichend — kein Kettenfehler). Deploy-Identität (GitHub Secrets): NOT VERIFIED.
-
-## Identity chain
-GitHub Push → Actions-Runner → Secrets-Identität (NOT VERIFIED) → Terraform Provider → State-Backend (S3+DynamoDB-Lock) → Module (cognito/sqs/dynamodb/iam/api/lambda/S3/CloudWatch) → AWS APIs. Kein Pipeline-/Build-/AssumeRole-Hop im Repo. Runtime-Rollen (lambda_role/lambda_execution, Trust nur lambda.amazonaws.com) ohne Deploy-Rechte.
-
-## IAM findings
-Doppel-Rollenstruktur, ungenutztes SQS-Dokument im iam-Modul, stale handler-Outputs, fehlender lambda_role_arn-Export. Keine Pipeline-/Deploy-Rolle im Repo.
-
-## Permission boundary findings
-Variable deklariert, nie gesetzt/verwendet → keine Boundary wirksam (POTENTIAL GAP). Live-Boundaries NOT VERIFIED.
-
-## Deploy permission findings
-Bedarf aus enthaltenen Ressourcen abgeleitet (State, S3, DynamoDB, Lambda+PassRole, IAM, API-GW, SQS, Cognito, CloudWatch, Tags). Abgleich NOT VERIFIED (Identität unbekannt). Kette bereits vor IAM blockiert (validate/fmt rot).
-
-## Unknowns
-Secrets-Identität (Policies/Boundary/Trust); Live-Pipeline-Rollen; State-Backend test/prod; `plan:`-Trigger-Auswirkung (GitHub-seitig).
-
-## Report reference
-docs/reports/CI-DEPLOY-PERMISSION-AUDIT-01.md — STATUS: RED (belegbar nicht ausführbar + unverifizierbare Deploy-Rechte; Runtime-Seite per S2-16 GREEN, ausgenommen).
-
-## Next step
-Separater Repair (nicht Teil des Audits): Duplikat-Outputs/handler-Refs/fmt bereinigen, validate grün, dann Secrets-Identität mit geeignetem Prinzipal prüfen. Installer/Pipeline unverändert lassen.
-
-## No infrastructure mutation performed
-Bestätigt: keine IAM-/Pipeline-/Terraform-Änderung, kein Apply, keine Secrets-Ausgabe, `git status` nach Checks unverändert.
+- Current status: Audit abgeschlossen (read-only)
+- Audit date/time: 2026-09-26 13:56 UTC
+- Current Git branch and HEAD: main, 346d6f4 (Basis c236cd4 verifiziert)
+- Audit scope: Git-Identität, bestehende Doku, Pipeline-Architektur aus Repo-Evidence, AWS-Identität (nur Read-Only APIs), Identity/IAM/PermissionBoundary/Trust, Deploy-Bedarf vs. Bestand, Trennung Source (A) / DOWNLOAD_SOURCE (B) / Deploy (C). Keine Reparatur, keine Architektur-/Installer-/Pipeline-Änderung
+- Completed audit sections: Git-Baseline → Doku-Lektüre (S2-16/CROSS-REPO/SOURCE-GATE, KONSOLIDIERUNG fehlend belegt) → Pipeline-Evidence → AWS-Read-Checks → Identity/IAM/Boundary-Kette → Report → gezielter Commit
+- Actual findings (nur verifiziert): Deploy-Pipeline = GitHub Actions (validate→plan→prod-gated deploy, nur Secrets-Namen); KEIN CodePipeline/Buildspec im Repo; `validate` FAIL (5× Duplicate) + `fmt` FAIL; handler-Refs nichtexistent, `lambda_role_arn` ohne Output, Boundary tot; AWS-Caller maymilly/992382612204 (least-privilege, List-Rechte denied — korrekt); Secrets-Identität + Live-Rollen NOT VERIFIED; keine DOWNLOAD_SOURCE-Vermischung, keine Secrets-Ausgabe
+- Evidence / file references: ci-cd.yml:1-75, terraform/main.tf:11-17 + iam/main.tf + lambda/main.tf, S2-16-/CROSS-REPO-/SOURCE-GATE-Reports, sts/get-caller-identity + denied List-Calls + NoSuchBucket(dev)
+- Classification: RED
+- Terraform checks actually executed and their results: `init -backend=false` (ok) + `validate` (FAIL, Duplikate) + `fmt -check` (FAIL, variables.tf:18) in `terraform/`; AWS nur Read-APIs (sts ok, List/Describe denied, S3 dev NoSuchBucket); keine Tracked-File-Änderung dadurch
+- Git status: Working Tree DIRTY nur durch Vorarbeiten (M AI_AUDITLOG + 8 untracked, davon 2 aus Template-Bereinigung); vom Audit keine davon verändert
+- Files changed, if any: docs/AI_AUDITLOG.md + docs/reports/CI-DEPLOY-PERMISSION-AUDIT-01.md (neu, 284 Zeilen)
+- Explicit confirmation when no files were changed: Entfällt (s. oben); keine IAM-/Pipeline-/Terraform-Änderung
+- Open questions: Secrets-Identität (Policies/Boundary/Trust); Live-Pipeline-Rollen; State-Backend test/prod; `plan:`-Trigger-Wirkung (GitHub-seitig)
+- Risks: Deploy-Kette vor IAM blockiert; effektive Deploy-Rechte unverifizierbar
+- Recommended next actions: Separater Repair (Duplikate/handler/fmt → validate grün), dann Secrets-Identität mit geeignetem Prinzipal prüfen; Installer/Pipeline unverändert lassen
+- Current resume point: Report committet (346d6f4); weiter mit Ursachen-Analyse (INTEGRITY-AUDIT)
 
 ==================================================
-CHECKPOINT: 2026-09-26 — CI-TERRAFORM-INTEGRITY-AUDIT-01
+CHECKPOINT: 2026-09-26 16:10 UTC — CI-TERRAFORM-INTEGRITY-AUDIT-01 (Branch: main, HEAD: 92c72e7)
 ==================================================
 
-## Date/Time
-2026-09-26 (UTC). Read-Only, keine Reparatur.
-
-## Objective
-Technische Ursachen der Blocker aus CI-DEPLOY-PERMISSION-AUDIT-01 exakt
-ermitteln (validate-FAIL 5x Duplicate, fmt-FAIL, IAM-Inkonsistenz).
-
-## Scope
-Git-Baseline, Terraform-Struktur (aktiv/historisch), CI-Validate-Befehl im
-korrekten Verzeichnis, alle Duplicate Outputs, fmt, IAM-Modul,
-lambda_role_arn-Contract, stale handler, Modul-Contracts, CI-Workflow,
-Separation A-G, Root-Cause-Map. Keine Lösch-/Zusammenführungsentscheidung.
-
-## Repository HEAD
-main, 346d6f4 (verifiziert; Basis c236cd4 verifiziert existent). Remote SSH.
-0 modified, 7 untracked Vorarbeits-Dateien (unberührt).
-
-## Working Tree
-Unverändert durch Audit (nur neue Audit-Doku). Keine untracked Datei verändert.
-
-## Terraform validation result
-`terraform validate` in `terraform/` (CWD per pwd verifiziert, v1.16.1):
-EXIT 1 — 5x Duplicate output (Root outputs.tf:1/9/17/21/31 vs
-main.tf:187/191/195/199/205) + variables.tf:18 Missing newline.
-Modul-Fehler dahinter NOT VERIFIED via validate (liegen hinter Root-Fehlern).
-
-## Duplicate outputs
-Systematisch: root 5, iam 2 (role_arn/role_name), lambda 4, cognito 3,
-dynamodb 3 (jeweils outputs.tf parallel zu Inline-Outputs); api/cloudtrail/
-monitoring/sqs eindeutig. Keine Behalte-/Löschentscheidung (Ticket-Vorgabe).
-
-## fmt result
-`terraform fmt -check` in `terraform/`: EXIT 2, Befund variables.tf:18
-(derselbe Parse-Fehler). Kein `terraform fmt`. Dahinterliegendes NOT VERIFIED.
-
-## IAM module findings
-`module.iam.lambda_role_arn` an 2 Stellen erwartet (main.tf:92,
-outputs.tf:37-38), Output nichtexistent (BROKEN); Pflicht-Inputs
-`dynamodb_gsi1_arn`/`permissions_boundary` ungefüttert; SQS-Dokument ungenutzt;
-Doppel-Rolle iam.lambda_role vs lambda.lambda_execution.
-
-## Stale references
-3x STALE in modules/iam/outputs.tf:4/9/14 (`aws_iam_role.handler`,
-`aws_iam_role_policy.handler` — Ressourcen nichtexistent).
-
-## Module contracts
-dynamodb/cognito: undeklarierte Call-Args (`environment`, `table_config`);
-dynamodb: undeklarierte Var-Nutzung (main.tf:24-25). sqs/api Calls intakt auf
-Referenzebene. cloudtrail/monitoring unverdrahtet (HISTORICAL/UNKNOWN).
-
-## CI workflow findings
-Gates blind: kein working-directory/-chdir → validate/fmt laufen in Root ohne
-*.tf (vakuos grün, EXIT 0 belegt). `on.plan`-Trigger ist kein GitHub-Event
-(Auswirkung NOT VERIFIED). Erklärt unbemerkte Akkumulation. Workflow unverändert.
-
-## Root cause
-CI-Blindgate → echte Config nie geprüft → Root-Parse-Fehler blockieren
-validate (EXIT 1) → PLAN NOT REACHED → Modulschicht statisch belegt, via
-validate NOT VERIFIED → Provider/AWS-Identität NOT REACHED → keine
-IAM-Runtime-Aussage.
-
-## Unknowns
-Original-vs-Kopie-Historie; Post-Fix-Validate; dahinterliegende fmt-Diffs;
-CI-Verhalten nach CWD-Fix; on.plan-Auswirkung; cloudtrail/monitoring-Status;
-IAM-Runtime (NOT REACHED).
-
-## Report reference
-docs/reports/CI-TERRAFORM-INTEGRITY-AUDIT-01.md — STATUS: RED.
-
-## Next step
-Separater Repair-Checkpoint: CI-CWD auf terraform/ fixieren, dann schichtweise
-(Root → Module → Contracts) validierbar machen; historische Strukturen nicht
-löschen, nur entscheiden.
-
-## No mutation performed
-Bestätigt: kein Terraform-/IAM-/AWS-Eingriff, kein init mit Backend, kein
-Plan/Apply, kein fmt-Write, keine Secrets, `git diff HEAD -- terraform/` leer.
+- Current status: Ursachen-Analyse abgeschlossen (read-only, keine Reparatur)
+- Audit date/time: 2026-09-26 16:10 UTC
+- Current Git branch and HEAD: main, 92c72e7 (Basis 346d6f4 verifiziert; Remote SSH)
+- Audit scope: Git-Baseline, Terraform-Struktur (aktiv/historisch), CI-Befehl im korrekten Verzeichnis, alle Duplicate Outputs, fmt, IAM-Modul, lambda_role_arn-Contract, stale handler, Modul-Contracts, CI-Workflow, Separation A–G, Root-Cause-Map. Keine Lösch-/Zusammenführungsentscheidung
+- Completed audit sections: Baseline → Struktur → Validate/fmt im korrekten CWD → Duplikat-Inventar → IAM/stale/Contracts → CI-Workflow → Root-Cause-Map → Report → Commit
+- Actual findings (nur verifiziert): `validate` EXIT 1 (5× Root-Duplikate outputs.tf vs main.tf + variables.tf:18); Modul-Duplikate (iam 2, lambda 4, cognito 3, dynamodb 3; Rest eindeutig); `lambda_role_arn` BROKEN (2 Stellen, kein Output); Pflicht-Inputs ungefüttert; SQS-Dok. ungenutzt; Doppel-Rolle; 3× stale handler; dynamodb/cognito undeklarierte Args/Var-Nutzung; CI-Gates blind (kein CWD → Root-Vakuos EXIT 0); `on.plan` kein Event (Wirkung NOT VERIFIED); PLAN NOT REACHED → IAM-Runtime NOT REACHED
+- Evidence / file references: main.tf:187-209 vs outputs.tf:1-31, variables.tf:18, iam/main.tf + outputs.tf + variables.tf, lambda/cognito/dynamodb-Moduldateien, ci-cd.yml (kein working-directory)
+- Classification: RED
+- Terraform checks actually executed and their results: `validate` in `terraform/` (CWD per pwd, v1.16.1) EXIT 1 (s. oben); `fmt -check` EXIT 2 (variables.tf:18); KEIN `terraform fmt`, KEIN init mit Backend, KEIN Plan/Apply
+- Git status: 0 modified, 7 untracked Vorarbeits-Dateien (unberührt)
+- Files changed, if any: docs/AI_AUDITLOG.md + docs/reports/CI-TERRAFORM-INTEGRITY-AUDIT-01.md (neu, 303 Zeilen)
+- Explicit confirmation when no files were changed: Terraform-Implementation unverändert (`git diff HEAD -- terraform/` leer)
+- Open questions: Original-vs-Kopie-Historie; Post-Fix-Validate; fmt-Rest; CI-nach-CWD-Fix; on.plan-Wirkung; cloudtrail/monitoring-Status; IAM-Runtime
+- Risks: Jede Plan/Deploy-Kette scheitert deterministisch vor Modulen; unbemerkte Akkumulation durch Blind-Gates
+- Recommended next actions: Repair-Checkpoint (CI-CWD fixieren, schichtweise Root→Module→Contracts validieren; Historie nicht löschen, nur entscheiden)
+- Current resume point: Report committet (92c72e7); weiter mit Herkunfts-Analyse (CONSOLIDATION-SOURCE-AUDIT)
 
 ==================================================
-CHECKPOINT: 2026-09-26 — TERRAFORM-CONSOLIDATION-SOURCE-AUDIT-01
+CHECKPOINT: 2026-09-26 14:18 UTC — TERRAFORM-CONSOLIDATION-SOURCE-AUDIT-01 (Branch: main, HEAD: d86c048)
 ==================================================
 
-## Objective
-READ-ONLY: autoritative vs. parallele/ältere/kopierte Terraform-Strukturen
-bestimmen. Folge von INTEGRITY-AUDIT (92c72e7). KEINE Lösch-/Merge-Entscheidung.
-
-## Scope
-Inventar (26 Dateien), 5 Root- + 12 Modul-Duplikate, Inline-vs-outputs-Muster,
-Git-Origin (welche Seite zuerst, per Diffs), Parallel-Indizien, Contract-Graph,
-stale Handler, cloudtrail/monitoring, CI-Anbindung, Root-Intent, SoT-Matrix.
-
-## Repository HEAD
-main, 92c72e7 (verifiziert; Kette 346d6f4/c236cd4 existent). SSH-Remote.
-0 modified, 7 untracked (unberührt).
-
-## Working Tree
-Unverändert (nur Audit-Doku neu). Keine untracked Datei berührt.
-
-## Terraform inventory
-26 Dateien: Root 3 + 8 Module (outputs.tf in allen außer sqs). 6 Module aktiv
-verdrahtet; cloudtrail nie, monitoring seit G0.2 unverdrahtet. Keine tfvars.
-
-## Root duplicates
-5x, Values identisch. ORIGINAL = outputs.tf (G0.1, 0 Inline); Kopien = G0.2-Diff
-(`+output "lambda_functions"` belegt). Keine Behalte-Entscheidung.
-
-## Module duplicates
-iam 2 (WIDERSPRÜCHLICH: lambda_role vs nie existenter handler), lambda 4
-(identisch), cognito 3, dynamodb 3. outputs.tf-Dateien je NACH Inline-Stand
-erzeugt (G0.2 bzw. c83e3a2). api/sqs/monitoring/cloudtrail eindeutig.
-
-## Git history findings
-Historie G0.1→G0.4 (danach nur Doku). `lambda_role_arn`-Bruch = G0.2-Einzeiler
-(`-role_arn` → `+lambda_role_arn` ohne Output-Seite). handler-Familie +
-boundary-Vars = c83e3a2-Neuanlage gegen nie existente Ziele (Total-Historie
-leer → nie ACTIVE). monitoring-Block G0.1→G0.2 entfernt (Diff), Dateien erst
-c83e3a2. G0.1-Vertrag war `role_arn`/`table_arn` (evolutioniert).
-
-## Parallel implementation findings
-Systematisches outputs.tf-parallel-zu-Inline-Muster; Order-Domäne/T011-Tag/
-deutsche Texte als Fremdkontext-Indiz; Doppel-Rolle (effektiv UNKNOWN);
-table_arn-Verbleib UNKNOWN; cloudtrail-Zweck UNKNOWN.
-
-## Module contracts
-iam: 2 Pflicht-Inputs offen + `lambda_role_arn` nichtexistent (2 Refs);
-dynamodb: undeklarierte Args + undeklarierte Var-Nutzung (Z.24-25); cognito:
-undeklariertes `environment`-Arg. api/sqs intakt (Referenzebene).
-
-## Stale references
-3x STALE/HISTORICAL (nie ACTIVE): iam/outputs.tf:4/9/14. Niemand referenziert sie.
-
-## CI relation
-Gates blind (kein CWD → Root-Vakuos EXIT 0 statt terraform/-Prüfung); erklärt
-Akkumulation seit G0.2. `on.plan`-Anomalie (NOT VERIFIED). Workflow unverändert.
-
-## Source-of-truth assessment
-CURRENT ROOT = `terraform/` (eindeutig, keine Konkurrenz). Matrix: Root-Outputs
-→ outputs.tf HIGH; IAM-Rolle → lambda_role HIGH; Output-Name → role_arn HIGH
-(Bruch G0.2); lambda/cognito/dynamodb-Zwillinge MEDIUM (funktional egal);
-dynamodb-Vertrag/cloudtrail LOW/UNKNOWN; CI-Fixpunkt HIGH.
-
-## Unknowns
-cloudtrail-Zweck; effektive Rolle; table_arn-Verbleib; Post-Fix-Validate;
-fmt-Rest; CI-nach-CWD-Fix; on.plan; IAM-Runtime (NOT REACHED).
-
-## Report reference
-docs/reports/TERRAFORM-CONSOLIDATION-SOURCE-AUDIT-01.md — STATUS: RED (Subjekt
-unverändert; Ursachen jetzt herkunftsbelegt).
-
-## Next step
-Separater Repair-Plan als Review-Dokument (Schichten in Geburtsreihenfolge),
-ohne Löschen/Zusammenführen; Freigabe eigener Schritt.
-
-## NO MUTATION
-Bestätigt: keine Terraform-/IAM-/AWS-Änderung, kein Backend-init/Plan/Apply/
-fmt-Write, keine Datei gelöscht/verschoben/umbenannt, `git diff HEAD --
-terraform/` leer.
+- Current status: Herkunfts-Analyse abgeschlossen (read-only, keine Lösch-/Merge-Entscheidung)
+- Audit date/time: 2026-09-26 14:18 UTC
+- Current Git branch and HEAD: main, d86c048 (Basis 92c72e7 verifiziert; Kette 346d6f4/c236cd4 existent; SSH-Remote)
+- Audit scope: Inventar (26 Dateien), 5 Root- + 12 Modul-Duplikate, Inline-vs-outputs-Muster, Git-Origin (welche Seite zuerst, per Diffs statt Messages), Parallel-Indizien, Contract-Graph, stale Handler, cloudtrail/monitoring, CI-Anbindung, Root-Intent, SoT-Matrix
+- Completed audit sections: Inventar → Duplikat-Scan → `-S`-Einführungs-Suchen → Diff-Belege (G0.1/G0.2/c83e3a2) → blame → Contract-Abgleich → CI-Lektüre → Report → Commit
+- Actual findings (nur verifiziert): Root-Outputs ORIGINAL = outputs.tf (G0.1, 0 Inline), Kopien = G0.2-Diff; Modul-Inline G0.1-Originale, outputs.tf-Dateien später (G0.2/c83e3a2); `lambda_role_arn`-Bruch = G0.2-Einzeiler ohne Output-Seite; handler-Familie + Boundary-Vars = c83e3a2-Neuanlage gegen nie existente Ziele (Total-Historie leer → nie ACTIVE); monitoring-Block G0.1→G0.2 entfernt; G0.1-Vertrag `role_arn`/`table_arn`; systematisches Parallel-Muster + Fremdkontext-Indizien (Order-Domäne/T011/deutsch); Doppel-Rolle effektiv UNKNOWN
+- Evidence / file references: `git log --all`, `-S`-Suchen (outputs/lambda_role_arn/handler/boundary), `git show d87a48f/0281613/c83e3a2` (Diffs), blame outputs.tf, Modul-Var-/Call-Abgleich, ci-cd.yml
+- Classification: RED
+- Terraform checks actually executed and their results: KEINE direkten terraform-Befehle (Vor-Ergebnisse aus INTEGRITY referenziert, nicht neu erfunden); nur Git-/Grep-Evidence; KEIN init/Plan/Apply, KEIN fmt-Write
+- Git status: 0 modified, 7 untracked (unberührt)
+- Files changed, if any: docs/AI_AUDITLOG.md + docs/reports/TERRAFORM-CONSOLIDATION-SOURCE-AUDIT-01.md (neu, 284 Zeilen)
+- Explicit confirmation when no files were changed: Terraform-Implementation unverändert (`git diff HEAD -- terraform/` leer); keine Datei gelöscht/verschoben/umbenannt
+- Open questions: CloudTrail-Zweck; effektive Rolle; table_arn-Verbleib; Post-Fix-Validate; fmt-Rest; CI-nach-CWD-Fix; on.plan; IAM-Runtime (NOT REACHED)
+- Risks: Keine Behalte-/Löschentscheidung getroffen (Ticket-Vorgabe); Subjekt weiter rot bis Repair
+- Recommended next actions: Repair-Plan als Review-Dokument (Schichten in Geburtsreihenfolge), ohne Löschen/Zusammenführen; UNKNOWN-Punkte mit Owner; Freigabe eigener Schritt
+- Current resume point: Report committet (d86c048); weiter mit formaler Entscheidung (SOURCE-OF-TRUTH-DECISION)
 
 ==================================================
-CHECKPOINT: 2026-09-26 — TERRAFORM-SOURCE-OF-TRUTH-DECISION-01
+CHECKPOINT: 2026-09-26 14:50 UTC — TERRAFORM-SOURCE-OF-TRUTH-DECISION-01 (Branch: main, HEAD: 81459d2)
 ==================================================
 
-## Objective
-Nur Source-of-Truth-Entscheidung (kein Fix) auf Basis CONSOLIDATION-AUDIT
-(d86c048). Canonical Repo, 1 Audit-Log (verifiziert).
-
-## Scope
-Historische Quellen je Variante, Root-Outputs, IAM/Lambda/Cognito/DynamoDB,
-Monitoring/CloudTrail, CI-Anbindung, Decision-Matrix. Keine Datei gelöscht/
-verschoben/umbenannt, kein Code verändert.
-
-## Repository HEAD
-main, d86c048 (verifiziert). SSH-Remote. 0 modified, 7 untracked (unberührt).
-
-## Decisions (CONFIRMED)
-- ACTIVE: Root-outputs.tf (G0.1-Original); Modul-Inline-Outputs
-  (iam/lambda/cognito/dynamodb, G0.1); `role_arn`-Name; `table_config`-Bedarf;
-  SQS/API; Root-Inline-CloudWatch; CI-Datei.
-- STALE: Root-Inline-Kopien (G0.2); Modul-outputs.tf-Kopien (G0.2/c83e3a2);
-  handler-Familie (nie existent); `lambda_role_arn`-Erwartung (G0.2-Einzeiler
-  ohne Output); Boundary/GSI1-Vars; Cognito-`environment`-Arg; GSI1-Vertrag;
-  CI-Schutzbehauptung.
-- HISTORICAL: `table_arn` (G0.1-Call); monitoring-Block (G0.1→G0.2 entfernt).
-- UNKNOWN (gültig): CloudTrail-Zweck; effektive Laufzeit-Rolle;
-  table_arn-Verbleib; Post-Fix-Validate; fmt-Rest; CI-nach-CWD-Fix; on.plan;
-  IAM-Runtime.
-
-## Key evidence
-G0.1: outputs.tf voll/0 Inline; G0.2-Diffs (`+output`, monitoring-Entfernung,
-`role_arn`→`lambda_role_arn`); c83e3a2-Neuanlagen (handler/boundary/outputs.tf/
-cloudtrail/monitoring); handler-Total-Historie leer; Consumer-Greps
-(invoke_arn→api aktiv; function_arn/table_arn/handler orphan); Tests/Installer
-NULL-Referenzen; CI ohne CWD (Vakuos-EXIT-0).
-
-## Report reference
-docs/reports/TERRAFORM-SOURCE-OF-TRUTH-DECISION-01.md — STATUS: GREEN
-(Entscheidung vollständig; Reparatur ausstehend, s.u.).
-
-## Next step
-Repair-Plan als Review-Dokument auf Matrix-Basis (eigener Checkpoint);
-UNKNOWN-Punkte mit Owner; Freigabe eigener Schritt.
-
-## NO MUTATION
-Bestätigt: keine Terraform-/IAM-/AWS-/CI-Änderung, kein fmt-Write/Plan/Apply,
-kein `git add .`, `git diff HEAD -- terraform/` leer.
-
-## Weiterhin NICHT repariert
-validate EXIT 1; fmt EXIT 2; alle Duplikate; handler-Inhalte;
-`lambda_role_arn`-Bruch; Variablen-Verträge; CI-CWD; alles aus Matrix.
+- Current status: Formale Entscheidung abgeschlossen (kein Fix)
+- Audit date/time: 2026-09-26 14:50 UTC
+- Current Git branch and HEAD: main, 81459d2 (Basis d86c048; Canonical Repo, genau 1 Audit-Log verifiziert)
+- Audit scope: Historische Quellen je Variante, Root-Outputs, IAM/Lambda/Cognito/DynamoDB, Monitoring/CloudTrail, CI-Anbindung, Decision-Matrix. Keine Datei gelöscht/verschoben/umbenannt, kein Code verändert
+- Completed audit sections: CONSOLIDATION-Evidence gelesen → Live-Rückbestätigung (Grep/Zählung) → Matrix (Confidence) → Report → Commit
+- Actual findings (nur verifiziert): ACTIVE = Root-outputs.tf, Modul-Inline-Outputs, `role_arn`, `table_config`-Bedarf, SQS/API, Root-Inline-CloudWatch, CI-Datei; STALE = Root-Inline-Kopien, Modul-outputs.tf-Kopien, handler-Familie (nie existent), `lambda_role_arn`-Erwartung, Boundary/GSI1-Vars, Cognito-`environment`-Arg, GSI1-Vertrag, CI-Schutzbehauptung; HISTORICAL = `table_arn` (G0.1-Call), monitoring-Block (G0.1→G0.2 entfernt); UNKNOWN (gültig) = CloudTrail-Zweck, effektive Rolle, table_arn-Verbleib, Post-Fix-Validate, fmt-Rest, CI-nach-CWD-Fix, on.plan, IAM-Runtime
+- Evidence / file references: G0.1/G0.2/c83e3a2-Diffs (referenziert), handler-Total-Historie leer, Consumer-Greps (invoke_arn→api aktiv; Rest orphan), Tests/Installer NULL-Referenzen, CI ohne CWD (Vakuos-EXIT-0)
+- Classification: GREEN
+- Terraform checks actually executed and their results: KEINE direkten terraform-Befehle (Vor-Ergebnisse referenziert); Live-Rückbestätigung per Grep/Zählung (`terraform/`-Diff leer, Output-Zählung, handler/lambda_role_arn-Treffer, kein CI-CWD); KEIN fmt-Write/Plan/Apply, KEIN `git add .`
+- Git status: 0 modified, 7 untracked (unberührt)
+- Files changed, if any: docs/AI_AUDITLOG.md + docs/reports/TERRAFORM-SOURCE-OF-TRUTH-DECISION-01.md (neu, 223 Zeilen)
+- Explicit confirmation when no files were changed: Terraform-Implementation unverändert (`git diff HEAD -- terraform/` leer)
+- Open questions: Alle UNKNOWN aus Matrix (s. oben); Freigabe des Repair-Plans als eigener Schritt
+- Risks: Entscheidung ohne Ausführung — Subjekt (validate EXIT 1, fmt EXIT 2, Duplikate, Contracts, CI-CWD) weiter offen bis Repair
+- Recommended next actions: Repair-Plan als Review-Dokument auf Matrix-Basis (eigener Checkpoint); UNKNOWN-Punkte mit Owner
+- Current resume point: Report committet (81459d2); weiter mit Repair-Plan (CONSOLIDATION-REPAIR-PLAN-01)
 
 ==================================================
-CHECKPOINT: 2026-09-26 — TERRAFORM-CONSOLIDATION-REPAIR-PLAN-01
+CHECKPOINT: 2026-09-26 15:27 UTC — TERRAFORM-CONSOLIDATION-REPAIR-PLAN-01 (Branch: main, HEAD: f2c299f)
 ==================================================
 
-## Objective
-PLANUNG ONLY: evidenzbasierter Repair-Plan aus Decision-Matrix. Keine Ausführung.
-
-## Evidence basis
-INTEGRITY-AUDIT + CONSOLIDATION-SOURCE-AUDIT + SOURCE-OF-TRUTH-DECISION
-(exakte Ticket-Namen, alle vorhanden gelesen) + AI_AUDITLOG. Basis 81459d2
-verifiziert (main, SSH, 0 modified, 7 untracked unberührt).
-
-## Source-of-Truth decision (übernommen)
-ACTIVE: Root-outputs.tf, Modul-Inline-Outputs, `role_arn`, `table_config`-Bedarf,
-SQS/API, Root-Inline-CloudWatch. STALE: alle Kopien, handler-Familie,
-`lambda_role_arn`-Erwartung, Boundary/GSI1-Vars, tote Args, CI-Schutzbehauptung.
-HISTORICAL: `table_arn`, monitoring-Block. UNKNOWN: CloudTrail, effektive Rolle,
-table_arn-Verbleib, Post-Fix-Validate, CI-nach-Fix, on.plan, IAM-Runtime.
-
-## Planned repairs (R01–R19, Kern)
-R19 Parse-Newline zuerst (blockiert alles) → R01–R06 Stale-Removals (Block-Ebene,
-nie pauschal) → R07 REWIRE role_arn → R08/R09 REMOVE-DECL (0 Referenzen belegt)
-→ R10 DECLARE table_config (Typ aus Root-Default) → R11 REMOVE-ARG →
-R12–R15 DEFER/KEEP (GSI1 erledigt, table_arn/CloudTrail/monitoring mit Owner) →
-R16/R17 CI-CWD nach lokalem Grün + Negativ-Probe → R18 INVESTIGATE (kein
-Trigger-Change ohne Beleg). Neu im Plan: `var.dynamodb_table_name`-Lücke
-(iam/main.tf:15, undeklariert) als Repair-Entscheidungspunkt.
-
-## Repair order
-A Parsing → B Duplikate → C Variablen/Contracts → D IAM/Lambda → E DynamoDB →
-F Cognito → G CloudTrail/Monitoring (DEFER) → H Format → I validate EXIT 0 →
-J CI-CWD → K Gates → L lesender Plan (eigener Checkpoint) → M Identitäts-Audit
-(eigener Checkpoint). Commits A–F klein/getrennt, je mit Check+Log.
-
-## Validation strategy
-Matrix je Repair (Static/`validate`/`fmt-check`/Plan/CI); `plan` nur nach
-A–K grün (nicht ausgeführt). Rollback via `git revert` (kein reset --hard/
-clean); scoped adds; untracked-Schutz per Status-Beleg.
-
-## Safety constraints
-Keine Terraform-/IAM-/AWS-/CI-Änderung, kein Backend-init/Plan/Apply/Destroy,
-kein fmt-Write, keine Löschung/Verschiebung/Umbenennung, kein `git add .`,
-kein Raten (DEFER statt Erfindung).
-
-## Unknowns
-Decision-Unknowns übernommen + plan-spezifisch: latente Validate-Schichten
-(STOP einkalkuliert), `table_name`-Behandlung (am validate-Feedback entscheiden).
-
-## Report
-docs/reports/TERRAFORM-CONSOLIDATION-REPAIR-PLAN-01.md — STATUS: GREEN (Plan
-vollständig/ausführbar; keine Ausführung).
-
-## Explicit NO MUTATION
-Bestätigt: `git diff HEAD -- terraform/` leer, nur 2 Doku-Dateien, 7 untracked
-unberührt.
+- Current status: Repair-Plan erstellt (PLANUNG ONLY, keine Ausführung)
+- Audit date/time: 2026-09-26 15:27 UTC
+- Current Git branch and HEAD: main, f2c299f (Basis 81459d2 verifiziert; SSH; 0 modified, 7 untracked unberührt)
+- Audit scope: Evidenzbasierter Repair-Plan aus Decision-Matrix (R01–R19, Phasen A–M, Validation-Matrix, Rollback, Commit-Strategie, Stops). Keine Ausführung, keine Löschung/Zusammenführung
+- Completed audit sections: Evidence-Basis gelesen (exakte Ticket-Namen) → SoT übernommen → R01–R19-Matrix → Phasen/Validation/Rollback/Commits/Stops → Report → Commit
+- Actual findings (nur verifiziert): R19 Parse-Newline zuerst (blockiert alles belegt); R01–R06 Stale-Removals Block-Ebene; R07 REWIRE role_arn; R08/R09 REMOVE-DECL (0 Referenzen); R10 DECLARE table_config (Typ aus Root-Default); R11 REMOVE-ARG; R12–R15 DEFER/KEEP; R16/R17 CI-CWD nach lokalem Grün + Negativ-Probe; R18 INVESTIGATE; NEU: `var.dynamodb_table_name`-Lücke (iam/main.tf:15, undeklariert) als Entscheidungspunkt; `plan` nur nach A–K grün (nicht ausgeführt); Rollback via `git revert` (kein reset/clean)
+- Evidence / file references: Decision-Report + Source-Audit + Integrity-Audit (gelesen); iam/main.tf:15 (Lücke); ci-cd.yml (CWD-Lage)
+- Classification: GREEN
+- Terraform checks actually executed and their results: KEINE (Planung only — kein validate/fmt/Plan/Apply; keine Datei geändert)
+- Git status: 0 modified, 7 untracked (unberührt)
+- Files changed, if any: docs/AI_AUDITLOG.md + docs/reports/TERRAFORM-CONSOLIDATION-REPAIR-PLAN-01.md (neu, 248 Zeilen)
+- Explicit confirmation when no files were changed: Terraform-Implementation unverändert (`git diff HEAD -- terraform/` leer); kein `git add .`; kein Raten (DEFER)
+- Open questions: Decision-Unknowns + latente Validate-Schichten (STOP einkalkuliert); `table_name`-Behandlung am validate-Feedback
+- Risks: Plan ohne Ausführung — keine Wirkung bis Repair-Checkpoints; Sammel-Commit-Risiko via A–F-Kleinteilung adressiert
+- Recommended next actions: Repair-Plan als Review-Dokument nutzen; UNKNOWN-Punkte mit Owner; Freigabe eigener Schritt (kein Auto-Start)
+- Current resume point: Report committet (f2c299f); weiter mit Fremd-Repo-Prüfung (PARALLEL-PROCESSING-DOC-CHECK-01)
 
 ==================================================
-CHECKPOINT: 2026-09-26 — PARALLEL-PROCESSING-DOC-CHECK-01
+CHECKPOINT: 2026-09-26 16:00 UTC — PARALLEL-PROCESSING-DOC-CHECK-01 (Branch: main, HEAD: 7b73036)
 ==================================================
 
-## Objective
-Git-only prüfen, ob Parallel Deployment/Processing-Semantik in
-`maynowak/mays-order-aws` bereits vollständig/eindeutig dokumentiert ist.
-Kein Redesign. R10 als GREEN vorausgesetzt (nicht erneut reparieren).
-
-## Source (Git-only)
-Remote-main SHA via `ls-remote`: 9c61237185d202e072b2304355ee836154368846.
-Shallow single-branch clone nach /tmp/opencode (HEAD identisch verifiziert,
-tree clean). Lokale Sibling-Dirs/Zips NICHT verwendet. Nur relevante Treffer-
-Dokumente gelesen (keine Vollinventur, 126 md-Dateien nicht alle gelesen).
-
-## Findings
-- Parallel Deployment = 1 Terraform-Workspace je project_name (auto-select,
-  09-04-Fix), getestet GREEN (09-01/09-02: mays-orders + mays-order-par
-  parallel, je 37 Ressourcen, restlos destroyed).
-- DeploymentId = account:project:environment (Version exkludiert); Plan-Identität
-  je Operation mit hardened Discovery; Destroy-Isolation; Ownership-Klassen;
-  kanonische Tags (H2-Report, 125/125 Tests).
-- State-Isolation via Workspaces; S3-Backend-Key-Strategie OFFEN (nur 09-01 Q2).
-- Ressourcen-Isolation via `${project_name}-*` + bare Projekt-Tabellen +
-  Tag-Guards + Tag-abgeleiteter Policy-Gate (09-02-Fix).
-- Runtime-Parallelismus: Auto-Scaling + idempotente Handler + Conditional
-  Writes + version-Attribut (reserviert) + SQS-E2E PASSED; keine explizite
-  Concurrency-Konfig (Defaults, dokumentiert unkritisch).
-- KEINE Widersprüche (09-01-Risiko → 09-02-Fix → 09-04-Härtung konsistent;
-  R10-Kette hält, workspace==project_name 1:1).
-- MISSING: Workspace-Note in Lifecycle/Architektur-Doku (09-05-YELLOW am
-  Analyse-Commit weiter offen); Backend-Key-Entscheidung; Test-
-  Parametrisierung. Folgerung: NICHT neu definieren — SoT bestätigen + 3 Lücken.
-
-## Report reference
-docs/reports/PARALLEL-PROCESSING-DOC-CHECK-01.md — STATUS: YELLOW
-(SoT existiert/getestet; kanonische Doku hinkt Execution-Logs hinterher).
-
-## Checks
-ls-remote + clone-SHA-Match; gezielte Greps (parallel/workspace/DeploymentId/
-naming/idempotency); H2-Abschnitt auf Workspace-Note geprüft (fehlt);
-Backend-Key-Suche leer; Tests/Installer des RIS-Repos unbeteiligt.
-
-## No mutation performed
-Kein Terraform Plan/Apply/Destroy, keine Infra-/Code-Änderung (weder RIS noch
-mays-order-aws; Clone nur /tmp, kein Push). Nur 2 Doku-Dateien im RIS-Repo.
+- Current status: Fremd-Repo-Doku-Check abgeschlossen (Git-only, kein Redesign)
+- Audit date/time: 2026-09-26 16:00 UTC
+- Current Git branch and HEAD: main, 7b73036 (RIS-Repo; geprüftes Fremd-Repo `maynowak/mays-order-aws` @ 9c61237)
+- Audit scope: Parallel Deployment/Processing-Semantik in mays-order-aws-Doku prüfen (R10 als GREEN vorausgesetzt). Keine Architekturänderung, kein Terraform-Repair
+- Completed audit sections: Remote-main per `ls-remote` → Shallow-Clone (/tmp, SHA-Match, clean) → Treffer-Doku gelesen (keine Vollinventur) → 11 Fragen → Report → Commit
+- Actual findings (nur verifiziert): Parallel Deployment = 1 Workspace je project_name (09-04-Fix), getestet GREEN (je 37 Ressourcen); DeploymentId = account:project:environment (Version exkludiert); Plan-Identität + Destroy-Isolation + Ownership + Tags (125/125 Tests); State via Workspaces (S3-Key-Strategie OFFEN); Ressourcen `${project_name}-*` + bare Tabellen + Tag-Guards; Runtime: Auto-Scaling + Idempotenz + Conditional Writes + SQS-E2E; KEINE Widersprüche; MISSING (Workspace-Note, Backend-Key, Test-Parametrisierung) → NICHT neu definieren
+- Evidence / file references: ls-remote-SHA, Clone-HEAD-Match, H2-Report + INSTALLER-LIFECYCLE + 09-01/02/04/05-Logs, terraform/README (Naming), reliability-Doc, Greps (parallel/workspace/DeploymentId/naming/idempotency)
+- Classification: YELLOW
+- Terraform checks actually executed and their results: KEINE terraform-Befehle (weder RIS noch MO; Clone nur /tmp, kein Push); Doku-Evidence statt Runs; RIS-Tests/Installer unbeteiligt
+- Git status: RIS Working Tree unverändert (nur 2 Doku-Dateien neu/geändert)
+- Files changed, if any: docs/AI_AUDITLOG.md + docs/reports/PARALLEL-PROCESSING-DOC-CHECK-01.md (neu, 107 Zeilen)
+- Explicit confirmation when no files were changed: Keine Infra-/Code-Änderung (weder RIS noch mays-order-aws); keine Terraform-Änderung
+- Open questions: Workspace-Note-Nachtrag (MO-seitig); Backend-Key-Entscheidung (MO-seitig); Test-Parametrisierung (MO-seitig)
+- Risks: Keine für RIS (reine Lektüre); SoT-Bestätigung statt Neudefinition verhindert Divergenz
+- Recommended next actions: SoT bestätigen + 3 MO-Lücken (separate Zuständigkeit); R10 bleibt GREEN
+- Current resume point: Report committet (7b73036); zurück zu RIS-Decision-Formalismus (SOURCE-OF-TRUTH-DECISION formal A–T)
 
 ==================================================
-CHECKPOINT: 2026-09-26 — TERRAFORM-SOURCE-OF-TRUTH-DECISION-01 (formal A–T)
+CHECKPOINT: 2026-09-26 17:39 UTC — TERRAFORM-SOURCE-OF-TRUTH-DECISION-01 formal A–T (Branch: main, HEAD: 9d5b603)
 ==================================================
 
-## Objective
-Formale A–T-Entscheidung aus CONSOLIDATION-Evidence (kein Fix). Ersetzt
-inhaltlich den gleichnamigen Vor-Report (81459d2) durch Ticket-Struktur
-(Matrix A–T + Confidence + Repair Implication + Non-Decisions); keine
-Zweit-Entscheidung, keine neue Historienanalyse.
-
-## Evidence basis
-CONSOLIDATION-SOURCE-AUDIT-01 + AI_AUDITLOG gelesen; live rückbestätigt
-(`terraform/`-Diff leer, Output-Zählung, handler 2+1, lambda_role_arn 2,
-kein CI-CWD). Keine neuen Annahmen.
-
-## Repository HEAD
-main, 7b73036 (canonical, SSH). 0 modified, 7 untracked (unberührt).
-
-## Decision Matrix (A–T, Kern)
-- ACTIVE (HIGH): A Root, B Root-outputs.tf, D IAM/`lambda_role`, E/F/G
-  Module+Inline, H SQS, I API, M `role_arn`, R `table_config`-Bedarf.
-- STALE (HIGH): C Root-Inline-Kopien, Modul-outputs.tf-Kopien, N
-  `lambda_role_arn`-Erwartung, O handler-Familie, P Boundary-Vars, Q
-  `dynamodb_gsi1_arn`, S Cognito-`environment`, CI-Schutzbehauptung.
-- HISTORICAL: J monitoring-Block (HIGH), L `table_arn` (MEDIUM, Verbleib UNKNOWN).
-- UNKNOWN: K CloudTrail (+ effektive Rolle, table_arn-Verbleib, Post-Fix-Validate,
-  CI-nach-Fix, on.plan, IAM-Runtime).
-- T CI-CWD als CONFIRMED GAP (keine Terraform-Datei).
-
-## Active / Historical / Stale / Unknown
-Siehe Matrix; ACTIVE ≠ fehlerfrei (validate FAIL bis Repair); STALE = nicht als
-Repair-Basis; UNKNOWN nicht aufgelöst (gültig).
-
-## Repair implications
-ACTIVE → preserve/repair in place; STALE → removal-Kandidaten; HISTORICAL →
-nicht wiederbeleben; UNKNOWN → do not modify until resolved (Owner nötig).
-
-## Explicit non-decisions
-Keine Lösch-Reihenfolge, keine table_name-Lösung, kein CloudTrail-Schicksal,
-keine effektive Rolle, kein on.plan-Fix, kein Sharding-Urteil.
-
-## Report
-docs/reports/TERRAFORM-SOURCE-OF-TRUTH-DECISION-01.md — STATUS: GREEN
-(Entscheidung vollständig; kein Fix).
-
-## NO MUTATION
-Bestätigt: `git diff HEAD -- terraform/` leer, `diff --check` clean, nur
-2 Doku-Dateien, keine AWS-/IAM-/CI-Änderung.
+- Current status: Formale A–T-Entscheidung abgeschlossen (kein Fix; ersetzt Vor-Report 81459d2 inhaltlich, keine Zweit-Entscheidung)
+- Audit date/time: 2026-09-26 17:39 UTC
+- Current Git branch and HEAD: main, 9d5b603 (Basis 7b73036; Canonical Repo, genau 1 Audit-Log)
+- Audit scope: Formale Matrix A–T + Confidence + Repair Implication + Non-Decisions aus CONSOLIDATION-Evidence. Keine neue Historienanalyse, kein Code verändert
+- Completed audit sections: Evidence gelesen → live rückbestätigt (Grep/Zählung) → Matrix A–T → Implication/Non-Decisions → Report-Rewrite → Commit
+- Actual findings (nur verifiziert): ACTIVE (HIGH) = A Root, B Root-outputs.tf, D IAM/`lambda_role`, E/F/G Module+Inline, H SQS, I API, M `role_arn`, R `table_config`-Bedarf; STALE (HIGH) = C Root-Inline-Kopien, Modul-outputs.tf-Kopien, N `lambda_role_arn`-Erwartung, O handler-Familie, P Boundary-Vars, Q `dynamodb_gsi1_arn`, S Cognito-`environment`, CI-Schutzbehauptung; HISTORICAL = J monitoring-Block (HIGH), L `table_arn` (MEDIUM, Verbleib UNKNOWN — nicht künstlich entschieden); UNKNOWN = K CloudTrail (+ Rolle, table_arn-Verbleib, Post-Fix, CI-nach-Fix, on.plan, IAM-Runtime); T CI-CWD als CONFIRMED GAP
+- Evidence / file references: CONSOLIDATION-Report (Diff-Belege), Live-Greps (`terraform/`-Diff leer, Output-Zählung, handler 2+1, lambda_role_arn 2, kein CI-CWD)
+- Classification: GREEN
+- Terraform checks actually executed and their results: KEINE terraform-Befehle (Vor-Ergebnisse referenziert); Live-Rückbestätigung per Grep/Zählung; KEIN fmt-Write/Plan/Apply
+- Git status: 0 modified, 7 untracked (unberührt)
+- Files changed, if any: docs/AI_AUDITLOG.md + docs/reports/TERRAFORM-SOURCE-OF-TRUTH-DECISION-01.md (Rewrite 176+/207- auf Ticket-Struktur)
+- Explicit confirmation when no files were changed: Terraform-Implementation unverändert (`git diff HEAD -- terraform/` leer); ACTIVE ≠ fehlerfrei (validate FAIL bis Repair)
+- Open questions: Alle UNKNOWN aus Matrix (s. oben); Freigabe Repair-Plan als eigener Schritt
+- Risks: Entscheidung ohne Ausführung — Subjekt weiter offen bis Repair; STALE nicht als Repair-Basis verwenden
+- Recommended next actions: Repair-Plan-Checkpoint auf Matrix-Basis (R01–R21-Schichten); UNKNOWN mit Owner; keine Lösch-Reihenfolge vorab
+- Current resume point: Report committet (9d5b603); weiter mit verbindlichem Repair-Plan
 
 ==================================================
-CHECKPOINT: 2026-09-26 — TERRAFORM-CONSOLIDATION-REPAIR-PLAN-01 (verbindlich R01–R21)
+CHECKPOINT: 2026-09-26 17:46 UTC — TERRAFORM-CONSOLIDATION-REPAIR-PLAN-01 verbindlich R01–R21 (Branch: main, HEAD: affdf8f)
 ==================================================
 
-## Objective
-Verbindlicher Repair-Plan aus Decision 9d5b603. PLANUNG ONLY, keine Ausführung.
-
-## Evidence basis
-DECISION-01 (verbindlich) + SOURCE-AUDIT + INTEGRITY-AUDIT + DEPLOY-AUDIT +
-AI_AUDITLOG gelesen. Konsistenz: keine Inkonsistenz zwischen Reports → keine
-SoT-Frage erneut geöffnet. Fehlendes = UNKNOWN (nicht geraten).
-
-## Source-of-Truth decision 9d5b603 (übernommen)
-ACTIVE = Reparaturbasis (≠ fehlerfrei): Root, Root-outputs.tf, role_arn,
-Lambda/Cognito/DynamoDB-SQS-API, table_config-Bedarf. STALE: alle Kopien,
-lambda_role_arn-Erwartung, handler, Boundary/GSI1-Vars, tote Args,
-CI-Schutzbehauptung. HISTORICAL: monitoring-Block, table_arn (Verbleib UNKNOWN).
-UNKNOWN: CloudTrail, effektive Rolle, table_arn-Verbleib, Post-Fix, CI-nach-Fix,
-on.plan, IAM-Runtime.
-
-## Repair Matrix (Kern)
-R01–R05 Stale-Removals Block-Ebene (Risiko niedrig, Commit 1); R06 REWIRE
-role_arn (mittel, Commit 3); R07 handler REMOVE-Kandidat (Grep-Bedingung);
-R08 Boundary REMOVE-DECL + table_name-Entscheidungspunkt; R09 erledigt via R08;
-R10 DECLARE table_config aus Root-Default (keine Erfindung); R11 REMOVE-ARG;
-R12 1-Zeichen-Newline zuerst (blockiert alles); R13–R16 CI-CWD+Gates nach
-lokalem Grün + Negativ-Probe (eigener Checkpoint, Commit 4); R17–R19/R21 DEFER
-(Owner); R20 erst nach validate→plan→Identity.
-
-## Repair Order
-Phase 0 Safety → 1 Root (R12→R01) → 2 Modul-Outputs (R02–R05+R07) → 3 Contracts
-(R06/R08/R10/R11) → 4 Static validation → 5 CI-CWD → 6/7 CI-Gates/Plan-Gate →
-8 lesender Plan → 9 Identitäts-Audit. UNKNOWN außerhalb bis Evidence.
-Dependency-Begründung aus Evidence (Parse abortet alles; validate meldet
-schichtweise; CI nie vakuos).
-
-## Validation Gates
-G1 Git-Checkpoint → G2 Static-Grep → G3 fmt-check → G4 validate EXIT 0 →
-G5 CWD → G6/G7 CI-Gates (Negativ-Probe) → G8 CI-Plan → G9 lesender Plan →
-G10 Identity → G11 IAM-Abgleich. Strikt sequenziell; Stops je Gate definiert.
-
-## Deferred Unknowns
-R17/R18/R19/R21 + R20 + Post-Fix-Latentes (STOP einkalkuliert).
-
-## Stop Conditions
-SoT-Widerspruch, aktiver STALE-Consumer, UNKNOWN nötig, neue Architektur,
-AWS-State/Runtime/Backend nötig, CI-Scope-Bruch, untracked betroffen, neue
-Validate-Schicht → Report + Log + Commit + HARD STOP.
-
-## Report
-docs/reports/TERRAFORM-CONSOLIDATION-REPAIR-PLAN-01.md — STATUS: GREEN
-(Plan vollständig/ausführbar; keine Ausführung).
-
-## NO MUTATION
-Bestätigt: `git diff HEAD -- terraform/` leer (geprüft nachher), nur 2
-Doku-Dateien, 7 untracked unberührt, kein Backend-init/Plan/Apply/Destroy/
-fmt-Write, keine Löschung/Verschiebung/Umbenennung.
+- Current status: Verbindlicher Repair-Plan erstellt (PLANUNG ONLY, keine Ausführung)
+- Audit date/time: 2026-09-26 17:46 UTC
+- Current Git branch and HEAD: main, affdf8f (Basis 9d5b603 verifiziert; SSH; 0 modified, 7 untracked unberührt)
+- Audit scope: R01–R21-Matrix (Risiko + Commit), Block-Aktionen, Phasen 0–9, Gates G1–G11, Rollback, Commit-Strategie, Stops, Final State. Keine Ausführung, keine Inkonsistenz-Eröffnung ohne Beleg
+- Completed audit sections: Decision + 3 Vor-Audits gelesen → Konsistenz geprüft (keine Inkonsistenz → keine SoT-Wiedereröffnung) → R-Matrix → Phasen/Gates/Rollback/Commits/Stops → Report-Rewrite → Commit
+- Actual findings (nur verifiziert): R01–R05 Stale-Removals (Risiko niedrig, Commit 1); R06 REWIRE role_arn (mittel, Commit 3); R07 handler REMOVE-Kandidat (Grep-Bedingung); R08 Boundary REMOVE-DECL + `table_name`-Lücke; R09 via R08 erledigt; R10 DECLARE table_config (Typ aus Root-Default, keine Erfindung); R11 REMOVE-ARG; R12 1-Zeichen-Newline zuerst (blockiert alles belegt); R13–R16 CI-CWD+Gates nach lokalem Grün + Negativ-Probe (Commit 4, separater Checkpoint); R17–R19/R21 DEFER (Owner); R20 nach validate→plan→Identity; Phasen/Reihenfolge dependency-begründet (Parse abortet alles; validate meldet schichtweise; CI nie vakuos)
+- Evidence / file references: Decision-Report (verbindlich) + 3 Vor-Audits (gelesen); `var.dynamodb_table_name`-Lücke (iam/main.tf:15); ci-cd.yml (CWD-Lage)
+- Classification: GREEN
+- Terraform checks actually executed and their results: KEINE (Planung only — kein validate/fmt/Plan/Apply; keine Datei geändert)
+- Git status: 0 modified, 7 untracked (unberührt)
+- Files changed, if any: docs/AI_AUDITLOG.md + docs/reports/TERRAFORM-CONSOLIDATION-REPAIR-PLAN-01.md (Rewrite auf R01–R21-Ticket-Struktur)
+- Explicit confirmation when no files were changed: Terraform-Implementation unverändert (`git diff HEAD -- terraform/` leer); kein `git add .`; kein Raten (DEFER)
+- Open questions: Decision-Unknowns + latente Validate-Schichten (STOP einkalkuliert); `table_name`-Behandlung am validate-Feedback
+- Risks: Plan ohne Ausführung — keine Wirkung bis Repair-Checkpoints; Sammel-Commit-Risiko via Kleinteilung adressiert
+- Recommended next actions: Review + Freigabe; Repair-Commits A–F je mit Check+Log; UNKNOWN mit Owner; kein Auto-Start
+- Current resume point: Report committet (affdf8f); weiter mit Root-Outputs-Konsolidierung (erster Repair)
 
 ==================================================
-CHECKPOINT: 2026-09-26 — TERRAFORM-ROOT-OUTPUTS-CONSOLIDATION-01
+CHECKPOINT: 2026-09-27 09:39 UTC — TERRAFORM-ROOT-OUTPUTS-CONSOLIDATION-01 (Branch: main, HEAD: c34e1e9)
 ==================================================
 
-## Source analysis
-5 Root-Duplikate (outputs.tf G0.1-Original vs Inline main.tf G0.2-Kopien;
-Inline-Map lagging: nur work_items). Modul-Outputs 11/12 existent
-(nur iam.lambda_role_arn MISS). Referenz mays-order-aws outputs.tf @ 9c61237
-(Git-only): Export-Schicht + Descriptions + flache Namen + kein Monitoring.
-Keine externen Consumer (Repo-Grep leer); keine Test-Abhängigkeit.
-
-## Consolidation decision
-EINE kanonische terraform/outputs.tf (26 Outputs, Descriptions, flache RIS-
-Namen; DynamoDB flach name+arn je Tabelle; Monitoring/CloudTrail kein Export).
-Inline-Blöcke main.tf:187-209 entfernt. `lambda_role_arn`-Broken-Ref entfernt
-statt umgebogen. Exportiert `iam_role_arn ← module.iam.role_arn` (Existenz +
-G0.1-Vertrag + Referenzmuster, explizit begründet). Laufzeit-Rollenfrage
-NICHT entschieden (main.tf:92 weiter broken → IAM-Scope); Ambiguity im Report.
-
-## Files changed
-terraform/outputs.tf (rewrite), terraform/main.tf (-24 Inline-Blöcke),
-docs/reports/TERRAFORM-ROOT-OUTPUTS-CONSOLIDATION-01.md (neu),
-docs/AI_AUDITLOG.md (dieser Eintrag). Keine Modul-/CI-/Backend-Änderung.
-
-## Validation
-fmt -check: nur variables.tf:18 (R12, ausstehend). validate EXIT 1: nur
-variables.tf:18 — Duplicate-Klasse eliminiert (vorher 5×); Rest maskiert wie
-zuvor. 26/26 Werte existent; removed names consumerlos; diff-check PASS.
-
-## Commit
-refactor(terraform): consolidate root outputs (Scope: 4 Dateien, s. Status).
+- Current status: Root-Output-Vertrag konsolidiert (erste Repair-Ausführung)
+- Audit date/time: 2026-09-27 09:39 UTC
+- Current Git branch and HEAD: main, c34e1e9 (Basis affdf8f; SSH; 0 modified vorher, 7 untracked)
+- Audit scope: NUR Root-Output-Vertrag (5 Duplikate + Modul-Existenz + MO-Referenzmuster). Keine IAM-/Modul-/CI-/Backend-Änderung, keine neue Architektur
+- Completed audit sections: 5 Varianten + main.tf-Wiring + Modul-Outputs + Historie + MO-Referenz (9c61237, Git-only) → IAM-Rollenfrage geprüft → kanonische outputs.tf → Inline-Entfernung → Validierung → Report → Commit
+- Actual findings (nur verifiziert): 5 Duplikate (outputs.tf G0.1 vs Inline G0.2; Inline-Map lagging nur work_items); Modul-Outputs 11/12 existent (nur iam.lambda_role_arn MISS); MO-Muster (Export-Schicht + Descriptions + flache Namen + kein Monitoring); KEINE externen Consumer + KEINE Test-Abhängigkeit; kanonisch = 26 Outputs (DynamoDB flach name+arn; Monitoring/CloudTrail kein Export); `iam_role_arn ← module.iam.role_arn` (Existenz + G0.1 + Muster, explizit begründet); Laufzeit-Rollenfrage NICHT entschieden (main.tf:92 weiter broken → IAM-Scope)
+- Evidence / file references: outputs.tf (vorher 39 Zeilen) + main.tf:187-209 + Modul-Output-Greps (11/12) + MO outputs.tf @ 9c61237 + Consumer-Greps (leer)
+- Classification: YELLOW
+- Terraform checks actually executed and their results: `fmt -check` (nur variables.tf:18, R12 ausstehend); `validate` EXIT 1 (nur variables.tf:18 — Duplicate-Klasse eliminiert, vorher 5×); 26/26 Werte existent (Grep-Matrix); removed names consumerlos; `diff --check` PASS; KEIN Apply/Backend-Eingriff
+- Git status: 0 modified vorher, 7 untracked (unberührt)
+- Files changed, if any: terraform/outputs.tf (Rewrite +165/-45), terraform/main.tf (-24 Inline-Blöcke), docs/reports/TERRAFORM-ROOT-OUTPUTS-CONSOLIDATION-01.md (neu, 96), docs/AI_AUDITLOG.md (+32); KEINE Modul-/CI-/Backend-Änderung
+- Explicit confirmation when no files were changed: Entfällt (s. oben)
+- Open questions: Laufzeit-Rolle (IAM-Scope); Post-Fix-Validate der Modulebene; R12-Fix ausstehend
+- Risks: DynamoDB-Map → flach ist Umbenennung ohne Consumer (belegt ungefährlich); Broken-Ref-Entfernung dokumentiert statt umgebogen
+- Recommended next actions: Review; weiter mit R12-Minimalfix (nächster Repair)
+- Current resume point: Konsolidierung committet (c34e1e9); weiter mit R12
 
 ==================================================
-CHECKPOINT: 2026-09-26 — TERRAFORM-REPAIR-R12-01
+CHECKPOINT: 2026-09-27 10:31 UTC — TERRAFORM-REPAIR-R12-01 (Branch: main, HEAD: 6d57f3a)
 ==================================================
 
-## Ausgangspunkt
-c34e1e9 (Root-Outputs konsolidiert). Ziel R12 only. 0 TF-Diff vorher,
-7 untracked geschützt.
-
-## Ziel R12
-variables.tf:18-Blocker minimal beheben, keine Semantikänderung.
-
-## Änderung
-1 Zeile: `var.environment in [...]` → `contains([...], var.environment)`
-(HCL hat kein `in`; gleiche Membership-Prüfung; Rest unverändert).
-Keine Variable/Default/Typ/Description/Name geändert. Kein fmt-Write.
-
-## Validation
-- Diff-Gate: exakt 1 Zeile, `diff --check` PASS.
-- `fmt -check variables.tf`: EXIT 3 — nur pre-existing Alignment ab Z.71
-  (nicht angefasst, lesende `-diff`-Preview); Z.18 fmt-clean.
-- `validate` (ohne init): R12-Fehler WEG; nur noch `Module not installed`
-  (6×) — init ticketgemäß NICHT ausgeführt. Maskierte Schichten unberührt.
-
-## Neu sichtbare Fehler (NEXT, nicht repariert)
-fmt-Alignment Z.71+; init-Bedarf (Backend-Entscheidung); Modul-/Contract-
-Schichten (eigene Checkpoints).
-
-## Keine Folgeänderungen
-Nur variables.tf + Report + dieser Eintrag. Root Outputs c34e1e9 unverändert.
-Keine AWS-/Backend-/CI-Änderung. 7 untracked unberührt.
-
-## Commit
-fix(terraform): repair variables file formatting (Scope-Gates passiert).
-
-## Hard Stop
-Keine weitere Terraform-Reparatur in diesem Checkpoint.
+- Current status: R12-Blocker minimal behoben (1 Zeile, keine Semantikänderung)
+- Audit date/time: 2026-09-27 10:31 UTC
+- Current Git branch and HEAD: main, 6d57f3a (Basis c34e1e9; 0 TF-Diff vorher, 7 untracked geschützt)
+- Audit scope: NUR variables.tf:18 (R12). Keine Variable/Default/Typ/Description/Name geändert, kein fmt-Write
+- Completed audit sections: Baseline (HEAD/TF-Diff/untracked) → Inspektion (Z.18 + Abschluss) → 1-Zeilen-Fix → Diff-Gate → fmt/validate (ohne init) → Report → Commit-Gates → Commit
+- Actual findings (nur verifiziert): Fehler = HCL kennt kein `in` (kein reiner Newline-Fehler) → Fix `contains([...], var.environment)` (gleiche Membership-Prüfung); Diff exakt 1 Zeile; `fmt -check` EXIT 3 (nur pre-existing Alignment ab Z.71, Z.18 fmt-clean); `validate` ohne init: R12-Fehler WEG, nur `Module not installed` (6×, init verboten); maskierte Schichten unberührt
+- Evidence / file references: variables.tf:12-21 (vorher/nachher-Diff 1 Zeile); fmt/validate-Outputs (CWD-verifiziert)
+- Classification: GREEN
+- Terraform checks actually executed and their results: `fmt -check variables.tf` EXIT 3 (s. oben, lesende `-diff`-Preview); `validate` (ohne init) R12-frei + Module-not-installed; KEIN init/Plan/Apply/Destroy
+- Git status: 0 modified vorher, 7 untracked (unverändert/ungestaged/uncommitted)
+- Files changed, if any: terraform/variables.tf (1 Zeile) + docs/reports/TERRAFORM-REPAIR-R12-01.md (neu, 83) + docs/AI_AUDITLOG.md (+37)
+- Explicit confirmation when no files were changed: Entfällt (s. oben); Root Outputs c34e1e9 unverändert; keine AWS-/Backend-/CI-Änderung
+- Open questions: fmt-Alignment Z.71+ (Phase H); init-Bedarf (Backend-Entscheidung); Modul-/Contract-Schichten (eigene Checkpoints)
+- Risks: Keine durch Fix (No-Op-Semantik); dahinterliegende Schichten weiter offen
+- Recommended next actions: Review; weiter mit IAM-Source-Audit (nächster Block)
+- Current resume point: Fix committet (6d57f3a); weiter mit IAM
 
 ==================================================
-CHECKPOINT: 2026-09-26 — TERRAFORM-IAM-SOURCE-AUDIT-01
+CHECKPOINT: 2026-09-27 12:51 UTC — TERRAFORM-IAM-SOURCE-AUDIT-01 (Branch: main, HEAD: 3b42fc0)
 ==================================================
 
-## Objective
-Nur IAM-Varianten untersuchen (read-only). Basis c34e1e9 (Root-Outputs) +
-6d57f3a (R12). Keine Reparatur/Konsolidierung, kein init/plan/apply, keine
-AWS-Mutation.
-
-## Wiring (main.tf direkt)
-module.iam (Z.66): 2 Pflicht-Inputs ungefüttert, 2 genutzte Vars undeklariert
-(table_name Z.15, s3_bucket_arn Z.41). module.lambda (Z.87): Z.92
-`iam_role_arn = module.iam.lambda_role_arn` (BROKEN); Input wird im Modul
-IGNORIERT (0 Leser); Funktion nutzt eigene lambda_execution (Z.165).
-
-## Varianten
-EIN iam-Verzeichnis (keine Paralleldirs). lambda_role (G0.1, orphan, Trust
-lambda-only) + lambda_execution (G0.1, angebunden, 5 Policies) beide ACTIVE
-als Ressourcen. handler-Familie (c83e3a2, nie existent) + iam.lambda_role_arn-
-Erwartung (G0.2-Einzeiler ohne Provider) + toter Input: UNREFERENCED/STALE.
-lambda_role_arn-Output (lambda): ACTIVE-Definition, consumerlos.
-
-## Konflikt role_arn vs lambda_role_arn
-Kein Naming-Duplikat, kein Rollen-Rennen: gebrochener Vertrag + tote Struktur
-(Diffs/Historie/Greps belegt). Mays-Orders-Referenz (9c61237, Git-only):
-Ein-Rollen-Modell (consume var.iam_role_arn); RIS abweichend (Selbst-Rolle),
-eigene Architektur behalten.
-
-## Consumer
-Code: role_arn/name ← root outputs (c34e1e9); lambda_role_arn-Erwartung ← nur
-Z.92 (broken); Rest ← niemand. API/SQS/Skripte/Tests/CI: NULL.
-
-## Auswirkungen (lesend, unverändert)
-Runtime/Least-Privilege/ARN-Scope/Tenant/Env/Deployment-Identity: dokumentiert,
-nicht modifiziert/bewertet.
-
-## SoT-Decision (identifizierend)
-Authoritativ: beide Rollen-Ressourcen real (Export role_arn G0.1;
-Anbindung lambda_execution). Laufzeitwirkung: UNKNOWN (kein Plan/Live-Beleg).
-
-## Offen / Repair-Grenze
-Effektive Rolle (Live-Beleg); lambda_role-Schicksal; iam-Var-Lücken; SQS-Scope-
-Notiz. Nächster Checkpoint: Z.92-REWIRE + toter Input + stale Blöcke (R06–R08);
-Zusammenlegung/Boundary erst nach Evidenz (R20).
-
-## Report
-docs/reports/TERRAFORM-IAM-SOURCE-AUDIT-01.md — STATUS: YELLOW (identifiziert,
-nicht laufzeit-verifiziert).
-
-## NO MUTATION
-Bestätigt: nur static Greps/Reads + Clone-/tmp-Lektüre (kein Push);
-`diff --check` clean; keine Implementierungsänderung.
+- Current status: IAM-Quellenlage identifiziert (read-only, kein Fix)
+- Audit date/time: 2026-09-27 12:51 UTC
+- Current Git branch and HEAD: main, 3b42fc0 (Basis 6d57f3a + c34e1e9; Canonical Repo, genau 1 Audit-Log)
+- Audit scope: Nur IAM-Varianten (Wiring, alle Pfade, Lambda-Definitionen, Contract-Graph, role_arn-Konflikt, Consumer, Historie, MO-Muster, Auswirkungen lesend). Keine Reparatur/Konsolidierung, kein init/plan/apply, keine AWS-Mutation
+- Completed audit sections: Baseline → main.tf-Wiring → IAM-/Lambda-Dateien → Contract-Graph → Varianten-Tabelle → Konflikt-Analyse → Consumer-Greps → MO-Referenz (/tmp-Clone) → Historie → Report → Commit
+- Actual findings (nur verifiziert): EIN iam-Verzeichnis (keine Paralleldirs); `lambda_role` (G0.1, orphan) + `lambda_execution` (G0.1, angebunden, 5 Policies) beide ACTIVE als Ressourcen; handler-Familie (nie existent) + `lambda_role_arn`-Erwartung (G0.2 ohne Provider) + toter Input: UNREFERENCED/STALE; lambda-Output ACTIVE-Definition consumerlos; main.tf:92 BROKEN + Input ignoriert (0 Leser) + 2 undeklarierte Nutzungen + 2 ungefütterte Decls; NEU: Lambda-Input wird im Modul IGNORIERT (Funktion nutzt eigene Rolle direkt); MO-Muster = Ein-Rollen-Verbrauch (`role = var.iam_role_arn`), RIS abweichend (Selbst-Rolle, eigene Architektur behalten); Consumer: role_arn/name ← root outputs, Rest ← niemand, API/SQS/Skripte/Tests/CI NULL; Laufzeitwirkung UNKNOWN (kein Plan/Live-Beleg, nicht geraten)
+- Evidence / file references: main.tf:66-106, iam/main.tf + variables.tf + outputs.tf, lambda/main.tf (Funktion Z.165) + variables.tf + outputs.tf, G0.1/G0.2/c83e3a2-Historie, MO-Clone (iam/lambda-Module)
+- Classification: YELLOW
+- Terraform checks actually executed and their results: KEINE (init/plan/apply/Provider/Backend verboten); static Greps/Reads + Clone-Lektüre (kein Push); Vor-Validierungen referenziert
+- Git status: 0 modified, 7 untracked (unberührt)
+- Files changed, if any: docs/AI_AUDITLOG.md + docs/reports/TERRAFORM-IAM-SOURCE-AUDIT-01.md (neu, 139 Zeilen)
+- Explicit confirmation when no files were changed: Keine Implementierungsänderung (`diff --check` clean)
+- Open questions: Effektive Rolle (Live-Beleg); lambda_role-Schicksal; iam-Var-Lücken; SQS-Scope-Notiz
+- Risks: Keine durch Audit; KONTRAKT-bereit aber LAUFZEIT-unverifiziert (R20 offen)
+- Recommended next actions: Review; Nächster Checkpoint Z.92-REWIRE + toter Input + stale Blöcke (R06–R08); Zusammenlegung/Boundary erst nach Evidenz (R20)
+- Current resume point: Audit committet (3b42fc0); weiter mit IAM-Contract-Repair
 
 ==================================================
-CHECKPOINT: 2026-09-26 — TERRAFORM-IAM-CONTRACT-REPAIR-01
+CHECKPOINT: 2026-09-27 13:05 UTC — TERRAFORM-IAM-CONTRACT-REPAIR-01 (Branch: main, HEAD: 21cc04a)
 ==================================================
 
-## Ausgangspunkt
-3b42fc0 (IAM-Source-Audit). Scope: nur statisch bewiesene tote/fehlerhafte
-Verträge. 0 TF-Diff vorher, 7 untracked geschützt.
-
-## Re-Check (live)
-Toter Input (0 Leser), stale Erwartung (kein Provider), 2× undeklarierte
-Nutzung, 2× ungefütterte tote Deklarationen — je per Grep an HEAD belegt.
-
-## Repair (5 Dateien, +12/-27)
-- main.tf: Root-Arg (tot+broken) entfernt; iam-Call um table_name (aus
-  work_items_table_name, belegt) + s3_bucket_arn (aus aws_s3_bucket.data,
-  belegt) erweitert.
-- lambda/variables.tf: toter Input entfernt (No-Op).
-- iam/variables.tf: table_name + s3_bucket_arn deklariert; gsi1_arn +
-  boundary entfernt (No-Op).
-- iam/outputs.tf: 3 stale handler-Blöcke entfernt (Ziele nie existent).
-- outputs.tf: nur NOTE-Kommentar aktualisiert.
-- NICHT: Rollen, Policies, Runtime, andere Module, CI, Backend.
-
-## Unresolved (bewusst)
-Laufzeit-Rolle OPEN (kein Raten); lambda_role-Schicksal; SQS-Scope-Notiz;
-table_name-Ausdruck-Semantik; fmt-Rest (Phase H).
-
-## Validation
-Post-Greps alle leer (Code); Feed-Ziele belegt; fmt meldet main.tf-Alignment
-(doku., kein Write); validate ohne init: R12 weg, nur Module-not-installed;
-diff-check PASS; keine Test-Abhängigkeit.
-
-## AWS mutation
-NONE.
-
-## Commit
-fix(terraform): repair IAM contracts (Gates passiert).
-
-## Hard Stop
-Keine Konsolidierung in andere Module, keine Folge-Reparatur hier.
+- Current status: Minimal-Repair abgeschlossen (nur statisch Bewiesenes, kein Laufzeitentscheid)
+- Audit date/time: 2026-09-27 13:05 UTC
+- Current Git branch and HEAD: main, 21cc04a (Basis 3b42fc0; 0 TF-Diff vorher, 7 untracked geschützt)
+- Audit scope: Nur tote/fehlerhafte IAM-Verträge (Re-Check + Minimal-Repair). Keine Rollen-/Policy-/Runtime-Änderung, keine anderen Module, kein init/plan/apply
+- Completed audit sections: Baseline → Live-Re-Check (4 Punkte per Grep) → 5 Datei-Edits → Post-Checks (Refs/Feeds/fmt/validate/diff) → Report → Commit-Gates → Commit
+- Actual findings (nur verifiziert): Toter Input (0 Leser) + Root-Arg (broken) ENTFERNT (No-Op-Paar); iam-Call um table_name (aus work_items_table_name) + s3_bucket_arn (aus aws_s3_bucket.data) erweitert (Quellen belegt); table_name + s3_bucket_arn deklariert; gsi1_arn + boundary entfernt (0 Referenzen, No-Op); 3 stale handler-Blöcke entfernt (Ziele nie existent); outputs.tf nur NOTE aktualisiert; NICHT: Rollen, Policies, Runtime, andere Module, CI, Backend
+- Evidence / file references: Live-Greps an HEAD (0 Leser/kein Provider/undeklariert/ungefüttert); Feed-Quellen (dynamodb/main.tf:157, main.tf:109); Post-Greps leer; `fmt`-Alignment dokumentiert (kein Write); `validate` ohne init (R12 weg, nur Module-not-installed)
+- Classification: GREEN
+- Terraform checks actually executed and their results: Ref-/Feed-Greps ok; `fmt -check` meldet main.tf-Alignment (dokumentiert, kein Write); `validate` ohne init (init verboten): R12-Fehler weg, nur Module-not-installed; KEIN init/Plan/Apply/Destroy; keine Test-Abhängigkeit
+- Git status: 0 modified vorher, 7 untracked (unverändert/ungestaged/uncommitted)
+- Files changed, if any: terraform/main.tf + iam/outputs.tf + iam/variables.tf + lambda/variables.tf + outputs.tf (NOTE) + docs/reports/TERRAFORM-IAM-CONTRACT-REPAIR-01.md (neu, 79) + docs/AI_AUDITLOG.md (+41)
+- Explicit confirmation when no files were changed: Entfällt (s. oben)
+- Open questions: Laufzeit-Rolle OPEN (kein Raten); lambda_role-Schicksal; SQS-Scope-Notiz; table_name-Ausdruck-Semantik; fmt-Rest (Phase H)
+- Risks: Keine durch Repair (No-Op-Charakter belegt); maskierte Schichten weiter offen
+- Recommended next actions: Review; KEINE Konsolidierung in andere Module, keine Folge-Reparatur hier
+- Current resume point: Repair committet (21cc04a); weiter mit Lambda-Source-Audit
 
 ==================================================
-CHECKPOINT: 2026-09-26 — TERRAFORM-LAMBDA-SOURCE-AUDIT-01
+CHECKPOINT: 2026-09-27 13:09 UTC — TERRAFORM-LAMBDA-SOURCE-AUDIT-01 (Branch: main, HEAD: 9c8e095)
 ==================================================
 
-## Objective
-Lambda-Bestand read-only: 4 Varianten klassifizieren, Wiring/Contracts/
-Events belegen. Keine Konsolidierung, kein Repair, kein IAM-Entscheid.
-
-## Varianten
-1 Funktion (`agent`), 1 Modul; 4 Output-Duplikate (Inline G0.1 ACTIVE vs
-outputs.tf-Kopien G0.2 DUPLICATE). Doppel-Permission (lambda+api-Modul) +
-Doppel-Log-Gruppe (Root+Modul, gleicher Name) als DUPLICATE belegt.
-`aws_region` UNREFERENCED; Rest 16/18 Vars aktiv.
-
-## Wiring
-Root→Lambda (17 Inputs); Funktion (python3.14/handler/30s/128MB/lambda.zip,
-kein arch/layers = Defaults); Env (4 Tabellen, Queue, LOG_LEVEL).
-IAM: nur `lambda_execution` gebunden; iam liefert nichts (toter Input bereits
-entfernt); Rollen-Entscheid offen (R20). Events: SQS-Mapping (batch 5) +
-API-Integration + doppelte Permission (Referenzen, kein Runtime-Schluss).
-
-## Consumer
-invoke_arn→api+root; function_name→root; function_arn→nur root;
-lambda_role_arn→niemand. Tests/Skripte/CI: keine Lambda-Output-Consumer.
-
-## Unknowns
-Effektive Rolle; SQS-Receive-Herkunft; Doppel-Ressourcen-Apply-Verhalten;
-batch_size; aws_region-Zukunft. DO NOT GUESS.
-
-## Next small repair (nach Review)
-LAMBDA-CONTRACT-REPAIR-01: outputs.tf-Kopien entfernen; Permission/Log-Gruppe
-je vereinzeln (Plan-Beleg zuerst); aws_region-Option. Kein Rollen-Eingriff.
-
-## Report
-docs/reports/TERRAFORM-LAMBDA-SOURCE-AUDIT-01.md — STATUS: YELLOW.
-
-## NO MUTATION
-Bestätigt: nur Reads/Greps (+ /tmp-Referenzlektüre); fmt nicht geschrieben;
-`diff --check` clean.
+- Current status: Lambda-Bestand identifiziert (read-only, kein Repair)
+- Audit date/time: 2026-09-27 13:09 UTC
+- Current Git branch and HEAD: main, 9c8e095 (Basis 21cc04a; Canonical Repo, genau 1 Audit-Log)
+- Audit scope: 4 Varianten klassifizieren, Wiring/Contracts/Events belegen (Muster-Vorstufe). Keine Konsolidierung, kein Repair, kein IAM-Entscheid
+- Completed audit sections: Baseline → Modul-Inventar → Root-Wiring → Resource-Contract → IAM-Boundary → Output-/Var-Verträge → Event-Contract → MO-Muster → Report → Commit
+- Actual findings (nur verifiziert): 1 Funktion (`agent`), 1 Modul; 4 Output-Duplikate (Inline G0.1 ACTIVE vs Kopien G0.2 DUPLICATE); Doppel-Permission (lambda+api) + Doppel-Log-Gruppe (Root+Modul, gleicher Name) als DUPLICATE; `aws_region` UNREFERENCED, Rest 16/18 aktiv; Root→Lambda (17 Inputs), Funktion (python3.14/handler/30s/128MB/lambda.zip, Defaults); IAM nur `lambda_execution` (R20 offen); Events SQS-Mapping (batch 5) + API-Integration (Referenzen, kein Runtime-Schluss); Consumer invoke_arn→api+root, Rest s. Report; Tests/Skripte/CI NULL
+- Evidence / file references: lambda/main.tf (Funktion/Policies/Permission/Mapping/Log-Gruppe), variables.tf (18 Vars), outputs.tf (Kopien), main.tf (Call), api/main.tf (Integration/Permission), MO-Clone (Ein-Rollen-Muster)
+- Classification: YELLOW
+- Terraform checks actually executed and their results: KEINE (init/plan/apply/Provider/Backend verboten); static Reads/Greps + /tmp-Referenzlektüre (kein Push)
+- Git status: 0 modified, 7 untracked (unberührt)
+- Files changed, if any: docs/AI_AUDITLOG.md + docs/reports/TERRAFORM-LAMBDA-SOURCE-AUDIT-01.md (neu, 112 Zeilen)
+- Explicit confirmation when no files were changed: Keine Implementierungsänderung (`diff --check` clean)
+- Open questions: Effektive Rolle; SQS-Receive-Herkunft; Doppel-Ressourcen-Apply-Verhalten; batch_size; aws_region-Zukunft (DO NOT GUESS)
+- Risks: Keine durch Audit; Duplikate weiter offen bis Repair
+- Recommended next actions: Review; danach LAMBDA-CONTRACT-REPAIR-01 (Kopien entfernen, Permission/Log-Gruppe vereinzeln mit Plan-Beleg, aws_region-Option; kein Rollen-Eingriff)
+- Current resume point: Audit committet (9c8e095); weiter mit Lambda-Contract-Repair
 
 ==================================================
 CHECKPOINT: 2026-09-26 16:40 UTC — TERRAFORM-LAMBDA-CONTRACT-REPAIR-01 (Branch: main, HEAD: 9c8e095)
@@ -1012,7 +598,7 @@ CHECKPOINT: 2026-09-26 18:55 UTC — TERRAFORM-CI-CONTRACT-REPAIR-01 (Branch: ma
 - Actual findings (nur verifiziert): KEIN Mechanismus irgendwo (Grep leer); dependency-check.sh nur Boilerplate + nicht von CI aufgerufen; KEINE Root-`*.tf`; alle Steps pfadlos (vakuos); KEIN Nur-terraform/-Pfad → KEIN Widerspruch beweisbar → FALL B (kein PROVEN-Fehler); `plan:`-Key unverändert, Wirkung NOT VERIFIED
 - Evidence / file references: ci-cd.yml (Steps Z.22-71, on Z.3-7), tools/dependency-check.sh:13-14, Globs/Greps (leer)
 - Classification: GREEN
-- Terraform/CI Checks: KEINE Ausführung (alle verboten); statische Beweise
+- Terraform checks: KEINE Ausführung (alle verboten); statische Beweise
 - Git status: KEINE Implementierungsänderung; 7 untracked unberührt; genau 1 Audit-Log
 - Files changed, if any: nur Report + dieser Eintrag (Workflow/Terraform unverändert)
 - Explicit confirmation when no files were changed: Implementierung Diff-leer (s. Commit-Prüfung)
@@ -1082,7 +668,7 @@ RESULT: BACKEND-CONFIG-OWNER: UNKNOWN (A-partiell: Form + Defaults bekannt)
 - Git status: 0 modified, 7 untracked (unberührt); genau 1 Audit-Log
 - Files changed, if any: nur Report + dieser Eintrag (keine TF-/Installer-/Config-Änderung)
 - Explicit confirmation when no files were changed: TF + Installer unverändert (Diffs leer, s. Commit-Prüfung)
-UNKNOWN: Übergabe-Mechanismus, Live-Bucket/Tabelle, Workspace-Strategie, Account-Pinning, Projekt-Isolation, plan-Wirkung
+- Open questions: Übergabe-Mechanismus, Live-Bucket/Tabelle, Workspace-Strategie, Account-Pinning, Projekt-Isolation, plan-Wirkung
 - Risks: Var-Backend ohne Lieferweg; Default-Annahme ≠ Versorgung; Live-Unbekannt
 - Recommended next actions: KEIN init; Owner-Freigabe (WER/WIE) → Existenz-Check (geeigneter Prinzipal) → Workspace separat
 - Current resume point: Owner UNKNOWN committet (s. Commit); wartet auf Owner-Freigabe
@@ -1115,21 +701,20 @@ CHECKPOINT: 2026-09-26 19:50 UTC — TERRAFORM-BACKEND-WORKSPACE-RESOLUTION-01 (
 CHECKPOINT: 2026-09-26 20:05 UTC — TERRAFORM-BACKEND-WORKSPACE-IMPLEMENTATION-01 (Branch: main, HEAD: 8054837)
 ==================================================
 
-TASK: TERRAFORM-BACKEND-WORKSPACE-IMPLEMENTATION-01
-REFERENCE: Mays-Orders-AWS tested workspace/state isolation pattern (Runner-Trennung/select-new/Env-Override VERIFIZIERT; S3-/`env:`-Anteil NICHT im MO-Code — nicht übernommen)
-BEFORE: RIS backend/workspace execution gap (KEINE Abstraktion, KEIN Context, KEIN Handling — Grep-belegt)
 - Current status: Implementiert (ungenutzt bis Integration), Review ausstehend
 - Audit date/time: 2026-09-26 20:05 UTC
 - Current Git branch and HEAD: main, 8054837 (Vor-Implementierung)
-- Audit scope: Minimale Schicht (Muster aus AI_AUDITLOG.md). Kein Backend-/CI-Eingriff, kein init, keine AWS-Änderung
-- Completed audit sections: Ist-Analyse → Implementierung → 7 Tests → Suite → Static Verification → Report
-IMPLEMENTATION: installer/terraform_runner.py (neu, stdlib-only): Identitäts-Ableitung (verbatim, kein Env-Mix); Override + Child-Env (keine globale Mutation); select→new mit Exit-Auswertung (kein Blind-Erfolg); init() OHNE Workspace-Ops; validate/plan mit Resolution. KEIN Zweit-Context (kein RIS-Äquivalent). Backend UNVERÄNDERT (kein Prefix ergänzt — Default greift). CI NICHT umgebaut (Gap dokumentiert)
-VERIFICATION: 7/7 PASS (Mock, kein Binary/AWS/State); Suite 225 passed + 3 failed + 1 Error — ALLE pre-existing/unabhängig (handler-Import, Agent-Validierung — NICHT repariert); Single-Implementation + No-Global-Mutation per Grep; diff-check PASS
-UNKNOWN: Owner-Freigabe; Live-Backend; CWD-Integration; Call-Site (CI vs Installer)
-AWS MUTATION: NONE
-TERRAFORM STATE MUTATION: NONE (kein init/workspace/plan/apply; Runner ungenutzt bis Integration)
+- Audit scope: Minimale Workspace-Ausführungsschicht (Muster aus AI_AUDITLOG.md). Referenz: Mays-Orders-AWS getestetes Muster (Runner-Trennung/select-new/Env-Override VERIFIZIERT; S3-/`env:`-Anteil NICHT im MO-Code — nicht übernommen). Kein Backend-/CI-Eingriff, kein init, keine AWS-Änderung
+- Completed audit sections: Ist-Analyse (keine Abstraktion/kein Context/kein Handling — Grep-belegt) → Implementierung → 7 Tests → Suite → Static Verification → Report
+- Actual findings (nur verifiziert): installer/terraform_runner.py (neu, stdlib-only): Identitäts-Ableitung verbatim ohne Env-Mix; Override + Child-Env (keine globale Mutation); select→new mit Exit-Auswertung (kein Blind-Erfolg); init() OHNE Workspace-Ops; validate/plan mit Resolution; KEIN Zweit-Context (kein RIS-Äquivalent); Backend UNVERÄNDERT (kein Prefix — Default greift); CI NICHT umgebaut (Gap dokumentiert)
+- Evidence / file references: installer/terraform_runner.py, tests/test_terraform_runner.py (7 Tests), MO-Clone runner.py/context.py + Grep-Leeren, Single-Implementation-/No-Global-Mutation-Greps
+- Classification: GREEN
+- Terraform checks actually executed and their results: 7/7 PASS (Mock, kein Binary/AWS/State); Suite 225 passed + 3 failed + 1 Error — ALLE pre-existing/unabhängig (handler-Import, Agent-Validierung — NICHT repariert); KEIN terraform init/plan/apply; KEINE AWS-Mutation; KEINE State-Mutation (kein init/workspace/plan/apply; Runner ungenutzt bis Integration); `diff --check` PASS
 - Git status: 2 neue Dateien + Report + dieser Eintrag; 7 untracked unberührt
 - Files changed, if any: installer/terraform_runner.py, tests/test_terraform_runner.py (sonst nur Doku)
+- Explicit confirmation when no files were changed: TF/CI/Installer-Bestand unverändert (nur 2 neue Dateien + Doku); keine Infra-Änderung
+- Open questions: Owner-Freigabe; Live-Backend; CWD-Integration; Call-Site (CI vs Installer)
+- Risks: Keine durch Implementierung (reine Ausführungs-Schicht, kein State-Kontakt); Runner ungenutzt bis Integration (bewusst, kein Auto-Wiring)
 - Recommended next actions: Review; Integration + Backend-Freigabe SEPARAT; KEIN init/plan/apply hier
 - Current resume point: Implementierung committet (s. Commit); wartet auf Review + Integrations-Entscheidung
 
@@ -1153,6 +738,27 @@ STATE MIGRATION: NONE.
 - Git status: 4 Dateien (main.tf, runner, tests, dynamodb/outputs.tf-Korrektur) + Report + dieser Eintrag; 8 untracked unberührt (Zählung korrigiert: 8, Set unverändert)
 - Recommended next actions: Review; Live-Werte/Ownership + Integration SEPARAT; KEIN init/plan/apply hier
 - Current resume point: Handoff committet (s. Commit); wartet auf Review + Werte-Freigabe
+
+==================================================
+CHECKPOINT: 2026-09-28 08:00 UTC — AI-AUDITLOG-TEMPLATE-NACHARBEIT-01 (Branch: main, HEAD: 4b82a0c)
+==================================================
+
+- Current status: Template-Konformität hergestellt, Review ausstehend
+- Audit date/time: 2026-09-28 08:00 UTC
+- Current Git branch and HEAD: main, 4b82a0c (Vor-Nacharbeit)
+- Audit scope: NUR Auditlog-Format (Muster aus AI_AUDITLOG.md, Mandatory-Felder Z.21-38). Keine Terraform-/Code-Änderung, keine Fakten-Änderung
+- Completed audit sections: Alle 29 CHECKPOINTs segmentiert → pro Eintrag 17 Pflichtfelder geprüft → 13 alte `##`-Einträge + 3 Lücken (CI-Feldname, OWNER-Open-questions, WORKSPACE-IMPL-Format) auf Bullet-Muster umgeschrieben (Inhalte erhalten, HEADs/Daten aus Commit-Historie) → Programm-Verifikation → Commit
+- Actual findings (nur verifiziert): Vorher 13 Einträge ohne Mandatory-Struktur + 3 mit Einzelfeld-Lücken; nachher 29/29 Einträge mit allen 17 Feldern (Programm-Beleg); Blank-Template bereits muster-konform; keine Fakten erfunden (nur umformatiert + HEAD/Datum aus `git log`)
+- Evidence / file references: docs/AI_AUDITLOG.md (Diff +274/-689 netto durch Formatwechsel); `git log` (HEADs/Zeiten); Python-Segment-Prüfung (0 nicht-konform)
+- Classification: GREEN
+- Terraform checks actually executed and their results: KEINE (reine Doku-Nacharbeit); `diff --check` PASS
+- Git status: 1 Datei geändert (nur AI_AUDITLOG.md); 8 untracked unberührt
+- Files changed, if any: docs/AI_AUDITLOG.md (nur Format-Nacharbeit, keine Inhaltsänderung)
+- Explicit confirmation when no files were changed: Terraform/Installer/Tests unverändert (nur Auditlog-Diff)
+- Open questions: Keine (Formatfrage geschlossen)
+- Risks: Keine (reine Umformatierung mit Inhaltserhalt)
+- Recommended next actions: Review; Template-Muster bei jedem künftigen Checkpoint direkt verwenden
+- Current resume point: Nacharbeit committet (s. Commit); alle 29 Einträge muster-konform
 
 ==================================================
 BLANK CHECKPOINT TEMPLATE (Mandatory-Felder, für nächstes Audit kopieren)
