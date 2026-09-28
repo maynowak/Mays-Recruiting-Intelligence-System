@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from installer.terraform_runner import (
     DEFAULT_WORKSPACE,
+    BackendConfig,
     TerraformRunner,
     workspace_for_project,
 )
@@ -114,3 +115,82 @@ def test_init_has_no_workspace_operations():
         called = [" ".join(c.args[0]) for c in run.call_args_list]
         assert not any("workspace" in c for c in called), kwargs
         assert result.command[0:2] == ["terraform", "init"]
+
+
+# --- Backend-config handoff (IMPLEMENTATION-01) -------------------------
+
+EXAMPLE_CONFIG = BackendConfig(bucket="mays-ris-tf-state-dev", region="eu-central-1")
+
+
+# Test 1 — init without backend config still works (plain `terraform init`).
+def test_init_without_backend_config():
+    runner = _runner("default")
+    with patch("subprocess.run") as run:
+        run.return_value = _completed(["terraform", "init"])
+        result = runner.init()
+    assert result.command == ["terraform", "init"]
+    assert not any("workspace" in " ".join(c.args[0]) for c in run.call_args_list)
+
+
+# Test 2 — init with backend config emits `-backend-config=...`.
+def test_init_with_backend_config():
+    runner = _runner("default")
+    with patch("subprocess.run") as run:
+        run.return_value = _completed(["terraform", "init"])
+        result = runner.init(backend_config=EXAMPLE_CONFIG)
+    joined = " ".join(result.command)
+    assert "-backend-config=bucket=mays-ris-tf-state-dev" in joined
+    assert "-backend-config=region=eu-central-1" in joined
+    assert "-backend-config=key=terraform.tfstate" in joined
+    assert "-backend-config=dynamodb_table=mays-ris-tf-lock" in joined
+
+
+# Test 3 — backend values never travel via `-var` to init.
+def test_init_backend_never_uses_var_flags():
+    runner = _runner("default")
+    with patch("subprocess.run") as run:
+        run.return_value = _completed(["terraform", "init"])
+        result = runner.init(backend_config=EXAMPLE_CONFIG)
+    assert not any(a.startswith("-var") for a in result.command)
+
+
+# Test 4 — init performs no workspace operations (existing separation).
+def test_init_backend_config_has_no_workspace_operations():
+    runner = _runner("mays-ris")
+    with patch("subprocess.run") as run:
+        run.return_value = _completed(["terraform", "init"])
+        runner.init(backend_config=EXAMPLE_CONFIG)
+    called = [" ".join(c.args[0]) for c in run.call_args_list]
+    assert not any("workspace" in c for c in called)
+
+
+# Test 5 — deterministic argument order for identical config.
+def test_backend_config_args_deterministic():
+    first = BackendConfig(bucket="b", region="r").to_args()
+    second = BackendConfig(bucket="b", region="r").to_args()
+    assert first == second
+    assert first == sorted(first, key=lambda a: a.split("=", 1)[1].split("=", 1)[0])
+
+
+# Test 6 — child environment semantics preserved with backend config.
+def test_child_env_preserved_with_backend_config():
+    runner = _runner("mays-ris")
+    seen = {}
+
+    def fake_run(args, **kwargs):
+        seen.update(kwargs.get("env", {}))
+        return _completed(args)
+
+    with patch("subprocess.run", side_effect=fake_run):
+        runner.init(backend_config=EXAMPLE_CONFIG)
+    assert seen.get("TERRAFORM_WORKSPACE") == "mays-ris"
+    assert "TERRAFORM_WORKSPACE" not in os.environ
+
+
+# Test 7 — unknown backend value: explicit error, nothing invented.
+def test_unresolved_backend_config_raises():
+    assert not BackendConfig().is_resolved()
+    assert set(BackendConfig().missing_fields()) == {"bucket", "region"}
+    assert not BackendConfig(bucket="b").is_resolved()
+    with pytest.raises(ValueError, match="bucket"):
+        BackendConfig(region="r").to_args()

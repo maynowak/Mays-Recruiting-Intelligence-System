@@ -8,10 +8,12 @@ terraform {
     }
   }
 
+  # Partial S3 backend: static values only. Dynamic values (bucket, region)
+  # MUST be supplied via `terraform init -backend-config=...` (see
+  # installer/terraform_runner.py: BackendConfig). Input variables are NOT
+  # allowed in backend configuration.
   backend "s3" {
-    bucket         = "mays-ris-tf-state-${var.environment}"
     key            = "terraform.tfstate"
-    region         = var.aws_region
     encrypt        = true
     dynamodb_table = "mays-ris-tf-lock"
   }

@@ -63,6 +63,53 @@ class TerraformResult:
     stderr: str = ""
 
 
+@dataclass
+class BackendConfig:
+    """Explicit S3 backend configuration for `terraform init`.
+
+    Only fields the RIS backend contract needs (mirrors the static values
+    in terraform/main.tf). NO defaults: every value must be supplied
+    explicitly by the caller — nothing is invented here. In particular NO
+    input variables (var.*) and NO -var flags are used for backend values.
+    Live values (bucket existence, region reachability) are NOT verified
+    by this object; that is a separate gate.
+    """
+
+    bucket: Optional[str] = None
+    key: str = "terraform.tfstate"
+    region: Optional[str] = None
+    encrypt: bool = True
+    dynamodb_table: str = "mays-ris-tf-lock"
+
+    #: Fields that MUST be set; missing ones raise (no silent invention).
+    REQUIRED_FIELDS = ("bucket", "region")
+
+    def missing_fields(self) -> List[str]:
+        """Required fields without a value (explicitly unresolved)."""
+        return [f for f in self.REQUIRED_FIELDS if not getattr(self, f)]
+
+    def is_resolved(self) -> bool:
+        """True when all required fields have explicit values."""
+        return not self.missing_fields()
+
+    def to_args(self) -> List[str]:
+        """Deterministic `-backend-config=k=v` args (sorted by key)."""
+        missing = self.missing_fields()
+        if missing:
+            raise ValueError(
+                "BackendConfig unresolved, missing explicit values for: "
+                + ", ".join(missing)
+            )
+        values = {
+            "bucket": self.bucket,
+            "key": self.key,
+            "region": self.region,
+            "encrypt": str(self.encrypt).lower(),
+            "dynamodb_table": self.dynamodb_table,
+        }
+        return [f"-backend-config={k}={values[k]}" for k in sorted(values)]
+
+
 class TerraformRunner:
     """Minimal Terraform execution layer with workspace isolation.
 
@@ -167,11 +214,18 @@ class TerraformRunner:
         backend: bool = True,
         upgrade: bool = False,
         reconfigure: bool = False,
+        backend_config: Optional[BackendConfig] = None,
     ) -> TerraformResult:
-        """Run `terraform init` WITHOUT any workspace operation."""
+        """Run `terraform init` WITHOUT any workspace operation.
+
+        Backend values travel ONLY via `-backend-config=...` (from an
+        explicit BackendConfig) — never via input variables or `-var`.
+        """
         args = ["init"]
         if not backend:
             args.append("-backend=false")
+        elif backend_config is not None:
+            args.extend(backend_config.to_args())
         if upgrade:
             args.append("-upgrade")
         if reconfigure:
