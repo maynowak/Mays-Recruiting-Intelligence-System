@@ -112,5 +112,29 @@ Backend-Owner/Live/Integration · S3-Schicksal · Laufzeit-Belege.
 
 ---
 
+## Registration / Login / User Profile Readiness (Gate 11, 2026-09-28)
+
+Cognito-Stand (PROVEN, Modul-Code): Pool + Client (public, `generate_secret=false`,
+nicht-standard Auth-Attribute UNPROVEN) + Domain + 3 Groups + Password-Policy +
+`custom:tenant_id`; KEINE Signup-/OAuth-/Callback-/Token-/MFA-/Recovery-/Trigger-
+Config; KEINE Admin-Create-Flow im Code.
+Registration: KEIN eigener Endpoint; Hosted-UI-Registrierung NICHT konfiguriert
+(OAuth-Callbacks fehlen); Self-Signup per API möglich FALLS Pool-Defaults
+(unbelegt gelassen — kein Beleg für/gegen). Frontend: NICHT im Repo (keine
+Auth-Implementierung, kein CORS, keine Base-URL im Code).
+Login→JWT→Authorizer→Claims (sub/email/tenant/groups) PROVEN; `/me` (Echo) +
+`/me/profile` (Get + Tenant-Check) PROVEN.
+Profile Initialization: NICHT VORHANDEN (einziger `put_item` = Work-Item; kein
+Writer, kein Trigger, kein Admin-Flow) — frischer User → 404 bis Record extern
+entsteht.
+Datenmodell: Claims (REQUIRED: sub; OPTIONAL: email/tenant/groups) + Item-
+Passthrough (DERIVED); KEINE erfundenen Felder.
+Minimal-Slice: externer Cognito-Nutzer → JWT → /me → /me/profile (Backend Gap:
+Profil-Init; Cognito-Config-Gap: Signup-/OAuth-Entscheid; Frontend Gap: alles
+Client-seitige). AWS-Zielbild: Pool→GW→Authorizer→Lambda→Profile-Tabelle
+(belegt, nichts Neues).
+
+---
+
 *Baseline: RIS-CURRENT-ARCHITECTURE-BASELINE-10 · Stand heute, kein Zielbild ·
 Resume-fähig.*
