@@ -38,6 +38,11 @@ from installer.terraform_runner import (
     TerraformRunner,
     workspace_for_project,
 )
+from installer.identity_context import (
+    AwsExecutionContext,
+    AwsValidationError,
+    validate_aws_context,
+)
 
 VALID_ENVIRONMENTS = ("dev", "test", "prod")
 
@@ -53,6 +58,8 @@ class RisInstallContext:
     backend_bucket: Optional[str] = None
     backend_region: Optional[str] = None
     backend_lock_table: Optional[str] = None
+    aws_profile: Optional[str] = None
+    aws_context: Optional[AwsExecutionContext] = None
     dry_run: bool = True
 
     def __post_init__(self) -> None:
@@ -89,7 +96,25 @@ class RisInstallContext:
         return TerraformRunner(
             working_dir=self.terraform_dir,
             workspace=self.workspace,
+            aws_context=self.aws_context,
         )
+
+
+def _cmd_preflight(ctx: RisInstallContext) -> int:
+    """PHASE A: read-only AWS identity check (no mutation possible)."""
+    try:
+        aws_ctx = validate_aws_context(
+            profile=ctx.aws_profile, region=ctx.aws_region
+        )
+    except AwsValidationError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    ctx.aws_context = aws_ctx
+    print(f"account: {aws_ctx.account_id}")
+    print(f"region: {aws_ctx.region}")
+    print(f"identity: {aws_ctx.identity_arn}")
+    print(f"profile-source: {aws_ctx.profile_source}")
+    return 0
 
 
 def _cmd_validate(ctx: RisInstallContext) -> List[TerraformResult]:
@@ -118,7 +143,7 @@ def _cmd_apply(ctx: RisInstallContext) -> List[TerraformResult]:
     return [init_res, apply_res]
 
 
-COMMANDS = ("validate", "plan", "apply")
+COMMANDS = ("validate", "plan", "apply", "preflight")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -152,6 +177,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--backend-region", default=None)
     parser.add_argument("--backend-lock-table", default=None)
     parser.add_argument(
+        "--profile",
+        default=None,
+        help="AWS profile for installation context (validated via preflight).",
+    )
+    parser.add_argument(
         "--out", default=None, help="Plan output file (plan command)."
     )
     parser.add_argument(
@@ -174,11 +204,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             backend_bucket=parsed.backend_bucket,
             backend_region=parsed.backend_region,
             backend_lock_table=parsed.backend_lock_table,
+            aws_profile=parsed.profile,
             dry_run=not parsed.yes,
         )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    if parsed.command == "preflight":
+        return _cmd_preflight(ctx)
     try:
         if parsed.command == "validate":
             results = _cmd_validate(ctx)

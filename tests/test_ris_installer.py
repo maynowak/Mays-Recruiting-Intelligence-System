@@ -114,3 +114,84 @@ def test_cli_parsing_defaults():
         "dev",
         "validate",
     )
+
+
+# --- AWS context integration (FOUNDATION-INSTALLER-INTEGRATION) ---------
+
+from installer.identity_context import (
+    AwsExecutionContext,
+    AwsValidationError,
+    validate_aws_context,
+)
+
+
+def _aws_ctx():
+    return AwsExecutionContext(
+        region="eu-central-1",
+        account_id="123456789012",
+        identity_arn="arn:aws:iam::123456789012:user/tester",
+        profile="mayaws",
+    )
+
+
+# Test A — profile independent of project_name (same profile, two projects).
+def test_same_profile_two_projects_stay_distinct():
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        first = RisInstallContext(project_name="mays-ris")
+        second = RisInstallContext(project_name="mays-ris-test")
+    assert first.workspace != second.workspace
+
+
+# Test G — AWS context reaches terraform child env (no global mutation).
+def test_aws_context_flows_to_child_env():
+    from installer.terraform_runner import TerraformRunner
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        runner = TerraformRunner(
+            working_dir="terraform", workspace="mays-ris", aws_context=_aws_ctx()
+        )
+    env = runner._terraform_env()
+    assert env["AWS_REGION"] == "eu-central-1"
+    assert env["AWS_PROFILE"] == "mayaws"
+    assert env["TERRAFORM_WORKSPACE"] == "mays-ris"
+    assert "AWS_PROFILE" not in os.environ
+
+
+# Test G2 — runner without context behaves as before (backward compatible).
+def test_runner_without_context_unchanged():
+    from installer.terraform_runner import TerraformRunner
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        runner = TerraformRunner(working_dir="terraform", workspace="mays-ris")
+    env = runner._terraform_env()
+    assert "AWS_PROFILE" not in env
+    assert env["TERRAFORM_WORKSPACE"] == "mays-ris"
+
+
+# Test preflight — read-only validation prints identifiers, no secrets.
+def test_preflight_prints_identity_without_secrets(capsys):
+    import installer.ris as ris_mod
+
+    fake = {"UserId": "AIDAX", "Account": "123456789012",
+            "Arn": "arn:aws:iam::123456789012:user/tester"}
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris", aws_profile="mayaws")
+    with patch("installer.identity_context._run_sts", return_value=fake):
+        assert ris_mod._cmd_preflight(ctx) == 0
+    out = capsys.readouterr().out
+    assert "123456789012" in out and "eu-central-1" in out
+    lowered = out.lower()
+    assert "secret" not in lowered and "token" not in lowered
+    assert ctx.aws_context is not None and ctx.aws_context.validated
+
+
+# Test preflight failure — error surfaced, exit 1, nothing swallowed.
+def test_preflight_failure_returns_error(capsys):
+    import installer.ris as ris_mod
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris", aws_profile="nope")
+    with patch("installer.identity_context._run_sts",
+               side_effect=AwsValidationError("STS validation failed: x")):
+        assert ris_mod._cmd_preflight(ctx) == 1
+    assert "error" in capsys.readouterr().err.lower()

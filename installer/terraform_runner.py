@@ -118,6 +118,8 @@ class TerraformRunner:
         workspace: Terraform workspace name (usually workspace_for_project()).
         terraform_bin: Terraform binary name/path.
         env: Extra environment variables for child processes only.
+        aws_context: Optional validated AwsExecutionContext; its identifiers
+            (region/profile) are merged into child-process env only.
     """
 
     def __init__(
@@ -126,10 +128,12 @@ class TerraformRunner:
         workspace: str = DEFAULT_WORKSPACE,
         terraform_bin: str = "terraform",
         env: Optional[Dict[str, str]] = None,
+        aws_context=None,
     ) -> None:
         self.working_dir = Path(working_dir)
         self.terraform_bin = terraform_bin
         self.extra_env: Dict[str, str] = dict(env or {})
+        self.aws_context = aws_context
         # Primary source: TERRAFORM_WORKSPACE env override (explicit).
         env_workspace = os.environ.get("TERRAFORM_WORKSPACE")
         if env_workspace and env_workspace.strip():
@@ -144,6 +148,8 @@ class TerraformRunner:
     # ------------------------------------------------------------------
     def _terraform_env(self) -> Dict[str, str]:
         env = {**os.environ, **self.extra_env}
+        if self.aws_context is not None:
+            env.update(self.aws_context.to_env())
         env["TERRAFORM_WORKSPACE"] = self.workspace
         return env
 
