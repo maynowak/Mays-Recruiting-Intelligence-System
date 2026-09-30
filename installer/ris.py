@@ -43,6 +43,11 @@ from installer.identity_context import (
     AwsValidationError,
     validate_aws_context,
 )
+from installer.backend import (
+    BackendBootstrap,
+    BackendConflictError,
+    BackendNames,
+)
 
 VALID_ENVIRONMENTS = ("dev", "test", "prod")
 
@@ -143,7 +148,65 @@ def _cmd_apply(ctx: RisInstallContext) -> List[TerraformResult]:
     return [init_res, apply_res]
 
 
-COMMANDS = ("validate", "plan", "apply", "preflight")
+COMMANDS = ("validate", "plan", "apply", "preflight", "install")
+
+
+def _cmd_install(
+    ctx: RisInstallContext, out_file: Optional[str] = None
+) -> int:
+    """Phased installation: preflight -> bootstrap -> init -> workspace ->
+    validate -> plan -> (apply, only with --yes). Without --yes, prints the
+    planned phases and stops before any mutation (dry-run)."""
+    # PHASE A — preflight (read-only identity check).
+    try:
+        aws_ctx = validate_aws_context(
+            profile=ctx.aws_profile, region=ctx.aws_region
+        )
+    except AwsValidationError as exc:
+        print(f"error: preflight failed: {exc}", file=sys.stderr)
+        return 1
+    ctx.aws_context = aws_ctx
+    names = BackendNames.for_project(
+        ctx.project_name, ctx.environment, region=ctx.aws_region
+    )
+    if ctx.dry_run:
+        print("dry-run installation plan (no mutation performed):")
+        print(f"  account: {aws_ctx.account_id}")
+        print(f"  region: {aws_ctx.region}")
+        print(f"  project: {ctx.project_name} -> workspace {ctx.workspace}")
+        print(f"  backend bucket: {names.bucket}")
+        print(f"  lock table: {names.lock_table}")
+        print("  phases: bootstrap -> init -> validate -> plan")
+        return 0
+    # PHASE B — backend bootstrap (explicit --yes only).
+    bootstrap = BackendBootstrap(
+        names, project_name=ctx.project_name, profile=ctx.aws_profile
+    )
+    try:
+        bootstrap.ensure_all()
+    except (BackendConflictError, RuntimeError) as exc:
+        print(f"error: backend bootstrap failed: {exc}", file=sys.stderr)
+        return 1
+    # PHASE C..G — init / workspace / validate / plan / apply via runner.
+    runner = ctx.make_runner()
+    config = BackendConfig(
+        bucket=names.bucket,
+        region=names.region,
+        dynamodb_table=names.lock_table,
+    )
+    for result in (
+        runner.init(backend_config=config),
+        runner.validate(),
+        runner.plan(out_file=out_file, var=ctx.terraform_vars()),
+    ):
+        print(f"$ {' '.join(result.command)} -> exit {result.returncode}")
+        if result.returncode != 0:
+            return 1
+    apply_res = runner.run_and_get_result(
+        ["apply", "-auto-approve"], ensure_workspace=True
+    )
+    print(f"$ {' '.join(apply_res.command)} -> exit {apply_res.returncode}")
+    return 1 if apply_res.returncode != 0 else 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -212,6 +275,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
     if parsed.command == "preflight":
         return _cmd_preflight(ctx)
+    if parsed.command == "install":
+        return _cmd_install(ctx, out_file=parsed.out)
     try:
         if parsed.command == "validate":
             results = _cmd_validate(ctx)

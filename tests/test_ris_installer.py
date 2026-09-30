@@ -195,3 +195,165 @@ def test_preflight_failure_returns_error(capsys):
                side_effect=AwsValidationError("STS validation failed: x")):
         assert ris_mod._cmd_preflight(ctx) == 1
     assert "error" in capsys.readouterr().err.lower()
+
+
+# --- Install command + backend bootstrap (CALLPATH-05) --------------------
+
+from installer.backend import (
+    BackendBootstrap,
+    BackendConflictError,
+    BackendNames,
+)
+
+
+def _fake_boto_client_factory(existing=None, tags=None):
+    """Fake boto3 clients: existing={'s3': bool, 'dynamodb': bool}."""
+    existing = existing or {}
+    tags = tags if tags is not None else [{"Key": "Project", "Value": "mays-ris"}]
+    calls = []
+
+    class FakeS3:
+        def head_bucket(self, Bucket):
+            calls.append(("head_bucket", Bucket))
+            if not existing.get("s3"):
+                raise Exception("404 NoSuchBucket")
+
+        def get_bucket_tagging(self, Bucket):
+            return {"TagSet": tags}
+
+        def create_bucket(self, **kwargs):
+            calls.append(("create_bucket", kwargs.get("Bucket")))
+            return {}
+
+        def put_bucket_encryption(self, **kwargs):
+            calls.append(("put_bucket_encryption",))
+            return {}
+
+        def put_public_access_block(self, **kwargs):
+            calls.append(("put_public_access_block",))
+            return {}
+
+        def put_bucket_versioning(self, **kwargs):
+            calls.append(("put_bucket_versioning",))
+            return {}
+
+        def put_bucket_tagging(self, **kwargs):
+            calls.append(("put_bucket_tagging",))
+            return {}
+
+    class FakeDynamo:
+        def describe_table(self, TableName):
+            calls.append(("describe_table", TableName))
+            if not existing.get("dynamodb"):
+                raise Exception("ResourceNotFoundException")
+            return {}
+
+        def create_table(self, **kwargs):
+            calls.append(("create_table", kwargs.get("TableName")))
+            return {}
+
+    def factory(service, region, profile=None):
+        assert region == "eu-central-1"
+        return FakeS3() if service == "s3" else FakeDynamo()
+
+    factory.calls = calls
+    return factory
+
+
+# Test: naming derives from project_name (isolation), nothing invented.
+def test_backend_names_derive_from_project():
+    names = BackendNames.for_project("mays-ris", "dev")
+    assert names.bucket == "mays-ris-tf-state-dev"
+    assert names.lock_table == "mays-ris-tf-lock"
+    assert names.key == "terraform.tfstate"
+    other = BackendNames.for_project("mays-ris-test", "dev")
+    assert other.bucket != names.bucket and other.lock_table != names.lock_table
+
+
+# Test: idempotency — existing owned resources cause no create calls.
+def test_bootstrap_idempotent_when_owned():
+    factory = _fake_boto_client_factory(existing={"s3": True, "dynamodb": True})
+    boot = BackendBootstrap(
+        BackendNames.for_project("mays-ris", "dev"),
+        project_name="mays-ris",
+        profile="mayaws",
+        client_factory=factory,
+    )
+    result = boot.ensure_all()
+    assert result["bucket"]["created"] is False
+    assert result["lock_table"]["created"] is False
+    assert not any(c[0] in ("create_bucket", "create_table") for c in factory.calls)
+
+
+# Test: conflict — foreign bucket is never adopted.
+def test_bootstrap_conflict_on_foreign_bucket():
+    factory = _fake_boto_client_factory(
+        existing={"s3": True, "dynamodb": False},
+        tags=[{"Key": "Project", "Value": "someone-else"}],
+    )
+    boot = BackendBootstrap(
+        BackendNames.for_project("mays-ris", "dev"),
+        project_name="mays-ris",
+        client_factory=factory,
+    )
+    with pytest.raises(BackendConflictError):
+        boot.ensure_bucket()
+
+
+# Test: missing values fail before any AWS contact (installer level).
+def test_install_dry_run_performs_no_mutation(capsys):
+    import installer.ris as ris_mod
+
+    fake_ctx = {"UserId": "AIDAX", "Account": "123456789012",
+                "Arn": "arn:aws:iam::123456789012:user/tester"}
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris")
+    with patch("installer.ris.validate_aws_context") as v:
+        v.return_value = MagicMock(account_id="123456789012", region="eu-central-1")
+        with patch("subprocess.run") as run:
+            assert ris_mod._cmd_install(ctx, out_file=None) == 0
+            run.assert_not_called()
+    out = capsys.readouterr().out
+    assert "mays-ris-tf-state-dev" in out and "mays-ris-tf-lock" in out
+    assert "secret" not in out.lower()
+
+
+# Test: install --yes order is preflight-gated then bootstrap->init->validate->plan->apply.
+def test_install_full_order_with_yes():
+    import installer.ris as ris_mod
+
+    order = []
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris", dry_run=False)
+    with patch("installer.ris.validate_aws_context") as v, \
+         patch("installer.backend.BackendBootstrap.ensure_all") as boot, \
+         patch("subprocess.run") as run:
+        v.return_value = MagicMock(account_id="1", region="eu-central-1")
+        boot.return_value = {"bucket": {}, "lock_table": {}}
+        run.return_value = _completed(["terraform"])
+        assert ris_mod._cmd_install(ctx, out_file="tfplan") == 0
+    cmds = [" ".join(c.args[0]) for c in run.call_args_list]
+    assert any("terraform init -backend-config=" in c for c in cmds)
+    assert any(c == "terraform validate" for c in cmds)
+    assert any("terraform plan" in c and "-var project_name=mays-ris" in c for c in cmds)
+    assert any("terraform apply -auto-approve" in c for c in cmds)
+    # init before validate before plan before apply (workspace selects ignored)
+    kinds = ["init" if " init " in f" {c} " else
+             "validate" if c.endswith("validate") else
+             "plan" if " plan " in f" {c} " else
+             "workspace" if " workspace " in f" {c} " else "apply" for c in cmds]
+    seq = [k for k in kinds if k != "workspace"]
+    assert seq.index("init") < seq.index("validate") < seq.index("plan") < seq.index("apply")
+
+
+# Test: preflight failure stops installation before any mutation.
+def test_install_stops_when_preflight_fails():
+    import installer.ris as ris_mod
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris", dry_run=False)
+    with patch("installer.ris.validate_aws_context",
+               side_effect=__import__("installer.identity_context", fromlist=["AwsValidationError"]).AwsValidationError("bad")):
+        with patch("subprocess.run") as run:
+            assert ris_mod._cmd_install(ctx) == 1
+            run.assert_not_called()
