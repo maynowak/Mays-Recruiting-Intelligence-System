@@ -357,3 +357,69 @@ def test_install_stops_when_preflight_fails():
         with patch("subprocess.run") as run:
             assert ris_mod._cmd_install(ctx) == 1
             run.assert_not_called()
+
+
+# --- State commands (MO statefile approach consolidated) ------------------
+
+# Test: list/show/pull pass through with workspace resolution.
+def test_state_read_commands_passthrough():
+    import installer.ris as ris_mod
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris")
+    with patch("subprocess.run") as run:
+        run.return_value = _completed(["terraform"])
+        assert ris_mod._cmd_state(ctx, "list") == 0
+        assert ris_mod._cmd_state(ctx, "show", address="aws_s3_bucket.data") == 0
+        assert ris_mod._cmd_state(ctx, "pull") == 0
+    called = [" ".join(c.args[0]) for c in run.call_args_list]
+    assert any("terraform state list" in c for c in called)
+    assert any("terraform state show aws_s3_bucket.data" in c for c in called)
+    assert any("terraform state pull" in c for c in called)
+    # workspace ensured (non-default) for state commands
+    assert any("workspace select mays-ris" in c for c in called)
+
+
+# Test: show without address fails cleanly.
+def test_state_show_requires_address(capsys):
+    import installer.ris as ris_mod
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris")
+    assert ris_mod._cmd_state(ctx, "show") == 2
+
+
+# Test: push refused in dry-run (no mutation).
+def test_state_push_refused_without_yes(capsys):
+    import installer.ris as ris_mod
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris")
+    with patch("subprocess.run") as run:
+        assert ris_mod._cmd_state(ctx, "push", state_file="s.tfstate") == 1
+        run.assert_not_called()
+    assert "mutat" in capsys.readouterr().err.lower()
+
+
+# Test: push requires state file even with --yes.
+def test_state_push_requires_state_file():
+    import installer.ris as ris_mod
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris", dry_run=False)
+    with patch("subprocess.run") as run:
+        assert ris_mod._cmd_state(ctx, "push") == 2
+        run.assert_not_called()
+
+
+# Test: push with --yes and file issues the command.
+def test_state_push_with_yes_and_file():
+    import installer.ris as ris_mod
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris", dry_run=False)
+    with patch("subprocess.run") as run:
+        run.return_value = _completed(["terraform"])
+        assert ris_mod._cmd_state(ctx, "push", state_file="s.tfstate") == 0
+    called = [" ".join(c.args[0]) for c in run.call_args_list]
+    assert any("terraform state push s.tfstate" in c for c in called)

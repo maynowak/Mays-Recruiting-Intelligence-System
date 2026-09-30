@@ -242,6 +242,45 @@ class TerraformRunner:
         """Run `terraform validate` (workspace resolved first)."""
         return self.run_and_get_result(["validate"])
 
+    def version(self) -> TerraformResult:
+        """Get Terraform version (workspace resolved first)."""
+        return self.run_and_get_result(["version", "-json"])
+
+    def state_list(self, state_file: Optional[str] = None) -> TerraformResult:
+        """List resources in state (read-only)."""
+        args = ["state", "list"]
+        if state_file:
+            args.extend(["-state", state_file])
+        return self.run_and_get_result(args)
+
+    def state_show(
+        self, address: str, state_file: Optional[str] = None
+    ) -> TerraformResult:
+        """Show a resource in state (read-only)."""
+        args = ["state", "show", address]
+        if state_file:
+            args.extend(["-state", state_file])
+        return self.run_and_get_result(args)
+
+    def state_pull(self) -> TerraformResult:
+        """Pull current state (read-only)."""
+        return self.run_and_get_result(["state", "pull"])
+
+    def state_push(self, state_file: str) -> TerraformResult:
+        """Push state to remote (MUTATING — caller must gate explicitly)."""
+        return self.run_and_get_result(["state", "push", state_file])
+
+    def output(
+        self, name: Optional[str] = None, state_file: Optional[str] = None
+    ) -> TerraformResult:
+        """Show output values (read-only)."""
+        args = ["output", "-json"]
+        if name:
+            args.append(name)
+        if state_file:
+            args.extend(["-state", state_file])
+        return self.run_and_get_result(args)
+
     def plan(
         self,
         out_file: Optional[str] = None,

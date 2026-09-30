@@ -148,7 +148,52 @@ def _cmd_apply(ctx: RisInstallContext) -> List[TerraformResult]:
     return [init_res, apply_res]
 
 
-COMMANDS = ("validate", "plan", "apply", "preflight", "install")
+COMMANDS = ("validate", "plan", "apply", "preflight", "install", "state")
+
+
+def _cmd_state(
+    ctx: RisInstallContext,
+    state_command: str,
+    address: Optional[str] = None,
+    state_file: Optional[str] = None,
+) -> int:
+    """State inspection (list/show/pull: read-only) and push (gated).
+
+    `state push` is mutating and requires --yes (dry-run refuses).
+    """
+    runner = ctx.make_runner()
+    if state_command in ("list", "show", "pull"):
+        if state_command == "list":
+            result = runner.state_list(state_file)
+        elif state_command == "show":
+            if not address:
+                print("error: address is required for state show", file=sys.stderr)
+                return 2
+            result = runner.state_show(address, state_file)
+        else:
+            result = runner.state_pull()
+        print(result.stdout)
+        if result.returncode != 0:
+            print(f"error: {result.stderr.strip()[:300]}", file=sys.stderr)
+        return result.returncode
+    if state_command == "push":
+        if ctx.dry_run:
+            print(
+                "error: state push mutates remote state (pass --yes)",
+                file=sys.stderr,
+            )
+            return 1
+        if not state_file:
+            print("error: --state-file is required for state push", file=sys.stderr)
+            return 2
+        result = runner.state_push(state_file)
+        if result.returncode == 0:
+            print("State pushed successfully")
+        else:
+            print(f"error: {result.stderr.strip()[:300]}", file=sys.stderr)
+        return result.returncode
+    print(f"error: unknown state command: {state_command}", file=sys.stderr)
+    return 2
 
 
 def _cmd_install(
@@ -248,6 +293,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--out", default=None, help="Plan output file (plan command)."
     )
     parser.add_argument(
+        "--state-command",
+        default=None,
+        choices=["list", "show", "pull", "push"],
+        help="State subcommand (state command).",
+    )
+    parser.add_argument(
+        "--address", default=None, help="Resource address (state show)."
+    )
+    parser.add_argument(
+        "--state-file",
+        default=None,
+        help="Local state file (state show/push).",
+    )
+    parser.add_argument(
         "--yes",
         action="store_true",
         help="Disable dry-run (required for apply).",
@@ -277,6 +336,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_preflight(ctx)
     if parsed.command == "install":
         return _cmd_install(ctx, out_file=parsed.out)
+    if parsed.command == "state":
+        return _cmd_state(
+            ctx,
+            state_command=parsed.state_command,
+            address=parsed.address,
+            state_file=parsed.state_file,
+        )
     try:
         if parsed.command == "validate":
             results = _cmd_validate(ctx)
