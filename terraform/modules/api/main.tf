@@ -28,8 +28,8 @@ resource "aws_apigatewayv2_authorizer" "jwt" {
     audience = [var.cognito_user_pool_client_id]
     issuer   = var.cognito_user_pool_endpoint
   }
-
-  tags = merge({ "Project" = var.project_name }, var.tags)
+  # NOTE: aws_apigatewayv2_authorizer supports no `tags` argument
+  # (provider schema) — Project scoping lives on api/stage resources.
 }
 
 resource "aws_apigatewayv2_integration" "lambda" {

@@ -27,6 +27,11 @@ variable "dynamodb_table_name" {
   type        = string
 }
 
+variable "dynamodb_table_arn" {
+  description = "DynamoDB table ARN for work items (paired with dynamodb_table_name, MO pattern: explicit name + ARN wiring)"
+  type        = string
+}
+
 variable "user_profile_table_name" {
   description = "DynamoDB table name for user profiles"
   type        = string

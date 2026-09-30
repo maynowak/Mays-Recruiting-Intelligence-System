@@ -95,6 +95,7 @@ module "lambda" {
   environment                = var.environment
   lambda_config              = var.lambda_config
   dynamodb_table_name        = module.dynamodb.work_items_table_name
+  dynamodb_table_arn         = module.dynamodb.work_items_table_arn
   user_profile_table_name    = module.dynamodb.user_profile_table_name
   agent_catalog_table_name   = module.dynamodb.agent_catalog_table_name
   entitlements_table_name    = module.dynamodb.entitlements_table_name

@@ -54,6 +54,28 @@ resource "aws_cognito_user_group" "admins" {
   user_pool_id = aws_cognito_user_pool.users.id
 }
 
+# Standard groups (user decision, verbatim names): Admin / Staff /
+# user-user / user-requier. Existing groups untouched.
+resource "aws_cognito_user_group" "standard_admin" {
+  name         = "Admin"
+  user_pool_id = aws_cognito_user_pool.users.id
+}
+
+resource "aws_cognito_user_group" "standard_staff" {
+  name         = "Staff"
+  user_pool_id = aws_cognito_user_pool.users.id
+}
+
+resource "aws_cognito_user_group" "standard_user_user" {
+  name         = "user-user"
+  user_pool_id = aws_cognito_user_pool.users.id
+}
+
+resource "aws_cognito_user_group" "standard_user_requier" {
+  name         = "user-requier"
+  user_pool_id = aws_cognito_user_pool.users.id
+}
+
 resource "aws_cognito_user_pool_domain" "domain" {
   domain       = "${var.project_name}-${var.environment}"
   user_pool_id = aws_cognito_user_pool.users.id
