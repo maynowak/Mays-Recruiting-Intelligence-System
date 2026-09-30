@@ -1,32 +1,32 @@
 ==================================================
-CHECKPOINT: 2026-09-30 10:30 UTC — RIS-TERRAFORM-BACKEND-OWNERSHIP-RESOLUTION-03 (Branch: main, HEAD: f1b7267)
+CHECKPOINT: 2026-09-30 10:45 UTC — RIS-TERRAFORM-BACKEND-OWNERSHIP-RESOLUTION-03 (Branch: main, HEAD: f1b7267)
 ==================================================
 
-- Current status: Ownership-Resolution geprüft (YELLOW), kein Live-Eingriff
-- Audit date/time: 2026-09-30 10:30 UTC
+- Current status: Ownership-Resolution geprüft (YELLOW), Live-Verifikation mit Profil mayaws
+- Audit date/time: 2026-09-30 10:45 UTC
 - Current Git branch and HEAD: main, f1b7267 (f0fbb1f verifiziert; 8 untracked unberührt)
 - Audit scope: Backend-Owner/Account/Region/Bucket/Key/Locking/Access/Caller/MO/Readiness (Muster aus AI_AUDITLOG.md). Kein init/apply/destroy, keine Mutation
-- Completed audit sections: Baseline → Vor-Entscheidungen → AWS-Identität (read-only) → Region → Bucket/Lock (read-only) → Contract A–L → Workspace/Locking/IAM/Caller/MO → Readiness A–J
+- Completed audit sections: Baseline → Vor-Entscheidungen → AWS-Identität mayaws (read-only) → Region → Bucket dev/test/prod + Namensvarianten (read-only) → Lock-Tabelle (read-only) → Contract/Workspace/Locking/IAM/Caller/MO → Readiness
 - Actual findings (nur verifiziert):
-  - Vor-Entscheidungen intakt: eigener RIS-Account DECIDED (ID TO BE SUPPLIED), Portabilität EXPLIZIT ersetzt, Runner/BackendConfig bereit-ohne-Caller, dev-Tripel absent PROVEN.
-  - AWS-Identität (read-only, IDs only, keine Secrets): Account 992382612204 / User maymilly / Region eu-central-1 (sts + configure, authentifiziert). Gegen designierten Owner NICHT vergleichbar (keiner designiert) → UNVERIFIED (weder MATCH noch MISMATCH).
-  - Region KONSISTENT: TF-Default + Installer-Default + CLI = eu-central-1 (CI-Secret-Wert ungelesen).
-  - Bucket dev: ERNEUT NoSuchBucket (authenticated, gleiches Tripel) — KEIN Widerspruch zum Vor-Befund. Lock-Tabelle: AccessDenied (Existenz UNBESTIMMBAR mit diesem Principal — least-privilege, kein Kettenfehler).
-  - Contract A–L: Owner UNKNOWN / Account UNBESTIMMT / Region Default / Bucket Template / Key Literal / Workspace designiert-ohne-Prefix / Lock-Name-ohne-Ressource / encrypt Literal / Access UNVERIFIED (Selbst-Checks denied) / Deployment-Access UNVERIFIED / Caller FEHLT / Naming konsistent / Isolation per Design.
-  - IAM-Selbstauskunft BLOCKIERT (GetUser/ListPolicies denied) — Backend-/Deploy-Rechte damit UNVERIFIED.
-  - MO: Runner/Workspace-Muster belastbar, S3-Anteil nicht (unverändert, nichts kopiert).
-- Evidence / file references: sts/configure-Outputs (IDs), s3-ls-NoSuchBucket, dynamodb-AccessDenied, iam-denied ×2, Region-Greps (3× eu-central-1), Vor-Gate-Reports (referenziert)
+  - PROJEKTSPEZIFIK (Mays-RIS, NICHT Mays-Orders): geprüft wurden AUSSCHLIESSLICH RIS-Namen (`mays-ris-tf-state-{dev,test,prod}`, `mays-ris-tf-lock`) — KEINE MO-Namen/Accounts als Maßstab.
+  - Principal mayaws (User-Vorgabe, NUR Messpunkt): Account 240571105849 / User Mayaws / Region eu-central-1 (sts + config, authentifiziert; keine Secrets). DIESER Account ist MO-Kontext und damit KEIN RIS-Ownership-Beleg — Nutzung ≠ Zuordnung.
+  - Buckets dev/test/prod: ALLE NoSuchBucket in 240571105849/eu-central-1 (PROVEN absent DORT; keine Aussage über einen künftigen RIS-Account).
+  - Namensvarianten: KEIN Bucket mit tf-state/terraform-Anteil in 240571105849.
+  - Lock-Tabelle: ResourceNotFoundException (konklusiv — Principal HAT Describe-Rechte).
+  - Vor-Befund (992382612204): dev dort ebenfalls absent — zwei fremde Accounts ohne RIS-Infra, KEIN RIS-Eigentums-Schluss daraus.
+  - Ownership: WEITER UNKNOWN — RIS-Stack (Account/Bucket/Lock) ist projektspezifisch UNDESIGNIERT; Contract A–L/Workspace/Locking/IAM/Caller/MO unverändert aus Vor-Gates (referenziert).
+- Evidence / file references: sts/configure (mayaws-IDs), s3-ls ×3 NoSuchBucket, s3api-list (leer), dynamodb-ResourceNotFound, Vor-Gate-Reports (referenziert)
 - Classification: YELLOW
-- Terraform checks actually executed and their results: KEINE (init/plan/apply/destroy/Provider/Backend verboten); Read-only-AWS-CLI (keine Mutation); `diff --check` PASS
+- Terraform checks actually executed and their results: KEINE (init/plan/apply/destroy/Provider/Backend verboten); Read-only-AWS-CLI (keine Mutation, keine Secrets)
 - Git status: KEINE Implementierungsänderung; 8 untracked unberührt; AI_AUDITLOG.md Template-only (unberührt — Eintrag als separate Datei per Konvention)
 - Files changed, if any: nur dieser Execution-Log (neu)
 - Explicit confirmation when no files were changed: Code/TF/CI/Python/AWS unverändert (Diffs leer, s. Commit-Prüfung)
-- Open questions: Owner-Account (Freigabe); Live-Bucket/Tabelle (danach, geeigneter Prinzipal); Workspace-Live; Runner-Integration; Region-Bindung formal
-- Risks: Keine durch Gate; NoSuchBucket ≠ überall-nicht-existent (nur Tripel); Default ≠ Ownership
-- Recommended next actions: Review; Freigaben SEPARAT (Owner → Live → Integration); KEIN init/state/CI hier
-- Current resume point: YELLOW committet (s. Commit); E2E weiter BLOCKED bis Freigaben
+- Open questions: RIS-eigener Owner-Account (Freigabe — mayaws/MO-Kontext ist KEIN Ownership-Beleg, projektspezifischer Stack); Live-Bucket/Tabelle (danach, im RIS-Account); Workspace-Live; Runner-Integration
+- Risks: Keine durch Gate; MO-Befunde NICHT auf RIS übertragbar; ABSENT ≠ überall-nicht-existent (nur geprüfte Tripel); Default ≠ Ownership
+- Recommended next actions: Review; Owner-Freigabe VOR jeder Provisionierung/Init; KEIN init/state/CI hier
+- Current resume point: YELLOW committet (s. Commit); E2E weiter BLOCKED bis Owner-Freigabe
 
-READINESS A–J: A NEIN (kein designierter Account) · B NEIN · C JA (Default, ungebunden) · D NEIN (Template) · E NEIN (Name ohne Ressource) · F NEIN (Strategie ohne Live) · G NEIN (denied) · H NEIN (kein Caller) · I NEIN · J NEIN.
-ENTSCHEIDUNG: YELLOW — RESOLUTION PARTIAL (kein Konflikt, kein Danger; Ownership/Live/Integration offen).
+READINESS A–J: A NEIN (kein designierter Account; mayaws = Messpunkt, kein Owner) · B NEIN · C JA (eu-central-1 konsistent) · D NEIN (Template, live absent) · E NEIN (Name ohne Ressource) · F NEIN · G NEIN (Deny/NotFound-Verhalten belegt, keine Rechte) · H NEIN (kein Caller) · I NEIN · J NEIN.
+ENTSCHEIDUNG: YELLOW — RESOLUTION PARTIAL (Live-Abwesenheit doppelt PROVEN; Ownership weiter UNKNOWN).
 
 ==================================================
