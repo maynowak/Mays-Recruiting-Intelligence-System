@@ -84,6 +84,18 @@ variable "monitoring_enabled" {
   default     = true
 }
 
+variable "alarm_period_seconds" {
+  description = "Auswertungsperiode der Alarme in Sekunden (300 = 5 Minuten)."
+  type        = number
+  default     = 300
+}
+
+variable "alarm_evaluation_periods" {
+  description = "Anzahl aufeinanderfolgender Perioden, bis ein Alarm auslöst."
+  type        = number
+  default     = 1
+}
+
 variable "api_5xx_threshold" {
   description = "API 5xx error threshold"
   type        = number
