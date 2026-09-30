@@ -123,8 +123,14 @@ def _cmd_preflight(ctx: RisInstallContext) -> int:
 
 
 def _cmd_validate(ctx: RisInstallContext) -> List[TerraformResult]:
+    # Backend-less validation: init runs with -backend=false, so workspace
+    # operations are meaningless here (no backend to select in) and would
+    # fail. Config validation is workspace-independent.
     runner = ctx.make_runner()
-    return [runner.init(backend=False), runner.validate()]
+    return [
+        runner.init(backend=False),
+        runner.run_and_get_result(["validate"], ensure_workspace=False),
+    ]
 
 
 def _cmd_plan(

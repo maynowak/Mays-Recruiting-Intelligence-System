@@ -467,3 +467,17 @@ def test_run_artifacts_lifecycle_tmp(tmp_path):
     assert [p.name for p in store.list_runs()] == ["r2", "r1"]
     assert store.cleanup_old_runs(keep_last=1) == 1
     assert [p.name for p in store.list_runs()] == ["r2"]
+
+
+# Test: backend-less validate skips workspace ops (no backend to select in).
+def test_validate_skips_workspace_without_backend():
+    import installer.ris as ris_mod
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris")
+    with patch("subprocess.run") as run:
+        run.return_value = _completed(["terraform"])
+        results = ris_mod._cmd_validate(ctx)
+    called = [" ".join(c.args[0]) for c in run.call_args_list]
+    assert not any("workspace" in c for c in called)
+    assert all(r.returncode == 0 for r in results)
