@@ -11,9 +11,14 @@ resource "aws_cognito_user_pool" "users" {
     require_symbols   = false
   }
 
-  account_attributes {
-    name  = "custom:tenant_id"
-    type  = "String"
+  # Custom tenant attribute (Claim `custom:tenant_id`, read by the Lambda
+  # handler for tenant scoping). Declared via `schema` (provider-conform);
+  # the previous `account_attributes` block was not a valid argument.
+  schema {
+    attribute_data_type = "String"
+    name                = "tenant_id"
+    mutable             = true
+    required            = false
   }
 
   tags = merge({ "Project" = var.project_name }, var.tags)
@@ -24,10 +29,14 @@ resource "aws_cognito_user_pool_client" "client" {
   user_pool_id = aws_cognito_user_pool.users.id
   generate_secret = false
 
-  explicit_authentic_authentication_factors = ["USERNAME"]
-  preferred_authentic_authentications     = ["USERNAME"]
-
-  tags = merge({ "Project" = var.project_name }, var.tags)
+  # Login via USER_PASSWORD_AUTH + Refresh (proven Mays-Orders pattern:
+  # public client without secret; users authenticate via Cognito/JWT).
+  explicit_auth_flows = [
+    "ALLOW_USER_PASSWORD_AUTH",
+    "ALLOW_REFRESH_TOKEN_AUTH",
+  ]
+  # NOTE: aws_cognito_user_pool_client supports no `tags` argument
+  # (provider schema) — Project scoping lives on pool/groups.
 }
 
 resource "aws_cognito_user_group" "candidates" {
