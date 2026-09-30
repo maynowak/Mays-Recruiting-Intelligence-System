@@ -423,3 +423,47 @@ def test_state_push_with_yes_and_file():
         assert ris_mod._cmd_state(ctx, "push", state_file="s.tfstate") == 0
     called = [" ".join(c.args[0]) for c in run.call_args_list]
     assert any("terraform state push s.tfstate" in c for c in called)
+
+
+# --- Run artifacts (MO statefile routine consolidated) --------------------
+
+from installer.artifacts import RunArtifacts, sanitize_plan_json
+
+
+# Test: sanitization redacts secrets, never mutates input.
+def test_sanitize_plan_json_redacts_without_mutation():
+    plan = {"resource_changes": [
+        {"change": {"after": {"password": "p@ss", "name": "x"},
+                     "before": {"api_key": "k", "size": 3}}},
+        {"change": {"after": None, "before": "scalar"}},
+        "not-a-dict",
+    ]}
+    clean = sanitize_plan_json(plan)
+    after = clean["resource_changes"][0]["change"]["after"]
+    before = clean["resource_changes"][0]["change"]["before"]
+    assert after["password"] == "***REDACTED***" and after["name"] == "x"
+    assert before["api_key"] == "***REDACTED***" and before["size"] == 3
+    assert plan["resource_changes"][0]["change"]["after"]["password"] == "p@ss"
+
+
+# Test: sanitize handles missing/non-dict shapes.
+def test_sanitize_plan_json_robust_shapes():
+    assert sanitize_plan_json({}) == {}
+    assert sanitize_plan_json({"resource_changes": "x"}) == {"resource_changes": "x"}
+
+
+# Test: run dir lifecycle in isolated base (no repo pollution).
+def test_run_artifacts_lifecycle_tmp(tmp_path):
+    store = RunArtifacts(base_dir=str(tmp_path / "runs"))
+    run_dir = store.create_run_dir("r1")
+    assert (run_dir / "logs").is_dir() and (run_dir / "plans").is_dir()
+    ctx_file = store.save_context(run_dir, {"project_name": "mays-ris"})
+    assert ctx_file.is_file()
+    plan_file = store.save_plan_copy(run_dir, {"resource_changes": []})
+    assert plan_file.is_file()
+    log_file = store.save_log(run_dir, "line1\n")
+    assert log_file.is_file()
+    store.create_run_dir("r2")
+    assert [p.name for p in store.list_runs()] == ["r2", "r1"]
+    assert store.cleanup_old_runs(keep_last=1) == 1
+    assert [p.name for p in store.list_runs()] == ["r2"]

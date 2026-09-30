@@ -53,4 +53,5 @@ projects/
 
 # Local installer runtime
 .mays-installer/
+.ris-installer/
 
