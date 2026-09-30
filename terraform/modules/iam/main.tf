@@ -12,7 +12,7 @@ data "aws_iam_policy_document" "lambda_dynamodb" {
     ]
     resources = [
       var.dynamodb_table_arn,
-      "${var.dynamodb_table_arn}/table/${var.dynamodb_table_name}/*"
+      "${var.dynamodb_table_arn}/index/*"
     ]
   }
 }

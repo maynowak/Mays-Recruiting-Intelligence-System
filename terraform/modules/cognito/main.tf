@@ -3,6 +3,17 @@
 resource "aws_cognito_user_pool" "users" {
   name = "${var.project_name}-${var.environment}-users"
 
+  # Schema is managed out-of-band: AWS forbids removing schema items while
+  # the provider validates every declared name (max 20 chars; live standard
+  # attribute `phone_number_verified` has 21). The live pool carries all
+  # standard attributes + custom:tenant_id (verified via describe-user-pool),
+  # so drift is ignored instead of fought. The tenant_id block below documents
+  # intent (Claim `custom:tenant_id`, read by the Lambda handler) and applies
+  # on fresh pool creation. See RIS-COGNITO-SCHEMA-19.
+  lifecycle {
+    ignore_changes = [schema]
+  }
+
   password_policy {
     minimum_length    = 8
     require_uppercase = true
@@ -11,9 +22,7 @@ resource "aws_cognito_user_pool" "users" {
     require_symbols   = false
   }
 
-  # Custom tenant attribute (Claim `custom:tenant_id`, read by the Lambda
-  # handler for tenant scoping). Declared via `schema` (provider-conform);
-  # the previous `account_attributes` block was not a valid argument.
+  # Custom tenant attribute (see lifecycle note above).
   schema {
     attribute_data_type = "String"
     name                = "tenant_id"

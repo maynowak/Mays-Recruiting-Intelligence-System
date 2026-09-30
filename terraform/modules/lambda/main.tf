@@ -107,11 +107,12 @@ resource "aws_iam_role_policy" "lambda_sqs_send" {
         Effect = "Allow"
         Action = [
           "sqs:SendMessage",
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
           "sqs:GetQueueAttributes"
         ]
         Resource = [
-          var.sqs_queue_arn,
-          var.work_queue_url != "" ? var.work_queue_url : "*"
+          var.sqs_queue_arn
         ]
       }
     ]
