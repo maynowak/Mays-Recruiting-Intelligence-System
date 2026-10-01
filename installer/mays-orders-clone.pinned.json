@@ -4,11 +4,21 @@
   "branch": "main",
   "pinned_commit": "9c61237185d202e072b2304355ee836154368846",
   "pinned_commit_subject": "docs: add documentation review for installer parallel deployment",
-  "clone_path": "projects/mays_orders",
+  "clone_path": "installer/projects/mays_orders",
   "clone_date_utc": "2026-10-01",
   "reference": "GATE-2-MO-INSTALLATION-RIS-HANDOFF-01 (Gate-2-Referenz, Remote-main, Terraform plan 37 create + 2 read)",
   "ignore_rule": ".gitignore:52 `projects/` (Clone wird nicht committet)",
   "note": "Lokaler Stand ~/projects/Mays-Orders-AWS wich zum Pin-Zeitpunkt um 53 unpushed Commits ab und wird fuer Gate-Installationen NICHT verwendet.",
+  "working_tree_verified_clean": "2026-10-01 (nach Ruecksetzung Gate-4-Versuch: git checkout + Testdatei entfernt; HEAD 9c61237, status leer)",
+  "live_state_2026_10_01": {
+    "fremde_funktionen": "beide auf Original-Bundle F5rRldqxwg0JPnfLN4sX8RMxR3c0xmWmAOFeKxtGUlk= (Gate-3-Stand, GET dort 500 — fremdes Projekt unberuehrt)",
+    "eigene_lambda": "mays-ris-dev-orders-reader, CodeSha256 gOgyxgFJn/9Y6oGdGxekdGLjIqRv0lsIqLHeM6QZD7g=, python3.14, Active seit 2026-10-01T12:13:23Z",
+    "eigene_routen": "GET /orders, GET /orders/{orderId}, PATCH /orders/{orderId}/status (JWT) auf mays-ris-dev-api (aboqolpm0f)",
+    "eigene_rolle": "mays-ris-dev-orders-reader (nur DDB GetItem/Query/UpdateItem auf fremde Tabelle + Logs)",
+    "zip_provenienz": "lambda/dist/orders-reader.zip (sha256 80e832c601499fff58ea819d1b17a47462e322a46fd25b08a8b1de33a4190fb8), gebaut aus lambda/orders_reader.py (unser Code), ignoriert via .gitignore",
+    "rollback_rezept": "Fremdseite: keine Aktion noetig (unveraendert). Eigene Seite: terraform destroy -target=module.orders_reader (setzt Routen/Authorizer-Referenz zurueck; Authorizer bleibt als geteilte API-Ressource bestehen). Fix-Bundle reproduzierbar aus Report-Patch (funktional identisch; Zip-Hash zeitabhaengig).",
+    "update_regel": "Fremde MO-Updates NUR obserwiert uebernehmen: neuen Remote-Stand pruefen (validate/plan-Diff), E2E auf eigenem Pfad wiederholen, erst danach Pin erhoehen. Eigene Lambda ist gegen Fremd-Updates isoliert (eigener Code, eigene Rolle, eigene Routen)."
+  },
   "upgrade_procedure": [
     "1. Freigabe fuer neue Version einholen (Gate-Entscheid).",
     "2. In projects/mays_orders: git fetch origin, git checkout <neue-SHA> (detached), Arbeitsbaum sauber pruefen (git status).",

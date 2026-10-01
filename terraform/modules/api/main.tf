@@ -26,7 +26,7 @@ resource "aws_apigatewayv2_authorizer" "jwt" {
 
   jwt_configuration {
     audience = [var.cognito_user_pool_client_id]
-    issuer   = var.cognito_user_pool_endpoint
+    issuer   = "https://${var.cognito_user_pool_endpoint}"
   }
   # NOTE: aws_apigatewayv2_authorizer supports no `tags` argument
   # (provider schema) — Project scoping lives on api/stage resources.

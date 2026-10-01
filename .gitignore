@@ -51,7 +51,16 @@ terraform.rc
 # Project checkouts (including Mays-Orders-AWS from git clone)
 projects/
 
+# Mays-Orders-AWS Git-Clone (fremdes Projekt, rein lokal, nie committen).
+# Wird nur als Lese-Referenz + Versions-Pin (installer/mays-orders-clone.pinned.json)
+# behandelt; Aenderungen am Live-System erfolgen ausschliesslich als
+# Post-Install-Update der Lambda-Funktion, nie im Clone-Workflow.
+installer/projects/
+
 # Local installer runtime
 .mays-installer/
 .ris-installer/
+
+# Lambda build artifacts (built at install time, never committed)
+lambda/dist/
 

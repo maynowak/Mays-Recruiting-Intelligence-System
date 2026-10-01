@@ -108,6 +108,21 @@ module "lambda" {
   tags                       = var.tags
 }
 
+# Gate 4 — eigene Order-Fassade (orders_reader) auf unserer API.
+# Liest/schreibt die Mays-Orders-Tabelle (gleiches Konto, eigene Rolle).
+# Fremdes Projekt wird nicht veraendert.
+module "orders_reader" {
+  source = "./modules/orders_reader"
+
+  project_name  = var.project_name
+  environment   = var.environment
+  api_id        = module.api.api_id
+  authorizer_id = module.api.authorizer_id
+  aws_region    = var.aws_region
+  filename      = "${path.root}/../lambda/dist/orders-reader.zip"
+  tags          = var.tags
+}
+
 resource "aws_s3_bucket" "data" {
   bucket = "${local.prefix}-data"
 

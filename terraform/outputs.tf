@@ -151,6 +151,19 @@ output "sqs_queues" {
 }
 
 # ============================================================
+# Orders-Reader Outputs (Gate 4, eigene Order-Fassade)
+# ============================================================
+output "orders_reader_function_name" {
+  description = "Name of the orders-reader Lambda (own order facade)."
+  value       = module.orders_reader.function_name
+}
+
+output "orders_reader_function_arn" {
+  description = "ARN of the orders-reader Lambda."
+  value       = module.orders_reader.function_arn
+}
+
+# ============================================================
 # Monitoring Outputs
 # ============================================================
 # Intentionally not re-exported: internal alarms/dashboard, no external
