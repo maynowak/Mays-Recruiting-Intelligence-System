@@ -1,0 +1,19 @@
+{
+  "project": "mays-orders",
+  "git_url": "git@github.com:maynowak/mays-order-aws.git",
+  "branch": "main",
+  "pinned_commit": "9c61237185d202e072b2304355ee836154368846",
+  "pinned_commit_subject": "docs: add documentation review for installer parallel deployment",
+  "clone_path": "projects/mays_orders",
+  "clone_date_utc": "2026-10-01",
+  "reference": "GATE-2-MO-INSTALLATION-RIS-HANDOFF-01 (Gate-2-Referenz, Remote-main, Terraform plan 37 create + 2 read)",
+  "ignore_rule": ".gitignore:52 `projects/` (Clone wird nicht committet)",
+  "note": "Lokaler Stand ~/projects/Mays-Orders-AWS wich zum Pin-Zeitpunkt um 53 unpushed Commits ab und wird fuer Gate-Installationen NICHT verwendet.",
+  "upgrade_procedure": [
+    "1. Freigabe fuer neue Version einholen (Gate-Entscheid).",
+    "2. In projects/mays_orders: git fetch origin, git checkout <neue-SHA> (detached), Arbeitsbaum sauber pruefen (git status).",
+    "3. Diese Pin-Datei auf neue SHA + Datum aktualisieren und committen.",
+    "4. Installer-Lifecycle erneut: validate -> plan; Plan gegen Vorgaenger-Plan pruefen (keine unerwarteten Deletes/Fremdressourcen).",
+    "5. Erst danach deploy mit --yes und ALLOW_AWS_OPERATIONS=true."
+  ]
+}
