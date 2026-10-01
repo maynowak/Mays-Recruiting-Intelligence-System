@@ -79,12 +79,14 @@ def ensure_reference_agent(
     registry: Optional[AgentRegistry] = None,
     body: Any = None,
 ) -> Tuple[AgentRegistry, Any]:
-    """ReferenceAgent in Registry + Body-Router verankern (Harness-Muster).
+    """ReferenceAgent (+ Orders-Function) in Registry + Body-Router verankern.
 
-    Kein hartcodierter Agent im Worker: Die Auswahl trifft das Ecosystem;
-    hier wird nur registriert, WAS es gibt (Descriptor + Handler).
+    Harness-Muster; kein hartcodierter Agent im Worker: Die Auswahl trifft
+    das Ecosystem; hier wird nur registriert, WAS es gibt (Descriptoren +
+    Handler). Die Orders-Function delegiert an den OrdersPort (Gate 6).
     """
     from agents.agent_body import AgentBody
+    from agents.orders.function import register_orders_function
     from agents.reference_agent.service import ReferenceAgent
 
     registry = registry or get_registry()
@@ -109,6 +111,7 @@ def ensure_reference_agent(
     body.register_agent(work_type=REFERENCE_WORK_TYPE, handler=agent.process_work)
     body.register_agent(capability=REFERENCE_CAPABILITY, handler=agent.process_work)
     body.register_agent(agent_id=REFERENCE_AGENT_ID, handler=agent.process_work)
+    register_orders_function(registry, body)
     return registry, body
 
 

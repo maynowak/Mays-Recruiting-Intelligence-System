@@ -38,6 +38,18 @@ variable "orders_table_arn" {
   default     = "arn:aws:dynamodb:eu-central-1:240571105849:table/mays-orders"
 }
 
+variable "orders_queue_url" {
+  description = "URL der Mays-Orders-Queue fuer Worker-Anstoss (nur SendMessage)"
+  type        = string
+  default     = "https://sqs.eu-central-1.amazonaws.com/240571105849/mays-orders-orders-queue"
+}
+
+variable "orders_queue_arn" {
+  description = "ARN der Mays-Orders-Queue (nur SendMessage-Recht)"
+  type        = string
+  default     = "arn:aws:sqs:eu-central-1:240571105849:mays-orders-orders-queue"
+}
+
 variable "runtime" {
   description = "Lambda runtime"
   type        = string

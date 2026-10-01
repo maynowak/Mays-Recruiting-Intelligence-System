@@ -42,12 +42,20 @@ resource "aws_iam_role_policy" "reader_orders_table" {
         Action = [
           "dynamodb:GetItem",
           "dynamodb:Query",
-          "dynamodb:UpdateItem"
+          "dynamodb:UpdateItem",
+          "dynamodb:PutItem"
         ]
         Resource = [
           var.orders_table_arn,
           "${var.orders_table_arn}/index/*"
         ]
+      },
+      {
+        # Worker-Anstoss nach Create (Queue gehört fremdem Projekt;
+        # nur SendMessage, keine Aenderung dort).
+        Effect = "Allow"
+        Action = ["sqs:SendMessage"]
+        Resource = [var.orders_queue_arn]
       },
       {
         Effect = "Allow"
@@ -75,7 +83,8 @@ resource "aws_lambda_function" "reader" {
 
   environment {
     variables = {
-      ORDERS_TABLE = var.orders_table_name
+      ORDERS_TABLE         = var.orders_table_name
+      ORDERS_SQS_QUEUE_URL = var.orders_queue_url
     }
   }
 
@@ -99,6 +108,14 @@ resource "aws_apigatewayv2_integration" "reader" {
   integration_type       = "AWS_PROXY"
   integration_uri        = aws_lambda_function.reader.invoke_arn
   payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "create_order" {
+  api_id             = var.api_id
+  route_key          = "POST /orders"
+  target             = "integrations/${aws_apigatewayv2_integration.reader.id}"
+  authorization_type = "JWT"
+  authorizer_id      = var.authorizer_id
 }
 
 resource "aws_apigatewayv2_route" "list_orders" {

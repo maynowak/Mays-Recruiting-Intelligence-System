@@ -21,6 +21,10 @@ from decimal import Decimal
 from typing import Any, Dict, Optional
 
 ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "mays-orders")
+ORDERS_SQS_QUEUE_URL = os.environ.get(
+    "ORDERS_SQS_QUEUE_URL",
+    "https://sqs.eu-central-1.amazonaws.com/240571105849/mays-orders-orders-queue",
+)
 ORDER_ID_PREFIX = "ord_"
 ORDER_SK = "#ORDER"
 GSI1_PK = "LIST"
@@ -164,11 +168,95 @@ def _valid_order_id(value: Any) -> Optional[str]:
     return None
 
 
+def _validate_create(body: Any) -> tuple:
+    """Minimal-Validierung nach beobachtetem Live-Verhalten (400 bei Verstoss)."""
+    if not isinstance(body, dict):
+        return None, "Request body must be a JSON object"
+    customer = body.get("customer") or {}
+    if not customer.get("name") or not customer.get("email"):
+        return None, "Field 'customer.name' and 'customer.email' are required"
+    items = body.get("items")
+    if not isinstance(items, list) or not items:
+        return None, "Field 'items' must be a non-empty list"
+    clean = []
+    for i, it in enumerate(items):
+        if not isinstance(it, dict) or not it.get("sku"):
+            return None, f"Field 'items[{i}].sku' is required"
+        qty, price = it.get("quantity"), it.get("unitPrice")
+        # Beobachtete Live-Regel: echte Integers (kein Float/Bool/String).
+        if (isinstance(qty, bool) or not isinstance(qty, int)
+                or isinstance(price, bool) or not isinstance(price, int)):
+            return None, f"Field 'items[{i}].quantity/unitPrice' must be integers"
+        if qty < 1 or price < 1:
+            return None, f"Field 'items[{i}].quantity/unitPrice' must be integers >= 1"
+        clean.append({"sku": it["sku"], "quantity": qty, "unitPrice": price,
+                      "lineTotal": qty * price})
+    currency = body.get("currency", "EUR")
+    return {"customer": {"name": customer["name"], "email": customer["email"]},
+            "items": clean, "currency": currency}, ""
+
+
+def _send_order_created(order_id: str) -> None:
+    """Worker-Anstoss (beobachtete Nachrichtenform des Live-Systems)."""
+    import boto3
+
+    sqs = boto3.client("sqs", region_name=os.environ.get("AWS_REGION", "eu-central-1"))
+    sqs.send_message(
+        QueueUrl=ORDERS_SQS_QUEUE_URL,
+        MessageBody=json.dumps({"orderId": order_id, "status": "CONFIRMED",
+                                "metadata": {"reason": "order_created"}}),
+        MessageAttributes={"orderId": {"StringValue": order_id, "DataType": "String"}},
+    )
+
+
+def _create_order(table: Any, data: Dict[str, Any]) -> Dict[str, Any]:
+    """PENDING anlegen (beobachtetes Schema) + Worker anstossen. 201 oder Fehler."""
+    import secrets
+    from datetime import datetime, timezone
+
+    order_id = f"{ORDER_ID_PREFIX}{secrets.token_hex(12)}"
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    total = sum(it["lineTotal"] for it in data["items"])
+    item = {
+        "pk": f"{ORDER_ID_PREFIX}{order_id}",
+        "sk": ORDER_SK,
+        "orderId": order_id,
+        "status": "PENDING",
+        "customer": data["customer"],
+        "items": data["items"],
+        "currency": data["currency"],
+        "totalAmount": total,
+        "createdAt": now,
+        "updatedAt": now,
+        "version": 1,
+        "gsi1pk": GSI1_PK,
+        "gsi1sk": now,
+    }
+    table.put_item(Item=item, ConditionExpression="attribute_not_exists(pk)")
+    try:
+        _send_order_created(order_id)
+    except Exception as exc:
+        raise RuntimeError(f"Order {order_id} angelegt, Worker-Anstoss fehlgeschlagen: {exc}")
+    return _public(item)
+
+
 def handler(event: Dict[str, Any], context: Any, table: Any = None) -> Dict[str, Any]:
     """HTTP-API-v2-Einstieg (routeKey). `table` nur fuer Unit-Tests injizierbar."""
     tbl = table if table is not None else _get_table()
     try:
         route = event.get("routeKey", "")
+        if route == "POST /orders":
+            try:
+                raw = json.loads(event.get("body") or "{}")
+            except (ValueError, TypeError):
+                return _err(400, "VALIDATION_ERROR", "Request body must be valid JSON")
+            data, problem = _validate_create(raw)
+            if data is None:
+                return _err(400, "VALIDATION_ERROR", problem)
+            try:
+                return _ok(201, _create_order(tbl, data))
+            except RuntimeError as exc:
+                return _err(500, "INTERNAL_ERROR", str(exc))
         if route == "GET /orders":
             params = event.get("queryStringParameters") or {}
             try:
