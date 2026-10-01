@@ -118,6 +118,9 @@ def ensure_reference_agent(
     body.register_agent(capability=REFERENCE_CAPABILITY, handler=agent.process_work)
     body.register_agent(agent_id=REFERENCE_AGENT_ID, handler=agent.process_work)
     register_orders_function(registry, body)
+    # Gate 8: Dummy Agents A/B (DEV/TEST-Nachweis, keine Fachlogik).
+    from agents.dummy.agents import register_dummy_agents
+    register_dummy_agents(registry, body)
     # Gate 7: ATS als erster echter Domain Agent (Descriptor + Routen aus
     # bestehender Registry-Anbindung; Auswahl bleibt beim Ecosystem).
     if not registry.is_registered("ats-agent"):
@@ -362,6 +365,7 @@ def process_record(
         "attempt_no": attempt,
         "agent_id": decision.agent_id,
         "processing_id": item.get("processing_id"),
+        "result_reference": f"work:{work['workId']}:attempt:{attempt}",
         "result": result,
     }
 

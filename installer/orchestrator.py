@@ -51,13 +51,29 @@ class RISInstaller:
     """
     
     DEFAULT_PROJECTS_DIR = Path("projects")
+    #: Installierte Referenz-/Projektpakete (Gate 8). `local_dir` ist der
+    #: etablierte Ablageort unter installer/projects/ (ignoriert, rein lokal).
+    #: `kind`: "installable" (eigener Installer/TF-Anschluss moeglich) oder
+    #: "reference" (reine Versionsreferenz, z. B. Frontend-Projekt ohne TF).
     PROJECTS = {
         "mays-orders": {
             "git_url": "git@github.com:maynowak/mays-order-aws.git",
             "name": "Mays-Orders-AWS",
             "installer_path": "installer",
-        }
+            "local_dir": "installer/projects/mays_orders",
+            "kind": "installable",
+        },
+        "mays_jobsearch": {
+            "git_url": "git@github.com:maynowak/mays-jobsearch.git",
+            "name": "Mays-Jobsearch",
+            "local_dir": "installer/projects/mays_jobsearch",
+            "kind": "reference",
+        },
     }
+
+    #: Dateinamen-Schema der Pin-Dateien (Repo-Root/installer/ — getrackt,
+    #: ausserhalb des ignorierten projects-Verzeichnisses).
+    PIN_FILENAME_TEMPLATE = "{key}-clone.pinned.json"
     
     def __init__(self, projects_dir: Optional[Path] = None, dry_run: bool = True):
         self.projects_dir = projects_dir or self.DEFAULT_PROJECTS_DIR
@@ -100,10 +116,14 @@ class RISInstaller:
         except Exception:
             pass
             
-        # Check for installer
-        installer_path = local_path / project_config["installer_path"]
-        info.installer_exists = installer_path.exists() and (installer_path / "__init__.py").exists()
-        
+        # Check for installer (nur installierbare Projekte besitzen einen)
+        installer_rel = project_config.get("installer_path")
+        info.installer_exists = bool(
+            installer_rel
+            and (local_path / installer_rel).exists()
+            and ((local_path / installer_rel) / "__init__.py").exists()
+        )
+
         return info
     
     def _get_git_info(self, repo_path: Path) -> GitInfo:
@@ -184,8 +204,132 @@ class RISInstaller:
                     f"got {info.git_info.remote}"
                 )
                 
-        info.installer_exists = (local_path / project_config["installer_path"]).exists()
+        installer_rel = project_config.get("installer_path")
+        info.installer_exists = bool(
+            installer_rel and (local_path / installer_rel).exists()
+        )
         return info
+
+    # ------------------------------------------------------------------
+    # Gate 8: Git-Version-Pinning (Mays-Orders-AWS-Referenzverhalten).
+    #
+    # Ein beweglicher Branch (main) gilt NICHT als Versionsnachweis: Der
+    # tatsaechlich aufgeloeste Commit-SHA wird pro Projekt in einer
+    # getrackten Pin-Datei festgehalten
+    # (installer/<projekt>-clone.pinned.json), der Clone selbst bleibt
+    # ignoriert/lokal. Semantik angelehnt an PlanMetadata.git_commit
+    # (Mays-Orders-Installer) + bestehende RIS-Pin-Dateien.
+    # ------------------------------------------------------------------
+    def pin_filename(self, project_name: str) -> str:
+        """Getrackter Pin-Dateiname fuer ein Projekt."""
+        return self.PIN_FILENAME_TEMPLATE.format(
+            key=project_name.replace("_", "-")
+        )
+
+    def project_local_dir(self, project_name: str, repo_root: Optional[Path] = None) -> Path:
+        """Etabliertes lokales Projektverzeichnis (ignoriert, rein lokal)."""
+        if project_name not in self.PROJECTS:
+            raise ValueError(f"Unknown project: {project_name}")
+        local_dir = self.PROJECTS[project_name].get("local_dir")
+        if local_dir:
+            base = Path(repo_root) if repo_root else Path.cwd()
+            return base / local_dir
+        return self.projects_dir / project_name.replace("-", "_")
+
+    def pin_path(self, project_name: str, repo_root: Optional[Path] = None) -> Path:
+        """Pfad der getrackten Pin-Datei (ausserhalb ignorierter Verzeichnisse)."""
+        base = Path(repo_root) if repo_root else Path.cwd()
+        return base / "installer" / self.pin_filename(project_name)
+
+    @staticmethod
+    def resolve_remote_sha(git_url: str, ref: str = "HEAD") -> str:
+        """Bewegliche Referenz (Branch/Tag/HEAD) zu vollem Commit-SHA aufloesen."""
+        result = subprocess.run(
+            ["git", "ls-remote", git_url, ref],
+            capture_output=True, text=True, timeout=60,
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            raise RuntimeError(f"Referenz '{ref}' nicht aufloesbar fuer {git_url}")
+        return result.stdout.strip().split()[0]
+
+    @staticmethod
+    def local_head_sha(local_path: Path) -> Optional[str]:
+        """HEAD-SHA des lokalen Clones (None wenn kein Repo)."""
+        git_dir = Path(local_path) / ".git"
+        if not git_dir.exists() and not git_dir.is_file():
+            return None
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(local_path), capture_output=True, text=True, timeout=30,
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+
+    def build_pin_record(self, project_name: str, requested_ref: str = "main",
+                         repo_root: Optional[Path] = None) -> Dict[str, Any]:
+        """Pin-Datensatz bauen (Schema der bestehenden RIS-Pin-Dateien)."""
+        from datetime import datetime, timezone
+
+        if project_name not in self.PROJECTS:
+            raise ValueError(f"Unknown project: {project_name}")
+        config = self.PROJECTS[project_name]
+        local_dir = self.project_local_dir(project_name, repo_root)
+        head = self.local_head_sha(local_dir)
+        subject = None
+        if head:
+            result = subprocess.run(
+                ["git", "log", "-1", "--format=%s", head],
+                cwd=str(local_dir), capture_output=True, text=True, timeout=30,
+            )
+            subject = result.stdout.strip() or None
+        try:
+            rel = Path(local_dir).relative_to(Path(repo_root) if repo_root else Path.cwd())
+            clone_path = rel.as_posix()
+        except ValueError:
+            clone_path = str(local_dir)
+        return {
+            "project": project_name,
+            "git_url": config["git_url"],
+            "branch": requested_ref,
+            "pinned_commit": head,
+            "pinned_commit_subject": subject,
+            "clone_path": clone_path,
+            "clone_date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "kind": config.get("kind", "installable"),
+            "ignore_rule": ".gitignore: installer/projects/ (Clone wird nicht committet)",
+        }
+
+    def write_pin(self, project_name: str, requested_ref: str = "main",
+                  repo_root: Optional[Path] = None) -> Path:
+        """Pin-Datensatz in getrackte Datei schreiben. Gibt Pfad zurueck."""
+        import json
+
+        path = self.pin_path(project_name, repo_root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(self.build_pin_record(project_name, requested_ref, repo_root),
+                       indent=2) + "\n"
+        )
+        return path
+
+    def verify_pin(self, project_name: str,
+                   repo_root: Optional[Path] = None) -> Dict[str, Any]:
+        """Pruefen ob lokaler Clone dem gepinnten SHA entspricht."""
+        import json
+
+        path = self.pin_path(project_name, repo_root)
+        if not path.exists():
+            return {"ok": False, "reason": "keine Pin-Datei"}
+        try:
+            pinned = json.loads(path.read_text()).get("pinned_commit")
+        except Exception as exc:
+            return {"ok": False, "reason": f"Pin-Datei unlesbar: {exc}"}
+        head = self.local_head_sha(self.project_local_dir(project_name, repo_root))
+        if not head:
+            return {"ok": False, "reason": "kein lokaler Clone"}
+        if head != pinned:
+            return {"ok": False, "reason": f"Drift: Clone {head} != Pin {pinned}",
+                    "head": head, "pinned": pinned}
+        return {"ok": True, "commit": head}
     
     def run_project_installer(self, project_name: str, command: str = "validate") -> Dict[str, Any]:
         """
