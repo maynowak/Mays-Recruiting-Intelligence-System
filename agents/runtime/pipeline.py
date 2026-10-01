@@ -121,6 +121,9 @@ def ensure_reference_agent(
     # Gate 8: Dummy Agents A/B (DEV/TEST-Nachweis, keine Fachlogik).
     from agents.dummy.agents import register_dummy_agents
     register_dummy_agents(registry, body)
+    # Gate 9: JobSearch Domain Agent (persistent, Delegation ans Repository).
+    from agents.jobsearch_agent.agent import register_jobsearch_agent
+    register_jobsearch_agent(registry, body)
     # Gate 7: ATS als erster echter Domain Agent (Descriptor + Routen aus
     # bestehender Registry-Anbindung; Auswahl bleibt beim Ecosystem).
     if not registry.is_registered("ats-agent"):
