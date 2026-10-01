@@ -32,3 +32,11 @@ output "entitlements_table_name" {
 output "entitlements_table_arn" {
   value = aws_dynamodb_table.entitlements.arn
 }
+
+output "jobsearches_table_name" {
+  value = aws_dynamodb_table.jobsearches.name
+}
+
+output "jobsearches_table_arn" {
+  value = aws_dynamodb_table.jobsearches.arn
+}

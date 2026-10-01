@@ -143,6 +143,19 @@ output "api_authorizer_id" {
 }
 
 # ============================================================
+# JobSearch Outputs (Gate 9)
+# ============================================================
+output "jobsearch_table_name" {
+  description = "Name of the DynamoDB job searches table."
+  value       = module.dynamodb.jobsearches_table_name
+}
+
+output "jobsearch_table_arn" {
+  description = "ARN of the DynamoDB job searches table."
+  value       = module.dynamodb.jobsearches_table_arn
+}
+
+# ============================================================
 # SQS Outputs
 # ============================================================
 output "sqs_queues" {

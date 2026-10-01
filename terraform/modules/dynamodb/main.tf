@@ -26,10 +26,10 @@ resource "aws_dynamodb_table" "work_items" {
   }
 
   global_secondary_index {
-    name             = "gsi-status"
-    hash_key         = "tenantId"
-    range_key        = "status"
-    projection_type  = "ALL"
+    name            = "gsi-status"
+    hash_key        = "tenantId"
+    range_key       = "status"
+    projection_type = "ALL"
   }
 
   tags = merge({ "Project" = var.project_name }, var.tags)
@@ -75,9 +75,9 @@ resource "aws_dynamodb_table" "user_profile" {
   }
 
   global_secondary_index {
-    name             = "gsi-tenant"
-    hash_key         = "tenantId"
-    projection_type  = "ALL"
+    name            = "gsi-tenant"
+    hash_key        = "tenantId"
+    projection_type = "ALL"
   }
 
   tags = merge({ "Project" = var.project_name }, var.tags)
@@ -105,9 +105,9 @@ resource "aws_dynamodb_table" "agent_catalog" {
   }
 
   global_secondary_index {
-    name             = "gsi-status"
-    hash_key         = "status"
-    projection_type  = "ALL"
+    name            = "gsi-status"
+    hash_key        = "status"
+    projection_type = "ALL"
   }
 
   tags = merge({ "Project" = var.project_name }, var.tags)
@@ -140,15 +140,63 @@ resource "aws_dynamodb_table" "entitlements" {
   }
 
   global_secondary_index {
-    name             = "gsi-user"
-    hash_key         = "userId"
-    projection_type  = "ALL"
+    name            = "gsi-user"
+    hash_key        = "userId"
+    projection_type = "ALL"
   }
 
   global_secondary_index {
-    name             = "gsi-agent"
-    hash_key         = "agentId"
-    projection_type  = "ALL"
+    name            = "gsi-agent"
+    hash_key        = "agentId"
+    projection_type = "ALL"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
+# JobSearch Table (Gate 9) — Schema nach
+# jobsearch.repository.create_jobsearch_table_definitions().
+resource "aws_dynamodb_table" "jobsearches" {
+  name         = "${var.project_name}-${var.environment}-jobsearches"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "jobSearchId"
+
+  attribute {
+    name = "jobSearchId"
+    type = "S"
+  }
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  attribute {
+    name = "tenantId"
+    type = "S"
+  }
+
+  attribute {
+    name = "status"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+
+  global_secondary_index {
+    name            = "gsi-user"
+    hash_key        = "userId"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "gsi-status"
+    hash_key        = "tenantId"
+    range_key       = "status"
+    projection_type = "ALL"
   }
 
   tags = merge({ "Project" = var.project_name }, var.tags)

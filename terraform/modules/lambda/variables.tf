@@ -32,6 +32,16 @@ variable "dynamodb_table_arn" {
   type        = string
 }
 
+variable "jobsearch_table_name" {
+  description = "DynamoDB table name for job searches (Gate 9)"
+  type        = string
+}
+
+variable "jobsearch_table_arn" {
+  description = "DynamoDB table ARN for job searches (Gate 9)"
+  type        = string
+}
+
 variable "user_profile_table_name" {
   description = "DynamoDB table name for user profiles"
   type        = string
