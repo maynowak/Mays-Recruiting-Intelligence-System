@@ -59,20 +59,49 @@ class ATSHttpClient:
                 self._http_lib = None
     
     def analyze(self, job: Dict[str, Any], profile: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Call the ATS analysis endpoint."""
+        """Call the ATS analysis endpoint.
+
+        Transport-Reihenfolge: httpx -> requests -> stdlib-urllib (Gate 7:
+        Lambda-Runtime stellt weder httpx noch requests sicher bereit).
+        """
         payload = {'job': job}
         if profile:
             payload['profile'] = profile
-        
+
         url = f"{self.base_url}/api/ats-analysis"
-        
+
+        if self._http_lib == 'httpx' and self._session is not None:
+            try:
+                response = self._session.post(url, json=payload)
+                response.raise_for_status()
+                return response.json()
+            except Exception as e:
+                logger.error(f"ATS API request failed: {e}")
+                raise ATSAPIError(str(e)) from e
         try:
             import requests
             response = requests.post(url, json=payload, timeout=self.timeout)
             response.raise_for_status()
             return response.json()
         except ImportError:
-            raise ATSAPIError('requests library not available')
+            pass
+        except Exception as e:
+            logger.error(f"ATS API request failed: {e}")
+            raise ATSAPIError(str(e)) from e
+
+        # Stdlib-Fallback (keine Drittabhaengigkeit).
+        import json as _json
+        import urllib.request as _urllib
+
+        try:
+            req = _urllib.Request(
+                url,
+                data=_json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with _urllib.urlopen(req, timeout=self.timeout) as resp:
+                return _json.loads(resp.read().decode("utf-8") or "{}")
         except Exception as e:
             logger.error(f"ATS API request failed: {e}")
             raise ATSAPIError(str(e)) from e
@@ -115,6 +144,12 @@ class ATSAgent(AgentBase):
         
         capability = work_item.get('capability')
         payload = work_item.get('payload', {})
+        # Engine-Pfad wrappt: payload enthaelt das Original-WorkItem
+        # (Muster wie Orders-Function, Gate 6). Eine Ebene entpacken.
+        if isinstance(payload, dict) and 'job' not in payload:
+            inner = payload.get('payload')
+            if isinstance(inner, dict):
+                payload = inner
         work_id = work_item.get('workId', 'unknown')
         
         logger.info(f"ATS Agent processing: capability={capability}, workId={work_id}")
@@ -154,12 +189,16 @@ class ATSAgent(AgentBase):
         if capability != self.CAPABILITY_ANALYZE_JOB:
             logger.warning(f"Unsupported capability: {capability}")
             return False
-        
+
         payload = work_item.get('payload', {})
+        if isinstance(payload, dict) and 'job' not in payload:
+            inner = payload.get('payload')
+            if isinstance(inner, dict):
+                payload = inner
         if 'job' not in payload:
             logger.warning("Missing 'job' in payload")
             return False
-        
+
         return True
     
     def get_status(self, work_id: str, tenant_id: str) -> Dict[str, Any]:

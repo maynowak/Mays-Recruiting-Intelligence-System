@@ -86,6 +86,12 @@ def ensure_reference_agent(
     Handler). Die Orders-Function delegiert an den OrdersPort (Gate 6).
     """
     from agents.agent_body import AgentBody
+    from agents.ats_agent.agent import ATSAgent
+    from agents.ats_agent.registry import (
+        ATS_ANALYZE_CAPABILITY,
+        ATS_WORK_TYPE,
+        get_ats_descriptor,
+    )
     from agents.orders.function import register_orders_function
     from agents.reference_agent.service import ReferenceAgent
 
@@ -112,6 +118,14 @@ def ensure_reference_agent(
     body.register_agent(capability=REFERENCE_CAPABILITY, handler=agent.process_work)
     body.register_agent(agent_id=REFERENCE_AGENT_ID, handler=agent.process_work)
     register_orders_function(registry, body)
+    # Gate 7: ATS als erster echter Domain Agent (Descriptor + Routen aus
+    # bestehender Registry-Anbindung; Auswahl bleibt beim Ecosystem).
+    if not registry.is_registered("ats-agent"):
+        registry.register("ats-agent", get_ats_descriptor())
+    ats = ATSAgent()
+    body.register_agent(work_type=ATS_WORK_TYPE, handler=ats.process_work)
+    body.register_agent(capability=ATS_ANALYZE_CAPABILITY, handler=ats.process_work)
+    body.register_agent(agent_id="ats-agent", handler=ats.process_work)
     return registry, body
 
 
