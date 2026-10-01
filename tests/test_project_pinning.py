@@ -48,7 +48,8 @@ class TestProjectPinning(unittest.TestCase):
         run("git", "symbolic-ref", "HEAD", "refs/heads/main", cwd=self.remote)
         self.remote_sha = run("git", "rev-parse", "HEAD", cwd=work)
         self.assertEqual(sha, self.remote_sha)
-        self.inst = RISInstaller()
+        from pathlib import Path as _Path
+        self.inst = RISInstaller(repo_root=_Path(self.repo_root))
         self.inst.PROJECTS = dict(self.inst.PROJECTS)
         self.inst.PROJECTS["demo_proj"] = {
             "git_url": self.remote,
@@ -123,6 +124,16 @@ class TestProjectPinning(unittest.TestCase):
         from pathlib import Path
         with self.assertRaises(ValueError):
             self.inst.write_pin("unbekannt", repo_root=Path(self.repo_root))
+
+    def test_discover_uses_established_local_dir(self):
+        from pathlib import Path
+        self._clone()
+        info = self.inst.discover_project("demo_proj")
+        # Fallback-Pfad existiert nicht; local_dir schon:
+        self.assertTrue(str(info.local_path).endswith("installer/projects/demo_proj"))
+        self.assertIsNotNone(info.git_info)
+        self.assertEqual(info.git_info.commit, self.remote_sha)
+        self.assertFalse(info.installer_exists)  # kind=reference ohne installer/
 
 
 if __name__ == "__main__":

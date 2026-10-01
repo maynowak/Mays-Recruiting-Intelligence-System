@@ -75,10 +75,21 @@ class RISInstaller:
     #: ausserhalb des ignorierten projects-Verzeichnisses).
     PIN_FILENAME_TEMPLATE = "{key}-clone.pinned.json"
     
-    def __init__(self, projects_dir: Optional[Path] = None, dry_run: bool = True):
+    def __init__(self, projects_dir: Optional[Path] = None, dry_run: bool = True,
+                 repo_root: Optional[Path] = None):
         self.projects_dir = projects_dir or self.DEFAULT_PROJECTS_DIR
         self.dry_run = dry_run
+        self.repo_root = Path(repo_root) if repo_root else None
         
+    def _resolve_local_path(self, project_name: str) -> Path:
+        """Etablierter Ablageort (Gate 8 local_dir) vor Default-Verzeichnis."""
+        project_config = self.PROJECTS[project_name]
+        local_dir = project_config.get("local_dir")
+        if local_dir:
+            base = self.repo_root if self.repo_root else Path.cwd()
+            return base / local_dir
+        return self.projects_dir / project_name.replace("-", "_")
+
     def discover_project(self, project_name: str) -> ProjectInfo:
         """
         Discover a project's local state and git information.
@@ -93,7 +104,7 @@ class RISInstaller:
             raise ValueError(f"Unknown project: {project_name}")
             
         project_config = self.PROJECTS[project_name]
-        local_path = self.projects_dir / project_name.replace("-", "_")
+        local_path = self._resolve_local_path(project_name)
         
         info = ProjectInfo(
             name=project_config["name"],
@@ -173,7 +184,7 @@ class RISInstaller:
             raise ValueError(f"Unknown project: {project_name}")
             
         project_config = self.PROJECTS[project_name]
-        local_path = self.projects_dir / project_name.replace("-", "_")
+        local_path = self._resolve_local_path(project_name)
         
         info = ProjectInfo(
             name=project_config["name"],
@@ -232,13 +243,13 @@ class RISInstaller:
             raise ValueError(f"Unknown project: {project_name}")
         local_dir = self.PROJECTS[project_name].get("local_dir")
         if local_dir:
-            base = Path(repo_root) if repo_root else Path.cwd()
+            base = Path(repo_root) if repo_root else (self.repo_root if self.repo_root else Path.cwd())
             return base / local_dir
         return self.projects_dir / project_name.replace("-", "_")
 
     def pin_path(self, project_name: str, repo_root: Optional[Path] = None) -> Path:
         """Pfad der getrackten Pin-Datei (ausserhalb ignorierter Verzeichnisse)."""
-        base = Path(repo_root) if repo_root else Path.cwd()
+        base = Path(repo_root) if repo_root else (self.repo_root if self.repo_root else Path.cwd())
         return base / "installer" / self.pin_filename(project_name)
 
     @staticmethod
@@ -282,7 +293,7 @@ class RISInstaller:
             )
             subject = result.stdout.strip() or None
         try:
-            rel = Path(local_dir).relative_to(Path(repo_root) if repo_root else Path.cwd())
+            rel = Path(local_dir).relative_to(Path(repo_root) if repo_root else (self.repo_root if self.repo_root else Path.cwd()))
             clone_path = rel.as_posix()
         except ValueError:
             clone_path = str(local_dir)
