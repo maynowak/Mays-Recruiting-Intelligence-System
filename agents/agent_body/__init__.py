@@ -53,6 +53,6 @@ class AgentBody:
         """Execute a work item through the agent body."""
         return self.executor.execute(work_item)
 
-    def register_agent(self, work_type: str = None, capability: str = None, handler: callable = None):
+    def register_agent(self, work_type: str = None, capability: str = None, handler: callable = None, agent_id: str = None):
         """Register an agent handler."""
-        self.router.register(work_type=work_type, capability=capability, handler=handler)
+        self.router.register(work_type=work_type, capability=capability, handler=handler, agent_id=agent_id)

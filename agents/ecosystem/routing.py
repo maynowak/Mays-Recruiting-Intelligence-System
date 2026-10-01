@@ -284,9 +284,9 @@ class ExecutionEngine:
             raise ValueError("Cannot execute: agent_id is None in decision")
         
         capability = override_capability or processing_envelope.input.get('capability')
-        
+
         from agents.agent_body.invocation import InvocationContract
-        
+
         contract = InvocationContract(
             target_agent_id=decision.agent_id,
             capability=capability,
@@ -295,7 +295,8 @@ class ExecutionEngine:
             tenant_id=processing_envelope.tenant_id,
             mode=InvocationContract.SYNC
         )
-        
+        # Gate 5: Identitaet erhalten — AgentInvoker reicht die workId aus dem
+        # Contract-Payload (Original-WorkItem) durch; parent bleibt processing_id.
         logger.info(
             f"Executing agent {decision.agent_id} "
             f"[envelope: {processing_envelope.processing_id}, "

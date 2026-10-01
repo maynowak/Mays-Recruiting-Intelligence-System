@@ -128,7 +128,11 @@ class AgentInvoker:
         Returns:
             Result dictionary from the invoked agent
         """
-        work_item = contract.to_work_item()
+        work_item = contract.to_work_item(
+            # Gate 5: Identitaet erhalten — Body sieht dieselbe workId wie das
+            # registrierte WorkItem (payload traegt das Original-WorkItem).
+            work_id=(contract.payload or {}).get('workId'),
+        )
         
         logger.info(
             f"Invoking agent {contract.target_agent_id} "

@@ -120,28 +120,43 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_api_event(event, context)
 
 
+# Live-Einstieg der deployten Funktion (handler.lambda_handler).
+lambda_handler = handler
+
+
 def _handle_sqs_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Handle SQS-triggered events."""
+    """Handle SQS-triggered events.
+
+    Gate 5: Schlaegt ein Record fehl (Exception), wird der Fehler
+    protokolliert UND nach Verarbeitung aller Records erneut geworfen,
+    damit SQS die Nachricht erneut zustellt (Retry -> neuer Attempt).
+    Bereits erfolgreiche Records sind durch Idempotency abgesichert.
+    """
     results = []
-    
+    failures = 0
+
     for record in event.get('Records', []):
         try:
             body = json.loads(record['body'])
             work_item = body
-            
+
             result = _process_work_item(work_item)
             results.append({
                 'workId': work_item.get('workId'),
                 'result': result
             })
-            
+
         except Exception as e:
+            failures += 1
             logger.error(f"Error processing record: {str(e)}")
             results.append({
                 'error': str(e),
                 'messageId': record.get('messageId')
             })
-    
+
+    if failures:
+        raise RuntimeError(f"{failures}/{len(event.get('Records', []))} SQS records failed")
+
     return {
         'statusCode': 200,
         'body': json.dumps({'processed': len(event.get('Records', [])), 'results': results})
@@ -756,49 +771,42 @@ def _get_work_item(work_id: str) -> Optional[Dict[str, Any]]:
 
 
 def _process_work_item(work_item: Dict[str, Any]) -> Dict[str, Any]:
-    """Process a work item through the Agent Body pipeline."""
+    """Process a work item through the Agent Body runtime pipeline.
+
+    Gate 5: SQS -> WorkItem -> Agent Body -> Ecosystem/Registry ->
+    Reference Agent -> Result, mit Idempotency (kein neuer fachlicher
+    Run bei Duplikat) und Attempt-Zaelung bei Retry.
+    """
     work_id = work_item.get('workId')
     work_type = work_item.get('type')
-    
+
     logger.info(f"Processing work item: {work_id}, type: {work_type}")
-    
-    if AGENT_BODY_AVAILABLE and AGENT_BODY is not None:
-        try:
-            result = AGENT_BODY.execute(work_item)
-            
-            result.setdefault('workId', work_id)
-            result.setdefault('workType', work_type)
-            
-            status = 'COMPLETED' if result.get('success') else 'FAILED'
-            result['status'] = status
-            result['agentType'] = work_item.get('agentId', 'unknown')
-            
-            logger.info(f"Work item {work_id} processed: {status}")
-            return result
-            
-        except Exception as e:
-            logger.error(f"Agent Body execution error for {work_id}: {e}")
-            return {
-                'success': False,
-                'workId': work_id,
-                'workType': work_type,
-                'error': {
-                    'message': str(e),
-                    'type': type(e).__name__
-                },
-                'metrics': {
-                    'durationMs': 0,
-                    'workId': work_id,
-                    'status': 'FAILED'
-                }
-            }
-    else:
-        logger.warning("Agent Body not available, using fallback processing")
-        return {
-            'success': True,
-            'message': 'Work processed (fallback mode)',
-            'workId': work_id
-        }
+
+    # Exceptions propagieren bewusst (kein Swallow): SQS stellt die
+    # Nachricht erneut zu (Retry -> neuer Attempt); Duplikate sind durch
+    # Idempotency gesichert. Ungueltige WorkItems landen nach
+    # maxReceiveCount in der bestehenden DLQ.
+    from agents.runtime.pipeline import process_record
+
+    outcome = process_record({'body': work_item})
+
+    success = outcome.get('status') == 'COMPLETED'
+    result = {
+        'success': success,
+        'workId': work_id,
+        'workType': work_type,
+        'status': outcome.get('status'),
+        'agentType': outcome.get('agent_id', work_item.get('agentId', 'unknown')),
+        'duplicate': outcome.get('duplicate', False),
+        'attempt_no': outcome.get('attempt_no', 1),
+    }
+    if outcome.get('result') is not None:
+        result['result'] = outcome['result']
+    if outcome.get('result_reference') is not None:
+        result['result_reference'] = outcome['result_reference']
+
+    logger.info(f"Work item {work_id} processed: {result['status']}")
+    return result
 
 
 def _create_work(body: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
