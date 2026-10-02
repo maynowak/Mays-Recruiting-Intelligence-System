@@ -247,6 +247,8 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_me_profile(event, context)
     elif method == 'POST' and path == '/me/profile':
         return _handle_me_profile_create(event, context)
+    elif method == 'PUT' and path == '/me/profile':
+        return _handle_me_profile_update(event, context)
     elif method == 'GET' and path == '/agents':
         return _handle_agents(event, context)
     elif method == 'GET' and path == '/me/jobsearches':
@@ -349,15 +351,16 @@ def _provision_user_profile(table: Any, user_context: Dict[str, Any],
     from datetime import datetime
 
     now = datetime.utcnow().isoformat()
-    # Tenant-Fallback "default" (Repo-Konvention, s. _create_work): Die Tabelle
-    # hat einen GSI auf tenantId — NULL ist dort unzulaessig. Read-Pfad mit
-    # leerem Claim bleibt kompatibel (Pruefung nur bei gesetztem Claim).
+    body = body or {}
+    # Gate 12 (Profile v1): NUR diese Felder; userId/tenantId/email aus JWT
+    # (Body-Identitaeten werden IGNORIERT — kein Spoofing).
     item = {
         'userId': user_context['userId'],
         'tenantId': user_context.get('tenantId') or 'default',
-        'username': user_context.get('username'),
+        'nickname': body.get('nickname'),
+        'firstName': body.get('firstName'),
+        'lastName': body.get('lastName'),
         'email': user_context.get('email'),
-        'displayName': (body or {}).get('displayName'),
         'status': 'ACTIVE',
         'createdAt': now,
         'updatedAt': now,
@@ -406,6 +409,79 @@ def _handle_me_profile_create(event: Dict[str, Any], context: Any) -> Dict[str, 
         return {
             'statusCode': 500,
             'body': json.dumps({'error': 'Failed to provision profile'})
+        }
+
+
+def _update_user_profile(table: Any, user_context: Dict[str, Any],
+                         body: Dict[str, Any]) -> Dict[str, Any]:
+    """Profil aktualisieren — nur v1-Felder; userId/tenantId/createdAt unveränderlich.
+
+    Gate 12: Body-userId/tenantId/createdAt werden IGNORIERT (Identitaet aus
+    JWT); updatedAt serverseitig. Fehlt das Profil -> 404 (kein Upsert).
+    """
+    from datetime import datetime
+
+    body = body or {}
+    updates = {k: body.get(k) for k in ('nickname', 'firstName', 'lastName')
+               if body.get(k) is not None}
+    if not updates:
+        return {'statusCode': 400,
+                'body': json.dumps({'error': 'No updatable v1 fields provided'})}
+    updates['updatedAt'] = datetime.utcnow().isoformat()
+    expr = "SET " + ", ".join(f"#{k} = :{k}" for k in updates)
+    names = {f"#{k}": k for k in updates}
+    values = {f":{k}": v for k, v in updates.items()}
+    try:
+        result = table.update_item(
+            Key={'userId': user_context['userId']},
+            UpdateExpression=expr,
+            ConditionExpression='attribute_exists(userId)',
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values,
+            ReturnValues='ALL_NEW',
+        )
+    except Exception as e:
+        if hasattr(e, 'response') and e.response.get('Error', {}).get('Code') == \
+                'ConditionalCheckFailedException':
+            return {'statusCode': 404, 'body': json.dumps({'error': 'Profile not found'})}
+        raise
+    return {'statusCode': 200, 'body': json.dumps(result.get('Attributes', {}))}
+
+
+def _handle_me_profile_update(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Handle PUT /me/profile - eigenes Profil aktualisieren."""
+    user_context = _extract_user_context(event)
+
+    if not user_context['userId']:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': 'Unauthenticated'})
+        }
+
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except (ValueError, TypeError):
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'Request body must be valid JSON'})
+        }
+
+    table_name = os.environ.get('USER_PROFILE_TABLE')
+    if not table_name:
+        logger.warning("USER_PROFILE_TABLE not configured")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Profile store not configured'})
+        }
+
+    try:
+        table = _get_dynamodb().Table(table_name)
+        return _update_user_profile(table, user_context, body)
+    except Exception as e:
+        logger.error(f"Error updating profile: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Failed to update profile'})
         }
 
 
