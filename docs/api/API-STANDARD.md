@@ -13,6 +13,14 @@ Abweichungen/OPENs ehrlich.
 | GET /orders, GET /orders/{orderId} | orders-reader | 200 |
 | POST /orders | orders-reader | 201 (PENDING + SQS-Anstoss) |
 | PATCH /orders/{orderId}/status | orders-reader | 200 / 409 |
+| POST /me/profile | agent | 201 (explizite Provisionierung) / 409 (exists) |
+
+Registrierung (Gate 10): Cognito SignUp (self-service, Pool erlaubt) →
+Confirm (E-Mail-Code NUR wenn Pool Auto-Verification konfiguriert — aktuell
+NICHT: User bleibt UNCONFIRMED, Login blockiert; OPEN, Admin-Confirm nur
+Test-Ersatz) → Login (USER_PASSWORD_AUTH) → JWT → POST /me/profile
+(Conditional Write, 409 bei Duplikat) → GET /me/profile. NIEMALS
+Auto-Provisioning durch Reads.
 
 ## 2. Auth / Claims (verwendet)
 
