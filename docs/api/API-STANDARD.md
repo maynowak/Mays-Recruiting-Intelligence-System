@@ -14,6 +14,7 @@ Abweichungen/OPENs ehrlich.
 | POST /orders | orders-reader | 201 (PENDING + SQS-Anstoss) |
 | PATCH /orders/{orderId}/status | orders-reader | 200 / 409 |
 | POST /me/profile | agent | 201 (explizite Provisionierung) / 409 (exists) |
+| PUT /me/profile | agent | 200 (nur v1-Felder) / 400 / 404 (kein Upsert) |
 
 Registrierung (Gate 10): Cognito SignUp (self-service, Pool erlaubt) →
 Confirm (E-Mail-Code NUR wenn Pool Auto-Verification konfiguriert — seit Gate 11
