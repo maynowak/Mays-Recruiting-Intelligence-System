@@ -29,7 +29,7 @@ Safety rules (hard):
 
 import argparse
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from installer.terraform_runner import (
@@ -66,6 +66,7 @@ class RisInstallContext:
     aws_profile: Optional[str] = None
     aws_context: Optional[AwsExecutionContext] = None
     dry_run: bool = True
+    extra_vars: Dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.project_name or not self.project_name.strip():
@@ -90,11 +91,17 @@ class RisInstallContext:
         )
 
     def terraform_vars(self) -> Dict[str, str]:
-        """Input variables for plan/apply (ordinary vars, never backend)."""
-        return {
+        """Input variables for plan/apply (ordinary vars, never backend).
+
+        Extra --var entries ride along, but project identity always wins
+        (fail-closed: identity cannot be overridden via --var).
+        """
+        merged = dict(self.extra_vars or {})
+        merged.update({
             "project_name": self.project_name,
             "environment": self.environment,
-        }
+        })
+        return merged
 
     def make_runner(self) -> TerraformRunner:
         """Central handoff: context -> runner (single construction point)."""
@@ -148,9 +155,7 @@ def _cmd_apply(ctx: RisInstallContext) -> List[TerraformResult]:
         raise RuntimeError("refusing apply in dry-run mode (pass --yes)")
     runner = ctx.make_runner()
     init_res = runner.init(backend_config=ctx.backend_config())
-    apply_res = runner.run_and_get_result(
-        ["apply", "-auto-approve"], ensure_workspace=True
-    )
+    apply_res = runner.apply(var=ctx.terraform_vars())
     return [init_res, apply_res]
 
 
@@ -313,6 +318,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Local state file (state show/push).",
     )
     parser.add_argument(
+        "--var",
+        action="append",
+        default=[],
+        help="Terraform input variable as KEY=VALUE (repeatable; "
+             "project_name/environment cannot be overridden).",
+    )
+    parser.add_argument(
         "--yes",
         action="store_true",
         help="Disable dry-run (required for apply).",
@@ -321,8 +333,27 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def parse_var_args(var_args: Optional[List[str]]) -> Dict[str, str]:
+    """Parse KEY=VALUE entries (fail-closed on malformed input)."""
+    parsed: Dict[str, str] = {}
+    for entry in var_args or []:
+        if "=" not in entry:
+            raise ValueError(f"--var erwartet KEY=VALUE, erhalten: {entry!r}")
+        key, _, value = entry.partition("=")
+        key = key.strip()
+        if not key:
+            raise ValueError(f"--var mit leerem Key: {entry!r}")
+        parsed[key] = value
+    return parsed
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parsed = build_parser().parse_args(argv)
+    try:
+        extra_vars = parse_var_args(parsed.var)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     try:
         ctx = RisInstallContext(
             project_name=parsed.project_name,
@@ -334,6 +365,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             backend_lock_table=parsed.backend_lock_table,
             aws_profile=parsed.profile,
             dry_run=not parsed.yes,
+            extra_vars=extra_vars,
         )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)

@@ -296,3 +296,16 @@ class TerraformRunner:
         for key, value in (var or {}).items():
             args.extend(["-var", f"{key}={value}"])
         return self.run_and_get_result(args)
+
+    def apply(
+        self,
+        auto_approve: bool = True,
+        var: Optional[Dict[str, str]] = None,
+    ) -> TerraformResult:
+        """Run `terraform apply` (workspace resolved first)."""
+        args = ["apply"]
+        if auto_approve:
+            args.append("-auto-approve")
+        for key, value in (var or {}).items():
+            args.extend(["-var", f"{key}={value}"])
+        return self.run_and_get_result(args)

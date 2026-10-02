@@ -42,9 +42,13 @@ provider "aws" {
 module "cognito" {
   source = "./modules/cognito"
 
-  project_name = var.project_name
-  environment  = var.environment
-  tags         = var.tags
+  project_name               = var.project_name
+  environment                = var.environment
+  tags                       = var.tags
+  email_verification_enabled = var.identity_email_verification_enabled
+  email_subject              = var.identity_email_subject
+  email_message              = var.identity_email_message
+  sender_mode                = var.identity_sender_mode
 }
 
 module "sqs" {

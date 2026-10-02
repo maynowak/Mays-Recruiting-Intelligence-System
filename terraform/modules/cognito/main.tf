@@ -22,6 +22,16 @@ resource "aws_cognito_user_pool" "users" {
     require_symbols   = false
   }
 
+  # Gate 11: E-Mail-Verifikation (Cognito-managed Versand, keine eigene
+  # Domain). auto_verified_attributes=[] = Verhalten wie bisher (kein Versand).
+  auto_verified_attributes = var.email_verification_enabled ? ["email"] : []
+
+  verification_message_template {
+    default_email_option = "CONFIRM_WITH_CODE"
+    email_subject        = var.email_subject
+    email_message        = var.email_message
+  }
+
   # Custom tenant attribute (see lifecycle note above).
   schema {
     attribute_data_type = "String"

@@ -481,3 +481,47 @@ def test_validate_skips_workspace_without_backend():
     called = [" ".join(c.args[0]) for c in run.call_args_list]
     assert not any("workspace" in c for c in called)
     assert all(r.returncode == 0 for r in results)
+
+
+def test_var_parsing_and_identity_protection():
+    from installer.ris import parse_var_args
+    assert parse_var_args(["a=1", "b=x=y"]) == {"a": "1", "b": "x=y"}
+    assert parse_var_args([]) == {}
+    assert parse_var_args(None) == {}
+    with pytest.raises(ValueError):
+        parse_var_args(["nonsense"])
+    with pytest.raises(ValueError):
+        parse_var_args(["=empty"])
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris", environment="dev",
+                                 extra_vars={"identity_email_subject": "Hi",
+                                             "project_name": "EVIL",
+                                             "environment": "prod"})
+    vars_ = ctx.terraform_vars()
+    assert vars_["identity_email_subject"] == "Hi"
+    assert vars_["project_name"] == "mays-ris"
+    assert vars_["environment"] == "dev"
+
+
+def test_apply_forwards_vars():
+    seen = {}
+
+    def fake_run(args, **kwargs):
+        seen.setdefault("cmds", []).append(list(args))
+        return _completed(args)
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(
+            project_name="mays-ris", terraform_dir="terraform",
+            backend_bucket="b", backend_region="r",
+            dry_run=False,
+            extra_vars={"identity_email_verification_enabled": "true"},
+        )
+    with patch("subprocess.run", side_effect=fake_run):
+        results = ris._cmd_apply(ctx)
+    flat = [" ".join(c) for c in seen["cmds"]]
+    apply = [c for c in flat if c.startswith("terraform apply")]
+    assert len(apply) == 1
+    assert "-var identity_email_verification_enabled=true" in apply[0]
+    assert "-var project_name=mays-ris" in apply[0]
+    assert all(r.returncode == 0 for r in results)

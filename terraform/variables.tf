@@ -32,6 +32,46 @@ variable "tags" {
   default     = {}
 }
 
+# Gate 11: Identity-Mail-Konfiguration (per --var KEY=VALUE setzbar,
+# Re-Run faehig via Terraform State; keine Secrets — Betreff/Text sind
+# oeffentliche Anwendungstexte, Versand AWS-managed).
+variable "identity_email_verification_enabled" {
+  description = "E-Mail-Verifikation bei Registrierung (Cognito-managed Versand)."
+  type        = bool
+  default     = false
+}
+
+variable "identity_email_subject" {
+  description = "Betreff der Verifikations-Mail."
+  type        = string
+  default     = "Willkommen bei May's Job Matcher – E-Mail-Adresse bestätigen"
+}
+
+variable "identity_email_message" {
+  description = "Text der Verifikations-Mail (Platzhalter {####})."
+  type        = string
+  default     = <<-EOT
+    Sehr geehrte Benutzerin, sehr geehrter Benutzer,
+
+    willkommen bei May's Job Matcher.
+
+    Um Ihre Registrierung abzuschließen und May's Job Matcher nutzen zu
+    können, bestätigen Sie bitte Ihre E-Mail-Adresse mit dem von uns
+    bereitgestellten Bestätigungscode.
+
+    Ihr Bestätigungscode lautet: {####}
+
+    Mit freundlichen Grüßen
+    May's Job Matcher
+  EOT
+}
+
+variable "identity_sender_mode" {
+  description = "Versandmodus (derzeit nur cognito_default)."
+  type        = string
+  default     = "cognito_default"
+}
+
 variable "queue_config" {
   description = "SQS queue configuration"
   type = object({
