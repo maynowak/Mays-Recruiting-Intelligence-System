@@ -388,3 +388,5 @@ Cognito
 
 - Gate 10 — Identity & Registration (Benutzer-Lifecycle live, Mail-OPEN)
 - Gate 11 — Identity E-Mail-Verifikation (Template + Versand konfiguriert, Inbox NOT PROVEN)
+
+- Gate 13A — Google-Federation-Foundation (YELLOW: konfiguriert, nicht live verifiziert; kein Linking)

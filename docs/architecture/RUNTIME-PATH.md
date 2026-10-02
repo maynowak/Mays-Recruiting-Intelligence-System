@@ -6,6 +6,9 @@ Keine zweite Queue, kein paralleles Runtime-Modell.
 
 ## 1. API (HTTP API V2, Payload 2.0)
 
+- Identität: Cognito JWT (Hauptweg E-Mail + Passwort). Optional (Gate 13A, AUS):
+  Google Federation → Cognito stellt weiterhin das JWT aus (gleicher Authorizer,
+  gleiche Claims, gleiche Tenant-Regeln — kein zweiter Vertrauenspfad).
 - Verantwortung: Auth (JWT ausser `GET /health`), Routing, synchrone Responses.
 - Input: HTTP-Request + `Authorization: Bearer <JWT>`. Output: JSON (Erfolg/Fehler-Schema s. API-Standard).
 - Persistenz: keine (ausser Orders-Reader: DDB-PUT bei POST).

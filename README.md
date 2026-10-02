@@ -34,8 +34,13 @@ Details: `docs/architecture/SYSTEM-ARCHITECTURE.md` (maßgeblich),
 - `python -m installer.ris --project-name mays-ris --environment dev --profile mayaws {validate,plan,apply,preflight,install,state}`
 - Profil = Installationskontext (kein fester Account); Workspace = project_name;
   Backend S3 + Lock; Pins je Projekt (s. `installer/*-clone.pinned.json`).
-- JWT (Cognito), Tenant-Isolation im Code, Least-Privilege-Rollen, keine
-  Secrets im Repo. Bekannte Fremd-OPENs: SQS-`*`, MO ohne DLQ (dokumentiert).
+- JWT (Cognito — zentraler Identity Provider), Tenant-Isolation im Code,
+  Least-Privilege-Rollen, keine Secrets im Repo. E-Mail/Passwort ist der
+  Hauptweg; Google Federation ist optional vorbereitet (Standard AUS, kein
+  separates Backend-Auth-System, Backend nutzt weiter Cognito JWTs).
+  UserProfile ist eigene Persistence (Google-Login erzeugt keins);
+  Account Linking vorbereitet, aber nicht aktiviert; Live-Google-E2E offen.
+  Bekannte Fremd-OPENs: SQS-`*`, MO ohne DLQ (dokumentiert).
 
 ## Doku-Struktur / Reports
 

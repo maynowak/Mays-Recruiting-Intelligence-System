@@ -14,6 +14,8 @@ Abhängigkeitsstand. Abgeschlossene Gates werden nicht als offen dargestellt.
 - Gate 7: ATS Domain Agent (live)
 - Gate 8: Multi-Agent (5 Agents, shared Queue) + Installer-Pinning (2 Projekte, SHA-verifiziert)
 - Gate 9: JobSearch-Domain (Tabelle + Agent + Tenant-isoliert, live)
+- Gates 10–12: Identity-Lifecycle, E-Mail-Verifikation, Profile-v1 (live)
+- Gate 13A: Google-Federation-Foundation (YELLOW — konfiguriert, nicht live verifiziert)
 - Documentation Consolidation (dieses Gate)
 
 ## CURRENT
@@ -21,6 +23,8 @@ Abhängigkeitsstand. Abgeschlossene Gates werden nicht als offen dargestellt.
 - Dokumentations-Konsolidierung (Architektur/Runtime/API/Roadmap/README, Konsistenz-Check).
 
 ## NEXT (technisch möglich, keine Reihenfolge-Wertung)
+
+- Gate 13B: sichtbarer Google-Linking-Flow (NICHT begonnen — braucht Test-Account + Redirect-URI)
 
 - JobSearch update/delete als Agent-Caps (Repository kann es bereits)
 - ATS-Vertiefung (mehr Capabilities gegen bestehende API)
