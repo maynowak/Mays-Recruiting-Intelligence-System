@@ -55,3 +55,31 @@ variable "sender_mode" {
     error_message = "Nur sender_mode=cognito_default wird unterstuetzt (keine eigene Domain/SES-Identitaet vorhanden; s. Gate-11-Report)."
   }
 }
+
+# Gate 13A: optionale Google-Federation (Default AUS = keine Aenderung).
+# Secrets (client_secret) stehen NIE im Code — nur per --var beim Apply,
+# nie committen, nie loggen (TF-State-Backend ist verschluesselt).
+variable "google_client_id" {
+  description = "Google OAuth Client-ID (leer = Federation deaktiviert)."
+  type        = string
+  default     = ""
+}
+
+variable "google_client_secret" {
+  description = "Google OAuth Client-Secret (leer = deaktiviert; nur per --var)."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "google_callback_urls" {
+  description = "OAuth-Redirect-URIs (Pflicht bei aktivierter Federation; keine Defaults erfunden)."
+  type        = list(string)
+  default     = []
+}
+
+variable "google_logout_urls" {
+  description = "Logout-Redirect-URIs (Pflicht bei aktivierter Federation)."
+  type        = list(string)
+  default     = []
+}

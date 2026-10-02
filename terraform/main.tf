@@ -49,6 +49,10 @@ module "cognito" {
   email_subject              = var.identity_email_subject
   email_message              = var.identity_email_message
   sender_mode                = var.identity_sender_mode
+  google_client_id           = var.identity_google_client_id
+  google_client_secret       = var.identity_google_client_secret
+  google_callback_urls       = var.identity_google_callback_urls
+  google_logout_urls         = var.identity_google_logout_urls
 }
 
 module "sqs" {

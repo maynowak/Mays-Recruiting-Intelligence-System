@@ -54,8 +54,41 @@ resource "aws_cognito_user_pool_client" "client" {
     "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
   ]
+
+  # Gate 13A: OAuth bleibt AUS bis ein Google-Client konfiguriert ist
+  # (null = Argument weglassen = kein Diff, Password-Login unberuehrt).
+  supported_identity_providers = var.google_client_id != "" ? ["COGNITO", "Google"] : null
+  allowed_oauth_flows_user_pool_client = var.google_client_id != ""
+  allowed_oauth_flows                  = var.google_client_id != "" ? ["code"] : null
+  allowed_oauth_scopes                 = var.google_client_id != "" ? ["openid", "email", "profile"] : null
+  callback_urls                        = var.google_client_id != "" ? var.google_callback_urls : null
+  logout_urls                          = var.google_client_id != "" ? var.google_logout_urls : null
   # NOTE: aws_cognito_user_pool_client supports no `tags` argument
   # (provider schema) — Project scoping lives on pool/groups.
+}
+
+# Gate 13A: optionaler Google IdP (Default AUS — keine Ressource, kein Diff).
+# Erfordert echte Credentials per --var (nie Dummy-Werte applyen) plus
+# Redirect-URIs (leere Listen lassen den Apply fehlschlagen: fail-closed).
+resource "aws_cognito_identity_provider" "google" {
+  count = var.google_client_id != "" ? 1 : 0
+
+  user_pool_id  = aws_cognito_user_pool.users.id
+  provider_name = "Google"
+  provider_type = "Google"
+
+  provider_details = {
+    client_id        = var.google_client_id
+    client_secret    = var.google_client_secret
+    authorize_scopes = "openid email profile"
+  }
+
+  attribute_mapping = {
+    email       = "email"
+    given_name  = "givenName"
+    family_name = "familyName"
+    name        = "name"
+  }
 }
 
 resource "aws_cognito_user_group" "candidates" {

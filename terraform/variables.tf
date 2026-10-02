@@ -72,6 +72,34 @@ variable "identity_sender_mode" {
   default     = "cognito_default"
 }
 
+# Gate 13A: optionale Google-Federation (Defaults = deaktiviert).
+# Secrets nur per --var beim Apply (nie committen); leere Redirect-Listen
+# lassen einen aktivierten Apply gezielt fehlschlagen (fail-closed).
+variable "identity_google_client_id" {
+  description = "Google OAuth Client-ID (leer = deaktiviert)."
+  type        = string
+  default     = ""
+}
+
+variable "identity_google_client_secret" {
+  description = "Google OAuth Client-Secret (nur per --var, nie committen)."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "identity_google_callback_urls" {
+  description = "OAuth-Redirect-URIs (Pflicht bei Aktivierung)."
+  type        = list(string)
+  default     = []
+}
+
+variable "identity_google_logout_urls" {
+  description = "Logout-Redirect-URIs (Pflicht bei Aktivierung)."
+  type        = list(string)
+  default     = []
+}
+
 variable "queue_config" {
   description = "SQS queue configuration"
   type = object({
