@@ -85,3 +85,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - WorkItem lifecycle documentation
 - DEV/TEST/PROD strategy documentation
 - README with platform overview
+## [Gate 5] - 2026-10-01
+
+### Added
+- agents/runtime/pipeline.py (Worker→Body über Ecosystem, Idempotency/Retry/Result)
+- Worker-Fehler-Re-Raise, lambda_handler-Alias, Body agent_id-Passthrough, Invoker workId-Erhalt
+- tests/test_worker_pipeline.py
+
+## [Gate 6] - 2026-10-01
+
+### Added
+- agents/orders/real.py (RealMaysOrdersAdapter, stdlib-HTTP, Fehlerklassen)
+- agents/orders/function.py (Port-Delegation), POST /orders auf eigener API + TF-Verdrahtung
+- tests/test_real_orders_adapter.py
+
+## [Gate 7] - 2026-10-01
+
+### Added
+- ATS Domain Agent live (urllib-Fallback, Payload-Norm, Bootstrap-Registrierung)
+- tests/test_ats_domain_agent.py
+
+## [Gate 8] - 2026-10-01
+
+### Added
+- agents/dummy/ (Dummy A/B, DEV ONLY), Multi-Agent-Routing live
+- Installer-Projektmodell + Git-SHA-Pinning (mays_jobsearch@3cd58b8)
+- tests/test_project_pinning.py, tests/test_multi_agent_ecosystem.py
+
+## [Gate 9] - 2026-10-01
+
+### Added
+- JobSearch-Tabelle (TF) + Agent (Delegation, Tenant-isoliert), live verifiziert
+- Installer-Discovery etablierter Projektverzeichnisse
+- tests/test_jobsearch_agent.py

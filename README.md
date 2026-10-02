@@ -1,62 +1,45 @@
-# Mays Recruiting Intelligence System
+# Mays Recruiting Intelligence System (Mays-RIS)
 
-Ground Zero - Modular Platform Core for Recruiting Intelligence Agents
+Agent-Runtime-Plattform (AWS, eu-central-1): SQS → Worker → Ecosystem
+(Registry/Discovery/Eligibility/Selection) → Agent Body → Domain Agents →
+Result. Mays-Orders ist eine externe Systemgrenze (eigener Stack, eigenes
+Team), angebunden über OrdersPort → RealMaysOrdersAdapter → HTTP.
 
-## Overview
-
-This repository contains the Ground Zero platform foundation for the Mays Recruiting Intelligence System. The platform provides a standardized, scalable, and secure foundation for deploying multiple recruiting agents (CV processing, ATS, matching, etc.).
-
-**Key Distinction:** Ground Zero is NOT the individual recruiting agents. It is the platform core that enables agents to be added as modular slots.
-
-## Architecture
+## Architektur (Kurz)
 
 ```text
-                    GROUND ZERO
-                         │
- ┌───────────────────────┼────────────────────────┐
- │                       │                        │
- ▼                       ▼                        ▼
-AUTH                    WORK                     DATA
-Cognito                 SQS                      DynamoDB
-IAM                     WorkItem                 S3
-                         Idempotency
- │                       │                        │
- └───────────────────────┼────────────────────────┘
-                         ▼
-                    AGENT RUNTIME
-                         │
-              +++++++++++│+++++++++++
-              +          │          +
-              +      AGENT SLOT     +
-              +          │          +
-              +++++++++++│+++++++++++
-                         │
-                ┌────────┼────────┐
-                ▼        ▼        ▼
-               CV       ATS      MATCH
+User → Cognito/JWT → API-GW (9 Routen: /health /platform /me /me/profile
+/agents + GET/POST /orders, GET/PATCH /orders/{id}) → Lambdas
+API → WorkItem → Shared Work Queue (+DLQ, 3 Empfänge) → Worker-Lambda
+→ Ecosystem → Body → Agents (reference, ats, jobsearch, orders-function,
+dummy-a/b DEV) → DynamoDB (work-items, jobsearches, profile, catalog,
+entitlements, agent-state)
 ```
 
-## Components
+Details: `docs/architecture/SYSTEM-ARCHITECTURE.md` (maßgeblich),
+`docs/architecture/RUNTIME-PATH.md`, `docs/api/API-STANDARD.md`.
 
-| Component | Purpose | Technology |
-|-----------|---------|------------|
-| Auth | User & tenant authentication | Amazon Cognito |
-| Work System | Asynchronous job processing | SQS + Lambda |
-| Data Layer | Persistent storage | DynamoDB + S3 |
-| Agent Runtime | Modular agent execution | Lambda |
-| Observability | Monitoring & alerting | CloudWatch |
+## Stand (ehrlich)
 
-## Getting Started
+- implemented + verified: Runtime-Pfad, Idempotency/Retry/DLQ, Orders-Integration
+  (eigener Pfad, live), ATS/JobSearch/Reference-Auswahl (live), Installer-Pinning
+  (mays-orders@9c61237, mays_jobsearch@3cd58b81), Tabellen/Queues/Mapping.
+- prepared: JobSearch update/delete, ATS-Vertiefung, ats/cv/match-Queues.
+- open: POST-Reconciliation, MO-Idempotency-Key, Full-Plan-`lambda.zip`,
+  Plattform-OpenAPI, 5 pre-existing Test-Defekte.
+- Suite: 321 passed (4 deselected, 1 Collection — klassifiziert).
 
-1. Review requirements in `requirements/`
-2. Read architecture overview in `architecture/`
-3. Explore agent contracts in `agents/`
-4. Review terraform setup in `terraform/`
+## Installer / AWS / Security
 
-## Indices
+- `python -m installer.ris --project-name mays-ris --environment dev --profile mayaws {validate,plan,apply,preflight,install,state}`
+- Profil = Installationskontext (kein fester Account); Workspace = project_name;
+  Backend S3 + Lock; Pins je Projekt (s. `installer/*-clone.pinned.json`).
+- JWT (Cognito), Tenant-Isolation im Code, Least-Privilege-Rollen, keine
+  Secrets im Repo. Bekannte Fremd-OPENs: SQS-`*`, MO ohne DLQ (dokumentiert).
 
-- [Architecture Overview](architecture/ground-zero.md)
-- [Agent Contract](agents/agent-contract.md)
-- [Agent Matrix](agents/agent-matrix.md)
-- [Work Item Model](work-system/work-item.md)
-- [Architecture Decisions](architecture/architecture-decisions.md)
+## Doku-Struktur / Reports
+
+`docs/architecture/`, `docs/api/`, `docs/ecosystem/`, `docs/roadmap/ROADMAP.md`,
+`docs/reports/` (Gate-Nachweise G0–G9 + Execution-Logs, bleiben erhalten).
+Ältere Architektur-Docs sind Historie — im Zweifel gelten Code + die drei
+kanonischen Dateien oben.

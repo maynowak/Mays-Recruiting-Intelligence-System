@@ -370,3 +370,18 @@ Cognito
 **Status: GREEN** — API contracts documented and ready for use.
 
 ---
+---
+
+## Gates 3–9 (2026-10-01, live verifiziert, Reports unter docs/reports/)
+
+- Gate 3 — Mays-Orders live (37/0/0/0) + Kern-E2E GREEN (YELLOW: GET-Decimal-Bug)
+- Gate 4 — eigene Orders-Fassade (Decimal-sicher) auf eigener API (GREEN)
+- Gate 5 — Worker→Body-Runtime: Idempotency/Retry/DLQ-Nutzung, Result (GREEN)
+- Gate 6 — OrdersPort + RealMaysOrdersAdapter, gleicher Contract (GREEN)
+- Gate 7 — ATS Domain Agent, live (GREEN)
+- Gate 8 — Multi-Agent (5 Agents, shared Queue) + Installer-Pinning (GREEN)
+- Gate 9 — JobSearch-Domain (Tabelle + Agent, Tenant-isoliert, live) (GREEN)
+- Documentation Consolidation — kanonisch: docs/architecture/SYSTEM-ARCHITECTURE.md,
+  RUNTIME-PATH.md, docs/api/API-STANDARD.md, docs/roadmap/ROADMAP.md, README
+
+**Status: GREEN** — Nachweise je Gate-Report; OPENs dort dokumentiert.
