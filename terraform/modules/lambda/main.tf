@@ -35,7 +35,8 @@ resource "aws_iam_role_policy" "lambda_dynamodb_platform" {
         Action = [
           "dynamodb:GetItem",
           "dynamodb:Query",
-          "dynamodb:BatchGetItem"
+          "dynamodb:BatchGetItem",
+          "dynamodb:PutItem"
         ]
         Resource = [
           var.user_profile_table_arn,

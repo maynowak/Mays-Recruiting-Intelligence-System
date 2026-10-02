@@ -179,6 +179,10 @@ def _extract_user_context(event: Dict[str, Any]) -> Dict[str, Any]:
     
     context['userId'] = jwt_claims.get('sub')
     context['email'] = jwt_claims.get('email')
+    context['username'] = (
+        jwt_claims.get('preferred_username')
+        or jwt_claims.get('cognito:username')
+    )
     
     tenant_id_claim = jwt_claims.get('custom:tenant_id')
     if tenant_id_claim:
@@ -205,6 +209,8 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_me(event, context)
     elif method == 'GET' and path == '/me/profile':
         return _handle_me_profile(event, context)
+    elif method == 'POST' and path == '/me/profile':
+        return _handle_me_profile_create(event, context)
     elif method == 'GET' and path == '/agents':
         return _handle_agents(event, context)
     elif method == 'GET' and path == '/me/jobsearches':
@@ -294,6 +300,74 @@ def _handle_me_profile(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         'statusCode': 200,
         'body': json.dumps(profile)
     }
+
+
+def _provision_user_profile(table: Any, user_context: Dict[str, Any],
+                            body: Dict[str, Any]) -> Dict[str, Any]:
+    """Profil provisionieren — NUR explizit (nie via GET).
+
+    Gate 10: Trigger ist die Registrierung/Aktivierung (Client ruft POST
+    nach Confirmation), nicht der erste Read. Conditional Write: existiert
+    bereits ein Profil -> 409, kein Ueberschreiben.
+    """
+    from datetime import datetime
+
+    now = datetime.utcnow().isoformat()
+    item = {
+        'userId': user_context['userId'],
+        'tenantId': user_context.get('tenantId'),
+        'username': user_context.get('username'),
+        'email': user_context.get('email'),
+        'displayName': (body or {}).get('displayName'),
+        'status': 'ACTIVE',
+        'createdAt': now,
+        'updatedAt': now,
+    }
+    try:
+        table.put_item(Item=item, ConditionExpression='attribute_not_exists(userId)')
+    except Exception as e:
+        if hasattr(e, 'response') and e.response.get('Error', {}).get('Code') == \
+                'ConditionalCheckFailedException':
+            return {'statusCode': 409, 'body': json.dumps({'error': 'Profile already exists'})}
+        raise
+    return {'statusCode': 201, 'body': json.dumps(item)}
+
+
+def _handle_me_profile_create(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Handle POST /me/profile - Profil explizit provisionieren."""
+    user_context = _extract_user_context(event)
+
+    if not user_context['userId']:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': 'Unauthenticated'})
+        }
+
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except (ValueError, TypeError):
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'Request body must be valid JSON'})
+        }
+
+    table_name = os.environ.get('USER_PROFILE_TABLE')
+    if not table_name:
+        logger.warning("USER_PROFILE_TABLE not configured")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Profile store not configured'})
+        }
+
+    try:
+        table = _get_dynamodb().Table(table_name)
+        return _provision_user_profile(table, user_context, body)
+    except Exception as e:
+        logger.error(f"Error provisioning profile: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Failed to provision profile'})
+        }
 
 
 def _handle_agents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:

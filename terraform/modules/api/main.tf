@@ -70,6 +70,14 @@ resource "aws_apigatewayv2_route" "profile" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
+resource "aws_apigatewayv2_route" "profile_create" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /me/profile"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
 resource "aws_apigatewayv2_route" "agents" {
   api_id             = aws_apigatewayv2_api.ris_api.id
   route_key          = "GET /agents"
