@@ -18,8 +18,6 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
-import boto3
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 logger = logging.getLogger()
@@ -33,49 +31,65 @@ except ImportError:
     AGENT_BODY_AVAILABLE = False
     AGENT_BODY = None
 
-# Initialize agent catalog registry from DynamoDB
-try:
-    from agents.ecosystem.catalog_adapter import CatalogAdapter
-    from agents.ecosystem.registry import get_registry, AgentDescriptor, AgentStatus, ExecutionProfile
-    
-    _catalog_adapter = CatalogAdapter()
-    _catalog_agents = _catalog_adapter.get_all_agents()
-    _registry = get_registry()
-    
-    for _agent_id, _agent_data in _catalog_agents.items():
-        # Map DynamoDB item to AgentDescriptor
-        _status_str = _agent_data.get('status', 'ACTIVE')
-        _status_map = {
-            'ACTIVE': AgentStatus.ACTIVE,
-            'INACTIVE': AgentStatus.INACTIVE,
-            'DEPRECATED': AgentStatus.DEPRECATED,
-            'RETIRED': AgentStatus.RETIRED,
-            'FAILED': AgentStatus.FAILED,
-            'REGISTERED': AgentStatus.REGISTERED,
-            'AVAILABLE': AgentStatus.AVAILABLE,
-        }
-        _descriptor = AgentDescriptor(
-            agent_id=_agent_id,
-            name=_agent_data.get('name', _agent_id),
-            version=_agent_data.get('version', '1.0.0'),
-            status=_status_map.get(_status_str.upper(), AgentStatus.ACTIVE),
-            capabilities=_agent_data.get('capabilities', []),
-            supported_bodies=_agent_data.get('supported_bodies', ['1.0.0']),
-            supported_runtimes=_agent_data.get('supported_runtimes', ['python3.14']),
-            execution_profile=ExecutionProfile.LAMBDA,
-            risk_level=_agent_data.get('risk_level', 'low'),
-            description=_agent_data.get('description', ''),
-            metadata=_agent_data.get('metadata', {}),
-        )
-        _registry.register(_agent_id, _descriptor)
-    
-    logger.info(f"Catalog initialized: {len(_catalog_agents)} agents registered")
-except ImportError as e:
-    logger.warning(f"Catalog adapter not available: {e}")
-except Exception as e:
-    logger.warning(f"Catalog initialization failed: {e}")
-from botocore.exceptions import ClientError
-from boto3.dynamodb.conditions import Key
+# Initialize agent catalog registry from DynamoDB — LAZY (Gate 10).
+# Der fruehere Import-seitige Aufruf zog boto3 beim blossen Modul-Import
+# (inkl. Test-Prozesse) und machte Netzwerk beim Cold Start. Verhalten
+# identisch, nur Zeitpunkt: beim ersten Katalog-Zugriff.
+_catalog_initialized = False
+
+
+def _init_catalog():
+    """Katalog einmalig in die globale Registry laden (lazy)."""
+    global _catalog_initialized
+    if _catalog_initialized:
+        return
+    _catalog_initialized = True
+    try:
+        from agents.ecosystem.catalog_adapter import CatalogAdapter
+        from agents.ecosystem.registry import get_registry, AgentDescriptor, AgentStatus, ExecutionProfile
+
+        _catalog_adapter = CatalogAdapter()
+        _catalog_agents = _catalog_adapter.get_all_agents()
+        _registry = get_registry()
+
+        for _agent_id, _agent_data in _catalog_agents.items():
+            # Map DynamoDB item to AgentDescriptor
+            _status_str = _agent_data.get('status', 'ACTIVE')
+            _status_map = {
+                'ACTIVE': AgentStatus.ACTIVE,
+                'INACTIVE': AgentStatus.INACTIVE,
+                'DEPRECATED': AgentStatus.DEPRECATED,
+                'RETIRED': AgentStatus.RETIRED,
+                'FAILED': AgentStatus.FAILED,
+                'REGISTERED': AgentStatus.REGISTERED,
+                'AVAILABLE': AgentStatus.AVAILABLE,
+            }
+            _descriptor = AgentDescriptor(
+                agent_id=_agent_id,
+                name=_agent_data.get('name', _agent_id),
+                version=_agent_data.get('version', '1.0.0'),
+                status=_status_map.get(_status_str.upper(), AgentStatus.ACTIVE),
+                capabilities=_agent_data.get('capabilities', []),
+                supported_bodies=_agent_data.get('supported_bodies', ['1.0.0']),
+                supported_runtimes=_agent_data.get('supported_runtimes', ['python3.14']),
+                execution_profile=ExecutionProfile.LAMBDA,
+                risk_level=_agent_data.get('risk_level', 'low'),
+                description=_agent_data.get('description', ''),
+                metadata=_agent_data.get('metadata', {}),
+            )
+            _registry.register(_agent_id, _descriptor)
+
+        logger.info(f"Catalog initialized: {len(_catalog_agents)} agents registered")
+    except ImportError as e:
+        logger.warning(f"Catalog adapter not available: {e}")
+    except Exception as e:
+        logger.warning(f"Catalog initialization failed: {e}")
+
+
+def _dynamo_key(name: str):
+    """Key-Condition lazy (kein boto3-Import auf Modulebene)."""
+    from boto3.dynamodb.conditions import Key
+    return Key(name)
 
 PLATFORM_NAME = os.environ.get('PLATFORM_NAME', 'Mays RIS')
 PLATFORM_VERSION = os.environ.get('PLATFORM_VERSION', '1.0.0')
@@ -85,9 +99,23 @@ _dynamodb = None
 _sqs = None
 
 
+class _NoAwsError(Exception):
+    """Platzhalter wenn botocore fehlt (praktisch nie; Lambda stellt boto3 bereit)."""
+
+
+def _aws_error_types():
+    """AWS-Fehlerklassen lazy (kein boto-Import auf Modulebene)."""
+    try:
+        from botocore.exceptions import ClientError
+        return (ClientError,)
+    except ImportError:
+        return (_NoAwsError,)
+
+
 def _get_dynamodb():
     global _dynamodb
     if _dynamodb is None:
+        import boto3
         _dynamodb = boto3.resource('dynamodb')
     return _dynamodb
 
@@ -95,6 +123,7 @@ def _get_dynamodb():
 def _get_sqs():
     global _sqs
     if _sqs is None:
+        import boto3
         _sqs = boto3.client('sqs')
     return _sqs
 
@@ -111,13 +140,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         Response dictionary
     """
     logger.info(f"Processing request")
-    
+
+    # Gate 10: Dispatch ohne KeyError (die alte Einzeiler-Bedingung warf bei
+    # jedem API-Event ohne 'Records'-Key). v1-Payload: httpMethod/path;
+    # SQS: Records-Liste.
     if event.get('httpMethod'):
         return _handle_api_event(event, context)
-    elif 'Records' in event and 'body' in event['Records'][0] if event['Records'] else False:
+    if event.get('Records'):
         return _handle_sqs_event(event, context)
-    else:
-        return _handle_api_event(event, context)
+    return _handle_api_event(event, context)
 
 
 # Live-Einstieg der deployten Funktion (handler.lambda_handler).
@@ -197,10 +228,15 @@ def _extract_user_context(event: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Handle API Gateway events."""
-    path = event.get('path', '/')
-    method = event.get('httpMethod', 'GET')
-    
+    """Handle API Gateway events (Payload 1.0 und 2.0)."""
+    route_key = event.get('routeKey') or ''
+    http_ctx = ((event.get('requestContext') or {}).get('http') or {})
+    if ' ' in route_key:
+        method, _, path = route_key.partition(' ')
+    else:
+        method = event.get('httpMethod') or http_ctx.get('method', 'GET')
+        path = event.get('path') or http_ctx.get('path', '/')
+
     logger.info(f"API request: {method} {path}")
     
     if method == 'GET' and path == '/platform':
@@ -313,9 +349,12 @@ def _provision_user_profile(table: Any, user_context: Dict[str, Any],
     from datetime import datetime
 
     now = datetime.utcnow().isoformat()
+    # Tenant-Fallback "default" (Repo-Konvention, s. _create_work): Die Tabelle
+    # hat einen GSI auf tenantId — NULL ist dort unzulaessig. Read-Pfad mit
+    # leerem Claim bleibt kompatibel (Pruefung nur bei gesetztem Claim).
     item = {
         'userId': user_context['userId'],
-        'tenantId': user_context.get('tenantId'),
+        'tenantId': user_context.get('tenantId') or 'default',
         'username': user_context.get('username'),
         'email': user_context.get('email'),
         'displayName': (body or {}).get('displayName'),
@@ -689,7 +728,7 @@ def _get_user_profile(user_id: str, tenant_id: Optional[str] = None) -> Optional
         
         return item
         
-    except ClientError as e:
+    except _aws_error_types() as e:
         logger.error(f"Error getting user profile: {e}")
         return None
     except Exception as e:
@@ -699,6 +738,7 @@ def _get_user_profile(user_id: str, tenant_id: Optional[str] = None) -> Optional
 
 def _get_agent_catalog() -> Dict[str, Dict[str, Any]]:
     """Get agent catalog from DynamoDB."""
+    _init_catalog()
     try:
         table_name = os.environ.get('AGENT_CATALOG_TABLE')
         if not table_name:
@@ -718,7 +758,7 @@ def _get_agent_catalog() -> Dict[str, Dict[str, Any]]:
         
         return agents
         
-    except ClientError as e:
+    except _aws_error_types() as e:
         logger.error(f"Error getting agent catalog: {e}")
         return {}
     except Exception as e:
@@ -738,7 +778,7 @@ def _get_entitlement_for_agent(user_id: str, agent_id: str, tenant_id: Optional[
         table = dynamodb.Table(table_name)
         
         response = table.query(
-            KeyConditionExpression=Key('userId').eq(user_id)
+            KeyConditionExpression=_dynamo_key('userId').eq(user_id)
         )
         
         for item in response.get('Items', []):
@@ -750,7 +790,7 @@ def _get_entitlement_for_agent(user_id: str, agent_id: str, tenant_id: Optional[
         
         return None
         
-    except ClientError as e:
+    except _aws_error_types() as e:
         logger.error(f"Error getting entitlements: {e}")
         return None
     except Exception as e:
@@ -770,7 +810,7 @@ def _get_entitlements(user_id: str, tenant_id: Optional[str] = None) -> list:
         table = dynamodb.Table(table_name)
         
         response = table.query(
-            KeyConditionExpression=Key('userId').eq(user_id)
+            KeyConditionExpression=_dynamo_key('userId').eq(user_id)
         )
         
         entitlements = []
@@ -783,7 +823,7 @@ def _get_entitlements(user_id: str, tenant_id: Optional[str] = None) -> list:
         
         return entitlements
         
-    except ClientError as e:
+    except _aws_error_types() as e:
         logger.error(f"Error getting entitlements: {e}")
         return []
     except Exception as e:
@@ -836,7 +876,7 @@ def _get_work_item(work_id: str) -> Optional[Dict[str, Any]]:
         
         return response['Item']
         
-    except ClientError as e:
+    except _aws_error_types() as e:
         logger.error(f"Error getting work item: {e}")
         return None
     except Exception as e:

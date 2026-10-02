@@ -93,6 +93,23 @@ class TestProvision(unittest.TestCase):
         # kein sub -> userId None -> 401 (kein Tabellenkontakt noetig)
         self.assertEqual(resp["statusCode"], 401)
 
+    def test_missing_tenant_falls_back_to_default(self):
+        """GSI tenantId duldet kein NULL (live belegt)."""
+        table = FakeTable()
+        no_tenant = dict(ctx())
+        no_tenant["tenantId"] = None
+        resp = handler._provision_user_profile(table, no_tenant, {})
+        self.assertEqual(resp["statusCode"], 201)
+        self.assertEqual(json.loads(resp["body"])["tenantId"], "default")
+
+    def test_dispatch_api_event_without_records(self):
+        """Gate-10-Befund: API-Events duerfen nicht mit KeyError crashen."""
+        resp = handler.handler(
+            {"httpMethod": "GET", "path": "/platform",
+             "requestContext": {"authorizer": {"jwt": {"claims": {"sub": "u-1"}}}}},
+            None)
+        self.assertEqual(resp["statusCode"], 200)
+
 
 if __name__ == "__main__":
     unittest.main()
