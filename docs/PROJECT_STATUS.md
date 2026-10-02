@@ -385,3 +385,6 @@ Cognito
   RUNTIME-PATH.md, docs/api/API-STANDARD.md, docs/roadmap/ROADMAP.md, README
 
 **Status: GREEN** — Nachweise je Gate-Report; OPENs dort dokumentiert.
+
+- Gate 10 — Identity & Registration (Benutzer-Lifecycle live, Mail-OPEN)
+- Gate 11 — Identity E-Mail-Verifikation (Template + Versand konfiguriert, Inbox NOT PROVEN)

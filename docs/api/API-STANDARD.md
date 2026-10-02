@@ -16,11 +16,10 @@ Abweichungen/OPENs ehrlich.
 | POST /me/profile | agent | 201 (explizite Provisionierung) / 409 (exists) |
 
 Registrierung (Gate 10): Cognito SignUp (self-service, Pool erlaubt) →
-Confirm (E-Mail-Code NUR wenn Pool Auto-Verification konfiguriert — aktuell
-NICHT: User bleibt UNCONFIRMED, Login blockiert; OPEN, Admin-Confirm nur
-Test-Ersatz) → Login (USER_PASSWORD_AUTH) → JWT → POST /me/profile
-(Conditional Write, 409 bei Duplikat) → GET /me/profile. NIEMALS
-Auto-Provisioning durch Reads.
+Confirm (E-Mail-Code NUR wenn Pool Auto-Verification konfiguriert — seit Gate 11
+KONFIGURIERT: Template live, Versand AWS-managed; Inbox-Eingabe NOT PROVEN) →
+Login (USER_PASSWORD_AUTH) → JWT → POST /me/profile (Conditional Write, 409 bei
+Duplikat) → GET /me/profile. NIEMALS Auto-Provisioning durch Reads.
 
 ## 2. Auth / Claims (verwendet)
 
