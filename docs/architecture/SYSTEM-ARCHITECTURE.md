@@ -54,6 +54,7 @@ Es gilt: Event ≠ WorkItem ≠ Agent Run ≠ Attempt ≠ Business Order.
 - Identity: Cognito User Pool (`users`), JWT-Authorizer (Audience=Client, Issuer=https-Endpoint); Claims `sub`, `email`, `preferred_username`/`cognito:username`, `cognito:groups`, `custom:tenant_id`.
   Registrierung: SignUp → Confirm → Login → POST /me/profile (explizit, Conditional) — nie via Read (Gate 10). Self-Signup erlaubt; E-Mail-Verifikation per Cognito konfiguriert (Gate 11: auto_verified email + Template, Versand AWS-managed; Inbox-Nachweis OPEN).
   Profile v1 (Gate 12): `{userId=sub, tenantId, nickname, firstName, lastName, email, status, createdAt, updatedAt}` in user-profile-Tabelle (Hash userId, GSI tenantId, TTL expiresAt); PUT nur v1-Felder (userId/tenantId/createdAt immun, updatedAt serverseitig); CV bleibt browser-lokal (separates Storage-Gate).
+  Google-Federation (Gate 13A, OPTIONAL, Standard AUS): Cognito bleibt IdP; Password-Login Hauptweg; Option per TF-Vars (IdP + Mapping email/given_name/family_name/name + Code-Flow), Secrets nur per --var (nie Git); kein Auto-Linking (weder per E-Mail noch sonst) — Linking nur später explizit.
 - API: 9 Routen (5 Plattform + 4 Orders), Payload v2, AutoDeploy `$default`.
 - Queue: 1 verdrahtete Work-Queue (Visibility 300s) + DLQ; ats/cv/match-Queues definiert-ungenutzt (Bestand, kein Scope).
 - Worker: SQS-Records → WorkItem-Validierung → Pipeline (Envelope→Discovery→Eligibility→Selection→Engine→Body); Fehler → Raise → Redelivery (Attempt+1); Duplikat → kein neuer Run.
