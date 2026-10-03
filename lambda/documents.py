@@ -46,7 +46,10 @@ def build_key(tenant_id: Optional[str], user_id: str, doc_id: str) -> str:
 def _s3_client():
     import boto3  # Lambda-Runtime; Tests injizieren Fake
 
-    return boto3.client("s3", region_name=os.environ.get("AWS_REGION", "eu-central-1"))
+    # Regionaler Endpoint (kein 307-Redirect: Redirects invalidieren SigV4).
+    region = os.environ.get("AWS_REGION", "eu-central-1")
+    return boto3.client("s3", region_name=region,
+                        endpoint_url=f"https://s3.{region}.amazonaws.com")
 
 
 def _bucket() -> str:

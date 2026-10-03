@@ -231,11 +231,14 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle API Gateway events (Payload 1.0 und 2.0)."""
     route_key = event.get('routeKey') or ''
     http_ctx = ((event.get('requestContext') or {}).get('http') or {})
+    # Methode: Payload 1.0/2.0/routeKey. Pfad: IMMER echt (nie Template —
+    # routeKey enthaelt {docId}-Platzhalter, http.path den echten Wert).
     if ' ' in route_key:
-        method, _, path = route_key.partition(' ')
+        rk_method, _, _rk_path = route_key.partition(' ')
     else:
-        method = event.get('httpMethod') or http_ctx.get('method', 'GET')
-        path = event.get('path') or http_ctx.get('path', '/')
+        rk_method = ''
+    method = event.get('httpMethod') or http_ctx.get('method') or rk_method or 'GET'
+    path = event.get('path') or http_ctx.get('path', '/')
 
     logger.info(f"API request: {method} {path}")
     
@@ -252,10 +255,12 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     elif method == 'POST' and path == '/me/documents':
         return _handle_documents_create(event, context)
     elif method == 'GET' and path.startswith('/me/documents/'):
-        doc_id = path[len('/me/documents/'):]
+        params = event.get('pathParameters') or {}
+        doc_id = params.get('docId') or path[len('/me/documents/'):].split('?')[0]
         return _handle_documents_get(event, context, doc_id)
     elif method == 'DELETE' and path.startswith('/me/documents/'):
-        doc_id = path[len('/me/documents/'):]
+        params = event.get('pathParameters') or {}
+        doc_id = params.get('docId') or path[len('/me/documents/'):].split('?')[0]
         return _handle_documents_delete(event, context, doc_id)
     elif method == 'GET' and path == '/agents':
         return _handle_agents(event, context)

@@ -130,6 +130,13 @@ class TestHandlerAuth(unittest.TestCase):
         with self.assertRaises(ValueError):
             documents.build_key("tenant-evil", "user-1", "../../evil")
 
+    def test_regional_endpoint_no_redirect(self):
+        """Presign-Endpoint regional (kein 307, sonst SigV4-Invalidierung)."""
+        import inspect
+        src = inspect.getsource(documents._s3_client)
+        self.assertIn("endpoint_url", src)
+        self.assertIn("amazonaws.com", src)
+
 
 if __name__ == "__main__":
     unittest.main()
