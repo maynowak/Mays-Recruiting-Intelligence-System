@@ -564,3 +564,33 @@ def test_destroy_in_commands():
     assert "destroy" in ris.COMMANDS
     parsed = build_parser().parse_args(["destroy", "--yes"])
     assert parsed.command == "destroy" and parsed.yes is True
+
+
+def test_package_runs_bundle_script():
+    seen = {}
+
+    def fake_run(args, **kwargs):
+        seen["args"] = list(args)
+        seen["cwd"] = str(kwargs.get("cwd", ""))
+        return _completed(args)
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris", terraform_dir="terraform")
+    with patch("subprocess.run", side_effect=fake_run):
+        rc = ris._cmd_package(ctx, bundle="agent")
+    assert rc == 0
+    assert seen["args"][-2:] == ["--bundle", "agent"]
+    assert seen["args"][0].endswith("python") or "python" in seen["args"][0]
+    assert "build_zip.py" in seen["args"][1]
+
+
+def test_package_rejects_unknown_bundle():
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris")
+    assert ris._cmd_package(ctx, bundle="nope") == 2
+
+
+def test_package_in_commands():
+    assert "package" in ris.COMMANDS
+    parsed = build_parser().parse_args(["package", "--bundle", "reader"])
+    assert (parsed.command, parsed.bundle) == ("package", "reader")

@@ -159,6 +159,40 @@ def _cmd_apply(ctx: RisInstallContext) -> List[TerraformResult]:
     return [init_res, apply_res]
 
 
+def _cmd_package(ctx: RisInstallContext, bundle: str = "all") -> int:
+    """Lambda-Bundles deterministisch bauen (VOR plan/apply).
+
+    Vertrag: package -> plan -> apply. Terraform liest die ZIPs via
+    filebase64sha256; ohne diesen Schritt schlaegt jeder Plan fehl
+    (lambda.zip-Luecke). Kein Duplikat-Mechanismus: genau ein Skript
+    (lambda/build_zip.py --bundle ...) erzeugt beide Bundles.
+    """
+    import subprocess
+    from pathlib import Path
+
+    if bundle not in ("agent", "reader", "all"):
+        print(f"error: unknown bundle: {bundle} (agent|reader|all)",
+              file=sys.stderr)
+        return 2
+    repo_root = Path(ctx.terraform_dir).resolve().parent
+    script = repo_root / "lambda" / "build_zip.py"
+    if not script.exists():
+        print(f"error: build script missing: {script}", file=sys.stderr)
+        return 1
+    proc = subprocess.run(
+        [sys.executable, str(script), "--bundle", bundle],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    print(proc.stdout[-1500:] if proc.stdout else "")
+    if proc.returncode != 0:
+        print(f"error: packaging failed: {proc.stderr.strip()[:300]}",
+              file=sys.stderr)
+    return proc.returncode
+
+
 def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
     """Destroy exactly one project's foundation (scoped, explicit).
 
@@ -197,7 +231,8 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
     return 1 if apply_res.returncode != 0 else 0
 
 
-COMMANDS = ("validate", "plan", "apply", "preflight", "install", "state", "destroy")
+COMMANDS = ("validate", "plan", "apply", "preflight", "install", "state", "destroy",
+            "package")
 
 
 def _cmd_state(
@@ -367,6 +402,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable dry-run (required for apply).",
     )
+    parser.add_argument(
+        "--bundle",
+        default="all",
+        choices=["agent", "reader", "all"],
+        help="Bundle scope for the package command.",
+    )
     parser.add_argument("command", choices=list(COMMANDS))
     return parser
 
@@ -426,6 +467,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             results = _cmd_plan(ctx, out_file=parsed.out)
         elif parsed.command == "destroy":
             return _cmd_destroy(ctx, out_file=parsed.out)
+        elif parsed.command == "package":
+            return _cmd_package(ctx, bundle=parsed.bundle)
         else:
             results = _cmd_apply(ctx)
     except (ValueError, RuntimeError) as exc:
