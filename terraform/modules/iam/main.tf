@@ -63,6 +63,9 @@ resource "aws_iam_role" "lambda_role" {
 }
 
 resource "aws_iam_role_policy" "lambda_policy" {
+  # Gate LIFECYCLE-01: vorher bettete dieses Policy einen JSON-String als
+  # Statement ein (MalformedPolicyDocument, blockierte jeden Fresh-Install).
+  # Explizite Statements, gleiche Intent (DynamoDB + S3 + Logs).
   name = "${var.project_name}-lambda-policy"
   role = aws_iam_role.lambda_role.id
 
@@ -78,8 +81,31 @@ resource "aws_iam_role_policy" "lambda_policy" {
         ]
         Resource = "arn:aws:logs:*:*:*"
       },
-      data.aws_iam_policy_document.lambda_dynamodb.json,
-      data.aws_iam_policy_document.lambda_s3.json
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = [
+          var.dynamodb_table_arn,
+          "${var.dynamodb_table_arn}/index/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          "${var.s3_bucket_arn}/*"
+        ]
+      }
     ]
   })
 }
