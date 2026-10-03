@@ -133,7 +133,7 @@ EXCLUDED_PARTS = ("__pycache__", ".git", ".pytest_cache", ".DS_Store")
 EXCLUDED_SUFFIXES = (".pyc", ".pyo")
 
 #: Bewiesenes Agent-Layout (Einstieg handler.lambda_handler am Root).
-AGENT_FILES = ["lambda/handler.py"]
+AGENT_FILES = ["lambda/handler.py", "lambda/documents.py"]
 AGENT_DIRS = ["agents", "jobsearch"]
 
 #: Reader-Layout (Einstieg orders_reader.handler am Root).
@@ -184,13 +184,13 @@ def build_bundle(repo_root, files: list, arcname_fn, output: str) -> dict:
 
 
 def build_agent_bundle(repo_root: str = ".") -> dict:
-    """Agent-Bundle (handler.py + agents/ + jobsearch/) -> terraform/lambda.zip."""
+    """Agent-Bundle (handler.py + documents.py + agents/ + jobsearch/) -> terraform/lambda.zip."""
     repo = Path(repo_root)
     files = _collect(repo, AGENT_FILES + AGENT_DIRS)
 
     def arcname(source_rel: str) -> str:
-        if source_rel == "lambda/handler.py":
-            return "handler.py"
+        if source_rel.startswith("lambda/"):
+            return source_rel[len("lambda/"):]
         return source_rel
 
     return build_bundle(repo, files, arcname,

@@ -112,10 +112,12 @@ module "lambda" {
   user_profile_table_arn   = module.dynamodb.user_profile_table_arn
   agent_catalog_table_arn  = module.dynamodb.agent_catalog_table_arn
   entitlements_table_arn   = module.dynamodb.entitlements_table_arn
-  s3_bucket_arn            = aws_s3_bucket.data.arn
-  sqs_queue_arn            = module.sqs.work_queue_arn
-  work_queue_url           = module.sqs.work_queue_url
-  tags                     = var.tags
+  s3_bucket_arn              = aws_s3_bucket.data.arn
+  documents_bucket_name      = module.documents.bucket_name
+  documents_bucket_arn       = module.documents.bucket_arn
+  sqs_queue_arn              = module.sqs.work_queue_arn
+  work_queue_url             = module.sqs.work_queue_url
+  tags                       = var.tags
 }
 
 # Gate 4 — eigene Order-Fassade (orders_reader) auf unserer API.
@@ -163,6 +165,15 @@ module "cloudtrail" {
   source = "./modules/cloudtrail"
 
   project_name = var.project_name
+  tags         = var.tags
+}
+
+# Gate 14 — privater Dokumenten-Storage (eigener Bucket, kein Eingriff in Data-Bucket).
+module "documents" {
+  source = "./modules/documents"
+
+  project_name = var.project_name
+  environment  = var.environment
   tags         = var.tags
 }
 

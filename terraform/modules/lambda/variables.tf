@@ -82,6 +82,16 @@ variable "s3_bucket_arn" {
   type        = string
 }
 
+variable "documents_bucket_name" {
+  description = "Documents bucket name (Gate 14, private CV/document storage)"
+  type        = string
+}
+
+variable "documents_bucket_arn" {
+  description = "Documents bucket ARN (Gate 14, Least Privilege scope)"
+  type        = string
+}
+
 variable "sqs_queue_arn" {
   description = "SQS queue ARN for event source mapping"
   type        = string

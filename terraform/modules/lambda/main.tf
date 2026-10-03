@@ -167,6 +167,33 @@ resource "aws_iam_role_policy" "lambda_dynamodb_jobsearch" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_documents" {
+  name = "${var.project_name}-${var.environment}-lambda-documents"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          "${var.documents_bucket_arn}/tenant/*"
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = [var.documents_bucket_arn]
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_logs" {
   name = "${var.project_name}-${var.environment}-lambda-logs"
   role = aws_iam_role.lambda_execution.id
@@ -206,6 +233,7 @@ resource "aws_lambda_function" "agent" {
       ENTITLEMENTS_TABLE    = var.entitlements_table_name
       WORK_QUEUE_URL        = var.work_queue_url
       JOBSEARCH_TABLE       = var.jobsearch_table_name
+      DOCUMENTS_BUCKET      = var.documents_bucket_name
       LOG_LEVEL             = var.log_level
     }
   }
@@ -214,6 +242,7 @@ resource "aws_lambda_function" "agent" {
     aws_iam_role_policy.lambda_dynamodb_platform,
     aws_iam_role_policy.lambda_dynamodb_work,
     aws_iam_role_policy.lambda_dynamodb_jobsearch,
+    aws_iam_role_policy.lambda_documents,
     aws_iam_role_policy.lambda_s3,
     aws_iam_role_policy.lambda_logs,
     aws_cloudwatch_log_group.lambda_logs

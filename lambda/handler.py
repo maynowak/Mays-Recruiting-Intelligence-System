@@ -249,6 +249,14 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_me_profile_create(event, context)
     elif method == 'PUT' and path == '/me/profile':
         return _handle_me_profile_update(event, context)
+    elif method == 'POST' and path == '/me/documents':
+        return _handle_documents_create(event, context)
+    elif method == 'GET' and path.startswith('/me/documents/'):
+        doc_id = path[len('/me/documents/'):]
+        return _handle_documents_get(event, context, doc_id)
+    elif method == 'DELETE' and path.startswith('/me/documents/'):
+        doc_id = path[len('/me/documents/'):]
+        return _handle_documents_delete(event, context, doc_id)
     elif method == 'GET' and path == '/agents':
         return _handle_agents(event, context)
     elif method == 'GET' and path == '/me/jobsearches':
@@ -483,6 +491,88 @@ def _handle_me_profile_update(event: Dict[str, Any], context: Any) -> Dict[str, 
             'statusCode': 500,
             'body': json.dumps({'error': 'Failed to update profile'})
         }
+
+
+def _documents_context(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Authentifizierter Dokumenten-Kontext (None wenn unauthentifiziert)."""
+    user_context = _extract_user_context(event)
+    if not user_context.get('userId'):
+        return None
+    return user_context
+
+
+def _handle_documents_create(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Handle POST /me/documents - kurzlebige Upload-Berechtigung (Gate 14)."""
+    from documents import presign_upload
+
+    user_context = _documents_context(event)
+    if user_context is None:
+        return {'statusCode': 401, 'body': json.dumps({'error': 'Unauthenticated'})}
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except (ValueError, TypeError):
+        return {'statusCode': 400,
+                'body': json.dumps({'error': 'Request body must be valid JSON'})}
+    try:
+        result = presign_upload(
+            tenant_id=user_context.get('tenantId'),
+            user_id=user_context['userId'],
+            content_type=(body or {}).get('contentType'),
+        )
+    except ValueError as e:
+        return {'statusCode': 400, 'body': json.dumps({'error': str(e)})}
+    except Exception as e:
+        logger.error(f"Error presigning upload: {type(e).__name__}")
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Failed to prepare upload'})}
+    return {'statusCode': 200, 'body': json.dumps(result)}
+
+
+def _handle_documents_get(event: Dict[str, Any], context: Any,
+                          doc_id: str) -> Dict[str, Any]:
+    """Handle GET /me/documents/{docId} - kurzlebige Lese-Berechtigung (Gate 14)."""
+    from documents import presign_download
+
+    user_context = _documents_context(event)
+    if user_context is None:
+        return {'statusCode': 401, 'body': json.dumps({'error': 'Unauthenticated'})}
+    try:
+        result = presign_download(
+            tenant_id=user_context.get('tenantId'),
+            user_id=user_context['userId'],
+            doc_id=doc_id,
+        )
+    except ValueError:
+        return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid document ID'})}
+    except Exception as e:
+        logger.error(f"Error presigning download: {type(e).__name__}")
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Failed to prepare download'})}
+    if result is None:
+        return {'statusCode': 404, 'body': json.dumps({'error': 'Document not found'})}
+    return {'statusCode': 200, 'body': json.dumps(result)}
+
+
+def _handle_documents_delete(event: Dict[str, Any], context: Any,
+                             doc_id: str) -> Dict[str, Any]:
+    """Handle DELETE /me/documents/{docId} - eigenes Dokument loeschen (Gate 14)."""
+    from documents import delete_document
+
+    user_context = _documents_context(event)
+    if user_context is None:
+        return {'statusCode': 401, 'body': json.dumps({'error': 'Unauthenticated'})}
+    try:
+        deleted = delete_document(
+            tenant_id=user_context.get('tenantId'),
+            user_id=user_context['userId'],
+            doc_id=doc_id,
+        )
+    except ValueError:
+        return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid document ID'})}
+    except Exception as e:
+        logger.error(f"Error deleting document: {type(e).__name__}")
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Failed to delete document'})}
+    if not deleted:
+        return {'statusCode': 404, 'body': json.dumps({'error': 'Document not found'})}
+    return {'statusCode': 200, 'body': json.dumps({'deleted': True, 'docId': doc_id})}
 
 
 def _handle_agents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
