@@ -75,6 +75,12 @@ variable "dynamodb_throttled_threshold" {
   default     = 1
 }
 
+variable "dlq_messages_threshold" {
+  description = "DLQ-Sichtbarkeits-Schwellwert (Summe / Auswertungsperiode). Initial threshold / starting value — requires calibration with real AWS metrics."
+  type        = number
+  default     = 1
+}
+
 # Dependencies from other modules
 variable "lambda_function_name" {
   description = "Name der Lambda-Funktion (fuer Lambda-Metriken)."
@@ -93,5 +99,15 @@ variable "api_stage_name" {
 
 variable "dynamodb_table_name" {
   description = "Name der DynamoDB-Tabelle (fuer DynamoDB-Metriken)."
+  type        = string
+}
+
+variable "sqs_queue_name" {
+  description = "Name der Work Queue (fuer SQS-Metriken)."
+  type        = string
+}
+
+variable "sqs_dlq_name" {
+  description = "Name der DLQ (fuer SQS-Metriken und DLQ-Alarm)."
   type        = string
 }

@@ -82,6 +82,11 @@ output "work_queue_arn" {
   value       = aws_sqs_queue.work_queue.arn
 }
 
+output "work_queue_name" {
+  description = "Work queue name (fuer CloudWatch-Dimensionen)"
+  value       = aws_sqs_queue.work_queue.name
+}
+
 output "cv_queue_url" {
   description = "CV agent queue URL"
   value       = aws_sqs_queue.agent_cv_queue.id
@@ -105,6 +110,11 @@ output "dlq_url" {
 output "dlq_arn" {
   description = "Dead letter queue ARN"
   value       = aws_sqs_queue.dlq.arn
+}
+
+output "dlq_name" {
+  description = "Dead letter queue name (fuer CloudWatch-Dimensionen)"
+  value       = aws_sqs_queue.dlq.name
 }
 
 output "queue_urls" {

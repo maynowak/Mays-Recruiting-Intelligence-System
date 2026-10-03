@@ -55,9 +55,11 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "trail" {
   }
 }
 
-# CloudTrail-Bucket-Policy: NUR der CloudTrail-Service darf schreiben, eng auf
-# das AWSLogs/<account>/CloudTrail/*-Prefix der Account-ID + Trail-ARN begrenzt (Least Privilege).
-# Gemäss AWS-Docs: https://docs.aws.amazon.com/awscloudtrail/latest/userguide/create-s3-bucket-policy-for-cloudtrail.html
+# CloudTrail-Bucket-Policy: Muster des verifizierten Mays-Orders-Trails
+# (AclCheck + Write + WriteAcl; Write auf AWSLogs/<account>/*).
+# Engere Prefixe/SourceArn-Bedingungen schlugen live fehl
+# (InsufficientS3BucketPolicyException) — daher Referenzmuster, keine
+# eigenen Varianten.
 data "aws_iam_policy_document" "trail_bucket" {
   statement {
     sid    = "AWSCloudTrailAclCheck"
@@ -73,14 +75,6 @@ data "aws_iam_policy_document" "trail_bucket" {
     resources = [
       aws_s3_bucket.trail.arn,
     ]
-
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceArn"
-      values = [
-        "arn:aws:cloudtrail:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:trail/${var.project_name}-trail",
-      ]
-    }
   }
 
   statement {
@@ -95,7 +89,7 @@ data "aws_iam_policy_document" "trail_bucket" {
     actions = ["s3:PutObject"]
 
     resources = [
-      "${aws_s3_bucket.trail.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/CloudTrail/*",
+      "${aws_s3_bucket.trail.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*",
     ]
 
     condition {
@@ -111,6 +105,22 @@ data "aws_iam_policy_document" "trail_bucket" {
       variable = "s3:x-amz-acl"
       values   = ["bucket-owner-full-control"]
     }
+  }
+
+  statement {
+    sid    = "AWSCloudTrailWriteAcl"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudtrail.amazonaws.com"]
+    }
+
+    actions = ["s3:PutObjectAcl"]
+
+    resources = [
+      "${aws_s3_bucket.trail.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*",
+    ]
   }
 }
 

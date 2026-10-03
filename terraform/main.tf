@@ -67,10 +67,10 @@ module "sqs" {
 module "dynamodb" {
   source = "./modules/dynamodb"
 
-  project_name    = var.project_name
-  environment     = var.environment
-  table_config    = var.table_config
-  tags            = var.tags
+  project_name = var.project_name
+  environment  = var.environment
+  table_config = var.table_config
+  tags         = var.tags
 }
 
 module "iam" {
@@ -99,23 +99,23 @@ module "api" {
 module "lambda" {
   source = "./modules/lambda"
 
-  project_name               = var.project_name
-  environment                = var.environment
-  lambda_config              = var.lambda_config
-  dynamodb_table_name        = module.dynamodb.work_items_table_name
-  dynamodb_table_arn         = module.dynamodb.work_items_table_arn
-  jobsearch_table_name       = module.dynamodb.jobsearches_table_name
-  jobsearch_table_arn        = module.dynamodb.jobsearches_table_arn
-  user_profile_table_name    = module.dynamodb.user_profile_table_name
-  agent_catalog_table_name   = module.dynamodb.agent_catalog_table_name
-  entitlements_table_name    = module.dynamodb.entitlements_table_name
-  user_profile_table_arn     = module.dynamodb.user_profile_table_arn
+  project_name             = var.project_name
+  environment              = var.environment
+  lambda_config            = var.lambda_config
+  dynamodb_table_name      = module.dynamodb.work_items_table_name
+  dynamodb_table_arn       = module.dynamodb.work_items_table_arn
+  jobsearch_table_name     = module.dynamodb.jobsearches_table_name
+  jobsearch_table_arn      = module.dynamodb.jobsearches_table_arn
+  user_profile_table_name  = module.dynamodb.user_profile_table_name
+  agent_catalog_table_name = module.dynamodb.agent_catalog_table_name
+  entitlements_table_name  = module.dynamodb.entitlements_table_name
+  user_profile_table_arn   = module.dynamodb.user_profile_table_arn
   agent_catalog_table_arn  = module.dynamodb.agent_catalog_table_arn
   entitlements_table_arn   = module.dynamodb.entitlements_table_arn
-  s3_bucket_arn              = aws_s3_bucket.data.arn
-  sqs_queue_arn              = module.sqs.work_queue_arn
-  work_queue_url             = module.sqs.work_queue_url
-  tags                       = var.tags
+  s3_bucket_arn            = aws_s3_bucket.data.arn
+  sqs_queue_arn            = module.sqs.work_queue_arn
+  work_queue_url           = module.sqs.work_queue_url
+  tags                     = var.tags
 }
 
 # Gate 4 — eigene Order-Fassade (orders_reader) auf unserer API.
@@ -131,6 +131,39 @@ module "orders_reader" {
   aws_region    = var.aws_region
   filename      = "${path.root}/../lambda/dist/orders-reader.zip"
   tags          = var.tags
+}
+
+# Observability-Foundation: CloudWatch (Runtime) + CloudTrail (Audit),
+# strikt getrennt (s. Modul-Kommentare). Ersetzt die frueheren Inline-Alarme.
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  project_name              = var.project_name
+  tags                      = var.tags
+  monitoring_enabled           = var.monitoring_enabled
+  dashboard_enabled            = var.dashboard_enabled
+  aws_region                   = var.aws_region
+  alarm_period_seconds         = var.alarm_period_seconds
+  alarm_evaluation_periods     = var.alarm_evaluation_periods
+  api_5xx_threshold            = var.api_5xx_threshold
+  api_4xx_threshold            = var.api_4xx_threshold
+  lambda_error_threshold       = var.lambda_error_threshold
+  lambda_duration_threshold_ms = var.lambda_duration_threshold_ms
+  lambda_throttle_threshold    = var.lambda_throttle_threshold
+  dynamodb_throttled_threshold = var.dynamodb_throttled_threshold
+  api_id                       = module.api.api_id
+  api_stage_name               = module.api.api_stage_name
+  lambda_function_name         = module.lambda.function_name
+  dynamodb_table_name          = module.dynamodb.work_items_table_name
+  sqs_queue_name               = module.sqs.work_queue_name
+  sqs_dlq_name                 = module.sqs.dlq_name
+}
+
+module "cloudtrail" {
+  source = "./modules/cloudtrail"
+
+  project_name = var.project_name
+  tags         = var.tags
 }
 
 resource "aws_s3_bucket" "data" {
@@ -164,42 +197,6 @@ resource "aws_s3_bucket_public_access_block" "data" {
   restrict_public_buckets = true
 }
 
-resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
-  count               = var.monitoring_enabled ? 1 : 0
-  alarm_name          = "${local.prefix}-lambda-errors"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = var.alarm_evaluation_periods
-  metric_name         = "Errors"
-  namespace           = "AWS/Lambda"
-  period              = var.alarm_period_seconds
-  statistic           = "Sum"
-  threshold           = var.lambda_error_threshold
-  alarm_description   = "Lambda function error rate exceeded threshold"
-
-  dimensions = {
-    FunctionName = "${local.prefix}-agent"
-  }
-
-  alarm_actions = []
-  tags          = merge({ "Project" = var.project_name }, var.tags)
-}
-
-resource "aws_cloudwatch_metric_alarm" "api_5xx" {
-  count               = var.monitoring_enabled ? 1 : 0
-  alarm_name          = "${local.prefix}-api-5xx"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = var.alarm_evaluation_periods
-  metric_name         = "4XXError"
-  namespace           = "AWS/ApiGateway"
-  period              = var.alarm_period_seconds
-  statistic           = "Sum"
-  threshold           = var.api_5xx_threshold
-  alarm_description   = "API Gateway 5xx errors exceeded threshold"
-
-  dimensions = {
-    ApiId = module.api.api_id
-  }
-
-  alarm_actions = []
-  tags          = merge({ "Project" = var.project_name }, var.tags)
-}
+# HINWEIS: Die frueheren Inline-Alarme (lambda_errors/api_5xx, *-dev-Namen)
+# sind in module.monitoring aufgegangen (bessere Config + project_name-Namen
+# wie Referenz). Alte -dev-Namen werden ersetzt, nicht dupliziert.

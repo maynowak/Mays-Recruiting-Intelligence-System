@@ -66,6 +66,7 @@ Es gilt: Event ≠ WorkItem ≠ Agent Run ≠ Attempt ≠ Business Order.
 - Agents: reference.echo (Echo), ats-agent/analyze.job (externe API, urllib-Fallback), jobsearch-agent (create/get/list, Repository, Tenant-isoliert), orders_function (Port-Delegation), dummy-a/b (DEV/TEST ONLY).
 - Persistence: DDB PAY_PER_REQUEST; JobSearch-Tabelle (Hash jobSearchId, GSI gsi-user/gsi-status, TTL expiresAt).
 - OrdersPort: `submit_order/get_order_status/can_handle`; Development-Adapter (lokal) + Real-Adapter (HTTP, Fehlerklassen Transient/kontrolliert, POST nie blind retrybar).
+- Observability (Foundation, Gate OBS-01): CloudTrail (`mays-ris-trail`, multi-region, Logging, eigener S3 `mays-ris-cloudtrail-<account>` mit PAB+SSE — strikt getrennt vom TF-State) = AWS-/Account-Audit; CloudWatch (`mays-ris-overview`-Dashboard mit echten System-/Queue-/Error-Widgets + 7 Alarme inkl. DLQ, Log-Gruppen) = Runtime-Monitoring. project_name-Namen, keine Fake-Metriken, Extensions nur mit Vertrag.
 - Installer: `validate/plan/apply/preflight/install/state`; Backend `mays-ris-tf-state-dev` + Lock `mays-ris-tf-lock`; Workspace = project_name; Full-Plan vorbestehend defekt (fehlendes `lambda.zip` — OPEN, gezielte Applies dokumentiert).
 
 ## 5. Tenant Isolation / Security
@@ -74,7 +75,7 @@ JWT-Tenant (`custom:tenant_id`) + Code-Guards (Repository get/list filtern userI
 
 ## 6. Status je Bereich (implemented / verified / prepared / open)
 
-- implemented+verified: Runtime-Pfad, Idempotency/Retry/DLQ-Nutzung, Orders-Integration (eigener Pfad), ATS/JobSearch/Reference/Dummy-Auswahl, Installer-Pinning, Tabellen/Queues/Mapping.
+- implemented+verified: Runtime-Pfad, Idempotency/Retry/DLQ-Nutzung, Orders-Integration (eigener Pfad), ATS/JobSearch/Reference/Dummy-Auswahl, Installer-Pinning, Tabellen/Queues/Mapping, Observability-Foundation (Trail/Dashboard/Alarme live).
 - prepared: JobSearch update/delete (Repository kann, Agent bietet nur create/get/list), ATS-Vertiefung, ats/cv/match-Queues.
 - open: POST-Reconciliation nach Timeout, MO-Idempotency-Key, Full-Plan-`lambda.zip`, 5 pre-existing Test-Defekte, OpenAPI-Abdeckung Plattform-Routen (s. API-Standard).
 

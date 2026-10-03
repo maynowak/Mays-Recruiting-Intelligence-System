@@ -1,12 +1,12 @@
-# T011-11 — Monitoring-Outputs
+# RIS Foundation Monitoring-Outputs
 output "dashboard_name" {
   description = "Name des CloudWatch-Dashboards (falls aktiviert)."
-  value       = var.dashboard_enabled && var.monitoring_enabled ? aws_cloudwatch_dashboard.orders_overview[0].dashboard_name : null
+  value       = var.dashboard_enabled && var.monitoring_enabled ? aws_cloudwatch_dashboard.foundation[0].dashboard_name : null
 }
 
 output "dashboard_arn" {
   description = "ARN des CloudWatch-Dashboards (falls aktiviert)."
-  value       = var.dashboard_enabled && var.monitoring_enabled ? aws_cloudwatch_dashboard.orders_overview[0].dashboard_arn : null
+  value       = var.dashboard_enabled && var.monitoring_enabled ? aws_cloudwatch_dashboard.foundation[0].dashboard_arn : null
 }
 
 output "alarm_api_5xx_arn" {
@@ -37,4 +37,8 @@ output "alarm_lambda_throttles_arn" {
 output "alarm_dynamodb_throttled_arn" {
   description = "ARN des DynamoDB Throttled Alarms (falls aktiviert)."
   value       = var.monitoring_enabled ? aws_cloudwatch_metric_alarm.dynamodb_throttled[0].arn : null
+}
+output "alarm_dlq_messages_arn" {
+  description = "ARN des DLQ Alarms (falls aktiviert)."
+  value       = var.monitoring_enabled ? aws_cloudwatch_metric_alarm.dlq_messages[0].arn : null
 }

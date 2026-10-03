@@ -152,6 +152,12 @@ variable "monitoring_enabled" {
   default     = true
 }
 
+variable "dashboard_enabled" {
+  description = "Enable CloudWatch overview dashboard"
+  type        = bool
+  default     = true
+}
+
 variable "alarm_period_seconds" {
   description = "Auswertungsperiode der Alarme in Sekunden (300 = 5 Minuten)."
   type        = number
@@ -168,6 +174,12 @@ variable "api_5xx_threshold" {
   description = "API 5xx error threshold"
   type        = number
   default     = 5
+}
+
+variable "api_4xx_threshold" {
+  description = "API 4xx error threshold"
+  type        = number
+  default     = 20
 }
 
 variable "lambda_error_threshold" {

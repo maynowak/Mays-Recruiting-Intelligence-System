@@ -1,22 +1,18 @@
-# T011-11 — CloudWatch Monitoring as Code
-# Fachquelle: monitoring/monitoring-design.md (Source of Truth für Anforderungen),
-#             cost/cost-analysis.md §2 (kostenbewusst: 7-Tage-Retention, minimaler
-#             Alarm-Umfang, kein SNS-Topic in dieser Aufgabe).
+# RIS Foundation Monitoring as Code (Muster: Mays-Orders T011-11, angepasst).
+# Fachquelle: eigene RIS-Foundation-Anforderungen (kostenbewusst:
+# 7-Tage-Retention im Lambda-Modul, minimaler Alarm-Umfang, kein SNS-Topic).
 #
-# Ziel: Dashboard + Alarme + Log-Retention vollständig per Terraform beschrieben,
-# damit sie später reproduzierbar in AWS erzeugt werden können (kein apply in
-# T011-11). Verwendete Metriken sind ausschließlich echte AWS-Namespaces:
+# Ziel: Dashboard + Alarme reproduzierbar per Terraform (validate/plan/apply).
+# Verwendete Metriken sind ausschließlich echte AWS-Namespaces:
 #   AWS/ApiGateway (Count, 4XXError, 5XXError)        — HTTP API (ApiId, Stage)
 #   AWS/Lambda     (Invocations, Errors, Duration,     — FunctionName
 #                   Throttles, ConcurrentExecutions)
 #   AWS/DynamoDB   (ThrottledRequests,                 — TableName
 #                   ConditionalCheckFailedRequests)
 #
-# Business-Metriken (Orders Created / Orders by Status / Order Success Rate)
-# sind BEWUSST NICHT als Custom Metrics implementiert (GAP, siehe
-# docs/reports/T011-11-CLOUDWATCH-MONITORING.md): sie stünden als
-# "FUTURE APPLICATION METRIC" auf Datenquelle DynamoDB/Order-Daten
-# (createdAt, updatedAt, status). Keine erfundenen Metric Names.
+# Keine Custom-/Business-Metriken (keine erfundenen Metric Names).
+# Erweiterungsbereiche (Profile/Agents/ATS/JobSearch/Orders) stehen als
+# PLANNED-Text im Dashboard; echte Widgets erst mit jeweiligem Vertrag.
 
 locals {
   # gemeinsame Metric-Serien (ein Widget kann mehrere Serien kombinieren)
@@ -31,20 +27,16 @@ locals {
   m_ddb_throttled     = ["AWS/DynamoDB", "ThrottledRequests", "TableName", var.dynamodb_table_name, { stat = "Sum", period = 300, label = "ThrottledRequests" }]
   m_ddb_cond_failed   = ["AWS/DynamoDB", "ConditionalCheckFailedRequests", "TableName", var.dynamodb_table_name, { stat = "Sum", period = 300, label = "ConditionalCheckFailed" }]
 
-  order_ops_markdown = <<-EOT
-    ## Order Operations — BUSINESS METRICS (GAP / PLANNED)
+  m_sqs_visible       = ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", var.sqs_queue_name, { stat = "Sum", period = 300, label = "Work Queue Visible" }]
+  m_sqs_oldest        = ["AWS/SQS", "ApproximateAgeOfOldestMessage", "QueueName", var.sqs_queue_name, { stat = "Maximum", period = 300, label = "Oldest Message Age (s)" }]
+  m_dlq_visible       = ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", var.sqs_dlq_name, { stat = "Sum", period = 300, label = "DLQ Visible" }]
 
-    Orders Created · Orders by Status · Order Success Rate sind **noch keine
-    CloudWatch-Metriken** (keine Custom Metrics in dieser Aufgabe, keine
-    erfundenen Metric Names).
+  extensions_markdown = <<-EOT
+    ## RIS Extensions — PLANNED (keine Metriken erfunden)
 
-    **STATUS = PLANNED / FUTURE APPLICATION METRIC**
-
-    Datenquelle später: DynamoDB/Order-Daten via Lambda oder DynamoDB
-    (`createdAt`, `updatedAt`, `status`, `totalAmount`). Erste Auswertung als
-    Query auf GSI1 (`gsi1pk=LIST`, `gsi1sk=createdAt`) oder ein Lambda-
-    Metric-Logger, der CloudWatch Custom Metrics (Namespace `MaySOrders`)
-    emittiert. Siehe monitoring/monitoring-design.md §9 + Report T011-11.
+    Foundation | Profile | Agents | ATS | JobSearch | Orders — eigene Widgets
+    erst mit jeweiligem Metric-Vertrag (echte AWS-Namespaces oder belegte
+    Custom Metrics). Diese Sektion ist ein Platzhalter, kein Daten-Widget.
   EOT
 
   monitoring_dashboard_widgets = [
@@ -59,9 +51,14 @@ locals {
     { type = "metric", width = 8, height = 6, properties = { metrics = [local.m_lambda_throttles], view = "timeSeries", region = var.aws_region, title = "Lambda Throttles" } },
     { type = "metric", width = 8, height = 6, properties = { metrics = [local.m_lambda_concurrent], view = "timeSeries", region = var.aws_region, title = "Concurrent Executions" } },
     { type = "metric", width = 8, height = 6, properties = { metrics = [local.m_ddb_throttled], view = "timeSeries", region = var.aws_region, title = "DynamoDB Throttled Requests" } },
-    # ---- ORDER OPERATIONS (Business-Metriken: GAP/PLANNED, kein Fake) --------
-    { type = "text", width = 24, height = 1, properties = { markdown = "## Order Operations" } },
-    { type = "text", width = 24, height = 6, properties = { markdown = local.order_ops_markdown } },
+    # ---- QUEUES (echte SQS-Metriken, Work Queue + DLQ) -----------------------
+    { type = "text", width = 24, height = 1, properties = { markdown = "## Queues" } },
+    { type = "metric", width = 8, height = 6, properties = { metrics = [local.m_sqs_visible], view = "timeSeries", region = var.aws_region, title = "Work Queue Visible Messages" } },
+    { type = "metric", width = 8, height = 6, properties = { metrics = [local.m_sqs_oldest], view = "timeSeries", region = var.aws_region, title = "Work Queue Oldest Message Age" } },
+    { type = "metric", width = 8, height = 6, properties = { metrics = [local.m_dlq_visible], view = "timeSeries", region = var.aws_region, title = "DLQ Visible Messages" } },
+    # ---- EXTENSIONS (Platzhalter, kein Fake) ----------------------------------
+    { type = "text", width = 24, height = 1, properties = { markdown = "## RIS Extensions" } },
+    { type = "text", width = 24, height = 6, properties = { markdown = local.extensions_markdown } },
     # ---- ERROR ANALYSIS ------------------------------------------------------
     { type = "text", width = 24, height = 1, properties = { markdown = "## Error Analysis" } },
     { type = "metric", width = 8, height = 6, properties = { metrics = [local.m_api_4xx, local.m_api_5xx], view = "timeSeries", region = var.aws_region, title = "API Errors (4XX / 5XX)" } },
@@ -75,15 +72,15 @@ locals {
   }
 }
 
-# --- 1. Dashboard: May's Orders — Order Management Overview ------------------
-resource "aws_cloudwatch_dashboard" "orders_overview" {
+# --- 1. Dashboard: RIS Foundation Overview (erweiterbar, s. Extensions) -----
+resource "aws_cloudwatch_dashboard" "foundation" {
   count          = var.monitoring_enabled && var.dashboard_enabled ? 1 : 0
   dashboard_name = "${var.project_name}-overview"
   dashboard_body = jsonencode(local.monitoring_dashboard_body)
 }
 
-# --- 2. Alarme (monitoring-design.md §4, kostenbewusst) ----------------------
-# Kein SNS-Topic/Aktions in T011-11 (kostenbewusst; SNS optional später).
+# --- 2. Alarme (kostenbewusst, wie Referenz) ----------------------
+# Kein SNS-Topic/Aktionen (kostenbewusst; SNS optional später).
 # Schwellwerte = konfigurierbare Variablen ("Initial threshold / starting value —
 # requires calibration with real AWS metrics."). treat_missing_data="notBreaching"
 # verhindert Fehlalarme bei fehlenden Daten (kein Traffic) und hält den Alarm
@@ -128,7 +125,7 @@ resource "aws_cloudwatch_metric_alarm" "api_4xx" {
 resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
   count             = var.monitoring_enabled ? 1 : 0
   alarm_name        = "${var.project_name}-lambda-errors"
-  alarm_description = "High Lambda errors (order handler). Threshold: initial value, requires calibration with real AWS metrics."
+  alarm_description = "High Lambda errors (agent function). Threshold: initial value, requires calibration with real AWS metrics."
   namespace         = "AWS/Lambda"
   metric_name       = "Errors"
   dimensions = {
@@ -145,7 +142,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
 resource "aws_cloudwatch_metric_alarm" "lambda_duration" {
   count             = var.monitoring_enabled ? 1 : 0
   alarm_name        = "${var.project_name}-lambda-duration"
-  alarm_description = "High Lambda duration (order handler, ms). Threshold: initial value, requires calibration with real AWS metrics."
+  alarm_description = "High Lambda duration (agent function, ms). Threshold: initial value, requires calibration with real AWS metrics."
   namespace         = "AWS/Lambda"
   metric_name       = "Duration"
   dimensions = {
@@ -162,7 +159,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_duration" {
 resource "aws_cloudwatch_metric_alarm" "lambda_throttles" {
   count             = var.monitoring_enabled ? 1 : 0
   alarm_name        = "${var.project_name}-lambda-throttles"
-  alarm_description = "High Lambda throttles (order handler). Threshold: initial value, requires calibration with real AWS metrics."
+  alarm_description = "High Lambda throttles (agent function). Threshold: initial value, requires calibration with real AWS metrics."
   namespace         = "AWS/Lambda"
   metric_name       = "Throttles"
   dimensions = {
@@ -179,7 +176,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_throttles" {
 resource "aws_cloudwatch_metric_alarm" "dynamodb_throttled" {
   count             = var.monitoring_enabled ? 1 : 0
   alarm_name        = "${var.project_name}-dynamodb-throttled"
-  alarm_description = "High DynamoDB throttled requests (orders table). Threshold: initial value, requires calibration with real AWS metrics."
+  alarm_description = "High DynamoDB throttled requests (work-items table). Threshold: initial value, requires calibration with real AWS metrics."
   namespace         = "AWS/DynamoDB"
   metric_name       = "ThrottledRequests"
   dimensions = {
@@ -189,6 +186,22 @@ resource "aws_cloudwatch_metric_alarm" "dynamodb_throttled" {
   period              = var.alarm_period_seconds
   evaluation_periods  = var.alarm_evaluation_periods
   threshold           = var.dynamodb_throttled_threshold
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+}
+resource "aws_cloudwatch_metric_alarm" "dlq_messages" {
+  count               = var.monitoring_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-dlq-messages"
+  alarm_description   = "Messages visible in DLQ (poison/retries exhausted). Threshold: initial value, requires calibration with real AWS metrics."
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  dimensions = {
+    QueueName = var.sqs_dlq_name
+  }
+  statistic           = "Sum"
+  period              = var.alarm_period_seconds
+  evaluation_periods  = var.alarm_evaluation_periods
+  threshold           = var.dlq_messages_threshold
   comparison_operator = "GreaterThanThreshold"
   treat_missing_data  = "notBreaching"
 }
