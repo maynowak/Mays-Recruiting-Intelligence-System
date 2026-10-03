@@ -63,4 +63,5 @@ installer/projects/
 
 # Lambda build artifacts (built at install time, never committed)
 lambda/dist/
+lambda.zip
 
