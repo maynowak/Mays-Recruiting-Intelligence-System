@@ -390,3 +390,5 @@ Cognito
 - Gate 11 — Identity E-Mail-Verifikation (Template + Versand konfiguriert, Inbox NOT PROVEN)
 
 - Gate 13A — Google-Federation-Foundation (YELLOW: konfiguriert, nicht live verifiziert; kein Linking)
+
+- Lifecycle-01 — Installer-Lifecycle (install/verify/no-op/partial/destroy) am Isolationsprojekt, inkl. destroy-Befehl (GREEN)

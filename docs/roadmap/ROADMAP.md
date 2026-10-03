@@ -16,6 +16,8 @@ Abhängigkeitsstand. Abgeschlossene Gates werden nicht als offen dargestellt.
 - Gate 9: JobSearch-Domain (Tabelle + Agent + Tenant-isoliert, live)
 - Gates 10–12: Identity-Lifecycle, E-Mail-Verifikation, Profile-v1 (live)
 - Gate 13A: Google-Federation-Foundation (YELLOW — konfiguriert, nicht live verifiziert)
+- OBS-Foundation: Trail/Dashboard/Alarme live (GREEN)
+- Lifecycle-01: Install→Verify→NoOp→Partial→Destroy am Isolationsprojekt (GREEN)
 - Documentation Consolidation (dieses Gate)
 
 ## CURRENT
