@@ -15,6 +15,9 @@ Abweichungen/OPENs ehrlich.
 | PATCH /orders/{orderId}/status | orders-reader | 200 / 409 |
 | POST /me/profile | agent | 201 (explizite Provisionierung) / 409 (exists) |
 | PUT /me/profile | agent | 200 (nur v1-Felder) / 400 / 404 (kein Upsert) |
+| POST /me/documents | agent | 200 (Presigned-PUT, 15 min) / 400 / 401 |
+| GET /me/documents/{docId} | agent | 200 (Presigned-GET) / 400 / 404 / 401 |
+| DELETE /me/documents/{docId} | agent | 200 / 404 / 401 |
 
 Registrierung (Gate 10): Cognito SignUp (self-service, Pool erlaubt) →
 Confirm (E-Mail-Code NUR wenn Pool Auto-Verification konfiguriert — seit Gate 11
