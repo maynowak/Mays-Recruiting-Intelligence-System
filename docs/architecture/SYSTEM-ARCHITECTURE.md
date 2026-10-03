@@ -67,7 +67,7 @@ Es gilt: Event ≠ WorkItem ≠ Agent Run ≠ Attempt ≠ Business Order.
 - Persistence: DDB PAY_PER_REQUEST; JobSearch-Tabelle (Hash jobSearchId, GSI gsi-user/gsi-status, TTL expiresAt).
 - OrdersPort: `submit_order/get_order_status/can_handle`; Development-Adapter (lokal) + Real-Adapter (HTTP, Fehlerklassen Transient/kontrolliert, POST nie blind retrybar).
 - Observability (Foundation, Gate OBS-01): CloudTrail (`mays-ris-trail`, multi-region, Logging, eigener S3 `mays-ris-cloudtrail-<account>` mit PAB+SSE — strikt getrennt vom TF-State) = AWS-/Account-Audit; CloudWatch (`mays-ris-overview`-Dashboard mit echten System-/Queue-/Error-Widgets + 7 Alarme inkl. DLQ, Log-Gruppen) = Runtime-Monitoring. project_name-Namen, keine Fake-Metriken, Extensions nur mit Vertrag.
-- Installer: `validate/plan/apply/preflight/install/state`; Backend `mays-ris-tf-state-dev` + Lock `mays-ris-tf-lock`; Workspace = project_name; Full-Plan vorbestehend defekt (fehlendes `lambda.zip` — OPEN, gezielte Applies dokumentiert).
+- Installer: `package/validate/plan/apply/preflight/install/state/destroy`; Backend `mays-ris-tf-state-dev` + Lock `mays-ris-tf-lock`; Workspace = project_name; Lambda-Bundles deterministisch per `package`-Befehl (Vertrag: package → plan → apply; Full-Plan braucht `terraform/lambda.zip`, CI erstellt keins — OPEN).
 
 ## 5. Tenant Isolation / Security
 
@@ -77,7 +77,7 @@ JWT-Tenant (`custom:tenant_id`) + Code-Guards (Repository get/list filtern userI
 
 - implemented+verified: Runtime-Pfad, Idempotency/Retry/DLQ-Nutzung, Orders-Integration (eigener Pfad), ATS/JobSearch/Reference/Dummy-Auswahl, Installer-Pinning, Tabellen/Queues/Mapping, Observability-Foundation (Trail/Dashboard/Alarme live).
 - prepared: JobSearch update/delete (Repository kann, Agent bietet nur create/get/list), ATS-Vertiefung, ats/cv/match-Queues.
-- open: POST-Reconciliation nach Timeout, MO-Idempotency-Key, Full-Plan-`lambda.zip`, 5 pre-existing Test-Defekte, OpenAPI-Abdeckung Plattform-Routen (s. API-Standard).
+- open: POST-Reconciliation nach Timeout, MO-Idempotency-Key, CI-ohne-Package (bekannt, nicht umgebaut), 5 pre-existing Test-Defekte, OpenAPI-Abdeckung Plattform-Routen (s. API-Standard).
 
 ## 7. Dokumenten-Verantwortung
 

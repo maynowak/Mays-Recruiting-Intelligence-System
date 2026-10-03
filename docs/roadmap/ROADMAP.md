@@ -31,7 +31,7 @@ Abhängigkeitsstand. Abgeschlossene Gates werden nicht als offen dargestellt.
 - JobSearch update/delete als Agent-Caps (Repository kann es bereits)
 - ATS-Vertiefung (mehr Capabilities gegen bestehende API)
 - Plattform-OpenAPI (Lücke zu /me-/orders-Routen schliessen)
-- Installer-Härtung (`lambda.zip`-Lücke schliessen → Full-Plan wieder möglich)
+- Installer-Härtung (deterministische Bundles + `package`-Befehl: DONE; CI erstellt weiter keins — OPEN)
 - Observability-Ausbau (Dashboards/Alarme über Bestand hinaus)
 
 ## OPEN (verstanden, ungelöst)
