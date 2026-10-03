@@ -389,6 +389,7 @@ Cognito
 - Gate 10 — Identity & Registration (Benutzer-Lifecycle live, Mail-OPEN)
 - Gate 11 — Identity E-Mail-Verifikation (Template + Versand konfiguriert, Inbox NOT PROVEN)
 
-- Gate 13A — Google-Federation-Foundation (YELLOW: konfiguriert, nicht live verifiziert; kein Linking)
+- Gate 13A — Google-Federation-Foundation (YELLOW: konfiguriert, nicht live verifiziert; kein Linking; Evidenz: docs/reports/GATE-13A-GOOGLE-IDENTITY-FEDERATION-FOUNDATION-01.md)
+- Gate 13B — Google Login UX + explizites Account Linking (zukünftiger Folgeblock, NICHT begonnen; hängt am noch fehlenden Live-Google-Testnachweis)
 
 - Lifecycle-01 — Installer-Lifecycle (install/verify/no-op/partial/destroy) am Isolationsprojekt, inkl. destroy-Befehl (GREEN)
