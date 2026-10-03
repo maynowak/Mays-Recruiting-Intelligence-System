@@ -159,7 +159,45 @@ def _cmd_apply(ctx: RisInstallContext) -> List[TerraformResult]:
     return [init_res, apply_res]
 
 
-COMMANDS = ("validate", "plan", "apply", "preflight", "install", "state")
+def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
+    """Destroy exactly one project's foundation (scoped, explicit).
+
+    Scope = ctx.workspace (verbatim aus project_name); NICHTS ausserhalb
+    dieses Workspaces wird angefasst. Erfordert --yes. Gibt 0 nur zurueck,
+    wenn Plan UND Apply erfolgreich waren.
+    """
+    if ctx.dry_run:
+        print("error: refusing destroy in dry-run mode (pass --yes)",
+              file=sys.stderr)
+        return 1
+    try:
+        aws_ctx = validate_aws_context(
+            profile=ctx.aws_profile, region=ctx.aws_region
+        )
+    except AwsValidationError as exc:
+        print(f"error: preflight failed: {exc}", file=sys.stderr)
+        return 1
+    ctx.aws_context = aws_ctx
+    print(f"DESTROY scope: project {ctx.project_name} -> workspace {ctx.workspace}")
+    print(f"DESTROY scope: account {aws_ctx.account_id}, region {aws_ctx.region}")
+    runner = ctx.make_runner()
+    init_res = runner.init(backend_config=ctx.backend_config())
+    print(f"$ {' '.join(init_res.command)} -> exit {init_res.returncode}")
+    if init_res.returncode != 0:
+        return 1
+    plan_file = out_file or f"{ctx.workspace}-destroy.tfplan"
+    plan_res = runner.plan(out_file=plan_file, destroy=True,
+                           var=ctx.terraform_vars())
+    print(f"$ {' '.join(plan_res.command)} -> exit {plan_res.returncode}")
+    if plan_res.returncode != 0:
+        return 1
+    apply_res = runner.run_and_get_result(["apply", plan_file],
+                                          ensure_workspace=True)
+    print(f"$ {' '.join(apply_res.command)} -> exit {apply_res.returncode}")
+    return 1 if apply_res.returncode != 0 else 0
+
+
+COMMANDS = ("validate", "plan", "apply", "preflight", "install", "state", "destroy")
 
 
 def _cmd_state(
@@ -386,6 +424,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             results = _cmd_validate(ctx)
         elif parsed.command == "plan":
             results = _cmd_plan(ctx, out_file=parsed.out)
+        elif parsed.command == "destroy":
+            return _cmd_destroy(ctx, out_file=parsed.out)
         else:
             results = _cmd_apply(ctx)
     except (ValueError, RuntimeError) as exc:

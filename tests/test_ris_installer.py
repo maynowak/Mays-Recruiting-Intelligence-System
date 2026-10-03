@@ -525,3 +525,42 @@ def test_apply_forwards_vars():
     assert "-var identity_email_verification_enabled=true" in apply[0]
     assert "-var project_name=mays-ris" in apply[0]
     assert all(r.returncode == 0 for r in results)
+
+
+def test_destroy_refuses_dry_run():
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris-lifecycle", environment="dev")
+    assert ris._cmd_destroy(ctx) == 1
+
+
+def test_destroy_plans_and_applies_scope():
+    seen = {}
+
+    def fake_run(args, **kwargs):
+        seen.setdefault("cmds", []).append(list(args))
+        return _completed(args)
+
+    class FakeCtx:
+        pass
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(
+            project_name="mays-ris-lifecycle", environment="dev",
+            terraform_dir="terraform", backend_bucket="b", backend_region="r",
+            dry_run=False,
+        )
+    with patch("subprocess.run", side_effect=fake_run):
+        with patch.object(ris, "validate_aws_context", return_value=_aws_ctx()):
+            rc = ris._cmd_destroy(ctx, out_file="gone.tfplan")
+    flat = [" ".join(c) for c in seen["cmds"]]
+    assert rc == 0
+    assert any("terraform plan -destroy" in c and "-out gone.tfplan" in c for c in flat)
+    assert any(c.startswith("terraform apply gone.tfplan") for c in flat)
+    assert "-var project_name=mays-ris-lifecycle" in \
+        [c for c in flat if "terraform plan -destroy" in c][0]
+
+
+def test_destroy_in_commands():
+    assert "destroy" in ris.COMMANDS
+    parsed = build_parser().parse_args(["destroy", "--yes"])
+    assert parsed.command == "destroy" and parsed.yes is True
