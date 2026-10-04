@@ -267,6 +267,10 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # P13: read-only capability introspection (JWT + X-Api-Profile
         # header; GW route provisioned in terraform/modules/api).
         return _handle_introspection(event, context)
+    elif path.startswith('/v1/apiprofiles/'):
+        # P15: credential management (Human JWT only; GW wiring is a
+        # later gate — routes documented, handler tested directly).
+        return _handle_credential_routes(event, context, method, path)
     elif method == 'GET' and path == '/me/jobsearches':
         return _handle_jobsearch_list(event, context)
     elif method == 'POST' and path == '/me/jobsearches':
@@ -723,6 +727,335 @@ def _handle_introspection(event, context, bearer_credential=None):
         'statusCode': status,
         'body': json.dumps(body)
     }
+
+
+# ------------------------------------------------------------------
+# P15: Credential Management HTTP (Human JWT only, P14 service)
+# ------------------------------------------------------------------
+# Routes (contract, NO Gateway change in this gate):
+#   POST   /v1/apiprofiles/{pid}/credentials
+#   GET    /v1/apiprofiles/{pid}/credentials
+#   GET    /v1/apiprofiles/{pid}/credentials/{cid}
+#   POST   .../{cid}/rotate|disable|enable|revoke
+# The handler NEVER decides roles/entitlements itself (P14 service is
+# authoritative); it only parses, validates syntax, maps errors and
+# keeps secrets out of logs. No M2M credential auth on these routes.
+
+_CRED_ACTIONS = ("rotate", "disable", "enable", "revoke")
+
+
+class _CredBad(Exception):
+    """Syntactic request error -> 400 (never leaks internals)."""
+
+
+def _cred_sources():
+    """Lazy production stores (prepared; unconfigured -> 503).
+
+    Tables are NOT provisioned in this gate (see P15 report); missing
+    configuration maps to neutral 503, never to false live claims.
+    """
+    import os
+
+    from agents.ecosystem.api_profiles import DynamoDBApiProfileStore
+    from agents.ecosystem.credentials import DynamoDBCredentialStore
+
+    if not os.environ.get("CREDENTIALS_TABLE") or \
+            not os.environ.get("API_PROFILES_TABLE"):
+        raise RuntimeError("credential management stores unconfigured")
+    return {
+        "credentials": DynamoDBCredentialStore(
+            table_name=os.environ.get("CREDENTIALS_TABLE")),
+        "profiles": DynamoDBApiProfileStore(
+            table_name=os.environ.get("API_PROFILES_TABLE")),
+    }
+
+
+def _cred_actor(user_context):
+    """JWT claims -> service actor (role derived, IDs verified downstream)."""
+    groups = user_context.get("groups") or []
+    if "admins" in groups:
+        role = "admin"
+    elif "Staff" in groups:
+        role = "staff"
+    else:
+        role = "owner"
+    return {"role": role, "id": user_context.get("userId"),
+            "tenant": user_context.get("tenantId")}
+
+
+def _cred_ids(path):
+    """Parse credential paths -> (pid, cid|None, action|None) or None."""
+    parts = (path or "").strip("/").split("/")
+    if len(parts) < 4 or parts[0] != "v1" or parts[1] != "apiprofiles" \
+            or parts[3] != "credentials":
+        return None
+    pid = parts[2]
+    if not pid:
+        return None
+    if len(parts) == 4:
+        return (pid, None, None)
+    cid = parts[4]
+    if not cid:
+        return None
+    if len(parts) == 5:
+        return (pid, cid, None)
+    if len(parts) == 6 and parts[5] in _CRED_ACTIONS:
+        return (pid, cid, parts[5])
+    return None
+
+
+def _cred_headers(event):
+    return {(k or "").lower(): v
+            for k, v in (event.get("headers") or {}).items()}
+
+
+def _cred_correlation(event, headers):
+    return headers.get("x-correlation-id") \
+        or ((event.get("requestContext") or {}).get("requestId")) \
+        or event.get("requestId")
+
+
+def _cred_idem(headers):
+    raw = headers.get("idempotency-key")
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not raw.strip() or len(raw) > 128:
+        raise _CredBad("Invalid Idempotency-Key")
+    return raw.strip()
+
+
+def _cred_body(event, allowed, required=()):
+    try:
+        data = json.loads(event.get("body") or "{}")
+    except (ValueError, TypeError):
+        raise _CredBad("Request body must be valid JSON")
+    if not isinstance(data, dict):
+        raise _CredBad("Request body must be valid JSON")
+    unknown = sorted(set(data) - set(allowed))
+    if unknown:
+        raise _CredBad("Unknown fields: " + ", ".join(unknown))
+    for field in required:
+        if field not in data:
+            raise _CredBad("Missing field: " + field)
+    return data
+
+
+def _cred_str(data, field, required=True):
+    value = data.get(field)
+    if value is None:
+        if required:
+            raise _CredBad("Missing field: " + field)
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise _CredBad("Invalid field: " + field)
+    return value.strip()
+
+
+def _cred_fail(exc, actor_role=None):
+    """Service/domain errors -> neutral HTTP (owner-foreign -> 404)."""
+    from agents.ecosystem.credentials import (
+        CredentialConflict,
+        CredentialNotFound,
+        CredentialStateConflict,
+        CredentialStoreUnavailable,
+        UnauthorizedManagementAttempt,
+    )
+
+    if isinstance(exc, UnauthorizedManagementAttempt):
+        if actor_role == "owner":
+            return 404, "Not found"
+        return 403, "Forbidden"
+    if isinstance(exc, CredentialNotFound):
+        return 404, "Not found"
+    if isinstance(exc, (CredentialConflict, CredentialStateConflict)):
+        return 409, "Conflict"
+    if isinstance(exc, _CredBad):
+        return 400, str(exc) or "Invalid request"
+    if isinstance(exc, ValueError):
+        return 400, "Invalid request"
+    if isinstance(exc, CredentialStoreUnavailable):
+        return 503, "Temporarily unavailable"
+    logger.exception("Credential management failed")
+    return 500, "Internal error"
+
+
+def _cred_reason(data, event):
+    """Reason from body (POST) or query (GET); present must be non-empty."""
+    query = event.get("queryStringParameters") or {}
+    raw = data.get("reason", query.get("reason"))
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not raw.strip():
+        raise _CredBad("Invalid field: reason")
+    return raw.strip()
+
+
+def _handle_credential_collection(event, context, method, pid,
+                                  user_context, actor, headers, sources,
+                                  corr):
+    from agents.ecosystem import credentials as creds
+
+    if method == "POST":
+        data = _cred_body(event, {"label", "expiresAt", "clientRef",
+                                  "reason"}, {"expiresAt"})
+        _cred_str(data, "expiresAt")
+        if "label" in data:
+            _cred_str(data, "label", required=False)
+        try:
+            from dateutil.parser import parse as _parse
+            _parse(data["expiresAt"])
+        except Exception:
+            raise _CredBad("Invalid field: expiresAt")
+        reason = _cred_reason(data, event)
+        out = creds.issue_credential(
+            sources["credentials"], sources["profiles"], pid,
+            data["expiresAt"], actor["role"], actor["id"],
+            label=data.get("label"),
+            reason=reason, actor_tenant=actor["tenant"],
+            idempotency_key=_cred_idem(headers),
+            correlation_id=corr)
+        return {
+            "statusCode": 200 if out.get("duplicate") else 201,
+            "body": json.dumps({**out["metadata"],
+                                "secret": out.get("secret"),
+                                "duplicate": bool(out.get("duplicate"))}),
+        }
+    if method == "GET":
+        reason = _cred_reason({}, event)
+        rows = creds.list_credentials(
+            sources["credentials"], actor["role"], actor["id"],
+            api_profile_id=pid, actor_tenant=actor["tenant"],
+            reason=reason, correlation_id=corr)
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"items": rows}),
+        }
+    return {"statusCode": 404, "body": json.dumps({"error": "Not found"})}
+
+
+def _handle_credential_item(event, context, method, pid, cid,
+                            user_context, actor, headers, sources, corr):
+    from agents.ecosystem import credentials as creds
+
+    if method != "GET":
+        return {"statusCode": 404,
+                "body": json.dumps({"error": "Not found"})}
+    reason = _cred_reason({}, event)
+    meta = creds.get_credential_metadata(
+        sources["credentials"], actor["role"], actor["id"], cid,
+        actor_tenant=actor["tenant"], reason=reason,
+        correlation_id=corr)
+    if meta is None or meta.get("apiProfileId") != pid:
+        return {"statusCode": 404,
+                "body": json.dumps({"error": "Not found"})}
+    return {"statusCode": 200, "body": json.dumps(meta)}
+
+
+def _cred_bound_credential(sources, actor, cid, pid, reason, corr):
+    """Neutral pre-read: credential must exist, be visible AND bound to
+    the path profile — checked BEFORE any mutation (no cross-profile
+    side effects)."""
+    from agents.ecosystem import credentials as creds
+
+    meta = creds.get_credential_metadata(
+        sources["credentials"], actor["role"], actor["id"], cid,
+        actor_tenant=actor["tenant"], reason=reason,
+        correlation_id=corr)
+    if meta is None or meta.get("apiProfileId") != pid:
+        return None
+    return meta
+
+
+def _handle_credential_action(event, context, pid, cid, action,
+                              user_context, actor, headers, sources, corr):
+    from agents.ecosystem import credentials as creds
+
+    data = _cred_body(event, {"expiresAt", "label", "reason"})
+    reason = _cred_reason(data, event)
+    key = _cred_idem(headers)
+    bound = _cred_bound_credential(sources, actor, cid, pid, reason, corr)
+    if bound is None:
+        return {"statusCode": 404,
+                "body": json.dumps({"error": "Not found"})}
+    if action == "rotate":
+        _cred_str(data, "expiresAt")
+        try:
+            from dateutil.parser import parse as _parse
+            _parse(data["expiresAt"])
+        except Exception:
+            raise _CredBad("Invalid field: expiresAt")
+        if "label" in data:
+            _cred_str(data, "label", required=False)
+        out = creds.rotate_credential(
+            sources["credentials"], sources["profiles"], cid,
+            data["expiresAt"], actor["role"], actor["id"],
+            label=data.get("label"), reason=reason,
+            actor_tenant=actor["tenant"], idempotency_key=key,
+            correlation_id=corr)
+        return {
+            "statusCode": 200 if out.get("duplicate") else 201,
+            "body": json.dumps({**out["metadata"],
+                                "secret": out.get("secret"),
+                                "duplicate": bool(out.get("duplicate"))}),
+        }
+    if action in ("disable", "revoke"):
+        fn = creds.disable_credential if action == "disable" \
+            else creds.revoke_credential
+        meta = fn(sources["credentials"], cid, actor["role"], actor["id"],
+                  reason=reason, actor_tenant=actor["tenant"],
+                  correlation_id=corr)
+    else:  # enable
+        meta = creds.enable_credential(
+            sources["credentials"], cid, actor["role"], actor["id"],
+            actor_tenant=actor["tenant"], reason=reason,
+            correlation_id=corr)
+    return {"statusCode": 200, "body": json.dumps(meta)}
+
+
+def _handle_credential_routes(event, context, method, path):
+    """Dispatch credential management (Human JWT only, no M2M auth here)."""
+    user_context = _extract_user_context(event)
+    if not user_context.get("userId"):
+        return {"statusCode": 401,
+                "body": json.dumps({"error": "Unauthenticated"})}
+    ids = _cred_ids(path)
+    if ids is None:
+        return {"statusCode": 404,
+                "body": json.dumps({"error": "Not found"})}
+    pid, cid, action = ids
+    headers = _cred_headers(event)
+    hint = headers.get("x-api-profile")
+    if hint is not None and hint != pid:
+        logger.warning("credential route profile mismatch (pid=%s)", pid)
+        return {"statusCode": 400,
+                "body": json.dumps({"error": "Profile mismatch"})}
+    actor = _cred_actor(user_context)
+    corr = _cred_correlation(event, headers)
+    try:
+        sources = _cred_sources()
+    except Exception:
+        logger.warning("Credential stores unconfigured")
+        return {"statusCode": 503,
+                "body": json.dumps({"error": "Temporarily unavailable"})}
+    try:
+        if cid is None:
+            return _handle_credential_collection(
+                event, context, method, pid, user_context, actor,
+                headers, sources, corr)
+        if action is None:
+            return _handle_credential_item(
+                event, context, method, pid, cid, user_context, actor,
+                headers, sources, corr)
+        if method != "POST":
+            return {"statusCode": 404,
+                    "body": json.dumps({"error": "Not found"})}
+        return _handle_credential_action(
+            event, context, pid, cid, action, user_context, actor,
+            headers, sources, corr)
+    except Exception as exc:
+        status, message = _cred_fail(exc, actor["role"])
+        return {"statusCode": status,
+                "body": json.dumps({"error": message})}
 
 
 def _handle_agent_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:

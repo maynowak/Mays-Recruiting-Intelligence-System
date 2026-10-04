@@ -70,6 +70,10 @@ class CredentialConflict(Exception):
     """Idempotency-key mismatch (same key, different request content)."""
 
 
+class CredentialStateConflict(ValueError):
+    """Illegal lifecycle/state transition (maps to 409, still ValueError)."""
+
+
 # ------------------------------------------------------------------
 # Generation + digest (ZS4/ZS5: crypto-random, opaque, once-only)
 # ------------------------------------------------------------------
@@ -242,7 +246,9 @@ def issue_credential(credential_store: Any,
                      now_iso: Optional[str] = None,
                      reason: Optional[str] = None,
                      actor_tenant: Optional[str] = None,
-                     idempotency_key: Optional[str] = None) -> Dict[str, Any]:
+                     idempotency_key: Optional[str] = None,
+                     correlation_id: Optional[str] = None
+                     ) -> Dict[str, Any]:
     """Issue one credential for an EXISTING, usable APIProfile.
 
     Returns {"metadata": {...}, "secret": "<once-only>",
@@ -261,7 +267,7 @@ def issue_credential(credential_store: Any,
     if profile is None:
         raise CredentialNotFound(f"api profile {api_profile_id!r} missing")
     if not _profile_usable(profile):
-        raise ValueError(
+        raise CredentialStateConflict(
             "profile not usable for issuance: "
             f"{profile.get('status')}")
     # Credential must not outlive its profile (MIN rule made explicit
@@ -293,7 +299,8 @@ def issue_credential(credential_store: Any,
                 _audit("credential.created", "duplicate-reused",
                        {"credentialId": row.get("credentialId"),
                         "apiProfileId": api_profile_id,
-                        "actor": actor_id})
+                        "actor": actor_id,
+                        "correlation": correlation_id or "-"})
                 return {"metadata": _public_metadata(row), "secret": None,
                         "duplicate": True}
             raise CredentialConflict("idempotency key content mismatch")
@@ -307,7 +314,8 @@ def issue_credential(credential_store: Any,
     _audit("credential.created", "success",
            {"credentialId": metadata["credentialId"],
             "apiProfileId": api_profile_id,
-            "tenant": metadata["tenantId"], "actor": actor_id})
+            "tenant": metadata["tenantId"], "actor": actor_id,
+            "correlation": correlation_id or "-"})
     return {"metadata": _public_metadata(metadata), "secret": secret,
             "duplicate": False}
 
@@ -343,13 +351,16 @@ def _not_expired_or_raise(meta: Dict[str, Any], action: str) -> None:
     end = _parse_time(meta.get("expiresAt"))
     now = datetime.now(timezone.utc)
     if end is not None and now > end:
-        raise ValueError(f"expired credential may not {action}")
+        raise CredentialStateConflict(
+            f"expired credential may not {action}")
 
 
 def revoke_credential(credential_store: Any, credential_id: str,
                       actor_role: str, actor_id: str,
                       reason: Optional[str] = None,
-                      actor_tenant: Optional[str] = None) -> Dict[str, Any]:
+                      actor_tenant: Optional[str] = None,
+                      correlation_id: Optional[str] = None
+                      ) -> Dict[str, Any]:
     """Terminal revocation (admin + staff-support + owner-self).
     Immediate effect: the next verification denies (no cache anywhere).
     """
@@ -368,14 +379,17 @@ def revoke_credential(credential_store: Any, credential_id: str,
     _audit("credential.revoked", "success",
            {"credentialId": credential_id,
             "apiProfileId": meta.get("apiProfileId"),
-            "actor": actor_id, "reason": reason or "revoked"})
+            "actor": actor_id, "reason": reason or "revoked",
+            "correlation": correlation_id or "-"})
     return _public_metadata(meta)
 
 
 def disable_credential(credential_store: Any, credential_id: str,
                        actor_role: str, actor_id: str,
                        reason: Optional[str] = None,
-                       actor_tenant: Optional[str] = None) -> Dict[str, Any]:
+                       actor_tenant: Optional[str] = None,
+                       correlation_id: Optional[str] = None
+                       ) -> Dict[str, Any]:
     """Reversible lock (admin + staff-support + owner-self; reason
     mandatory)."""
     meta = _load_for_management(credential_store, credential_id)
@@ -390,20 +404,24 @@ def disable_credential(credential_store: Any, credential_id: str,
     credential_store.update_credential(credential_id, meta)
     _audit("credential.disabled", "success",
            {"credentialId": credential_id, "actor": actor_id,
-            "reason": reason})
+            "reason": reason,
+            "correlation": correlation_id or "-"})
     return _public_metadata(meta)
 
 
 def enable_credential(credential_store: Any, credential_id: str,
                       actor_role: str, actor_id: str,
                       actor_tenant: Optional[str] = None,
-                      reason: Optional[str] = None) -> Dict[str, Any]:
+                      reason: Optional[str] = None,
+                      correlation_id: Optional[str] = None
+                      ) -> Dict[str, Any]:
     """Re-activate (admin always; staff/owner only self-disabled ones;
     expired credentials NEVER re-animated — rotate instead)."""
     meta = _load_for_management(credential_store, credential_id)
     _may_manage(meta, actor_role, actor_id, "enable")
     if meta.get("status") != CredentialStatus.DISABLED.value:
-        raise ValueError("only DISABLED credentials can be enabled")
+        raise CredentialStateConflict(
+            "only DISABLED credentials can be enabled")
     if actor_role in ("staff", "owner") \
             and meta.get("disabledBy") != actor_id:
         _audit("credential.unauthorized_management", "denied",
@@ -417,7 +435,8 @@ def enable_credential(credential_store: Any, credential_id: str,
                  "disabledBy": None, "updatedAt": _utcnow_iso()})
     credential_store.update_credential(credential_id, meta)
     _audit("credential.enabled", "success",
-           {"credentialId": credential_id, "actor": actor_id})
+           {"credentialId": credential_id, "actor": actor_id,
+            "correlation": correlation_id or "-"})
     return _public_metadata(meta)
 
 
@@ -427,7 +446,9 @@ def rotate_credential(credential_store: Any, profile_store: Any,
                       label: Optional[str] = None,
                       reason: Optional[str] = None,
                       actor_tenant: Optional[str] = None,
-                      idempotency_key: Optional[str] = None) -> Dict[str, Any]:
+                      idempotency_key: Optional[str] = None,
+                      correlation_id: Optional[str] = None
+                      ) -> Dict[str, Any]:
     """Rotation without profile change: B is new (new id + secret),
     A is revoked IMMEDIATELY (no silent overlap). Admin always;
     owner self-service on OWN credentials; staff support with reason.
@@ -458,7 +479,8 @@ def rotate_credential(credential_store: Any, profile_store: Any,
                 _audit("credential.rotated", "duplicate-reused",
                        {"oldCredentialId": credential_id,
                         "newCredentialId": row.get("credentialId"),
-                        "actor": actor_id})
+                        "actor": actor_id,
+                        "correlation": correlation_id or "-"})
                 return {"metadata": _public_metadata(row), "secret": None,
                         "duplicate": True}
         if any(True for _ in credential_store.find_by_key(idempotency_key)):
@@ -483,11 +505,13 @@ def rotate_credential(credential_store: Any, profile_store: Any,
         issued["metadata"]["credentialId"], new_meta_full)
     revoke_credential(credential_store, credential_id,
                       actor_role, actor_id, reason="rotated",
-                      actor_tenant=actor_tenant)
+                      actor_tenant=actor_tenant,
+                      correlation_id=correlation_id)
     _audit("credential.rotated", "success",
            {"oldCredentialId": credential_id,
             "newCredentialId": issued["metadata"]["credentialId"],
-            "actor": actor_id})
+            "actor": actor_id,
+            "correlation": correlation_id or "-"})
     out_meta = _public_metadata(new_meta_full)
     return {"metadata": out_meta, "secret": issued["secret"],
             "duplicate": False}
@@ -513,7 +537,9 @@ def list_credentials(credential_store: Any, actor_role: str,
                      actor_id: str,
                      api_profile_id: Optional[str] = None,
                      actor_tenant: Optional[str] = None,
-                     reason: Optional[str] = None) -> List[Dict[str, Any]]:
+                     reason: Optional[str] = None,
+                     correlation_id: Optional[str] = None
+                     ) -> List[Dict[str, Any]]:
     """Role-scoped metadata listing (digests/secrets never included).
 
     Owner: own credentials only (optional profile filter must be own).
@@ -555,7 +581,8 @@ def list_credentials(credential_store: Any, actor_role: str,
     _audit("credential.viewed", "success",
            {"actor": actor_id, "count": len(visible),
             "apiProfileId": api_profile_id or "-",
-            "reason": reason or "-"})
+            "reason": reason or "-",
+            "correlation": correlation_id or "-"})
     for item in visible:
         _note_expired(item, actor_id)
     return [_public_metadata(i) for i in visible]
@@ -564,7 +591,8 @@ def list_credentials(credential_store: Any, actor_role: str,
 def get_credential_metadata(credential_store: Any, actor_role: str,
                             actor_id: str, credential_id: str,
                             actor_tenant: Optional[str] = None,
-                            reason: Optional[str] = None
+                            reason: Optional[str] = None,
+                            correlation_id: Optional[str] = None
                             ) -> Optional[Dict[str, Any]]:
     """Single metadata read (neutral None for foreign/missing)."""
     item = credential_store.get_credential(credential_id)
@@ -586,7 +614,8 @@ def get_credential_metadata(credential_store: Any, actor_role: str,
     _audit("credential.viewed", "success",
            {"credentialId": credential_id,
             "apiProfileId": item.get("apiProfileId"),
-            "actor": actor_id})
+            "actor": actor_id,
+            "correlation": correlation_id or "-"})
     _note_expired(item, actor_id)
     return _public_metadata(item)
 
@@ -999,6 +1028,7 @@ __all__ = [
     "UnauthorizedManagementAttempt",
     "CredentialNotFound",
     "CredentialConflict",
+    "CredentialStateConflict",
     "generate_secret",
     "valid_secret_format",
     "digest_secret",
