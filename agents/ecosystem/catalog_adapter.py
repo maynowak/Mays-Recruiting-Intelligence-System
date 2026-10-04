@@ -25,6 +25,9 @@ import logging
 import os
 from typing import Dict, List, Optional, Any
 
+from agents.ecosystem.agent_status import normalize_agent_status
+from agents.ecosystem.registry import AgentDescriptor, ExecutionProfile
+
 logger = logging.getLogger(__name__)
 
 
@@ -159,42 +162,41 @@ def populate_registry_from_catalog(registry, table_name: Optional[str] = None) -
     return count
 
 
-def _convert_to_descriptor(agent_data: Dict[str, Any]) -> Optional[dict]:
+def _convert_to_descriptor(agent_data: Dict[str, Any]) -> Optional[AgentDescriptor]:
     """
-    Convert DynamoDB item to an AgentDescriptor-like structure.
-    
+    Convert DynamoDB item to an AgentDescriptor.
+
     Args:
         agent_data: Raw agent data from DynamoDB
-        
+
     Returns:
-        Dict suitable for AgentDescriptor creation
+        AgentDescriptor, or None when the item has no agentId or its
+        status is unknown/None/empty (fail-closed: blocked agents are
+        never registered).
     """
     if not agent_data or not agent_data.get('agentId'):
         return None
     
-    # Map status string to enum value
-    status_str = agent_data.get('status', 'ACTIVE')
-    status_map = {
-        'ACTIVE': AgentStatus.ACTIVE,
-        'INACTIVE': AgentStatus.INACTIVE,
-        'DEPRECATED': AgentStatus.DEPRECATED,
-        'RETIRED': AgentStatus.RETIRED,
-        'FAILED': AgentStatus.FAILED,
-        'REGISTERED': AgentStatus.REGISTERED,
-        'AVAILABLE': AgentStatus.AVAILABLE,
-    }
-    status = status_map.get(status_str.upper(), AgentStatus.ACTIVE)
+    # Central status decision (fail-closed): unknown / None / empty
+    # values are NOT registered (blocked), never defaulted to ACTIVE.
+    # Persisted DDB values stay untouched — normalization only.
+    status = normalize_agent_status(agent_data.get('status'))
+    if status is None:
+        logger.warning(
+            "Skipping agent %s: unsupported status %r (fail-closed)",
+            agent_data.get('agentId'), agent_data.get('status'))
+        return None
     
-    return {
-        'agent_id': agent_data['agentId'],
-        'name': agent_data.get('name', agent_data['agentId']),
-        'version': agent_data.get('version', '1.0.0'),
-        'status': status,
-        'capabilities': agent_data.get('capabilities', []),
-        'supported_bodies': agent_data.get('supported_bodies', ['1.0.0']),
-        'supported_runtimes': agent_data.get('supported_runtimes', ['python3.14']),
-        'execution_profile': ExecutionProfile.LAMBDA,
-        'risk_level': agent_data.get('risk_level', 'low'),
-        'description': agent_data.get('description', ''),
-        'metadata': agent_data.get('metadata', {}),
-    }
+    return AgentDescriptor(
+        agent_id=agent_data['agentId'],
+        name=agent_data.get('name', agent_data['agentId']),
+        version=agent_data.get('version', '1.0.0'),
+        status=status,
+        capabilities=agent_data.get('capabilities', []),
+        supported_bodies=agent_data.get('supported_bodies', ['1.0.0']),
+        supported_runtimes=agent_data.get('supported_runtimes', ['python3.14']),
+        execution_profile=ExecutionProfile.LAMBDA,
+        risk_level=agent_data.get('risk_level', 'low'),
+        description=agent_data.get('description', ''),
+        metadata=agent_data.get('metadata', {}),
+    )

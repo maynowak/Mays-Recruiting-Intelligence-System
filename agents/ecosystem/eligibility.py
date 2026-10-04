@@ -62,7 +62,7 @@ def check_eligibility(agent_id: str,
         EligibilityCheck with result and reasons
     """
     reasons = []
-    
+
     # Check if agent is registered
     if descriptor is None:
         return EligibilityCheck(
@@ -71,17 +71,25 @@ def check_eligibility(agent_id: str,
             result=EligibilityResult.UNKNOWN,
             reasons=["Agent not registered"]
         )
-    
-    # Check status
-    if descriptor.status != AgentStatus.ACTIVE:
-        reasons.append(f"Agent status is {descriptor.status.value}")
-        if descriptor.status in (AgentStatus.RETIRED, AgentStatus.DEPRECATED):
-            return EligibilityCheck(
-                agent_id=agent_id,
-                eligible=False,
-                result=EligibilityResult.INELIGIBLE,
-                reasons=reasons
-            )
+
+    # Central status decision (fail-closed, Gate 07): only ACTIVE is
+    # executable. Every other known status — and any unknown/None
+    # value — is INELIGIBLE. This replaces the former RETIRED/
+    # DEPRECATED-only hard block (INACTIVE/FAILED/... passed before).
+    from agents.ecosystem.agent_status import normalize_agent_status
+    normalized = (descriptor.status
+                  if isinstance(descriptor.status, AgentStatus)
+                  else normalize_agent_status(descriptor.status))
+    if normalized != AgentStatus.ACTIVE:
+        label = (normalized.value
+                 if isinstance(normalized, AgentStatus) else "UNKNOWN")
+        reasons.append(f"Agent status is {label} (not executable)")
+        return EligibilityCheck(
+            agent_id=agent_id,
+            eligible=False,
+            result=EligibilityResult.INELIGIBLE,
+            reasons=reasons
+        )
     
     # Check capability support
     if capability and not descriptor.supports_capability(capability):

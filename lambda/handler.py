@@ -46,29 +46,28 @@ def _init_catalog():
     _catalog_initialized = True
     try:
         from agents.ecosystem.catalog_adapter import CatalogAdapter
-        from agents.ecosystem.registry import get_registry, AgentDescriptor, AgentStatus, ExecutionProfile
+        from agents.ecosystem.registry import get_registry, AgentDescriptor, ExecutionProfile
 
         _catalog_adapter = CatalogAdapter()
         _catalog_agents = _catalog_adapter.get_all_agents()
         _registry = get_registry()
 
         for _agent_id, _agent_data in _catalog_agents.items():
-            # Map DynamoDB item to AgentDescriptor
-            _status_str = _agent_data.get('status', 'ACTIVE')
-            _status_map = {
-                'ACTIVE': AgentStatus.ACTIVE,
-                'INACTIVE': AgentStatus.INACTIVE,
-                'DEPRECATED': AgentStatus.DEPRECATED,
-                'RETIRED': AgentStatus.RETIRED,
-                'FAILED': AgentStatus.FAILED,
-                'REGISTERED': AgentStatus.REGISTERED,
-                'AVAILABLE': AgentStatus.AVAILABLE,
-            }
+            # Central status decision (fail-closed, Gate 07): unknown /
+            # None / empty values are NOT registered (blocked), never
+            # defaulted to ACTIVE. Persisted DDB values stay untouched.
+            from agents.ecosystem.agent_status import normalize_agent_status
+            _status = normalize_agent_status(_agent_data.get('status'))
+            if _status is None:
+                logger.warning(
+                    "Skipping catalog agent %s: unsupported status %r",
+                    _agent_id, _agent_data.get('status'))
+                continue
             _descriptor = AgentDescriptor(
                 agent_id=_agent_id,
                 name=_agent_data.get('name', _agent_id),
                 version=_agent_data.get('version', '1.0.0'),
-                status=_status_map.get(_status_str.upper(), AgentStatus.ACTIVE),
+                status=_status,
                 capabilities=_agent_data.get('capabilities', []),
                 supported_bodies=_agent_data.get('supported_bodies', ['1.0.0']),
                 supported_runtimes=_agent_data.get('supported_runtimes', ['python3.14']),
@@ -602,8 +601,11 @@ def _handle_agents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         agent = agent_catalog.get(agent_id)
         if not agent:
             continue
-        
-        if agent.get('status') != 'active':
+
+        # Central status decision (fail-closed, Gate 07): only ACTIVE
+        # is executable — any case, unknown, None, or empty blocked.
+        from agents.ecosystem.agent_status import is_executable_status
+        if not is_executable_status(agent.get('status')):
             continue
         
         if not _is_entitlement_valid(entitlement):
@@ -775,8 +777,10 @@ def _execute_agent(event: Dict[str, Any], context: Any, agent_id: Optional[str])
             'statusCode': 404,
             'body': json.dumps({'error': 'Agent not found'})
         }
-    
-    if agent.get('status') != 'active':
+
+    # Central status decision (fail-closed, Gate 07).
+    from agents.ecosystem.agent_status import is_executable_status
+    if not is_executable_status(agent.get('status')):
         return {
             'statusCode': 403,
             'body': json.dumps({'error': 'Agent is not active'})
