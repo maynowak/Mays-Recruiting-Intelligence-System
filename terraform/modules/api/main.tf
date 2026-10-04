@@ -110,6 +110,55 @@ resource "aws_apigatewayv2_route" "introspection" {
 # no $default substitute, no ANY, no greedy proxy. Existing JWT
 # authorizer + proxy integration reused; no new authorizer,
 # integration, permission, table, role, or Lambda change.
+# P19: APIProfile management HTTP (Human JWT only). Closes the P17
+# blocker "no productive APIProfile management entry point": the P10
+# domain functions (create_profile, get_profile, list_profiles,
+# update_profile, transition_status) existed and were tested but had no
+# productive caller. Explicit method/path routes, existing JWT authorizer
+# + proxy integration reused; no new authorizer, integration, permission,
+# table, role, or Lambda change. No $default, no ANY, no greedy route.
+# set_client_ref / set_expires_at / renew_profile stay unpublished
+# (internal domain support, see P19 report).
+resource "aws_apigatewayv2_route" "apiprofiles_create" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/apiprofiles"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "apiprofiles_list" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/apiprofiles"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "apiprofiles_get" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/apiprofiles/{apiProfileId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "apiprofiles_update" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "PATCH /v1/apiprofiles/{apiProfileId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "apiprofiles_status" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/apiprofiles/{apiProfileId}/status"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
 resource "aws_apigatewayv2_route" "credentials_create" {
   api_id             = aws_apigatewayv2_api.ris_api.id
   route_key          = "POST /v1/apiprofiles/{apiProfileId}/credentials"

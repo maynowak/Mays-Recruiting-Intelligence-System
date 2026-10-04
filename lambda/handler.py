@@ -267,9 +267,12 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # P13: read-only capability introspection (JWT + X-Api-Profile
         # header; GW route provisioned in terraform/modules/api).
         return _handle_introspection(event, context)
-    elif path.startswith('/v1/apiprofiles/'):
-        # P15: credential management (Human JWT only; GW wiring is a
-        # later gate — routes documented, handler tested directly).
+    elif path == '/v1/apiprofiles' or path.startswith('/v1/apiprofiles/'):
+        # P19: APIProfile-Management (Human JWT) und P15/P16 Credential
+        # Management teilen sich das /v1/apiprofiles-Praefix. Credential
+        # Routen bleiben unveraendert an _handle_credential_routes.
+        if '/credentials' not in path:
+            return _handle_apiprofile_routes(event, context, method, path)
         return _handle_credential_routes(event, context, method, path)
     elif method == 'GET' and path == '/me/jobsearches':
         return _handle_jobsearch_list(event, context)
@@ -1056,6 +1059,266 @@ def _handle_credential_routes(event, context, method, path):
         status, message = _cred_fail(exc, actor["role"])
         return {"statusCode": status,
                 "body": json.dumps({"error": message})}
+
+
+# ------------------------------------------------------------------
+# P19: APIProfile management HTTP (Human JWT only).
+#
+# Diese Schicht ist REINE VERDRAHTUNG. Rollenmatrix, Tenant-Isolation,
+# Uniqueness, Lifecycle und Audit kommen unveraendert aus
+# agents/ecosystem/api_profiles.py (create_profile, get_profile,
+# list_profiles, update_profile, transition_status). Es gibt hier
+# bewusst KEINE zweite Validierung und KEINE eigene Statusmaschine.
+#
+# Nicht veroeffentlicht (bleiben interne Domain-Unterstuetzung, siehe
+# P19-Report): set_client_ref, set_expires_at, renew_profile. Sie sind
+# admin-only Vertragsfelder, aber kein eigenstaendiger HTTP-Vertrag.
+# ------------------------------------------------------------------
+
+_APROF_STATUS_TARGETS = ("ACTIVE", "DISABLED", "REVOKED")
+
+
+class _AProfBad(Exception):
+    """Neutral 400 (kein Stack-Leak, keine Feldwerte)."""
+
+
+def _aprof_store():
+    """Lazy production store (fehlende Config -> neutral 503)."""
+    import os
+
+    from agents.ecosystem.api_profiles import DynamoDBApiProfileStore
+
+    if not os.environ.get("API_PROFILES_TABLE"):
+        raise RuntimeError("api-profile store unconfigured")
+    return DynamoDBApiProfileStore(
+        table_name=os.environ.get("API_PROFILES_TABLE"))
+
+
+def _aprof_actor(user_context):
+    """JWT claims -> domain actor.
+
+    WICHTIG: die Domain prueft Rollen ueber actor["groups"]
+    (api_profiles._is_admin/_is_staff). Der Rollenstring wird nur fuer
+    die HTTP-Fehlerausgabe (403 vs. neutral 404) gebraucht.
+    """
+    groups = list(user_context.get("groups") or [])
+    return {
+        "userId": user_context.get("userId"),
+        "tenantId": user_context.get("tenantId"),
+        "groups": groups,
+        "role": _cred_actor(user_context)["role"],
+    }
+
+
+def _aprof_ids(path):
+    """Parse profile paths -> (pid|None, action|None) oder None.
+
+    /v1/apiprofiles                 -> (None, None)
+    /v1/apiprofiles/{pid}           -> (pid, None)
+    /v1/apiprofiles/{pid}/status    -> (pid, "status")
+    """
+    parts = (path or "").strip("/").split("/")
+    if len(parts) < 2 or parts[0] != "v1" or parts[1] != "apiprofiles":
+        return None
+    if len(parts) == 2:
+        return (None, None)
+    pid = parts[2]
+    if not pid:
+        return None
+    if len(parts) == 3:
+        return (pid, None)
+    if len(parts) == 4 and parts[3] == "status":
+        return (pid, "status")
+    return None
+
+
+def _aprof_body(event, allowed, required=()):
+    try:
+        data = json.loads(event.get("body") or "{}")
+    except (ValueError, TypeError):
+        raise _AProfBad("Request body must be valid JSON")
+    if not isinstance(data, dict):
+        raise _AProfBad("Request body must be valid JSON")
+    unknown = sorted(set(data) - set(allowed))
+    if unknown:
+        # Deckt immutable/system/admin-only Felder ab: update_profile
+        # lehnt sie ebenfalls ab, hier wird schon vor dem Store
+        # neutral abgewiesen.
+        raise _AProfBad("Unknown fields: " + ", ".join(unknown))
+    for field in required:
+        if field not in data:
+            raise _AProfBad("Missing field: " + field)
+    return data
+
+
+def _aprof_str(data, field, required=True):
+    value = data.get(field)
+    if value is None:
+        if required:
+            raise _AProfBad("Missing field: " + field)
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise _AProfBad("Invalid field: " + field)
+    return value.strip()
+
+
+def _aprof_reason(data, event):
+    """Reason aus Body (Schreib-Requests) oder Query (Reads)."""
+    query = event.get("queryStringParameters") or {}
+    raw = data.get("reason", query.get("reason"))
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not raw.strip():
+        raise _AProfBad("Invalid field: reason")
+    return raw.strip()
+
+
+def _aprof_fail(exc, actor_role=None):
+    """Domain-Fehler -> neutrales HTTP.
+
+    Owner + fremdes Profil -> 404 (kein Oracle: fremd und fehlend sind
+    ununterscheidbar). Admin/Staff -> 403.
+    """
+    from agents.ecosystem.api_profiles import (
+        InvalidProfileTransition,
+        ProfileConflict,
+        ProfileNotFound,
+        UnauthorizedProfileAction,
+    )
+
+    if isinstance(exc, UnauthorizedProfileAction):
+        if actor_role == "owner":
+            return 404, "Not found"
+        return 403, "Forbidden"
+    if isinstance(exc, ProfileNotFound):
+        return 404, "Not found"
+    if isinstance(exc, (ProfileConflict, InvalidProfileTransition)):
+        return 409, "Conflict"
+    if isinstance(exc, _AProfBad):
+        return 400, str(exc) or "Invalid request"
+    if isinstance(exc, ValueError):
+        return 400, "Invalid request"
+    logger.exception("APIProfile management failed")
+    return 500, "Internal error"
+
+
+def _handle_apiprofile_collection(event, method, store, actor):
+    """POST /v1/apiprofiles (create) und GET /v1/apiprofiles (list)."""
+    from agents.ecosystem import api_profiles
+
+    if method == "POST":
+        data = _aprof_body(event, {"name", "description", "targetOwner",
+                                   "reason"}, {"name"})
+        name = _aprof_str(data, "name")
+        description = _aprof_str(data, "description", required=False)
+        # targetOwner ist der einzige zulaessige Admin-Pfad laut
+        # Contract (create_profile -> target_owner). Die Domain
+        # verweigert ihn fuer Nicht-Admin (UnauthorizedProfileAction).
+        target_owner = _aprof_str(data, "targetOwner", required=False)
+        reason = _aprof_reason(data, event)
+        if target_owner and target_owner != actor["userId"] \
+                and reason is None and "admins" not in actor["groups"]:
+            # Kein Vorab-Vorteil: die Domain entscheidet. Wir geben
+            # nur eine klare Fehlermeldung statt stiller Annahme.
+            raise _AProfBad("Invalid field: targetOwner")
+        item = api_profiles.create_profile(
+            store, actor, name, description=description,
+            target_owner=target_owner,
+            idempotency_key=_cred_idem(_cred_headers(event)))
+        return 201, item
+    if method == "GET":
+        reason = _aprof_reason({}, event)
+        items = api_profiles.list_profiles(store, actor, reason=reason)
+        return 200, {"items": items}
+    return 404, {"error": "Not found"}
+
+
+def _handle_apiprofile_item(event, method, pid, store, actor):
+    """GET/PATCH /v1/apiprofiles/{apiProfileId}."""
+    from agents.ecosystem import api_profiles
+
+    if method == "GET":
+        reason = _aprof_reason({}, event)
+        item = api_profiles.get_profile(store, actor, pid, reason=reason)
+        if item is None:
+            return 404, {"error": "Not found"}
+        return 200, item
+    if method == "PATCH":
+        data = _aprof_body(event, {"name", "description", "reason"})
+        name = _aprof_str(data, "name", required=False)
+        description = None
+        if "description" in data:
+            raw = data["description"]
+            if raw is not None and not isinstance(raw, str):
+                raise _AProfBad("Invalid field: description")
+            description = raw
+        reason = _aprof_reason(data, event)
+        item = api_profiles.update_profile(
+            store, actor, pid, name=name, description=description,
+            reason=reason)
+        if item is None:
+            return 404, {"error": "Not found"}
+        return 200, item
+    return 404, {"error": "Not found"}
+
+
+def _handle_apiprofile_status(event, method, pid, store, actor):
+    """POST /v1/apiprofiles/{apiProfileId}/status (Lifecycle).
+
+    Nutzt ausschliesslich transition_status. EXPIRED ist im Contract
+    abgeleitet und wird hier bewusst nicht als Ziel akzeptiert.
+    """
+    from agents.ecosystem import api_profiles
+
+    if method != "POST":
+        return 404, {"error": "Not found"}
+    data = _aprof_body(event, {"status", "reason"}, {"status"})
+    target = _aprof_str(data, "status")
+    if target not in _APROF_STATUS_TARGETS:
+        raise _AProfBad("Invalid field: status")
+    reason = _aprof_reason(data, event)
+    item = api_profiles.transition_status(
+        store, actor, pid, target, reason=reason)
+    return 200, item
+
+
+def _handle_apiprofile_routes(event, context, method, path):
+    """Dispatch APIProfile management (Human JWT only, kein M2M hier)."""
+    user_context = _extract_user_context(event)
+    if not user_context.get("userId"):
+        return {"statusCode": 401,
+                "body": json.dumps({"error": "Unauthenticated"})}
+    ids = _aprof_ids(path)
+    if ids is None:
+        return {"statusCode": 404,
+                "body": json.dumps({"error": "Not found"})}
+    pid, action = ids
+    if not user_context.get("tenantId"):
+        # Contract: tenantId ist Pflicht fuer owner/tenant-Pfade.
+        return {"statusCode": 403,
+                "body": json.dumps({"error": "Forbidden"})}
+    actor = _aprof_actor(user_context)
+    try:
+        store = _aprof_store()
+    except Exception:
+        logger.warning("APIProfile store unconfigured")
+        return {"statusCode": 503,
+                "body": json.dumps({"error": "Temporarily unavailable"})}
+    try:
+        if pid is None:
+            status, body = _handle_apiprofile_collection(
+                event, method, store, actor)
+        elif action == "status":
+            status, body = _handle_apiprofile_status(
+                event, method, pid, store, actor)
+        else:
+            status, body = _handle_apiprofile_item(
+                event, method, pid, store, actor)
+    except Exception as exc:
+        status, message = _aprof_fail(exc, actor["role"])
+        return {"statusCode": status,
+                "body": json.dumps({"error": message})}
+    return {"statusCode": status, "body": json.dumps(body)}
 
 
 def _handle_agent_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
