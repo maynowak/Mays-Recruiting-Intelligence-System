@@ -23,7 +23,7 @@ import secrets
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -326,6 +326,100 @@ def _deny(outcome: VerifyOutcome, reason: str,
     return VerifyDecision(outcome, reason, {}, audit_ref)
 
 
+class _Denied(Exception):
+    """Internal denial signal (outcome + reason + audit fields)."""
+
+    def __init__(self, outcome: VerifyOutcome, reason: str,
+                 fields: Dict[str, Any]) -> None:
+        super().__init__(reason)
+        self.outcome = outcome
+        self.reason = reason
+        self.fields = fields
+
+
+def resolve_credential_profile(
+    bearer: Any,
+    credential_store: Any,
+    profile_store: Any,
+    now: Optional[datetime] = None,
+    base: Optional[Dict[str, Any]] = None,
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Shared credential+profile boundary (P09 steps 1-11, P12 reuse).
+
+    Validates presence/format, digest lookup, credential status,
+    profile existence/status, both expiries (MIN rule) and
+    owner/tenant consistency incl. tenantId presence. Raises _Denied
+    (never returns details). No entitlement/catalog logic here.
+    """
+    moment = now or datetime.now(timezone.utc)
+    fields: Dict[str, Any] = dict(base or {})
+
+    # 1-2. Present + well-formed? (no lookup on garbage.)
+    if not bearer or not valid_secret_format(bearer):
+        raise _Denied(VerifyOutcome.UNAUTHORIZED, "malformed", fields)
+    # NOTE for introspection callers: P09 verification additionally
+    # requires an operation target (agent_id); this boundary does not.
+
+    # 3-4. Digest + lookup (failures propagate: 503, never 401/403).
+    try:
+        meta = credential_store.get_by_digest(digest_secret(bearer))
+    except Exception as exc:
+        raise CredentialStoreUnavailable(str(exc)) from exc
+    if meta is None:
+        raise _Denied(VerifyOutcome.UNAUTHORIZED, "unknown-credential",
+                      fields)
+    meta = dict(meta)
+    fields.update({"credentialId": meta.get("credentialId"),
+                   "apiProfileId": meta.get("apiProfileId"),
+                   "tenant": meta.get("tenantId")})
+
+    # 5. Credential status.
+    if meta.get("status") == CredentialStatus.REVOKED.value:
+        raise _Denied(VerifyOutcome.FORBIDDEN, "credential-revoked",
+                      fields)
+    if meta.get("status") != CredentialStatus.ACTIVE.value:
+        raise _Denied(VerifyOutcome.FORBIDDEN, "credential-disabled",
+                      fields)
+
+    # 6-7. Profile load + existence.
+    try:
+        profile = profile_store.get_profile(meta.get("apiProfileId"))
+    except Exception as exc:
+        raise CredentialStoreUnavailable(str(exc)) from exc
+    if profile is None:
+        raise _Denied(VerifyOutcome.FORBIDDEN, "profile-missing", fields)
+    profile = dict(profile)
+
+    # 8. Profile status.
+    if profile.get("status") != "ACTIVE":
+        raise _Denied(
+            VerifyOutcome.FORBIDDEN,
+            f"profile-{str(profile.get('status') or 'unknown').lower()}",
+            fields)
+
+    # 9-10. Expiry MIN rule (credential expiresAt mandatory).
+    cred_end = _parse_time(meta.get("expiresAt"))
+    prof_end = _parse_time(profile.get("expiresAt")) \
+        if profile.get("expiresAt") else None
+    aware_now = moment if moment.tzinfo else moment.replace(
+        tzinfo=timezone.utc)
+    if cred_end is None or aware_now > cred_end:
+        raise _Denied(VerifyOutcome.FORBIDDEN, "credential-expired",
+                      fields)
+    if prof_end is not None and aware_now > prof_end:
+        raise _Denied(VerifyOutcome.FORBIDDEN, "profile-expired", fields)
+
+    # 11. Owner/tenant consistency (tenantId REQUIRED persisted context).
+    if not profile.get("tenantId") or not profile.get("ownerUserId"):
+        raise _Denied(VerifyOutcome.FORBIDDEN, "profile-context-missing",
+                      fields)
+    if meta.get("ownerUserId") != profile.get("ownerUserId") or \
+            meta.get("tenantId") != profile.get("tenantId"):
+        raise _Denied(VerifyOutcome.FORBIDDEN, "owner-tenant-mismatch",
+                      fields)
+    return meta, profile
+
+
 def verify_api_credential(
     bearer: Any,
     agent_id: Optional[str],
@@ -352,70 +446,20 @@ def verify_api_credential(
     now = request_time or datetime.now(timezone.utc)
     base = {"route": route or "?", "request": request_id or "?"}
 
-    # 1-2. Present + well-formed? (no lookup on garbage.)
-    if not bearer or not valid_secret_format(bearer):
-        return _deny(VerifyOutcome.UNAUTHORIZED, "malformed", base)
+    # 1-11. Shared credential+profile boundary (steps incl. expiry MIN
+    # rule and owner/tenant consistency). Operation target still
+    # required below (verifier never guesses it).
     if not agent_id:
         return _deny(VerifyOutcome.UNAUTHORIZED, "missing-target", base)
-
-    # 3-4. Digest + lookup.
     try:
-        meta = credential_store.get_by_digest(digest_secret(bearer))
-    except Exception as exc:
-        raise CredentialStoreUnavailable(str(exc)) from exc
-    if meta is None:
-        return _deny(VerifyOutcome.UNAUTHORIZED, "unknown-credential", base)
-    meta = dict(meta)
+        meta, profile = resolve_credential_profile(
+            bearer, credential_store, profile_store, now, base)
+    except _Denied as denied:
+        return _deny(denied.outcome, denied.reason, denied.fields)
     audit_base = dict(base)
     audit_base.update({"credentialId": meta.get("credentialId"),
                        "apiProfileId": meta.get("apiProfileId"),
                        "tenant": meta.get("tenantId")})
-
-    # 5. Credential status.
-    if meta.get("status") == CredentialStatus.REVOKED.value:
-        return _deny(VerifyOutcome.FORBIDDEN, "credential-revoked",
-                      audit_base)
-    if meta.get("status") != CredentialStatus.ACTIVE.value:
-        return _deny(VerifyOutcome.FORBIDDEN, "credential-disabled",
-                      audit_base)
-
-    # 6-7. Profile load + existence.
-    try:
-        profile = profile_store.get_profile(meta.get("apiProfileId"))
-    except Exception as exc:
-        raise CredentialStoreUnavailable(str(exc)) from exc
-    if profile is None:
-        return _deny(VerifyOutcome.FORBIDDEN, "profile-missing", audit_base)
-    profile = dict(profile)
-
-    # 8. Profile status (PENDING/DISABLED/EXPIRED/REVOKED deny).
-    if profile.get("status") != "ACTIVE":
-        return _deny(VerifyOutcome.FORBIDDEN,
-                      f"profile-{str(profile.get('status') or 'unknown').lower()}",
-                      audit_base)
-
-    # 9-10. Expiry: effective = MIN(credential, profile).
-    cred_end = _parse_time(meta.get("expiresAt"))
-    prof_end = _parse_time(profile.get("expiresAt")) \
-        if profile.get("expiresAt") else None
-    aware_now = now if now.tzinfo else now.replace(tzinfo=timezone.utc)
-    if cred_end is None or aware_now > cred_end:
-        return _deny(VerifyOutcome.FORBIDDEN, "credential-expired",
-                      audit_base)
-    if prof_end is not None and aware_now > prof_end:
-        return _deny(VerifyOutcome.FORBIDDEN, "profile-expired", audit_base)
-
-    # 11. Owner/tenant consistency (credential mirror vs. profile truth).
-    # tenantId is REQUIRED persisted profile context (isolation rule;
-    # P09 clarification of the P02 object contract): missing on either
-    # side denies, never defaults.
-    if not profile.get("tenantId") or not profile.get("ownerUserId"):
-        return _deny(VerifyOutcome.FORBIDDEN, "profile-context-missing",
-                      audit_base)
-    if meta.get("ownerUserId") != profile.get("ownerUserId") or \
-            meta.get("tenantId") != profile.get("tenantId"):
-        return _deny(VerifyOutcome.FORBIDDEN, "owner-tenant-mismatch",
-                      audit_base)
 
     # 12. Client binding: metadata/audit only by contract (never blocks).
     audit_base["clientRef"] = profile.get("clientRef")

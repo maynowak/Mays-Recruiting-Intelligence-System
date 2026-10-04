@@ -621,6 +621,106 @@ def _handle_agents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     }
 
 
+def _build_introspection_sources():
+    """Production introspection sources (lazy, read-only).
+
+    PREPARED for the gateway gate (P12): the api-profiles / offers /
+    credentials tables are NOT provisioned yet, so this raises until
+    the deployment gate exists (maps to neutral 503 — no false live
+    claims). Catalog + entitlements reuse provisioned infrastructure.
+    """
+    import os
+
+    from agents.ecosystem.api_profiles import DynamoDBApiProfileStore
+    from agents.ecosystem.catalog_adapter import CatalogAdapter
+    from agents.ecosystem.credentials import DynamoDBCredentialStore
+    from agents.ecosystem.offers import DynamoDBOfferStore
+    from agents.ecosystem.worker_authorization import (
+        DynamoDBEntitlementResolver,
+    )
+
+    missing = [name for name in ("API_PROFILES_TABLE", "OFFERS_TABLE",
+                                 "CREDENTIALS_TABLE", "ENTITLEMENTS_TABLE")
+               if not os.environ.get(name)]
+    if missing:
+        raise RuntimeError(f"introspection stores unconfigured: {missing}")
+    catalog_items = CatalogAdapter().get_all_agents()
+    catalog = {agent_id: (item.get("status") if isinstance(item, dict)
+                          else item)
+               for agent_id, item in catalog_items.items()}
+    return {
+        "profile_store": DynamoDBApiProfileStore(
+            table_name=os.environ.get("API_PROFILES_TABLE")),
+        "entitlement_resolver": DynamoDBEntitlementResolver(),
+        "offer_store": DynamoDBOfferStore(
+            table_name=os.environ.get("OFFERS_TABLE")),
+        "credential_store": DynamoDBCredentialStore(
+            table_name=os.environ.get("CREDENTIALS_TABLE")),
+        "catalog": catalog,
+    }
+
+
+def _handle_introspection(event, context, bearer_credential=None):
+    """Read-only capability introspection (PREPARED handler, P12).
+
+    NOT routed from API Gateway yet (no GW route/TF change in this
+    gate — see P12 report). Directly unit-tested; live wiring is a
+    later gateway gate. Never mutates anything.
+    """
+    from agents.ecosystem import introspection as introspect_mod
+
+    user_context = _extract_user_context(event)
+    headers = {(k or "").lower(): v
+               for k, v in (event.get("headers") or {}).items()}
+    selection_hint = headers.get("x-api-profile")
+    request_id = ((event.get("requestContext") or {}).get("requestId")
+                  or event.get("requestId"))
+
+    try:
+        sources = _build_introspection_sources()
+    except Exception as exc:
+        logger.warning(f"Introspection unavailable: {type(exc).__name__}")
+        return {
+            'statusCode': 503,
+            'body': json.dumps({'error': 'Temporarily unavailable'})
+        }
+
+    try:
+        if bearer_credential:
+            status, body = introspect_mod.introspect_credential(
+                bearer_credential, sources,
+                selection_hint=selection_hint, request_id=request_id)
+        elif not user_context.get("userId"):
+            return {
+                'statusCode': 401,
+                'body': json.dumps({'error': 'Unauthenticated'})
+            }
+        elif selection_hint:
+            status, body = introspect_mod.introspect_profile(
+                user_context["userId"], user_context.get("tenantId"),
+                sources, selection_hint=selection_hint,
+                request_id=request_id)
+        else:
+            status, body = introspect_mod.introspect_human(
+                user_context["userId"], user_context.get("tenantId"),
+                sources, request_id=request_id)
+    except introspect_mod.IntrospectionUnavailable:
+        return {
+            'statusCode': 503,
+            'body': json.dumps({'error': 'Temporarily unavailable'})
+        }
+    except Exception:
+        logger.exception("Introspection failed")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Internal error'})
+        }
+    return {
+        'statusCode': status,
+        'body': json.dumps(body)
+    }
+
+
 def _handle_agent_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle Agent API routes."""
     path = event.get('path', '/')
