@@ -62,7 +62,7 @@ Die drei neuen Werte zeigen exakt auf die P18B-reconcilierten Tabellen:
 
 Der Code liest diese Namen in `lambda/handler.py:650-651,661-666` (Stack-Build) und `:762-769` (Credential-Pfad) — die Env-Variablen sind damit funktional verdrahtet.
 
-Nebenbefund, ohne Plan-Wirkung: `terraform fmt -check main.tf` meldete Formatierung in den `module "lambda"`/`module "orders_reader"`/`module "monitoring"`-Blöcken. Ursache ist eine **reine Whitespace-Ausrichtung** (`git diff -w` ergibt keinen Unterschied), semantisch identisch, im vorliegenden Plan nicht wirksam. Nicht committet (siehe §9).
+Nebenbefund, ohne Plan-Wirkung: `terraform fmt -check main.tf` meldete Formatierung in den `module "lambda"`/`module "orders_reader"`/`module "monitoring"`-Blöcken. Ursache ist eine **reine Whitespace-Ausrichtung** (`git diff -w` ergibt keinen Unterschied), semantisch identisch, im vorliegenden Plan nicht wirksam. Die Arbeitskopie wurde auf HEAD zurückgesetzt, damit `git status` clean bleibt; `modules/lambda/main.tf` ist fmt-clean.
 
 ## 4. Freigabe (Schritt 4)
 
@@ -112,14 +112,15 @@ terraform apply -input=false -auto-approve /tmp/p19.tfplan
 
 ## 9. Git
 
-- Commit: nur P19-Reports. **Kein** Terraform-Code geändert (die Whitespace-Ausrichtung in `terraform/main.tf` aus §3 bleibt bewusst uncommittet — sie ist semantisch neutral, aber nicht P19-Scope und würde `git status` verunreinigen; als kosmetischer Rest dokumentiert).
+- Commit `0198ae2` (`feat(platform): deploy lambda environment and code 19`): **nur** die beiden P19-Reports, 211 Zeilen. **Kein** Terraform-Code geändert.
 - `terraform/lambda.zip` ist git-ignoriert (`.gitignore:64-66`) und wurde nicht committet.
-- Reports: `RIS-LAMBDA-ENVIRONMENT-DEPLOYMENT-19.md`, `RIS-LAMBDA-ENVIRONMENT-DEPLOYMENT-19-EXECUTION_LOG.md`.
+- `terraform/main.tf` wurde auf HEAD zurückgesetzt (reine Whitespace-Ausrichtung aus §3, semantisch neutral) → `git status --short` ist clean.
+
 
 ## 10. Offene Punkte
 
 1. Gateway-Routen für Profile/Credentials/Offers/Introspection sind **nicht** aktiviert (P16/P13 bewusst offen) — die Endpunkte bleiben bis dahin nicht erreichbar.
 2. Entitlements-IAM (`TransactWriteItems`) fehlt weiterhin — Gate vor Grant-E2E.
-3. Kosmetischer `terraform fmt`-Rest in `terraform/main.tf` (reine Ausrichtung, ohne Wirkung).
+3. `terraform fmt -check main.tf` meldet weiterhin eine Ausrichtungs-Abweichung in `module "lambda"`/`"orders_reader"`/`"monitoring"` (reine Whitespace, ohne semantische Wirkung). Nicht committet, da außerhalb P19-Scope; `modules/lambda/main.tf` ist clean.
 4. CI baut weiterhin kein Lambda-Bundle (`ci-cd.yml`) — dokumentiert offen.
 5. Kein Credential-Management-E2E und kein P17 in diesem Gate — beabsichtigt.
