@@ -194,6 +194,68 @@ resource "aws_iam_role_policy" "lambda_documents" {
   })
 }
 
+# P18: platform product tables (APIProfile/Offer/Credential, P10/P11/P09
+# domains). Least privilege per ACTUAL code use (adapters):
+# api-profiles: GetItem (get), Query (list_by_owner via gsi-owner),
+#   PutItem (create/conditional + full update).
+# offers: GetItem (get), Scan (list_offers), PutItem (create/update).
+# credentials: GetItem (get), Query (get_by_digest via gsi-digest),
+#   PutItem (issue/rotate), UpdateItem (status/mark_used), Scan
+#   (management list/find_by_key — rare admin/support reads).
+# NO DeleteItem (no delete path: REVOKED persists for audit),
+# NO Batch*, NO Transact* (grant writes target the EXISTING
+# entitlements table — separate follow-up, NOT this gate),
+# NO dynamodb:*, scoped to the three table ARNs + their indexes.
+resource "aws_iam_role_policy" "lambda_dynamodb_product" {
+  name = "${var.project_name}-${var.environment}-lambda-dynamodb-product"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem"
+        ]
+        Resource = [
+          var.api_profiles_table_arn,
+          "${var.api_profiles_table_arn}/index/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:Scan",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem"
+        ]
+        Resource = [
+          var.offers_table_arn
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem"
+        ]
+        Resource = [
+          var.credentials_table_arn,
+          "${var.credentials_table_arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_logs" {
   name = "${var.project_name}-${var.environment}-lambda-logs"
   role = aws_iam_role.lambda_execution.id
@@ -227,14 +289,17 @@ resource "aws_lambda_function" "agent" {
 
   environment {
     variables = {
-      WORK_ITEMS_TABLE      = var.dynamodb_table_name
-      USER_PROFILE_TABLE    = var.user_profile_table_name
-      AGENT_CATALOG_TABLE   = var.agent_catalog_table_name
-      ENTITLEMENTS_TABLE    = var.entitlements_table_name
-      WORK_QUEUE_URL        = var.work_queue_url
-      JOBSEARCH_TABLE       = var.jobsearch_table_name
-      DOCUMENTS_BUCKET      = var.documents_bucket_name
-      LOG_LEVEL             = var.log_level
+      WORK_ITEMS_TABLE    = var.dynamodb_table_name
+      USER_PROFILE_TABLE  = var.user_profile_table_name
+      AGENT_CATALOG_TABLE = var.agent_catalog_table_name
+      ENTITLEMENTS_TABLE  = var.entitlements_table_name
+      WORK_QUEUE_URL      = var.work_queue_url
+      JOBSEARCH_TABLE     = var.jobsearch_table_name
+      DOCUMENTS_BUCKET    = var.documents_bucket_name
+      API_PROFILES_TABLE  = var.api_profiles_table_name
+      OFFERS_TABLE        = var.offers_table_name
+      CREDENTIALS_TABLE   = var.credentials_table_name
+      LOG_LEVEL           = var.log_level
     }
   }
 
@@ -242,6 +307,7 @@ resource "aws_lambda_function" "agent" {
     aws_iam_role_policy.lambda_dynamodb_platform,
     aws_iam_role_policy.lambda_dynamodb_work,
     aws_iam_role_policy.lambda_dynamodb_jobsearch,
+    aws_iam_role_policy.lambda_dynamodb_product,
     aws_iam_role_policy.lambda_documents,
     aws_iam_role_policy.lambda_s3,
     aws_iam_role_policy.lambda_logs,

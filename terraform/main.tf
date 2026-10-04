@@ -109,9 +109,15 @@ module "lambda" {
   user_profile_table_name  = module.dynamodb.user_profile_table_name
   agent_catalog_table_name = module.dynamodb.agent_catalog_table_name
   entitlements_table_name  = module.dynamodb.entitlements_table_name
+  api_profiles_table_name  = module.dynamodb.api_profiles_table_name
+  offers_table_name        = module.dynamodb.offers_table_name
+  credentials_table_name   = module.dynamodb.credentials_table_name
   user_profile_table_arn   = module.dynamodb.user_profile_table_arn
   agent_catalog_table_arn  = module.dynamodb.agent_catalog_table_arn
   entitlements_table_arn   = module.dynamodb.entitlements_table_arn
+  api_profiles_table_arn   = module.dynamodb.api_profiles_table_arn
+  offers_table_arn         = module.dynamodb.offers_table_arn
+  credentials_table_arn    = module.dynamodb.credentials_table_arn
   s3_bucket_arn              = aws_s3_bucket.data.arn
   documents_bucket_name      = module.documents.bucket_name
   documents_bucket_arn       = module.documents.bucket_arn

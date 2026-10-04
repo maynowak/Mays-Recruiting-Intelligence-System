@@ -213,3 +213,97 @@ output "work_items_table_arn" {
 output "agent_state_table_name" {
   value = aws_dynamodb_table.agent_state.name
 }
+# P18: APIProfile Table - platform API usage contexts (P10 domain).
+# NO TTL (expired profiles stay EXPIRED records for audit; deletion only
+# via explicit admin cleanup). Queries: Get by id, Query gsi-owner.
+resource "aws_dynamodb_table" "api_profiles" {
+  name         = "${var.project_name}-${var.environment}-api-profiles"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "apiProfileId"
+
+  attribute {
+    name = "apiProfileId"
+    type = "S"
+  }
+
+  attribute {
+    name = "ownerUserId"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "gsi-owner"
+    hash_key        = "ownerUserId"
+    projection_type = "ALL"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
+# P18: Offer Table - grantable agent-right packages (P11 domain).
+# No GSI (reads: Get by id + full list scan; name uniqueness enforced
+# in service). No TTL (offers live until admin act).
+resource "aws_dynamodb_table" "offers" {
+  name         = "${var.project_name}-${var.environment}-offers"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "offerId"
+
+  attribute {
+    name = "offerId"
+    type = "S"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
+# P18: Credential Table - opaque bearer metadata (P09/P14 domain).
+# Digest-only storage (NEVER raw secrets — enforced in code, not schema).
+# Lookup by digest requires gsi-digest (per-request verify path).
+# No TTL (expiresAt is an ISO string for contract checks, not epoch).
+resource "aws_dynamodb_table" "credentials" {
+  name         = "${var.project_name}-${var.environment}-credentials"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "credentialId"
+
+  attribute {
+    name = "credentialId"
+    type = "S"
+  }
+
+  attribute {
+    name = "digest"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "gsi-digest"
+    hash_key        = "digest"
+    projection_type = "ALL"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
+output "api_profiles_table_name" {
+  value = aws_dynamodb_table.api_profiles.name
+}
+
+output "api_profiles_table_arn" {
+  value = aws_dynamodb_table.api_profiles.arn
+}
+
+output "offers_table_name" {
+  value = aws_dynamodb_table.offers.name
+}
+
+output "offers_table_arn" {
+  value = aws_dynamodb_table.offers.arn
+}
+
+output "credentials_table_name" {
+  value = aws_dynamodb_table.credentials.name
+}
+
+output "credentials_table_arn" {
+  value = aws_dynamodb_table.credentials.arn
+}

@@ -57,6 +57,21 @@ variable "entitlements_table_name" {
   type        = string
 }
 
+variable "api_profiles_table_name" {
+  description = "DynamoDB table name for API profiles (P10 domain)"
+  type        = string
+}
+
+variable "offers_table_name" {
+  description = "DynamoDB table name for offers (P11 domain)"
+  type        = string
+}
+
+variable "credentials_table_name" {
+  description = "DynamoDB table name for credential metadata (P09 domain)"
+  type        = string
+}
+
 variable "user_profile_table_arn" {
   description = "DynamoDB table ARN for user profiles"
   type        = string
@@ -69,6 +84,21 @@ variable "agent_catalog_table_arn" {
 
 variable "entitlements_table_arn" {
   description = "DynamoDB table ARN for entitlements"
+  type        = string
+}
+
+variable "api_profiles_table_arn" {
+  description = "DynamoDB table ARN for API profiles (P10 domain)"
+  type        = string
+}
+
+variable "offers_table_arn" {
+  description = "DynamoDB table ARN for offers (P11 domain)"
+  type        = string
+}
+
+variable "credentials_table_arn" {
+  description = "DynamoDB table ARN for credential metadata (P09 domain)"
   type        = string
 }
 
