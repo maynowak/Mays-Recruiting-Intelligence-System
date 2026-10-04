@@ -1,0 +1,62 @@
+==================================================
+CHECKPOINT: 2026-10-04 19:00 UTC — P18 AGENT-CATALOG IAM FIX (Branch: main, HEAD: e501a37)
+==================================================
+
+- Current status: Scan ergaenzt, applied, live belegt (AccessDenied 3 -> 0); Fresh Plan P18-Ressource no-op; HARD STOP
+- Audit date/time: 2026-10-04 19:00 UTC
+- Current Git branch and HEAD: main, e501a37
+- Audit scope: P18 Agent Catalog IAM Fix (Analyse, minimaler TF-Change, Plan, Freigabe, Apply, IAM-Readback, Negativpruefung, Live-Validierung, Tests)
+- Completed audit sections:
+  - AI_AUDITLOG-Pflicht-Template uebernommen
+  - Kontext-Gate: Branch, HEAD, git status, AWS_PROFILE, Account, Region, Workspace
+  - catalog_adapter.py vollstaendig gelesen
+  - Alle produktiven Aufrufer von CatalogAdapter / _get_agent_catalog / _init_catalog ermittelt
+  - Alle DDB-Zugriffe auf AGENT_CATALOG_TABLE geprueft
+  - Tabellen-Definition (PK agentId, GSI gsi-status, TTL) und Live-Table-ARN/Indizes gelesen
+  - Catalog-Inhalt geprueft (Count 0)
+  - IAM live gelesen und gegen Codebedarf gestellt
+  - Vorher-Messung inkl. CloudWatch-Messfenster
+  - Minimaler TF-Change, fmt, validate, Plan
+  - Freigabe mit zwei expliziten Einordnungspunkten eingeholt
+  - Gezielter Apply + IAM-Readback
+  - Negativpruefung aller Tabellen + Wildcard-Pruefung
+  - Nachher-Messung + Logzeilen-Auswertung
+  - CloudTrail-Gegenprobe (negativ, Data-Events nicht aktiv)
+  - Fresh Plan + Unveraendertheitspruefung
+  - Tests (Gesamtlauf + Agent-Subset)
+  - Cleanup: Passwort/Token vernichtet, Testuser deaktiviert, tmp entfernt
+  - Report erstellt
+- Actual findings (nur verifizierte Fakten):
+  - Account 240571105849 / user/Mayaws; Region eu-central-1; Workspace mays-ris; Branch main / e501a37
+  - ROOT CAUSE: Produktivcode liest Agent Catalog per dynamodb:Scan; IAM erlaubte nur BatchGetItem/GetItem/Query; Handler faengt AccessDenied still -> HTTP 200 mit leerer Liste
+  - DREI produktive Scan-Stellen: catalog_adapter.py:121 (Aufrufer handler.py:52 und :655), handler.py:1362 (Aufrufer handler.py:601, :1113, :1166, :1209), catalog_adapter.py:76 (nur Docstring)
+  - GetItem-Stelle: catalog_adapter.py:99 (kein produktiver Aufrufer)
+  - Query und BatchGetItem auf agent-catalog: im Code NIRGENDS verwendet (unveraenderte Ueber-Gewaehrung)
+  - KEINE Index-Nutzung: alle drei Scan-Stellen lesen den Basis-Tabellen-ARN; gsi-status ungenutzt
+  - Tabelle mays-ris-dev-agent-catalog: Count 0 (KEINE Zeilen); PK agentId; GSI gsi-status
+  - TF-Change: genau eine Action-Zeile in terraform/modules/lambda/main.tf (Scan im agent-catalog-Statement); Resource-Liste unveraendert
+  - fmt clean; validate Success; Plan: 0 to add, 1 to change, 0 to destroy; replace_paths KEINE
+  - Freigabe erhalten (mit zwei Einordnungspunkten: keine Index-ARN-Erweiterung, Erwartungskorrektur wegen leerer Tabelle)
+  - Apply: Resources: 0 added, 1 changed, 0 destroyed
+  - IAM live nachher: agent-catalog (+index/*) = BatchGetItem, GetItem, Query, Scan
+  - Negativpruefung OK: user-profile unveraendert (BatchGetItem/GetItem/PutItem/Query/UpdateItem); entitlements unveraendert (BatchGetItem/GetItem/Query); api-profiles, offers, credentials, jobsearches, work-items nicht betroffen; keine Wildcards; Scan nur im agent-catalog-Statement
+  - VORHER: GET /agents 200 agents []; introspection 200 capabilities []; 3 agent-catalog AccessDenied-Events
+  - NACHHER: GET /agents 200 agents []; introspection 200 capabilities [] Audit outcome=success; GET /platform 200; 0 agent-catalog AccessDenied; 0 sonstige AccessDenied; 0 Scan-Fehler; 0 ERROR-Zeilen im Logfenster
+  - CloudTrail: 0 ScanTable-Events (DynamoDB Data-Events nicht aktiviert) -> Beweislimit dokumentiert
+  - Fresh Plan: lambda_dynamodb_platform no-op; Rest lambda_policy (create) + sqs_mapping (update, ESM-Tags)
+  - Unveraendert: Lambda yaKXvStx.../11:44:08Z; 22 Routen; ESM 7cc946b9 Enabled Batch 5; 8 Role-Policies
+  - Tests: Gesamtlauf 15 failed/709 passed/8 skipped/231 warnings/1 error, MD5 d0efae4dba6d8af196593535a46c3e57 (IDENTISCH zur Baseline); Agent-Subset 92 passed/2 failed, beide Fehler praeexistend und auch im Gesamtlauf vorhanden
+  - Cleanup: Testuser CONFIRMED/Enabled:false; Passwort + Token shred -u; tmp-Verzeichnis geloescht; keine Katalog-Zeile geschrieben
+  - AWS-Mutation: 1x IAM PutRolePolicy + Cognito-Aktionen am synthetischen Testuser
+- Evidence / file references: agents/ecosystem/catalog_adapter.py:64-130; lambda/handler.py:44-60,601,643-666,1113,1166,1209,1351-1378; terraform/modules/lambda/main.tf:47-64; terraform/modules/dynamodb/main.tf (agent_catalog); /tmp/p18.tfplan, /tmp/p18post.tfplan (nicht committet); /tmp/p18_ct.json
+- Classification: GREEN (Fix angewendet und live belegt)
+- Terraform checks actually executed and their results: fmt -check clean; validate Success; plan vor Apply 0/1/0; apply 1 changed; plan nach Apply: P18-Ressource no-op
+- Git status: 1 modified (terraform/modules/lambda/main.tf) + 2 neue P18-Reports
+- Files changed, if any: terraform/modules/lambda/main.tf (genau eine Action-Zeile), docs/reports/RIS-P18-AGENT-CATALOG-IAM-FIX-01.md (neu), docs/reports/RIS-P18-AGENT-CATALOG-IAM-FIX-01-EXECUTION_LOG.md (dieser Log)
+- Explicit confirmation when no files were changed: entfaellt (notwendige IAM-Aenderung + Reports; kein Lambda-/Gateway-/Test-Code geaendert)
+- Open questions: keine
+- Risks: keine Secrets/Tokens/Passwoerter in Report oder Log; keine Rechte auf andere Tabellen erweitert; keine Wildcards; Testuser deaktiviert
+- Recommended next actions: Reports committen; HARD STOP. Naechster Schritt: Gesamtanalyse aller Rollen-Policies gegen Codebedarf (hätte B1 und B2 gefunden), danach APIProfile-Management-Gate und M2M-Einstiegspunkt-Gate
+- Current resume point: Commit der P18-Aenderung und Reports
+
+==================================================

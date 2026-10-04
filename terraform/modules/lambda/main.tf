@@ -45,11 +45,17 @@ resource "aws_iam_role_policy" "lambda_dynamodb_platform" {
         ]
       },
       {
+        # Gate P18: der produktive Catalog-Pfad liest per Scan
+        # (catalog_adapter.py scan_all_agent_ids/get_all_agents und
+        # handler._get_agent_catalog). Ohne Scan degradierte GET /agents
+        # still auf 200 mit leerer Liste (AccessDeniedException).
+        # Scan trifft nur den Basis-Tabellen-ARN -> keine Index-ARNs noetig.
         Effect = "Allow"
         Action = [
           "dynamodb:GetItem",
           "dynamodb:Query",
-          "dynamodb:BatchGetItem"
+          "dynamodb:BatchGetItem",
+          "dynamodb:Scan"
         ]
         Resource = [
           var.agent_catalog_table_arn,
