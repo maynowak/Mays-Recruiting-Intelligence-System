@@ -101,6 +101,24 @@ class Harness(unittest.TestCase):
         params.update(kw)
         return issue_credential(**params)
 
+    def _event(self, headers=None):
+        return {
+            "headers": headers or {},
+            "requestContext": {
+                "requestId": "req-9",
+                "authorizer": {"jwt": {"claims": {
+                    "sub": "u1", "email": "u@x.example",
+                    "custom:tenant_id": "t1",
+                    "cognito:groups": []}}}},
+        }
+
+    def _patched(self):
+        import handler as h
+        from unittest.mock import patch
+        sources = self.sources()
+        return patch.object(h, "_build_introspection_sources",
+                            return_value=sources)
+
 
 class _ProfileShim:
     """P09 profile-store protocol over the P10 repository."""
@@ -383,24 +401,6 @@ class TestHygiene(Harness):
 
 
 class TestHandler(Harness):
-    def _event(self, headers=None):
-        return {
-            "headers": headers or {},
-            "requestContext": {
-                "requestId": "req-9",
-                "authorizer": {"jwt": {"claims": {
-                    "sub": "u1", "email": "u@x.example",
-                    "custom:tenant_id": "t1",
-                    "cognito:groups": []}}}},
-        }
-
-    def _patched(self):
-        import handler as h
-        from unittest.mock import patch
-        sources = self.sources()
-        return patch.object(h, "_build_introspection_sources",
-                            return_value=sources)
-
     def test_handler_200_human(self):
         import handler as h
         with self._patched():
@@ -437,6 +437,44 @@ class TestHandler(Harness):
         self.assertEqual(out["statusCode"], 200)
         body = json.loads(out["body"])
         self.assertEqual(body["context"], "credential")
+
+
+class TestDispatchP13(Harness):
+    """P13: GET /v1/introspection dispatches to _handle_introspection."""
+
+    def _dispatch_event(self, headers=None):
+        event = self._event(headers)
+        event["httpMethod"] = "GET"
+        event["path"] = "/v1/introspection"
+        return event
+
+    def test_dispatch_delegates(self):
+        import handler as h
+        from unittest.mock import patch
+        with patch.object(
+                h, "_handle_introspection",
+                return_value={"statusCode": 200,
+                              "body": "{}"}) as mock:
+            out = h.handler(self._dispatch_event(
+                {"X-Api-Profile": "aprof_x"}), None)
+        self.assertEqual(out["statusCode"], 200)
+        mock.assert_called_once()
+        args, _ = mock.call_args
+        self.assertEqual(
+            args[0]["headers"], {"X-Api-Profile": "aprof_x"})
+
+    def test_dispatch_unauthenticated_401(self):
+        import handler as h
+        event = {"httpMethod": "GET", "path": "/v1/introspection",
+                 "headers": {}, "requestContext": {}}
+        with self._patched():
+            out = h.handler(event, None)
+        self.assertEqual(out["statusCode"], 401)
+
+    def test_dispatch_unconfigured_503(self):
+        import handler as h
+        out = h.handler(self._dispatch_event(), None)
+        self.assertEqual(out["statusCode"], 503)
 
 
 if __name__ == "__main__":

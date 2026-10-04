@@ -263,6 +263,10 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_documents_delete(event, context, doc_id)
     elif method == 'GET' and path == '/agents':
         return _handle_agents(event, context)
+    elif method == 'GET' and path == '/v1/introspection':
+        # P13: read-only capability introspection (JWT + X-Api-Profile
+        # header; GW route provisioned in terraform/modules/api).
+        return _handle_introspection(event, context)
     elif method == 'GET' and path == '/me/jobsearches':
         return _handle_jobsearch_list(event, context)
     elif method == 'POST' and path == '/me/jobsearches':

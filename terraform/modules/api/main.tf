@@ -94,6 +94,17 @@ resource "aws_apigatewayv2_route" "agents" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
+# P13: read-only capability introspection (Human JWT + X-Api-Profile;
+# handler _handle_introspection, prepared in P12). No machine path,
+# no new authorizer, no new integration (existing JWT + proxy used).
+resource "aws_apigatewayv2_route" "introspection" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/introspection"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
 resource "aws_lambda_permission" "api_gateway" {
   action        = "lambda:InvokeFunction"
   function_name = var.lambda_function_name
