@@ -66,6 +66,10 @@ class CredentialNotFound(Exception):
     """Management target does not exist."""
 
 
+class CredentialConflict(Exception):
+    """Idempotency-key mismatch (same key, different request content)."""
+
+
 # ------------------------------------------------------------------
 # Generation + digest (ZS4/ZS5: crypto-random, opaque, once-only)
 # ------------------------------------------------------------------
@@ -134,46 +138,78 @@ def _require_management(actor_role: Optional[str],
                         allowed: List[str], action: str,
                         actor_id: Optional[str] = None) -> None:
     if actor_role not in allowed:
-        _audit("unauthorized-management-attempt", "denied",
+        _audit("credential.unauthorized_management", "denied",
                {"action": action, "actor": actor_id or "?",
                 "role": actor_role or "?"})
         raise UnauthorizedManagementAttempt(
             f"role {actor_role!r} may not {action}")
 
 
+def _owner_self(actor_role: Optional[str], actor_id: Optional[str],
+                owner_id: Any) -> bool:
+    """Owner self-service match (ID-bound, not role-string trust alone).
+
+    P14 refinement of the P09 admin-only rule (rationale in the P14
+    report): the owner acts exclusively within their own profile
+    context, bounded by their own entitlements — no escalation, full
+    audit. Foreign profiles stay unreachable even with a forged
+    'owner' role string (ID mismatch denies).
+    """
+    return actor_role == "owner" and actor_id is not None \
+        and actor_id == owner_id
+
+
+def _check_cross_tenant(actor_tenant: Optional[str],
+                        target_tenant: Any, reason: Optional[str],
+                        action: str, actor_id: Optional[str]) -> None:
+    """Cross-tenant management needs an explicit reason (audited)."""
+    if actor_tenant is not None and actor_tenant != target_tenant \
+            and not reason:
+        _audit("credential.unauthorized_management", "denied",
+               {"action": action, "actor": actor_id or "?",
+                "reason": "cross-tenant-needs-reason"})
+        raise UnauthorizedManagementAttempt(
+            "cross-tenant action needs reason")
+
+
 # ------------------------------------------------------------------
 # Issuance (once-only secret) + lifecycle + rotation
 # ------------------------------------------------------------------
 
-def issue_credential(credential_store: Any,
-                     profile_store: Any,
-                     api_profile_id: str,
-                     expires_at: str,
-                     actor_role: str,
-                     actor_id: str,
-                     label: Optional[str] = None,
-                     now_iso: Optional[str] = None) -> Dict[str, Any]:
-    """Issue one credential for an EXISTING APIProfile.
+def _public_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """External metadata view (digest/secret never leave the store)."""
+    return {k: v for k, v in dict(metadata).items() if k != "digest"}
 
-    Returns {"metadata": {...}, "secret": "<once-only>"}.
-    expires_at is MANDATORY (no product-policy default invented).
-    Profile must exist (any status — usability is enforced at verify
-    time, which also enables admin pre-provisioning for PENDING).
-    Admin only.
+
+def _profile_usable(profile: Dict[str, Any]) -> bool:
+    """Issuance gate (P14 §8): only ACTIVE-usable profiles."""
+    from agents.ecosystem import api_profiles
+
+    return api_profiles.effective_status(profile) == "ACTIVE"
+
+
+def _persist_new_credential(credential_store: Any,
+                            profile: Dict[str, Any],
+                            api_profile_id: str,
+                            expires_at: str,
+                            actor_role: str,
+                            actor_id: str,
+                            label: Optional[str] = None,
+                            now_iso: Optional[str] = None,
+                            idempotency_key: Optional[str] = None
+                            ) -> Dict[str, Any]:
+    """Shared issuance primitive (no authZ — callers authorize first).
+
+    Returns {"metadata": full incl. digest, "secret": once-only}.
+    Used by issue AND rotate (no second credential logic anywhere).
     """
-    _require_management(actor_role, ["admin"], "issue", actor_id)
-    if not expires_at or _parse_time(expires_at) is None:
-        raise ValueError("expires_at is required (ISO timestamp)")
-    profile = profile_store.get_profile(api_profile_id)
-    if profile is None:
-        raise CredentialNotFound(f"api profile {api_profile_id!r} missing")
-
     secret = generate_secret()
     stamp = now_iso or _utcnow_iso()
+    owner = profile.get("ownerUserId")
     metadata = {
         "credentialId": "cred_" + uuid.uuid4().hex[:16],
         "apiProfileId": api_profile_id,
-        "ownerUserId": profile.get("ownerUserId"),
+        "ownerUserId": owner,
         "tenantId": profile.get("tenantId"),
         "label": label or "default",
         "credentialType": CREDENTIAL_TYPE,
@@ -189,16 +225,91 @@ def issue_credential(credential_store: Any,
         "revokeReason": None,
         "disabledBy": None,
         "rotationOf": None,
+        "idempotencyKey": idempotency_key,
         "createdBy": {"actor": actor_id, "role": actor_role},
     }
     credential_store.put_credential(metadata)
-    _audit("credential-issued", "success",
+    return {"metadata": metadata, "secret": secret}
+
+
+def issue_credential(credential_store: Any,
+                     profile_store: Any,
+                     api_profile_id: str,
+                     expires_at: str,
+                     actor_role: str,
+                     actor_id: str,
+                     label: Optional[str] = None,
+                     now_iso: Optional[str] = None,
+                     reason: Optional[str] = None,
+                     actor_tenant: Optional[str] = None,
+                     idempotency_key: Optional[str] = None) -> Dict[str, Any]:
+    """Issue one credential for an EXISTING, usable APIProfile.
+
+    Returns {"metadata": {...}, "secret": "<once-only>",
+    "duplicate": False}. expires_at is MANDATORY (no product-policy
+    default invented). PENDING/DISABLED/EXPIRED/REVOKED profiles get
+    NO issuance (usability enforced HERE, not only at verify time).
+    Admin always; owner self-service for their OWN usable profile
+    (P14 refinement, ID-bound — see _owner_self); staff never issues.
+    Idempotency: same key + same content reuses the existing row and
+    returns metadata WITHOUT secret (duplicate: True) — the original
+    secret is NEVER re-issued; key mismatch conflicts.
+    """
+    if not expires_at or _parse_time(expires_at) is None:
+        raise ValueError("expires_at is required (ISO timestamp)")
+    profile = profile_store.get_profile(api_profile_id)
+    if profile is None:
+        raise CredentialNotFound(f"api profile {api_profile_id!r} missing")
+    if not _profile_usable(profile):
+        raise ValueError(
+            "profile not usable for issuance: "
+            f"{profile.get('status')}")
+    # Credential must not outlive its profile (MIN rule made explicit
+    # upfront; profiles without expiry leave credential expiry governing).
+    prof_end = _parse_time(profile.get("expiresAt")) \
+        if profile.get("expiresAt") else None
+    cred_end = _parse_time(expires_at)
+    if prof_end is not None and cred_end is not None \
+            and cred_end > prof_end:
+        raise ValueError("credential expiry exceeds profile expiry")
+    owner = profile.get("ownerUserId")
+    if not (actor_role == "admin"
+            or _owner_self(actor_role, actor_id, owner)):
+        _audit("credential.unauthorized_management", "denied",
+               {"action": "issue", "actor": actor_id or "?",
+                "role": actor_role or "?",
+                "apiProfileId": api_profile_id})
+        raise UnauthorizedManagementAttempt("may not issue credentials")
+    _check_cross_tenant(actor_tenant, profile.get("tenantId"), reason,
+                        "issue", actor_id)
+
+    if idempotency_key:
+        for row in credential_store.find_by_key(idempotency_key):
+            same = row.get("apiProfileId") == api_profile_id \
+                and row.get("ownerUserId") == owner \
+                and row.get("expiresAt") == expires_at \
+                and (row.get("label") or "default") == (label or "default")
+            if same:
+                _audit("credential.created", "duplicate-reused",
+                       {"credentialId": row.get("credentialId"),
+                        "apiProfileId": api_profile_id,
+                        "actor": actor_id})
+                return {"metadata": _public_metadata(row), "secret": None,
+                        "duplicate": True}
+            raise CredentialConflict("idempotency key content mismatch")
+
+    built = _persist_new_credential(
+        credential_store, profile, api_profile_id, expires_at,
+        actor_role, actor_id, label=label, now_iso=now_iso,
+        idempotency_key=idempotency_key)
+    metadata = built["metadata"]
+    secret = built["secret"]
+    _audit("credential.created", "success",
            {"credentialId": metadata["credentialId"],
             "apiProfileId": api_profile_id,
-            "tenant": metadata["tenantId"]})
-    return {"metadata": {k: v for k, v in metadata.items()
-                         if k != "digest"},
-            "secret": secret}
+            "tenant": metadata["tenantId"], "actor": actor_id})
+    return {"metadata": _public_metadata(metadata), "secret": secret,
+            "duplicate": False}
 
 
 def _load_for_management(credential_store: Any,
@@ -209,87 +320,275 @@ def _load_for_management(credential_store: Any,
     return dict(meta)
 
 
+def _may_manage(meta: Dict[str, Any], actor_role: str,
+                actor_id: str, action: str,
+                staff_allowed: bool = True) -> None:
+    """Role gate: admin always; staff (support); owner self-service on
+    OWN credentials (P14 refinement, ID-bound)."""
+    if actor_role == "admin":
+        return
+    if actor_role == "staff" and staff_allowed:
+        return
+    if _owner_self(actor_role, actor_id, meta.get("ownerUserId")):
+        return
+    _audit("credential.unauthorized_management", "denied",
+           {"action": action, "actor": actor_id or "?",
+            "role": actor_role or "?",
+            "credentialId": meta.get("credentialId")})
+    raise UnauthorizedManagementAttempt(f"may not {action}")
+
+
+def _not_expired_or_raise(meta: Dict[str, Any], action: str) -> None:
+    """Expired credentials stay dead (no re-animation via enable)."""
+    end = _parse_time(meta.get("expiresAt"))
+    now = datetime.now(timezone.utc)
+    if end is not None and now > end:
+        raise ValueError(f"expired credential may not {action}")
+
+
 def revoke_credential(credential_store: Any, credential_id: str,
                       actor_role: str, actor_id: str,
-                      reason: str = "revoked") -> Dict[str, Any]:
-    """Terminal revocation (admin + staff-support). Immediate effect:
-    the next verification denies (no cache anywhere)."""
-    _require_management(actor_role, ["admin", "staff"], "revoke", actor_id)
+                      reason: Optional[str] = None,
+                      actor_tenant: Optional[str] = None) -> Dict[str, Any]:
+    """Terminal revocation (admin + staff-support + owner-self).
+    Immediate effect: the next verification denies (no cache anywhere).
+    """
     meta = _load_for_management(credential_store, credential_id)
+    _may_manage(meta, actor_role, actor_id, "revoke")
+    _check_cross_tenant(actor_tenant, meta.get("tenantId"), reason,
+                        "revoke", actor_id)
+    if not reason:
+        reason = "revoked"
     stamp = _utcnow_iso()
     meta.update({"status": CredentialStatus.REVOKED.value,
                  "revokedAt": stamp, "revokedBy": actor_id,
-                 "revokeReason": reason, "updatedAt": stamp})
+                 "revokeReason": reason,
+                 "updatedAt": stamp})
     credential_store.update_credential(credential_id, meta)
-    _audit("credential-revoked", "success",
+    _audit("credential.revoked", "success",
            {"credentialId": credential_id,
             "apiProfileId": meta.get("apiProfileId"),
-            "actor": actor_id, "reason": reason})
-    return {k: v for k, v in meta.items() if k != "digest"}
+            "actor": actor_id, "reason": reason or "revoked"})
+    return _public_metadata(meta)
 
 
 def disable_credential(credential_store: Any, credential_id: str,
                        actor_role: str, actor_id: str,
-                       reason: str = "disabled") -> Dict[str, Any]:
-    """Reversible lock (admin + staff-support, reason mandatory)."""
-    _require_management(actor_role, ["admin", "staff"], "disable", actor_id)
+                       reason: Optional[str] = None,
+                       actor_tenant: Optional[str] = None) -> Dict[str, Any]:
+    """Reversible lock (admin + staff-support + owner-self; reason
+    mandatory)."""
     meta = _load_for_management(credential_store, credential_id)
+    _may_manage(meta, actor_role, actor_id, "disable")
+    _check_cross_tenant(actor_tenant, meta.get("tenantId"), reason,
+                        "disable", actor_id)
+    if not reason:
+        reason = "disabled"
     meta.update({"status": CredentialStatus.DISABLED.value,
                  "disabledBy": actor_id, "revokeReason": reason,
                  "updatedAt": _utcnow_iso()})
     credential_store.update_credential(credential_id, meta)
-    _audit("credential-disabled", "success",
+    _audit("credential.disabled", "success",
            {"credentialId": credential_id, "actor": actor_id,
             "reason": reason})
-    return {k: v for k, v in meta.items() if k != "digest"}
+    return _public_metadata(meta)
 
 
 def enable_credential(credential_store: Any, credential_id: str,
-                      actor_role: str, actor_id: str) -> Dict[str, Any]:
-    """Re-activate (admin always; staff only self-disabled ones)."""
-    _require_management(actor_role, ["admin", "staff"], "enable", actor_id)
+                      actor_role: str, actor_id: str,
+                      actor_tenant: Optional[str] = None,
+                      reason: Optional[str] = None) -> Dict[str, Any]:
+    """Re-activate (admin always; staff/owner only self-disabled ones;
+    expired credentials NEVER re-animated — rotate instead)."""
     meta = _load_for_management(credential_store, credential_id)
+    _may_manage(meta, actor_role, actor_id, "enable")
     if meta.get("status") != CredentialStatus.DISABLED.value:
         raise ValueError("only DISABLED credentials can be enabled")
-    if actor_role == "staff" and meta.get("disabledBy") != actor_id:
-        _audit("unauthorized-management-attempt", "denied",
+    if actor_role in ("staff", "owner") \
+            and meta.get("disabledBy") != actor_id:
+        _audit("credential.unauthorized_management", "denied",
                {"action": "enable-foreign", "actor": actor_id})
         raise UnauthorizedManagementAttempt(
-            "staff may only re-enable self-disabled credentials")
+            "may only re-enable self-disabled credentials")
+    _check_cross_tenant(actor_tenant, meta.get("tenantId"), reason,
+                        "enable", actor_id)
+    _not_expired_or_raise(meta, "enable")
     meta.update({"status": CredentialStatus.ACTIVE.value,
                  "disabledBy": None, "updatedAt": _utcnow_iso()})
     credential_store.update_credential(credential_id, meta)
-    _audit("credential-enabled", "success",
+    _audit("credential.enabled", "success",
            {"credentialId": credential_id, "actor": actor_id})
-    return {k: v for k, v in meta.items() if k != "digest"}
+    return _public_metadata(meta)
 
 
 def rotate_credential(credential_store: Any, profile_store: Any,
                       credential_id: str, expires_at: str,
                       actor_role: str, actor_id: str,
-                      label: Optional[str] = None) -> Dict[str, Any]:
+                      label: Optional[str] = None,
+                      reason: Optional[str] = None,
+                      actor_tenant: Optional[str] = None,
+                      idempotency_key: Optional[str] = None) -> Dict[str, Any]:
     """Rotation without profile change: B is new (new id + secret),
-    A is revoked IMMEDIATELY (no silent overlap). Admin only.
-    Overlap windows are a later explicit admin act (data boundary
+    A is revoked IMMEDIATELY (no silent overlap). Admin always;
+    owner self-service on OWN credentials; staff support with reason.
+    Repeat with the same key returns the EXISTING B WITHOUT secret
+    (duplicate: True) — a secret is NEVER delivered twice.
+    Overlap windows stay a later explicit admin act (data boundary
     ready: rotationOf chain + independent statuses)."""
-    _require_management(actor_role, ["admin"], "rotate", actor_id)
     old = _load_for_management(credential_store, credential_id)
-    issued = issue_credential(
-        credential_store, profile_store, old["apiProfileId"],
-        expires_at, actor_role, actor_id, label=label or old.get("label"))
+    if actor_role == "staff" and not reason:
+        _audit("credential.unauthorized_management", "denied",
+               {"action": "rotate", "actor": actor_id or "?"})
+        raise UnauthorizedManagementAttempt(
+            "staff rotation needs support reason")
+    if not (actor_role == "admin"
+            or (actor_role == "staff")
+            or _owner_self(actor_role, actor_id,
+                           old.get("ownerUserId"))):
+        _audit("credential.unauthorized_management", "denied",
+               {"action": "rotate", "actor": actor_id or "?",
+                "role": actor_role or "?",
+                "credentialId": credential_id})
+        raise UnauthorizedManagementAttempt("may not rotate")
+    _check_cross_tenant(actor_tenant, old.get("tenantId"), reason,
+                        "rotate", actor_id)
+    if idempotency_key:
+        for row in credential_store.find_by_key(idempotency_key):
+            if row.get("rotationOf") == credential_id:
+                _audit("credential.rotated", "duplicate-reused",
+                       {"oldCredentialId": credential_id,
+                        "newCredentialId": row.get("credentialId"),
+                        "actor": actor_id})
+                return {"metadata": _public_metadata(row), "secret": None,
+                        "duplicate": True}
+        if any(True for _ in credential_store.find_by_key(idempotency_key)):
+            raise CredentialConflict("idempotency key content mismatch")
+    profile = profile_store.get_profile(old["apiProfileId"])
+    if profile is None:
+        raise CredentialNotFound("api profile missing for rotation")
+    if not _profile_usable(profile):
+        raise ValueError(
+            "profile not usable for rotation: "
+            f"{profile.get('status')}")
+    built = _persist_new_credential(
+        credential_store, profile, old["apiProfileId"], expires_at,
+        actor_role, actor_id, label=label or old.get("label"),
+        idempotency_key=idempotency_key)
+    issued = {"metadata": _public_metadata(built["metadata"]),
+              "secret": built["secret"], "duplicate": False}
     new_meta_full = credential_store.get_credential(
         issued["metadata"]["credentialId"])
     new_meta_full["rotationOf"] = credential_id
     credential_store.update_credential(
         issued["metadata"]["credentialId"], new_meta_full)
     revoke_credential(credential_store, credential_id,
-                      actor_role, actor_id, reason="rotated")
-    _audit("credential-rotated", "success",
+                      actor_role, actor_id, reason="rotated",
+                      actor_tenant=actor_tenant)
+    _audit("credential.rotated", "success",
            {"oldCredentialId": credential_id,
             "newCredentialId": issued["metadata"]["credentialId"],
             "actor": actor_id})
-    out_meta = {k: v for k, v in new_meta_full.items() if k != "digest"}
-    return {"metadata": out_meta, "secret": issued["secret"]}
+    out_meta = _public_metadata(new_meta_full)
+    return {"metadata": out_meta, "secret": issued["secret"],
+            "duplicate": False}
+
+
+# ------------------------------------------------------------------
+# Metadata views (role-scoped reads; secrets never leave the store)
+# ------------------------------------------------------------------
+
+def _note_expired(item: Dict[str, Any], actor_id: str) -> None:
+    """Observation audit: expired item surfaced in a read view."""
+    end = _parse_time(item.get("expiresAt"))
+    now = datetime.now(timezone.utc)
+    if end is not None and now > end \
+            and item.get("status") == CredentialStatus.ACTIVE.value:
+        _audit("credential.expired", "observed",
+               {"credentialId": item.get("credentialId"),
+                "apiProfileId": item.get("apiProfileId"),
+                "actor": actor_id})
+
+
+def list_credentials(credential_store: Any, actor_role: str,
+                     actor_id: str,
+                     api_profile_id: Optional[str] = None,
+                     actor_tenant: Optional[str] = None,
+                     reason: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Role-scoped metadata listing (digests/secrets never included).
+
+    Owner: own credentials only (optional profile filter must be own).
+    Admin: tenant-scoped (cross-tenant needs reason). Staff: support
+    case with reason (tenant-scoped). Emits credential.viewed; expired
+    ACTIVE items additionally emit credential.expired (observation).
+    """
+    if actor_role == "admin":
+        rows = credential_store.list_by_profile(api_profile_id) \
+            if api_profile_id is not None \
+            else credential_store.list_all()
+        if actor_tenant is not None and not reason:
+            rows = [r for r in rows if r.get("tenantId") == actor_tenant]
+        visible = list(rows)
+    elif actor_role == "staff":
+        if not reason:
+            _audit("credential.unauthorized_management", "denied",
+                   {"action": "list", "actor": actor_id})
+            raise UnauthorizedManagementAttempt(
+                "staff listing needs support reason")
+        rows = credential_store.list_by_profile(api_profile_id) \
+            if api_profile_id is not None \
+            else credential_store.list_all()
+        visible = [r for r in rows
+                   if actor_tenant is None
+                   or r.get("tenantId") == actor_tenant]
+    elif actor_role == "owner":
+        rows = credential_store.list_by_profile(api_profile_id) \
+            if api_profile_id is not None \
+            else credential_store.list_by_owner(actor_id)
+        # Ownership-bound: foreign rows never visible, even on direct
+        # profile-id guess (neutral filtering, no oracle).
+        visible = [r for r in rows if r.get("ownerUserId") == actor_id]
+    else:
+        _audit("credential.unauthorized_management", "denied",
+               {"action": "list", "actor": actor_id or "?",
+                "role": actor_role or "?"})
+        raise UnauthorizedManagementAttempt("may not list credentials")
+    _audit("credential.viewed", "success",
+           {"actor": actor_id, "count": len(visible),
+            "apiProfileId": api_profile_id or "-",
+            "reason": reason or "-"})
+    for item in visible:
+        _note_expired(item, actor_id)
+    return [_public_metadata(i) for i in visible]
+
+
+def get_credential_metadata(credential_store: Any, actor_role: str,
+                            actor_id: str, credential_id: str,
+                            actor_tenant: Optional[str] = None,
+                            reason: Optional[str] = None
+                            ) -> Optional[Dict[str, Any]]:
+    """Single metadata read (neutral None for foreign/missing)."""
+    item = credential_store.get_credential(credential_id)
+    if item is None:
+        return None
+    if actor_role == "admin":
+        _check_cross_tenant(actor_tenant, item.get("tenantId"), reason,
+                            "view", actor_id)
+    elif actor_role == "staff":
+        if not reason:
+            return None
+        _check_cross_tenant(actor_tenant, item.get("tenantId"), reason,
+                            "view", actor_id)
+    elif actor_role == "owner":
+        if item.get("ownerUserId") != actor_id:
+            return None
+    else:
+        return None
+    _audit("credential.viewed", "success",
+           {"credentialId": credential_id,
+            "apiProfileId": item.get("apiProfileId"),
+            "actor": actor_id})
+    _note_expired(item, actor_id)
+    return _public_metadata(item)
 
 
 # ------------------------------------------------------------------
@@ -551,6 +850,21 @@ class InMemoryCredentialStore:
         if item is not None:
             item["lastUsedAt"] = timestamp
 
+    def find_by_key(self, idempotency_key: str) -> List[Dict[str, Any]]:
+        return [dict(i) for i in self.by_id.values()
+                if i.get("idempotencyKey") == idempotency_key]
+
+    def list_by_owner(self, owner_id: str) -> List[Dict[str, Any]]:
+        return [dict(i) for i in self.by_id.values()
+                if i.get("ownerUserId") == owner_id]
+
+    def list_by_profile(self, api_profile_id: str) -> List[Dict[str, Any]]:
+        return [dict(i) for i in self.by_id.values()
+                if i.get("apiProfileId") == api_profile_id]
+
+    def list_all(self) -> List[Dict[str, Any]]:
+        return [dict(i) for i in self.by_id.values()]
+
 
 class InMemoryProfileStore:
     """Test/harness APIProfile store (profiles are P02 objects)."""
@@ -622,6 +936,31 @@ class DynamoDBCredentialStore:
             UpdateExpression="SET lastUsedAt = :t",
             ExpressionAttributeValues={":t": timestamp})
 
+    def find_by_key(self, idempotency_key: str) -> List[Dict[str, Any]]:
+        # No key-GSI exists (documented scale note: issuance keys are
+        # rare admin/owner operations — scan+filter suffices, same
+        # discipline as existing handler-side entitlement filtering).
+        response = self._table_obj().scan(
+            FilterExpression="idempotencyKey = :k",
+            ExpressionAttributeValues={":k": idempotency_key})
+        return [dict(i) for i in response.get("Items", [])]
+
+    def list_by_owner(self, owner_id: str) -> List[Dict[str, Any]]:
+        response = self._table_obj().scan(
+            FilterExpression="ownerUserId = :o",
+            ExpressionAttributeValues={":o": owner_id})
+        return [dict(i) for i in response.get("Items", [])]
+
+    def list_by_profile(self, api_profile_id: str) -> List[Dict[str, Any]]:
+        response = self._table_obj().scan(
+            FilterExpression="apiProfileId = :p",
+            ExpressionAttributeValues={":p": api_profile_id})
+        return [dict(i) for i in response.get("Items", [])]
+
+    def list_all(self) -> List[Dict[str, Any]]:
+        response = self._table_obj().scan()
+        return [dict(i) for i in response.get("Items", [])]
+
 
 class DynamoDBProfileStore:
     """Production APIProfile read access (lazy; table from later gate)."""
@@ -659,6 +998,7 @@ __all__ = [
     "CredentialStoreUnavailable",
     "UnauthorizedManagementAttempt",
     "CredentialNotFound",
+    "CredentialConflict",
     "generate_secret",
     "valid_secret_format",
     "digest_secret",
@@ -667,6 +1007,8 @@ __all__ = [
     "disable_credential",
     "enable_credential",
     "rotate_credential",
+    "list_credentials",
+    "get_credential_metadata",
     "verify_api_credential",
     "InMemoryCredentialStore",
     "InMemoryProfileStore",

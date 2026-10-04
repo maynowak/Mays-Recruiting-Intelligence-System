@@ -161,33 +161,36 @@ class TestVerifyMatrix(Harness):
         d = self.verify(issued["secret"])
         self.assertEqual(d.http_status, 403)
 
+    # P14 refinement: issuance itself requires a usable (ACTIVE)
+    # profile — these tests issue first, then degrade the profile, and
+    # assert verify-time denial (intent preserved from P09).
     def test_09_pending_profile_403(self):
-        self.profiles.profiles["prof-1"]["status"] = "PENDING"
         issued = self.issue()
+        self.profiles.profiles["prof-1"]["status"] = "PENDING"
         d = self.verify(issued["secret"])
         self.assertEqual(d.http_status, 403)
 
     def test_10_disabled_profile_403(self):
-        self.profiles.profiles["prof-1"]["status"] = "DISABLED"
         issued = self.issue()
+        self.profiles.profiles["prof-1"]["status"] = "DISABLED"
         d = self.verify(issued["secret"])
         self.assertEqual(d.http_status, 403)
 
     def test_11_expired_profile_403(self):
-        self.profiles.profiles["prof-1"]["status"] = "EXPIRED"
         issued = self.issue()
+        self.profiles.profiles["prof-1"]["status"] = "EXPIRED"
         d = self.verify(issued["secret"])
         self.assertEqual(d.http_status, 403)
 
     def test_12_revoked_profile_403(self):
-        self.profiles.profiles["prof-1"]["status"] = "REVOKED"
         issued = self.issue()
+        self.profiles.profiles["prof-1"]["status"] = "REVOKED"
         d = self.verify(issued["secret"])
         self.assertEqual(d.http_status, 403)
 
     def test_13_profile_expired_by_date_403(self):
-        self.profiles.profiles["prof-1"]["expiresAt"] = _ts(-1)
         issued = self.issue()
+        self.profiles.profiles["prof-1"]["expiresAt"] = _ts(-1)
         d = self.verify(issued["secret"])
         self.assertEqual(d.http_status, 403)
         self.assertEqual(d.reason_category, "profile-expired")
