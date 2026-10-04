@@ -105,6 +105,67 @@ resource "aws_apigatewayv2_route" "introspection" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
+# P16: credential management HTTP (Human JWT only; handler section
+# "P15: Credential Management HTTP"). Explicit method/path routes —
+# no $default substitute, no ANY, no greedy proxy. Existing JWT
+# authorizer + proxy integration reused; no new authorizer,
+# integration, permission, table, role, or Lambda change.
+resource "aws_apigatewayv2_route" "credentials_create" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/apiprofiles/{apiProfileId}/credentials"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "credentials_list" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/apiprofiles/{apiProfileId}/credentials"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "credentials_get" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/apiprofiles/{apiProfileId}/credentials/{credentialId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "credentials_rotate" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/apiprofiles/{apiProfileId}/credentials/{credentialId}/rotate"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "credentials_disable" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/apiprofiles/{apiProfileId}/credentials/{credentialId}/disable"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "credentials_enable" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/apiprofiles/{apiProfileId}/credentials/{credentialId}/enable"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "credentials_revoke" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/apiprofiles/{apiProfileId}/credentials/{credentialId}/revoke"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
 resource "aws_lambda_permission" "api_gateway" {
   action        = "lambda:InvokeFunction"
   function_name = var.lambda_function_name
