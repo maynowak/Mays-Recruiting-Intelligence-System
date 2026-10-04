@@ -178,11 +178,16 @@ class DynamoDBEntitlementResolver:
             region_name=os.environ.get("AWS_REGION", "eu-central-1"),
         ).Table(name)
 
+    #: GSI carrying userId (table PK is entitlementId — querying
+    #: userId without this index answers ValidationException (B3)).
+    USER_INDEX = "gsi-user"
+
     def find_entitlements(self, user_id: str) -> List[Dict[str, Any]]:
         """All entitlement rows for one user (exceptions propagate)."""
         from boto3.dynamodb.conditions import Key
 
         response = self._table_obj().query(
+            IndexName=self.USER_INDEX,
             KeyConditionExpression=Key("userId").eq(user_id))
         return list(response.get("Items", []))
 

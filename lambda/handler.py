@@ -1388,11 +1388,15 @@ def _get_entitlement_for_agent(user_id: str, agent_id: str, tenant_id: Optional[
         
         dynamodb = _get_dynamodb()
         table = dynamodb.Table(table_name)
-        
+
+        # B3: userId is NOT the table key (PK entitlementId) — the
+        # query must name the gsi-user index explicitly, otherwise
+        # DynamoDB answers ValidationException (silent None below).
         response = table.query(
+            IndexName='gsi-user',
             KeyConditionExpression=_dynamo_key('userId').eq(user_id)
         )
-        
+
         for item in response.get('Items', []):
             if item.get('agentId') == agent_id:
                 if tenant_id and item.get('tenantId') != tenant_id:
@@ -1420,11 +1424,13 @@ def _get_entitlements(user_id: str, tenant_id: Optional[str] = None) -> list:
         
         dynamodb = _get_dynamodb()
         table = dynamodb.Table(table_name)
-        
+
+        # B3: see _get_entitlement_for_agent (gsi-user required).
         response = table.query(
+            IndexName='gsi-user',
             KeyConditionExpression=_dynamo_key('userId').eq(user_id)
         )
-        
+
         entitlements = []
         for item in response.get('Items', []):
             if tenant_id and item.get('tenantId') != tenant_id:
