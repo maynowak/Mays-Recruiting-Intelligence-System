@@ -287,8 +287,16 @@ def process_record(
     table: Any = None,
     registry: Optional[AgentRegistry] = None,
     body: Any = None,
+    entitlement_resolver: Any = None,
 ) -> Dict[str, Any]:
-    """Einen SQS-Record durch den Runtime-Pfad fuehren (Worker-Einstieg)."""
+    """Einen SQS-Record durch den Runtime-Pfad fuehren (Worker-Einstieg).
+
+    Args:
+        entitlement_resolver: Entitlement-Quelle fuer den
+            Execution-Time-Re-check (Gate 08). None = kein Re-check
+            (nur Test-/Harness-Modus, debug-geloggt); Produktion
+            injiziert immer einen Resolver (Handler-SQS-Pfad).
+    """
     work = _parse_record(record)
     validated = WorkItem(work)  # wirft bei fehlenden Pflichtfeldern (keine Registrierung)
     work = validated.to_dict()
@@ -336,6 +344,59 @@ def process_record(
         item = resumed
 
     attempt = int(item.get("attempt_no", 1))
+
+    # Execution-Time-Entitlement-Re-check (Gate 08): SQS ist
+    # Aktivierung, keine Autorisierung. Geprueft wird der ENTSCHIEDENE
+    # Agent (Registry-Wahrheit) gegen den registrierten Entitlement-
+    # Bestand — unmittelbar vor der fachlichen Ausfuehrung.
+    if entitlement_resolver is None:
+        logger.debug(
+            "worker entitlement re-check disabled (no resolver; "
+            "workId=%s) — test/harness mode only", work["workId"])
+    else:
+        from agents.ecosystem.worker_authorization import (
+            check_worker_entitlement,
+        )
+        try:
+            auth = check_worker_entitlement(
+                user_id=work.get("userId"),
+                tenant_id=work.get("tenantId"),
+                agent_id=decision.agent_id,
+                work_id=work["workId"],
+                resolver=entitlement_resolver,
+            )
+        except Exception as exc:
+            # Transienter Infrastrukturfehler (Store unerreichbar) ist
+            # KEIN Denied: FAILED persistieren + Raise -> bestehende
+            # Retry-Semantik (SQS-Redelivery -> neuer Attempt). Kein
+            # Fail-Open, kein falsches DENIED.
+            _persist_failure(
+                table, work["workId"], attempt,
+                {"message": f"Entitlement store unreachable: {exc}",
+                 "type": type(exc).__name__})
+            raise
+        if not auth.authorized:
+            # Permanent DENIED: kontrolliert beenden (FAILED persistieren,
+            # Nachricht konsumieren — KEIN Retry-Loop, KEIN Raise).
+            _persist_failure(
+                table, work["workId"], attempt,
+                {"message": f"Worker entitlement denied [{auth.reason}]",
+                 "type": "ENTITLEMENT_DENIED"})
+            logger.warning(
+                "worker entitlement DENIED (workId=%s, agent=%s, reason=%s, "
+                "attempt=%s)", work["workId"], decision.agent_id,
+                auth.reason, attempt)
+            return {
+                "workId": work["workId"],
+                "status": "FAILED",
+                "duplicate": False,
+                "attempt_no": attempt,
+                "agent_id": decision.agent_id,
+                "denied": True,
+                "reason": auth.reason,
+                "result_reference": f"work:{work['workId']}:attempt:{attempt}",
+            }
+
     engine = ExecutionEngine(agent_body=body)
     try:
         result = engine.execute_from_decision(decision, envelope)

@@ -1076,8 +1076,15 @@ def _process_work_item(work_item: Dict[str, Any]) -> Dict[str, Any]:
     # Idempotency gesichert. Ungueltige WorkItems landen nach
     # maxReceiveCount in der bestehenden DLQ.
     from agents.runtime.pipeline import process_record
+    from agents.ecosystem.worker_authorization import (
+        DynamoDBEntitlementResolver,
+    )
 
-    outcome = process_record({'body': work_item})
+    # Execution-Time-Entitlement-Re-check (Gate 08): Produktion injiziert
+    # immer den DDB-Resolver (lazy, keine Import-Kosten ohne Nutzung).
+    outcome = process_record(
+        {'body': work_item},
+        entitlement_resolver=DynamoDBEntitlementResolver())
 
     success = outcome.get('status') == 'COMPLETED'
     result = {
@@ -1091,6 +1098,9 @@ def _process_work_item(work_item: Dict[str, Any]) -> Dict[str, Any]:
     }
     if outcome.get('result') is not None:
         result['result'] = outcome['result']
+    if outcome.get('denied'):
+        result['denied'] = True
+        result['reason'] = outcome.get('reason')
     if outcome.get('result_reference') is not None:
         result['result_reference'] = outcome['result_reference']
 
