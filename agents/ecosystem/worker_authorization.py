@@ -95,12 +95,18 @@ def check_worker_entitlement(
     work_id: Optional[str],
     request_time: Optional[datetime] = None,
     resolver: Any = None,
+    api_profile_id: Optional[str] = None,
 ) -> WorkerAuthDecision:
     """Re-validate entitlement for one imminent agent execution.
 
     Identity comes from the validated WorkItem (claim), the agent from
     the post-selection decision (registry truth). Both are VERIFIED
     here against the registered entitlement store — never trusted.
+
+    User-wide rows (no apiProfileId) match on user/tenant/agent.
+    Profile-bound rows match ONLY when api_profile_id equals the
+    asserted profile context (Gate P11; default None preserves the
+    user-wide behavior exactly).
 
     Missing identity fields are DENIED (never guessed). Store
     infrastructure errors propagate (transient, NOT denials).
@@ -116,8 +122,13 @@ def check_worker_entitlement(
     now = request_time or datetime.now(timezone.utc)
     tenant_hit = False
     time_hit = False
+    profile_hit = False
     for row in rows or []:
         if row.get("agentId") != agent_id:
+            continue
+        if row.get("apiProfileId") is not None \
+                and row.get("apiProfileId") != api_profile_id:
+            profile_hit = True
             continue
         if tenant_id and row.get("tenantId") is not None \
                 and row.get("tenantId") != tenant_id:
@@ -135,6 +146,8 @@ def check_worker_entitlement(
         return WorkerAuthDecision(authorized=False, reason="time-window")
     if tenant_hit:
         return WorkerAuthDecision(authorized=False, reason="tenant-mismatch")
+    if profile_hit:
+        return WorkerAuthDecision(authorized=False, reason="profile-mismatch")
     return WorkerAuthDecision(authorized=False, reason="no-entitlement")
 
 

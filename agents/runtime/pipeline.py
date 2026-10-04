@@ -364,6 +364,10 @@ def process_record(
                 agent_id=decision.agent_id,
                 work_id=work["workId"],
                 resolver=entitlement_resolver,
+                # Profile context passthrough (P11): None preserves the
+                # user-wide behavior exactly; asserted contexts are verified
+                # against profile-bound rows (never trusted blindly).
+                api_profile_id=work.get("apiProfileId"),
             )
         except Exception as exc:
             # Transienter Infrastrukturfehler (Store unerreichbar) ist
