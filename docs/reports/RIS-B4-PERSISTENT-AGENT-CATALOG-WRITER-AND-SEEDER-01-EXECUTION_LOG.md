@@ -318,11 +318,28 @@ Geänderte/neue Dateien:
 
 Nach `git status` → Tests → Commit → `git push origin main`.
 
-`main` hatte **keinen Upstream-Branch** konfiguriert; deshalb explizit `origin main`. Push in den Execution-Log-Commit aufgenommen.
+`main` hatte **keinen Upstream-Branch** konfiguriert; deshalb explizit `origin main` (kein `--set-upstream`, kein Force).
+
+| Feld | Wert |
+|---|---|
+| Commit | `40f56a4` (`feat(catalog): persistent agent catalog writer and seeder`) |
+| Push | `8387933..40f56a4  main -> main` (Fast-Forward) |
+| lokaler HEAD | `40f56a40c87e82395c8c34b6c7d59e6c9b4904f4` |
+| `origin/main` | `40f56a40c87e82395c8c34b6c7d59e6c9b4904f4` — **identisch** |
+| Divergenz | keine |
+
+Hinweis: `origin/main` stand vor dem Push auf `8387933`, also **ahead** meines Gate-Start-HEADs `365b337`. Diese Commits waren bereits in meiner lokalen Historie enthalten — der Push war ein sauberer Fast-Forward, kein Force, kein Verlust fremder Commits.
 
 ## 19. Working Tree
 
-Nach dem Gate: 0 modified tracked files.
+Nach dem Gate: **0 modified tracked files** (verifiziert nach Commit).
+
+Verbleibend untracked und **bewusst nicht** committed:
+
+| Eintrag | Grund |
+|---|---|
+| 8 vorbestehende `docs/reports/*.md` | fremde Gates, nicht in diesem Auftrag |
+| `terraform/.terraform.lock.hcl` | Nebenprodukt meiner `terraform`-Läufe, kein Gate-Inhalt (keine `.tf`-Datei geändert) |
 
 ## 20. AI Audit
 
@@ -347,4 +364,4 @@ Kein B3/opake Credential, kein APIProfile-Code, keine Credential-Ausstellung, ke
 
 ## 23. Status
 
-**GREEN** — 15 von 16 Erfolgskriterien erfüllt, das 15. (Push) im Commit-Abschluss. Kein neues Sicherheitsproblem, keine Regression, keine unerlaubte Mutation. **B3 bleibt blockiert.**
+**GREEN** — alle 16 Erfolgskriterien erfüllt (Commit `40f56a4`, Push als Fast-Forward auf `origin/main` verifiziert). Kein neues Sicherheitsproblem, keine Regression, keine unerlaubte Mutation. **B3 bleibt blockiert.**
