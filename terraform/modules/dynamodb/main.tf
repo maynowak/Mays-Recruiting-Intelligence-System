@@ -307,3 +307,85 @@ output "credentials_table_name" {
 output "credentials_table_arn" {
   value = aws_dynamodb_table.credentials.arn
 }
+
+# ---------------------------------------------------------------------------
+# Agent Catalog entries (Terraform = Source of Truth, Gate B4-TERRAFORM-01)
+# ---------------------------------------------------------------------------
+# Architecture rule: persistent agent-catalog items are declared HERE and
+# nowhere else. Runtime code reads the catalog but must never provision it
+# (no runtime writer, no API writer, no manual DynamoDB write).
+#
+# Item shape is NOT invented: it is exactly the attribute set the existing
+# read path already consumes.
+#   lambda/handler.py:42-88  _init_catalog           (live cold start)
+#   agents/ecosystem/catalog_adapter.py:_convert_to_descriptor
+# Union verified = agentId, capabilities, description, metadata, name,
+# risk_level, status, supported_bodies, supported_runtimes, version
+#
+# Seed agent: `reference_agent` — the canonical reference agent that
+# already exists in the runtime definition (agents/runtime/pipeline.py:
+# REFERENCE_AGENT_ID / REFERENCE_CAPABILITY / BODY_VERSION / RUNTIME_LAMBDA).
+# It is a technical proof agent with no domain logic, so seeding it creates
+# no false expectation of a domain integration. No new agent type invented.
+#
+# `expiresAt` is deliberately NOT set: the table TTL is enabled on it, so a
+# populated value would silently expire this entry. Retention is a separate
+# gate; this module does not invent a retention policy.
+#
+# No secret, token, credential or personal data may be added here.
+# ---------------------------------------------------------------------------
+locals {
+  agent_catalog_seed = {
+    reference_agent = {
+      agentId            = "reference_agent"
+      name               = "reference_agent"
+      version            = "1.0.0"
+      status             = "ACTIVE"
+      description        = "Technischer Nachweis-Agent (Echo, keine Domain-Logik)"
+      capabilities       = ["reference.echo"]
+      supported_bodies   = ["1.0.0"]
+      supported_runtimes = ["python3.14"]
+      risk_level         = "low"
+      metadata           = {}
+    }
+  }
+}
+
+resource "aws_dynamodb_table_item" "agent_catalog_seed" {
+  for_each = local.agent_catalog_seed
+
+  table_name = aws_dynamodb_table.agent_catalog.name
+  hash_key   = aws_dynamodb_table.agent_catalog.hash_key
+
+  # aws_dynamodb_table_item takes exactly two kinds of input: the table
+  # key names and `item` — the WHOLE item as DynamoDB AttributeValue JSON
+  # ({"S":"..."}, {"L":[...]}, {"M":{...}}). Free attributes are not valid
+  # arguments; `item` is the only correct vehicle, so the AttributeValue
+  # wrapping is built explicitly here from the readable local above, which
+  # stays the single source of truth for the values.
+  #
+  # No range_key: agent_catalog has a hash key only (verified live —
+  # KeySchema = [{agentId, HASH}]). Declaring one would write a sort-key
+  # attribute the table does not have.
+  item = jsonencode({
+    agentId     = { S = each.value.agentId }
+    name        = { S = each.value.name }
+    version     = { S = each.value.version }
+    status      = { S = each.value.status }
+    description = { S = each.value.description }
+    risk_level  = { S = each.value.risk_level }
+
+    capabilities       = { L = [for c in each.value.capabilities : { S = c }] }
+    supported_bodies   = { L = [for b in each.value.supported_bodies : { S = b }] }
+    supported_runtimes = { L = [for r in each.value.supported_runtimes : { S = r }] }
+
+    # metadata stays empty on purpose. Terraform cannot convert a native
+    # map into AttributeValue M recursively, so a non-empty metadata map
+    # would have to be written in AttributeValue nesting here. Nothing in
+    # the current read path needs metadata; inventing content for it would
+    # be schema invention, so it is declared empty.
+    metadata = { M = {} }
+  })
+
+  depends_on = [aws_dynamodb_table.agent_catalog]
+}
