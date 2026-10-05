@@ -12,11 +12,12 @@ This module provides the Lambda entry point for all Platform API routes includin
 
 import json
 import os
+import re
 import sys
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -193,6 +194,95 @@ def _handle_sqs_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     }
 
 
+#: Group-claim token whitelist. Only literal group-name characters are
+#: accepted; anything else is dropped. This can never ADD a group that
+#: was not present in the claim (no permissive fallback).
+_GROUP_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:@-]+$")
+
+
+def _normalize_groups(raw: Any) -> List[str]:
+    """Deterministic normalization of the Cognito group claim.
+
+    Gate SECURITY-FIX-02. The API Gateway JWT authorizer delivers the
+    `cognito:groups` claim stringified (e.g. "[admins]"), while a direct
+    invocation or another gateway shape delivers a native list. The
+    previous `split(",")` turned "[admins]" into ["[admins]"], so every
+    role check ("admins" in groups) failed and an admin was silently
+    treated as a plain owner. Proof: P19 controlled A/B, Gate 01.
+
+    Supported real-world forms -> semantic group names:
+      None                       -> []
+      []                         -> []
+      ["admins"]                 -> ["admins"]
+      ["Staff"]                  -> ["Staff"]
+      "[admins]"                 -> ["admins"]
+      "[Staff]"                  -> ["Staff"]
+      '["admins", "Staff"]'      -> ["admins", "Staff"]
+      "admins,Staff"             -> ["admins", "Staff"]
+      "" / "   "                 -> []
+
+    NO PERMISSIVE FALLBACK (security invariant):
+      - unknown / malformed value -> no groups at all
+      - unexpected type           -> no groups
+      - non-string list entry     -> dropped
+      - never ever admins, Staff or an elevated role by accident
+
+    An unrecognized claim therefore yields LESS privilege, never more.
+    """
+    if raw is None:
+        return []
+    if isinstance(raw, (list, tuple, set)):
+        items = list(raw)
+    elif isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return []
+        if text.startswith("["):
+            # Stringified array. The authorizer delivers Python's
+            # str(list) form ("[admins]"), which is NOT valid JSON, so
+            # JSON is tried first and the bracket form is the fallback.
+            items = None
+            try:
+                parsed = json.loads(text)
+            except (ValueError, TypeError):
+                parsed = None
+            if isinstance(parsed, list):
+                items = parsed
+            elif text.endswith("]"):
+                inner = text[1:-1].strip()
+                if not inner:
+                    return []
+                items = inner.split(",")
+            else:
+                # Starts with "[" but is not a list representation.
+                return []
+        else:
+            # Plain comma-separated form.
+            items = text.split(",")
+    else:
+        # Unexpected type (number, dict, bool, ...) -> no groups.
+        return []
+
+    groups: List[str] = []
+    for item in items:
+        if not isinstance(item, str):
+            # A non-string entry means the shape is not what we expect.
+            # Reject the whole claim rather than guessing.
+            return []
+        name = item.strip().strip('"').strip("'").strip()
+        if not name:
+            # Empty token (e.g. trailing comma) — ignore.
+            continue
+        if not _GROUP_TOKEN_RE.match(name):
+            # Malformed token -> reject the ENTIRE claim. Partial
+            # parsing would be a permissive fallback: we never keep the
+            # tokens that happen to look privileged.
+            return []
+        if name not in groups:
+            groups.append(name)
+    return groups
+
+
 def _extract_user_context(event: Dict[str, Any]) -> Dict[str, Any]:
     """Extract user context from JWT claims in API Gateway event."""
     context = {
@@ -218,10 +308,9 @@ def _extract_user_context(event: Dict[str, Any]) -> Dict[str, Any]:
     if tenant_id_claim:
         context['tenantId'] = tenant_id_claim
     
-    groups = jwt_claims.get('cognito:groups', [])
-    if isinstance(groups, str):
-        groups = [g.strip() for g in groups.split(',')]
-    context['groups'] = groups
+    # Security fix 02: normalize, never split blindly. See
+    # _normalize_groups — the authorizer stringifies array claims.
+    context['groups'] = _normalize_groups(jwt_claims.get('cognito:groups'))
     
     return context
 

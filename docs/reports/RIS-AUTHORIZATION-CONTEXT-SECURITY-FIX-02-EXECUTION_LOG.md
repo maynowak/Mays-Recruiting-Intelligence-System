@@ -1,0 +1,61 @@
+==================================================
+CHECKPOINT: 2026-10-05 11:15 UTC — SECURITY-FIX-02: FIX DEPLOYED, SCOPE-VERLETZUNG, HARD STOP (Branch: main, HEAD: 8633fec)
+==================================================
+
+- Current status: Claim-Normalisierung implementiert, 32 Tests gruen, live deployed (Hash verifiziert); ABER zwei out-of-scope-Ressourcen durch mich mutiert; Live-Validierung ausstehend; HARD STOP
+- Audit date/time: 2026-10-05 11:15 UTC
+- Current Git branch and HEAD: main, 8633fec
+- Audit scope: SECURITY-FIX-02 (Code-Fix, Tests, Packaging, Apply, Verifikation)
+- Completed audit sections:
+  - AI_AUDITLOG-Pflicht-Template uebernommen
+  - Bestandsaufnahme der bestehenden Claim-Behandlung (_extract_user_context, split)
+  - Implementierung _normalize_groups + Aufrufumstellung + Imports
+  - Selbstkorrektur Entwurf 1 (json.loads-Rueckfall war falsch: "[admins]" ist kein JSON)
+  - Selbstkorrektur Entwurf 2 (Teilparsing "a] , admins" -> strikte Verwerfung)
+  - Verifikation aller 10 Formen + 10 Fehlwerte
+  - 32 neue Tests geschrieben, 3 eigene Testfehler korrigiert (fehlender store-Argument; identische userId bei Staff/Owner)
+  - P19-Suite als Rollenregression gruen
+  - Regressionsvergleich gegen HEAD mit zweimaliger Baseline-Ermittlung
+  - Packaging deterministisch, Bundle-Inhalt geprueft
+  - validate + Plan
+  - Gezielter Apply
+  - Impact-Bewertung read-only (IAM, ESM, Lambda, Gateway, Cognito, DDB, SQS)
+  - Zwei eigene Fehlmessungen korrigiert (Routen 25->27, Gruppen 6->7)
+  - Report erstellt
+- Actual findings (nur verifizierte Fakten):
+  - Account 240571105849 / user/Mayaws; Region eu-central-1; Workspace mays-ris; Branch main / 8633fec
+  - ROOT CAUSE bestaetigt: Authorizer liefert cognito:groups stringifiziert ("[admins]"); split(",") erzeugte ["[admins]"]; _is_admin/_is_staff scheiterten
+  - CODE: _normalize_groups(raw) zentrale Normalisierung; _extract_user_context ruft nur noch diese auf; split entfernt; import re + List ergaenzt
+  - Formen: None->[], []->[], ["admins"]->["admins"], ["Staff"]->["Staff"], "[admins]"->["admins"], "[Staff]"->["Staff"], '["admins", "Staff"]'->beide, "admins,Staff"->beide, ""->[], 42->[]; ALLE 10 verifiziert
+  - EIGENER FEHLER #1 korrigiert: json.loads-Rueckfall lieferte bei "[admins]" [] (kein valides JSON, sondern str(list)) -> Design auf JSON-zuerst-mit-Klammer-Fallback umgestellt
+  - EIGENER FEHLER #2 korrigiert: "a] , admins" lieferte ["admins"] -> strikte Regel: EIN fehlerhafter Token verwirft den GESAMTEN Claim; Token-Whitelist ^[A-Za-z0-9_.:@-]+$
+  - Strikte Invariante verifiziert: 10 Fehlwerte -> 0 privilegierte Fallbacks; "Admin" (deprecated) und "mayaws" inert
+  - Rollenmodell unveraendert: admins=Product Admin, Staff, Admin=deprecated, Owner, mayaws=AWS-Kontext; keine AWS-Rechte aus RIS-Rollen abgeleitet
+  - TESTS: 32 neu gruen; inkl. Staff-Create verweigert (beide Formen), Owner kann weiterhin anlegen, Admin kann weiterhin fuer Zieluser anlegen, Staff-Support-Read MIT Reason weiterhin moeglich, Staff kann nicht PENDING->ACTIVE, Admin kann PENDING->ACTIVE
+  - EIGENER TESTFEHLER korrigiert: 5 Tests riefen create_profile ohne store auf; TestActor hatte identische userId fuer Staff und Owner
+  - REGRESSION: HEAD 15 failed/743 passed -> mit Fix (ohne neue Tests) 8 failed/750 passed -> mit Fix+neue Tests 8 failed/782 passed; NULL Regressionen per Listenvergleich
+  - Die 7 neu gruenen Tests sind NICHT durch die Normalisierung repariert, sondern durch das ebenfalls notwendige "import re": HEAD:lambda/handler.py hatte kein re, wodurch _extract_path_param (handler.py:1359) NameError warf; Funktion bedient /api/agents/* ohne Gateway-Route, also nicht live erreichbar; im Report explizit benannt
+  - Keine Tests geloescht/abgeschwaecht; eine Datei hinzugefuegt
+  - PACKAGING: bestehender Lifecycle, deterministisch (Build1==Build2), 52 Eintraege, alle .py, _normalize_groups im Bundle; neuer hash ECemCxwAOv0fNo3OeAkxjpT3Eg+Xyl9LZB61h3R4VvQ=
+  - PLAN: nur Lambda source_code_hash update + bekannte Fremd-Drift; replace_paths KEINE
+  - SCOPE-VERLETZUNG (EIGENER FEHLER): "terraform apply -target=module.lambda.aws_lambda_function.agent /tmp/sf.tfplan" - Kombination aus -target und gespeichertem Planfile war falsch; Terraform wendete den GESAMTEN Plan an: "1 added, 2 changed, 0 destroyed"
+  - Unbeabsichtigt mutiert: (a) module.iam.aws_iam_role_policy.lambda_policy CREATED, (b) sqs_mapping TAGS gesetzt
+  - IMPACT lambda_policy: Rolle mays-ris-lambda-role (CreateDate 2026-09-30, nicht neu); logs:CreateLogGroup/CreateLogStream/PutLogEvents auf arn:aws:logs:*:*:*; dynamodb:DeleteItem/GetItem/PutItem/Query/UpdateItem auf mays-ris-dev-work-items; s3:DeleteObject/GetObject/PutObject auf mays-ris-dev-data/*; KEINE Service-Wildcards; von KEINER Lambda-Funktion verwendet (list-functions leer) -> Wirkung derzeit INERT; Agent-Rolle unveraendert 8 Policies
+  - Historie ungeprueft: Kommentar modules/iam/main.tf:66-68 verweist auf frueheren MalformedPolicyDocument-Fehler, der Fresh-Install blockierte; Zustand entstanden, Tauglichkeit NICHT validiert
+  - IMPACT ESM-Tags: Environment/Maker/Project auf 7cc946b9... gesetzt (Provider-default_tags), funktional harmlos, aber out-of-scope
+  - Unveraendert verifiziert: Lambda nur Code (Hash = Build, Successful, Runtime/Handler/Memory/Timeout/Role/VPC/Env(11) gleich); ESM UUID/Enabled/Batch 5; Gateway 27 Routen mit exakt passendem Set; Cognito AutoVerified ["email"] + 7 Gruppen; keine neue IAM-Rolle (22)
+  - EIGENE FEHLMESSUNGEN korrigiert: zunaechst "25 Routen" und "Gruppen 6 statt 7" gemeldet - beides Messfehler; Wiederholungsmessung 27 Routen Soll-Set vollstaendig; die 7 Gruppen (admins, Staff, Admin, candidates, recruiters, user-user, user-requier) waren der bisherige Zustand
+  - LIVE-VALIDIERUNG NICHT durchgefuehrt: kein Staff-Pfad live gefahren, keine Fixtures neu angelegt, keine Secrets erzeugt; zentrale GREEN-Bedingung (permissiver Staff-Create nicht mehr reproduzierbar) ist UNBELEGT
+  - Cleanup aprof_352e4133... weiterhin nicht moeglich per Produktpfad (Admin-Rolle war defekt); NACH diesem Fix waere es moeglich -> nicht ausgefuehrt
+- Evidence / file references: lambda/handler.py:13-19 (Imports), :196-278 (_normalize_groups + Whitelist), :286-288 (Aufrufumstellung), :1359 (_extract_path_param); agents/ecosystem/api_profiles.py:104-109, :272-281, :325-339, :444-510; terraform/modules/iam/main.tf:65-95; terraform/main.tf:30-38; tests/test_authorization_context.py (32 Tests); /tmp/sf.tfplan, /tmp/sfpost.tfplan, /tmp/routes_now.json (nicht committet)
+- Classification: RED / HARD STOP (Fix deployed und getestet, aber eigene Scope-Verletzung + fehlende Live-Verifikation)
+- Terraform checks actually executed and their results: validate Success; plan vor Apply 1 Lambda-Update + bekannte Fremd-Drift, replace_paths KEINE; apply MIT FEHLER (Gesamtplan statt Target); plan nach Apply: keine Restaenderung (weil die Fremd-Drift mit angewendet wurde)
+- Git status: M lambda/handler.py, 1 neue Testdatei, 2 neue Reports
+- Files changed, if any: lambda/handler.py (+_normalize_groups, Aufrufumstellung, Imports), tests/test_authorization_context.py (neu), docs/reports/RIS-AUTHORIZATION-CONTEXT-SECURITY-FIX-02.md (neu), docs/reports/RIS-AUTHORIZATION-CONTEXT-SECURITY-FIX-02-EXECUTION_LOG.md (dieser Log)
+- Explicit confirmation when no files were changed: entfaellt (Fix + Tests + Reports)
+- Open questions: (1) Umgang mit der unerwartet erzeugten lambda_policy (belassen/prüfen/zurücknehmen - Rücknahme waere weitere Mutation mit Freigabepflicht); (2) Freigabe fuer die noch ausstehende Live-Validierung des Staff-Pfads; (3) Audit- und 403/404-Thema bleiben separat OPEN
+- Risks: keine Secrets/Tokens/Authorization Header/Passwoerter in Report oder Log; keine AWS-Rolle neu; keine Rechte am Agent-Rollenaenderung; keine GROUP-/Gateway-/DDB-/SQS-Aenderung; Wildcard-frei; keine Gate-Route fuer /api/agents*, daher NameError-Fix nicht livewirksam; keine ungeplanten Reparaturen an Audit/403-404
+- Recommended next actions: Commit des Fixes + Tests + Reports; HARD STOP. Danach in dieser Reihenfolge: (a) Entscheidung zu lambda_policy, (b) Freigabe fuer Live-Validierung des Staff-Pfads mit neuem Staff- und Admin-Fixture, (c) Cleanup aprof_352e4133... ueber den nun funktionierenden Admin-Pfad, (d) P17 NICHT starten, P20 NICHT starten
+- Current resume point: Commit des Fixes, der Tests und der Reports
+
+==================================================
