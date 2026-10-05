@@ -169,7 +169,7 @@ Zwei kontrollierte Testtoken (Probe-User ohne Gruppe, dann mit `admins`), Claims
 2. **`scope` ist ein Cognito-Bestandswert, kein Produkt-Scope.** Es gibt keine Produkt-Scope-Semantik.
 3. **`cognito:groups` ist live ein natives Array.** Der Authorizer liefert es teils stringifiziert (daher Security-Fix-02) — beide Formen sind im Code abgedeckt.
 
-### Was区分t heute bereits Human / Admin / Staff / interne Client-Nutzung?
+### Was unterscheidet heute bereits Human / Admin / Staff / interne Client-Nutzung?
 
 | Information | live verfügbar? | Beleg |
 |---|---|---|
