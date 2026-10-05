@@ -150,6 +150,7 @@ CHECKPOINT: 2026-10-05 20:15 UTC — ENTITLEMENT PROVISIONING FOUNDATION (GREEN)
   - `terraform plan` nach Cleanup ohne Variable — "No changes."
   - KEIN Destroy der Tabelle, KEIN taint, KEIN state rm, KEIN IAM-Manipulation
 
+- Git Commit / Push: Commit `ca8e39f` (`feat(entitlements): terraform-managed foundation entitlement`); Push `01853ff..ca8e39f main -> main` (Fast-Forward); lokaler HEAD und origin/main identisch `ca8e39f1873d1a32b18c203ed4e358125f09ffb7`; keine Divergenz, kein Force-Push
 - Git status: bei Start 0 modified tracked; vor Commit 5 modified tracked (terraform/main.tf, terraform/variables.tf, terraform/modules/dynamodb/main.tf, terraform/modules/dynamodb/variables.tf, tests/test_agent_catalog_terraform_seed.py) + 2 new (tests/test_entitlement_provisioning.py, dieses Log); nach Commit 0 modified tracked
 
 - Files changed, if any:
