@@ -130,22 +130,26 @@ class CatalogAdapter:
             return {}
 
 
-def populate_registry_from_catalog(registry, table_name: Optional[str] = None) -> int:
+def populate_registry_from_catalog(registry, table_name: Optional[str] = None,
+                                   dynamodb=None) -> int:
     """
     Populate an AgentRegistry from the DynamoDB catalog.
-    
+
     This is the main entry point for initializing the registry.
-    
+
     Args:
         registry: AgentRegistry instance to populate
         table_name: DynamoDB table name (optional)
-        
+        dynamodb: optional DynamoDB resource; when omitted the adapter
+            creates its own (unchanged production behaviour). Injected
+            in tests so the read path can be verified without AWS.
+
     Returns:
         Number of agents registered
     """
     from agents.ecosystem.registry import AgentDescriptor, AgentStatus, ExecutionProfile
     
-    adapter = CatalogAdapter(table_name)
+    adapter = CatalogAdapter(table_name, dynamodb=dynamodb)
     agents = adapter.get_all_agents()
     
     count = 0
