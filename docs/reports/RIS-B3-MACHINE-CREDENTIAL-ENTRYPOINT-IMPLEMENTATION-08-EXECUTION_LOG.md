@@ -155,7 +155,9 @@ CHECKPOINT: 2026-10-05 18:45 UTC — B3 MACHINE CREDENTIAL ENTRYPOINT IMPLEMENTA
   - `terraform apply` — "Resources: 1 added, 1 changed, 0 destroyed."
   - KEIN Destroy, KEIN taint, KEIN state rm, KEINE IAM-Manipulation
 
-- Git status: bei Start 0 modified tracked; vor Commit: geaendert lambda/handler.py, terraform/modules/api/main.tf, neu tests/test_machine_entrypoint.py + dieses Log + Build-Artefakt terraform/lambda.zip; nach Commit 0 modified tracked
+- Git status: bei Start 0 modified tracked; vor Commit 4 staged (2 geaendert, 2 neu); nach Commit 0 modified tracked
+- Git Commit / Push: Commit `3551a92` (`feat(auth): machine credential entry point for agent execution`); Push `03f48c7..3551a92 main -> main` (Fast-Forward); lokaler HEAD und origin/main identisch `3551a92f3a45644db6d5edd8665c9e27521fc530`; keine Divergenz, kein Force-Push.
+  Hinweis: terraform/lambda.zip ist ein Build-Artefakt und wurde NICHT committed — Terraform erzeugt es lokal aus der Quelle und vergleicht es ueber source_code_hash; ein committen wuerde die Determinismus-Aussage des Bundle-Vertrags unterlaufen. `git status` ist nach dem Commit tracked-clean.
 
 - Files changed, if any:
   - GEÄNDERT: lambda/handler.py (Execution-Helper extrahiert + Machine-Entry-Point + Dispatch)
