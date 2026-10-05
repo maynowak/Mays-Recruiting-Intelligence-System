@@ -389,3 +389,47 @@ resource "aws_dynamodb_table_item" "agent_catalog_seed" {
 
   depends_on = [aws_dynamodb_table.agent_catalog]
 }
+
+# ---------------------------------------------------------------------------
+# Foundation entitlements (B5, Gate RIS-ENTITLEMENT-...-09)
+# ---------------------------------------------------------------------------
+# Option B of the provisioning decision: Terraform is the provisioning plane,
+# the Lambda runtime stays read-only. Same pattern as the agent catalog seed
+# above, and deliberately NOT the offer grant path: grant_offer
+# (agents/ecosystem/offers.py:480) exists but has no productive caller, needs
+# an ACTIVE offer (offers table is empty and has no provisioning path either)
+# and would require dynamodb:TransactWriteItems on the Lambda role, which the
+# runtime must not have.
+#
+# Nothing is provisioned unless var.foundation_entitlements is set.
+#
+# Cleanup follows the IaC lifecycle: removing an entry from the variable and
+# applying removes exactly that row. There is no manual DynamoDB delete.
+resource "aws_dynamodb_table_item" "foundation_entitlement" {
+  for_each = var.foundation_entitlements
+
+  table_name = aws_dynamodb_table.entitlements.name
+  hash_key   = aws_dynamodb_table.entitlements.hash_key
+
+  # No range_key: the entitlements table has a hash key only (verified live —
+  # KeySchema = [{entitlementId, HASH}]).
+  # `item` is DynamoDB AttributeValue JSON; free attributes are not valid
+  # arguments for this resource type.
+  item = jsonencode({
+    entitlementId = { S = each.key }
+    userId        = { S = each.value.userId }
+    tenantId      = { S = each.value.tenantId }
+    agentId       = { S = each.value.agentId }
+    validFrom     = { S = each.value.validFrom }
+    validUntil    = { S = each.value.validUntil }
+    # expiresAt is the TTL attribute of this table (verified live: TTL
+    # ENABLED) and the grant path writes _epoch(validUntil) there. It is
+    # deliberately NOT written here: Terraform has no epoch conversion, and
+    # hand-rolled arithmetic would be invention. A populated expiresAt would
+    # also silently delete the fixture, whereas its removal is an explicit IaC
+    # act (see the cleanup note above). Same reasoning as the catalog seed.
+    createdBy = { M = { actor = { S = "terraform" }, role = { S = "provisioning" } } }
+  })
+
+  depends_on = [aws_dynamodb_table.entitlements]
+}

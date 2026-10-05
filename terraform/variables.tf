@@ -205,3 +205,19 @@ variable "dynamodb_throttled_threshold" {
   type        = number
   default     = 1
 }
+
+# B5: opt-in synthetic foundation entitlements. Empty by default.
+# See modules/dynamodb/variables.tf for the rationale (user-bound row, the
+# Cognito sub is an input, row shape mirrors the existing grant contract).
+variable "foundation_entitlements" {
+  description = "Opt-in synthetic foundation entitlements (B5). Map key becomes entitlementId."
+  type = map(object({
+    userId      = string
+    tenantId    = string
+    agentId     = string
+    validFrom   = optional(string)
+    validUntil  = optional(string)
+    apiProfileId = optional(string)
+  }))
+  default     = {}
+}

@@ -344,10 +344,34 @@ class TestTerraformDeclaration(unittest.TestCase):
         self.assertNotIn("sort_key", table_res)
         self.assertIn('hash_key     = "agentId"', table_res)
 
-    def test_only_one_resource_type_added(self):
+    def test_exactly_the_expected_item_resources_exist(self):
+        """Guards the set of item resources, not the count of the file.
+
+        Originally this asserted a total of 1 `aws_dynamodb_table_item`,
+        which was correct for the catalog seed alone. Gate B5 added a
+        second, unrelated item resource (the foundation entitlement), so a
+        bare count would now fail for a legitimate reason. The meaningful
+        invariant is the exact set of names: the catalog seed exactly once,
+        plus nothing unexpected.
+        """
         text = _tf_text()
-        before = text.count('resource "aws_dynamodb_table_item"')
-        self.assertEqual(before, 1, "exactly one item resource expected")
+        names = re.findall(
+            r'resource "aws_dynamodb_table_item" "([\w]+)"', text)
+        self.assertEqual(text.count(
+            'resource "aws_dynamodb_table_item" "agent_catalog_seed"'), 1)
+        self.assertEqual(sorted(names),
+                         ["agent_catalog_seed", "foundation_entitlement"])
+
+    def test_catalog_seed_untouched_by_b5(self):
+        """B5 must not have modified the B4 catalog seed block."""
+        text = _tf_text()
+        start = text.index('resource "aws_dynamodb_table_item" '
+                           '"agent_catalog_seed"')
+        block = text[start:text.index("\n}", start)]
+        self.assertIn('table_name = aws_dynamodb_table.agent_catalog.name',
+                      block)
+        self.assertIn("depends_on = [aws_dynamodb_table.agent_catalog]", block)
+        self.assertNotIn("entitlement", block.lower())
 
 
 class TestArchitectureRuleNoRuntimeWriter(unittest.TestCase):

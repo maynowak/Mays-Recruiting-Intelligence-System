@@ -71,6 +71,10 @@ module "dynamodb" {
   environment  = var.environment
   table_config = var.table_config
   tags         = var.tags
+
+  # B5: opt-in. Empty by default -> no foundation entitlement is provisioned.
+  # Passed through so the dev workspace can supply the synthetic owner sub.
+  foundation_entitlements = var.foundation_entitlements
 }
 
 module "iam" {
