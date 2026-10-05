@@ -383,6 +383,13 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     elif method == 'POST' and path == '/work':
         body = json.loads(event.get('body', '{}'))
         return _create_work(body, event)
+    elif method == 'POST' and path.startswith('/v1/m2m/'):
+        # B3 / Option D: dedicated MACHINE plane. It is reached with an
+        # opaque `ris_...` credential, NOT a Cognito JWT, so its gateway
+        # route carries AuthorizationType NONE (P03 route boundary: human
+        # JWT and machine credential never compete for one route). All
+        # human paths above are unchanged.
+        return _machine_execute_agent(event, _machine_agent_id(path))
     elif method == 'GET' and path.startswith('/work'):
         work_id = event.get('pathParameters', {}).get('workId')
         return _get_work(work_id, event)
@@ -717,6 +724,167 @@ def _handle_agents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         'statusCode': 200,
         'body': json.dumps({
             'agents': allowed_agents
+        })
+    }
+
+
+def _machine_bearer(headers):
+    """Extract the opaque machine credential from the request headers.
+
+    Returns (bearer, None) on success or (None, status_code) when the
+    Authorization header cannot be a valid opaque bearer.
+
+    Deliberately strict, and deliberately NOT logging anything: neither the
+    header nor the value is ever written to a log or an audit field. The
+    scheme check plus the whitespace check is what keeps a Cognito JWT (three
+    dot-separated segments, spaces free) from being mistaken for a machine
+    credential here. Full credential validity is still decided by
+    verify_api_credential — this only guarantees "shape of an
+    Authorization header", never "valid credential".
+    """
+    raw = headers.get('authorization')
+    if not raw or not isinstance(raw, str):
+        return None, 401
+    parts = raw.split(None, 1)
+    if len(parts) != 2:
+        return None, 401
+    scheme, value = parts[0], parts[1].strip()
+    if scheme.lower() != 'bearer':
+        return None, 401
+    if not value or ' ' in value:
+        return None, 401
+    return value, None
+
+
+def _machine_agent_id(path):
+    """Extract the explicit operation target from the machine route path.
+
+    The target comes from the request, never from a default and never by
+    guessing a capability -> agent mapping (P04/P09: the verifier never
+    guesses the target).
+    """
+    import re as _re
+    match = _re.match(r"^/v1/m2m/agents/([^/]+)/execute$", path)
+    if not match:
+        return None
+    return _re.sub(r"[^A-Za-z0-9_.\-]", "", match.group(1)) or None
+
+
+def _machine_deny(status_code, error):
+    """Neutral external denial (no oracle, no reason category leaked)."""
+    return {'statusCode': status_code,
+            'body': json.dumps({'error': error})}
+
+
+def _machine_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Dict[str, Any]:
+    """Machine credential entry point (Gate B3-...-08, Option D).
+
+    Route: POST /v1/m2m/agents/{agentId}/execute
+
+    Authorization is the EXISTING central verification
+    (agents.ecosystem.credentials.verify_api_credential) and nothing else.
+    This handler deliberately contains NO simplified check such as
+    "if credential_exists: execute()". Its only jobs are transport-level:
+    extract the bearer, name the operation target, call the central
+    verifier, map its outcome to the contract's HTTP semantics, and forward
+    an authorized request into the shared execution contract.
+
+    HTTP semantics come from the credential contract (P09):
+      401 unknown / invalid / malformed  (incl. a human JWT on this path)
+      403 known but unusable (disabled, revoked, expired, profile not
+          ACTIVE, tenant/owner mismatch, no entitlement, agent not
+          executable)
+      503 store/infrastructure failure — never 401/403, because an
+          unreachable store must not be reported as a bad credential.
+    """
+    from agents.ecosystem.credentials import (
+        CredentialStoreUnavailable,
+        VerifyOutcome,
+    )
+    from agents.ecosystem.credentials import verify_api_credential
+
+    headers = {(k or "").lower(): v
+               for k, v in (event.get("headers") or {}).items()}
+    bearer, header_error = _machine_bearer(headers)
+    if header_error:
+        return _machine_deny(header_error, 'Unauthorized')
+
+    # No target -> 401 (the verifier enforces the same rule itself).
+    if not agent_id:
+        return _machine_deny(401, 'Unauthorized')
+
+    http_ctx = ((event.get('requestContext') or {}).get('http') or {})
+    path = event.get('path') or http_ctx.get('path', '/')
+    request_id = ((event.get('requestContext') or {}).get('requestId')
+                  or event.get('requestId'))
+
+    # Reuse the existing source builder (profile/credential/entitlement
+    # stores + catalog in the production shape) instead of adding a second
+    # one. Unconfigured stores raise here and map to 503 below.
+    try:
+        sources = _build_introspection_sources()
+    except Exception:
+        return {'statusCode': 503,
+                'body': json.dumps({'error': 'Service unavailable'})}
+
+    try:
+        decision = verify_api_credential(
+            bearer=bearer,
+            agent_id=agent_id,
+            credential_store=sources["credential_store"],
+            profile_store=sources["profile_store"],
+            entitlement_resolver=sources["entitlement_resolver"],
+            catalog=sources["catalog"],
+            operation="agent.execute",
+            route="POST /v1/m2m/agents/{agentId}/execute",
+            method="POST",
+            request_id=request_id,
+            selection_hint=headers.get("x-api-profile"),
+        )
+    except CredentialStoreUnavailable:
+        return {'statusCode': 503,
+                'body': json.dumps({'error': 'Service unavailable'})}
+
+    if decision.outcome is not VerifyOutcome.AUTHORIZED:
+        if decision.outcome is VerifyOutcome.UNAUTHORIZED:
+            return _machine_deny(401, 'Unauthorized')
+        return _machine_deny(403, 'Forbidden')
+
+    # Authorized. The credential's own persisted tenant/owner context is the
+    # execution subject — never anything from the header or the body.
+    context = decision.context or {}
+    body = event.get('body') or '{}'
+    try:
+        data = json.loads(body) if body else {}
+    except Exception:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+
+    catalog_item = sources["catalog"].get(agent_id)
+    agent_version = '1.0.0'
+    if isinstance(catalog_item, dict):
+        agent_version = catalog_item.get('agentVersion') or '1.0.0'
+
+    try:
+        out = _enqueue_agent_work(
+            agent_id=agent_id,
+            capability=data.get('capability'),
+            payload=data.get('payload', {}),
+            tenant_id=context.get('tenantId'),
+            user_id=context.get('userId'),
+            agent_version=agent_version,
+            idempotency_key=data.get('idempotencyKey'))
+    except Exception:
+        return {'statusCode': 500,
+                'body': json.dumps({'error': 'Failed to create work item'})}
+
+    return {
+        'statusCode': 202,
+        'body': json.dumps({
+            'workId': out['workId'],
+            'status': out['status'],
+            'requestId': out['requestId']
         })
     }
 
@@ -1530,6 +1698,64 @@ def _get_agent(event: Dict[str, Any], context: Any, agent_id: Optional[str]) -> 
     }
 
 
+def _enqueue_agent_work(agent_id: str, capability: str,
+                        payload: Dict[str, Any],
+                        tenant_id: Optional[str],
+                        user_id: Optional[str],
+                        agent_version: str = '1.0.0',
+                        idempotency_key: Optional[str] = None
+                        ) -> Dict[str, Any]:
+    """Single execution contract: build the work item, persist, enqueue.
+
+    Shared by the human path (`_execute_agent`) and the machine path
+    (`_machine_execute_agent`, Gate B3-...-08) so both authenticators reach
+    the EXACT same execution contract. There is deliberately no second
+    execution shape: one work_item schema, one SQS hand-off, one 202
+    response.
+    """
+    request_id = str(uuid.uuid4())
+    now = datetime.utcnow()
+
+    work_item = {
+        'workId': str(uuid.uuid4()),
+        'type': f'agent_{agent_id}',
+        'tenantId': tenant_id,
+        'userId': user_id,
+        'requestedBy': user_id,
+        'agentId': agent_id,
+        'capability': capability,
+        'idempotencyKey': idempotency_key or str(uuid.uuid4()),
+        'payloadVersion': '1.0',
+        'agentVersion': agent_version or '1.0.0',
+        'requestId': request_id,
+        'status': 'QUEUED',
+        'attempt': 0,
+        'payload': payload,
+        'createdAt': now.isoformat(),
+        'expiresAt': (now + timedelta(days=30)).isoformat()
+    }
+
+    table_name = os.environ.get('WORK_ITEMS_TABLE')
+    if table_name:
+        table = _get_dynamodb().Table(table_name)
+        table.put_item(Item=work_item)
+
+    queue_url = os.environ.get('WORK_QUEUE_URL')
+    if queue_url:
+        _get_sqs().send_message(
+            QueueUrl=queue_url,
+            MessageBody=json.dumps(work_item),
+            MessageAttributes={
+                'workType': {'StringValue': work_item['type'],
+                             'DataType': 'String'},
+                'agentId': {'StringValue': agent_id, 'DataType': 'String'}
+            }
+        )
+
+    return {'workId': work_item['workId'], 'status': 'QUEUED',
+            'requestId': request_id, 'workItem': work_item}
+
+
 def _execute_agent(event: Dict[str, Any], context: Any, agent_id: Optional[str]) -> Dict[str, Any]:
     """Handle POST /api/agents/{agentId}/execute - Execute an agent with capability."""
     user_context = _extract_user_context(event)
@@ -1575,61 +1801,31 @@ def _execute_agent(event: Dict[str, Any], context: Any, agent_id: Optional[str])
             'body': json.dumps({'error': 'Agent is not active'})
         }
     
-    request_id = str(uuid.uuid4())
-    
-    work_item = {
-        'workId': str(uuid.uuid4()),
-        'type': f'agent_{agent_id}',
-        'tenantId': user_context['tenantId'],
-        'userId': user_context['userId'],
-        'requestedBy': user_context['userId'],
-        'agentId': agent_id,
-        'capability': capability,
-        'idempotencyKey': body.get('idempotencyKey', str(uuid.uuid4())),
-        'payloadVersion': '1.0',
-        'agentVersion': agent.get('version', '1.0.0'),
-        'requestId': request_id,
-        'status': 'QUEUED',
-        'attempt': 0,
-        'payload': payload,
-        'createdAt': datetime.utcnow().isoformat(),
-        'expiresAt': (datetime.utcnow() + timedelta(days=30)).isoformat()
-    }
-    
+    # Single execution contract (shared with the machine path).
     try:
-        table_name = os.environ.get('WORK_ITEMS_TABLE')
-        if table_name:
-            dynamodb = _get_dynamodb()
-            table = dynamodb.Table(table_name)
-            table.put_item(Item=work_item)
-        
-        queue_url = os.environ.get('WORK_QUEUE_URL')
-        if queue_url:
-            sqs = _get_sqs()
-            sqs.send_message(
-                QueueUrl=queue_url,
-                MessageBody=json.dumps(work_item),
-                MessageAttributes={
-                    'workType': {'StringValue': work_item['type'], 'DataType': 'String'},
-                    'agentId': {'StringValue': agent_id, 'DataType': 'String'}
-                }
-            )
-        
-        return {
-            'statusCode': 202,
-            'body': json.dumps({
-                'workId': work_item['workId'],
-                'status': 'QUEUED',
-                'requestId': request_id
-            })
-        }
-        
+        out = _enqueue_agent_work(
+            agent_id=agent_id,
+            capability=capability,
+            payload=payload,
+            tenant_id=user_context['tenantId'],
+            user_id=user_context['userId'],
+            agent_version=agent.get('version', '1.0.0'),
+            idempotency_key=body.get('idempotencyKey'))
     except Exception as e:
         logger.error(f"Error creating work item: {e}")
         return {
             'statusCode': 500,
             'body': json.dumps({'error': 'Failed to create work item'})
         }
+
+    return {
+        'statusCode': 202,
+        'body': json.dumps({
+            'workId': out['workId'],
+            'status': out['status'],
+            'requestId': out['requestId']
+        })
+    }
 
 
 def _get_agent_work(event: Dict[str, Any], context: Any, agent_id: Optional[str], work_id: Optional[str]) -> Dict[str, Any]:

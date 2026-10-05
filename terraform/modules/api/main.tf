@@ -215,6 +215,27 @@ resource "aws_apigatewayv2_route" "credentials_revoke" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
+# B3 machine plane (Gate RIS-B3-...-08, Option D).
+#
+# Dedicated machine entry point for the opaque `ris_...` credential. It
+# reuses the EXISTING integration (no second integration, no $default route,
+# no greedy/ANY route) and carries AuthorizationType NONE on purpose:
+# the credential is deliberately not a JWT, so the Cognito JWT authorizer
+# would reject it ("invalid number of segments", proven in P17-06).
+#
+# P03 route boundary: human JWT and machine credential must never compete
+# for the same route. This route is JWT-free and the human routes stay
+# JWT-only — no "try JWT first, then key" downgrade path exists.
+#
+# Authorization itself happens inside the Lambda via the existing central
+# verification (credentials.verify_api_credential); the gateway only routes.
+resource "aws_apigatewayv2_route" "m2m_agent_execute" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/m2m/agents/{agentId}/execute"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "NONE"
+}
+
 resource "aws_lambda_permission" "api_gateway" {
   action        = "lambda:InvokeFunction"
   function_name = var.lambda_function_name
