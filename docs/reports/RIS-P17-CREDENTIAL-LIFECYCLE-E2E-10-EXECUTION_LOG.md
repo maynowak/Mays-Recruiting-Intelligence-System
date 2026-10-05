@@ -172,7 +172,8 @@ CHECKPOINT: 2026-10-05 22:00 UTC — P17 CREDENTIAL LIFECYCLE E2E (GREEN) (Branc
   - `terraform plan` nach Cleanup (Default) = "No changes."
   - KEIN Destroy der Tabelle, KEIN taint, KEIN state rm, KEIN IAM-Manipulation, KEIN Lambda/Gateway/Cognito-Change
 
-- Git status: bei Start 0 modified tracked; nach Commit 0 modified tracked
+- Git Commit / Push: Commit `ebcbabf` (`test(p17): credential lifecycle e2e coverage`); Push `a31abee..ebcbabf main -> main` (Fast-Forward); lokaler HEAD und origin/main identisch `ebcbabfb174c9de23c00cd40ea167ff8d1cce029`; keine Divergenz, kein Force-Push
+- Git status: bei Start 0 modified tracked; nach Commit 0 modified tracked (nur die 2 neuen Dateien dieses Gates committed; lambda.zip und .terraform.lock.hcl bewusst nicht)
 
 - Files changed, if any:
   - NEU: tests/test_p17_credential_lifecycle.py
