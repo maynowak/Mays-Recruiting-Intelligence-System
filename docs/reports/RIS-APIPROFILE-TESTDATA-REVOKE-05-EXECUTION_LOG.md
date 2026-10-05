@@ -1,0 +1,66 @@
+==================================================
+CHECKPOINT: 2026-10-05 13:00 UTC — APIPROFILE TESTDATA-REVOKE (GREEN, PENDING->REVOKED via Admin-Pfad) (Branch: main, HEAD: 0c31442)
+==================================================
+
+- Current status: Zielprofil terminal auf REVOKED gesetzt ueber bestehenden Product-Admin-Pfad; genau eine fachliche Mutation; 15/15 Erfolgskriterien erfuellt; keine Infrastrukturmutation
+- Audit date/time: 2026-10-05 13:00 UTC
+- Current Git branch and HEAD: main, 0c3144254ec087402f76c2b43a919cd5750469e0
+- Audit scope: RIS-APIPROFILE-TESTDATA-REVOKE-05 — CONTROLLED TEST-DATA CONTAINMENT / PRODUCT-ADMIN PATH ONLY / NO DELETE / NO INFRASTRUCTURE CHANGE
+- Completed audit sections:
+  - AI_AUDITLOG-Pflicht-Template uebernommen
+  - AWS-/Git-Kontext-Gate
+  - Precheck: Zielprofil gezielt gelesen (13 Felder inkl. updatedAt, disabledBy)
+  - Product-Admin-Fixture erstellt, Gruppe VOR Token-Erzeugung zugewiesen
+  - Product-Admin-Kontext gegen bekannten Admin-Pfad verifiziert (mit und ohne reason)
+  - Genau eine fachliche Mutation: PENDING -> REVOKED
+  - Post-Revoke: Profil-Integritaet feldweise (DDB-Rohdatensatz)
+  - Post-Revoke: Live-Terminalitaet (REVOKED -> ACTIVE = 409)
+  - Post-Revoke: Selection Safety (Domainlauf + Testbelege)
+  - Post-Revoke: Credential Safety (Testbelege, Live-Count 0)
+  - Post-Revoke: Entitlement Safety (Testbelege, Live-Count 0)
+  - Post-Revoke: Owner-/Staff-Reaktivierung (Testbelege, keine Zusatzmutation)
+  - Audit-Verifikation in CloudWatch, kompletter Trail des Zielprofils
+  - Final Counts + Nachweis "nur Zielprofil veraendert"
+  - AWS-Mutation-Boundary-Nachweis (Lambda/IAM/ESM/Gateway/Terraform)
+  - Fixture-Cleanup der eigenen Cognito-Admin-Fixture
+  - Report erstellt
+- Actual findings (nur verifizierte Fakten):
+  - Kontext: AWS_PROFILE=mayaws; Account 240571105849; Region eu-central-1; Workspace mays-ris; Branch main; HEAD 0c3144254ec087402f76c2b43a919cd5750469e0; Working Tree 0 tracked -> KONFORM
+  - PRECHECK: aprof_352e41330c42441b | name=p20-staff-should-not-exist | status=PENDING (erwartet) | ownerUserId=43d44852-70b1-700e-e0ea-eddbc2eb96f1 | tenantId=p20sec-1791189370 | createdAt=2026-10-05T08:36:56.255401+00:00 | updatedAt=2026-10-05T08:36:56.255401+00:00 | createdBy={"actor":"43d44852-...","role":"owner"} | updatedBy={"actor":"43d44852-...","role":"owner"} | description/clientRef/expiresAt/disabledBy=null | 9 Felder
+  - Identifikation eindeutig dreifach belegt: Gate-01-Name + Gate-01-Tenant p20sec-1791189370 + createdBy.role="owner" bei Staff-Owner (= Signatur des Gate-01-Authorization-Defekts)
+  - ADMIN-FIXTURE: r5-admin-synth angelegt (temp. Passwort, email_verified=true, custom:tenant_id=r5-1791203627); admin-add-user-to-group VOR Token-Erzeugung (Sequenz wie Gate 03); Token-Claim cognito:groups=["admins"]; admin sub=b314f8c2-80f1-702c-854b-40efea62387d; Admin != Ziel-Owner (43d44852...)
+  - mayaws wurde NICHT als Produktrolle verwendet, nur fuer AWS-CLI-Kontext und Cognito-Userverwaltung; Produktrolle ausschliesslich aus cognito:groups
+  - ADMIN-PFAD-VERIFIKATION: /me mit Admin-Token -> groups=["admins"]; Admin-Read von Gate-03-Profil aprof_52223c85442d4182 OHNE reason -> HTTP 403; MIT reason=r5-admin-path-verification -> HTTP 200 (status=ACTIVE). Der 403 ist korrekte Tenant-Isolation (Admin-Tenant r5-1791203627 != Ziel-Tenant p20sec-1791189370), kein Funktionsfehler. Audit: cross-tenant-access outcome=allowed nur mit Reason
+  - MUTATION (genau eine): POST /v1/apiprofiles/aprof_352e41330c42441b/status {"status":"REVOKED","reason":"authorization-testdata-cleanup"} -> HTTP 200; status PENDING->REVOKED; updatedBy={"actor":"b314f8c2...","role":"admin"}; updatedAt 08:36:56.255401 -> 12:35:22.687220; createdAt/ownerUserId/tenantId unveraendert; Count 7->7
+  - reason war zwingend erforderlich (cross-tenant); synthetischer Grund, keine personenbezogenen Daten
+  - Kein 401/403/404/409/5xx bei der Mutation -> kein RED
+  - LIVE-TERMINALITAET: Admin-Versuch REVOKED->ACTIVE -> HTTP 409 Conflict; status danach REVOKED; updatedAt/updatedBy unveraendert. Ursache api_profiles.py:461-462 (Pruefung vor jedem Write)
+  - INTEGRITAET (feldweiser DDB-Rohvergleich): unveraendert = apiProfileId, ownerUserId, tenantId, name, description, clientRef, expiresAt, createdAt, createdBy; geaendert NUR status, updatedAt, updatedBy; 0 unzulaessige Aenderungen; 0 verletzte Unveraendert-Pflichten
+  - SELECTION SAFETY: resolve_selection mit Hint -> None (abgelehnt, outcome=denied); mit Default -> None; Domainlauf mit identischer Actor-Konstellation PENDING->ACTIVE->REVOKED; Testbelege passed
+  - VORHANDENE TESTBELEGE (Gate erlaubt keine Zusatzmutation; keine neue Credential-Fixture, kein Credential-Testuser erzeugt): pytest -k "revoked or revoke_is_admin_only or staff_no_revoke" -> 15 passed, 278 deselected. Enthalten: test_18_revoked_terminal, test_27_revoke_is_admin_only, test_28_revoked_is_terminal, test_staff_no_revoke, test_11_revoked_denied, test_27_revoked_terminal, test_43_revoked_403, test_46_profile_revoked_403, test_06_revoked_403, test_12_revoked_profile_403, test_20_revoked_profile_denied, test_revoked_between_checks_denied, test_12_revoked_before_retry_denied, test_11_revoked_404
+  - EIGENER TOOLFEHLER (korrigiert): erster pytest-Aufruf mit vollstaendigen Test-Node-IDs schlug fehl (Klassenname worker_entitlement_recheck/introspection falsch geraten) -> "no tests ran"; korrigiert auf -k-Filter -> 15 passed
+  - EIGENER TOOLFEHLER (korrigiert): erste Domain-Demo-Skript brach mit UnauthorizedProfileAction "tenant isolation" ab, weil der InMemory-Admin einen anderen Tenant als das angelegte Profil hatte; korrigiert auf tenantidentische Aktoren
+  - CREDENTIAL SAFETY: credentials-Count 0 vor und nach REVOKE (kein Credential-Material existiert); effective_status=REVOKED; Ausgabe verlangt ACTIVE; 6 Testbelege passed
+  - ENTITLEMENT SAFETY: entitlements-Count 0->0; 3 Testbelege passed
+  - AUDIT (CloudWatch /aws/lambda/mays-ris-dev-agent; verifiziert: KEINE /audit/events-HTTP-Route in 27 Routen, KEINE Audit-Tabelle in list-tables): Lifecycle-Event ref=c85964a01d964bae action=profile-transition outcome=success actor=b314f8c2-80f1-702c-854b-40efea62387d profile=aprof_352e41330c42441b reason=authorization-testdata-cleanup to=REVOKED
+  - Audit-Trail des Zielprofils = 5 Events: 1) 08:36:56.535Z profile-create success 43d44852 (als owner protokolliert = Gate-01-Defekt, forensischer Beleg); 2) 12:35:22.686Z cross-tenant-access allowed (transition); 3) 12:35:22.986Z profile-transition success ->REVOKED; 4) 12:39:26.965Z cross-tenant-access allowed (read); 5) 12:39:27.545Z cross-tenant-access allowed (transition-Versuch)
+  - TRANSPARENZHINWEIS: der 409-Terminalitaetsversuch erzeugt KEIN ablehnendes profile-transition-Event, weil die REVOKED-Pruefung in api_profiles.py:461 wirft BEVOR _audit() erreicht wird; abgelehnte Uebergaenge werden im Audit nicht separat erfasst. Vertragsverhalten, im Report offengelegt. Audit-Kriterium (success) mit Event 3 erfuellt
+  - FINAL COUNTS: api-profiles 7->7; credentials 0->0; entitlements 0->0; user-profile 0->0
+  - NUR ZIELPROFIL VERAENDERT: updatedBy.actor der 7 Profile = 13745802(owner), d3449862(owner), b314f8c2(admin)=ZIEL, d3449862(owner), 93242882(admin, vorbestehend aus Gate 03), 93242882(admin, vorbestehend), f3541862(owner). Nur Zielprofil traegt neuen Admin-Actor
+  - AWS MUTATION BOUNDARY: Lambda CodeSha256 ECemCxwAOv0fNo3OeAkxjpT3Eg+Xyl9LZB61h3R4VvQ= (identisch zu Gate 04); Agent Role-Policies 8 (identisch); ESM 7cc946b9/Enabled/Batch5 (identisch); Gateway-Routen 27 (identisch); Terraform plan -var=identity_email_verification_enabled=true = No changes.
+  - METHODISCHE KLARSTELLUNG: Terraform-Plan OHNE -var zeigte "Plan: 0 to add, 1 to change" (module.cognito.aws_cognito_user_pool.users, auto_verified_attributes). Keine Drift und nicht von mir verursacht: identity_email_verification_enabled hat Default false (terraform/variables.tf:38); mit dem in allen frueheren Gates verwendeten Aufruf -var=identity_email_verification_enabled=true ergibt sich "No changes."
+  - ROUTEN-ZAEHLUNG-NOTIZ: get-routes ohne --max-results liefert 25 (Seitengrenze), mit --max-results 500 korrekt 27; keine Routenaenderung
+  - FIXTURE-HYGIENE: eigene Admin-Fixture r5-admin-synth via admin-delete-user geloescht; verbleibende admins-User p19-ab-admin, v3-admin-synth, p19-admin-synthetic (alle vorbestehend); tmp-Verzeichnis mit synthetischem Passwort entfernt
+  - ERFOLGSKRITERIEN: 15 von 15 erfuellt
+- Evidence / file references: agents/ecosystem/api_profiles.py:444-470 (transition_status), :461-462 (REVOKED terminal vor Write), :150-155 (_check_tenant cross-tenant reason-Pflicht), :34-42 (_audit -> CloudWatch), :255-534 (CRUD ohne delete); lambda/handler.py (_aprof_ids, status-Aktion); tests/test_api_profiles.py:167,265; tests/test_apiprofile_management_http.py:343,350; tests/test_credential_management.py:142,253,427,447; tests/test_credential_verification.py:146,185; tests/test_offer_entitlement_grant.py:236; tests/test_worker_entitlement_recheck.py:129,197; tests/test_introspection_capability.py:225; terraform/variables.tf:38; docs/reports/RIS-APIPROFILE-TESTDATA-CLEANUP-04.md (Vorgabegate); CloudWatch /aws/lambda/mays-ris-dev-agent (Audit)
+- Classification: GREEN
+- Terraform checks actually executed and their results: plan -lock=false -var=identity_email_verification_enabled=true (read-only) = "No changes."; plan -lock=false ohne -var = "Plan: 0 to add, 1 to change" (nur cognito auto_verified_attributes, Variablen-Default-Artefakt, keine Drift); KEIN apply, KEIN state change, KEIN import, KEIN destroy; KEIN Lambda-/IAM-/Gateway-/Cognito-Konfigurations-/SQS-/ESM-/S3-Eingriff; KEIN Direct-DynamoDB-Write, KEIN DeleteItem, KEIN TTL
+- Git status: vor Gate 0 modified tracked; nach Gate 0 modified tracked; 2 neue Reports
+- Files changed, if any: docs/reports/RIS-APIPROFILE-TESTDATA-REVOKE-05.md (neu), docs/reports/RIS-APIPROFILE-TESTDATA-REVOKE-05-EXECUTION_LOG.md (dieser Log)
+- Explicit confirmation when no files were changed: entfaellt (nur die beiden Reports; kein Code, kein Terraform, kein Testfile geaendert; die einzige AWS-Mutation war die eine APIProfile-Statustransition via Produktpfad)
+- Open questions: (1) die 6 weiteren synthetischen Profile bleiben bestehen; v. a. die zwei ACTIVE-Profile aprof_31f3fa092e124c89 (p19-e2e-renamed) und aprof_52223c85442d4182 (v3-owner-profile) sind funktional nutzbar und fuer ein spaeteres Sammel-Containment relevant; (2) aprof_a2e238ff71944b88 traegt weiter den Nicht-UUID-Owner "v3-nonexistent-target"; (3) Delete-Lifecycle bleibt einem spaeteren Gate vorbehalten; (4) 403/404-Frage unberuehrt
+- Risks: keine Secrets, Tokens, Passwoerter oder vollstaendigen Bearer Credentials im Report (synthetisches Admin-Passwort nur in geloeschtem tmp-Verzeichnis mit chmod 700); kein Direct-DDB; keine Infrastrukturmutation; mays-ris-lambda-policy und ESM-Tags unangetastet; Audit-Schema unveraendert; Zielprofil ist als REVOKED terminal, kein Zugriffsrisiko; Bestandsprofile von früheren Gates unangetastet
+- Recommended next actions: Reports committen; HARD STOP. Danach: kein P17, kein P20, kein Delete-Lifecycle. Optional spaeter: Sammel-Containment-Gate fuer die 6 restlichen synthetischen Profile (gleiches Muster: Admin-REVOKE mit Reason, credentials/entitlements vorher pruefen)
+- Current resume point: Commit der REVOKE-05-Reports
+
+==================================================
