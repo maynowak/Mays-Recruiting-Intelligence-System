@@ -97,28 +97,35 @@ class LifecycleHarness(unittest.TestCase):
         return out["statusCode"], json.loads(out["body"])
 
     def machine(self, secret, agent=AGENT, headers=None):
-        import handler as h
-        event = {
-            "httpMethod": "POST",
-            "path": "/v1/m2m/agents/%s/execute" % agent,
-            "headers": {"Authorization": "Bearer " + secret,
-                        **(headers or {})},
-            "body": json.dumps({"capability": "reference.echo",
-                                "payload": {}}),
-            "requestContext": {"requestId": "req-p17-m",
-                               "http": {"method": "POST"}},
-        }
-        sources = {"profile_store": self.profiles,
-                   "credential_store": self.creds,
-                   "entitlement_resolver": self.resolver,
-                   "catalog": self.catalog}
-        with patch.object(h, "_build_introspection_sources",
-                          return_value=sources), \
-             patch.object(h, "_enqueue_agent_work",
-                          side_effect=self._enq) as enq:
-            out = h.handler(event, None)
-        self.enqueued = enq.call_args_list
-        return out["statusCode"], json.loads(out["body"])
+            """Machine route as the gateway delivers it after P21-01.
+
+            The route is Cognito-JWT protected: the authorizer claims below are
+            what the gateway validated before invoking the Lambda, and the opaque
+            credential travels in X-Api-Credential.
+            """
+            import handler as h
+            event = {
+                "httpMethod": "POST",
+                "path": "/v1/m2m/agents/%s/execute" % agent,
+                "headers": {"X-Api-Credential": "Bearer " + secret,
+                            **(headers or {})},
+                "body": json.dumps({"capability": "reference.echo",
+                                    "payload": {}}),
+                "requestContext": {"requestId": "req-p17-m",
+                                   "http": {"method": "POST"},
+                                   "authorizer": {"jwt": {"claims": {"sub": "u1"}}}},
+            }
+            sources = {"profile_store": self.profiles,
+                       "credential_store": self.creds,
+                       "entitlement_resolver": self.resolver,
+                       "catalog": self.catalog}
+            with patch.object(h, "_build_introspection_sources",
+                              return_value=sources), \
+                 patch.object(h, "_enqueue_agent_work",
+                              side_effect=self._enq) as enq:
+                out = h.handler(event, None)
+            self.enqueued = enq.call_args_list
+            return out["statusCode"], json.loads(out["body"])
 
     def _enq(self, **kw):
         return {"workId": "w1", "status": "QUEUED", "requestId": "rq1",

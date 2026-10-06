@@ -15,7 +15,8 @@ Geprueft wird:
   2. jede in der Doku gelistete Plattform-Route existiert in Terraform,
   3. jede dokumentierte Auth-Aussage stimmt mit authorization_type in Terraform,
   4. jede Live-Route aus Terraform erreicht im Handler-Dispatch einen Zweig,
-  5. die Doku nennt die beiden NONE-Routen (und nicht nur /health).
+  5. die Doku nennt /health als einzige unauthentifizierte Route (P21-01 hat
+     die Machine-Route auf den Cognito-Authorizer umgestellt), und
 """
 
 import os
@@ -129,12 +130,41 @@ class TestTerraformRouteInventory(unittest.TestCase):
         """
         self.assertEqual(25, len(terraform_routes()))
 
-    def test_exactly_two_none_routes(self):
+    def test_health_is_the_only_none_route(self):
+        """P21-01: die Machine-Route ist JWT-geschuetzt.
+
+        Frueher waren /health und die Machine-Route die beiden NONE-Routen.
+        Seit P21-01 ist Cognito die Authentication Boundary auch fuer die
+        Machine API, also bleibt genau eine NONE-Route uebrig: /health.
+        """
         none = {r for r, v in terraform_routes().items() if v["auth"] == "NONE"}
-        self.assertEqual({
-            "GET /health",
-            "POST /v1/m2m/agents/{agentId}/execute",
-        }, none)
+        self.assertEqual({"GET /health"}, none)
+
+    def test_machine_route_reuses_the_shared_cognito_authorizer(self):
+        """Kein zweiter Authorizer, kein eigener JWT-Pfad.
+
+        Beweis, dass die Machine-Route denselben Cognito-Authorizer nutzt wie
+        die 26 Human-Routen: gleiche authorizer_id wie eine Human-Route.
+        """
+        routes = terraform_routes()
+        machine = routes["POST /v1/m2m/agents/{agentId}/execute"]
+        human = routes["GET /platform"]
+        self.assertEqual("JWT", machine["auth"])
+        self.assertEqual(human["auth"], machine["auth"])
+        # Gleiche authorizer_id im Terraform-Text beweisen die Wiederverwendung.
+        source = _read(TF_API)
+        machine_block = source[source.index(
+            'resource "aws_apigatewayv2_route" "m2m_agent_execute"'):
+            source.index('resource "aws_apigatewayv2_route" "m2m_agent_execute"')
+            + 700]
+        self.assertIn("authorizer_id", machine_block)
+        self.assertIn("aws_apigatewayv2_authorizer.jwt.id", machine_block)
+
+    def test_doc_states_health_is_the_only_unauthenticated_route(self):
+        """Die Doku darf die alte Zwei-NONE-Aussage nicht mehr fuehren."""
+        text = _read(DOC)
+        self.assertIn("| `NONE` | 1 |", text)
+        self.assertIn("`X-Api-Credential`", text)
 
     def test_no_unreachable_authorization(self):
         """JWT-Route braucht zwingend einen Authorizer, NONE keinen."""

@@ -97,12 +97,27 @@ class Harness(unittest.TestCase):
         }
 
     def call(self, bearer=None, agent_id=AGENT, path=None, body=None,
-             extra_headers=None, sources=None):
+             extra_headers=None, sources=None, cognito=True,
+             cognito_user="u1"):
+        """Invoke the machine route the way the gateway now delivers it.
+
+        P21-01: the route is Cognito-JWT protected, so the event carries the
+        authorizer claims the gateway would have validated, and the opaque
+        credential travels in X-Api-Credential. `cognito=False` simulates a
+        request that never passed the authorizer (direct invocation).
+        """
         import handler as h
         headers = {}
         if bearer is not None:
-            headers["Authorization"] = bearer
+            headers["X-Api-Credential"] = bearer
         headers.update(extra_headers or {})
+        request_context = {"requestId": "req-b3",
+                           "http": {"method": "POST", "path": path}}
+        if cognito:
+            request_context["authorizer"] = {
+                "jwt": {"claims": {"sub": cognito_user,
+                                   "token_use": "access",
+                                   "custom:tenant_id": "t1"}}}
         event = {
             "httpMethod": "POST",
             "path": path if path is not None else "/v1/m2m/agents/%s/execute"
@@ -111,8 +126,7 @@ class Harness(unittest.TestCase):
             "headers": headers,
             "body": json.dumps(body if body is not None else
                                {"capability": "reference.echo", "payload": {}}),
-            "requestContext": {"requestId": "req-b3",
-                               "http": {"method": "POST", "path": path}},
+            "requestContext": request_context,
         }
         with patch.object(h, "_build_introspection_sources",
                           return_value=sources or self.sources()), \
@@ -264,8 +278,12 @@ class TestNegative(Harness):
     def test_unconfigured_sources_map_to_503(self):
         import handler as h
         event = {"httpMethod": "POST", "path": ROUTE,
-                 "headers": {"Authorization": "Bearer " + "A" * 45},
-                 "body": "{}", "requestContext": {"requestId": "r"}}
+                 "headers": {"X-Api-Credential": "Bearer " + "A" * 45},
+                 "body": "{}",
+                 "requestContext": {
+                     "requestId": "r",
+                     "http": {"method": "POST", "path": ROUTE},
+                     "authorizer": {"jwt": {"claims": {"sub": "u1"}}}}}
         with patch.object(h, "_build_introspection_sources",
                           side_effect=RuntimeError("stores unconfigured")):
             out = h.handler(event, None)
@@ -315,16 +333,20 @@ class TestHumanRouteBoundary(Harness):
                      "/v1/m2m/",
                      "/v1/m2m/other",
                      "/v1/m2m/agents/%s/execute/extra" % AGENT):
-            event = {"httpMethod": "POST", "path": path,
-                     "headers": {"Authorization": "Bearer " + "A" * 45},
-                     "body": "{}", "requestContext": {"requestId": "r"}}
-            with patch.object(h, "_build_introspection_sources",
-                              return_value=self.sources()):
+              event = {"httpMethod": "POST", "path": path,
+                            "headers": {"X-Api-Credential": "Bearer " + "A" * 45},
+                            "body": "{}",
+                            "requestContext": {
+                                "requestId": "r",
+                                "http": {"method": "POST", "path": path},
+                                "authorizer": {"jwt": {"claims": {"sub": "u1"}}}}}
+              with patch.object(h, "_build_introspection_sources",
+              return_value=self.sources()):
                 out = h.handler(event, None)
-            body = json.loads(out["body"])
-            # Either a neutral 401 from the missing target, or the generic
-            # 404 — but never an execution.
-            self.assertIn(out["statusCode"], (400, 401, 404), path)
+                body = json.loads(out["body"])
+                # Either a neutral 401 from the missing target, or the generic
+                # 404 — but never an execution.
+                self.assertIn(out["statusCode"], (400, 401, 404), path)
 
     def test_agent_id_extraction_is_strict(self):
         import handler as h

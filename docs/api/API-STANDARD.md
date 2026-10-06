@@ -15,20 +15,21 @@ Konsistenz wird von `tests/test_p20_api_contract_consistency.py` geprüft.
 - Basis-URL: `https://aboqolpm0f.execute-api.eu-central-1.amazonaws.com`
   (Stage `$default` ⇒ **kein** Stage-Pfad in der URL)
 
-## 1. Zwei Auth-Flächen, 28 Routen
+## 1. Authentifizierung und Autorisierung, 28 Routen
 
-Es gibt **zwei** Autorisierungstypen, nicht einen:
+**Cognito ist die Managed Authentication Boundary der Plattform.** Jede
+geschützte Route — auch die Machine-Route — verlangt ein gültiges Cognito-JWT,
+das API Gateway **vor** dem Lambda prüft. Cognito beantwortet: *ist dieser
+Aufrufer authentifiziert und darf er diese geschützte RIS-API erreichen?*
 
-| Typ | Anzahl | Credential |
+APIProfile, Credential und Entitlement beantworten danach eine zweite, rein
+produktbezogene Frage: *welchen zusätzlichen Produkt-/Machine-Kontext darf
+dieser bereits authentifizierte Aufrufer verwenden?*
+
+| Autorisierungstyp | Anzahl | Bedeutung |
 |---|---|---|
-| `JWT` | 26 | Cognito JWT (`Authorization: Bearer <JWT>`) |
-| `NONE` | 2 | `/health` (keine) und die Machine-Route (`ris_…`-Credential) |
-
-`POST /v1/m2m/agents/{agentId}/execute` ist ebenfalls `NONE`, weil sie mit
-einem opaken `ris_…`-Credential arbeitet, nicht mit einem JWT. Die frühere
-Fassung dieses Dokuments nannte nur `/health` als einzige Ausnahme und war
-damit **unvollständig**. Beide `NONE`-Routen nehmen ein `Authorization`-Header
-entgegen — die eine prüft nichts, die andere ein Credential.
+| `JWT` | 27 | Cognito JWT in `Authorization`, geprüft vom Gateway-Authorizer |
+| `NONE` | 1 | ausschließlich `/health` (Liveness, bewusst ohne Auth) |
 
 Zwei Lambda-Backends:
 
@@ -36,6 +37,23 @@ Zwei Lambda-Backends:
 |---|---|---|
 | `agent` (`mays-ris-dev-agent`) | 24 | Identity, Profile, Dokumente, Agents, APIProfiles, Credentials, Introspection, Machine |
 | `orders-reader` (`mays-ris-dev-orders-reader`) | 4 | `/orders*`, read-mostly |
+
+### 1.1 Zwei Credentials auf der Machine-Route
+
+`POST /v1/m2m/agents/{agentId}/execute` ist JWT-geschützt **und** verlangt
+zusätzlich die opake Produkt-Credential. Beide sind Pflicht; keine ersetzt die
+andere:
+
+| Header | Inhalt | Geprüft von |
+|---|---|---|
+| `Authorization: Bearer <JWT>` | Cognito-JWT | API Gateway, **vor** dem Lambda |
+| `X-Api-Credential: <ris_…>` | opake Machine-Credential | Lambda via `verify_api_credential()` |
+
+Ein einzelnes `Authorization`-Header kann nicht beides tragen: ein JWT hat drei
+punkt-getrennte Segmente, das opake Secret keines. Der Credential-Verkehrweg
+ist deshalb ein eigener Header — **keine neue Credential-Technik**: gleiches
+Secret, gleicher Digest-Store, gleicher Verifier. Die opake Credential ist
+weder entfernt noch durch Cognito ersetzt.
 
 ## 2. Plattform-Routen (agent)
 
@@ -69,7 +87,7 @@ Zwei Lambda-Backends:
 
 | Route | Auth | Erfolg | Weitere Codes |
 |---|---|---|---|
-| `POST /v1/m2m/agents/{agentId}/execute` | NONE (`ris_…`-Credential) | 202 | 401, 403, 500, 503 |
+| `POST /v1/m2m/agents/{agentId}/execute` | JWT **+** `X-Api-Credential` | 202 | 401, 403, 500, 503 |
 
 Request-Body (alle Felder optional):
 `{"capability": string, "payload": object, "idempotencyKey": string}`
@@ -77,18 +95,31 @@ Request-Body (alle Felder optional):
 Antwort 202: `{"workId": string, "status": string, "requestId": string}`
 
 `202` heißt **nicht** „fertig", sondern „WorkItem angelegt und eingereiht".
-Der Status des Laufs wird asynchron erreicht; dieser Endpunkt ist read-only in
-seiner eigenen Antwort.
 
-HTTP-Semantik der Credential-Prüfung:
-- **401** — Credential unbekannt, ungültig, fehlend oder fehlerhaft. Ein
-  Cognito-JWT auf dieser Route ist **immer** 401 (drei Punkt-Segmente können
-  kein opakes `ris_…` sein).
-- **403** — Credential bekannt, aber unbenutzbar: disabled, revoked, abgelaufen,
-  Profil nicht `ACTIVE`, Tenant-/Owner-Mismatch, kein Entitlement, Agent nicht
-  ausführbar.
+**Reihenfolge der Prüfungen:**
+
+1. API Gateway validiert das Cognito-JWT. Fehlt oder ist es ungültig, wird der
+   Request **vor** dem Lambda mit 401 abgewiesen.
+2. Der Lambda verlangt eine Cognito-Identität (`sub`). Fehlt sie — etwa bei
+   direktem Aufruf ohne Gateway — folgt 401. Es gibt keinen anonymen
+   Machine-User.
+3. `X-Api-Credential` wird gelesen; ohne verwertbaren Wert folgt 401.
+4. `verify_api_credential()` prüft Credential → APIProfile → Status → Ablauf →
+   Entitlement → Agent-Status. Erst danach wird enqueued.
+
+**Statuscodes der Produkt-Prüfung (nach bestandenem Cognito):**
+- **401** — Credential unbekannt, ungültig, fehlend oder fehlerhaft.
+- **403** — Credential bekannt, aber unbenutzbar: disabled, revoked,
+  abgelaufen, Profil nicht `ACTIVE`, Tenant-/Owner-Mismatch, kein Entitlement,
+  Agent nicht ausführbar.
 - **503** — Store-/Infrastrukturfehler. **Niemals** 401/403: ein nicht
   erreichbarer Store darf nicht als schlechtes Credential gemeldet werden.
+
+**Identity Binding:** Die Cognito-Identität wird für Audit und Korrelation
+erfasst, wählt aber **nie** die ausführende Identität. Diese bleibt der Owner
+des APIProfile, zu dem die Credential gehört (`verify_api_credential`). Ein
+Request-Body oder -Header kann daher nicht bestimmen, in wessen Kontext
+ausgeführt wird, und `agentId` stammt ausschließlich aus dem Route-Path.
 
 ### 2.2 Credential Management
 
@@ -218,6 +249,9 @@ nicht unterscheidbar. Für `admin`/`staff` liefert derselbe Fall 403.
 Scope-Prüfung findet **nicht** statt — Autorisierung erfolgt im Handler über
 `cognito:groups`.
 
+Dies gilt für alle 27 JWT-Routen einschließlich der Machine-Route: der
+JWT-Authorizer ist derselbe, und es existiert kein Pfad, der Cognito umgeht.
+
 Keine Signup-/Login-Routen im Repo; der User Pool erlaubt Self-Service-SignUp,
 der Bestätigungsversand ist AWS-managed (Inbox-Eingabe nicht als PROVEN geführt).
 
@@ -276,6 +310,15 @@ Lambda startfähig ist. Abhängigkeits-Erreichbarkeit meldet `GET /platform`
   noch ein Linter laufen dort. Die Konsistenzprüfung aus
   `tests/test_p20_api_contract_consistency.py` schützt daher nur bei
   lokalem Testlauf.
+
+**Vertragsänderung P21-01 (bewusst):** Die Machine-Route war bis P21-01
+`AuthorizationType NONE` und trug die opake Credential im `Authorization`-Header.
+Sie ist jetzt JWT-geschützt und erwartet die opake Credential in
+`X-Api-Credential`. Machine-Clients, die bisher nur ein `ris_…` sendeten,
+erhalten ab sofort 401 vom Gateway. Beide Credentials sind Pflicht; die
+Architekturentscheidung lautet ausdrücklich: *Cognito bleibt die Managed
+Authentication Boundary, APIProfile/Credential/Entitlement liefern zusätzliche
+Produkt-/API-Autorisierung innerhalb dieses authentifizierten Kontexts.*
 
 ## 9. Herkunft der Angaben
 

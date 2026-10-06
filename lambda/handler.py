@@ -753,32 +753,71 @@ def _handle_agents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     }
 
 
+#: Header carrying the opaque machine credential on the machine route.
+#:
+#: P21-01: the route is Cognito-JWT protected, and the gateway authorizer
+#: reads `Authorization`. The Cognito JWT therefore occupies that header, and
+#: the opaque credential travels here instead. Same secret, same digest store,
+#: same verifier — only the channel changed, so that Cognito becomes the first
+#: boundary without discarding the product credential.
+MACHINE_CREDENTIAL_HEADER = 'x-api-credential'
+
+
 def _machine_bearer(headers):
     """Extract the opaque machine credential from the request headers.
 
-    Returns (bearer, None) on success or (None, status_code) when the
-    Authorization header cannot be a valid opaque bearer.
+    Returns (bearer, None) on success or (None, status_code) when the header
+    cannot carry a valid opaque bearer.
+
+    P21-01: reads `X-Api-Credential`, NOT `Authorization`. The gateway JWT
+    authorizer validates `Authorization` and rejects the request before the
+    Lambda is invoked, so a Cognito JWT can never reach this function as a
+    credential. Reading the opaque secret from a separate channel also makes the
+    two boundaries unambiguous: Cognito answers "authenticated?", this answers
+    "which product context?".
 
     Deliberately strict, and deliberately NOT logging anything: neither the
     header nor the value is ever written to a log or an audit field. The
-    scheme check plus the whitespace check is what keeps a Cognito JWT (three
-    dot-separated segments, spaces free) from being mistaken for a machine
-    credential here. Full credential validity is still decided by
-    verify_api_credential — this only guarantees "shape of an
-    Authorization header", never "valid credential".
+    whitespace check keeps a JWT (three dot-separated segments, spaces free)
+    from being mistaken for a machine credential even if a caller puts one
+    here. Full credential validity is still decided by verify_api_credential —
+    this only guarantees the "shape" of the header, never "valid credential".
     """
-    raw = headers.get('authorization')
+    raw = headers.get(MACHINE_CREDENTIAL_HEADER)
     if not raw or not isinstance(raw, str):
         return None, 401
     parts = raw.split(None, 1)
-    if len(parts) != 2:
-        return None, 401
-    scheme, value = parts[0], parts[1].strip()
-    if scheme.lower() != 'bearer':
-        return None, 401
-    if not value or ' ' in value:
+    if len(parts) == 2 and parts[0].lower() == 'bearer':
+        value = parts[1].strip()
+    else:
+        # Bare value without a scheme is accepted: this header is
+        # credential-specific and unambiguous, unlike Authorization, where a
+        # scheme is mandatory because the value could be a JWT.
+        value = raw.strip()
+    if not value or ' ' in value or value.count('.') >= 2:
         return None, 401
     return value, None
+
+
+def _machine_cognito_context(event):
+    """Authenticated Cognito identity for the machine route (P21-01).
+
+    API Gateway already validated the JWT signature, issuer and audience before
+    invoking this function, so these claims cannot be forged by the caller.
+
+    Returns (user_context, None) when Cognito identified the caller, otherwise
+    (None, 401). Refusing to continue without it is what makes "no anonymous
+    machine user" enforceable: a direct Lambda invocation, or any path that
+    skips the gateway authorizer, has no Cognito claims and is denied here.
+
+    The identity is used for audit/correlation only. It never replaces the
+    APIProfile owner: verify_api_credential still derives the execution identity
+    from the credential's profile, so a caller cannot execute as another user.
+    """
+    user_context = _extract_user_context(event)
+    if not user_context.get('userId'):
+        return None, 401
+    return user_context, None
 
 
 def _machine_agent_id(path):
@@ -804,23 +843,36 @@ def _machine_deny(status_code, error):
 def _machine_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Dict[str, Any]:
     """Machine credential entry point (Gate B3-...-08, Option D).
 
-    Route: POST /v1/m2m/agents/{agentId}/execute
+Route: POST /v1/m2m/agents/{agentId}/execute
 
-    Authorization is the EXISTING central verification
-    (agents.ecosystem.credentials.verify_api_credential) and nothing else.
-    This handler deliberately contains NO simplified check such as
-    "if credential_exists: execute()". Its only jobs are transport-level:
-    extract the bearer, name the operation target, call the central
-    verifier, map its outcome to the contract's HTTP semantics, and forward
-    an authorized request into the shared execution contract.
+    Two authentication boundaries, both mandatory (P21-01):
+
+      1. Cognito JWT, validated by API Gateway BEFORE this function runs. The
+         route is authorization_type JWT and reuses the same authorizer as the
+         human routes. Nothing here can bypass it.
+      2. Opaque `ris_...` credential in X-Api-Credential, validated by the
+         EXISTING central verification
+         (agents.ecosystem.credentials.verify_api_credential) and nothing else.
+
+    Neither replaces the other. This handler deliberately contains NO
+    simplified check such as "if credential_exists: execute()". Its only jobs
+    are transport-level: extract the credential, confirm a Cognito identity is
+    present, name the operation target, call the central verifier, map its
+    outcome to the contract's HTTP semantics, and forward an authorized request
+    into the shared execution contract.
+
+    Identity binding: the Cognito identity is recorded for audit, never used to
+    select the executing user. The execution identity stays the credential's
+    APIProfile owner (verify_api_credential), so no request body or header can
+    choose whose context runs.
 
     HTTP semantics come from the credential contract (P09):
-      401 unknown / invalid / malformed  (incl. a human JWT on this path)
-      403 known but unusable (disabled, revoked, expired, profile not
-          ACTIVE, tenant/owner mismatch, no entitlement, agent not
-          executable)
-      503 store/infrastructure failure — never 401/403, because an
-          unreachable store must not be reported as a bad credential.
+    401 unknown / invalid / malformed credential, or missing Cognito identity
+    403 known but unusable (disabled, revoked, expired, profile not
+    ACTIVE, tenant/owner mismatch, no entitlement, agent not
+    executable)
+    503 store/infrastructure failure — never 401/403, because an
+    unreachable store must not be reported as a bad credential.
     """
     from agents.ecosystem.credentials import (
         CredentialStoreUnavailable,
@@ -830,6 +882,14 @@ def _machine_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Di
 
     headers = {(k or "").lower(): v
                for k, v in (event.get("headers") or {}).items()}
+
+    # Boundary 1 outcome: no Cognito identity means the request did not come
+    # through the gateway authorizer. Deny before touching any store.
+    cognito_context, cognito_error = _machine_cognito_context(event)
+    if cognito_error:
+        return _machine_deny(cognito_error, 'Unauthorized')
+
+    # Boundary 2: the opaque product credential.
     bearer, header_error = _machine_bearer(headers)
     if header_error:
         return _machine_deny(header_error, 'Unauthorized')
@@ -842,6 +902,7 @@ def _machine_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Di
     path = event.get('path') or http_ctx.get('path', '/')
     request_id = ((event.get('requestContext') or {}).get('requestId')
                   or event.get('requestId'))
+    route_name = 'POST /v1/m2m/agents/{agentId}/execute'
 
     # Reuse the existing source builder (profile/credential/entitlement
     # stores + catalog in the production shape) instead of adding a second
@@ -872,7 +933,15 @@ def _machine_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Di
 
     if decision.outcome is not VerifyOutcome.AUTHORIZED:
         if decision.outcome is VerifyOutcome.UNAUTHORIZED:
+            logger.info(
+                "machine verification denied: route=%s outcome=unauthorized "
+                "cognitoUser=%s request=%s",
+                route_name, cognito_context.get('userId'), request_id)
             return _machine_deny(401, 'Unauthorized')
+        logger.info(
+            "machine verification denied: route=%s outcome=forbidden "
+            "cognitoUser=%s request=%s",
+            route_name, cognito_context.get('userId'), request_id)
         return _machine_deny(403, 'Forbidden')
 
     # Authorized. The credential's own persisted tenant/owner context is the

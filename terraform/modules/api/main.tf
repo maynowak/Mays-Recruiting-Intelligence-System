@@ -215,25 +215,34 @@ resource "aws_apigatewayv2_route" "credentials_revoke" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
-# B3 machine plane (Gate RIS-B3-...-08, Option D).
+# Machine plane: dedicated machine entry point for the opaque `ris_...`
+# credential. It reuses the EXISTING integration (no second integration, no
+# $default route, no greedy/ANY route).
 #
-# Dedicated machine entry point for the opaque `ris_...` credential. It
-# reuses the EXISTING integration (no second integration, no $default route,
-# no greedy/ANY route) and carries AuthorizationType NONE on purpose:
-# the credential is deliberately not a JWT, so the Cognito JWT authorizer
-# would reject it ("invalid number of segments", proven in P17-06).
+# P21-01 changed the authorization type from NONE to JWT and reused the
+# existing Cognito authorizer, so that Cognito is the Managed Authentication
+# Boundary for the machine API as well. Cognito answers "is this caller
+# authenticated and allowed to reach this protected RIS API?"; the APIProfile /
+# Credential / Entitlement chain answers "which additional product/machine
+# context may this authenticated caller use?".
 #
-# P03 route boundary: human JWT and machine credential must never compete
-# for the same route. This route is JWT-free and the human routes stay
-# JWT-only — no "try JWT first, then key" downgrade path exists.
+# The two credentials therefore arrive in SEPARATE channels:
+#   Authorization: Bearer <Cognito JWT>  -> validated by the gateway authorizer
+#   X-Api-Credential: ris_...            -> validated inside the Lambda by the
+#                                           central verify_api_credential()
+# A single `Authorization` header cannot carry both values (a JWT has three
+# dot-separated segments, the opaque secret none), and no new credential
+# mechanism was introduced: same secret, same digest store, same verifier.
 #
-# Authorization itself happens inside the Lambda via the existing central
-# verification (credentials.verify_api_credential); the gateway only routes.
+# The opaque credential is NOT removed and NOT replaced by Cognito. Both checks
+# are mandatory; neither substitutes the other, and there is no downgrade path
+# that would let a request skip Cognito.
 resource "aws_apigatewayv2_route" "m2m_agent_execute" {
   api_id             = aws_apigatewayv2_api.ris_api.id
   route_key          = "POST /v1/m2m/agents/{agentId}/execute"
   target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
-  authorization_type = "NONE"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_lambda_permission" "api_gateway" {
