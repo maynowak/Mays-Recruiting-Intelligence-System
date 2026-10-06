@@ -723,13 +723,20 @@ def _handle_agents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     
     entitlements = _get_entitlements(user_context['userId'], user_context['tenantId'])
     agent_catalog = _get_agent_catalog()
-    
-    allowed_agents = []
+
+    # Positive capability contract (P22-01): the answer is the set of agents
+    # this authenticated caller may use, one entry per agent. Several
+    # entitlements can authorize the same agent (e.g. one user-wide plus one
+    # profile-bound), and the loop below appends per entitlement -- without a
+    # guard the same agent would be returned repeatedly and the website would
+    # render it multiple times. Keyed by agentId, so a later valid entitlement
+    # never hides an already accepted one.
+    allowed_agents = {}
     for entitlement in entitlements:
         agent_id = entitlement.get('agentId')
-        if not agent_id:
+        if not agent_id or agent_id in allowed_agents:
             continue
-            
+
         agent = agent_catalog.get(agent_id)
         if not agent:
             continue
@@ -739,16 +746,16 @@ def _handle_agents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         from agents.ecosystem.agent_status import is_executable_status
         if not is_executable_status(agent.get('status')):
             continue
-        
+
         if not _is_entitlement_valid(entitlement):
             continue
-        
-        allowed_agents.append(agent)
-    
+
+        allowed_agents.setdefault(agent_id, agent)
+
     return {
         'statusCode': 200,
         'body': json.dumps({
-            'agents': allowed_agents
+            'agents': list(allowed_agents.values())
         })
     }
 
