@@ -245,6 +245,71 @@ resource "aws_apigatewayv2_route" "m2m_agent_execute" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
+# Product Admin: Offer -> Entitlement provisioning (P23-01).
+#
+# All routes are Cognito JWT protected (same authorizer as the other 27) and
+# the domain refuses every write for non-admins, so JWT is the authentication
+# boundary and offers._is_admin(actor["groups"]) is the product boundary.
+# `admins` is a Cognito group; it grants no AWS rights whatsoever.
+#
+# Offer management and the grant share one route family: an offer without its
+# grant is not a usable product object.
+resource "aws_apigatewayv2_route" "offers" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/offers"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "offers_create" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/offers"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "offers_item" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/offers/{offerId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "offers_update" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "PATCH /v1/offers/{offerId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "offers_status" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/offers/{offerId}/status"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "offers_grant" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/offers/{offerId}/grant"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "offers_withdraw" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/offers/{offerId}/withdraw"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
 resource "aws_lambda_permission" "api_gateway" {
   action        = "lambda:InvokeFunction"
   function_name = var.lambda_function_name

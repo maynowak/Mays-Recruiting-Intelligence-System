@@ -121,14 +121,32 @@ def reader_dispatch_routes():
 class TestTerraformRouteInventory(unittest.TestCase):
     """Die Route-Liste selbst muss der Erwartung entsprechen (Anker)."""
 
-    def test_route_count_is_25_terraform_28_live(self):
-        """25 Terraform-Deklarationen + 3 imperative documents-Routen = 28 live.
+    def test_route_count_is_32_terraform_35_live(self):
+        """32 Terraform-Deklarationen + 3 imperative documents-Routen = 35 live.
 
-        Die 3 documents-Routen sind bewusst NICHT in Terraform (OPEN-3). Wenn
-        jemand sie aufnimmt, muss dieser Test angepasst werden -- sonst
-        stimmt die Zahl nicht mehr.
+        Aufteilung: 18 Basis + 7 offers (P23-01) + 4 orders-reader = 29
+        Routen in Terraform-Dateien. Dazu kommen 3 documents-Routen als
+        imperative Altlasten (OPEN-3); die stehen in keiner .tf-Datei. Wer eine
+        Route hinzufuegt, muss diese Zahl und den Doku-Abgleich unten
+        mitziehen.
         """
-        self.assertEqual(25, len(terraform_routes()))
+        self.assertEqual(32, len(terraform_routes()))
+
+    def test_offer_routes_are_documented(self):
+        """P23-01: alle sieben offer-Routen stehen im kanonischen Vertrag."""
+        documented = documented_routes()
+        expected = {
+            "GET /v1/offers",
+            "POST /v1/offers",
+            "GET /v1/offers/{offerId}",
+            "PATCH /v1/offers/{offerId}",
+            "POST /v1/offers/{offerId}/status",
+            "POST /v1/offers/{offerId}/grant",
+            "POST /v1/offers/{offerId}/withdraw",
+        }
+        missing = sorted(expected - set(documented))
+        self.assertEqual([], missing,
+                         "undokumentierte offer-Routen: %s" % ", ".join(missing))
 
     def test_health_is_the_only_none_route(self):
         """P21-01: die Machine-Route ist JWT-geschuetzt.

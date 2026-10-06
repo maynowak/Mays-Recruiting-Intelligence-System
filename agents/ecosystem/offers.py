@@ -285,6 +285,8 @@ class DynamoDBEntitlementStore:
 
     def put_entitlements_batch(self, rows: List[Dict[str, Any]]) -> None:
         from botocore.exceptions import ClientError
+        import boto3
+        import os
 
         table = self._table_obj()
         transact = [{"Put": {
@@ -293,7 +295,11 @@ class DynamoDBEntitlementStore:
             "ConditionExpression": "attribute_not_exists(entitlementId)",
         }} for row in rows]
         try:
-            table.meta.client.transact_write_items(TransactItems=transact)
+            client = boto3.client(
+                "dynamodb",
+                region_name=os.environ.get("AWS_REGION", "eu-central-1"),
+            )
+            client.transact_write_items(TransactItems=transact)
         except ClientError as exc:
             raise GrantConflict(f"batch write refused: {exc}") from exc
 
@@ -539,7 +545,6 @@ def grant_offer(offer_store: Any, entitlement_store: Any,
         profile_ctx = api_profile_id
 
     _windows_ok(valid_from, valid_until)
-
     if idempotency_key:
         keyed = entitlement_store.find_by_key(idempotency_key)
         if keyed:
@@ -571,9 +576,9 @@ def grant_offer(offer_store: Any, entitlement_store: Any,
         if twin:
             continue
         clash = [r for r in existing
-                 if r.get("agentId") == agent_id
-                 and r.get("tenantId") == tenant_id
-                 and (r.get("apiProfileId") or None) == profile_ctx]
+                  if r.get("agentId") == agent_id
+                  and r.get("tenantId") == tenant_id
+                  and (r.get("apiProfileId") or None) == profile_ctx]
         if clash:
             raise GrantConflict(
                 f"overlapping grant exists for {agent_id!r} "
@@ -609,6 +614,31 @@ def grant_offer(offer_store: Any, entitlement_store: Any,
         if idempotency_key:
             row["idempotencyKey"] = idempotency_key
         rows.append(row)
+
+    if not rows:
+        # All agents already have identical entitlements → idempotent reuse
+        entitlement_ids = []
+        grant_ids = set()
+        for agent_id in agents:
+            twin = [r for r in existing
+                    if r.get("agentId") == agent_id
+                    and r.get("tenantId") == tenant_id
+                    and (r.get("apiProfileId") or None) == profile_ctx
+                    and r.get("validFrom") == valid_from
+                    and r.get("validUntil") == valid_until]
+            if not twin:
+                # Should not happen because rows is empty, but guard
+                continue
+            entitlement_ids.append(twin[0].get("entitlementId"))
+            grant_ids.add(twin[0].get("grantId"))
+        grant_id_existing = next(iter(grant_ids)) if grant_ids else grant_id
+        _audit("grant-authorized", "reused",
+               {"grantId": grant_id_existing, "offerId": offer_id,
+                "target": target_user_id, "scope": scope,
+                "profile": profile_ctx or "-",
+                "agents": ",".join(agents),
+                "actor": _actor_label(actor), "reason": reason})
+        return {"grantId": grant_id_existing, "entitlementIds": entitlement_ids, "reused": True}
 
     entitlement_store.put_entitlements_batch(rows)
     fresh = entitlement_store.find_by_user(target_user_id)

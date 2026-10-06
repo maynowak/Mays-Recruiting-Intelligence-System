@@ -78,6 +78,46 @@ resource "aws_iam_role_policy" "lambda_dynamodb_platform" {
   })
 }
 
+# P23-01: entitlements become writable, and only for the operations the
+# Product Admin grant actually reaches.
+#
+# Belegt durch Code -> Route -> Handler -> Domain Store (Auftrag §12):
+#   POST /v1/offers/{id}/grant
+#     -> _handle_offer_grant -> offers.grant_offer
+#     -> DynamoDBEntitlementStore.put_entitlements_batch
+#        -> transact_write_items        (atomic all-or-nothing grant)
+#     -> find_by_user  -> query (gsi-user)     [already allowed]
+#     -> find_by_key   -> scan (idempotency)   [NOT yet allowed]
+#     -> get_entitlement -> get_item            [already allowed]
+#   POST /v1/offers/{id}/withdraw
+#     -> withdraw_entitlement -> delete_item    [NOT yet allowed]
+#
+# So exactly three additions are justified: TransactWriteItems (grant),
+# Scan (grant idempotency lookup) and DeleteItem (withdraw). No dynamodb:*,
+# no extra tables, no unused writes. This stays product authorization only:
+# `admins` is a Cognito group and confers no AWS rights.
+resource "aws_iam_role_policy" "lambda_dynamodb_entitlements_admin" {
+  name = "${var.project_name}-${var.environment}-lambda-dynamodb-entitlements-admin"
+  role = aws_iam_role.lambda_execution.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:TransactWriteItems",
+          "dynamodb:PutItem",
+          "dynamodb:Scan",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = [
+          var.entitlements_table_arn
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_dynamodb_work" {
   name = "${var.project_name}-${var.environment}-lambda-dynamodb-work"
   role = aws_iam_role.lambda_execution.id

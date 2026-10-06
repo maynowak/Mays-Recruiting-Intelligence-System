@@ -28,7 +28,7 @@ dieser bereits authentifizierte Aufrufer verwenden?*
 
 | Autorisierungstyp | Anzahl | Bedeutung |
 |---|---|---|
-| `JWT` | 27 | Cognito JWT in `Authorization`, geprüft vom Gateway-Authorizer |
+| `JWT` | 34 | Cognito JWT in `Authorization`, geprüft vom Gateway-Authorizer |
 | `NONE` | 1 | ausschließlich `/health` (Liveness, bewusst ohne Auth) |
 
 Zwei Lambda-Backends:
@@ -70,6 +70,13 @@ weder entfernt noch durch Cognito ersetzt.
 | `DELETE /me/documents/{docId}` | JWT | 200 | 400, 404, 500 |
 | `GET /agents` | JWT | 200 | — |
 | `GET /v1/introspection` | JWT | 200 | 401, 404, 503 |
+| `GET /v1/offers` | JWT | 200 | 401, 503 |
+| `POST /v1/offers` | JWT | 201 | 400, 401, 403, 409, 503 |
+| `GET /v1/offers/{offerId}` | JWT | 200 | 401, 404, 503 |
+| `PATCH /v1/offers/{offerId}` | JWT | 200 | 400, 401, 403, 404, 503 |
+| `POST /v1/offers/{offerId}/status` | JWT | 200 | 400, 401, 403, 404, 503 |
+| `POST /v1/offers/{offerId}/grant` | JWT | 200 | 400, 401, 403, 404, 409, 503 |
+| `POST /v1/offers/{offerId}/withdraw` | JWT | 200 | 400, 401, 403, 404, 503 |
 | `POST /v1/apiprofiles` | JWT | 201 | 400, 403, 409 |
 | `GET /v1/apiprofiles` | JWT | 200 | — |
 | `GET /v1/apiprofiles/{apiProfileId}` | JWT | 200 | 403, 404 |
@@ -182,6 +189,42 @@ Aufrufers zurück. Pflicht-Keys in **jedem** Kontext: `context`, `subject`
 
 Kontextwahl: `context` ist `human` ohne `X-Api-Profile`, sonst `profile` bzw.
 `credential`.
+
+### 2.4 Offer-Administration (Product Admin)
+
+Offer ist das RIS-Produktobjekt: ein admin-eigenes Paket aus Agent-Zuordnungen.
+Ein Grant erzeugt daraus **eine Entitlement-Zeile je Offer-Agent**, atomar
+(alles oder nichts), idempotent und ohne stilles Zusammenführen.
+
+Rollen: nur die Cognito-Gruppe `admins` darf Offers definieren und Grants
+ausführen. `Staff` darf Offers **lesen** (nur `ACTIVE`, als Display-Info), aber
+nicht definieren. Eigentümer/User haben keinen Schreibpfad. `admins` ist eine
+Produktrolle und gewährt **keine** AWS-Rechte.
+
+| Route | Body-Felder | Pflicht |
+|---|---|---|
+| `POST /v1/offers` | `name`, `description`, `agentIds`, `status` | `name`, `agentIds` |
+| `PATCH /v1/offers/{offerId}` | `agentIds`, `description` | — |
+| `POST /v1/offers/{offerId}/status` | `status`, `reason` | beide |
+| `POST /v1/offers/{offerId}/grant` | `userId`, `tenantId`, `reason`, `validFrom`, `validUntil` | alle fünf |
+| `POST /v1/offers/{offerId}/withdraw` | `entitlementId`, `reason` | beide |
+
+`status` ist `ACTIVE` oder `INACTIVE`. `agentIds` müssen **alle** im Agent
+Catalog existieren und ausführbar sein, sonst wird nichts persistiert (kein
+Teilwrite). `reason` ist bei Statuswechsel, Grant und Entzug Pflicht.
+
+Der Grant-Modus dieses Gates ist **user-wide**: die Zeilen entstehen ohne
+`apiProfileId`. Das ist die Form, die `check_worker_entitlement` als
+user-weit behandelt. Ein profilgebundener Grant bleibt in der Domäne möglich,
+wird hier aber nicht genutzt.
+
+Agent-Änderungen an einem Offer wirken nur auf **künftige** Grants. Ebenso
+blockiert ein `INACTIVE`-Offer nur künftige Grants — bestehende Entitlements
+bleiben bis Ablauf oder Entzug gültig (keine Rückwirkung).
+
+Fehlerbilanz: 400 Validierung/Grant-Ablehnung, 401 kein JWT, 403 nicht-Admin,
+404 Offer/Entitlement unbekannt, 409 Namens- oder Idempotenzkonflikt, 503 Stores
+nicht konfiguriert.
 
 ## 3. Orders-Routen (orders-reader)
 
@@ -329,3 +372,4 @@ Produkt-/API-Autorisierung innerhalb dieses authentifizierten Kontexts.*
 | Rollen- und Lifecycle-Regeln | `agents/ecosystem/api_profiles.py`, `agents/ecosystem/credentials.py`, `agents/ecosystem/introspection.py` |
 | Orders-Übergänge, `limit` | `lambda/orders_reader.py` |
 | Live-Verhalten der Kernrouten | `tests/test_p17_credential_lifecycle.py`, `tests/test_machine_entrypoint.py`, `tests/test_p20_health_contract.py` |
+| Offer-Vertrag, Grant, Rollen | `agents/ecosystem/offers.py`, `tests/test_p23_offer_product_admin.py` |

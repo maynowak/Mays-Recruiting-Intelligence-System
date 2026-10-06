@@ -357,6 +357,11 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_documents_delete(event, context, doc_id)
     elif method == 'GET' and path == '/agents':
         return _handle_agents(event, context)
+    elif path == '/v1/offers' or path.startswith('/v1/offers/'):
+        # P23-01: Offer product administration. Pure HTTP wiring over the
+        # existing agents.ecosystem.offers domain (role check, agent
+        # validation, grant, audit) -- no second product logic here.
+        return _handle_offer_routes(event, context, method, path)
     elif method == 'GET' and path == '/v1/introspection':
         # P13: read-only capability introspection (JWT + X-Api-Profile
         # header; GW route provisioned in terraform/modules/api).
@@ -1418,6 +1423,301 @@ def _handle_credential_routes(event, context, method, path):
         status, message = _cred_fail(exc, actor["role"])
         return {"statusCode": status,
                 "body": json.dumps({"error": message})}
+
+
+# ------------------------------------------------------------------
+# P23-01: Offer -> Entitlement Product Admin provisioning.
+#
+# This is HTTP WIRING ONLY. The entire product semantics already exist in
+# agents.ecosystem.offers (create_offer, update_offer, set_offer_status,
+# list_offers, grant_offer, withdraw_entitlement) and are reused unchanged:
+# role check, agent validation against the catalog, name uniqueness, reason
+# obligations, idempotency, overlap detection, all-or-nothing writes and
+# audit all stay in the domain. There is deliberately no second product
+# logic here and no direct DynamoDB write.
+#
+# Offer is the decided RIS product object (P23-01, not re-opened). The
+# grant creates one entitlement row per offer agent inside the already
+# authenticated Cognito context: Cognito stays the authentication boundary,
+# this layer only adds product administration.
+# ------------------------------------------------------------------
+
+_OFFER_ACTIONS = ("status", "grant", "withdraw")
+
+
+class _OfferBad(Exception):
+    """Neutral 400 (no stack leak, no field values)."""
+
+
+def _offer_sources():
+    """Lazy production stores (missing config -> neutral 503)."""
+    import os
+
+    from agents.ecosystem.offers import (
+        DynamoDBEntitlementStore,
+        DynamoDBOfferStore,
+    )
+
+    if not os.environ.get("OFFERS_TABLE") \
+            or not os.environ.get("ENTITLEMENTS_TABLE"):
+        raise RuntimeError("offer stores unconfigured")
+    return {
+        "offers": DynamoDBOfferStore(
+            table_name=os.environ.get("OFFERS_TABLE")),
+        "entitlements": DynamoDBEntitlementStore(
+            table_name=os.environ.get("ENTITLEMENTS_TABLE")),
+    }
+
+
+def _offer_actor(user_context):
+    """JWT claims -> domain actor.
+
+    The domain checks the role itself (offers._is_admin reads
+    actor["groups"]); this dict only carries what the domain needs. No header
+    or body field can influence the role: the groups come exclusively from the
+    gateway-validated JWT.
+    """
+    groups = list(user_context.get("groups") or [])
+    return {"userId": user_context.get("userId"),
+            "tenantId": user_context.get("tenantId"),
+            "groups": groups,
+            "role": _cred_actor(user_context)["role"]}
+
+
+def _offer_ids(path):
+    """Parse offer paths -> (offerId|None, action|None) or None.
+
+    /v1/offers                     -> (None, None)
+    /v1/offers/{offerId}           -> (offerId, None)
+    /v1/offers/{offerId}/status    -> (offerId, "status")
+    /v1/offers/{offerId}/grant     -> (offerId, "grant")
+    /v1/offers/{offerId}/withdraw  -> (offerId, "withdraw")
+    """
+    parts = (path or "").strip("/").split("/")
+    if len(parts) < 2 or parts[0] != "v1" or parts[1] != "offers":
+        return None
+    if len(parts) == 2:
+        return (None, None)
+    offer_id = parts[2]
+    if not offer_id:
+        return None
+    if len(parts) == 3:
+        if offer_id in _OFFER_ACTIONS:
+            return (None, offer_id)
+        return (offer_id, None)
+    if len(parts) == 4 and parts[3] in _OFFER_ACTIONS:
+        return (offer_id, parts[3])
+    return None
+
+
+def _offer_fail(exc, actor_role=None):
+    """Domain errors -> neutral HTTP (non-admin -> 403, never an oracle)."""
+    from agents.ecosystem.offers import (
+        EntitlementNotFound,
+        GrantConflict,
+        GrantDenied,
+        OfferConflict,
+        OfferNotFound,
+        UnauthorizedOfferAction,
+    )
+
+    if isinstance(exc, UnauthorizedOfferAction):
+        return 403, "Forbidden"
+    if isinstance(exc, (OfferNotFound, EntitlementNotFound)):
+        return 404, "Not found"
+    if isinstance(exc, (OfferConflict, GrantConflict)):
+        return 409, "Conflict"
+    if isinstance(exc, GrantDenied):
+        # Admin-target problem (unknown agent, offer inactive, unusable
+        # profile). Neutral message, but the honest status.
+        return 400, str(exc) or "Invalid request"
+    if isinstance(exc, _OfferBad):
+        return 400, str(exc) or "Invalid request"
+    if isinstance(exc, ValueError):
+        return 400, str(exc) or "Invalid request"
+    logger.exception("Offer management failed")
+    return 500, "Internal error"
+
+
+def _offer_body(event, allowed, required=()):
+    try:
+        data = json.loads(event.get("body") or "{}")
+    except (ValueError, TypeError):
+        raise _OfferBad("Request body must be valid JSON")
+    if not isinstance(data, dict):
+        raise _OfferBad("Request body must be valid JSON")
+    unknown = sorted(set(data) - set(allowed))
+    if unknown:
+        raise _OfferBad("Unknown fields: " + ", ".join(unknown))
+    for field in required:
+        if field not in data:
+            raise _OfferBad("Missing field: " + field)
+    return data
+
+
+def _offer_str(data, field, required=False):
+    if field not in data:
+        if required:
+            raise _OfferBad("Missing field: " + field)
+        return None
+    value = data[field]
+    if not isinstance(value, str):
+        raise _OfferBad("Invalid field: " + field)
+    clean = value.strip()
+    if required and not clean:
+        raise _OfferBad("Missing field: " + field)
+    return clean or None
+
+
+def _handle_offer_routes(event, context, method, path):
+    """Offer management + grant (Human JWT, product admin only)."""
+    user_context = _extract_user_context(event)
+    if not user_context.get("userId"):
+        return {"statusCode": 401,
+                "body": json.dumps({"error": "Unauthenticated"})}
+    ids = _offer_ids(path)
+    if ids is None:
+        return {"statusCode": 404,
+                "body": json.dumps({"error": "Not found"})}
+    offer_id, action = ids
+    actor = _offer_actor(user_context)
+    try:
+        sources = _offer_sources()
+    except Exception:
+        logger.warning("Offer stores unconfigured")
+        return {"statusCode": 503,
+                "body": json.dumps({"error": "Temporarily unavailable"})}
+    try:
+        if offer_id is None and action is None:
+            status, body = _handle_offer_collection(event, method, sources,
+                                                    actor)
+        elif action is None:
+            # GET/PATCH /v1/offers/{offerId} — the item view.
+            status, body = _handle_offer_status(event, method, offer_id,
+                                                sources, actor)
+        elif action == "status":
+            status, body = _handle_offer_status(event, method, offer_id,
+                                                sources, actor)
+        elif action == "grant":
+            status, body = _handle_offer_grant(event, method, offer_id,
+                                               sources, actor)
+        else:
+            status, body = _handle_offer_withdraw(event, method, offer_id,
+                                                  sources, actor)
+    except Exception as exc:
+        code, message = _offer_fail(exc, actor.get("role"))
+        return {"statusCode": code,
+                "body": json.dumps({"error": message})}
+    return {"statusCode": status, "body": json.dumps(body)}
+
+
+def _handle_offer_collection(event, method, sources, actor):
+    from agents.ecosystem.offers import create_offer, list_offers
+
+    if method == "GET":
+        data = _offer_body(event, {"includeInactive"})
+        include = data.get("includeInactive") is True
+        return 200, {"offers": list_offers(sources["offers"], actor,
+                                            include_inactive=include)}
+    if method == "POST":
+        data = _offer_body(event, {"name", "description", "agentIds",
+                                   "status"}, {"name", "agentIds"})
+        agent_ids = data.get("agentIds")
+        if not isinstance(agent_ids, list):
+            raise _OfferBad("Invalid field: agentIds")
+        status = _offer_str(data, "status") or "ACTIVE"
+        return 201, create_offer(
+            sources["offers"], actor,
+            _offer_str(data, "name", required=True), agent_ids,
+            _get_agent_catalog(),
+            description=_offer_str(data, "description"),
+            status=status)
+    return 404, {"error": "Not found"}
+
+
+def _handle_offer_status(event, method, offer_id, sources, actor):
+    from agents.ecosystem.offers import get_offer, set_offer_status
+
+    if method == "GET":
+        item = get_offer(sources["offers"], offer_id)
+        if item is None:
+            return 404, {"error": "Not found"}
+        return 200, item
+    if method == "PATCH":
+        data = _offer_body(event, {"agentIds", "description"}, set())
+        agent_ids = data.get("agentIds")
+        if agent_ids is not None and not isinstance(agent_ids, list):
+            raise _OfferBad("Invalid field: agentIds")
+        from agents.ecosystem.offers import update_offer
+        return 200, update_offer(
+            sources["offers"], actor, offer_id, _get_agent_catalog(),
+            description=_offer_str(data, "description"),
+            agent_ids=agent_ids)
+    if method == "POST":
+        data = _offer_body(event, {"status", "reason"}, {"status", "reason"})
+        return 200, set_offer_status(sources["offers"], actor, offer_id,
+                                     _offer_str(data, "status", required=True),
+                                     reason=_offer_str(data, "reason",
+                                                       required=True))
+    return 404, {"error": "Not found"}
+
+
+def _handle_offer_grant(event, method, offer_id, sources, actor):
+    """Offer -> entitlements, reusing grant_offer unchanged.
+
+    User-wide (scope USER) is the mode proven end to end in this gate: it
+    writes rows WITHOUT apiProfileId, which is exactly the shape
+    check_worker_entitlement treats as user-wide. Profile-bound grants stay
+    available in the domain but are not exercised here.
+    """
+    from agents.ecosystem.offers import SCOPE_USER, grant_offer
+
+    if method != "POST":
+        return 404, {"error": "Not found"}
+    # validFrom/validUntil are required: _windows_ok in the domain refuses a
+    # grant without a window ("validFrom/validUntil required and parseable"),
+    # so making them optional here would only defer the same 400 into the
+    # domain layer. The domain check stays authoritative either way.
+    data = _offer_body(event, {"userId", "tenantId", "reason",
+                               "validFrom", "validUntil"},
+                       {"userId", "tenantId", "reason", "validFrom",
+                        "validUntil"})
+    from agents.ecosystem.api_profiles import DynamoDBApiProfileStore
+    import os
+    return 200, grant_offer(
+        sources["offers"], sources["entitlements"],
+        DynamoDBApiProfileStore(
+            table_name=os.environ.get("API_PROFILES_TABLE")),
+        _get_agent_catalog(), actor, offer_id,
+        _offer_str(data, "userId", required=True),
+        _offer_str(data, "tenantId", required=True),
+        SCOPE_USER,
+        valid_from=_offer_str(data, "validFrom"),
+        valid_until=_offer_str(data, "validUntil"),
+        reason=_offer_str(data, "reason", required=True))
+
+
+def _handle_offer_withdraw(event, method, offer_id, sources, actor):
+    """Withdraw one entitlement produced by this offer's grant (admin).
+
+    The domain function withdraw_entitlement works on an entitlement id alone.
+    Binding it to the offer in the path and checking the provenance keeps an
+    admin from withdrawing an entitlement of a DIFFERENT offer by passing the
+    wrong offer id -- the path must actually describe the row.
+    """
+    from agents.ecosystem.offers import withdraw_entitlement
+
+    if method != "POST":
+        return 404, {"error": "Not found"}
+    data = _offer_body(event, {"entitlementId", "reason"},
+                       {"entitlementId", "reason"})
+    entitlement_id = _offer_str(data, "entitlementId", required=True)
+    row = sources["entitlements"].get_entitlement(entitlement_id)
+    if row is None or row.get("offerId") != offer_id:
+        return 404, {"error": "Not found"}
+    withdraw_entitlement(sources["entitlements"], actor, entitlement_id,
+                         reason=_offer_str(data, "reason", required=True))
+    return 200, {"withdrawn": True, "entitlementId": entitlement_id}
 
 
 # ------------------------------------------------------------------
