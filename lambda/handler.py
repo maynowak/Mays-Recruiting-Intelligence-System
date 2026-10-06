@@ -330,7 +330,12 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     logger.info(f"API request: {method} {path}")
     
-    if method == 'GET' and path == '/platform':
+    if method == 'GET' and path == '/health':
+        # P20-01 Scope 1: the route and integration already existed in
+        # terraform/modules/api, but this branch did not, so the probe fell
+        # through to the generic 404 below. Reuses the existing path.
+        return _handle_health(event, context)
+    elif method == 'GET' and path == '/platform':
         return _handle_platform(event, context)
     elif method == 'GET' and path == '/me':
         return _handle_me(event, context)
@@ -397,6 +402,26 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     return {
         'statusCode': 404,
         'body': json.dumps({'error': 'Not found'})
+    }
+
+
+def _handle_health(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Handle GET /health - infrastructure liveness probe.
+
+    Deliberately dependency-free (no DynamoDB, Cognito, or SQS call). A
+    probe that fails on a dependency would mark the target unhealthy during
+    a dependency outage even though the Lambda itself is startable and able
+    to serve. Dependency reachability is reported by GET /platform
+    (JWT-protected), not by the liveness probe.
+    """
+    return {
+        'statusCode': 200,
+        'body': json.dumps({
+            'status': 'ok',
+            'service': PLATFORM_NAME,
+            'version': PLATFORM_VERSION,
+            'environment': PLATFORM_ENVIRONMENT
+        })
     }
 
 
@@ -929,11 +954,12 @@ def _build_introspection_sources():
 
 
 def _handle_introspection(event, context, bearer_credential=None):
-    """Read-only capability introspection (PREPARED handler, P12).
+    """Read-only capability introspection (handler P12, live geroutet P13).
 
-    NOT routed from API Gateway yet (no GW route/TF change in this
-    gate — see P12 report). Directly unit-tested; live wiring is a
-    later gateway gate. Never mutates anything.
+    Routed as GET /v1/introspection (JWT, terraform/modules/api). The P12
+    docstring said "NOT routed from API Gateway yet"; that was true when
+    written and wrong afterwards -- corrected in P20-01 Scope 2 rather than
+    left to mislead. Never mutates anything.
     """
     from agents.ecosystem import introspection as introspect_mod
 
