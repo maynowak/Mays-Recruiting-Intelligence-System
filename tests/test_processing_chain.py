@@ -39,10 +39,10 @@ try:
     
     body = AgentBody()
     
-    def test_handler(work_item):
+    def echo_handler(work_item):
         return {'success': True, 'data': {'echoed': work_item.get('payload')}}
     
-    body.router.register(capability='test.echo', handler=test_handler)
+    body.router.register(capability='test.echo', handler=echo_handler)
     
     chain = ProcessingChain(
         name='single_step',

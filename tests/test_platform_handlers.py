@@ -63,7 +63,8 @@ def auth_event():
                     'claims': {
                         'sub': 'user-123',
                         'email': 'test@example.com',
-                        'custom:tenant_id': 'tenant-abc'
+                        'custom:tenant_id': 'tenant-abc',
+                        'cognito:groups': ['recruiters']
                     }
                 }
             }

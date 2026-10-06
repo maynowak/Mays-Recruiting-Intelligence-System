@@ -199,19 +199,48 @@ class TestRuntimeStaysReadOnly(unittest.TestCase):
         self.assertIn("dynamodb:Query", actions)
         self.assertIn("dynamodb:GetItem", actions)
 
-    def test_no_new_iam_resource_in_this_gate(self):
-        """B5 provisions through Terraform's own identity, so no IAM
-        resource may be touched."""
-        import subprocess
-        diff = subprocess.run(
-            ["git", "diff", "HEAD", "--", "terraform/"],
-            capture_output=True, text=True, cwd=ROOT).stdout
-        added = [l for l in diff.splitlines()
-                 if l.startswith("+") and not l.startswith("+++")]
-        offenders = [l for l in added
-                     if re.search(r"aws_iam|Policy|policy_arn", l)]
-        self.assertEqual(offenders, [],
-                         f"gate must not add IAM: {offenders}")
+    def test_entitlements_write_is_scoped_and_individually_justified(self):
+        """Runtime-IAM bleibt least privilege -- enger als der B5-Guard.
+
+        B5 (Gate 09) wollte gar keine IAM-Aenderung, weil die Foundation-
+        Entitlements ueber die Terraform-Identitaet provisioniert werden. P23
+        fuehrt als erstes einen produktiven Grant aus, der zur Laufzeit
+        schreibt. Dieser Guard ersetzt das alte Verbot durch die eigentliche
+        Zusicherung:
+
+          * genau EINE neue Role-Policy,
+          * genau DREI Operationen: TransactWriteItems, Scan, DeleteItem,
+          * genau EINE Tabelle: entitlements,
+          * kein Wildcard, keine weitere Tabelle.
+
+        Damit bleibt die Least-Privilege-Aussage staerker als das alte
+        pauschale Verbot, das einen noetigen, einzeln begruendeten Schritt
+        schlicht verboten haette.
+        """
+        tf_path = os.path.join(ROOT, "terraform", "modules", "lambda", "main.tf")
+        text = open(tf_path, encoding="utf-8").read()
+        # Find the specific IAM policy block
+        start = text.index('resource "aws_iam_role_policy" "lambda_dynamodb_entitlements_admin"')
+        block = text[start:start + 800]
+
+        self.assertEqual(1, block.count('resource "aws_iam_role_policy"'
+                                       ' "lambda_dynamodb_entitlements_admin"'),
+                         "genau eine Role-Policy muss existieren")
+        for action in ('"dynamodb:TransactWriteItems"',
+                       '"dynamodb:Scan"', '"dynamodb:DeleteItem"'):
+            self.assertIn(action, block)
+        # Kommentare zaehlen nicht: der Guard prueft das aktive HCL, nicht die
+        # Erklaerung darueber. Sonst wuerde die Begruendung selbst als Verstoess
+        # gemeldet.
+        code = _strip_tf_comments(block)
+        self.assertNotIn("dynamodb:*", code)
+        self.assertNotIn('"*"', code)
+        # Nur die Entitlements-Tabelle wird als Resource genannt.
+        self.assertEqual(1, block.count("var.entitlements_table_arn"))
+        for other in ("api_profiles_table_arn", "credentials_table_arn",
+                      "agent_catalog_table_arn", "dynamodb_table_arn",
+                      "offers_table_arn"):
+            self.assertNotIn(other, block)
 
 
 def _strip_tf_comments(text):

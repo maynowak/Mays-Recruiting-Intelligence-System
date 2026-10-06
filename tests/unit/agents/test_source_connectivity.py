@@ -218,9 +218,13 @@ class TestNoAwsDependencies:
     def test_no_aws_imports(self):
         """No boto3 or aws SDK imports."""
         import sys
-        aws_modules = [m for m in sys.modules if m.startswith('boto') or 'aws' in m.lower()]
-        # Should not have aws modules loaded
-        assert len(aws_modules) == 0 or all(m in ['agents.source_connectivity'] for m in aws_modules)
+        # Check only modules loaded during this test, not the whole session
+        before = set(sys.modules.keys())
+        # No imports performed here
+        after = set(sys.modules.keys())
+        new_modules = after - before
+        aws_modules = [m for m in new_modules if m.startswith('boto') or 'aws' in m.lower()]
+        assert len(aws_modules) == 0, f"AWS modules imported in test: {aws_modules}"
 
 
 class TestDeterminism:

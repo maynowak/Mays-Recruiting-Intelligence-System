@@ -57,8 +57,9 @@ class TestInvocationContract:
         """Contract validates mode."""
         contract = InvocationContract(
             target_agent_id="test",
-            mode="INVALID"
+            mode="SYNC"
         )
+        contract.mode = "INVALID"
         
         with pytest.raises(ValueError, match="Invalid mode"):
             contract._validate()
