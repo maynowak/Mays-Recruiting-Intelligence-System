@@ -103,3 +103,53 @@ AWS BRANCH: BLOCKED by instruction, not defect. No deploy performed.
 
 COMMIT != TERMINATE: P1 warning hygiene remains ACTIVE (43 sites),
   P2 cascade deletion + OpenAPI remain OPEN by decision.
+
+[G2-AWS-DEPLOYMENT-RECONCILIATION-01]
+Date: 2026-10-07
+Base: 1121045. STATUS: VERIFIED. NOT APPLIED. Awaiting approval.
+
+WORKERS:
+  W1 TERRAFORM SCOPE: Gate-02 write set = modules/api/main.tf only
+     (aws_apigatewayv2_route.profile_delete). Pre-existing 6-file diff is
+     WHITESPACE-ONLY (git diff -w returns empty). Overlap: none.
+  W2 LAMBDA ARTIFACT: repo-supported mechanism
+     installer/ris.py:_cmd_package -> lambda/build_zip.py --bundle agent.
+     terraform/lambda.zip, 53 files, deterministic (rebuilt, identical).
+     canonical base64 = XEzSImDF+yYNw5g+xzPXFGX+8YebvW9iVBsh0svvAGE=
+     live            = UQtgthuQt8CPoNOfarD8oIvRfMSOp9+78ir9qDkuU+M=
+     reader bundle canonical == live (that is why its test passes).
+  W3 WARNING 208 vs 236: RESOLVED, not a regression. P3 integration tests
+     (7) run the REAL pipeline for the first time, hitting 4 previously
+     unexercised utcnow sites (executor.py:40,:63, invocation.py:103,
+     reference_agent/service.py:144) => 7x4=28. 208+28=236.
+     Measured: full=236, minus P3 files=208, P3 files alone=28.
+     Groups: 233 first-party + 3 botocore = 236, all utcnow deprecations.
+  W4 AWS READ-ONLY: account 240571105849, eu-central-1, api aboqolpm0f.
+     No DELETE route on the API (any path). Agent CodeSha256 drifted.
+
+PLAN FINDING -- UNEXPECTED CHANGE CAUGHT:
+  Unpinned plan = 1 add, 2 change, 0 destroy, including
+  ~ module.cognito.aws_cognito_user_pool.users auto_verified_attributes
+    ["email"] -> [].
+  Cause: cognito/main.tf:27 uses var.email_verification_enabled; root var
+  default is false and NO tfvars exists -> []. Live has ["email"].
+  Pre-existing drift, unrelated to Gate-02 (Gate-02 touched only api/main.tf).
+  Would have silently disabled dev email auto-verification.
+
+PINNED PLAN (recommended):
+  -var='identity_email_verification_enabled=true'
+  => 1 add (route), 1 change (lambda source_code_hash), 0 replace, 0 destroy.
+  Verified 0 resources from cognito/dynamodb/sqs/monitoring/orders_reader.
+
+ANSWER TO CRITICAL CHECK: YES, one deployment reconciles route + lambda
+  drift, provided the pin is used. -target rejected (partial state risk,
+  unnecessary here).
+
+OPEN GOVERNANCE ITEM (not decided here): the pin is a CLI var and does not
+  persist. If email verification should be enabled, commit it as tfvars or
+  an installer default, else the drift returns.
+
+VERIFICATION: fmt clean; validate Success; 1103 passed/0 failed/8 skipped.
+  Pre-existing terraform modifications still unstaged and uncommitted.
+
+RISK: LOW. RECOMMENDATION: APPLY with pin. DO NOT APPLY pending approval.
