@@ -607,3 +607,30 @@ POST-APPLY TERRAFORM PLAN
 
 EVIDENCE VERIFIER: VERIFIED
 G6 GREEN. NEXT: G7 Health Event Sink / Consumer.
+
+G7 HEALTH EVENT SINK/CONSUMER — DEPLOYED 2026-10-07
+---------------------------------------------------
+Sink selected: CloudWatch Logs structured emission via existing Lambda logging.
+No new AWS service.
+
+Implementation:
+* agents/ecosystem/health_sink.py – fail-safe structured logger
+* agents/runtime/pipeline.py – capture HealthTracker events, emit via sink
+
+Deployment:
+* Artifact sha256 dd2f4f4ea6a603497def3e90a6c95744de840a47e1f8cb65706d849d3ad5ed9c
+* CodeSha256 3S9PTqamA0l97z6QpslXRN6ECkfh+MtlcG2EnTrV7Zw=
+* Terraform plan 0 add 1 change 0 destroy, applied successfully
+* Live Lambda CodeSha256 verified
+
+Verification:
+* DEGRADED/RECOVERED/heartbeat observable via structured logs
+* Privacy/sanitization preserved; no payload/PII
+* Sink failure isolated; business processing unaffected
+* G5 erasure infrastructure intact
+* G6 timestamp behavior intact
+* Full regression 1211 passed / 0 failed / 8 skipped
+
+Evidence Verifier: VERIFIED
+G7 GREEN
+CORE ROADMAP COMPLETE

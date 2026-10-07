@@ -49,6 +49,7 @@ from agents.ecosystem.registry import (
 )
 from agents.ecosystem.routing import AgentRouter as EcosystemRouter
 from agents.ecosystem.routing import ExecutionEngine
+from agents.ecosystem import health_sink
 
 logger = logging.getLogger(__name__)
 
@@ -328,7 +329,14 @@ def process_record(
         if health_tracker is None:
             return
         try:
-            getattr(health_tracker, fn_name)(*args, **kwargs)
+            events = getattr(health_tracker, fn_name)(*args, **kwargs)
+            if events:
+                try:
+                    health_sink.emit(events)
+                except Exception:
+                    # Emission failure must not break business processing.
+                    # Swallow after logging to avoid recursive health events.
+                    logger.warning("health sink emission failed; event dropped")
         except Exception as exc:  # pragma: no cover - defensiv
             logger.warning("health instrumentation failed: %s", exc)
 
