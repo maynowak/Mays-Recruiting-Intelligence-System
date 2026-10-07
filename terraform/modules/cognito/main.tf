@@ -23,7 +23,9 @@ resource "aws_cognito_user_pool" "users" {
   }
 
   # Gate 11: E-Mail-Verifikation (Cognito-managed Versand, keine eigene
-  # Domain). auto_verified_attributes=[] = Verhalten wie bisher (kein Versand).
+  # Domain). auto_verified_attributes=[] = Verhalten wie vor Gate 11.
+  # G3: der Root-Default ist jetzt true (siehe terraform/variables.tf), damit
+  # ein ungepinter Plan keinen Abschalt-Drift mehr erzeugt.
   auto_verified_attributes = var.email_verification_enabled ? ["email"] : []
 
   verification_message_template {
@@ -44,8 +46,8 @@ resource "aws_cognito_user_pool" "users" {
 }
 
 resource "aws_cognito_user_pool_client" "client" {
-  name         = "${var.project_name}-${var.environment}-client"
-  user_pool_id = aws_cognito_user_pool.users.id
+  name            = "${var.project_name}-${var.environment}-client"
+  user_pool_id    = aws_cognito_user_pool.users.id
   generate_secret = false
 
   # Login via USER_PASSWORD_AUTH + Refresh (proven Mays-Orders pattern:
@@ -57,7 +59,7 @@ resource "aws_cognito_user_pool_client" "client" {
 
   # Gate 13A: OAuth bleibt AUS bis ein Google-Client konfiguriert ist
   # (null = Argument weglassen = kein Diff, Password-Login unberuehrt).
-  supported_identity_providers = var.google_client_id != "" ? ["COGNITO", "Google"] : null
+  supported_identity_providers         = var.google_client_id != "" ? ["COGNITO", "Google"] : null
   allowed_oauth_flows_user_pool_client = var.google_client_id != ""
   allowed_oauth_flows                  = var.google_client_id != "" ? ["code"] : null
   allowed_oauth_scopes                 = var.google_client_id != "" ? ["openid", "email", "profile"] : null
@@ -92,17 +94,17 @@ resource "aws_cognito_identity_provider" "google" {
 }
 
 resource "aws_cognito_user_group" "candidates" {
-  name       = "candidates"
+  name         = "candidates"
   user_pool_id = aws_cognito_user_pool.users.id
 }
 
 resource "aws_cognito_user_group" "recruiters" {
-  name       = "recruiters"
+  name         = "recruiters"
   user_pool_id = aws_cognito_user_pool.users.id
 }
 
 resource "aws_cognito_user_group" "admins" {
-  name       = "admins"
+  name         = "admins"
   user_pool_id = aws_cognito_user_pool.users.id
 }
 

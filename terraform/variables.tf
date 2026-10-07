@@ -35,10 +35,25 @@ variable "tags" {
 # Gate 11: Identity-Mail-Konfiguration (per --var KEY=VALUE setzbar,
 # Re-Run faehig via Terraform State; keine Secrets — Betreff/Text sind
 # oeffentliche Anwendungstexte, Versand AWS-managed).
+#
+# Gate-11 (G3-COGNITO-CONFIG-PERSISTENCE-01): Default war `false` — der
+# Stand VOR Gate 11. Der ausgelieferte dev-Pool wurde jedoch bewusst mit
+# E-Mail-Verifikation provisioniert (live AutoVerifiedAttributes=["email"]).
+#
+# Solange Default `false` und kein tfvars existierten, plante jeder
+# ungepinte `terraform plan` eine ABSCHALTUNG der Verifikation. Das wurde
+# ueber `-var=identity_email_verification_enabled=true` kaschiert — in
+# mindestens 8 Gates (11, 16, 17, P17, P20, ...), jeweils als bekanntes
+# "Variablen-Default-Artefakt" dokumentiert und nie behoben.
+#
+# Der Default ist jetzt der ausgelieferte Soll-Zustand: true. Damit stimmen
+# Repo-Konfiguration, `terraform plan` ohne Flags und der Installer-Pfad
+# ueberein; die Live-Ressource bleibt unveraendert (kein Apply noetig).
+# Rueckgaengig machbar durch explizites -var beim Apply.
 variable "identity_email_verification_enabled" {
   description = "E-Mail-Verifikation bei Registrierung (Cognito-managed Versand)."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "identity_email_subject" {
@@ -139,10 +154,10 @@ variable "lambda_config" {
   default = {
     runtime            = "python3.14"
     handler            = "handler.lambda_handler"
-    timeout              = 30
+    timeout            = 30
     memory_size        = 128
-    filename             = "lambda.zip"
-    log_retention_days   = 14
+    filename           = "lambda.zip"
+    log_retention_days = 14
   }
 }
 
@@ -212,12 +227,12 @@ variable "dynamodb_throttled_threshold" {
 variable "foundation_entitlements" {
   description = "Opt-in synthetic foundation entitlements (B5). Map key becomes entitlementId."
   type = map(object({
-    userId      = string
-    tenantId    = string
-    agentId     = string
-    validFrom   = optional(string)
-    validUntil  = optional(string)
+    userId       = string
+    tenantId     = string
+    agentId      = string
+    validFrom    = optional(string)
+    validUntil   = optional(string)
     apiProfileId = optional(string)
   }))
-  default     = {}
+  default = {}
 }

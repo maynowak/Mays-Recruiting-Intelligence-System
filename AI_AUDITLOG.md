@@ -217,3 +217,68 @@ NEXT GOVERNANCE PACKAGES:
   - Health event sink/consumer
 
 COMMIT != TERMINATE: Gate-02 is GREEN; next packages listed above.
+
+[G3-COGNITO-CONFIG-PERSISTENCE-01]
+Date: 2026-10-07
+Base: 8e406e0. STATUS: GREEN. AWS MUTATION: NONE.
+
+W1 CONFIG SOURCE OF TRUTH:
+  terraform/variables.tf:38 (bool, default false)
+    -> terraform/main.tf:48 email_verification_enabled = var.identity_email_verification_enabled
+      -> terraform/modules/cognito/main.tf:27
+         auto_verified_attributes = var.email_verification_enabled ? ["email"] : []
+  The RIS installer has NO tfvars mechanism. Its only variable channel is
+  CLI --var KEY=VALUE (installer/ris.py:393 -> parse_var_args:420 ->
+  terraform_vars:94). The only tfvars code in the repo is inside
+  installer/projects/mays_orders (a SEPARATE project).
+  Verified by execution: RisInstallContext(...).terraform_vars() ->
+  {environment: dev, project_name: mays-ris} only.
+
+DECISION: change the root variable default. Rejected creating a tfvars
+  (mission explicitly warns against it; it would be an untracked,
+  environment-specific artifact with no install contract). Rejected
+  adding an installer default (would fix only the installer path and
+  leave direct `terraform plan` wrong = two sources of truth). The
+  default IS this repo's persistent configuration layer and governs
+  both paths.
+
+PRIOR ART: the pin appears in >=8 prior gate reports, each recording it
+  as a harmless known artifact and deferring the fix, e.g.
+  RIS-GATEWAY-ACTIVATION-P16-P13-01.md:136 "Korrektur nicht in diesem
+  Gate"; RIS-APIPROFILE-TESTDATA-REVOKE-05.md:244 "keine Drift und
+  nicht von mir verursacht".
+
+BEFORE: repository default=false, live=["email"],
+  unpinned plan = 0 add / 1 change (cognito auto_verified_attributes
+  ["email"] -> []). Negative control reproduced.
+AFTER : default=true, unpinned plan = "No changes.",
+  Cognito planned changes = NONE.
+  pinned plan also "No changes." (existing scripts keep working).
+  Live cognito still ["email"] -- UNCHANGED, no apply performed.
+
+INSTALLER: no change required and none made. Behavioural flags stay out
+  of the installer so no second source of truth is created and the
+  existing fail-closed identity-override test still passes.
+
+TESTS: tests/test_cognito_email_verification_config.py, 9 tests.
+  Negative control: reverting default to false -> 3 failed, 6 passed.
+  Includes explicit guard that no tfvars file reappears, and that an
+  explicit -var still allows rollback.
+
+REGRESSION: 1120 collected / 1112 passed / 0 failed / 8 skipped /
+  236 warnings. Baseline 1111 -> 1120 (+9 new).
+
+GIT ISOLATION: variables.tf and modules/cognito/main.tf genuinely
+  required, so they are committed -- including the pre-existing
+  terraform-fmt normalization already present in those two files,
+  because `terraform fmt -check` (a repo gate) cannot pass otherwise.
+  Verified: semantic change is 1 default flip + 2 comment lines via
+  `git diff -w`. The other four pre-existing whitespace files
+  (main.tf, monitoring, orders_reader, sqs) remain UNTOUCHED and
+  unstaged.
+
+NEXT: Platform OpenAPI (OPEN-1). Route inventory now stable at 33
+  Terraform-managed routes incl. DELETE /me/profile. Caveats: the 3
+  OPEN-3 documents routes are live but unmanaged and must be represented
+  explicitly, not omitted; two error envelopes exist (OPEN-2) and the
+  spec must document both rather than pretend they are unified.
