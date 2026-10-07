@@ -345,6 +345,8 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_me_profile_create(event, context)
     elif method == 'PUT' and path == '/me/profile':
         return _handle_me_profile_update(event, context)
+    elif method == 'DELETE' and path == '/me/profile':
+        return _handle_me_profile_delete(event, context)
     elif method == 'POST' and path == '/me/documents':
         return _handle_documents_create(event, context)
     elif method == 'GET' and path.startswith('/me/documents/'):
@@ -631,6 +633,51 @@ def _handle_me_profile_update(event: Dict[str, Any], context: Any) -> Dict[str, 
         return {
             'statusCode': 500,
             'body': json.dumps({'error': 'Failed to update profile'})
+        }
+
+
+def _handle_me_profile_delete(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Handle DELETE /me/profile - Privacy deletion of user profile."""
+    user_context = _extract_user_context(event)
+
+    if not user_context['userId']:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': 'Unauthenticated'})
+        }
+
+    table_name = os.environ.get('USER_PROFILE_TABLE')
+    if not table_name:
+        logger.warning("USER_PROFILE_TABLE not configured")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Profile store not configured'})
+        }
+
+    try:
+        table = _get_dynamodb().Table(table_name)
+        # Delete with conditional check to ensure profile exists
+        try:
+            table.delete_item(
+                Key={'userId': user_context['userId']},
+                ConditionExpression='attribute_exists(userId)'
+            )
+            return {
+                'statusCode': 204,
+                'body': ''
+            }
+        except Exception as e:
+            if hasattr(e, 'response') and e.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+                return {
+                    'statusCode': 404,
+                    'body': json.dumps({'error': 'Profile not found'})
+                }
+            raise
+    except Exception as e:
+        logger.error(f"Error deleting profile: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Failed to delete profile'})
         }
 
 
