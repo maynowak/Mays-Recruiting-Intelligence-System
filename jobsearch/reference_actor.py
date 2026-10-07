@@ -18,6 +18,8 @@ import os
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
+
+from agents.timeutil import utcnow
 import uuid
 
 import sys
@@ -55,7 +57,7 @@ class ReferenceActor(SyncJobSource):
     
     def _generate_mock_jobs(self) -> List[Dict[str, Any]]:
         """Generate mock job data for testing."""
-        base_date = datetime.utcnow() - timedelta(days=3)
+        base_date = utcnow() - timedelta(days=3)
         
         return [
             {

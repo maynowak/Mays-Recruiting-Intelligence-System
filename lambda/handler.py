@@ -21,6 +21,8 @@ from typing import Dict, Any, List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from agents.timeutil import utcnow, utcnow_naive_iso
+
 logger = logging.getLogger()
 logger.setLevel(os.environ.get('LOG_LEVEL', 'INFO'))
 
@@ -503,7 +505,7 @@ def _provision_user_profile(table: Any, user_context: Dict[str, Any],
     """
     from datetime import datetime
 
-    now = datetime.utcnow().isoformat()
+    now = utcnow_naive_iso()
     body = body or {}
     # Gate 12 (Profile v1): NUR diese Felder; userId/tenantId/email aus JWT
     # (Body-Identitaeten werden IGNORIERT — kein Spoofing).
@@ -580,7 +582,7 @@ def _update_user_profile(table: Any, user_context: Dict[str, Any],
     if not updates:
         return {'statusCode': 400,
                 'body': json.dumps({'error': 'No updatable v1 fields provided'})}
-    updates['updatedAt'] = datetime.utcnow().isoformat()
+    updates['updatedAt'] = utcnow_naive_iso()
     expr = "SET " + ", ".join(f"#{k} = :{k}" for k in updates)
     names = {f"#{k}": k for k in updates}
     values = {f":{k}": v for k, v in updates.items()}
@@ -2257,7 +2259,7 @@ def _enqueue_agent_work(agent_id: str, capability: str,
     response.
     """
     request_id = str(uuid.uuid4())
-    now = datetime.utcnow()
+    now = utcnow()
 
     work_item = {
         'workId': str(uuid.uuid4()),
@@ -2651,8 +2653,8 @@ def _create_work(body: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any
         'status': 'QUEUED',
         'attempt': 0,
         'payload': body.get('payload', {}),
-        'createdAt': datetime.utcnow().isoformat(),
-        'expiresAt': (datetime.utcnow() + timedelta(days=30)).isoformat()
+        'createdAt': utcnow_naive_iso(),
+        'expiresAt': (utcnow() + timedelta(days=30)).replace(tzinfo=None).isoformat()
     }
     
     return {
@@ -2885,7 +2887,7 @@ def _handle_jobsearch_update(event: Dict[str, Any], context: Any, job_search_id:
         if 'metadata' in body:
             existing.metadata = body['metadata']
         
-        existing.updated_at = datetime.utcnow()
+        existing.updated_at = utcnow()
         
         if not repo.save(existing):
             return {

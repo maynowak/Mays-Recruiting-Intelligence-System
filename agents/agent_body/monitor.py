@@ -12,6 +12,9 @@ from functools import wraps
 
 logger = logging.getLogger(__name__)
 
+from agents.timeutil import utcnow_naive_iso
+
+
 
 class AgentMonitor:
     """
@@ -28,7 +31,7 @@ class AgentMonitor:
             'agentId': agent_id,
             'durationMs': duration_ms,
             'success': success,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': utcnow_naive_iso()
         }
 
     def wrap(self, func):

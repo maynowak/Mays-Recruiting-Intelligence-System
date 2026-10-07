@@ -38,6 +38,9 @@ from agents.orders.adapter import OrdersPort, OrderResult, OrdersResultType
 
 logger = logging.getLogger(__name__)
 
+from agents.timeutil import utcnow_naive_iso
+
+
 
 class DevelopmentOrdersAdapter(OrdersPort):
     """
@@ -150,7 +153,7 @@ class DevelopmentOrdersAdapter(OrdersPort):
                 result_type=OrdersResultType.APPROVED,
                 reason="Auto-approved in development mode",
                 data={
-                    'timestamp': datetime.utcnow().isoformat(),
+                    'timestamp': utcnow_naive_iso(),
                     'work_id': work_id,
                     'capability': capability,
                     'tenant_id': tenant_id,

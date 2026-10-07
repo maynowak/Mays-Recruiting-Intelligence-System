@@ -8,6 +8,7 @@ No AWS, no SQS, no May's Orders.
 """
 
 import sys
+from agents.timeutil import utcnow
 import os
 import pytest
 from datetime import datetime
@@ -36,7 +37,7 @@ def test_full_pipeline_execution():
     event = Event(
         event_id='event-full-pipeline',
         event_type='ORDER_CREATED',
-        occurred_at=datetime.utcnow(),
+        occurred_at=utcnow(),
         tenant_id='tenant-pipeline',
         order_id='order-789',
         payload={'message': 'hello', 'capability': 'reference.echo'}
@@ -93,7 +94,7 @@ def test_pipeline_identity_preservation():
     event = Event(
         event_id='evt-identity',
         event_type='EVENT',
-        occurred_at=datetime.utcnow(),
+        occurred_at=utcnow(),
         tenant_id='tenant-identity',
         order_id='order-ABC',
         payload={'test': 'data', 'capability': 'test'}

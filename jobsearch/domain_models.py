@@ -11,6 +11,8 @@ Each user can maintain multiple independent JobSearches.
 """
 
 from dataclasses import dataclass, field
+
+from agents.timeutil import utcnow
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from enum import Enum
@@ -166,8 +168,8 @@ class JobSearch:
     search_configuration: SearchConfiguration = field(default_factory=SearchConfiguration)
     ats_search_profile: ATSSearchProfile = field(default_factory=ATSSearchProfile)
     status: JobSearchStatus = JobSearchStatus.ACTIVE
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=utcnow)
+    updated_at: datetime = field(default_factory=utcnow)
     last_used_at: Optional[datetime] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     
@@ -202,8 +204,8 @@ class JobSearch:
                 data.get('atsSearchProfile', {})
             ),
             status=JobSearchStatus(data.get('status', 'active')),
-            created_at=datetime.fromisoformat(data['createdAt']) if data.get('createdAt') else datetime.utcnow(),
-            updated_at=datetime.fromisoformat(data['updatedAt']) if data.get('updatedAt') else datetime.utcnow(),
+            created_at=datetime.fromisoformat(data['createdAt']) if data.get('createdAt') else utcnow(),
+            updated_at=datetime.fromisoformat(data['updatedAt']) if data.get('updatedAt') else utcnow(),
             last_used_at=datetime.fromisoformat(data['lastUsedAt']) if data.get('lastUsedAt') else None,
             metadata=data.get('metadata', {}),
         )

@@ -30,12 +30,23 @@ from agents.ecosystem.worker_authorization import (
 NOW = datetime.now(timezone.utc)
 
 
+def _naive_iso(moment):
+    """Deliberately NAIVE UTC string.
+
+    This test asserts that naive entitlement windows are still honoured,
+    so it must keep producing the legacy naive form. Built from an aware
+    instant with the offset stripped, which is byte-identical to the
+    old datetime.utcnow().isoformat() without using it.
+    """
+    return moment.astimezone(timezone.utc).replace(tzinfo=None).isoformat()
+
+
 def _offset(delta_days):
     return (NOW + timedelta(days=delta_days)).isoformat()
 
 
 def _naive(delta_days):
-    return (datetime.utcnow() + timedelta(days=delta_days)).isoformat()
+    return _naive_iso(datetime.now(timezone.utc) + timedelta(days=delta_days))
 
 
 class TestOffsetAwareWindowsAreEnforced:

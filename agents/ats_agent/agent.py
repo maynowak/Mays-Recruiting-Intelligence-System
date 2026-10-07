@@ -20,6 +20,9 @@ from agents.base import AgentBase
 
 logger = logging.getLogger(__name__)
 
+from agents.timeutil import utcnow, utcnow_naive_iso
+
+
 
 class ATSAPIError(Exception):
     """Error communicating with ATS API."""
@@ -154,7 +157,7 @@ class ATSAgent(AgentBase):
         
         logger.info(f"ATS Agent processing: capability={capability}, workId={work_id}")
         
-        start_time = datetime.utcnow()
+        start_time = utcnow()
         
         if capability == self.CAPABILITY_ANALYZE_JOB:
             result = self._analyze_job(payload)
@@ -164,7 +167,7 @@ class ATSAgent(AgentBase):
                 'error': {'message': f'Unsupported capability: {capability}', 'type': 'UnsupportedCapability'}
             }
         
-        duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        duration_ms = (utcnow() - start_time).total_seconds() * 1000
         result.setdefault('metrics', {})
         result['metrics'].update({
             'durationMs': duration_ms,
@@ -207,7 +210,7 @@ class ATSAgent(AgentBase):
         return {
             'workId': work_id,
             'status': 'COMPLETED',
-            'result': {'message': 'Work completed', 'timestamp': datetime.utcnow().isoformat()}
+            'result': {'message': 'Work completed', 'timestamp': utcnow_naive_iso()}
         }
     
     def _analyze_job(self, payload: Dict[str, Any]) -> Dict[str, Any]:

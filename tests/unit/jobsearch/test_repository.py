@@ -9,6 +9,9 @@ from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 
 import sys
+
+from agents.timeutil import utcnow_naive_iso
+
 sys.path.insert(0, '.')
 
 from jobsearch.domain_models import (
@@ -69,8 +72,8 @@ class TestJobSearchRepository:
                 'searchConfiguration': {'query': 'python'},
                 'atsSearchProfile': {'skills': ['python']},
                 'status': 'active',
-                'createdAt': datetime.utcnow().isoformat(),
-                'updatedAt': datetime.utcnow().isoformat()
+                'createdAt': utcnow_naive_iso(),
+                'updatedAt': utcnow_naive_iso()
             }
         }
         
@@ -95,8 +98,8 @@ class TestJobSearchRepository:
                 'name': 'Test',
                 'searchConfiguration': {},
                 'atsSearchProfile': {},
-                'createdAt': datetime.utcnow().isoformat(),
-                'updatedAt': datetime.utcnow().isoformat()
+                'createdAt': utcnow_naive_iso(),
+                'updatedAt': utcnow_naive_iso()
             }
         }
         
@@ -119,8 +122,8 @@ class TestJobSearchRepository:
                 'name': 'Test',
                 'searchConfiguration': {},
                 'atsSearchProfile': {},
-                'createdAt': datetime.utcnow().isoformat(),
-                'updatedAt': datetime.utcnow().isoformat()
+                'createdAt': utcnow_naive_iso(),
+                'updatedAt': utcnow_naive_iso()
             }
         }
         
@@ -143,8 +146,8 @@ class TestJobSearchRepository:
                 'name': 'Test',
                 'searchConfiguration': {},
                 'atsSearchProfile': {},
-                'createdAt': datetime.utcnow().isoformat(),
-                'updatedAt': datetime.utcnow().isoformat()
+                'createdAt': utcnow_naive_iso(),
+                'updatedAt': utcnow_naive_iso()
             }
         }
         
@@ -170,8 +173,8 @@ class TestJobSearchRepository:
                     'searchConfiguration': {},
                     'atsSearchProfile': {},
                     'status': 'active',
-                    'createdAt': datetime.utcnow().isoformat(),
-                    'updatedAt': datetime.utcnow().isoformat()
+                    'createdAt': utcnow_naive_iso(),
+                    'updatedAt': utcnow_naive_iso()
                 },
                 {
                     'jobSearchId': 'js-002',
@@ -181,8 +184,8 @@ class TestJobSearchRepository:
                     'searchConfiguration': {},
                     'atsSearchProfile': {},
                     'status': 'active',
-                    'createdAt': datetime.utcnow().isoformat(),
-                    'updatedAt': datetime.utcnow().isoformat()
+                    'createdAt': utcnow_naive_iso(),
+                    'updatedAt': utcnow_naive_iso()
                 },
                 {
                     'jobSearchId': 'js-003',
@@ -192,8 +195,8 @@ class TestJobSearchRepository:
                     'searchConfiguration': {},
                     'atsSearchProfile': {},
                     'status': 'active',
-                    'createdAt': datetime.utcnow().isoformat(),
-                    'updatedAt': datetime.utcnow().isoformat()
+                    'createdAt': utcnow_naive_iso(),
+                    'updatedAt': utcnow_naive_iso()
                 }
             ]
         }

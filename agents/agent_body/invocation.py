@@ -29,6 +29,9 @@ sys.path.insert(0, '.')
 
 logger = logging.getLogger(__name__)
 
+from agents.timeutil import utcnow_naive_iso
+
+
 
 class InvocationContract:
     """
@@ -100,7 +103,7 @@ class InvocationContract:
             'attempt': 0,
             'parentWorkId': self.parent_work_id,
             'invocationMode': self.mode,
-            'createdAt': datetime.utcnow().isoformat()
+            'createdAt': utcnow_naive_iso()
         }
 
 

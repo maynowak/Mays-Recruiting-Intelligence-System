@@ -17,6 +17,9 @@ from agents.agent_body.router import AgentRouter
 
 logger = logging.getLogger(__name__)
 
+from agents.timeutil import utcnow
+
+
 
 class AgentExecutor:
     """
@@ -37,7 +40,7 @@ class AgentExecutor:
         Returns:
             Result dictionary
         """
-        start_time = datetime.utcnow()
+        start_time = utcnow()
         
         logger.info(f"Starting execution for work: {work_item.get('workId')}")
 
@@ -60,7 +63,7 @@ class AgentExecutor:
         try:
             result = handler(work_item)
             
-            duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+            duration_ms = (utcnow() - start_time).total_seconds() * 1000
             
             result.setdefault('metrics', {})
             result['metrics'].update({

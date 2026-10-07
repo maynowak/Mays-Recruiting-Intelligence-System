@@ -13,7 +13,10 @@ from unittest.mock import Mock, patch, MagicMock
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from agents.timeutil import utcnow
+
 from handler import (
+
     handler,
     _extract_user_context,
     _handle_platform,
@@ -229,25 +232,25 @@ class TestEntitlementValidation:
 
     def test_invalid_entitlement_future_valid_from(self):
         """Entitlement with future validFrom is not yet valid."""
-        future = (datetime.utcnow() + timedelta(days=30)).isoformat()
+        future = (utcnow() + timedelta(days=30)).isoformat()
         entitlement = {'agentId': 'test-agent', 'validFrom': future}
         assert _is_entitlement_valid(entitlement) is False
 
     def test_valid_entitlement_past_valid_from(self):
         """Entitlement with past validFrom is valid."""
-        past = (datetime.utcnow() - timedelta(days=30)).isoformat()
+        past = (utcnow() - timedelta(days=30)).isoformat()
         entitlement = {'agentId': 'test-agent', 'validFrom': past}
         assert _is_entitlement_valid(entitlement) is True
 
     def test_valid_entitlement_future_valid_until(self):
         """Entitlement with future validUntil is valid."""
-        future = (datetime.utcnow() + timedelta(days=30)).isoformat()
+        future = (utcnow() + timedelta(days=30)).isoformat()
         entitlement = {'agentId': 'test-agent', 'validUntil': future}
         assert _is_entitlement_valid(entitlement) is True
 
     def test_invalid_entitlement_past_valid_until(self):
         """Entitlement with past validUntil is invalid."""
-        past = (datetime.utcnow() - timedelta(days=30)).isoformat()
+        past = (utcnow() - timedelta(days=30)).isoformat()
         entitlement = {'agentId': 'test-agent', 'validUntil': past}
         assert _is_entitlement_valid(entitlement) is False
 

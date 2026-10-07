@@ -23,6 +23,9 @@ from agents.base import AgentBase
 
 logger = logging.getLogger(__name__)
 
+from agents.timeutil import utcnow_naive_iso
+
+
 
 class ReferenceAgent(AgentBase):
     """
@@ -115,7 +118,7 @@ class ReferenceAgent(AgentBase):
             'status': 'COMPLETED',
             'result': {
                 'message': 'Work completed successfully',
-                'timestamp': datetime.utcnow().isoformat()
+                'timestamp': utcnow_naive_iso()
             }
         }
     
@@ -141,7 +144,7 @@ class ReferenceAgent(AgentBase):
                 'workId': work_item.get('workId'),
                 'agentId': work_item.get('agentId'),
                 'capability': self.CAPABILITY_ECHO,
-                'processedAt': datetime.utcnow().isoformat()
+                'processedAt': utcnow_naive_iso()
             },
             'metrics': {
                 'durationMs': 0,

@@ -15,6 +15,7 @@ These tests verify that:
 """
 
 import sys
+from agents.timeutil import utcnow
 import os
 import pytest
 from datetime import datetime
@@ -264,7 +265,7 @@ class TestFullPipeline:
         event = Event(
             event_id='event-123',
             event_type='ORDER_CREATED',
-            occurred_at=datetime.utcnow(),
+            occurred_at=utcnow(),
             tenant_id='tenant-1',
             order_id='order-456',
             payload={'capability': 'test.echo'}
@@ -297,7 +298,7 @@ class TestFullPipeline:
         event = Event(
             event_id='event-t1',
             event_type='EVENT',
-            occurred_at=datetime.utcnow(),
+            occurred_at=utcnow(),
             tenant_id='tenant-T1',
             payload={}
         )
@@ -339,7 +340,7 @@ class TestNoRouting:
         event = Event(
             event_id='event-multi',
             event_type='EVENT',
-            occurred_at=datetime.utcnow(),
+            occurred_at=utcnow(),
             tenant_id='tenant-1',
             payload={'capability': 'test.echo'}
         )
