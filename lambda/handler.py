@@ -16,7 +16,7 @@ import re
 import sys
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -2447,30 +2447,24 @@ def _get_entitlements(user_id: str, tenant_id: Optional[str] = None) -> list:
 
 
 def _is_entitlement_valid(entitlement: Dict[str, Any]) -> bool:
-    """Check if an entitlement is currently valid based on temporal constraints."""
-    now = datetime.utcnow()
-    
-    valid_from = entitlement.get('validFrom')
-    if valid_from:
-        try:
-            from dateutil.parser import parse
-            start_time = parse(valid_from)
-            if now < start_time:
-                return False
-        except Exception as e:
-            logger.warning(f"Invalid validFrom format: {e}")
-    
-    valid_until = entitlement.get('validUntil')
-    if valid_until:
-        try:
-            from dateutil.parser import parse
-            end_time = parse(valid_until)
-            if now > end_time:
-                return False
-        except Exception as e:
-            logger.warning(f"Invalid validUntil format: {e}")
-    
-    return True
+    """Check if an entitlement is currently valid based on temporal constraints.
+
+    Thin delegation to the canonical domain function
+    `agents.ecosystem.worker_authorization.is_entitlement_valid`.
+
+    This used to be a second, independent implementation. It compared a
+    naive `datetime.utcnow()` against `dateutil` bounds and caught the
+    resulting TypeError in the same `except` used for parse failures, so
+    any offset-bearing window (`Z`, `+00:00`, any offset) evaluated as
+    VALID — including long-expired and not-yet-valid entitlements. That
+    is fail-open on an authorization gate, and it made ingress MORE
+    permissive than the worker re-check that guards actual execution.
+
+    One implementation, one contract: ingress and worker can no longer
+    disagree about whether an entitlement is valid.
+    """
+    from agents.ecosystem.worker_authorization import is_entitlement_valid
+    return is_entitlement_valid(entitlement)
 
 
 def _get_work_item(work_id: str) -> Optional[Dict[str, Any]]:
