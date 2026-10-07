@@ -1,14 +1,14 @@
 {
   "baseline": {
     "branch": "main",
-    "head": "e9387c27086eb49d60d415a8bafc0105e2978e97",
-    "collected": 1054,
-    "passed": 1046,
+    "head": "8fd657224d88f94cc3313bb94a7106de7e498d33",
+    "collected": 1111,
+    "passed": 1103,
     "skipped": 8,
     "failed": 0,
-    "warnings": 236
+    "warnings": 236,
+    "note": "Generated from junit run 2026-10-07 at HEAD 8fd6572 without AWS_PROFILE: 8 AWS live tests skipped. With --profile mayaws 7 of 8 pass; see RIS-TRUTH-RECOVERY-01."
   },
-  "note": "Generated from junit run 2026-10-07 without AWS_PROFILE: 8 live tests skipped.",
   "files": {
     "tests/test_agent_body.py": {
       "collected": 17,
@@ -88,6 +88,12 @@
       "skipped": 0,
       "failed": 0
     },
+    "tests/test_entitlement_window_failopen.py": {
+      "collected": 21,
+      "passed": 21,
+      "skipped": 0,
+      "failed": 0
+    },
     "tests/test_event_hook.py": {
       "collected": 18,
       "passed": 18,
@@ -115,6 +121,18 @@
     "tests/test_google_foundation.py": {
       "collected": 4,
       "passed": 4,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_health_plane.py": {
+      "collected": 19,
+      "passed": 19,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_health_plane_integration.py": {
+      "collected": 7,
+      "passed": 7,
       "skipped": 0,
       "failed": 0
     },
@@ -191,8 +209,8 @@
       "failed": 0
     },
     "tests/test_p20_api_contract_consistency.py": {
-      "collected": 19,
-      "passed": 19,
+      "collected": 21,
+      "passed": 21,
       "skipped": 0,
       "failed": 0
     },
@@ -223,6 +241,12 @@
     "tests/test_platform_handlers.py": {
       "collected": 30,
       "passed": 30,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_profile_deletion.py": {
+      "collected": 8,
+      "passed": 8,
       "skipped": 0,
       "failed": 0
     },

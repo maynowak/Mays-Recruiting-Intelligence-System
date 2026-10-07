@@ -50,3 +50,56 @@ T6 VERDICT:
 
 COMMIT: pending
 REVIEWER: self-audit complete; awaiting independent review
+
+[RIS-CONSOLIDATION-GATE-02]
+Date: 2026-10-07
+Base: 8b567c4 (truth recovery). Superseded Gate-01/02 claims not reused.
+
+COMMITS:
+  dfbd1c9 security: entitlement window fail-open fix
+  803f89f feat(api): DELETE /me/profile route + method-level governance
+  8fd6572 feat(health): health-plane emission from runtime pipeline
+
+FINDING-01 BLOCKING SECURITY:
+  lambda/handler.py:2449 _is_entitlement_valid compared naive utcnow()
+  against dateutil bounds; TypeError was swallowed by the parse-failure
+  except -> any offset-bearing validFrom/validUntil evaluated VALID.
+  Expired and not-yet-valid entitlements passed ingress.
+  Ingress was MORE permissive than worker_authorization.is_entitlement_valid.
+  Fix: removed duplicate impl, delegate to single canonical function.
+  INVARIANT: ingress authorization must never be more permissive than
+  worker authorization. 21 parity tests are permanent regression tests.
+  Negative control: 8 fail with fix reverted.
+
+FINDING-02 GOVERNANCE DEFECT:
+  test_every_dispatch_branch_has_a_live_route compared PATHS only, so
+  GET /me/profile satisfied exposure for DELETE /me/profile. The
+  e9387c2 endpoint shipped UNREACHABLE; verified against live API
+  aboqolpm0f (no DELETE route existed). Route identity is now
+  (METHOD, PATH). Negative control: 3 tests fail without the route.
+
+FINDING-03: "52 utcnow sites" was wrong. 9 were already-migrated
+  _utcnow() helpers. Real count 43, deliberately NOT migrated:
+  jobsearch/domain_models.py round-trips createdAt/updatedAt through
+  isoformat into API responses; +00:00 suffix is a wire-format change.
+
+MEASURED:
+  collected 1062 -> 1111   passed 1103  failed 0  skipped 8  warnings 236
+  evidence matrix: 56 non-empty entries, regenerated from junit, re-read
+  terraform fmt clean, validate Success (with --profile mayaws)
+
+INVENTIONS RECORDED (not regressions):
+  entitlement DENIED emits NO health event -- a denial is correct
+  behaviour; marking it degraded would mask real failures.
+  Platform OpenAPI NOT created: 33 routes, two error envelopes, OPEN-2
+  defers unification. Partial spec would imply a contract that
+  does not exist. OPEN-1 stays honestly open.
+  Cascade deletion NOT implemented: profile deletion != account erasure.
+
+AWS BRANCH: BLOCKED by instruction, not defect. No deploy performed.
+  Live verified with --profile mayaws (240571105849, eu-central-1):
+  DELETE /me/profile route ABSENT (Terraform not applied),
+  6 observability tests PASS, 1 packaging hash FAIL (deployment drift).
+
+COMMIT != TERMINATE: P1 warning hygiene remains ACTIVE (43 sites),
+  P2 cascade deletion + OpenAPI remain OPEN by decision.
