@@ -1,55 +1,173 @@
 # G5-PRIVACY-ERASURE-LIFECYCLE-01
 
-**STATUS: C — DESIGN DECISION REQUIRED**
+**STATUS: GREEN** — decision, implementation, and deployment complete.
 
-Base: `523ccd4` · AWS mutation: **NONE** · Implementation: **NONE**
+Base for the decision phase: `523ccd4`
+Implementation: `cec412d` · Deployment: applied to `240571105849` / `eu-central-1`
 
-This package did not implement erasure. It determined, from evidence, that
-erasure cannot be safely implemented without decisions the repository does
-not contain. Those decisions are listed precisely at the end.
-
-Deliberately implemented instead: **21 machine-verified lifecycle-evidence
-tests** that pin every premise this decision depends on, so the reasoning
-cannot silently decay.
+| Phase | Outcome |
+|---|---|
+| Decision | classification **C** (design decision required) → D1–D4 approved |
+| Implementation | erasure lifecycle, owner indexes, `POST /me/erasure` |
+| Deployment | 1 add / 3 change / 0 replace / 0 destroy, applied |
+| Security | RED → **GREEN** |
 
 ---
 
-## THE CENTRAL FINDING
+## DEPLOYMENT EVIDENCE
 
-**`DELETE /me/profile` leaves fully working machine credentials.**
-
-Verified, not inferred:
+Applied with `--profile mayaws --region eu-central-1`, account `240571105849`.
 
 ```
-$ grep -n "USER_PROFILE_TABLE" agents/ecosystem/credentials.py
-(no matches)
-
-$ grep -n "USER_PROFILE_TABLE" agents/ecosystem/api_profiles.py
-(no matches)
+terraform plan  → Plan: 1 to add, 3 to change, 0 to destroy.
+terraform apply → Apply complete! Resources: 1 added, 3 changed, 0 destroyed.
+post-apply plan → exit 0 (no drift)
 ```
 
-Credential verification resolves through:
+| Resource | Action | Live verification |
+|---|---|---|
+| `module.api.aws_apigatewayv2_route.erasure` | create | `POST /me/erasure`, JWT, `integrations/ewy9u57` |
+| `...dynamodb_table.credentials` | in-place | GSIs: `gsi-digest`, **`gsi-owner`** |
+| `...dynamodb_table.work_items` | in-place | GSIs: **`gsi-user`**, `gsi-status` |
+| `...lambda_function.agent` | in-place | `CodeSha256 = VTwwZh7mYss8DZSms+9PrZu5En2imFGodJfY2jyCAAo=` |
+
+`credentials` key schema: `gsi-owner` HASH `ownerUserId`, projection ALL.
+`work_items` key schema: `gsi-user` HASH `userId` RANGE `status`.
+
+Both pre-existing indexes survived. No Cognito, IAM, monitoring, SQS or
+orders-reader resource was touched.
+
+### The deployment approval had to be corrected first
+
+The originally approved plan (1 add / 2 change) **omitted the Lambda code
+update**, and would have shipped a broken contract. `terraform/lambda.zip`
+still held the previous artifact, and inspecting it showed:
 
 ```
-verify_api_credential(bearer, credential_store, profile_store)
-  → resolve_credential_profile(...)
-      credential_store.get_by_digest(...)   ← credentials table
-      profile_store                        ← API_PROFILES_TABLE
-                                           (handler.py:1073-1074)
+privacy_erasure.py in bundle:    False
+_handle_me_erasure in bundle:    False
+delete_all_for_user in bundle:   False
 ```
 
-`_profile_usable` calls `api_profiles.effective_status(profile)` — the **API
-profile** entity, a different record from the **user profile**.
+Applying it would have made `POST /me/erasure` live with no handler behind
+it — a gateway route that 404s, advertised by the OpenAPI contract. The
+worker's `userId` propagation fix and the indexed credential lookup would
+also have stayed undeployed.
 
-And authentication is Cognito; API Gateway validates the JWT before the
-Lambda runs. The user-profile table is application data, never an
-authorization input.
+Rebuilding via the repository's documented `package → plan → apply` contract
+(`lambda/build_zip.py`, matching `installer/ris.py::_cmd_package`) produced
+the corrected 4-resource plan, which was then approved and applied. The three
+changes could not be split: route without code 404s, and code without the
+indexes would make `list_by_owner` query a non-existent GSI.
 
-**Consequence:** a user who calls `DELETE /me/profile` removes one
-application-profile row and keeps a working `ris_...` credential that can
-still execute agents. This violates the mission's stated invariant —
-*erasure must not leave active authorization capability* — and it is a
-property of the **existing live endpoint**, not of anything proposed here.
+### Live code proven, not just hash-matched
+
+The deployed artifact was downloaded from Lambda and inspected:
+
+```
+privacy_erasure.py deployed       OK
+_handle_me_erasure deployed       OK
+POST /me/erasure dispatch         OK
+indexed credential lookup         OK
+no scan fallback                  OK
+worker userId propagation         OK
+delete_all_for_user               OK
+CANCELLED status written          OK
+revoke-first ordering             OK
+terminal work retained            OK
+```
+
+### Non-destructive reachability
+
+```
+POST /me/erasure  (no JWT)  →  HTTP 401
+```
+
+Confirms the route is live **and** JWT-enforced at the gateway, without
+executing an erasure. **No destructive erasure was performed against real
+user data**; runtime behaviour is verified through fixtures.
+
+---
+
+## IMPLEMENTATION SUMMARY
+
+Full detail in `G5-PRIVACY-ERASURE-IMPLEMENTATION-01.md`. In brief:
+
+- **D2** — `gsi-owner` on `credentials`, `gsi-user` on `work_items`;
+  `list_by_owner` no longer scans.
+- **D1/D4** — `agents/ecosystem/privacy_erasure.py`: revoke credentials →
+  revoke profiles → cancel non-terminal work → delete documents → delete
+  profile row. `complete` is true only when every step succeeded; partial
+  returns HTTP 207.
+- **D3** — non-terminal work → `CANCELLED`; terminal work retained
+  (deleting it would remove the `TERMINAL_DUPLICATE_STATES` suppression and
+  re-admit duplicate execution). No retention duration invented.
+- **API** — `POST /me/erasure`, separate from `DELETE /me/profile`, which
+  keeps its narrow meaning and is asserted to still import neither the
+  erasure workflow nor any other table.
+
+---
+
+## SECURITY ACCEPTANCE
+
+| Invariant | Evidence |
+|---|---|
+| successful erasure leaves no usable credential | `test_no_credential_remains_usable` |
+| cross-user isolation | `test_user_a_cannot_reach_user_b_data`, `test_only_the_named_user_is_queried` |
+| idempotency | `test_repeat_erasure_is_safe` |
+| partial failure never reported as success | `test_credential_revocation_failure_marks_incomplete` |
+| fail-safe direction | `test_credentials_still_revoked_when_later_step_fails` |
+| in-flight cancellation semantics | `test_non_terminal_work_is_cancelled_not_deleted`, `test_terminal_work_is_retained_for_idempotency` |
+| external ownership intact | `test_orders_are_never_touched` |
+| profile delete stays separate | `test_delete_handler_does_not_import_erasure` |
+
+Negative controls: reordering profile deletion before revocation → **1
+failed**; removing credential revocation → **6 failed**.
+
+---
+
+## TESTS
+
+```
+targeted G5 (erasure + lifecycle + profile)   54 passed
+AWS live contract (observability+packaging)   13 passed  (8/8 live)
+route + OpenAPI governance                    47 passed
+FULL REGRESSION  1192 collected / 1184 passed / 0 failed / 8 skipped / 236 warnings
+```
+
+### Pre-existing environment-sensitive tests (NOT a regression)
+
+Two tests in `tests/test_ris_installer.py` fail **only when `AWS_PROFILE` is
+exported in the ambient environment**:
+
+```
+test_aws_context_flows_to_child_env
+test_runner_without_context_unchanged
+```
+
+Root cause: both patch `os.environ` inside a `with` block, but assert
+`assert "AWS_PROFILE" not in os.environ` **outside** it. Proven pre-existing
+by running them at the pre-G5 commit `0202ec3`, where they fail identically.
+Neither is related to erasure. Flagged for a follow-up package; the
+authoritative full-suite result is the clean-environment run above.
+
+---
+
+## EVIDENCE VERIFIER: VERIFIED
+
+Independently re-read: account, region, HEAD, live route + authorization +
+integration, both live GSI definitions, both preserved GSIs, Lambda hash,
+downloaded live code contents, targeted suites, live contract tests, route
+governance, full regression, terraform state, post-apply drift. All matched.
+
+---
+
+## REMAINING FINDING FOR THE NEXT PACKAGE
+
+`tests/test_ris_installer.py` has two assertions outside their
+`patch.dict(os.environ)` context, making the suite fail under an exported
+`AWS_PROFILE`. Unrelated to G5; worth fixing so that CI running with
+credentials is green.
 
 ---
 

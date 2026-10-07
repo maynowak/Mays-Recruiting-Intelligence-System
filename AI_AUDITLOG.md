@@ -506,3 +506,65 @@ AWS PLAN (mayaws / eu-central-1 / 240571105849):
 
 STOPPED AT APPROVAL GATE — no apply performed.
 NEXT AFTER G5: G6 Timestamp Serialization Contract, G7 Health Event Sink.
+
+[G5-DEPLOY-01]
+Date: 2026-10-07
+Base: cec412d. STATUS: GREEN. G5 COMPLETE.
+
+DEPLOYMENT (mayaws / eu-central-1 / 240571105849):
+  plan  : 1 to add, 3 to change, 0 to destroy
+  apply : Apply complete! Resources: 1 added, 3 changed, 0 destroyed
+  post  : terraform plan -detailed-exitcode = 0 (no drift)
+
+  + module.api.aws_apigatewayv2_route.erasure      POST /me/erasure, JWT,
+                                                    integrations/ewy9u57
+  ~ dynamodb credentials                           gsi-digest + gsi-owner
+  ~ dynamodb work_items                             gsi-user + gsi-status
+  ~ lambda agent                                    CodeSha256
+        VTwwZh7mYss8DZSms+9PrZu5En2imFGodJfY2jyCAAo=
+  No Cognito / IAM / monitoring / SQS / orders-reader touched.
+
+DEPLOYMENT APPROVAL HAD TO BE CORRECTED (first attempt refused):
+  The approved plan was 1 add / 2 change and OMITTED the Lambda code
+  update. terraform/lambda.zip still held the previous artifact:
+    privacy_erasure.py in bundle : False
+    _handle_me_erasure in bundle : False
+    delete_all_for_user in bundle: False
+  Applying it would have made POST /me/erasure live with NO handler ->
+  a gateway route that 404s while OpenAPI advertises it. The worker
+  userId propagation fix and the indexed credential lookup would also
+  have stayed undeployed.
+  Rebuilt via the repo contract (lambda/build_zip.py, matching
+  installer/ris.py::_cmd_package) -> corrected 4-resource plan -> applied.
+  These three could not be split: route without code 404s; code without
+  the indexes makes list_by_owner query a non-existent GSI.
+
+LIVE CODE PROVEN (downloaded from Lambda, not hash-matched):
+  privacy_erasure.py, _handle_me_erasure, POST /me/erasure dispatch,
+  indexed credential lookup, NO scan fallback, worker userId propagation,
+  delete_all_for_user, CANCELLED status, revoke-first ordering,
+  terminal-work retention -> all OK.
+
+NON-DESTRUCTIVE VERIFICATION:
+  POST /me/erasure without JWT -> HTTP 401 (route live AND protected).
+  NO destructive erasure executed against real user data.
+
+TESTS:
+  targeted G5 (erasure+lifecycle+profile)  54 passed
+  AWS live contract                        13 passed (8/8 live)
+  route + OpenAPI governance               47 passed
+  FULL 1192 collected / 1184 passed / 0 failed / 8 skipped / 236 warnings
+
+PRE-EXISTING ENV-SENSITIVE FAILURE (not a regression, not G5):
+  tests/test_ris_installer.py::
+    test_aws_context_flows_to_child_env
+    test_runner_without_context_unchanged
+  fail ONLY when AWS_PROFILE is exported ambiently: both patch
+  os.environ inside a `with`, then assert
+  "AWS_PROFILE" not in os.environ OUTSIDE it.
+  Proven pre-existing: identical failure at pre-G5 commit 0202ec3.
+  Clean-environment full suite = 0 failed.
+
+SECURITY: RED -> GREEN. Evidence Verifier: VERIFIED.
+G5 COMPLETE. NEXT: G6 Timestamp Serialization Contract, then
+G7 Health Event Sink / Consumer.
