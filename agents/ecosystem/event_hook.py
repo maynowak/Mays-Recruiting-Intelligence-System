@@ -17,7 +17,7 @@ Usage:
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
@@ -267,7 +267,7 @@ def create_processing_envelope_from_event(
     processed_event = Event(
         event_id=event.get('event_id', str(uuid.uuid4())),
         event_type=event.get('event_type', 'EVENT'),
-        occurred_at=datetime.utcnow(),
+        occurred_at=datetime.now(timezone.utc),
         tenant_id=event.get('tenant_id', ''),
         order_id=event.get('order_id'),
         payload=event.get('payload', {}),

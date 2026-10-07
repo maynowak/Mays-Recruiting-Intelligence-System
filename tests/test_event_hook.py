@@ -12,7 +12,7 @@ Tests the event processing pipeline:
 import sys
 import os
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -30,7 +30,7 @@ class TestEvent:
         event = Event(
             event_id='test-123',
             event_type='ORDER_CREATED',
-            occurred_at=datetime.utcnow(),
+            occurred_at=datetime.now(timezone.utc),
             tenant_id='tenant-1',
         )
         
@@ -43,7 +43,7 @@ class TestEvent:
         event = Event(
             event_id='test-456',
             event_type='EVENT',
-            occurred_at=datetime.utcnow(),
+            occurred_at=datetime.now(timezone.utc),
             tenant_id='tenant-2',
             order_id='order-789',
             payload={'key': 'value'},
@@ -62,7 +62,7 @@ class TestEvent:
             Event(
                 event_id='',
                 event_type='ORDER_CREATED',
-                occurred_at=datetime.utcnow(),
+                occurred_at=datetime.now(timezone.utc),
                 tenant_id='tenant-1',
             )
     
@@ -72,7 +72,7 @@ class TestEvent:
             Event(
                 event_id='test-789',
                 event_type='',
-                occurred_at=datetime.utcnow(),
+                occurred_at=datetime.now(timezone.utc),
                 tenant_id='tenant-1',
             )
     
@@ -82,7 +82,7 @@ class TestEvent:
             Event(
                 event_id='test-789',
                 event_type='ORDER_CREATED',
-                occurred_at=datetime.utcnow(),
+                occurred_at=datetime.now(timezone.utc),
                 tenant_id='',
             )
 
@@ -136,7 +136,7 @@ class TestEventHook:
         event = Event(
             event_id='test-123',
             event_type='ORDER_CREATED',
-            occurred_at=datetime.utcnow(),
+            occurred_at=datetime.now(timezone.utc),
             tenant_id='tenant-1',
         )
         
@@ -148,7 +148,7 @@ class TestEventHook:
             Event(
                 event_id='',
                 event_type='ORDER_CREATED',
-                occurred_at=datetime.utcnow(),
+                occurred_at=datetime.now(timezone.utc),
                 tenant_id='tenant-1',
             )
     
@@ -158,7 +158,7 @@ class TestEventHook:
         event = Event(
             event_id='test-123',
             event_type='UNKNOWN_TYPE',
-            occurred_at=datetime.utcnow(),
+            occurred_at=datetime.now(timezone.utc),
             tenant_id='tenant-1',
         )
         
@@ -170,7 +170,7 @@ class TestEventHook:
         event = Event(
             event_id='test-123',
             event_type='order_created',
-            occurred_at=datetime.utcnow(),
+            occurred_at=datetime.now(timezone.utc),
             tenant_id='tenant-1',
         )
         
@@ -183,7 +183,7 @@ class TestEventHook:
         event = Event(
             event_id='test-123',
             event_type='ORDER_CREATED',
-            occurred_at=datetime.utcnow(),
+            occurred_at=datetime.now(timezone.utc),
             tenant_id='tenant-1',
             order_id='order-456',
             payload={'test': 'data'}
@@ -202,7 +202,7 @@ class TestEventHook:
         event = Event(
             event_id='test-123',
             event_type='SCHEDULE',
-            occurred_at=datetime.utcnow(),
+            occurred_at=datetime.now(timezone.utc),
             tenant_id='tenant-1'
         )
         
