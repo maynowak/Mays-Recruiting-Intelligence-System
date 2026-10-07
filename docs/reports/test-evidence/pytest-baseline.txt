@@ -1,0 +1,305 @@
+........................................................................ [  6%]
+........................................................................ [ 13%]
+........................................................................ [ 20%]
+........................................................................ [ 27%]
+........................................................................ [ 34%]
+........................................................................ [ 40%]
+.....................................................................ss. [ 47%]
+..............................ssssss.................................... [ 54%]
+........................................................................ [ 61%]
+........................................................................ [ 68%]
+........................................................................ [ 75%]
+........................................................................ [ 81%]
+........................................................................ [ 88%]
+........................................................................ [ 95%]
+..............................................                           [100%]
+=============================== warnings summary ===============================
+agents/agent_body/invocation.py:103: 7 warnings
+tests/test_agent_invocation.py: 2 warnings
+tests/test_agent_status_normalization.py: 1 warning
+tests/test_ats_domain_agent.py: 3 warnings
+tests/test_execution_engine.py: 5 warnings
+tests/test_full_pipeline.py: 2 warnings
+tests/test_multi_agent_ecosystem.py: 4 warnings
+tests/test_worker_entitlement_recheck.py: 2 warnings
+tests/test_worker_pipeline.py: 5 warnings
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/agents/agent_body/invocation.py:103: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'createdAt': datetime.utcnow().isoformat()
+
+agents/agent_body/executor.py:40: 7 warnings
+tests/test_agent_body.py: 8 warnings
+tests/test_agent_status_normalization.py: 1 warning
+tests/test_ats_domain_agent.py: 3 warnings
+tests/test_execution_engine.py: 5 warnings
+tests/test_full_pipeline.py: 2 warnings
+tests/test_multi_agent_ecosystem.py: 4 warnings
+tests/test_worker_entitlement_recheck.py: 2 warnings
+tests/test_worker_pipeline.py: 5 warnings
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/agents/agent_body/executor.py:40: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    start_time = datetime.utcnow()
+
+agents/agent_body/executor.py:63: 7 warnings
+tests/test_agent_body.py: 6 warnings
+tests/test_agent_status_normalization.py: 1 warning
+tests/test_ats_domain_agent.py: 3 warnings
+tests/test_multi_agent_ecosystem.py: 4 warnings
+tests/test_worker_entitlement_recheck.py: 2 warnings
+tests/test_worker_pipeline.py: 4 warnings
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/agents/agent_body/executor.py:63: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+
+tests/test_agent_body.py: 3 warnings
+tests/test_agent_status_normalization.py: 1 warning
+tests/test_ats_domain_agent.py: 1 warning
+tests/test_multi_agent_ecosystem.py: 1 warning
+tests/test_reference_agent.py: 5 warnings
+tests/test_worker_entitlement_recheck.py: 2 warnings
+tests/test_worker_pipeline.py: 2 warnings
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/agents/reference_agent/service.py:144: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'processedAt': datetime.utcnow().isoformat()
+
+tests/test_ats_domain_agent.py::TestATSDiscoveryEligibility::test_eligibility_rejects_retired
+tests/test_event_hook.py::TestConvenienceFunction::test_create_envelope_from_dict
+tests/test_event_hook.py::TestConvenienceFunction::test_create_envelope_default_values
+tests/test_multi_agent_ecosystem.py::TestMultiRouting::test_a_dummy_a
+tests/test_multi_agent_ecosystem.py::TestMultiRouting::test_b_dummy_b
+tests/test_multi_agent_ecosystem.py::TestMultiRouting::test_c_ats
+tests/test_multi_agent_ecosystem.py::TestMultiRouting::test_d_reference
+tests/test_multi_agent_ecosystem.py::TestMultiRouting::test_e_unknown_no_agent
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/agents/ecosystem/event_hook.py:267: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_ats_domain_agent.py::TestATSInvocation::test_api_error_controlled
+tests/test_ats_domain_agent.py::TestATSInvocation::test_duplicate_no_second_run
+tests/test_ats_domain_agent.py::TestATSInvocation::test_pipeline_end_to_end_with_stubbed_api
+tests/test_ats_domain_agent.py::TestATSInvocation::test_success_result_fits_runtime_contract
+tests/unit/ats_agent/test_ats_agent.py::TestATSAgent::test_process_work_analyze
+tests/unit/ats_agent/test_ats_agent.py::TestATSAgent::test_process_work_unsupported_capability
+tests/unit/ats_agent/test_ats_registry.py::TestATSAgentIntegration::test_workspace_flow
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/agents/ats_agent/agent.py:157: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    start_time = datetime.utcnow()
+
+tests/test_ats_domain_agent.py::TestATSInvocation::test_api_error_controlled
+tests/test_ats_domain_agent.py::TestATSInvocation::test_duplicate_no_second_run
+tests/test_ats_domain_agent.py::TestATSInvocation::test_pipeline_end_to_end_with_stubbed_api
+tests/test_ats_domain_agent.py::TestATSInvocation::test_success_result_fits_runtime_contract
+tests/unit/ats_agent/test_ats_agent.py::TestATSAgent::test_process_work_analyze
+tests/unit/ats_agent/test_ats_agent.py::TestATSAgent::test_process_work_unsupported_capability
+tests/unit/ats_agent/test_ats_registry.py::TestATSAgentIntegration::test_workspace_flow
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/agents/ats_agent/agent.py:167: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+
+tests/test_entitlement_indexname.py: 3 warnings
+tests/test_p22_agent_capability_contract.py: 18 warnings
+tests/test_p23_offer_product_admin.py: 5 warnings
+tests/test_platform_handlers.py: 6 warnings
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/lambda/handler.py:2404: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/test_event_hook.py::TestEvent::test_event_creation_required_fields
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_event_hook.py:33: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_event_hook.py::TestEvent::test_event_creation_with_optional_fields
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_event_hook.py:46: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_event_hook.py::TestEvent::test_event_validation_missing_event_id
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_event_hook.py:65: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_event_hook.py::TestEvent::test_event_validation_missing_event_type
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_event_hook.py:75: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_event_hook.py::TestEvent::test_event_validation_missing_tenant_id
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_event_hook.py:85: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_event_hook.py::TestEventHook::test_validate_valid_event
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_event_hook.py:139: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_event_hook.py::TestEventHook::test_validate_missing_event_id
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_event_hook.py:151: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_event_hook.py::TestEventHook::test_validate_unknown_event_type
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_event_hook.py:161: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_event_hook.py::TestEventHook::test_normalize_event_type
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_event_hook.py:173: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_event_hook.py::TestEventHook::test_handle_event_creates_envelope
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_event_hook.py:186: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_event_hook.py::TestEventHook::test_handle_event_missing_agent_id
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_event_hook.py:205: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_event_hook_pipeline.py::TestFullPipeline::test_full_pipeline
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_event_hook_pipeline.py:267: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_event_hook_pipeline.py::TestFullPipeline::test_pipeline_preserves_tenant_context
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_event_hook_pipeline.py:300: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_event_hook_pipeline.py::TestNoRouting::test_discovery_returns_candidates_not_selection
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_event_hook_pipeline.py:342: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_full_pipeline.py::test_full_pipeline_execution
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_full_pipeline.py:39: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_full_pipeline.py::test_pipeline_identity_preservation
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_full_pipeline.py:96: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    occurred_at=datetime.utcnow(),
+
+tests/test_google_foundation.py::TestGoogleFoundationGuards::test_no_token_fields_in_profile
+tests/test_identity_registration.py::TestProvision::test_create_returns_201_with_v1_fields
+tests/test_identity_registration.py::TestProvision::test_duplicate_returns_409_no_overwrite
+tests/test_identity_registration.py::TestProvision::test_duplicate_returns_409_no_overwrite
+tests/test_identity_registration.py::TestProvision::test_missing_tenant_falls_back_to_default
+tests/test_identity_registration.py::TestProvision::test_userid_spoofing_ignored
+tests/test_identity_registration.py::TestUpdate::test_update_changes_only_v1_fields
+tests/test_identity_registration.py::TestUpdate::test_update_empty_body_400
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/lambda/handler.py:502: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow().isoformat()
+
+tests/test_identity_registration.py::TestUpdate::test_update_changes_only_v1_fields
+tests/test_identity_registration.py::TestUpdate::test_update_missing_profile_404
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/lambda/handler.py:579: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    updates['updatedAt'] = datetime.utcnow().isoformat()
+
+tests/test_jobsearch.py::TestReferenceActor::test_actor_creation
+tests/test_jobsearch.py::TestReferenceActor::test_actor_search
+tests/test_jobsearch.py::TestReferenceActor::test_actor_validate_request
+tests/test_jobsearch.py::TestReferenceActor::test_actor_echo_capability
+tests/test_jobsearch.py::TestJobSearchProtocol::test_reference_actor_implements_protocol
+tests/test_jobsearch.py::TestIntegration::test_full_search_flow
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/jobsearch/reference_actor.py:58: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    base_date = datetime.utcnow() - timedelta(days=3)
+
+tests/test_jobsearch_agent.py: 2 warnings
+tests/unit/jobsearch/test_job_search.py: 11 warnings
+tests/unit/jobsearch/test_repository.py: 1 warning
+  <string>:10: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+
+tests/test_jobsearch_agent.py: 2 warnings
+tests/unit/jobsearch/test_job_search.py: 11 warnings
+tests/unit/jobsearch/test_repository.py: 1 warning
+  <string>:11: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+
+tests/test_lambda_packaging.py::TestLiveContract::test_e_noop_live_hash_matches
+tests/test_lambda_packaging.py::TestLiveContract::test_h_reader_hash_matches
+tests/test_observability_foundation.py::TestObservabilityFoundation::test_alarms_present
+  /usr/lib/python3/dist-packages/botocore/auth.py:419: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    datetime_now = datetime.datetime.utcnow()
+
+tests/test_orders_adapter.py::TestDevelopmentOrdersAdapter::test_submit_order_defaults
+tests/test_orders_adapter.py::TestDevelopmentOrdersAdapter::test_submit_order_with_order_id
+tests/test_orders_adapter.py::TestDevelopmentOrdersAdapter::test_get_order_status
+tests/test_orders_adapter.py::TestDevelopmentOrdersAdapter::test_idempotency
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/agents/orders/development.py:153: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'timestamp': datetime.utcnow().isoformat(),
+
+tests/test_platform_handlers.py::TestEntitlementValidation::test_invalid_entitlement_future_valid_from
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_platform_handlers.py:232: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    future = (datetime.utcnow() + timedelta(days=30)).isoformat()
+
+tests/test_platform_handlers.py::TestEntitlementValidation::test_valid_entitlement_past_valid_from
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_platform_handlers.py:238: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    past = (datetime.utcnow() - timedelta(days=30)).isoformat()
+
+tests/test_platform_handlers.py::TestEntitlementValidation::test_valid_entitlement_future_valid_until
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_platform_handlers.py:244: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    future = (datetime.utcnow() + timedelta(days=30)).isoformat()
+
+tests/test_platform_handlers.py::TestEntitlementValidation::test_invalid_entitlement_past_valid_until
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/test_platform_handlers.py:250: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    past = (datetime.utcnow() - timedelta(days=30)).isoformat()
+
+tests/test_platform_handlers.py::TestAgentAPI::test_execute_agent
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/lambda/handler.py:2119: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/test_reference_agent.py::TestReferenceAgentProcessing::test_status_method
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/agents/reference_agent/service.py:118: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'timestamp': datetime.utcnow().isoformat()
+
+tests/unit/ats_agent/test_ats_agent.py::TestATSAgent::test_get_status
+tests/unit/ats_agent/test_ats_registry.py::TestATSAgentIntegration::test_workspace_flow
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/agents/ats_agent/agent.py:210: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'result': {'message': 'Work completed', 'timestamp': datetime.utcnow().isoformat()}
+
+tests/unit/jobsearch/test_job_search.py::TestJobSearch::test_from_dict
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/jobsearch/domain_models.py:205: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    created_at=datetime.fromisoformat(data['createdAt']) if data.get('createdAt') else datetime.utcnow(),
+
+tests/unit/jobsearch/test_job_search.py::TestJobSearch::test_from_dict
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/jobsearch/domain_models.py:206: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    updated_at=datetime.fromisoformat(data['updatedAt']) if data.get('updatedAt') else datetime.utcnow(),
+
+tests/unit/jobsearch/test_repository.py::TestJobSearchRepository::test_repository_get_success
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/unit/jobsearch/test_repository.py:72: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'createdAt': datetime.utcnow().isoformat(),
+
+tests/unit/jobsearch/test_repository.py::TestJobSearchRepository::test_repository_get_success
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/unit/jobsearch/test_repository.py:73: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'updatedAt': datetime.utcnow().isoformat()
+
+tests/unit/jobsearch/test_repository.py::TestJobSearchRepository::test_repository_get_tenant_isolation
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/unit/jobsearch/test_repository.py:98: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'createdAt': datetime.utcnow().isoformat(),
+
+tests/unit/jobsearch/test_repository.py::TestJobSearchRepository::test_repository_get_tenant_isolation
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/unit/jobsearch/test_repository.py:99: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'updatedAt': datetime.utcnow().isoformat()
+
+tests/unit/jobsearch/test_repository.py::TestJobSearchRepository::test_repository_get_user_isolation
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/unit/jobsearch/test_repository.py:122: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'createdAt': datetime.utcnow().isoformat(),
+
+tests/unit/jobsearch/test_repository.py::TestJobSearchRepository::test_repository_get_user_isolation
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/unit/jobsearch/test_repository.py:123: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'updatedAt': datetime.utcnow().isoformat()
+
+tests/unit/jobsearch/test_repository.py::TestJobSearchRepository::test_repository_delete_success
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/unit/jobsearch/test_repository.py:146: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'createdAt': datetime.utcnow().isoformat(),
+
+tests/unit/jobsearch/test_repository.py::TestJobSearchRepository::test_repository_delete_success
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/unit/jobsearch/test_repository.py:147: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'updatedAt': datetime.utcnow().isoformat()
+
+tests/unit/jobsearch/test_repository.py::TestJobSearchRepository::test_repository_list_by_user
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/unit/jobsearch/test_repository.py:173: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'createdAt': datetime.utcnow().isoformat(),
+
+tests/unit/jobsearch/test_repository.py::TestJobSearchRepository::test_repository_list_by_user
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/unit/jobsearch/test_repository.py:174: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'updatedAt': datetime.utcnow().isoformat()
+
+tests/unit/jobsearch/test_repository.py::TestJobSearchRepository::test_repository_list_by_user
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/unit/jobsearch/test_repository.py:184: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'createdAt': datetime.utcnow().isoformat(),
+
+tests/unit/jobsearch/test_repository.py::TestJobSearchRepository::test_repository_list_by_user
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/unit/jobsearch/test_repository.py:185: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'updatedAt': datetime.utcnow().isoformat()
+
+tests/unit/jobsearch/test_repository.py::TestJobSearchRepository::test_repository_list_by_user
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/unit/jobsearch/test_repository.py:195: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'createdAt': datetime.utcnow().isoformat(),
+
+tests/unit/jobsearch/test_repository.py::TestJobSearchRepository::test_repository_list_by_user
+  /home/dci-student/projects/Mays-Recruiting-Intelligent-System/tests/unit/jobsearch/test_repository.py:196: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'updatedAt': datetime.utcnow().isoformat()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1046 passed, 8 skipped, 255 warnings in 10.07s
