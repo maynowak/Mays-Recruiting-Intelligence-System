@@ -65,6 +65,7 @@ weder entfernt noch durch Cognito ersetzt.
 | `GET /me/profile` | JWT | 200 | 404 (kein Profil) |
 | `POST /me/profile` | JWT | 201 | 409 (existiert), 400 (kein JSON) |
 | `PUT /me/profile` | JWT | 200 | 400 (kein v1-Feld), 404 (kein Upsert) |
+| `DELETE /me/profile` | JWT | 204 | 401 (unauthentifiziert), 404 (kein Profil), 500 (Store) |
 | `POST /me/documents` | JWT | 200 (Presigned PUT) | 400, 500 |
 | `GET /me/documents/{docId}` | JWT | 200 (Presigned GET) | 400, 404, 500 |
 | `DELETE /me/documents/{docId}` | JWT | 200 | 400, 404, 500 |
@@ -330,6 +331,11 @@ Lambda startfähig ist. Abhängigkeits-Erreichbarkeit meldet `GET /platform`
 - **OPEN-1 — Plattform-OpenAPI fehlt.** `jobsearch/openapi.yaml` beschreibt
   `/v1/jobs/*` eines externen Dienstes und deckt **keine** Plattform-Route ab.
   Dieses Dokument ist Prosa, kein maschinenlesbarer Vertrag.
+- **Route-Identität ist (METHOD, PATH)** (Gate-02 P2B). Eine exposierte Route
+  gilt **nur** für ihre Methode. `GET /me/profile` deckt `DELETE /me/profile`
+  nicht ab. Maßgeblich ist die Terraform-Deklaration bzw. die Gateway-Route,
+  nicht die Existenz eines Handler-Zweigs. Ein Handler ohne Gateway-Route ist
+  toter Code, keine API.
 - **OPEN-2 — Fehlerformat uneinheitlich.** `orders-reader` nutzt
   `{"error":{"code","message"}}`, `agent` nutzt `{"error":"<string>"}` (§4).
   Vereinheitlichen wäre ein API-Redesign und ist ausdrücklich nicht Teil dieses

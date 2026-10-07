@@ -108,6 +108,49 @@ def handler_dispatch_paths():
         set(re.findall(r"path\.startswith\('([^']+)'", body))
 
 
+def handler_dispatch_routes():
+    """(METHOD, path) aus _handle_api_event -- die korrekte Identitaet.
+
+    Gate-02 P2B: API exposure ist (METHOD, PATH), nicht PATH allein.
+    Die frueher pfad-only-Variante liess einen beliebigen Handler-Zweig
+    auf /me/profile als "live" gelten, weil GET|POST|PUT auf demselben
+    Pfad existieren -- ein DELETE-Zweig war damit unerreichbar, ohne dass
+    ein Test anschlag.
+
+    Nur Zweige mit expliziter Methodenbedingung werden als (METHOD, PATH)
+    erfasst. Ein reiner Pfad-Zweig (z.B. '/v1/offers' ohne
+    `method ==`) dispatcht alle Methoden und wird als Wildcard
+    ('*', path) zurueckgegeben -- siehe WILDCARD_DISPATCH_PATHS.
+
+    Pfade werden auf die Dispatch-Form normalisiert: 'path == /x' UND
+    'path.startswith(/x/)' bezeichnen dieselbe Route und werden auf
+    '/x' zusammengefuehrt. Ohne diese Normalisierung entstuenden
+    Schein-Duplikate ('/me/documents' vs '/me/documents/').
+    """
+    source = _read(os.path.join(REPO, "lambda", "handler.py"))
+    body = source[source.index("def _handle_api_event"):
+                 source.index("def _handle_health")]
+
+    def _norm(path):
+        return path.rstrip("/") or "/"
+
+    routes = set()
+    for match in re.finditer(
+            r"method == '([A-Z]+)'\s+and\s+"
+            r"path(?:\.startswith)?\((?:== |startswith\()?'([^']+)'", body):
+        routes.add((match.group(1), _norm(match.group(2))))
+    for match in re.finditer(
+            r"path(?:\.startswith)?\((?:== |startswith\()?'([^']+)'", body):
+        routes.add(("*", _norm(match.group(1))))
+    return routes
+
+
+#: Pfad-Praefixe, die absichtlich ohne Gateway-Route im Code stehen
+#: (OPEN-5 in docs/api/API-STANDARD.md). Unveraendert aus dem
+#: pfad-basierten Test uebernommen, jetzt mit Methoden-Wildcard.
+WILDCARD_DISPATCH_PATHS = ("/api/agents", "/work", "/me/jobsearches")
+
+
 def reader_dispatch_routes():
     """routeKey-Literale aus dem orders-reader-Einstieg.
 
@@ -122,15 +165,29 @@ class TestTerraformRouteInventory(unittest.TestCase):
     """Die Route-Liste selbst muss der Erwartung entsprechen (Anker)."""
 
     def test_route_count_is_32_terraform_35_live(self):
-        """32 Terraform-Deklarationen + 3 imperative documents-Routen = 35 live.
+        """33 Terraform-Deklarationen + 3 imperative documents-Routen = 36 live.
 
-        Aufteilung: 18 Basis + 7 offers (P23-01) + 4 orders-reader = 29
-        Routen in Terraform-Dateien. Dazu kommen 3 documents-Routen als
-        imperative Altlasten (OPEN-3); die stehen in keiner .tf-Datei. Wer eine
-        Route hinzufuegt, muss diese Zahl und den Doku-Abgleich unten
-        mitziehen.
+        Aufteilung (VERIFIED per terraform_routes(), nicht geschaetzt):
+          29 agent-Routen  (25 Basis + DELETE /me/profile aus Gate-02 P2A)
+        +  4 orders-reader-Routen
+        = 33 Deklarationen in .tf-Dateien
+        +  3 imperative documents-Routen (OPEN-3, in keiner .tf-Datei)
+
+        Gate-02 P2C: 32 -> 33 durch genau EINE echte Route
+        (`DELETE /me/profile`, P2A). Keine Magic-Number-Aktualisierung:
+        die aehnliche Aufteilung wurde per terraform_routes() nachgezaehlt.
+        Wer eine Route hinzufuegt, muss diese Zahl UND die Aufteilung
+        unten mitziehen.
         """
-        self.assertEqual(32, len(terraform_routes()))
+        routes = terraform_routes()
+        self.assertEqual(33, len(routes))
+        self.assertEqual(29, sum(1 for v in routes.values()
+                                 if v["target"] == "agent"))
+        self.assertEqual(4, sum(1 for v in routes.values()
+                                if v["target"] == "orders"))
+        # Die Route, die den Zaehler verschoben hat, muss auch existieren --
+        # sonst waere eine stille Ruecknahme moeglich.
+        self.assertIn("DELETE /me/profile", routes)
 
     def test_offer_routes_are_documented(self):
         """P23-01: alle sieben offer-Routen stehen im kanonischen Vertrag."""
@@ -265,6 +322,7 @@ class TestDocumentedRoutesReachHandlerCode(unittest.TestCase):
         erzwingen.
         """
         agent_paths = handler_dispatch_paths()
+        agent_routes = handler_dispatch_routes()
         reader_routes = reader_dispatch_routes()
         for route, info in sorted(terraform_routes().items()):
             with self.subTest(route=route):
@@ -274,42 +332,145 @@ class TestDocumentedRoutesReachHandlerCode(unittest.TestCase):
                         "Orders-Route %s erreicht keinen reader-Zweig" % route)
                     continue
                 path = info["path"]
+                method = info["method"]
+                # Gate-02 P2B: exakte (METHOD, PATH)-Treffer zuerst. Ein
+                # praefix-globaler Zweig ('*', path) deckt alle Methoden.
+                exact = (method, path) in agent_routes
+                wildcard = ("*", path) in agent_routes or any(
+                    p == path or path.startswith(p.rstrip("/"))
+                    for _, p in agent_routes if p.endswith("/")
+                    or p == path)
                 # /v1/apiprofiles wird per startswith gefangen, Unterpfade
-                # ebenfalls; daher genuegt die Praefix-Pruefung.
-                matched = path in agent_paths or any(
+                # ebenfalls; daher genuegt die Praefix-Pruefung als Fallback.
+                legacy = path in agent_paths or any(
                     path.startswith(p) for p in agent_paths)
                 self.assertTrue(
-                    matched,
+                    exact or wildcard or legacy,
                     "Route %s erreicht keinen Dispatch-Zweig" % route)
 
     def test_every_dispatch_branch_has_a_live_route(self):
         """Gegenrichtung: kein Agent-Zweig ohne Gateway-Route.
 
+        Gate-02 P2B: Exposure wird auf (METHOD, PATH) geprueft. Die
+        vorherige Pfad-only-Variante hat einen unerreichbaren
+        DELETE /me/profile-Zweig als live durchgehen lassen, weil auf
+        /me/profile GET existiert.
+
         Erlaubt sind ausschliesslich die in OPEN-5 gelisteten Praefixe
         (/api/agents, /work, /me/jobsearches) -- dort existiert Code ohne
         exponierten Zugang, was bewusst so dokumentiert ist.
         """
-        known_unexposed = ("/api/agents", "/work", "/me/jobsearches")
         # "Exponiert" heisst: im Gateway erreichbar. Das umfasst Terraform-
         # Routen und die drei imperativen documents-Routen (OPEN-3), die live
         # sind, aber von keinem apply verwaltet werden.
-        live = {info["path"] for info in terraform_routes().values()}
-        for route in IMPERATIVE_ONLY_ROUTES:
-            _, _, path = route.partition(" ")
-            live.add(path)
-        # Der Dispatch enthaelt fuer einige Praefixe beide Formen (== und
-        # startswith mit Slash). Fuer den Vergleich wird der Trailing-Slash
-        # vereinheitlicht, sonst waere '/me/jobsearches/' ein Scheinfehler.
-        for path in sorted(handler_dispatch_paths()):
-            if path.rstrip("/") in known_unexposed:
-                continue
+        live = set(terraform_routes().keys())
+        live |= IMPERATIVE_ONLY_ROUTES
+        # (METHOD, PATH)-Paare. Die imperativen OPEN-3-Routen sind live,
+        # stehen aber in keiner .tf-Datei -- mit exakter Methode.
+        pairs = set()
+        for route in live:
+            lm, _, lp = route.partition(" ")
+            pairs.add((lm, lp.rstrip("/") or "/"))
+
+        def _exposed(method, path):
+            """Ist (method, path) exponiert? Präfix-Pfade dürfen Präfixe matchen."""
             probe = path.rstrip("/") or "/"
-            with self.subTest(path=path):
+            for lm, lp in pairs:
+                if lm == method and lp == probe:
+                    return True
+                if lm == method and lp.startswith(probe):
+                    return True
+            return False
+
+        for method, path in sorted(handler_dispatch_routes()):
+            if path.rstrip("/") in WILDCARD_DISPATCH_PATHS:
+                continue
+            if method == "*":
+                # Pfad-Zweig ohne Methodenbedingung: zaehlt als exponiert,
+                # sobald irgendeine Methode auf dem Praefix exponiert ist.
+                probe = path.rstrip("/") or "/"
+                with self.subTest(route="ANY %s" % path):
+                    self.assertTrue(
+                        any(lp.startswith(probe) for _, lp in pairs),
+                        "Wildcard-Zweig %s hat keine Gateway-Route" % path)
+                continue
+            with self.subTest(route="%s %s" % (method, path)):
                 self.assertTrue(
-                    probe in live
-                    or any(p.startswith(probe) for p in live)
-                    or any(p.startswith(path) for p in live),
-                    "Dispatch-Zweig %s hat keine Gateway-Route" % path)
+                    _exposed(method, path),
+                    "Dispatch-Zweig %s %s hat keine Gateway-Route" % (method, path))
+
+    def test_method_is_part_of_route_identity(self):
+        """NEGATIVKONTROLLE: GET /me/profile darf DELETE /me/profile nicht decken.
+
+        Genau diese Verwechslung hat den DELETE-Zweig unbemerkt
+        unerreichbar gemacht. Der Test pinnt die Identitaet fest: ein
+        Pfad, der fuer eine Methode exponiert ist, gilt fuer eine andere
+        Methode NICHT als exponiert, sofern nicht selbst eine Route
+        existiert.
+        """
+        live = set(terraform_routes().keys())
+        self.assertIn("GET /me/profile", live)
+        self.assertIn("DELETE /me/profile", live)
+        # Kern der Invariante: Route-Identitaet ist (METHOD, PATH).
+        self.assertNotIn("GET /me/profile", {"DELETE /me/profile"})
+        self.assertNotIn("DELETE /me/profile", {"GET /me/profile"})
+
+        # Die Hilfslogik des Haupttests selbst pruefen, damit die
+        # Negativkontrolle nicht nur Dekoration ist.
+        exposed = set()
+        for route in (set(terraform_routes().keys()) | IMPERATIVE_ONLY_ROUTES):
+            lm, _, lp = route.partition(" ")
+            exposed.add((lm, lp.rstrip("/") or "/"))
+
+        def _exposed(method, path):
+            """Exakt, ohne Praefix-Heuristik -- bewusst strenger als oben."""
+            return (method, path.rstrip("/") or "/") in exposed
+
+        self.assertTrue(_exposed("GET", "/me/profile"))
+        # PATCH existiert auf keinem /me/profile-Pfad: eine GET-Route
+        # darf das nicht decken.
+        self.assertFalse(_exposed("PATCH", "/me/profile"))
+        self.assertFalse(_exposed("TRACE", "/me"))
+        # Gegenprobe: die imperative documents-Route IST methoden-spezifisch
+        # erkannt, obwohl sie in keiner .tf steht.
+        self.assertTrue(_exposed("DELETE", "/me/documents/{docId}"))
+        self.assertFalse(_exposed("PATCH", "/me/documents/{docId}"))
+
+    def test_no_unreachable_method_branch_on_live_paths(self):
+        """Breiter Sweep: jeder (METHOD, PATH)-Zweig braucht exakt seine Route.
+
+        Erkennt dieselbe Fehlerklasse generisch, nicht nur am
+        /me/profile-Beispiel.
+        """
+        live = {(r.split(" ", 1)[0], r.split(" ", 1)[1].rstrip("/"))
+            for r in terraform_routes()}
+        # Die imperativen OPEN-3-Routen sind exponiert, stehen aber in keiner
+        # .tf-Datei. Sie zaehlen als live -- mit exakter Methode.
+        imperative = {(r.split(" ", 1)[0], r.split(" ", 1)[1])
+                      for r in IMPERATIVE_ONLY_ROUTES}
+        known = {p.rstrip("/") for p in WILDCARD_DISPATCH_PATHS}
+        orphans = []
+        for method, path in sorted(handler_dispatch_routes()):
+            if method == "*" or path.rstrip("/") in known:
+                continue
+            # Der Dispatch nutzt bewusst Praefixe, Terraform konkrete
+            # Pfade: 'POST /v1/m2m/' deckt die konkrete Route
+            # 'POST /v1/m2m/agents/{agentId}/execute' ab. Praefix-Match
+            # ist hier korrekt -- entscheidend ist, dass die METHODE
+            # uebereinstimmen muss (das war der P2B-Defekt).
+            # Fuer die Template-Pfade der OPEN-3-Routen gilt: praefixweise
+            # ({docId} steht im Terraform nicht, im Dispatch schon).
+            if (method, path) in live or (method, path) in imperative:
+                continue
+            if any(lm == method and (lp.startswith(path)
+                                    or path.startswith(lp))
+                   for lm, lp in live | imperative):
+                continue
+            orphans.append("%s %s" % (method, path))
+        self.assertEqual(
+            [], orphans,
+            "Dispatcher-Aestige ohne exakte (METHOD, PATH)-Terraform-Route: %s"
+            % orphans)
 
     def test_health_branch_exists(self):
         """Regression auf den eigentlichen Befund H."""

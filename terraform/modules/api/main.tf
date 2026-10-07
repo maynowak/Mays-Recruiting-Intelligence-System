@@ -86,6 +86,18 @@ resource "aws_apigatewayv2_route" "profile_update" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
+# Gate-02 P2: profile deletion (handler _handle_me_profile_delete).
+# Exposes the existing, tested profile-deletion capability. Scope is
+# USER_PROFILE_TABLE only -- this is PROFILE DELETION, not account
+# erasure (see docs/reports/GATE-02-P2-PRIVACY-API.md).
+resource "aws_apigatewayv2_route" "profile_delete" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "DELETE /me/profile"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
 resource "aws_apigatewayv2_route" "agents" {
   api_id             = aws_apigatewayv2_api.ris_api.id
   route_key          = "GET /agents"
