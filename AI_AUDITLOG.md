@@ -568,3 +568,42 @@ PRE-EXISTING ENV-SENSITIVE FAILURE (not a regression, not G5):
 SECURITY: RED -> GREEN. Evidence Verifier: VERIFIED.
 G5 COMPLETE. NEXT: G6 Timestamp Serialization Contract, then
 G7 Health Event Sink / Consumer.
+
+G6 TIMESTAMP SERIALIZATION CONTRACT — DEPLOYED 2026-10-07
+---------------------------------------------------------
+DEPLOYMENT APPROVAL GO received. Pre-apply guard verified:
+HEAD 7d423916af9406cb2fcecdeaa91677e6473f17f5
+AWS account 240571105849 region eu-central-1 profile mayaws
+terraform/lambda.zip sha256 21146c0b9badfc7441d1e95843333cfe783f430ba2b03f3607c60546c1591dad
+expected CodeSha256 IRRsC5ut/HRB0elYQzM8/ng/QwuisD82B8YFRsFZHa0=
+
+APPLY result: 0 added, 1 changed, 0 destroyed
+module.lambda.aws_lambda_function.agent source_code_hash updated
+
+POST-DEPLOY VERIFICATION:
+W1 LIVE LAMBDA
+  mays-ris-dev-agent CodeSha256 = IRRsC5ut/HRB0elYQzM8/ng/QwuisD82B8YFRsFZHa0= MATCH
+  artifact contains agents/timeutil.py with utcnow() and to_legacy_iso()
+
+W2 TIMESTAMP CONTRACT
+  TestBoundaryHelperAvailability, TestWireRepresentation, TestInternalRepresentation all GREEN
+  timezone-aware UTC internally
+  legacy naive-UTC wire representation preserved
+  first-party datetime.utcnow deprecation warnings = 0
+
+W3 G5 REGRESSION GUARD
+  POST /me/erasure route live
+  credentials gsi-owner / gsi-digest present
+  work_items gsi-user / gsi-status present
+
+W4 AWS/LIVE TESTS
+  tests/test_ris_installer.py 36 passed with AWS_PROFILE=mayaws
+
+W5 FULL REGRESSION
+  1204 passed, 0 failed, 8 skipped
+
+POST-APPLY TERRAFORM PLAN
+  exit code 0, no changes
+
+EVIDENCE VERIFIER: VERIFIED
+G6 GREEN. NEXT: G7 Health Event Sink / Consumer.
