@@ -35,6 +35,11 @@ from agents.base import WorkItem
 from agents.ecosystem.discovery import AgentDiscovery
 from agents.ecosystem.eligibility import EligibilityPipeline
 from agents.ecosystem.event_hook import Event, EventHook, ProcessingEnvelope, TriggerType
+from agents.ecosystem.health_plane import (
+    Component,
+    REASON_AGENT_ERROR,
+    REASON_ENTITLEMENT_UNAVAILABLE,
+)
 from agents.ecosystem.registry import (
     AgentDescriptor,
     AgentRegistry,
@@ -288,6 +293,7 @@ def process_record(
     registry: Optional[AgentRegistry] = None,
     body: Any = None,
     entitlement_resolver: Any = None,
+    health_tracker: Any = None,
 ) -> Dict[str, Any]:
     """Einen SQS-Record durch den Runtime-Pfad fuehren (Worker-Einstieg).
 
@@ -296,10 +302,29 @@ def process_record(
             Execution-Time-Re-check (Gate 08). None = kein Re-check
             (nur Test-/Harness-Modus, debug-geloggt); Produktion
             injiziert immer einen Resolver (Handler-SQS-Pfad).
+        health_tracker: Optionaler HealthTracker (Gate-02 P3). Emittiert
+            HEALTH_DEGRADED/HEALTH_RECOVERED an den echten Grenzen der
+            Verarbeitung. None = keine Health-Events (best existing
+            behaviour). Health-Instrumentierung darf den Work-Pfad NIE
+            fehlschlagen; Fehler werden verschluckt.
     """
     work = _parse_record(record)
     validated = WorkItem(work)  # wirft bei fehlenden Pflichtfeldern (keine Registrierung)
     work = validated.to_dict()
+
+    # Gate-02 P3: Health-Events an den echten Grenzen der Verarbeitung.
+    # Jede Aufzeichnung ist defensiv gekapselt -- Observability darf den
+    # Work-Pfad nicht zum Fehlschlagen bringen.
+    def _health(fn_name, *args, **kwargs):
+        if health_tracker is None:
+            return
+        try:
+            getattr(health_tracker, fn_name)(*args, **kwargs)
+        except Exception as exc:  # pragma: no cover - defensiv
+            logger.warning("health instrumentation failed: %s", exc)
+
+    tenant_id = work.get("tenantId")
+    work_id = work.get("workId")
 
     table = table if table is not None else _resolve_table()
     registry, body = ensure_reference_agent(registry, body)
@@ -374,6 +399,13 @@ def process_record(
             # KEIN Denied: FAILED persistieren + Raise -> bestehende
             # Retry-Semantik (SQS-Redelivery -> neuer Attempt). Kein
             # Fail-Open, kein falsches DENIED.
+            _health("record_failure",
+                    Component.AGENT_EXECUTION,
+                    tenant_id=tenant_id,
+                    reason=REASON_ENTITLEMENT_UNAVAILABLE,
+                    work_id=work_id,
+                    agent_id=decision.agent_id,
+                    attempt_id=str(attempt))
             _persist_failure(
                 table, work["workId"], attempt,
                 {"message": f"Entitlement store unreachable: {exc}",
@@ -382,6 +414,9 @@ def process_record(
         if not auth.authorized:
             # Permanent DENIED: kontrolliert beenden (FAILED persistieren,
             # Nachricht konsumieren — KEIN Retry-Loop, KEIN Raise).
+            # Ein DENIED ist KEINE Laufzeit-Degradierung: die Ablehnung ist
+            # das korrekte Verhalten, kein Ausfall. Deshalb wird hier KEIN
+            # HEALTH_DEGRADED emittiert.
             _persist_failure(
                 table, work["workId"], attempt,
                 {"message": f"Worker entitlement denied [{auth.reason}]",
@@ -405,6 +440,13 @@ def process_record(
     try:
         result = engine.execute_from_decision(decision, envelope)
     except Exception as exc:
+        _health("record_failure",
+                Component.AGENT_EXECUTION,
+                tenant_id=tenant_id,
+                reason=REASON_AGENT_ERROR,
+                work_id=work_id,
+                agent_id=decision.agent_id,
+                attempt_id=str(attempt))
         _persist_failure(
             table,
             work["workId"],
@@ -415,6 +457,13 @@ def process_record(
 
     if not result.get("success", False):
         error = result.get("error", {"message": "Agent meldete Fehler"})
+        _health("record_failure",
+                Component.AGENT_EXECUTION,
+                tenant_id=tenant_id,
+                reason=REASON_AGENT_ERROR,
+                work_id=work_id,
+                agent_id=decision.agent_id,
+                attempt_id=str(attempt))
         _persist_failure(table, work["workId"], attempt, error)
         if isinstance(error, dict) and error.get("type") not in PERMANENT_ERROR_CODES:
             # Unerwarteter Fehler -> Retry via SQS-Redelivery (neuer Attempt).
@@ -424,6 +473,12 @@ def process_record(
                 f"(workId={work['workId']}, attempt={attempt})"
             )
     else:
+        _health("record_success",
+                Component.AGENT_EXECUTION,
+                tenant_id=tenant_id,
+                work_id=work_id,
+                agent_id=decision.agent_id,
+                attempt_id=str(attempt))
         _persist_result(table, work["workId"], attempt, result)
 
     return {
