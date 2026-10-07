@@ -1,1 +1,326 @@
-{"baseline": {"branch": "main", "head": "c0a5f66", "collected": 1054, "passed": 1046, "failed": 0, "skipped": 8}, "files": []}
+{
+  "baseline": {
+    "branch": "main",
+    "head": "e9387c27086eb49d60d415a8bafc0105e2978e97",
+    "collected": 1054,
+    "passed": 1046,
+    "skipped": 8,
+    "failed": 0,
+    "warnings": 236
+  },
+  "note": "Generated from junit run 2026-10-07 without AWS_PROFILE: 8 live tests skipped.",
+  "files": {
+    "tests/test_agent_body.py": {
+      "collected": 17,
+      "passed": 17,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_agent_catalog_terraform_seed.py": {
+      "collected": 22,
+      "passed": 22,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_agent_invocation.py": {
+      "collected": 6,
+      "passed": 6,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_agent_status_normalization.py": {
+      "collected": 20,
+      "passed": 20,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_api_profiles.py": {
+      "collected": 53,
+      "passed": 53,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_apiprofile_management_http.py": {
+      "collected": 34,
+      "passed": 34,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_ats_domain_agent.py": {
+      "collected": 9,
+      "passed": 9,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_authorization_context.py": {
+      "collected": 32,
+      "passed": 32,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_credential_management.py": {
+      "collected": 61,
+      "passed": 61,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_credential_management_http.py": {
+      "collected": 42,
+      "passed": 42,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_credential_verification.py": {
+      "collected": 39,
+      "passed": 39,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_entitlement_indexname.py": {
+      "collected": 10,
+      "passed": 10,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_entitlement_provisioning.py": {
+      "collected": 39,
+      "passed": 39,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_event_hook.py": {
+      "collected": 18,
+      "passed": 18,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_event_hook_pipeline.py": {
+      "collected": 10,
+      "passed": 10,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_execution_engine.py": {
+      "collected": 7,
+      "passed": 7,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_full_pipeline.py": {
+      "collected": 2,
+      "passed": 2,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_google_foundation.py": {
+      "collected": 4,
+      "passed": 4,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_identity_registration.py": {
+      "collected": 11,
+      "passed": 11,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_introspection_capability.py": {
+      "collected": 42,
+      "passed": 42,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_jobsearch.py": {
+      "collected": 14,
+      "passed": 14,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_jobsearch_agent.py": {
+      "collected": 4,
+      "passed": 4,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_lambda_packaging.py": {
+      "collected": 7,
+      "passed": 5,
+      "skipped": 2,
+      "failed": 0
+    },
+    "tests/test_machine_entrypoint.py": {
+      "collected": 22,
+      "passed": 22,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_multi_agent_ecosystem.py": {
+      "collected": 9,
+      "passed": 9,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_observability_foundation.py": {
+      "collected": 6,
+      "passed": 0,
+      "skipped": 6,
+      "failed": 0
+    },
+    "tests/test_offer_entitlement_grant.py": {
+      "collected": 44,
+      "passed": 44,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_orders_adapter.py": {
+      "collected": 10,
+      "passed": 10,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_orders_reader.py": {
+      "collected": 8,
+      "passed": 8,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_p17_credential_lifecycle.py": {
+      "collected": 25,
+      "passed": 25,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_p20_api_contract_consistency.py": {
+      "collected": 19,
+      "passed": 19,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_p20_health_contract.py": {
+      "collected": 12,
+      "passed": 12,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_p21_cognito_m2m_boundary.py": {
+      "collected": 32,
+      "passed": 32,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_p22_agent_capability_contract.py": {
+      "collected": 30,
+      "passed": 30,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_p23_offer_product_admin.py": {
+      "collected": 55,
+      "passed": 55,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_platform_handlers.py": {
+      "collected": 30,
+      "passed": 30,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_project_pinning.py": {
+      "collected": 6,
+      "passed": 6,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_real_orders_adapter.py": {
+      "collected": 18,
+      "passed": 18,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_reference_agent.py": {
+      "collected": 20,
+      "passed": 20,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_ris_installer.py": {
+      "collected": 36,
+      "passed": 36,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_routing.py": {
+      "collected": 10,
+      "passed": 10,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_secure_documents.py": {
+      "collected": 11,
+      "passed": 11,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_terraform_runner.py": {
+      "collected": 14,
+      "passed": 14,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_worker_entitlement_recheck.py": {
+      "collected": 20,
+      "passed": 20,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/test_worker_pipeline.py": {
+      "collected": 7,
+      "passed": 7,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/unit/agents/test_environment_compat.py": {
+      "collected": 27,
+      "passed": 27,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/unit/agents/test_source_connectivity.py": {
+      "collected": 19,
+      "passed": 19,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/unit/ats_agent/test_ats_agent.py": {
+      "collected": 12,
+      "passed": 12,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/unit/ats_agent/test_ats_registry.py": {
+      "collected": 8,
+      "passed": 8,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/unit/jobsearch/test_job_search.py": {
+      "collected": 18,
+      "passed": 18,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/unit/jobsearch/test_repository.py": {
+      "collected": 10,
+      "passed": 10,
+      "skipped": 0,
+      "failed": 0
+    },
+    "tests/unit/tools/test_dependency_check.py": {
+      "collected": 13,
+      "passed": 13,
+      "skipped": 0,
+      "failed": 0
+    }
+  }
+}
