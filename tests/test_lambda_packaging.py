@@ -127,12 +127,20 @@ class TestLiveContract(unittest.TestCase):
             raise unittest.SkipTest("keine mayaws-Credentials")
         import build_zip
         from pathlib import Path
-        files = build_zip._collect(Path(REPO_ROOT),
-                                   ["lambda/handler.py", "agents", "jobsearch"])
-        arc = lambda s: "handler.py" if s == "lambda/handler.py" else s
+        # Gate-02 G2-AWS-DEPLOY-VERIFY-01: MUST use the canonical builder
+        # (build_agent_bundle), exactly as the reader test uses
+        # build_reader_bundle. This test previously hardcoded
+        # ["lambda/handler.py", "agents", "jobsearch"], which omits
+        # lambda/documents.py -- so it rebuilt a 52-file artifact and
+        # compared it against the deployed 53-file artifact. Two different
+        # artifacts, so the comparison could never match, and the failure
+        # was misread as deployment drift.
         with tempfile.TemporaryDirectory() as tmp:
             local = build_zip.build_bundle(
-                Path(REPO_ROOT), files, arc,
+                Path(REPO_ROOT),
+                build_zip._collect(Path(REPO_ROOT),
+                                   build_zip.AGENT_FILES + build_zip.AGENT_DIRS),
+                lambda s: s[len("lambda/"):] if s.startswith("lambda/") else s,
                 os.path.join(tmp, "live-check.zip"))["sha256"]
         tf = session.client("lambda", region_name="eu-central-1")
         live_sha = tf.get_function_configuration(

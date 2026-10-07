@@ -153,3 +153,67 @@ VERIFICATION: fmt clean; validate Success; 1103 passed/0 failed/8 skipped.
   Pre-existing terraform modifications still unstaged and uncommitted.
 
 RISK: LOW. RECOMMENDATION: APPLY with pin. DO NOT APPLY pending approval.
+
+[G2-AWS-DEPLOY-VERIFY-01]
+Date: 2026-10-07
+Base: eb4a7ba. STATUS: GREEN. DEPLOYMENT EXECUTED.
+
+DEPLOYMENT (account 240571105849, mayaws, eu-central-1):
+  Fresh plan (old file discarded): 1 to add, 1 to change, 0 to destroy.
+  Invariant verified: 0 forbidden-module resources in plan.
+  Identity guard re-run immediately before mutation: PASS.
+  APPLIED: + module.api.aws_apigatewayv2_route.profile_delete
+           ~ module.lambda.aws_lambda_function.agent (in-place)
+
+POST-DEPLOY EVIDENCE:
+  API   : DELETE /me/profile LIVE, JWT, authorizer 9ghezn,
+          integration integrations/ewy9u57 (existing, none created).
+          First DELETE route on this API.
+  LAMBDA: CodeSha256 XEzSImDF+yYNw5g+xzPXFGX+8YebvW9iVBsh0svvAGE=
+          LastModified 2026-10-07T16:51:07Z. DRIFT: CLOSED.
+  COGNITO: AutoVerifiedAttributes = ["email"]. GUARD PASS.
+          The -var pin held; no ["email"] -> [] applied.
+  AWS LIVE: 8/8 PASS.
+  REGRESSION: 1111 collected / 1103 passed / 0 failed / 8 skipped / 236 warn.
+
+TEST DEFECT FOUND AND FIXED DURING VERIFICATION:
+  W4 first run: 12 passed 1 FAILED. test_e_noop_live_hash_matches failed
+  EVEN THOUGH live CodeSha256 == canonical artifact. Investigated rather
+  than accepted.
+  Cause: the test rebuilt its own bundle from a hardcoded list
+  ["lambda/handler.py","agents","jobsearch"] = 52 files, while
+  build_zip.AGENT_FILES also includes lambda/documents.py = 53 files.
+  Two different artifacts compared; the test could never match. Its
+  failure had been misread as deployment drift TWICE (Gate-01 and the
+  reconciliation package). The reader test was always correct because it
+  calls build_reader_bundle(); the agent test bypassed the canonical
+  builder.
+  Fix: use build_zip.AGENT_FILES + AGENT_DIRS with the same arcname rule
+  as build_agent_bundle. No assertion weakened.
+  NEGATIVE CONTROL: injected '\n# drift-probe\n' into agents/base.py ->
+  1 failed; restored -> 2 passed. Test still detects real drift.
+
+EVIDENCE VERIFIER: VERIFIED (every claim independently re-read; not
+inferred from terraform apply output).
+
+THREE DEFECTS CLOSED ON THIS BRANCH:
+  1. Deployment drift (live matched no commit in 281 rebuilds)
+  2. Unreachable DELETE /me/profile endpoint (no gateway route)
+  3. Vacuous hash test that could never pass
+
+GATE-02 AWS BRANCH: GREEN.
+
+RESIDUAL (not a defect): live API 36 routes vs Terraform 33 = the three
+  OPEN-3 documents routes, unmanaged by apply. Pre-existing, untouched.
+
+NEXT GOVERNANCE PACKAGES:
+  - Cognito persistent configuration: identity_email_verification_enabled is
+    still a CLI var. Live=true, committed default=false. The next unpinned
+    apply WILL disable email verification. Needs committed tfvars/installer
+    default. HIGHEST PRIORITY of the remaining list.
+  - Platform OpenAPI (OPEN-1)
+  - Privacy cascade/erasure
+  - Timestamp serialization contract (gates 43 utcnow sites)
+  - Health event sink/consumer
+
+COMMIT != TERMINATE: Gate-02 is GREEN; next packages listed above.
