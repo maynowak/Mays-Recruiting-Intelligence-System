@@ -70,8 +70,8 @@ class InvocationContract:
     
     def _validate(self):
         """Validate the invocation contract."""
-        if not self.target_agent_id and not self.capability:
-            raise ValueError("Must specify target_agent_id or capability")
+        if not self.target_agent_id or not self.capability:
+            raise ValueError("InvocationContract requires both target_agent_id and capability")
         
         if self.mode not in (self.SYNC, self.ASYNC):
             raise ValueError(f"Invalid mode: {self.mode}")

@@ -46,17 +46,16 @@ class TestInvocationContract:
     
     def test_contract_validation(self):
         """Contract validates required fields."""
-        contract = InvocationContract(
-            capability="test.action"
-        )
-        
-        with pytest.raises(ValueError, match="Must specify target_agent_id or capability"):
-            contract._validate()
+        with pytest.raises(ValueError, match="InvocationContract requires both target_agent_id and capability"):
+            InvocationContract(
+                capability="test.action"
+            )
     
     def test_contract_mode_validation(self):
         """Contract validates mode."""
         contract = InvocationContract(
             target_agent_id="test",
+            capability="test.cap",
             mode="SYNC"
         )
         contract.mode = "INVALID"

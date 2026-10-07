@@ -115,7 +115,7 @@ class TestConvenienceFunction:
             processing_id='proc-1',
             tenant_id='tenant-1',
             trigger_type=TriggerType.EVENT,
-            input={'test': 'data'}
+            input={'test': 'data', 'capability': 'test.echo'}
         )
         
         result = execute_routing_decision(decision, envelope)
@@ -148,7 +148,7 @@ class TestContextPreservation:
             processing_id='proc-456',
             tenant_id='tenant-special',
             trigger_type=TriggerType.EVENT,
-            input={'test': 'value'}
+            input={'test': 'value', 'capability': 'test.echo'}
         )
         
         engine = ExecutionEngine()
@@ -178,7 +178,7 @@ class TestContextPreservation:
             processing_id='my-processing-123',
             tenant_id='tenant-1',
             trigger_type=TriggerType.EVENT,
-            input={}
+            input={'capability': 'test.echo'}
         )
         
         engine = ExecutionEngine()
@@ -212,7 +212,7 @@ class TestNoTrigger:
             processing_id='proc-1',
             tenant_id='tenant-1',
             trigger_type=TriggerType.EVENT,
-            input={}
+            input={'capability': 'test.echo'}
         )
         
         engine = ExecutionEngine()

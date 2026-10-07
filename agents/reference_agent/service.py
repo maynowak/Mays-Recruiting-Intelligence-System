@@ -90,7 +90,8 @@ class ReferenceAgent(AgentBase):
             logger.warning(f"Invalid work type: {work_item.get('type')}")
             return False
         
-        if not work_item.get('agentId') and work_item.get('capability') != self.CAPABILITY_ECHO:
+        capability = work_item.get('capability', self.CAPABILITY_ECHO)
+        if not work_item.get('agentId') and capability != self.CAPABILITY_ECHO:
             logger.warning("Missing agentId for non-echo capability")
             return False
         
