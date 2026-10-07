@@ -90,7 +90,7 @@ class TestPlatformHandler:
 
     def test_platform_with_custom_env(self):
         """Platform endpoint respects PLATFORM_NAME environment variable."""
-        with patch.dict(os.environ, {'PLATFORM_NAME': 'CustomPlatform'}):
+        with patch('handler.PLATFORM_NAME', 'CustomPlatform'):
             event = {'httpMethod': 'GET', 'path': '/platform'}
             result = handler(event, None)
             
@@ -227,17 +227,17 @@ class TestEntitlementValidation:
         entitlement = {'agentId': 'test-agent'}
         assert _is_entitlement_valid(entitlement) is True
 
-    def test_valid_entitlement_future_valid_from(self):
-        """Entitlement with future validFrom is valid."""
+    def test_invalid_entitlement_future_valid_from(self):
+        """Entitlement with future validFrom is not yet valid."""
         future = (datetime.utcnow() + timedelta(days=30)).isoformat()
         entitlement = {'agentId': 'test-agent', 'validFrom': future}
-        assert _is_entitlement_valid(entitlement) is True
+        assert _is_entitlement_valid(entitlement) is False
 
-    def test_invalid_entitlement_past_valid_from(self):
-        """Entitlement with past validFrom is invalid."""
+    def test_valid_entitlement_past_valid_from(self):
+        """Entitlement with past validFrom is valid."""
         past = (datetime.utcnow() - timedelta(days=30)).isoformat()
         entitlement = {'agentId': 'test-agent', 'validFrom': past}
-        assert _is_entitlement_valid(entitlement) is False
+        assert _is_entitlement_valid(entitlement) is True
 
     def test_valid_entitlement_future_valid_until(self):
         """Entitlement with future validUntil is valid."""
@@ -342,11 +342,12 @@ class TestSQSHandling:
         """SQS events return 200 status."""
         event = {
             'Records': [{
-                'body': json.dumps({'workId': 'test-123', 'type': 'test'})
+                'body': json.dumps({'workId': 'test-123', 'type': 'test', 'tenantId': 'tenant-1', 'idempotencyKey': 'key-1'})
             }]
         }
         
-        result = handler(event, None)
+        with patch('handler._process_work_item', return_value={'status': 'processed'}):
+            result = handler(event, None)
         
         assert result['statusCode'] == 200
 
