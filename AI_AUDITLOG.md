@@ -355,3 +355,91 @@ NEXT: Privacy cascade/erasure. G4 made this sharper: the spec now states
   items and documents — a machine-readable statement of a gap. Need a scope
   decision: is cascade deletion in scope, and what is its authorization
   model (does it revoke machine credentials? what about in-flight work?).
+
+[G5-PRIVACY-ERASURE-LIFECYCLE-01]
+Date: 2026-10-07
+Base: 523ccd4. STATUS: C — DESIGN DECISION REQUIRED.
+AWS MUTATION: NONE. IMPLEMENTATION: NONE.
+
+CENTRAL FINDING (security, applies to the EXISTING live endpoint):
+  DELETE /me/profile leaves fully working machine credentials.
+  Verified: USER_PROFILE_TABLE appears NOWHERE in credentials.py or
+  api_profiles.py. verify_api_credential resolves via
+  resolve_credential_profile(bearer, credential_store, profile_store) where
+  profile_store = DynamoDBApiProfileStore(API_PROFILES_TABLE)
+  (handler.py:1073-1074). _profile_usable calls
+  api_profiles.effective_status() — the API PROFILE entity, a different
+  record from the user profile. Authentication is Cognito, validated by API
+  Gateway before the Lambda runs.
+  => deleting the profile row leaves a working ris_... credential able to
+  execute agents. Violates "erasure must not leave active authorization
+  capability". This is a property of the shipped endpoint, not of anything
+  proposed here.
+
+LIFECYCLE MATRIX (9 domains):
+  delete 2 (user profile, documents)   revoke 0   detach 0
+  anonymize 0   retain 3 (entitlements via TTL, orders external, agent state)
+  UNRESOLVED 3: credentials, API profiles, work items
+
+TWO HARD INDEX BLOCKERS (found by reading table defs; corrected my own
+  prior assumption that credentials were owner-indexed):
+    work_items   GSIs: ['gsi-status']   # tenantId + status only
+    credentials  GSIs: ['gsi-digest']   # secret digest only
+    api_profiles GSIs: ['gsi-owner']    # ownerUserId
+  ownerUserId and requestedBy are WRITTEN on every row but INDEXED on
+  neither. Bulk erasure of those domains needs a scan or a Terraform index
+  change. Sparse GSIs need no backfill.
+
+  I initially asserted credentials had gsi-owner and wrote a test for it.
+  The test failed against the real table; the assumption was wrong and the
+  discovery is now a headline finding. Second test bug: asserted handler has
+  no delete_item, but the profile deletion IS one — test rescoped.
+
+API PROFILES: module docstring is explicit — "NO TTL ... deletion only via
+  explicit admin cleanup, later gate". transition_status targets are
+  ACTIVE|DISABLED|REVOKED, so REVOKED is reachable, but whether profile
+  deletion cascades into it is undecided.
+
+IN-FLIGHT WORK: WorkItemStatus defines CANCELLED/EXPIRED but nothing writes
+  them. Deleting in-flight rows is unsafe: _register_processing uses a
+  conditional write for idempotency and TERMINAL_DUPLICATE_STATES suppresses
+  duplicate COMPLETED workIds — removing the row re-admits duplicate
+  execution and orphans retry state.
+
+OWNERSHIP: orders_reader.py has NO userId; the only linkage is requestedBy on
+  the RIS work item. Mays-RIS holds a reference, not ownership, and must not
+  delete Mays-Orders data.
+
+WHY NOT B: partial implementation would delete documents while silently
+  ignoring credentials and work items — and the ignored remainder is ACTIVE
+  AUTHORIZATION CAPABILITY, not inert data. That manufactures a false
+  erasure claim, violating the mission's own invariant.
+
+DECISIONS REQUIRED (full option tables in the report):
+  D1 must DELETE /me/profile revoke credentials?      -> recommend YES
+  D2 add user-owner GSIs to credentials + work_items?  -> recommend YES
+  D3 what happens to in-flight work?                    -> cancel non-terminal,
+                                                          retain terminal;
+                                                          REJECT delete-all
+  D4 do API profiles cascade?                           -> recommend revoke
+
+IMPLEMENTED INSTEAD: tests/test_privacy_lifecycle_evidence.py, 21 tests
+  pinning every premise (credential path never reads USER_PROFILE_TABLE,
+  real GSI sets, ownership boundaries, existing lifecycle ops, no false
+  erasure claim, no erasure endpoint advertised). Guards the decision so it
+  cannot silently decay.
+
+OPENAPI: unchanged. DELETE /me/profile stays narrowly scoped; its
+  x-is-account-erasure false is now evidence-backed. No erasure endpoint
+  documented, because none exists.
+
+CROSS-REVIEW: security RED, architecture RED, privacy/runtime YELLOW,
+  api/tests GREEN. Two REDs => classification C.
+
+REGRESSION: 1167 collected / 1159 passed / 0 failed / 8 skipped /
+  236 warnings. Baseline 1146 -> 1167 (+21).
+
+NEXT: G6-ERASURE-INDEX-FOUNDATION (D2). Add gsi-owner to credentials and a
+  user index to work_items, then re-run this decision with targeted erasure
+  possible. Doing D1/D4 first means shipping scans or a misleading partial
+  erasure. Infrastructure-only, reversible, no backfill needed.
