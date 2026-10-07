@@ -31,6 +31,20 @@ def _clean_env():
     return {k: v for k, v in os.environ.items() if k != "TERRAFORM_WORKSPACE"}
 
 
+def _env_without_aws_profile():
+    """Ambient env with the AWS/workspace keys the runner owns removed.
+
+    G6 preflight: the installer tests must pass both with and without an
+    ambient AWS_PROFILE. `_terraform_env()` intentionally inherits
+    `os.environ` (a Terraform subprocess must see the operator's profile
+    when no explicit context is injected), so a test that reads the ambient
+    environment outside its own patch inherits whatever the CI machine
+    happens to export.
+    """
+    return {k: v for k, v in os.environ.items()
+            if k not in ("TERRAFORM_WORKSPACE", "AWS_PROFILE")}
+
+
 def test_project_name_is_identity_and_workspace():
     with patch.dict(os.environ, _clean_env(), clear=True):
         ctx = RisInstallContext(project_name="mays-ris")
@@ -146,25 +160,36 @@ def test_same_profile_two_projects_stay_distinct():
 def test_aws_context_flows_to_child_env():
     from installer.terraform_runner import TerraformRunner
 
-    with patch.dict(os.environ, _clean_env(), clear=True):
+    # G6: the invariant is "constructing the runner must not MUTATE the
+    # ambient environment". Asserting that AWS_PROFILE is absent from
+    # os.environ only holds on a machine that never exported one, so the
+    # original assertion failed whenever CI ran with credentials.
+    # Snapshot-compare is environment-independent and tests the real intent.
+    before = dict(os.environ)
+    with patch.dict(os.environ, _env_without_aws_profile(), clear=True):
         runner = TerraformRunner(
             working_dir="terraform", workspace="mays-ris", aws_context=_aws_ctx()
         )
-    env = runner._terraform_env()
+        env = runner._terraform_env()
     assert env["AWS_REGION"] == "eu-central-1"
     assert env["AWS_PROFILE"] == "mayaws"
     assert env["TERRAFORM_WORKSPACE"] == "mays-ris"
-    assert "AWS_PROFILE" not in os.environ
+    assert dict(os.environ) == before, "runner construction leaked into os.environ"
 
 
 # Test G2 — runner without context behaves as before (backward compatible).
 def test_runner_without_context_unchanged():
     from installer.terraform_runner import TerraformRunner
 
-    with patch.dict(os.environ, _clean_env(), clear=True):
+    # G6: read the env INSIDE the patch. Reading it after the block exits
+    # picks up the real ambient environment, and since `_terraform_env()`
+    # deliberately inherits os.environ, an exported AWS_PROFILE leaked in
+    # and failed the assertion even though the runner injected nothing.
+    with patch.dict(os.environ, _env_without_aws_profile(), clear=True):
         runner = TerraformRunner(working_dir="terraform", workspace="mays-ris")
-    env = runner._terraform_env()
-    assert "AWS_PROFILE" not in env
+        env = runner._terraform_env()
+    assert "AWS_PROFILE" not in env, \
+        "runner must not inject a profile when no context is supplied"
     assert env["TERRAFORM_WORKSPACE"] == "mays-ris"
 
 
