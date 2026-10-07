@@ -347,6 +347,8 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_me_profile_update(event, context)
     elif method == 'DELETE' and path == '/me/profile':
         return _handle_me_profile_delete(event, context)
+    elif method == 'POST' and path == '/me/erasure':
+        return _handle_me_erasure(event, context)
     elif method == 'POST' and path == '/me/documents':
         return _handle_documents_create(event, context)
     elif method == 'GET' and path.startswith('/me/documents/'):
@@ -679,6 +681,98 @@ def _handle_me_profile_delete(event: Dict[str, Any], context: Any) -> Dict[str, 
             'statusCode': 500,
             'body': json.dumps({'error': 'Failed to delete profile'})
         }
+
+
+def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Handle POST /me/erasure - privacy erasure lifecycle (G5).
+
+    SEPARATE from DELETE /me/profile on purpose. That endpoint deletes one
+    application-profile row and is documented as such. Erasure additionally
+    revokes machine credentials, revokes owned API profiles, cancels
+    non-terminal work and deletes owned documents -- and it is the only
+    operation that can end the caller's machine access.
+
+    Ordering guarantee (agents.ecosystem.privacy_erasure): credentials are
+    revoked FIRST, so a successful run cannot leave a usable ris_...
+    credential behind.
+
+    Idempotent: re-running revokes only what is not already REVOKED and
+    cancels only work that is still non-terminal.
+
+    Response is the honest lifecycle report. `complete: false` means at
+    least one step failed and the caller must NOT assume their data is
+    gone -- in particular, if revocation failed, a live credential may
+    still exist.
+    """
+    user_context = _extract_user_context(event)
+
+    if not user_context['userId']:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': 'Unauthenticated'})
+        }
+
+    try:
+        from agents.ecosystem.privacy_erasure import PrivacyErasure
+        from agents.ecosystem.credentials import DynamoDBCredentialStore
+        from agents.ecosystem.api_profiles import DynamoDBApiProfileStore
+    except Exception as e:
+        logger.error(f"Erasure subsystem unavailable: {e}")
+        return {
+            'statusCode': 503,
+            'body': json.dumps({'error': 'Erasure temporarily unavailable'})
+        }
+
+    missing = [name for name, env in (
+        ("CREDENTIALS_TABLE", "CREDENTIALS_TABLE"),
+        ("API_PROFILES_TABLE", "API_PROFILES_TABLE"),
+        ("WORK_ITEMS_TABLE", "WORK_ITEMS_TABLE"),
+        ("USER_PROFILE_TABLE", "USER_PROFILE_TABLE"),
+    ) if not os.environ.get(env)]
+    if missing:
+        logger.warning("erasure stores unconfigured: %s", ",".join(missing))
+        return {
+            'statusCode': 503,
+            'body': json.dumps({'error': 'Erasure temporarily unavailable'})
+        }
+
+    def _delete_documents(user_id: str) -> int:
+        """Delete every document object the platform holds for this user."""
+        try:
+            import documents
+            return documents.delete_all_for_user(user_id)
+        except Exception as exc:
+            logger.warning("document purge unavailable for %s: %s",
+                           user_id, exc)
+            return 0
+
+    dynamodb = _get_dynamodb()
+    erasure = PrivacyErasure(
+        credential_store=DynamoDBCredentialStore(
+            table_name=os.environ.get("CREDENTIALS_TABLE")),
+        profile_store=DynamoDBApiProfileStore(
+            table_name=os.environ.get("API_PROFILES_TABLE")),
+        work_table=dynamodb.Table(os.environ.get("WORK_ITEMS_TABLE")),
+        document_deleter=_delete_documents,
+        user_profile_table=dynamodb.Table(
+            os.environ.get("USER_PROFILE_TABLE")),
+    )
+
+    try:
+        result = erasure.erase(user_context['userId'],
+                               tenant_id=user_context.get('tenantId'))
+    except Exception as e:
+        logger.error(f"Erasure failed: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Erasure failed'})
+        }
+
+    status = 200 if result.complete else 207
+    return {
+        'statusCode': status,
+        'body': json.dumps(result.to_dict())
+    }
 
 
 def _documents_context(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:

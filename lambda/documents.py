@@ -112,6 +112,50 @@ def delete_document(s3: Any = None, tenant_id: str = "",
     return True
 
 
+def delete_all_for_user(s3: Any = None, user_id: str = "") -> int:
+    """Alle Dokumentobjekte eines Users loeschen (G5-Erasure).
+
+    Schluessel sind tenant-scoped (``tenant/{t}/users/{sub}/documents/...``),
+    die Tenant-ID steht aber nicht im Objekt-Key selbst. Deshalb wird ueber
+    das praefix-Suffix ``/users/{user_id}/documents/`` gefiltert -- der
+    userId ist ein Cognito-Sub und damit tenant-uebergreifend eindeutig.
+
+    Bewusst additiv: gibt die Zahl geloeschter Objekte zurueck und wirft
+    nicht, damit ein Teilerfolg als Teilerfolg berichtet wird statt die
+    gesamte Erasure zu blockieren.
+    """
+    if not user_id:
+        return 0
+    client = s3 if s3 is not None else _s3_client()
+    bucket = _bucket()
+    suffix = f"/users/{user_id}/documents/"
+    token: Optional[str] = None
+    deleted = 0
+    while True:
+        kwargs = {"Bucket": bucket, "ContinuationToken": token} if token \
+            else {"Bucket": bucket}
+        try:
+            response = client.list_objects_v2(**kwargs)
+        except Exception:
+            return deleted
+        contents = response.get("Contents", []) or []
+        for obj in contents:
+            key = obj.get("Key", "")
+            if not key.endswith(suffix) and f"/users/{user_id}/documents/" \
+                    not in key:
+                continue
+            try:
+                client.delete_object(Bucket=bucket, Key=key)
+                deleted += 1
+            except Exception:
+                continue
+        if not response.get("IsTruncated"):
+            return deleted
+        token = response.get("NextContinuationToken")
+        if not token:
+            return deleted
+
+
 __all__ = ["presign_upload", "presign_download", "delete_document",
-           "build_key", "new_doc_id", "UPLOAD_EXPIRY_SECONDS",
-           "ALLOWED_CONTENT_TYPES"]
+           "delete_all_for_user", "build_key", "new_doc_id",
+           "UPLOAD_EXPIRY_SECONDS", "ALLOWED_CONTENT_TYPES"]

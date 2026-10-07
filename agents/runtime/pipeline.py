@@ -189,9 +189,18 @@ def _register_processing(
     Returns (item, is_duplicate). Duplikat -> kein neuer fachlicher Run.
     """
     now = _utcnow()
+    # G5 (D2): the requesting user must survive onto the PERSISTED row.
+    # The ingress writers set `userId` (and `requestedBy`); work that
+    # reaches the worker without a pre-written item is registered here, and
+    # this block used to omit the user entirely -- so such items would be
+    # invisible to any per-user lookup. `requestedBy` is accepted as a
+    # fallback because _create_work writes only that field.
+    user_id = work.get("userId") or work.get("requestedBy") or ""
     item = {
         "workId": work["workId"],
         "tenantId": work.get("tenantId", ""),
+        "userId": user_id,
+        "requestedBy": user_id,
         "idempotencyKey": work.get("idempotencyKey", ""),
         "type": work.get("type", ""),
         "capability": work.get("capability", ""),

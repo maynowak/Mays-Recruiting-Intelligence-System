@@ -165,29 +165,31 @@ class TestTerraformRouteInventory(unittest.TestCase):
     """Die Route-Liste selbst muss der Erwartung entsprechen (Anker)."""
 
     def test_route_count_is_32_terraform_35_live(self):
-        """33 Terraform-Deklarationen + 3 imperative documents-Routen = 36 live.
+        """34 Terraform-Deklarationen + 3 imperative documents-Routen = 37 live.
 
         Aufteilung (VERIFIED per terraform_routes(), nicht geschaetzt):
-          29 agent-Routen  (25 Basis + DELETE /me/profile aus Gate-02 P2A)
+          30 agent-Routen  (25 Basis + DELETE /me/profile (Gate-02 P2A)
+                            + POST /me/erasure (Gate-05 G5))
         +  4 orders-reader-Routen
-        = 33 Deklarationen in .tf-Dateien
+        = 34 Deklarationen in .tf-Dateien
         +  3 imperative documents-Routen (OPEN-3, in keiner .tf-Datei)
 
         Gate-02 P2C: 32 -> 33 durch genau EINE echte Route
-        (`DELETE /me/profile`, P2A). Keine Magic-Number-Aktualisierung:
-        die aehnliche Aufteilung wurde per terraform_routes() nachgezaehlt.
-        Wer eine Route hinzufuegt, muss diese Zahl UND die Aufteilung
-        unten mitziehen.
+        (`DELETE /me/profile`). Gate-05: 33 -> 34 durch genau EINE weitere
+        (`POST /me/erasure`). Keine Magic-Number-Aktualisierung: die
+        Aufteilung wird per terraform_routes() nachgezaehlt und die jeweils
+        hinzugefuegte Route mitgeprueft, damit eine stille Ruecknahme nicht
+        durchgeht.
         """
         routes = terraform_routes()
-        self.assertEqual(33, len(routes))
-        self.assertEqual(29, sum(1 for v in routes.values()
+        self.assertEqual(34, len(routes))
+        self.assertEqual(30, sum(1 for v in routes.values()
                                  if v["target"] == "agent"))
         self.assertEqual(4, sum(1 for v in routes.values()
                                 if v["target"] == "orders"))
-        # Die Route, die den Zaehler verschoben hat, muss auch existieren --
-        # sonst waere eine stille Ruecknahme moeglich.
+        # Die Routen, die den Zaehler verschoben haben, muessen existieren.
         self.assertIn("DELETE /me/profile", routes)
+        self.assertIn("POST /me/erasure", routes)
 
     def test_offer_routes_are_documented(self):
         """P23-01: alle sieben offer-Routen stehen im kanonischen Vertrag."""

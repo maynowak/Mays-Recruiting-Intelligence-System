@@ -98,6 +98,19 @@ resource "aws_apigatewayv2_route" "profile_delete" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
+# Gate-05 (G5): privacy erasure lifecycle. Deliberately a SEPARATE route
+# from DELETE /me/profile, which stays profile-deletion-only. This is the
+# only operation that revokes the caller's machine credentials.
+# POST, not DELETE: erasure is an ordered, retryable lifecycle, not an
+# idempotent single-resource delete.
+resource "aws_apigatewayv2_route" "erasure" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /me/erasure"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
 resource "aws_apigatewayv2_route" "agents" {
   api_id             = aws_apigatewayv2_api.ris_api.id
   route_key          = "GET /agents"

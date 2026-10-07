@@ -443,3 +443,66 @@ NEXT: G6-ERASURE-INDEX-FOUNDATION (D2). Add gsi-owner to credentials and a
   user index to work_items, then re-run this decision with targeted erasure
   possible. Doing D1/D4 first means shipping scans or a misleading partial
   erasure. Infrastructure-only, reversible, no backfill needed.
+
+[G5-PRIVACY-ERASURE-IMPLEMENTATION-01]
+Date: 2026-10-07
+Base: 0202ec3. D1-D4 approved and implemented. AWS MUTATION: NONE.
+STATUS: local GREEN, stopped at AWS DEPLOYMENT APPROVAL GATE.
+
+D2 INDEXES (attribute names read from code, not guessed):
+  credentials + gsi-owner (ownerUserId, credentials.py:216)
+  work_items  + gsi-user  (userId, handler.py:2172, range_key=status)
+  Names match api_profiles.gsi-owner and entitlements/jobsearches.gsi-user.
+  DynamoDBCredentialStore.list_by_owner was a FULL TABLE SCAN -> now queries
+  the index. No scan remains in the erasure path.
+
+  PROPAGATION BUG the index would have exposed: _register_processing (the
+  worker's own registration) omitted the user entirely, so work registered by
+  the worker would be invisible to any per-user lookup. _create_work emits
+  requestedBy but never persists. Fixed: registration normalises userId with
+  requestedBy as fallback.
+
+D1/D4 ERASURE LIFECYCLE (agents/ecosystem/privacy_erasure.py):
+  1 revoke credentials (capability dies first)
+  2 revoke API profiles
+  3 cancel non-terminal work
+  4 delete documents
+  5 delete profile row (last; keyed by)
+  complete=True only when EVERY step succeeded; partial -> HTTP 207 with
+  per-step ok flags. No path reports complete while a credential is live.
+  D3: non-terminal -> CANCELLED under attribute_exists(workId); terminal
+  RETAINED (deleting removes TERMINAL_DUPLICATE_STATES suppression and
+  re-admits duplicate execution). No retention duration invented.
+  Entitlements retained; orders untouched.
+
+PUBLIC API: POST /me/erasure (POST, not DELETE: ordered retryable lifecycle).
+  Separate contract; DELETE /me/profile unchanged in meaning and asserted so.
+  No requestBody, no params -> target is always the JWT subject.
+  documents.delete_all_for_user added for step 4.
+
+OPENAPI: ErasureResult/ErasureStepResult added, 200/207/401/500/503. P20
+  route count 33->34 and API-STANDARD updated — the governance suites CAUGHT
+  that drift and it was fixed, not worked around.
+
+SECURITY RED -> GREEN (18 tests, tests/test_privacy_erasure_security.py).
+  NEGATIVE CONTROLS: reorder profile-delete before revocation -> 1 failed;
+  remove credential revocation entirely -> 6 failed.
+  EVIDENCE PREMISES INVERTED not deleted: index tests now pin the new index
+  set AND assert the scan fallback does not return; the "no erasure
+  endpoint" guard became test_advertised_erasure_matches_implementation
+  (207 representable, no target param, documented order == code order).
+
+REGRESSION: 1192 collected / 1184 passed / 0 failed / 8 skipped /
+  236 warnings. Baseline 1167 -> 1192 (+25).
+
+AWS PLAN (mayaws / eu-central-1 / 240571105849):
+  Plan: 1 to add, 2 to change, 0 to destroy.
+  + module.api.aws_apigatewayv2_route.erasure                 (create)
+  ~ module.dynamodb...credentials  + gsi-owner, + attr ownerUserId (in-place)
+  ~ module.dynamodb...work_items    + gsi-user,  + attr userId       (in-place)
+  replace 0, destroy 0. NO BACKFILL (sparse GSI). gsi-digest/gsi-status
+  remove+re-add rendering is a Terraform list-reorder artifact, not a
+  semantic change. Risk LOW. RECOMMENDATION: APPLY.
+
+STOPPED AT APPROVAL GATE — no apply performed.
+NEXT AFTER G5: G6 Timestamp Serialization Contract, G7 Health Event Sink.

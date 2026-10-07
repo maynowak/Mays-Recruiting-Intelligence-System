@@ -70,6 +70,7 @@ weder entfernt noch durch Cognito ersetzt.
 | `GET /me/documents/{docId}` | JWT | 200 (Presigned GET) | 400, 404, 500 |
 | `DELETE /me/documents/{docId}` | JWT | 200 | 400, 404, 500 |
 | `GET /agents` | JWT | 200 | — |
+| `POST /me/erasure` | JWT | 200, 207 (partial) | 401, 500, 503 |
 | `GET /v1/introspection` | JWT | 200 | 401, 404, 503 |
 | `GET /v1/offers` | JWT | 200 | 401, 503 |
 | `POST /v1/offers` | JWT | 201 | 400, 401, 403, 409, 503 |

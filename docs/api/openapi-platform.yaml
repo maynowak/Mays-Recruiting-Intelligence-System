@@ -54,6 +54,8 @@ servers:
 tags:
   - name: Platform
     description: Liveness, platform information, identity context.
+  - name: Privacy
+    description: Profile deletion and the ordered erasure lifecycle.
   - name: Profile
     description: The authenticated user's own application profile.
   - name: Documents
@@ -229,6 +231,67 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }
         "500": { $ref: "#/components/responses/ServerErrorString" }
+
+  /me/erasure:
+    post:
+      tags: [Privacy]
+      operationId: eraseMyData
+      summary: Run the privacy erasure lifecycle for the authenticated caller
+      description: |
+        **Distinct from `DELETE /me/profile`**, which deletes one
+        application-profile row and nothing else. This is the only
+        operation that revokes the caller's machine access.
+
+        Ordered lifecycle. Credentials are revoked FIRST, so a successful
+        run cannot leave a usable `ris_...` credential behind regardless of
+        what happens to the later steps:
+
+        1. revoke all machine credentials owned by the caller
+        2. revoke all API profiles owned by the caller
+        3. cancel the caller's non-terminal work (QUEUED / RUNNING / RETRY /
+           CREATED); terminal work is **retained**, never deleted, because
+           deleting it would re-admit duplicate execution
+        4. delete document objects the platform holds for the caller
+        5. delete the caller profile row
+
+        Entitlements and orders are untouched: entitlements carry no
+        capability once credentials are revoked and already self-expire via
+        TTL, and orders are owned by Mays-Orders.
+
+        Scope is always the authenticated caller — there is no user or
+        tenant parameter, so a caller cannot target anyone else.
+
+        Idempotent: re-running revokes only what is not already REVOKED and
+        cancels only work that is still non-terminal.
+
+        `POST` rather than `DELETE`: this is an ordered, retryable lifecycle,
+        not an idempotent single-resource delete.
+      x-infrastructure-governance: terraform-managed
+      x-deletion-scope: ordered-lifecycle-credentials-first
+      x-is-account-erasure: true
+      x-terminal-work-retained: true
+      responses:
+        "200":
+          description: Every lifecycle step succeeded.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErasureResult" }
+        "207":
+          description: |
+            Partial execution. At least one step failed, so erasure is NOT
+            complete. Check `complete` and the per-step `ok` flags before
+            assuming anything was removed. In particular, if
+            `revoke-credentials` failed, a live credential may still exist.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErasureResult" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was not configured or unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
 
   /me/documents:
     post:
@@ -1103,6 +1166,50 @@ components:
       properties:
         workId: { type: string }
         status: { type: string, example: QUEUED }
+
+    ErasureStepResult:
+      type: object
+      description: >-
+        One lifecycle step. A false `ok` means that step did NOT complete.
+      required: [step, ok, affected]
+      properties:
+        step:
+          type: string
+          enum:
+            - revoke-credentials
+            - revoke-api-profiles
+            - cancel-non-terminal-work
+            - delete-documents
+            - delete-user-profile
+        ok: { type: boolean }
+        affected: { type: integer }
+        error:
+          type: string
+          nullable: true
+          description: Present only when `ok` is false.
+
+    ErasureResult:
+      type: object
+      description: |
+        Ordered erasure outcome. `complete` is the honest field: it is true
+        only when every step succeeded, so a partial run can never be
+        mistaken for a finished erasure.
+      required: [userId, complete, credentialsRevoked, profilesRevoked,
+                 workCancelled, documentsDeleted, profileDeleted, steps]
+      properties:
+        userId: { type: string }
+        tenantId: { type: string, nullable: true }
+        complete: { type: boolean }
+        credentialsRevoked: { type: integer }
+        profilesRevoked: { type: integer }
+        workCancelled:
+          type: integer
+          description: Non-terminal work moved to CANCELLED. Terminal work is retained.
+        documentsDeleted: { type: integer }
+        profileDeleted: { type: boolean }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/ErasureStepResult" }
 
     Order:
       type: object

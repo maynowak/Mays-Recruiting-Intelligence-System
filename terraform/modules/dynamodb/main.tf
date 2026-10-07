@@ -20,6 +20,11 @@ resource "aws_dynamodb_table" "work_items" {
     type = "S"
   }
 
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
   ttl {
     attribute_name = var.table_config.ttl_attribute
     enabled        = var.table_config.ttl_enabled
@@ -28,6 +33,17 @@ resource "aws_dynamodb_table" "work_items" {
   global_secondary_index {
     name            = "gsi-status"
     hash_key        = "tenantId"
+    range_key       = "status"
+    projection_type = "ALL"
+  }
+
+  # G5 (D2): per-user lookup for the erasure lifecycle. Range key is
+  # `status` so erasure can target only non-terminal work (QUEUED /
+  # RUNNING) without reading completed history. Same `gsi-user` name and
+  # shape as entitlements and jobsearches, by convention.
+  global_secondary_index {
+    name            = "gsi-user"
+    hash_key        = "userId"
     range_key       = "status"
     projection_type = "ALL"
   }
@@ -275,9 +291,24 @@ resource "aws_dynamodb_table" "credentials" {
     type = "S"
   }
 
+  attribute {
+    name = "ownerUserId"
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "gsi-digest"
     hash_key        = "digest"
+    projection_type = "ALL"
+  }
+
+  # G5 (D2): owner lookup for the erasure lifecycle. `ownerUserId` is
+  # written on every credential row by _persist_new_credential; before
+  # this index the only way to find a user's credentials was a scan.
+  # Same name and shape as api_profiles.gsi-owner, by convention.
+  global_secondary_index {
+    name            = "gsi-owner"
+    hash_key        = "ownerUserId"
     projection_type = "ALL"
   }
 

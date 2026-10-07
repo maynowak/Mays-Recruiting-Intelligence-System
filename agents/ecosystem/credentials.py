@@ -909,15 +909,19 @@ class InMemoryProfileStore:
 class DynamoDBCredentialStore:
     """Production credential store (lazy, read/write metadata only).
 
-    Required table design (LATER TF gate, NOT created here):
-    PK credentialId + GSI on digest (proposal name "gsi-digest").
+    Table design: PK credentialId, GSI "gsi-digest" on digest, and (G5/D2)
+    GSI "gsi-owner" on ownerUserId. The owner index replaces what used to
+    be a full table scan for "all credentials of this user", which is the
+    erasure path.
     """
 
     def __init__(self, table: Any = None, table_name: Optional[str] = None,
-                 digest_index: str = "gsi-digest") -> None:
+                 digest_index: str = "gsi-digest",
+                 owner_index: str = "gsi-owner") -> None:
         self._table = table
         self._table_name = table_name
         self._digest_index = digest_index
+        self._owner_index = owner_index
 
     def _table_obj(self) -> Any:
         if self._table is not None:
@@ -975,9 +979,17 @@ class DynamoDBCredentialStore:
         return [dict(i) for i in response.get("Items", [])]
 
     def list_by_owner(self, owner_id: str) -> List[Dict[str, Any]]:
-        response = self._table_obj().scan(
-            FilterExpression="ownerUserId = :o",
-            ExpressionAttributeValues={":o": owner_id})
+        """All credentials owned by a user, via the owner GSI (G5/D2).
+
+        Was a full-table scan before `gsi-owner` existed. The erasure
+        lifecycle must not depend on a scan, so this now queries the index
+        and is a hard requirement of the erasure workflow.
+        """
+        from boto3.dynamodb.conditions import Key
+
+        response = self._table_obj().query(
+            IndexName=self._owner_index,
+            KeyConditionExpression=Key("ownerUserId").eq(owner_id))
         return [dict(i) for i in response.get("Items", [])]
 
     def list_by_profile(self, api_profile_id: str) -> List[Dict[str, Any]]:
