@@ -282,3 +282,76 @@ NEXT: Platform OpenAPI (OPEN-1). Route inventory now stable at 33
   OPEN-3 documents routes are live but unmanaged and must be represented
   explicitly, not omitted; two error envelopes exist (OPEN-2) and the
   spec must document both rather than pretend they are unified.
+
+[G4-PLATFORM-OPENAPI-CONTRACT-01]
+Date: 2026-10-07
+Base: 1207eff. STATUS: GREEN. OPEN-1: CLOSED. AWS MUTATION: NONE.
+
+W1 ROUTE INVENTORY (METHOD+PATH, no path-only matching):
+  Terraform 33 | live API GW aboqolpm0f 36 | spec 36.
+  RECONCILIATION: 33 Terraform + 3 OPEN-3 documents = 36 live = 36 spec.
+  Classification: 33 terraform-managed, 3 imperative OPEN-3,
+  8 dispatcher branches over 3 unreachable prefixes (OPEN-5), 0 live-only drift.
+
+AUTHORING ERROR CAUGHT BEFORE TESTING: first draft had
+  PATCH /v1/offers/{offerId}/status (invented) and omitted
+  PATCH /v1/offers/{offerId} and POST /v1/offers/{offerId}/status.
+  Detected by diffing against terraform_routes(): 35 vs 36. Corrected.
+
+W3 ERROR ENVELOPES (OPEN-2, NOT unified):
+  ErrorString  {"error":"<string>"}   agent/platform Lambda, 77 occurrences
+  ErrorObject  {"error":{code,message,details?}}  orders_reader._err():88
+  Both represented; /orders* declare x-error-envelope: ErrorObject,
+  no agent operation does.
+
+W4 SPEC: docs/api/openapi-platform.yaml, OpenAPI 3.0.3, 36 operations,
+  36/36 unique operationIds, 30 $refs all resolving, no external refs.
+  jobsearch/openapi.yaml UNTOUCHED (different external service).
+  DELETE /me/profile: x-is-account-erasure false,
+  x-deletion-scope USER_PROFILE_TABLE-row-only, no requestBody,
+  retained stores named in description.
+
+W5 CONTRACT TESTS: tests/test_platform_openapi_contract.py, 26 tests.
+  Route inventory REUSED from the canonical P20 helpers, not reimplemented,
+  so this suite and test_p20_api_contract_consistency.py cannot disagree.
+  P20 suite still 21/21 — nothing weakened.
+
+NEGATIVE CONTROLS (all demonstrated):
+  remove DELETE /me/profile        -> 8 failed
+  change DELETE to other method    -> 8 failed
+  relabel OPEN-3 op as terraform  -> 1 failed
+  remove an OPEN-3 route           -> 3 failed
+  add invented unclassified route  -> 1 failed
+
+  IMPORTANT: my first OPEN-3 relabel control used `sed 0,/.../`, which
+  matched the explanatory PROSE on line 40 rather than an operation line.
+  The spec was never changed and the suite passed 26/26 — a green result
+  that proved nothing. Control rebuilt to target an operation line; it then
+  failed correctly. A vacuously-passing control is the same failure mode as
+  a vacuously-passing test.
+
+  Two genuine bugs in my own test code, both fixed: orders-reader routes are
+  strings vs the tuple-keyed ops set; OPEN-5 prefix assertion compared a
+  string against tuples. Neither masked a spec defect.
+
+CROSS-REVIEW:
+  architecture GREEN  0 refs to /me/jobsearches, /work, /api/agents
+  security     GREEN  35 JWT-protected, exactly 1 unauthenticated (/health)
+  privacy      GREEN  erasure explicitly disclaimed, retained stores named
+  tests        GREEN  5 negative controls, P20 unregressed
+  One review check naively flagged Order as leaking internal fields; verified
+  directly against `properties` — names appear only in the description that
+  explains they are stripped. No leak.
+
+REGRESSION: 1146 collected / 1138 passed / 0 failed / 8 skipped /
+  236 warnings. Baseline 1120 -> 1146 (+26 new).
+
+NEW FINDING: the spec is now the third consumer of the canonical route
+  inventory (P20 suite, OpenAPI suite, and Terraform itself). All share one
+  helper, so they cannot drift apart.
+
+NEXT: Privacy cascade/erasure. G4 made this sharper: the spec now states
+  DELETE /me/profile retains credentials, api profiles, entitlements, work
+  items and documents — a machine-readable statement of a gap. Need a scope
+  decision: is cascade deletion in scope, and what is its authorization
+  model (does it revoke machine credentials? what about in-flight work?).

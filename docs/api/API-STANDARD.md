@@ -328,9 +328,14 @@ Lambda startfähig ist. Abhängigkeits-Erreichbarkeit meldet `GET /platform`
 
 ## 8. Abweichungen und OPENs (nicht heimlich korrigiert)
 
-- **OPEN-1 — Plattform-OpenAPI fehlt.** `jobsearch/openapi.yaml` beschreibt
-  `/v1/jobs/*` eines externen Dienstes und deckt **keine** Plattform-Route ab.
-  Dieses Dokument ist Prosa, kein maschinenlesbarer Vertrag.
+- **OPEN-1 — GESCHLOSSEN (G4-PLATFORM-OPENAPI-CONTRACT-01).** Der
+  maschinenlesbare Plattform-Vertrag liegt jetzt in
+  **`docs/api/openapi-platform.yaml`** (OpenAPI 3.0.3, 36 Operationen =
+  33 Terraform-Routen + 3 OPEN-3-Dokumentrouten).
+  `jobsearch/openapi.yaml` bleibt unverändert — es beschreibt einen externen
+  Dienst (`/v1/jobs/*`), keine Plattform-Route.
+  Das Dokument wird von `tests/test_platform_openapi_contract.py` gegen
+  Terraform **und** den Dispatcher geprüft; Drift bricht den Test.
 - **Route-Identität ist (METHOD, PATH)** (Gate-02 P2B). Eine exposierte Route
   gilt **nur** für ihre Methode. `GET /me/profile` deckt `DELETE /me/profile`
   nicht ab. Maßgeblich ist die Terraform-Deklaration bzw. die Gateway-Route,

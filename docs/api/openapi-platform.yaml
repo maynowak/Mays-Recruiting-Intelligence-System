@@ -1,0 +1,1120 @@
+openapi: 3.0.3
+info:
+  title: Mays-RIS Platform API
+  version: "1.0.0"
+  description: |
+    Canonical machine-readable contract for the Mays-RIS Platform API.
+
+    **Scope.** This document describes the routes that are actually
+    reachable through API Gateway `aboqolpm0f` (`mays-ris-dev`, region
+    `eu-central-1`, account `240571105849`). Every operation below is
+    identity-checked as `(METHOD, PATH)`. A handler branch that has no
+    Gateway route is **not** part of this API and does not appear here.
+
+    **Provenance and governance.** Generated from, and continuously
+    validated against, three executable sources:
+
+    | Source | File |
+    |---|---|
+    | Terraform route declarations | `terraform/modules/api/main.tf`, `terraform/modules/orders_reader/main.tf` |
+    | Agent dispatcher branches | `lambda/handler.py::_handle_api_event` |
+    | Orders-reader dispatcher | `lambda/orders_reader.py` |
+
+    `tests/test_platform_openapi_contract.py` fails if this document drifts
+    from any of them. Route identity is `(METHOD, PATH)`: `GET /me/profile`
+    never satisfies coverage for `DELETE /me/profile`.
+
+    **OPEN-2 — two error envelopes coexist.** This platform currently
+    serves two different error contracts and this document represents both
+    rather than pretending they are unified:
+
+    * `ErrorString` — agent / platform Lambda, body is `{"error": "<string>"}`
+    * `ErrorObject` — orders-reader Lambda, body is
+      `{"error": {"code": ..., "message": ..., "details"?: ...}}`
+
+    Unifying them is an API redesign and is explicitly out of scope. Each
+    operation declares which envelope it actually returns.
+
+    **OPEN-3 — infrastructure-governance status is declared per route.**
+    Some routes are live but not managed by Terraform. Those are marked
+    `x-infrastructure-governance: imperative-open-3` so they cannot be
+    mistaken for Terraform-managed. They are reachable today, but
+    `terraform apply` does not own them.
+
+    **DELETE /me/profile is profile deletion, not account erasure.** It
+    removes exactly one row from `USER_PROFILE_TABLE`. Credentials, API
+    profiles, entitlements, work items, job searches and documents are all
+    retained. See `x-deletion-scope`.
+  contact:
+    name: Mays-RIS Platform
+servers:
+  - url: https://aboqolpm0f.execute-api.eu-central-1.amazonaws.com
+    description: mays-ris-dev API Gateway (eu-central-1)
+
+tags:
+  - name: Platform
+    description: Liveness, platform information, identity context.
+  - name: Profile
+    description: The authenticated user's own application profile.
+  - name: Documents
+    description: Short-lived pre-signed access to private user documents.
+  - name: Agents
+    description: Entitlement-filtered personal agent catalogue.
+  - name: APIProfiles
+    description: Human-facing API profile management.
+  - name: Credentials
+    description: Opaque `ris_...` API credentials bound to a profile.
+  - name: Introspection
+    description: Read-only capability introspection.
+  - name: Offers
+    description: Offer / product administration and entitlement grants.
+  - name: Machine
+    description: Machine-to-machine agent execution.
+  - name: Orders
+    description: Order façade served by the orders-reader Lambda.
+
+security:
+  - cognitoJwt: []
+
+paths:
+  /health:
+    get:
+      tags: [Platform]
+      operationId: getHealth
+      summary: Technical liveness probe
+      description: |
+        Dependency-free liveness check. Performs no DynamoDB, Cognito or SQS
+        call, so it stays healthy during a dependency outage. Dependency
+        reachability is reported by `GET /platform` instead.
+      security: []
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Lambda is running and able to serve.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthResponse" }
+
+  /platform:
+    get:
+      tags: [Platform]
+      operationId: getPlatform
+      summary: Platform information and dependency reachability
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Platform metadata.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformResponse" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+
+  /me:
+    get:
+      tags: [Platform]
+      operationId: getMe
+      summary: Authenticated user context derived from the JWT
+      description: All fields are read from verified JWT claims.
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Caller identity context.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserContext" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+
+  /me/profile:
+    get:
+      tags: [Profile]
+      operationId: getProfile
+      summary: Read the caller's profile
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: The stored profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserProfile" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+    post:
+      tags: [Profile]
+      operationId: createProfile
+      summary: Provision the caller's profile
+      description: |
+        Explicit provisioning only — never triggered by a read. Conditional
+        write: an existing profile yields 409 and is never overwritten.
+        `userId`, `tenantId` and `email` are taken from the JWT; any identity
+        field supplied in the body is ignored.
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserProfileWritable" }
+      responses:
+        "201":
+          description: Profile created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserProfile" }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "409":
+          description: Profile already exists (conditional write failed).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+    put:
+      tags: [Profile]
+      operationId: updateProfile
+      summary: Update the caller's profile
+      description: |
+        v1 fields only. `userId`, `tenantId` and `createdAt` are immutable.
+        No upsert: a missing profile yields 404.
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserProfileWritable" }
+      responses:
+        "200":
+          description: Updated profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserProfile" }
+        "400":
+          description: No updatable v1 field supplied.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+    delete:
+      tags: [Profile]
+      operationId: deleteProfile
+      summary: Delete the caller's profile row (profile deletion only)
+      description: |
+        **This is profile deletion, not account deletion.**
+
+        Removes exactly one item from `USER_PROFILE_TABLE`, keyed by the
+        authenticated JWT subject. The request body is never consulted, so a
+        caller cannot target another user. Deletion is conditional on the
+        row existing, which makes the 404 race-free.
+
+        Not affected by this operation — all retained:
+
+        * API profiles and their credentials (the caller's machine access surface)
+        * entitlements
+        * work items, agent runs, events
+        * job searches
+        * documents
+
+        Those stores are governed separately; this endpoint does not claim
+        to erase them.
+      x-infrastructure-governance: terraform-managed
+      x-deletion-scope: USER_PROFILE_TABLE-row-only
+      x-is-account-erasure: false
+      responses:
+        "204":
+          description: Profile deleted. Empty body.
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404":
+          description: No profile exists for the authenticated subject.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+
+  /me/documents:
+    post:
+      tags: [Documents]
+      operationId: createDocumentUpload
+      summary: Issue a short-lived pre-signed upload URL
+      x-infrastructure-governance: imperative-open-3
+      x-infrastructure-note: >-
+        Live and reachable, but declared in no .tf file. `terraform apply`
+        does not manage this route (OPEN-3).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fileName: { type: string }
+                contentType: { type: string }
+      responses:
+        "200":
+          description: Pre-signed upload target.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentUploadTicket" }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+
+  /me/documents/{docId}:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+    get:
+      tags: [Documents]
+      operationId: getDocumentDownload
+      summary: Issue a short-lived pre-signed download URL
+      x-infrastructure-governance: imperative-open-3
+      x-infrastructure-note: Live, but not managed by Terraform (OPEN-3).
+      responses:
+        "200":
+          description: Pre-signed download target.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentDownloadTicket" }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+    delete:
+      tags: [Documents]
+      operationId: deleteDocument
+      summary: Delete a user document
+      x-infrastructure-governance: imperative-open-3
+      x-infrastructure-note: Live, but not managed by Terraform (OPEN-3).
+      responses:
+        "200":
+          description: Deletion acknowledgement.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted, docId]
+                properties:
+                  deleted: { type: boolean }
+                  docId: { type: string }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+
+  /agents:
+    get:
+      tags: [Agents]
+      operationId: listAgents
+      summary: Agent catalogue filtered by the caller's entitlements
+      description: |
+        Only agents with `status` ACTIVE and a currently valid entitlement
+        for the caller are returned. Entitlement window validation is
+        delegated to `agents.ecosystem.worker_authorization.is_entitlement_valid`,
+        the same function the worker uses before execution, so ingress and
+        execution cannot disagree.
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Allowed agents.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items: { $ref: "#/components/schemas/Agent" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+
+  /v1/introspection:
+    get:
+      tags: [Introspection]
+      operationId: getIntrospection
+      summary: Read-only capability introspection for a credential
+      description: |
+        Requires a Cognito JWT **and** an `X-Api-Credential` header. Reports
+        what the supplied credential is permitted to do; performs no state
+        change.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Capability report.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IntrospectionResponse" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
+  /v1/apiprofiles:
+    get:
+      tags: [APIProfiles]
+      operationId: listApiProfiles
+      summary: List the caller's API profiles
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Profiles owned by the caller.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/ApiProfile" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+    post:
+      tags: [APIProfiles]
+      operationId: createApiProfile
+      summary: Create an API profile
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "201":
+          description: Profile created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiProfile" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+
+  /v1/apiprofiles/{apiProfileId}:
+    parameters:
+      - $ref: "#/components/parameters/ApiProfileId"
+    get:
+      tags: [APIProfiles]
+      operationId: getApiProfile
+      summary: Read one API profile
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: The profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiProfile" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+    patch:
+      tags: [APIProfiles]
+      operationId: updateApiProfile
+      summary: Update an API profile
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Updated profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiProfile" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+
+  /v1/apiprofiles/{apiProfileId}/status:
+    parameters:
+      - $ref: "#/components/parameters/ApiProfileId"
+    post:
+      tags: [APIProfiles]
+      operationId: setApiProfileStatus
+      summary: Drive the API profile lifecycle
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: New lifecycle state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiProfile" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+
+  /v1/apiprofiles/{apiProfileId}/credentials:
+    parameters:
+      - $ref: "#/components/parameters/ApiProfileId"
+    get:
+      tags: [Credentials]
+      operationId: listCredentials
+      summary: List credentials bound to an API profile
+      description: Credential secrets are never returned, only metadata.
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Credential metadata list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Credential" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+    post:
+      tags: [Credentials]
+      operationId: issueCredential
+      summary: Issue a new opaque `ris_...` credential
+      description: The secret is returned exactly once, at creation.
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "201":
+          description: Credential created; the secret appears only here.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CredentialIssued" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+
+  /v1/apiprofiles/{apiProfileId}/credentials/{credentialId}:
+    parameters:
+      - $ref: "#/components/parameters/ApiProfileId"
+      - $ref: "#/components/parameters/CredentialId"
+    get:
+      tags: [Credentials]
+      operationId: getCredential
+      summary: Read credential metadata
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Credential metadata.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Credential" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+
+  /v1/apiprofiles/{apiProfileId}/credentials/{credentialId}/enable:
+    parameters: [{ $ref: "#/components/parameters/CredentialAction" }]
+    post:
+      tags: [Credentials]
+      operationId: enableCredential
+      summary: Enable a disabled credential
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Credential enabled.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Credential" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+
+  /v1/apiprofiles/{apiProfileId}/credentials/{credentialId}/disable:
+    parameters: [{ $ref: "#/components/parameters/CredentialAction" }]
+    post:
+      tags: [Credentials]
+      operationId: disableCredential
+      summary: Disable a credential without revoking it
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Credential disabled.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Credential" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+
+  /v1/apiprofiles/{apiProfileId}/credentials/{credentialId}/revoke:
+    parameters: [{ $ref: "#/components/parameters/CredentialAction" }]
+    post:
+      tags: [Credentials]
+      operationId: revokeCredential
+      summary: Permanently revoke a credential
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Credential revoked.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Credential" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+
+  /v1/apiprofiles/{apiProfileId}/credentials/{credentialId}/rotate:
+    parameters: [{ $ref: "#/components/parameters/CredentialAction" }]
+    post:
+      tags: [Credentials]
+      operationId: rotateCredential
+      summary: Rotate a credential secret
+      description: The new secret is returned exactly once, at rotation.
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Rotated credential including the new secret.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CredentialIssued" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+
+  /v1/offers:
+    get:
+      tags: [Offers]
+      operationId: listOffers
+      summary: List offers visible to the caller
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Offers.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  offers:
+                    type: array
+                    items: { $ref: "#/components/schemas/Offer" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+    post:
+      tags: [Offers]
+      operationId: createOffer
+      summary: Create an offer
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "201":
+          description: Offer created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Offer" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+
+  /v1/offers/{offerId}:
+    parameters:
+      - $ref: "#/components/parameters/OfferId"
+    get:
+      tags: [Offers]
+      operationId: getOffer
+      summary: Read one offer
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: The offer.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Offer" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+    patch:
+      tags: [Offers]
+      operationId: updateOffer
+      summary: Update offer attributes
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Updated offer.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Offer" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+
+  /v1/offers/{offerId}/status:
+    parameters:
+      - $ref: "#/components/parameters/OfferId"
+    post:
+      tags: [Offers]
+      operationId: setOfferStatus
+      summary: Change offer lifecycle status
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Updated offer.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Offer" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+
+  /v1/offers/{offerId}/grant:
+    parameters:
+      - $ref: "#/components/parameters/OfferId"
+    post:
+      tags: [Offers]
+      operationId: grantOffer
+      summary: Grant an entitlement produced by an offer
+      description: |
+        `validFrom` and `validUntil` are required and must be parseable; the
+        domain refuses a grant without a window. Client-supplied timestamps
+        are accepted in either naive or offset-bearing ISO form, and both
+        are honoured by the same validation function the worker uses.
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, tenantId, reason, validFrom, validUntil]
+              properties:
+                userId: { type: string }
+                tenantId: { type: string }
+                reason: { type: string }
+                validFrom: { type: string }
+                validUntil: { type: string }
+      responses:
+        "200":
+          description: Grant result.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GrantResult" }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+
+  /v1/offers/{offerId}/withdraw:
+    parameters:
+      - $ref: "#/components/parameters/OfferId"
+    post:
+      tags: [Offers]
+      operationId: withdrawOffer
+      summary: Withdraw the entitlement produced by an offer
+      description: Administrative operation.
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Withdrawal result.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GrantResult" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+
+  /v1/m2m/agents/{agentId}/execute:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    post:
+      tags: [Machine]
+      operationId: executeAgentMachine
+      summary: Machine-to-machine agent execution
+      description: |
+        Two independent boundaries, neither replacing the other:
+
+        1. A Cognito JWT validated by API Gateway before this function runs.
+           The route is `authorization_type: JWT` and reuses the same
+           authorizer as the human routes.
+        2. An opaque `ris_...` credential in `X-Api-Credential`, validated by
+           the central `verify_api_credential`.
+
+        Execution-time entitlement is re-checked by the worker immediately
+        before the agent runs; ingress never substitutes for it.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload: { type: object }
+                idempotencyKey: { type: string }
+      responses:
+        "202":
+          description: Work accepted; a `workId` was registered.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkAccepted" }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: |
+            Credential not executable, not in catalogue, revoked/expired, or
+            entitlement outside its window.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
+  /orders:
+    post:
+      tags: [Orders]
+      operationId: createOrder
+      summary: Create an order
+      description: |
+        Served by the **orders-reader Lambda**, which uses the object-style
+        error envelope (`ErrorObject`) rather than the agent platform's
+        string-style one.
+      x-serving-lambda: mays-ris-dev-orders-reader
+      x-error-envelope: ErrorObject
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Created order.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorObject" }
+    get:
+      tags: [Orders]
+      operationId: listOrders
+      summary: List orders
+      x-serving-lambda: mays-ris-dev-orders-reader
+      x-error-envelope: ErrorObject
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Orders.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Order" }
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorObject" }
+
+  /orders/{orderId}:
+    parameters:
+      - $ref: "#/components/parameters/OrderId"
+    get:
+      tags: [Orders]
+      operationId: getOrder
+      summary: Read one order
+      x-serving-lambda: mays-ris-dev-orders-reader
+      x-error-envelope: ErrorObject
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: The order.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorObject" }
+
+  /orders/{orderId}/status:
+    parameters:
+      - $ref: "#/components/parameters/OrderId"
+    patch:
+      tags: [Orders]
+      operationId: updateOrderStatus
+      summary: Change order status
+      x-serving-lambda: mays-ris-dev-orders-reader
+      x-error-envelope: ErrorObject
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Updated order.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "400":
+          description: Unsupported transition.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorObject" }
+
+components:
+  securitySchemes:
+    cognitoJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        Amazon Cognito user pool JWT, validated by API Gateway HTTP API before
+        the Lambda is invoked. `sub` is the authenticated subject;
+        `custom:tenant_id` carries tenant isolation.
+
+  parameters:
+    DocId:
+      name: docId
+      in: path
+      required: true
+      schema: { type: string }
+    ApiProfileId:
+      name: apiProfileId
+      in: path
+      required: true
+      schema: { type: string }
+    CredentialId:
+      name: credentialId
+      in: path
+      required: true
+      schema: { type: string }
+    CredentialAction:
+      name: credentialId
+      in: path
+      required: true
+      schema: { type: string }
+    OfferId:
+      name: offerId
+      in: path
+      required: true
+      schema: { type: string }
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema: { type: string }
+    AgentId:
+      name: agentId
+      in: path
+      required: true
+      schema: { type: string }
+    ApiCredential:
+      name: X-Api-Credential
+      in: header
+      required: true
+      description: >-
+        Opaque `ris_...` product credential. Deliberately separate from
+        `Authorization`, which the gateway uses for the Cognito JWT, so the
+        two boundaries stay unambiguous: Cognito answers "authenticated?",
+        this answers "which product context?". Never logged.
+      schema: { type: string }
+
+  responses:
+    UnauthorizedString:
+      description: No valid Cognito JWT was presented (gateway-rejected or absent).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorString" }
+    BadRequestString:
+      description: Request body or parameters are invalid.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorString" }
+    NotFoundString:
+      description: Resource does not exist for this caller.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorString" }
+    ServerErrorString:
+      description: Unexpected server-side failure.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorString" }
+
+  schemas:
+    # --- OPEN-2 error envelopes: BOTH are real and coexist ---------------
+    ErrorString:
+      type: object
+      title: ErrorString (agent / platform envelope)
+      description: >-
+        Error body returned by the agent and platform Lambdas. The `error`
+        member is a plain string. 77 occurrences in lambda/handler.py.
+      required: [error]
+      properties:
+        error: { type: string }
+
+    ErrorObject:
+      type: object
+      title: ErrorObject (orders-reader envelope)
+      description: >-
+        Error body returned by the orders-reader Lambda. The `error` member
+        is an object with a stable machine-readable `code`. Distinct from
+        `ErrorString`; unifying them is deferred as OPEN-2.
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: object, additionalProperties: true }
+
+    # --- domain objects -------------------------------------------------
+    HealthResponse:
+      type: object
+      required: [status, service, version, environment]
+      properties:
+        status: { type: string, example: ok }
+        service: { type: string }
+        version: { type: string }
+        environment: { type: string }
+
+    PlatformResponse:
+      type: object
+      required: [platform]
+      properties:
+        platform:
+          type: object
+          required: [name, version, environment]
+          properties:
+            name: { type: string }
+            version: { type: string }
+            environment: { type: string }
+
+    UserContext:
+      type: object
+      required: [userId, tenantId, groups]
+      description: Identity context derived solely from verified JWT claims.
+      properties:
+        userId: { type: string }
+        email: { type: string, nullable: true }
+        tenantId: { type: string, nullable: true }
+        groups:
+          type: array
+          items: { type: string }
+
+    UserProfile:
+      type: object
+      description: >-
+        Application profile v1. Exactly the fields below; no others are
+        accepted. `userId`, `tenantId` and `email` originate from the JWT,
+        never from the request body.
+      required: [userId, tenantId, status, createdAt, updatedAt]
+      properties:
+        userId: { type: string }
+        tenantId: { type: string }
+        nickname: { type: string, nullable: true }
+        firstName: { type: string, nullable: true }
+        lastName: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        status: { type: string, enum: [ACTIVE] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    UserProfileWritable:
+      type: object
+      description: >-
+        Only the three mutable v1 fields. Identity and audit fields are
+        server-owned; supplying them in the body has no effect.
+      additionalProperties: false
+      properties:
+        nickname: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+
+    DocumentUploadTicket:
+      type: object
+      description: Short-lived pre-signed upload authorisation.
+      properties:
+        uploadUrl: { type: string }
+        documentId: { type: string }
+        expiresAt: { type: string }
+        requiredHeaders:
+          type: object
+          additionalProperties: { type: string }
+
+    DocumentDownloadTicket:
+      type: object
+      description: Short-lived pre-signed download authorisation.
+      properties:
+        downloadUrl: { type: string }
+        documentId: { type: string }
+        expiresAt: { type: string }
+
+    Agent:
+      type: object
+      description: >-
+        Catalogue entry as returned by `GET /agents`, i.e. filtered by
+        entitlement. Only ACTIVE agents appear.
+      properties:
+        agentId: { type: string }
+        name: { type: string }
+        version: { type: string }
+        capabilities:
+          type: array
+          items: { type: string }
+        status: { type: string }
+
+    ApiProfile:
+      type: object
+      properties:
+        apiProfileId: { type: string }
+        userId: { type: string }
+        name: { type: string }
+        status: { type: string }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    Credential:
+      type: object
+      description: Credential metadata. Never contains the secret.
+      properties:
+        credentialId: { type: string }
+        apiProfileId: { type: string }
+        status: { type: string }
+        createdAt: { type: string }
+        rotatedAt: { type: string, nullable: true }
+
+    CredentialIssued:
+      type: object
+      description: >-
+        Credential metadata plus the secret, returned exactly once at
+        creation or rotation and never retrievable afterwards.
+      properties:
+        credentialId: { type: string }
+        apiProfileId: { type: string }
+        status: { type: string }
+        secret:
+          type: string
+          writeOnly: true
+          description: Opaque `ris_...` value. Shown once.
+
+    IntrospectionResponse:
+      type: object
+      properties:
+        credentialId: { type: string }
+        apiProfileId: { type: string }
+        capabilities:
+          type: array
+          items: { type: string }
+
+    Offer:
+      type: object
+      properties:
+        offerId: { type: string }
+        status: { type: string }
+        validFrom: { type: string }
+        validUntil: { type: string }
+        createdAt: { type: string }
+
+    GrantResult:
+      type: object
+      properties:
+        granted:
+          type: boolean
+        entitlementId: { type: string, nullable: true }
+        userId: { type: string }
+        agentId: { type: string }
+        validFrom: { type: string }
+        validUntil: { type: string }
+
+    WorkAccepted:
+      type: object
+      description: >-
+        The `workId` identifies the registered work item. Duplicate
+        submission of a completed workId does not start a second run.
+      required: [workId, status]
+      properties:
+        workId: { type: string }
+        status: { type: string, example: QUEUED }
+
+    Order:
+      type: object
+      description: >-
+        Order as served by the orders-reader Lambda. Internal persistence
+        fields (`pk`, `sk`, `gsi1pk`, `gsi1sk`, `version`, `isTestData`) are
+        stripped before serialisation and are deliberately absent here.
+      properties:
+        orderId: { type: string }
+        status:
+          type: string
+          enum: [PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED]
+        data: { type: object, additionalProperties: true }
+        createdAt: { type: string }
+        updatedAt: { type: string }
