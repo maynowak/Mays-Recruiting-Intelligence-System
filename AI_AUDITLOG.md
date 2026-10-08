@@ -676,3 +676,30 @@ Orders state present in mays-orders-tfstate-central-240571105849/env:/mays-order
 Resource inventory completed read-only
 Isolation verified
 Evidence verifier VERIFIED
+
+[RIS-ORCHESTRATOR-CANONICAL-APPLY-RECOVERY-01]
+Date: 2026-10-08
+Status: GREEN
+Checkpoint: RIS-ORCHESTRATOR-CANONICAL-APPLY-RECOVERY-01
+
+Orders:
+  Project: mays-orders / dev
+  Deploy: PASS
+  Verify: PASS
+
+RIS Recovery:
+  IAM Role imported: module.lambda.aws_iam_role.lambda_execution arn:aws:iam::240571105849:role/mays-ris-dev-agent
+  Log Group imported: module.lambda.aws_cloudwatch_log_group.lambda_logs /aws/lambda/mays-ris-dev-agent
+  Root cause: IAM role and CloudWatch log group existed in AWS from prior partial runs, missing from Terraform state; Lambda permission attempted before Lambda creation.
+  Recovery plan: 47 to add, 2 to change, 0 to destroy
+  Apply result: PASS – 47 added, 2 changed, 0 destroyed
+  Lambda: ACTIVE – arn:aws:lambda:eu-central-1:240571105849:function:mays-ris-dev-agent
+  API Health: 200 OK
+
+Verification:
+  No-op plan: PASS
+  Integration smoke tests: PASS
+
+Git commits:
+  <pending>
+
