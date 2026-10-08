@@ -205,6 +205,27 @@ class RISInstaller:
                 check=True
             )
             
+        # Ensure pinned checkout if configured
+        try:
+            import json
+            pin_file_map = {
+                "mays-orders": "installer/mays-orders-clone.pinned.json",
+                "mays-jobsearch": "installer/mays-jobsearch-clone.pinned.json",
+            }
+            if project_config.get("name") in pin_file_map:
+                pin_path = Path(__file__).parent.parent / pin_file_map[project_config["name"]]
+                if pin_path.exists():
+                    pin = json.loads(pin_path.read_text())
+                    pinned_commit = pin.get("pinned_commit")
+                    if pinned_commit:
+                        # Fetch latest
+                        subprocess.run(["git","fetch","origin"], cwd=local_path, check=True)
+                        # Checkout pinned commit
+                        subprocess.run(["git","checkout",pinned_commit], cwd=local_path, check=True)
+        except Exception:
+            # Non-fatal: continue with existing checkout
+            pass
+            
         # Verify it's the correct repository
         git_dir = local_path / ".git"
         if git_dir.exists() or git_dir.is_file():
