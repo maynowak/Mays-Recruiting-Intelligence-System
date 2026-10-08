@@ -342,13 +342,17 @@ class RISInstaller:
                     "head": head, "pinned": pinned}
         return {"ok": True, "commit": head}
     
-    def run_project_installer(self, project_name: str, command: str = "validate") -> Dict[str, Any]:
+    def run_project_installer(self, project_name: str, command: str = "validate", profile: Optional[str] = None, region: Optional[str] = None, environment: Optional[str] = None, project_name_override: Optional[str] = None) -> Dict[str, Any]:
         """
         Run the project-specific installer.
         
         Args:
             project_name: Key from PROJECTS dict
             command: Command to run (validate, plan, etc.)
+            profile: AWS profile to pass to installer
+            region: AWS region to pass to installer
+            environment: Environment to pass to installer
+            project_name_override: Project name override for installer
             
         Returns:
             Result dictionary
@@ -388,6 +392,18 @@ class RISInstaller:
         if not installer_script or not installer_script.exists():
             return {"status": "ERROR", "error": "Installer script not found"}
             
+        # Build installer args with explicit context propagation
+        installer_args = [python, str(installer_script), command]
+        if profile:
+            installer_args += ["--profile", profile]
+        if region:
+            installer_args += ["--region", region]
+            installer_args += ["--aws-region", region]
+        if environment:
+            installer_args += ["--environment", environment]
+        if project_name_override:
+            installer_args += ["--project-name", project_name_override]
+        
         if self.dry_run:
             return {
                 "status": "DRY_RUN",
@@ -398,7 +414,7 @@ class RISInstaller:
                     "branch": info.git_info.branch,
                     "commit": info.git_info.commit
                 },
-                "would_run": f"python {installer_script} {command}"
+                "would_run": " ".join(installer_args)
             }
             
         # Run the installer
@@ -410,7 +426,7 @@ class RISInstaller:
         
         try:
             result = subprocess.run(
-                [python, str(installer_script), command],
+                installer_args,
                 cwd=info.local_path,
                 capture_output=True,
                 text=True,
