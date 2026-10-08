@@ -143,6 +143,8 @@ def _cmd_validate(ctx: RisInstallContext) -> List[TerraformResult]:
 def _cmd_plan(
     ctx: RisInstallContext, out_file: Optional[str] = None
 ) -> List[TerraformResult]:
+    if ctx.aws_context is None:
+        ctx.aws_context = validate_aws_context(profile=ctx.aws_profile, region=ctx.aws_region)
     runner = ctx.make_runner()
     return [
         runner.init(backend_config=ctx.backend_config()),
@@ -153,6 +155,8 @@ def _cmd_plan(
 def _cmd_apply(ctx: RisInstallContext) -> List[TerraformResult]:
     if ctx.dry_run:
         raise RuntimeError("refusing apply in dry-run mode (pass --yes)")
+    if ctx.aws_context is None:
+        ctx.aws_context = validate_aws_context(profile=ctx.aws_profile, region=ctx.aws_region)
     runner = ctx.make_runner()
     init_res = runner.init(backend_config=ctx.backend_config())
     apply_res = runner.apply(var=ctx.terraform_vars())
