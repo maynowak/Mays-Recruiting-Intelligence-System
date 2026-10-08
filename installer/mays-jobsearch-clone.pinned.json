@@ -2,10 +2,10 @@
   "project": "mays_jobsearch",
   "git_url": "git@github.com:maynowak/mays-jobsearch.git",
   "branch": "main",
-  "pinned_commit": "3cd58b81483b4cc8969fc5186a0caf3122a28bfb",
-  "pinned_commit_subject": "feat: replace Jooble with JobsPipe, honest source status, gated live API tests",
+  "pinned_commit": "29d8b730bb0660d48d1ba774c773e88d9aa7142e",
+  "pinned_commit_subject": "docs(jobstream): execution-log 08 — endstand auf committed/pushed setzen",
   "clone_path": "installer/projects/mays_jobsearch",
-  "clone_date_utc": "2026-10-01",
+  "clone_date_utc": "2026-10-08",
   "kind": "reference",
   "ignore_rule": ".gitignore: installer/projects/ (Clone wird nicht committet)"
 }

@@ -646,3 +646,16 @@ Full regression 1211 passed / 0 failed / 8 skipped / 15 warnings
 Milestones G2-G7 verified complete.
 Core roadmap complete.
 Evidence Verifier: VERIFIED
+
+RIS-PRODUCT-VISION-FUNCTIONAL-GAP-ANALYSIS-01 — 2026-10-08
+-----------------------------------------------
+Repos verified: RIS ac7e570, Orders 50efac41, Jobsearch 48fe123
+Core roadmap G2-G7 verified. No cross-repo integration verified. Functional gap matrix created. Evidence Verifier VERIFIED with limitations.
+
+RIS-EXTERNAL-SOURCES-CONTROLLED-UPDATE-01 — 2026-10-08
+------------------------------------------------------
+mays_jobsearch pin updated 3cd58b8 -> 29d8b73
+mays_orders pin unchanged 9c61237
+API compatibility verified, no breaking changes
+Tests 1209 passed
+Evidence Verifier VERIFIED
