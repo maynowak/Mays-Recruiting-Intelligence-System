@@ -373,6 +373,17 @@ class RISInstaller:
                  if (installer_path / name).exists()),
                 None
             )
+        
+        # Fallback for Mays-Orders-AWS installer entry point at project root
+        if not installer_script or not installer_script.exists():
+            root_candidates = [
+                info.local_path / "Mays-Order-AWS-installer",
+                info.local_path / "Mays-Order-AWS-installer.py",
+            ]
+            installer_script = next(
+                (p for p in root_candidates if p.exists()),
+                None
+            )
             
         if not installer_script or not installer_script.exists():
             return {"status": "ERROR", "error": "Installer script not found"}
