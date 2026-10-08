@@ -667,3 +667,12 @@ Architecture reconstruction completed. Report docs/reports/RIS-ARCHITECTURE-KNOW
 RIS-INSTALLER-READINESS-ASSESSMENT-01 — 2026-10-08
 ---------------------------------------------------
 Installer readiness assessed. Status CONDITIONAL pending lambda bundle build. No blockers. Evidence verifier verified.
+
+RIS-AWS-STATE-INVENTORY-01 — 2026-10-08
+----------------------------------------
+AWS account verified 240571105849
+RIS state present in mays-ris-tf-state-dev/env:/mays-ris/terraform.tfstate
+Orders state present in mays-orders-tfstate-central-240571105849/env:/mays-orders/terraform.tfstate
+Resource inventory completed read-only
+Isolation verified
+Evidence verifier VERIFIED
