@@ -88,6 +88,7 @@ class RisInstallContext:
             bucket=self.backend_bucket,
             region=self.backend_region or self.aws_region,
             dynamodb_table=self.backend_lock_table or "mays-ris-tf-lock",
+            key=f"env:/{self.project_name}/{self.environment}/terraform.tfstate",
         )
 
     def terraform_vars(self) -> Dict[str, str]:
