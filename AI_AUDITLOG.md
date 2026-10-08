@@ -663,3 +663,7 @@ Evidence Verifier VERIFIED
 RIS-ARCHITECTURE-KNOWLEDGE-RECONSTRUCTION-01 — 2026-10-08
 ------------------------------------------------------
 Architecture reconstruction completed. Report docs/reports/RIS-ARCHITECTURE-KNOWLEDGE-RECONSTRUCTION-01.md created. Evidence verifier completed. External source pins verified.
+
+RIS-INSTALLER-READINESS-ASSESSMENT-01 — 2026-10-08
+---------------------------------------------------
+Installer readiness assessed. Status CONDITIONAL pending lambda bundle build. No blockers. Evidence verifier verified.
