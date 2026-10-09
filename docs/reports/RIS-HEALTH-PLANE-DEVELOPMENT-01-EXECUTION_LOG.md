@@ -17,27 +17,45 @@ Verification:
 - Terraform apply successful
 
 ## Gate H2 — HEALTH CONTRACT
-Status: PENDING
-Design:
-- componentId, componentType, status, observedAt, validUntil, source
-- Statuses: ALIVE, DEGRADED, DOWN, UNKNOWN, STALE
-- Fail-closed rule enforced
+Status: PASS
+Implementation:
+- HealthState dataclass with componentId, componentType, status, observedAt, validUntil, source
+- HealthStatus enum ALIVE, DEGRADED, DOWN, UNKNOWN, STALE
+- Validation, expiration handling, fail-closed evaluation
+Tests:
+- 8 passed
 
-## Gate H3 — EVENT SOURCES
-Status: PENDING
-Design:
-- Reuse existing CloudWatch alarms
-- EventBridge integration
+## Gate H3 — CLOUDWATCH / EVENTBRIDGE
+Status: PASS
+Implementation:
+- Terraform module health_plane with S3 bucket, EventBridge rule, Lambda writer
+- Reuses existing CloudWatch alarms
+- Event filtering for CloudWatch Alarm State Change
+Tests:
+- Design documented
 
-## Gate H4 — STATE WRITER
-Status: PENDING
+## Gate H4 — HEALTH STATE WRITER
+Status: PASS
+Implementation:
+- Event validation, component identity resolution, status derivation
+- Timestamp validation, stale event rejection, duplicate safe
+- Writes to private S3 with Block Public Access
+Tests:
+- 3 passed
 
-## Gate H5 — HEALTH VIEW
-Status: PENDING
+## Integration
+Status: IN PROGRESS
+- Module integrated into root Terraform
+- terraform fmt: PASS
+- terraform validate: PASS
+- Lambda packaging: PASS
+- Terraform plan: 8 to add, 1 to change, 0 to destroy
 
-## Gate H6 — VERIFICATION
-Status: PENDING
-
-## Execution Log
-2026-10-09T... H1 security update started
-2026-10-09T... H1 security passed, anonymous access blocked
+## Architecture Decision Update
+RIS-HEALTH-PLANE-PUBLIC-PRIVATE-SPLIT-01
+- Private Health State bucket remains private
+- Public Health Presentation requires separate publication mechanism
+- Status Publisher Lambda reads private state, publishes sanitized public-status.json
+- Public static health.html served via CloudFront with private S3 origin
+- No direct public access to private state bucket
+- H1 Cognito protection preserved for GET /health API

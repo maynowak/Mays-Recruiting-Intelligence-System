@@ -703,3 +703,13 @@ Verification:
 Git commits:
   <pending>
 
+
+[RIS-HEALTH-PLANE-PUBLIC-PRIVATE-SPLIT-01]
+Date: 2026-10-09
+Status: ARCHITECTURE_DECISION
+Decision: Separate private health state from public health presentation
+- Private Health State bucket remains private with Block Public Access
+- Public health presentation via CloudFront + private S3 origin with OAC
+- Status Publisher Lambda sanitizes and publishes public-status.json
+- H1 Cognito protection for GET /health preserved
+- No anonymous access to private state
