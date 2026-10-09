@@ -6,7 +6,7 @@ resource "aws_s3_bucket" "public_presentation" {
 resource "aws_s3_object" "health_html" {
   bucket        = aws_s3_bucket.public_presentation.id
   key           = "health.html"
-  source        = "${path.module}/../../health.html"
+  source        = "${path.module}/health.html"
   content_type  = "text/html"
   cache_control = "no-cache"
 }
