@@ -43,7 +43,8 @@ resource "aws_apigatewayv2_route" "health" {
   api_id             = aws_apigatewayv2_api.ris_api.id
   route_key          = "GET /health"
   target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
-  authorization_type = "NONE"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 resource "aws_apigatewayv2_route" "platform" {
