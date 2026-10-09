@@ -29,3 +29,9 @@ Verboten:
 - [ ] Ist Idempotency/Reselection betroffen?
 
 Output: ARCHITECTURE IMPACT, EXISTING COMPONENTS, RISKS, RECOMMENDATION
+
+## Notes
+- `docs/AI_AUDITLOG.md` — mandatory step tamplate auditlog workflow
+
+## Rules
+- Follow AI_AUDITLOG.md

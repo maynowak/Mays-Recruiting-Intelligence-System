@@ -413,8 +413,12 @@ class RISInstaller:
         if not installer_script or not installer_script.exists():
             return {"status": "ERROR", "error": "Installer script not found"}
             
+        # Determine python executable
+        import shutil
+        venv_python = info.local_path / ".venv" / "bin" / "python"
+        python_exec = str(venv_python) if venv_python.exists() else sys.executable
         # Build installer args with explicit context propagation
-        installer_args = [python, str(installer_script), command]
+        installer_args = [python_exec, str(installer_script), command]
         if profile:
             installer_args += ["--profile", profile]
         if region:
@@ -503,6 +507,22 @@ def main():
         "--execute", action="store_true",
         help="Actually execute (disables dry-run)"
     )
+    parser.add_argument(
+        "--profile", default=None,
+        help="AWS profile to pass to installer"
+    )
+    parser.add_argument(
+        "--region", default=None,
+        help="AWS region to pass to installer"
+    )
+    parser.add_argument(
+        "--environment", default=None,
+        help="Environment to pass to installer"
+    )
+    parser.add_argument(
+        "--project-name-override", default=None,
+        help="Project name override for installer"
+    )
     
     args = parser.parse_args()
     
@@ -516,7 +536,14 @@ def main():
     else:
         info = installer.checkout_project(args.project)
         
-    result = installer.run_project_installer(args.project, args.command)
+    result = installer.run_project_installer(
+        args.project, 
+        args.command,
+        profile=args.profile,
+        region=args.region,
+        environment=args.environment,
+        project_name_override=args.project_name_override
+    )
     result["checkout"] = {
         "path": str(info.local_path),
         "exists": info.local_path.exists(),

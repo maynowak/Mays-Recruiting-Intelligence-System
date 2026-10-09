@@ -24,3 +24,9 @@ Keine isolierte Änderung nur an einer Stelle.
 - Keine Business Logik in Ground Zero
 
 Output: CONTRACT STATUS, MISMATCHES, EVIDENCE, RECOMMENDATION
+
+## Notes
+- `docs/AI_AUDITLOG.md` — mandatory step tamplate auditlog workflow
+
+## Rules
+- Follow AI_AUDITLOG.md

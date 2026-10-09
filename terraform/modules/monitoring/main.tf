@@ -27,9 +27,9 @@ locals {
   m_ddb_throttled     = ["AWS/DynamoDB", "ThrottledRequests", "TableName", var.dynamodb_table_name, { stat = "Sum", period = 300, label = "ThrottledRequests" }]
   m_ddb_cond_failed   = ["AWS/DynamoDB", "ConditionalCheckFailedRequests", "TableName", var.dynamodb_table_name, { stat = "Sum", period = 300, label = "ConditionalCheckFailed" }]
 
-  m_sqs_visible       = ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", var.sqs_queue_name, { stat = "Sum", period = 300, label = "Work Queue Visible" }]
-  m_sqs_oldest        = ["AWS/SQS", "ApproximateAgeOfOldestMessage", "QueueName", var.sqs_queue_name, { stat = "Maximum", period = 300, label = "Oldest Message Age (s)" }]
-  m_dlq_visible       = ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", var.sqs_dlq_name, { stat = "Sum", period = 300, label = "DLQ Visible" }]
+  m_sqs_visible = ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", var.sqs_queue_name, { stat = "Sum", period = 300, label = "Work Queue Visible" }]
+  m_sqs_oldest  = ["AWS/SQS", "ApproximateAgeOfOldestMessage", "QueueName", var.sqs_queue_name, { stat = "Maximum", period = 300, label = "Oldest Message Age (s)" }]
+  m_dlq_visible = ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", var.sqs_dlq_name, { stat = "Sum", period = 300, label = "DLQ Visible" }]
 
   extensions_markdown = <<-EOT
     ## RIS Extensions — PLANNED (keine Metriken erfunden)
@@ -190,11 +190,11 @@ resource "aws_cloudwatch_metric_alarm" "dynamodb_throttled" {
   treat_missing_data  = "notBreaching"
 }
 resource "aws_cloudwatch_metric_alarm" "dlq_messages" {
-  count               = var.monitoring_enabled ? 1 : 0
-  alarm_name          = "${var.project_name}-dlq-messages"
-  alarm_description   = "Messages visible in DLQ (poison/retries exhausted). Threshold: initial value, requires calibration with real AWS metrics."
-  namespace           = "AWS/SQS"
-  metric_name         = "ApproximateNumberOfMessagesVisible"
+  count             = var.monitoring_enabled ? 1 : 0
+  alarm_name        = "${var.project_name}-dlq-messages"
+  alarm_description = "Messages visible in DLQ (poison/retries exhausted). Threshold: initial value, requires calibration with real AWS metrics."
+  namespace         = "AWS/SQS"
+  metric_name       = "ApproximateNumberOfMessagesVisible"
   dimensions = {
     QueueName = var.sqs_dlq_name
   }

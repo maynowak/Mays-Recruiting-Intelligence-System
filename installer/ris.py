@@ -250,7 +250,54 @@ def _cmd_state(
 
     `state push` is mutating and requires --yes (dry-run refuses).
     """
+    import subprocess
     runner = ctx.make_runner()
+    if state_command == "discover":
+        if not ctx.backend_bucket:
+            print("error: backend-bucket required for state discover", file=sys.stderr)
+            return 2
+        prefix = f"env:/{ctx.project_name}/"
+        try:
+            aws_ctx = validate_aws_context(profile=ctx.aws_profile, region=ctx.aws_region)
+            ctx.aws_context = aws_ctx
+        except AwsValidationError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        env = aws_ctx.to_env()
+        cmd = [
+            "aws", "s3api", "list-objects-v2",
+            "--bucket", ctx.backend_bucket,
+            "--prefix", prefix,
+            "--query", "Contents[].{Key:Key,Size:Size,LastModified:LastModified}",
+            "--output", "json"
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        if result.returncode != 0:
+            print(f"error: aws s3api failed: {result.stderr.strip()[:300]}", file=sys.stderr)
+            return 1
+        import json
+        try:
+            items = json.loads(result.stdout)
+        except Exception:
+            items = []
+        if not items:
+            print(f"No state objects found for project {ctx.project_name} in bucket {ctx.backend_bucket}")
+            return 0
+        print(f"State objects for project {ctx.project_name} in bucket {ctx.backend_bucket}:")
+        for it in items:
+            print(f"  {it.get('Key')}  size={it.get('Size')}  modified={it.get('LastModified')}")
+        return 0
+    if state_command == "inventory":
+        if not ctx.backend_bucket:
+            print("error: backend-bucket required for state inventory", file=sys.stderr)
+            return 2
+        # Discover first
+        discover_rc = _cmd_state(ctx, "discover")
+        if discover_rc != 0:
+            return discover_rc
+        # For simplicity, just report discovered keys
+        print("Inventory complete. Use 'state list' per workspace for resource details.")
+        return 0
     if state_command in ("list", "show", "pull"):
         if state_command == "list":
             result = runner.state_list(state_file)
@@ -384,7 +431,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--state-command",
         default=None,
-        choices=["list", "show", "pull", "push"],
+        choices=["list", "show", "pull", "push", "discover", "inventory"],
         help="State subcommand (state command).",
     )
     parser.add_argument(

@@ -24,8 +24,12 @@ OPEN POINTS
 RECOMMENDATION
 
 ## Regeln
+- Follow AI_AUDITLOG.md
 - Keine Mutationen.
 - Keine Commit-Ausführung.
 - Keine Produktionsänderungen.
 - Verweise auf AGENTS.md und Canonical Docs.
 - Evidence-basiert, keine Behauptungen ohne Nachweis.
+
+## Notes
+- `docs/AI_AUDITLOG.md` — mandatory step tamplate auditlog workflow

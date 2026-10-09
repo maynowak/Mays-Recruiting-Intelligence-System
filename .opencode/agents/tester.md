@@ -37,3 +37,9 @@ RECOMMENDATION
 - Keine Commits.
 - Executable Source gewinnt gegenüber Dokumentation.
 - Beziehe sich auf AGENTS.md und Canonical Docs.
+
+## Notes
+- `docs/AI_AUDITLOG.md` — mandatory step tamplate auditlog workflow
+
+## Rules
+- Follow AI_AUDITLOG.md

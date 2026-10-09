@@ -38,3 +38,9 @@ Kein Umgehen des Installers.
 - Lambda Bundle Build: `python lambda/build_zip.py --bundle all`
 
 Output: VERIFICATION RESULT, INFRA IMPACT, OPEN POINTS, RECOMMENDATION
+
+## Notes
+- `docs/AI_AUDITLOG.md` — mandatory step tamplate auditlog workflow
+
+## Rules
+- Follow AI_AUDITLOG.md

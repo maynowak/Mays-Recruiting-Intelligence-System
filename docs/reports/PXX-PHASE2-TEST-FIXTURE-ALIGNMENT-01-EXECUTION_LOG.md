@@ -58,6 +58,7 @@ NONE
 ## Documentation Updated
 YES – this execution log
 See also Skip Audit: docs/reports/PXX-PHASE2-SKIPPED-TEST-AUDIT-01.md
+See also Test Evidence Catalog: docs/reports/RIS-TEST-EVIDENCE-CATALOG-01.md
 
 ## AI Auditlog Updated
 YES

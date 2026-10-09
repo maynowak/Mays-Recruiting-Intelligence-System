@@ -21,3 +21,9 @@ Mays-Orders → WorkItem → Work Queue / Event → Agent Run Body → Ecosystem
 - Kein direkter Mays-Orders → konkreter Agent
 
 Output: RUNTIME FLOW, EXISTING MECHANISMS, GAPS, RECOMMENDATION
+
+## Notes
+- `docs/AI_AUDITLOG.md` — mandatory step tamplate auditlog workflow
+
+## Rules
+- Follow AI_AUDITLOG.md

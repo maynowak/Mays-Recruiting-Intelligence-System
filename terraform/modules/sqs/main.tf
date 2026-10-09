@@ -19,8 +19,8 @@ resource "aws_sqs_queue" "work_queue" {
 }
 
 resource "aws_sqs_queue" "dlq" {
-  name                        = "${var.project_name}-${var.environment}-dlq"
-  message_retention_seconds   = 1209600
+  name                      = "${var.project_name}-${var.environment}-dlq"
+  message_retention_seconds = 1209600
 
   kms_master_key_id = "alias/aws/sqs"
 

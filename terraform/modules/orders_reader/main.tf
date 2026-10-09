@@ -53,8 +53,8 @@ resource "aws_iam_role_policy" "reader_orders_table" {
       {
         # Worker-Anstoss nach Create (Queue gehört fremdem Projekt;
         # nur SendMessage, keine Aenderung dort).
-        Effect = "Allow"
-        Action = ["sqs:SendMessage"]
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
         Resource = [var.orders_queue_arn]
       },
       {

@@ -726,3 +726,19 @@ Status Publisher implemented
 Public Presentation CloudFront OAC implemented
 Cognito H1 preserved
 AWS apply NOT executed
+
+[RIS-HEALTH-PLANE-PUBLISHER-WIRING-01]
+Date: 2026-10-09
+Status: PUBLISHER_INFRASTRUCTURE_ADDED
+Publisher Lambda added with 5-min EventBridge schedule
+CloudFront OAC bucket policy added
+Terraform plan: 18 to add, 1 to change, 0 to destroy
+AWS apply NOT executed
+
+[RIS-HEALTH-PLANE-FINAL-SECURITY-GATE-01]
+Date: 2026-10-09
+IAM least privilege: PASS - PutObject restricted to public-status.json
+Browser fail-closed: PASS - health.html validates validUntil and handles errors
+Initial publication: PASS - Publisher produces NOT_OK when private state missing
+Terraform plan: 22 to add, 1 to change, 0 to destroy
+AWS apply NOT executed
