@@ -742,3 +742,21 @@ Browser fail-closed: PASS - health.html validates validUntil and handles errors
 Initial publication: PASS - Publisher produces NOT_OK when private state missing
 Terraform plan: 22 to add, 1 to change, 0 to destroy
 AWS apply NOT executed
+
+[RIS-HEALTH-PLANE-DEPLOY-E2E-01]
+Date: 2026-10-09
+AWS Apply: PARTIAL - health writer and health.html deployed, publisher lambda fails import
+CloudFront URL: d185ygg1sh281s.cloudfront.net
+Health Writer: PARTIAL
+Status Publisher: FAIL - missing agents module import
+Cognito regression: PASS
+RIS regression: PASS
+
+[RIS-HEALTH-PLANE-PUBLISHER-HOTFIX-01]
+Date: 2026-10-09
+Root cause: Publisher Lambda missing agents module import
+Fix: Re-packaged health-publisher.zip with agents/health/contract.py
+Deployed via AWS CLI update-function-code
+Publisher invocation succeeded, public-status.json created with NOT_OK
+CloudFront serving health.html and public-status.json
+Cognito regression preserved
