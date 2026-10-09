@@ -232,3 +232,11 @@ module "health_plane" {
   writer_zip_path = "${path.root}/../lambda/dist/health-writer.zip"
 }
 
+module "health_public" {
+  source = "./modules/health_public"
+
+  project_name = var.project_name
+  environment  = var.environment
+  tags         = var.tags
+}
+

@@ -44,12 +44,15 @@ Tests:
 - 3 passed
 
 ## Integration
-Status: IN PROGRESS
+Status: PASS
 - Module integrated into root Terraform
 - terraform fmt: PASS
 - terraform validate: PASS
 - Lambda packaging: PASS
-- Terraform plan: 8 to add, 1 to change, 0 to destroy
+- Terraform plan: 13 to add, 1 to change, 0 to destroy
+- Health Plane public/private split integrated
+- Status Publisher implemented
+- CloudFront OAC public presentation implemented
 
 ## Architecture Decision Update
 RIS-HEALTH-PLANE-PUBLIC-PRIVATE-SPLIT-01

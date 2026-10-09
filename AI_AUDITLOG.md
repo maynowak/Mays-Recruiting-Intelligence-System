@@ -713,3 +713,16 @@ Decision: Separate private health state from public health presentation
 - Status Publisher Lambda sanitizes and publishes public-status.json
 - H1 Cognito protection for GET /health preserved
 - No anonymous access to private state
+
+[RIS-HEALTH-PLANE-INTEGRATION-01]
+Date: 2026-10-09
+Status: INTEGRATION_COMPLETE
+Terraform fmt: PASS
+Terraform validate: PASS
+Lambda packaging: PASS
+Terraform plan: 13 to add, 1 to change, 0 to destroy
+Health Plane modules integrated: health_plane, health_public
+Status Publisher implemented
+Public Presentation CloudFront OAC implemented
+Cognito H1 preserved
+AWS apply NOT executed
