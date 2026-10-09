@@ -85,9 +85,9 @@ resource "aws_iam_role" "health_publisher" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Service = "lambda.amazonaws.com" }
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 }
@@ -98,17 +98,19 @@ resource "aws_iam_policy" "health_publisher" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = ["s3:GetObject", "s3:ListBucket"]
-        Resource = [
-          aws_s3_bucket.health_state.arn,
-          "${aws_s3_bucket.health_state.arn}/*"
-        ]
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = "${aws_s3_bucket.health_state.arn}/*"
       },
       {
-        Effect = "Allow"
-        Action = ["s3:PutObject"]
-        Resource = "${var.public_bucket_arn}/*"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = aws_s3_bucket.health_state.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:PutObject"]
+        Resource = "${var.public_bucket_arn}/public-status.json"
       },
       {
         Effect = "Allow"

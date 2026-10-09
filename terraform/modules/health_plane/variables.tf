@@ -20,7 +20,7 @@ variable "writer_zip_path" {
 }
 
 variable "publisher_role_arn" {
-  type = string
+  type    = string
   default = null
 }
 

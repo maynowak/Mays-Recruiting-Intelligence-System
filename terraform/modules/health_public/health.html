@@ -5,10 +5,30 @@
 <h1>Health Status</h1>
 <pre id="status">Loading...</pre>
 <script>
-fetch('public-status.json')
-  .then(r=>r.json())
-  .then(d=>{document.getElementById('status').textContent=JSON.stringify(d,null,2);})
-  .catch(e=>{document.getElementById('status').textContent='Error loading status';});
+function render(data){
+  document.getElementById('status').textContent=JSON.stringify(data,null,2);
+}
+fetch('public-status.json',{cache:'no-store'})
+  .then(r=>{
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  })
+  .then(d=>{
+    const now = new Date();
+    const validUntil = d.validUntil ? new Date(d.validUntil) : null;
+    if(!d || typeof d.overall==='undefined' || !validUntil || now>validUntil){
+      render({overall:'NOT_OK',reason:'expired_or_missing'});
+      return;
+    }
+    if(d.overall!=='OK'){
+      render(d);
+      return;
+    }
+    render(d);
+  })
+  .catch(()=>{
+    render({overall:'NOT_OK',reason:'fetch_error'});
+  });
 </script>
 </body>
 </html>

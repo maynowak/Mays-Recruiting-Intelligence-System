@@ -4,10 +4,10 @@ resource "aws_s3_bucket" "public_presentation" {
 }
 
 resource "aws_s3_object" "health_html" {
-  bucket       = aws_s3_bucket.public_presentation.id
-  key          = "health.html"
-  source       = "${path.module}/../../health.html"
-  content_type = "text/html"
+  bucket        = aws_s3_bucket.public_presentation.id
+  key           = "health.html"
+  source        = "${path.module}/../../health.html"
+  content_type  = "text/html"
   cache_control = "no-cache"
 }
 
@@ -33,12 +33,12 @@ resource "aws_s3_bucket_policy" "public_presentation" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect    = "Allow"
+      Effect = "Allow"
       Principal = {
         Service = "cloudfront.amazonaws.com"
       }
-      Action    = ["s3:GetObject"]
-      Resource  = "${aws_s3_bucket.public_presentation.arn}/*"
+      Action   = ["s3:GetObject"]
+      Resource = "${aws_s3_bucket.public_presentation.arn}/*"
       Condition = {
         StringEquals = {
           "AWS:SourceArn" = aws_cloudfront_distribution.health_public.arn
