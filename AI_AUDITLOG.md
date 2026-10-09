@@ -769,3 +769,11 @@ Status semantics: validUntil equals lastUpdate - potential improvement needed
 Health Writer: rule and target present, no alarm events observed yet
 CloudWatch logs available
 No AWS mutations performed
+
+[RIS-HEALTH-PLANE-SEMANTICS-AND-WRITER-01]
+Date: 2026-10-09
+Freshness semantics updated: Publisher now uses min component validUntil for OK status, negative status uses immediate expiry
+Tests added for freshness scenarios
+Publisher redeployed via CLI
+Terraform plan shows no changes
+Health Writer infrastructure verified

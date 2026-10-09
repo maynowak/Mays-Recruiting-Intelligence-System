@@ -24,10 +24,10 @@ def lambda_handler(event, context):
         
         public_components = []
         now = datetime.now(timezone.utc)
+        min_valid_until = None
         
         for obj in objects:
             key = obj['Key']
-            # Parse component type from key
             parts = key.split('/')
             if len(parts) < 3:
                 continue
@@ -38,7 +38,6 @@ def lambda_handler(event, context):
             data = s3_private.get_object(Bucket=PRIVATE_BUCKET, Key=key)
             state_data = json.loads(data['Body'].read())
             
-            # Validate and check expiration
             try:
                 observed_at = datetime.fromisoformat(state_data['observedAt'])
                 valid_until = datetime.fromisoformat(state_data['validUntil'])
@@ -52,18 +51,25 @@ def lambda_handler(event, context):
                     'componentType': component_type,
                     'status': 'OK'
                 })
+                if min_valid_until is None or valid_until < min_valid_until:
+                    min_valid_until = valid_until
         
         # Build public status
         overall_ok = len(public_components) > 0 and all(c['status'] == 'OK' for c in public_components)
+        
+        if overall_ok and min_valid_until:
+            public_valid_until = min_valid_until
+        else:
+            # Negative status: short freshness window, fail closed quickly
+            public_valid_until = now
         
         public_status = {
             'overall': 'OK' if overall_ok else 'NOT_OK',
             'components': public_components,
             'lastUpdate': now.isoformat(),
-            'validUntil': (now.replace(tzinfo=timezone.utc)).isoformat()
+            'validUntil': public_valid_until.isoformat()
         }
         
-        # Write public status
         s3_public.put_object(
             Bucket=PUBLIC_BUCKET,
             Key='public-status.json',
