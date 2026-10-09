@@ -222,21 +222,23 @@ resource "aws_s3_bucket_public_access_block" "data" {
 # sind in module.monitoring aufgegangen (bessere Config + project_name-Namen
 # wie Referenz). Alte -dev-Namen werden ersetzt, nicht dupliziert.
 
-module "health_plane" {
-  source = "./modules/health_plane"
-
-  project_name    = var.project_name
-  environment     = var.environment
-  tags            = var.tags
-  writer_role_arn = module.iam.role_arn
-  writer_zip_path = "${path.root}/../lambda/dist/health-writer.zip"
-}
-
 module "health_public" {
   source = "./modules/health_public"
 
   project_name = var.project_name
   environment  = var.environment
   tags         = var.tags
+}
+
+module "health_plane" {
+  source = "./modules/health_plane"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  tags              = var.tags
+  writer_role_arn   = module.iam.role_arn
+  writer_zip_path   = "${path.root}/../lambda/dist/health-writer.zip"
+  public_bucket_name = module.health_public.bucket_name
+  publisher_zip_path = "${path.root}/../lambda/dist/health-publisher.zip"
 }
 

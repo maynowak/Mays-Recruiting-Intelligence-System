@@ -61,3 +61,39 @@ resource "aws_lambda_permission" "eventbridge" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.health_alarms.arn
 }
+
+resource "aws_lambda_function" "health_publisher" {
+  function_name = "${var.project_name}-${var.environment}-health-publisher"
+  role          = var.publisher_role_arn != null ? var.publisher_role_arn : var.writer_role_arn
+  handler       = "publisher.lambda_handler"
+  runtime       = "python3.14"
+  filename      = var.publisher_zip_path
+  timeout       = 30
+  environment {
+    variables = {
+      HEALTH_PRIVATE_BUCKET = aws_s3_bucket.health_state.bucket
+      HEALTH_PUBLIC_BUCKET  = var.public_bucket_name
+      HEALTH_ALLOWLIST      = "api,lambda,dynamodb"
+    }
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "health_publisher_schedule" {
+  name                = "${var.project_name}-${var.environment}-health-publisher-schedule"
+  description         = "Scheduled health publisher run"
+  schedule_expression = "rate(5 minutes)"
+}
+
+resource "aws_cloudwatch_event_target" "health_publisher" {
+  rule      = aws_cloudwatch_event_rule.health_publisher_schedule.name
+  target_id = "health_publisher"
+  arn       = aws_lambda_function.health_publisher.arn
+}
+
+resource "aws_lambda_permission" "eventbridge_publisher" {
+  statement_id  = "AllowEventBridgePublisher"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.health_publisher.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.health_publisher_schedule.arn
+}

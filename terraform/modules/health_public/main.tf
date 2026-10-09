@@ -20,6 +20,26 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "public_presentati
   }
 }
 
+resource "aws_s3_bucket_policy" "public_presentation" {
+  bucket = aws_s3_bucket.public_presentation.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = {
+        Service = "cloudfront.amazonaws.com"
+      }
+      Action    = ["s3:GetObject"]
+      Resource  = "${aws_s3_bucket.public_presentation.arn}/*"
+      Condition = {
+        StringEquals = {
+          "AWS:SourceArn" = aws_cloudfront_distribution.health_public.arn
+        }
+      }
+    }]
+  })
+}
+
 resource "aws_cloudfront_origin_access_control" "health_public" {
   name                              = "${var.project_name}-${var.environment}-health-oac"
   description                       = "OAC for public health presentation"
