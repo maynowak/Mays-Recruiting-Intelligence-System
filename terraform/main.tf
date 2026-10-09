@@ -122,12 +122,12 @@ module "lambda" {
   api_profiles_table_arn   = module.dynamodb.api_profiles_table_arn
   offers_table_arn         = module.dynamodb.offers_table_arn
   credentials_table_arn    = module.dynamodb.credentials_table_arn
-  s3_bucket_arn              = aws_s3_bucket.data.arn
-  documents_bucket_name      = module.documents.bucket_name
-  documents_bucket_arn       = module.documents.bucket_arn
-  sqs_queue_arn              = module.sqs.work_queue_arn
-  work_queue_url             = module.sqs.work_queue_url
-  tags                       = var.tags
+  s3_bucket_arn            = aws_s3_bucket.data.arn
+  documents_bucket_name    = module.documents.bucket_name
+  documents_bucket_arn     = module.documents.bucket_arn
+  sqs_queue_arn            = module.sqs.work_queue_arn
+  work_queue_url           = module.sqs.work_queue_url
+  tags                     = var.tags
 }
 
 # Gate 4 — eigene Order-Fassade (orders_reader) auf unserer API.
@@ -150,8 +150,8 @@ module "orders_reader" {
 module "monitoring" {
   source = "./modules/monitoring"
 
-  project_name              = var.project_name
-  tags                      = var.tags
+  project_name                 = var.project_name
+  tags                         = var.tags
   monitoring_enabled           = var.monitoring_enabled
   dashboard_enabled            = var.dashboard_enabled
   aws_region                   = var.aws_region
@@ -221,3 +221,14 @@ resource "aws_s3_bucket_public_access_block" "data" {
 # HINWEIS: Die frueheren Inline-Alarme (lambda_errors/api_5xx, *-dev-Namen)
 # sind in module.monitoring aufgegangen (bessere Config + project_name-Namen
 # wie Referenz). Alte -dev-Namen werden ersetzt, nicht dupliziert.
+
+module "health_plane" {
+  source = "./modules/health_plane"
+
+  project_name    = var.project_name
+  environment     = var.environment
+  tags            = var.tags
+  writer_role_arn = module.iam.role_arn
+  writer_zip_path = "${path.root}/../lambda/dist/health-writer.zip"
+}
+
