@@ -31,3 +31,12 @@ variable "publisher_zip_path" {
 variable "public_bucket_name" {
   type = string
 }
+
+variable "public_bucket_arn" {
+  type = string
+}
+
+variable "aws_region" {
+  type    = string
+  default = "eu-central-1"
+}

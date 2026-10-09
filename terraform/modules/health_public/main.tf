@@ -3,6 +3,14 @@ resource "aws_s3_bucket" "public_presentation" {
   tags   = var.tags
 }
 
+resource "aws_s3_object" "health_html" {
+  bucket       = aws_s3_bucket.public_presentation.id
+  key          = "health.html"
+  source       = "${path.module}/../../health.html"
+  content_type = "text/html"
+  cache_control = "no-cache"
+}
+
 resource "aws_s3_bucket_public_access_block" "public_presentation" {
   bucket                  = aws_s3_bucket.public_presentation.id
   block_public_acls       = true

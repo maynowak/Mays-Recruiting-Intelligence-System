@@ -233,12 +233,14 @@ module "health_public" {
 module "health_plane" {
   source = "./modules/health_plane"
 
-  project_name      = var.project_name
-  environment       = var.environment
-  tags              = var.tags
-  writer_role_arn   = module.iam.role_arn
-  writer_zip_path   = "${path.root}/../lambda/dist/health-writer.zip"
+  project_name       = var.project_name
+  environment        = var.environment
+  tags               = var.tags
+  writer_role_arn    = module.iam.role_arn
+  writer_zip_path    = "${path.root}/../lambda/dist/health-writer.zip"
   public_bucket_name = module.health_public.bucket_name
+  public_bucket_arn  = module.health_public.bucket_arn
   publisher_zip_path = "${path.root}/../lambda/dist/health-publisher.zip"
+  aws_region         = var.aws_region
 }
 

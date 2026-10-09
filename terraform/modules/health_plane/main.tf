@@ -1,6 +1,8 @@
 # Health Plane Module
 # CloudWatch -> EventBridge -> Health State Writer -> Private S3
 
+data "aws_caller_identity" "current" {}
+
 resource "aws_s3_bucket" "health_state" {
   bucket = "${var.project_name}-${var.environment}-health-state"
   tags   = var.tags
@@ -64,7 +66,7 @@ resource "aws_lambda_permission" "eventbridge" {
 
 resource "aws_lambda_function" "health_publisher" {
   function_name = "${var.project_name}-${var.environment}-health-publisher"
-  role          = var.publisher_role_arn != null ? var.publisher_role_arn : var.writer_role_arn
+  role          = aws_iam_role.health_publisher.arn
   handler       = "publisher.lambda_handler"
   runtime       = "python3.14"
   filename      = var.publisher_zip_path
@@ -76,6 +78,54 @@ resource "aws_lambda_function" "health_publisher" {
       HEALTH_ALLOWLIST      = "api,lambda,dynamodb"
     }
   }
+}
+
+resource "aws_iam_role" "health_publisher" {
+  name = "${var.project_name}-${var.environment}-health-publisher"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_policy" "health_publisher" {
+  name = "${var.project_name}-${var.environment}-health-publisher-policy"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:ListBucket"]
+        Resource = [
+          aws_s3_bucket.health_state.arn,
+          "${aws_s3_bucket.health_state.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = ["s3:PutObject"]
+        Resource = "${var.public_bucket_arn}/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "health_publisher" {
+  role       = aws_iam_role.health_publisher.name
+  policy_arn = aws_iam_policy.health_publisher.arn
 }
 
 resource "aws_cloudwatch_event_rule" "health_publisher_schedule" {

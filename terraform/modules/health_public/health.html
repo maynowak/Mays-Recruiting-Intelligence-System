@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head><title>Mays RIS Health</title></head>
+<body>
+<h1>Health Status</h1>
+<pre id="status">Loading...</pre>
+<script>
+fetch('public-status.json')
+  .then(r=>r.json())
+  .then(d=>{document.getElementById('status').textContent=JSON.stringify(d,null,2);})
+  .catch(e=>{document.getElementById('status').textContent='Error loading status';});
+</script>
+</body>
+</html>
