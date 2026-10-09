@@ -760,3 +760,12 @@ Deployed via AWS CLI update-function-code
 Publisher invocation succeeded, public-status.json created with NOT_OK
 CloudFront serving health.html and public-status.json
 Cognito regression preserved
+
+[RIS-HEALTH-PLANE-OPERATIONS-VERIFICATION-01]
+Date: 2026-10-09
+Scheduled invocations: verified two consecutive runs ~5 min apart
+Terraform reconciliation: PASS - state matches AWS, no drift
+Status semantics: validUntil equals lastUpdate - potential improvement needed
+Health Writer: rule and target present, no alarm events observed yet
+CloudWatch logs available
+No AWS mutations performed
