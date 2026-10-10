@@ -135,6 +135,27 @@ resource "aws_cognito_user_pool_domain" "domain" {
   user_pool_id = aws_cognito_user_pool.users.id
 }
 
+resource "aws_cognito_resource_server" "ris_api" {
+  name         = "${var.project_name}-${var.environment}-ris-api"
+  identifier   = "ris-api"
+  user_pool_id = aws_cognito_user_pool.users.id
+
+  scope {
+    scope_name        = "m2m/execute"
+    scope_description = "Machine-to-machine execution scope for agent execution"
+  }
+}
+
+resource "aws_cognito_user_pool_client" "m2m" {
+  name                                = "${var.project_name}-${var.environment}-m2m-client"
+  user_pool_id                        = aws_cognito_user_pool.users.id
+  generate_secret                     = true
+  allowed_oauth_flows_user_pool_client = true
+  allowed_oauth_flows                 = ["client_credentials"]
+  allowed_oauth_scopes                = ["${aws_cognito_resource_server.ris_api.identifier}/m2m/execute"]
+  # Least privilege: no explicit auth flows, no refresh, no user password auth
+}
+
 output "user_pool_id" {
   value = aws_cognito_user_pool.users.id
 }
@@ -145,4 +166,20 @@ output "user_pool_client_id" {
 
 output "user_pool_endpoint" {
   value = aws_cognito_user_pool.users.endpoint
+}
+
+output "user_pool_m2m_client_id" {
+  description = "M2M client ID for client credentials flow"
+  value       = aws_cognito_user_pool_client.m2m.id
+}
+
+output "user_pool_m2m_client_secret" {
+  description = "M2M client secret for client credentials flow"
+  sensitive   = true
+  value       = aws_cognito_user_pool_client.m2m.client_secret
+}
+
+output "resource_server_identifier" {
+  description = "Cognito resource server identifier"
+  value       = aws_cognito_resource_server.ris_api.identifier
 }
