@@ -28,8 +28,8 @@ dieser bereits authentifizierte Aufrufer verwenden?*
 
 | Autorisierungstyp | Anzahl | Bedeutung |
 |---|---|---|
-| `JWT` | 34 | Cognito JWT in `Authorization`, geprüft vom Gateway-Authorizer |
-| `NONE` | 1 | ausschließlich `/health` (Liveness, bewusst ohne Auth) |
+| `JWT` | 35 | Cognito JWT in `Authorization`, geprüft vom Gateway-Authorizer |
+| `NONE` | 0 | keine unauthentifizierten Routen mehr |
 
 Zwei Lambda-Backends:
 
@@ -59,7 +59,7 @@ weder entfernt noch durch Cognito ersetzt.
 
 | Route | Auth | Erfolg | Weitere Codes |
 |---|---|---|---|
-| `GET /health` | NONE | 200 | — |
+| `GET /health` | JWT | 200 | 401 (unauthentifiziert) |
 | `GET /platform` | JWT | 200 | — |
 | `GET /me` | JWT | 200 | — |
 | `GET /me/profile` | JWT | 200 | 404 (kein Profil) |
