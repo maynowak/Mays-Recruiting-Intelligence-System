@@ -15,6 +15,9 @@ This document defines the authentication contract between Mays-Jobsearch fronten
 ## Authentication Flow
 Browser → Mays-Jobsearch → Amazon Cognito → OAuth2 Authorization Code + PKCE → Jobsearch callback → Application session → Mays-RIS API → JWT validation → Tenant/User Profile/Entitlements → Authorized Agent Execution
 
+Partner applications using dual auth:
+Browser → Mays-Jobsearch → Cognito User Access JWT → Vercel server-side proxy with RIS API Credential → Mays-RIS API → Validate JWT + Credential → Authorized Agent Execution
+
 ## Token Usage
 - ID Token: client-side user profile
 - Access Token: API authorization to Mays-RIS

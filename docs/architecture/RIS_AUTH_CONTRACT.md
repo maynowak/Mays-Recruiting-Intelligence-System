@@ -11,6 +11,10 @@ Mays-RIS accepts Cognito Access Token with:
 - aud: <client-id>
 - scope: appropriate
 
+Partner user dual auth additionally requires:
+- Authorization: Bearer <COGNITO_USER_ACCESS_JWT>
+- X-Api-Credential: ris_...
+
 ## User Identity Propagation
 Cognito sub → RIS user_profile table
 Tenant ID from custom:tenant_id claim
@@ -18,3 +22,4 @@ Tenant ID from custom:tenant_id claim
 ## Error Responses
 401 Unauthorized – missing/invalid JWT
 403 Forbidden – insufficient entitlements
+
