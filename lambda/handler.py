@@ -292,7 +292,8 @@ def _extract_user_context(event: Dict[str, Any]) -> Dict[str, Any]:
         'tenantId': None,
         'email': None,
         'groups': [],
-        'clientId': None
+        'clientId': None,
+        'tokenUse': None
     }
     
     request_context = event.get('requestContext', {})
@@ -313,6 +314,8 @@ def _extract_user_context(event: Dict[str, Any]) -> Dict[str, Any]:
     
     # Cognito client_credentials tokens include client_id claim
     context['clientId'] = jwt_claims.get('client_id')
+    
+    context['tokenUse'] = jwt_claims.get('token_use')
     
     # Security fix 02: normalize, never split blindly. See
     # _normalize_groups — the authorizer stringifies array claims.
@@ -1020,6 +1023,10 @@ def _partner_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Di
     if cognito_error:
         return _machine_deny(cognito_error, 'Unauthorized')
 
+    # Enforce token_use = access, reject ID tokens
+    if cognito_context.get('tokenUse') != 'access':
+        return _machine_deny(401, 'Unauthorized')
+
     bearer, header_error = _machine_bearer(headers)
     if header_error:
         return _machine_deny(header_error, 'Unauthorized')
@@ -1060,6 +1067,18 @@ def _partner_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Di
         return _machine_deny(403, 'Forbidden')
 
     context = decision.context or {}
+
+    # Bind JWT user to credential owner and tenant
+    jwt_user_id = cognito_context.get('userId')
+    jwt_tenant_id = cognito_context.get('tenantId')
+    cred_user_id = context.get('userId')
+    cred_tenant_id = context.get('tenantId')
+
+    if not jwt_user_id or not cred_user_id or jwt_user_id != cred_user_id:
+        return _machine_deny(403, 'Forbidden')
+    if jwt_tenant_id and cred_tenant_id and jwt_tenant_id != cred_tenant_id:
+        return _machine_deny(403, 'Forbidden')
+
     body = event.get('body') or '{}'
     try:
         data = json.loads(body) if body else {}
