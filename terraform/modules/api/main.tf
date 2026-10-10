@@ -25,7 +25,7 @@ resource "aws_apigatewayv2_authorizer" "jwt" {
   identity_sources = ["$request.header.Authorization"]
 
   jwt_configuration {
-    audience = [var.cognito_user_pool_client_id]
+    audience = concat([var.cognito_user_pool_client_id], var.cognito_user_pool_m2m_client_id != "" ? [var.cognito_user_pool_m2m_client_id] : [])
     issuer   = "https://${var.cognito_user_pool_endpoint}"
   }
   # NOTE: aws_apigatewayv2_authorizer supports no `tags` argument

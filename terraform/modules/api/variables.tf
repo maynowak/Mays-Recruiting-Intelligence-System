@@ -20,6 +20,12 @@ variable "cognito_user_pool_client_id" {
   type        = string
 }
 
+variable "cognito_user_pool_m2m_client_id" {
+  description = "Cognito User Pool M2M Client ID for client credentials flow"
+  type        = string
+  default     = ""
+}
+
 variable "cognito_user_pool_endpoint" {
   description = "Cognito User Pool endpoint (URL)"
   type        = string

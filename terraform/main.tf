@@ -90,14 +90,15 @@ module "iam" {
 module "api" {
   source = "./modules/api"
 
-  project_name                = var.project_name
-  environment                 = var.environment
-  cognito_user_pool_id        = module.cognito.user_pool_id
-  cognito_user_pool_client_id = module.cognito.user_pool_client_id
-  cognito_user_pool_endpoint  = module.cognito.user_pool_endpoint
-  lambda_function_name        = "${local.prefix}-agent"
-  lambda_invoke_arn           = module.lambda.invoke_arn
-  tags                        = var.tags
+  project_name                    = var.project_name
+  environment                     = var.environment
+  cognito_user_pool_id            = module.cognito.user_pool_id
+  cognito_user_pool_client_id     = module.cognito.user_pool_client_id
+  cognito_user_pool_m2m_client_id = module.cognito.user_pool_m2m_client_id
+  cognito_user_pool_endpoint      = module.cognito.user_pool_endpoint
+  lambda_function_name            = "${local.prefix}-agent"
+  lambda_invoke_arn               = module.lambda.invoke_arn
+  tags                            = var.tags
 }
 
 module "lambda" {
