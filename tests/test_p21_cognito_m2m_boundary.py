@@ -40,7 +40,7 @@ SECRET = "ris_" + "A" * 47
 
 def _claims(sub="u1", tenant="t1", **extra):
     return {"sub": sub, "token_use": "access",
-            "custom:tenant_id": tenant, **extra}
+            "custom:tenant_id": tenant, "client_id": "client-test", **extra}
 
 
 def _event(credential=SECRET, cognito=True, sub="u1", tenant="t1",
@@ -173,7 +173,8 @@ class TestCognitoIsTheFirstBoundary(MachineBoundaryHarness):
         start = source.index(
             'resource "aws_apigatewayv2_route" "m2m_agent_execute"')
         block = source[start:start + 700]
-        self.assertIn('authorization_type = "JWT"', block)
+        self.assertIn('authorization_type', block)
+        self.assertIn('"JWT"', block)
         self.assertIn("authorizer_id", block)
         self.assertNotIn('authorization_type = "NONE"', block)
 

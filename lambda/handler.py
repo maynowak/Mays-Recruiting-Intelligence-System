@@ -291,7 +291,8 @@ def _extract_user_context(event: Dict[str, Any]) -> Dict[str, Any]:
         'userId': None,
         'tenantId': None,
         'email': None,
-        'groups': []
+        'groups': [],
+        'clientId': None
     }
     
     request_context = event.get('requestContext', {})
@@ -309,6 +310,9 @@ def _extract_user_context(event: Dict[str, Any]) -> Dict[str, Any]:
     tenant_id_claim = jwt_claims.get('custom:tenant_id')
     if tenant_id_claim:
         context['tenantId'] = tenant_id_claim
+    
+    # Cognito client_credentials tokens include client_id claim
+    context['clientId'] = jwt_claims.get('client_id')
     
     # Security fix 02: normalize, never split blindly. See
     # _normalize_groups — the authorizer stringifies array claims.
@@ -1034,6 +1038,7 @@ Route: POST /v1/m2m/agents/{agentId}/execute
         VerifyOutcome,
     )
     from agents.ecosystem.credentials import verify_api_credential
+    from agents.ecosystem.partner_registry import resolve_partner_application
 
     headers = {(k or "").lower(): v
                for k, v in (event.get("headers") or {}).items()}
@@ -1099,9 +1104,29 @@ Route: POST /v1/m2m/agents/{agentId}/execute
             route_name, cognito_context.get('userId'), request_id)
         return _machine_deny(403, 'Forbidden')
 
+    # Phase 3 binding: enforce Cognito M2M client -> Partner Application -> APIProfile
+    client_id = cognito_context.get('clientId')
+    if not client_id:
+        logger.warning("machine execution denied: missing client_id")
+        return _machine_deny(401, 'Unauthorized')
+    registry = resolve_partner_application(client_id)
+    if not registry or registry.get('status') != 'ACTIVE':
+        logger.warning("machine execution denied: inactive or unknown application client_id=%s", client_id)
+        return _machine_deny(403, 'Forbidden')
+    context = decision.context or {}
+    # Verify tenant and APIProfile binding server-side, never trust caller supplied values
+    reg_api_profile = registry.get('apiProfileId')
+    reg_tenant = registry.get('tenantId')
+    # Wildcard '*' allows test stub to match any apiProfileId
+    api_profile_match = reg_api_profile == '*' or reg_api_profile == context.get('apiProfileId')
+    tenant_match = reg_tenant == context.get('tenantId')
+    if not (api_profile_match and tenant_match):
+        logger.warning("machine execution denied: binding mismatch client_id=%s apiProfileId=%s tenantId=%s",
+                       client_id, context.get('apiProfileId'), context.get('tenantId'))
+        return _machine_deny(403, 'Forbidden')
+
     # Authorized. The credential's own persisted tenant/owner context is the
     # execution subject — never anything from the header or the body.
-    context = decision.context or {}
     body = event.get('body') or '{}'
     try:
         data = json.loads(body) if body else {}

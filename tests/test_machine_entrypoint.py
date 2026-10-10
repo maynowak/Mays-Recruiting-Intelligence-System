@@ -117,7 +117,8 @@ class Harness(unittest.TestCase):
             request_context["authorizer"] = {
                 "jwt": {"claims": {"sub": cognito_user,
                                    "token_use": "access",
-                                   "custom:tenant_id": "t1"}}}
+                                   "custom:tenant_id": "t1",
+                                   "client_id": "client-test"}}}
         event = {
             "httpMethod": "POST",
             "path": path if path is not None else "/v1/m2m/agents/%s/execute"
