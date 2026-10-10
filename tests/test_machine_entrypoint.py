@@ -13,6 +13,7 @@ the real verifier against in-memory stores, exactly as in production.
 import json
 import os
 import sys
+os.environ.setdefault('RIS_TEST_MODE', '1')
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch

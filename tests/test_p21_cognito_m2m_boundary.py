@@ -20,6 +20,7 @@ diese hier unveraendert weiterverwendet.
 import json
 import os
 import sys
+os.environ.setdefault('RIS_TEST_MODE', '1')
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
