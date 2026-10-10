@@ -13,7 +13,6 @@ the real verifier against in-memory stores, exactly as in production.
 import json
 import os
 import sys
-os.environ.setdefault('RIS_TEST_MODE', '1')
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
@@ -108,6 +107,7 @@ class Harness(unittest.TestCase):
         request that never passed the authorizer (direct invocation).
         """
         import handler as h
+        from agents.ecosystem.partner_registry import resolve_partner_application
         headers = {}
         if bearer is not None:
             headers["X-Api-Credential"] = bearer
@@ -130,10 +130,19 @@ class Harness(unittest.TestCase):
                                {"capability": "reference.echo", "payload": {}}),
             "requestContext": request_context,
         }
+        def registry_stub(client_id):
+            return {
+                'applicationId': 'app-test',
+                'cognitoClientId': client_id,
+                'apiProfileId': self.pid,
+                'tenantId': 't1',
+                'status': 'ACTIVE'
+            }
         with patch.object(h, "_build_introspection_sources",
                           return_value=sources or self.sources()), \
              patch.object(h, "_enqueue_agent_work",
-                          side_effect=self._fake_enqueue) as enq:
+                          side_effect=self._fake_enqueue) as enq, \
+             patch('agents.ecosystem.partner_registry.resolve_partner_application', side_effect=registry_stub):
             out = h.handler(event, None)
         self.enqueued = enq.call_args_list
         return out["statusCode"], json.loads(out["body"])

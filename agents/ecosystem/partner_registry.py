@@ -6,6 +6,51 @@ from typing import Any, Dict, Optional
 class PartnerRegistryError(Exception):
     pass
 
+def create_partner_application(
+    application_id: str,
+    cognito_client_id: str,
+    api_profile_id: str,
+    tenant_id: str,
+    table_name: Optional[str] = None,
+    dynamodb_client: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Create partner application with atomic uniqueness of cognitoClientId.
+
+    Uses DynamoDB PutItem with ConditionExpression attribute_not_exists(cognitoClientId)
+    to guarantee uniqueness even under concurrent creation attempts.
+
+    Raises PartnerRegistryError on conflict or failure.
+    """
+    if not application_id or not cognito_client_id:
+        raise PartnerRegistryError("application_id and cognito_client_id required")
+    try:
+        if dynamodb_client is None:
+            import boto3
+            table_name = table_name or os.getenv('RIS_PARTNER_APPLICATIONS_TABLE')
+            if not table_name:
+                raise PartnerRegistryError("Table name not configured")
+            dynamodb = boto3.client('dynamodb', region_name=os.getenv('AWS_REGION', 'eu-central-1'))
+        else:
+            dynamodb = dynamodb_client
+
+        item = {
+            'applicationId': {'S': application_id},
+            'cognitoClientId': {'S': cognito_client_id},
+            'apiProfileId': {'S': api_profile_id},
+            'tenantId': {'S': tenant_id},
+            'status': {'S': 'ACTIVE'}
+        }
+        dynamodb.put_item(
+            TableName=table_name,
+            Item=item,
+            ConditionExpression='attribute_not_exists(cognitoClientId)'
+        )
+        return {'applicationId': application_id, 'cognitoClientId': cognito_client_id, 'status': 'ACTIVE'}
+    except Exception as e:
+        # Conditional check failed or other error
+        raise PartnerRegistryError(f"Failed to create partner application: {e}")
+
+
 def resolve_partner_application(
     client_id: Optional[str],
     table_name: Optional[str] = None,
@@ -20,23 +65,6 @@ def resolve_partner_application(
     """
     if not client_id:
         return None
-
-    # Test mode for isolated unit tests
-    if os.getenv('RIS_TEST_MODE'):
-        # In-memory test registry
-        test_registry = {
-            'client-test': {
-                'applicationId': 'app-test',
-                'cognitoClientId': 'client-test',
-                'apiProfileId': 'TEST_PROFILE_ID_PLACEHOLDER',
-                'tenantId': 't1',
-                'status': 'ACTIVE'
-            }
-        }
-        rec = test_registry.get(client_id)
-        if rec:
-            # Tests will patch this further if needed
-            return rec
 
     try:
         if dynamodb_client is None:

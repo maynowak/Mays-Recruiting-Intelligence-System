@@ -20,7 +20,6 @@ diese hier unveraendert weiterverwendet.
 import json
 import os
 import sys
-os.environ.setdefault('RIS_TEST_MODE', '1')
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -131,7 +130,20 @@ class MachineBoundaryHarness(unittest.TestCase):
         from unittest.mock import patch
         with patch.object(h, "_build_introspection_sources",
                           return_value=real_sources), \
-             patch.object(h, "_enqueue_agent_work", side_effect=_enq):
+             patch.object(h, "_enqueue_agent_work", side_effect=_enq), \
+             patch('agents.ecosystem.partner_registry.resolve_partner_application') as mock_reg:
+            # Default stub for tests: return matching registry for client-test
+            def registry_stub(client_id):
+                # Resolve apiProfileId from credential context? Use self.pid if available
+                pid = getattr(self, 'pid', None)
+                return {
+                    'applicationId': 'app-test',
+                    'cognitoClientId': client_id,
+                    'apiProfileId': pid or 'profile-test',
+                    'tenantId': 't1',
+                    'status': 'ACTIVE'
+                }
+            mock_reg.side_effect = registry_stub
             out = h.handler(event, None)
         return out["statusCode"], json.loads(out["body"]), enqueued
 

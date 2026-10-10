@@ -1117,13 +1117,7 @@ Route: POST /v1/m2m/agents/{agentId}/execute
     # Verify tenant and APIProfile binding server-side, never trust caller supplied values
     reg_api_profile = registry.get('apiProfileId')
     reg_tenant = registry.get('tenantId')
-    # In test mode, allow apiProfileId wildcard to avoid hardcoding dynamic IDs
-    import os
-    test_mode = os.getenv('RIS_TEST_MODE')
-    if test_mode:
-        api_profile_match = True
-    else:
-        api_profile_match = reg_api_profile == context.get('apiProfileId')
+    api_profile_match = reg_api_profile == context.get('apiProfileId')
     tenant_match = reg_tenant == context.get('tenantId')
     if not (api_profile_match and tenant_match):
         logger.warning("machine execution denied: binding mismatch client_id=%s apiProfileId=%s tenantId=%s",
