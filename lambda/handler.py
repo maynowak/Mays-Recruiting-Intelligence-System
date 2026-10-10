@@ -1009,13 +1009,14 @@ def _partner_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Di
 
     Route: POST /v1/partner/agents/{agentId}/execute
     Requires human Cognito JWT + RIS API Credential.
-    Reuses existing verification pipeline without M2M client binding.
+    Multi-user partner application: credential owner is admin, JWT user is end user.
     """
     from agents.ecosystem.credentials import (
         CredentialStoreUnavailable,
         VerifyOutcome,
+        resolve_credential_profile,
     )
-    from agents.ecosystem.credentials import verify_api_credential
+    from agents.ecosystem.worker_authorization import check_worker_entitlement
 
     headers = {(k or "").lower(): v for k, v in (event.get("headers") or {}).items()}
 
@@ -1044,41 +1045,69 @@ def _partner_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Di
     except Exception:
         return {'statusCode': 503, 'body': json.dumps({'error': 'Service unavailable'})}
 
+    # Validate credential and profile
     try:
-        decision = verify_api_credential(
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        meta, profile = resolve_credential_profile(
             bearer=bearer,
-            agent_id=agent_id,
             credential_store=sources["credential_store"],
             profile_store=sources["profile_store"],
-            entitlement_resolver=sources["entitlement_resolver"],
-            catalog=sources["catalog"],
-            operation="agent.execute",
-            route=route_name,
-            method="POST",
-            request_id=request_id,
-            selection_hint=headers.get("x-api-profile"),
+            now=now,
+            base={"route": route_name, "request": request_id}
         )
-    except CredentialStoreUnavailable:
+    except Exception as exc:
+        # resolve_credential_profile raises _Denied for auth failures
+        # For brevity map all to 401/403 via existing patterns
+        from agents.ecosystem.credentials import _Denied
+        if isinstance(exc, _Denied):
+            return _machine_deny(401 if exc.outcome is VerifyOutcome.UNAUTHORIZED else 403, 'Forbidden')
+        raise
+
+    # Tenant isolation: JWT tenant must match credential tenant
+    jwt_tenant = cognito_context.get('tenantId')
+    cred_tenant = meta.get('tenantId')
+    if not jwt_tenant or not cred_tenant or jwt_tenant != cred_tenant:
+        return _machine_deny(403, 'Forbidden')
+
+    # Entitlement check for JWT user, not credential owner
+    jwt_user_id = cognito_context.get('userId')
+    if not jwt_user_id:
+        return _machine_deny(401, 'Unauthorized')
+
+    try:
+        auth = check_worker_entitlement(
+            user_id=jwt_user_id,
+            tenant_id=jwt_tenant,
+            agent_id=agent_id,
+            work_id=request_id,
+            request_time=now,
+            resolver=sources["entitlement_resolver"],
+            api_profile_id=meta.get("apiProfileId"),
+        )
+    except Exception:
         return {'statusCode': 503, 'body': json.dumps({'error': 'Service unavailable'})}
 
-    if decision.outcome is not VerifyOutcome.AUTHORIZED:
-        if decision.outcome is VerifyOutcome.UNAUTHORIZED:
-            return _machine_deny(401, 'Unauthorized')
+    if not auth.authorized:
         return _machine_deny(403, 'Forbidden')
 
-    context = decision.context or {}
-
-    # Bind JWT user to credential owner and tenant
-    jwt_user_id = cognito_context.get('userId')
-    jwt_tenant_id = cognito_context.get('tenantId')
-    cred_user_id = context.get('userId')
-    cred_tenant_id = context.get('tenantId')
-
-    if not jwt_user_id or not cred_user_id or jwt_user_id != cred_user_id:
-        return _machine_deny(403, 'Forbidden')
-    if jwt_tenant_id and cred_tenant_id and jwt_tenant_id != cred_tenant_id:
+    # Agent catalog executable check
+    catalog = sources["catalog"]
+    if catalog is None:
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Catalog unavailable'})}
+    from agents.ecosystem.agent_status import is_executable_status
+    raw_status = catalog.get(agent_id)
+    if isinstance(raw_status, dict):
+        raw_status = raw_status.get("status")
+    if not is_executable_status(raw_status):
         return _machine_deny(403, 'Forbidden')
 
+    context = {
+        "userId": jwt_user_id,
+        "tenantId": jwt_tenant,
+        "apiProfileId": meta.get("apiProfileId"),
+        "credentialId": meta.get("credentialId"),
+    }
     body = event.get('body') or '{}'
     try:
         data = json.loads(body) if body else {}
