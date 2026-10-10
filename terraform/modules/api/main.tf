@@ -284,6 +284,14 @@ resource "aws_apigatewayv2_route" "m2m_agent_execute" {
   authorization_scopes = ["ris-api/m2m/execute"]
 }
 
+resource "aws_apigatewayv2_route" "partner_agent_execute" {
+  api_id              = aws_apigatewayv2_api.ris_api.id
+  route_key           = "POST /v1/partner/agents/{agentId}/execute"
+  target              = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type  = "JWT"
+  authorizer_id       = aws_apigatewayv2_authorizer.jwt.id
+}
+
 # Product Admin: Offer -> Entitlement provisioning (P23-01).
 #
 # All routes are Cognito JWT protected (same authorizer as the other 27) and
