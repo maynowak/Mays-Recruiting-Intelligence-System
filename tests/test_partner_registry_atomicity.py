@@ -342,6 +342,42 @@ class TestRegistryUniqueness(unittest.TestCase):
                                           dynamodb_client=self.db)
         self.assertEqual(rec["status"], "INACTIVE")
 
+    def test_stale_index_cannot_authorize_a_deactivated_partner(self):
+        """The load-bearing guarantee of this module, asserted on VALUES.
+
+        The GSI serves a pre-deactivation snapshot (status ACTIVE) while the
+        base table already holds INACTIVE. A resolver that trusted the GSI row
+        would return ACTIVE and let a deactivated partner authorize. Because
+        moto's in-process GSI always agrees with the base table, no other test
+        can distinguish the two implementations - this one can.
+        """
+        self.create("app-1", "client-1")
+
+        def stale_index_query(**kwargs):
+            """Return the row as it looked BEFORE deactivation."""
+            snapshot = {
+                "applicationId": {"S": "app-1"},
+                "cognitoClientId": {"S": "client-1"},
+                "apiProfileId": {"S": "prof-1"},
+                "tenantId": {"S": "tenant-1"},
+                "status": {"S": "ACTIVE"},
+            }
+            return {"Items": [snapshot]}
+
+        self.db.query = stale_index_query
+        deactivate_partner_application("app-1", table_name=TBL,
+                                       dynamodb_client=self.db)
+        self.assertEqual(self.db.items["app-1"]["status"], {"S": "INACTIVE"})
+
+        rec = resolve_partner_application("client-1", table_name=TBL,
+                                          dynamodb_client=self.db)
+        self.assertIsNotNone(rec)
+        self.assertEqual(
+            rec["status"], "INACTIVE",
+            "resolver trusted the eventually-consistent GSI row instead of the "
+            "authoritative base-table read; a deactivated partner would "
+            "authorize")
+
     def test_stale_index_cannot_resurrect_a_deleted_application(self):
         """If the base table no longer has the row, resolution must fail
         closed even though the GSI would still return it."""

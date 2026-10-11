@@ -1093,3 +1093,25 @@ FULL SUITE: 1321 passed, 8 failed, 9 skipped (same 8 pre-existing)
 AWS MUTATIONS: NONE
 TERRAFORM APPLY: NONE
 GIT PUSH: NONE
+
+[MAYS-RIS-PARTNER-TERRAFORM-WIRING-01] (second verification correction)
+Date: 2026-10-11
+FINDING: mutation testing showed the load-bearing line - returning the base-table
+  record instead of the GSI record - could be reverted with a GREEN suite. The
+  existing consistency tests only spied on get_item CALLBACKS, never on the
+  returned VALUE, and an in-process GSI always agrees with the base table.
+  Mutant M1 (return the GSI item) passed all 93 partner tests.
+FIX: added test_stale_index_cannot_authorize_a_deactivated_partner, which serves
+  a pre-deactivation ACTIVE snapshot from the GSI while the base table already
+  holds INACTIVE, and asserts the resolved status is INACTIVE.
+VERIFIED: M1 now FAILS (1 failed, 25 passed); correct code passes 26.
+TESTS: python3 -m pytest tests/test_partner_registry_atomicity.py -q => 26 passed
+VALIDATE: terraform fmt -check -recursive => 0; terraform validate => Success
+FULL SUITE: 1322 passed, 8 failed, 9 skipped (same 8 pre-existing)
+OPEN RISK (documented, not changed): resolve_partner_application returns the
+  record and leaves the ACTIVE status gate to its callers. Both current callers
+  do enforce it, but a future third caller that omits the check would silently
+  reopen revocation bypass. A single authorize_partner_client() predicate would
+  close this; out of scope for this wiring checkpoint.
+AWS MUTATIONS: NONE
+GIT PUSH: NONE
