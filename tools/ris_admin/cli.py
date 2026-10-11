@@ -20,6 +20,62 @@ except Exception:
 def _print_json(data: Any) -> None:
     print(json.dumps(data, indent=2))
 
+
+def _deny_message(message: str) -> None:
+    print(json.dumps({"error": message}), file=sys.stderr)
+
+
+def _deny(exc: Exception) -> int:
+    """Neutral refusal. Never echoes a secret or an internal traceback."""
+    _deny_message(str(exc))
+    return 1
+
+
+def _domain_error(operation: str, exc: Exception) -> int:
+    """Map a RIS domain refusal onto the CLI without leaking internals."""
+    from agents.ecosystem.credentials import (
+        CredentialConflict,
+        CredentialNotFound,
+        CredentialStateConflict,
+        UnauthorizedManagementAttempt,
+    )
+    if isinstance(exc, UnauthorizedManagementAttempt):
+        _deny_message("not authorized to %s credentials" % operation)
+        return 1
+    if isinstance(exc, CredentialNotFound):
+        _deny_message("credential not found")
+        return 1
+    if isinstance(exc, (CredentialConflict, CredentialStateConflict)):
+        _deny_message("credential state conflict: %s" % exc)
+        return 1
+    _deny_message("credential %s failed (%s)"
+                  % (operation, type(exc).__name__))
+    return 1
+
+
+def credops_error():
+    from ris_admin.credentials import AdminAuthorizationError
+    return (AdminAuthorizationError,)
+
+
+def _credential_ops():
+    import ris_admin.credentials as ops
+    return ops
+
+
+def _caller_arn(args) -> str:
+    """Authenticated AWS principal. Identity only - not authorization.
+
+    STS proves who is calling. Whether that principal is a RIS administrator
+    is decided separately by resolve_admin_authorization.
+    """
+    region = args.region or os.getenv("AWS_REGION", "eu-central-1")
+    session_kwargs: Dict[str, Any] = {"region_name": region}
+    if args.profile:
+        session_kwargs["profile_name"] = args.profile
+    session = boto3.session.Session(**session_kwargs)
+    return session.client("sts").get_caller_identity().get("Arn")
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     """Inspect AWS identity and required RIS resources."""
     region = args.region or os.getenv("AWS_REGION", "eu-central-1")
@@ -221,38 +277,162 @@ def build_parser() -> argparse.ArgumentParser:
 
     cred = sub.add_parser("credential", help="Credential management")
     cred_sub = cred.add_subparsers(dest="credential_cmd", required=True)
-    
+
+    def _actor(args, operation):
+        """Derive the RIS actor contract from the authenticated AWS principal.
+
+        There is intentionally no --actor-role flag: a CLI switch cannot grant
+        administrator rights. Without an authorization file this raises and
+        the operation fails closed.
+        """
+        credops = _credential_ops()
+        principal_arn = _caller_arn(args)
+        return credops.resolve_admin_authorization(
+            getattr(args, "authorization_file", None)
+            or os.getenv("RIS_ADMIN_AUTHORIZATION_FILE"),
+            principal_arn, operation)
+
     def _cred_list(args):
-        _print_json({"credentials": []})
-        return 0
-    list_c = cred_sub.add_parser("list", help="List credentials")
-    list_c.set_defaults(func=_cred_list)
-    
-    def _cred_show(args):
-        _print_json({"credentialId": args.credentialId, "status": "unknown"})
-        return 0
-    show_c = cred_sub.add_parser("show", help="Show credential")
-    show_c.add_argument("credentialId")
-    show_c.set_defaults(func=_cred_show)
-    
-    def _cred_issue(args):
-        if args.dry_run or args.output_file is None:
-            _print_json({"dry_run": args.dry_run, "message": "Dry run - no credential issued"})
+        if args.dry_run:
+            _print_json({"dryRun": True, "operation": "credential list"})
             return 0
-        # Placeholder for real issuance - not implemented in this stub
-        _print_json({"credentialId": "placeholder", "issued": False})
+        try:
+            actor = _actor(args, "list credentials")
+        except credops_error() as exc:
+            return _deny(exc)
+        try:
+            rows = _credential_ops().list_all(
+                actor, api_profile_id=args.apiProfileId, reason=args.reason)
+        except Exception as exc:
+            return _domain_error("list", exc)
+        _print_json({"items": rows})
         return 0
-    issue_c = cred_sub.add_parser("issue", help="Issue credential")
+
+    list_c = cred_sub.add_parser("list", help="List credentials")
+    list_c.add_argument("--apiProfileId", default=None)
+    list_c.add_argument("--reason", default=None)
+    list_c.add_argument("--authorization-file", default=None)
+    list_c.set_defaults(func=_cred_list)
+
+    def _cred_show(args):
+        if args.dry_run:
+            _print_json({"dryRun": True, "operation": "credential show",
+                         "credentialId": args.credentialId})
+            return 0
+        try:
+            actor = _actor(args, "show a credential")
+        except credops_error() as exc:
+            return _deny(exc)
+        try:
+            meta = _credential_ops().show(args.credentialId, actor,
+                                          reason=args.reason)
+        except Exception as exc:
+            return _domain_error("show", exc)
+        if meta is None:
+            # Neutral: unknown and unauthorized are indistinguishable.
+            _print_json({"error": "Not found"})
+            return 1
+        _print_json(meta)
+        return 0
+
+    show_c = cred_sub.add_parser("show", help="Show credential metadata")
+    show_c.add_argument("credentialId")
+    show_c.add_argument("--reason", default=None)
+    show_c.add_argument("--authorization-file", default=None)
+    show_c.set_defaults(func=_cred_show)
+
+    def _cred_issue(args):
+        ops = _credential_ops()
+        if args.dry_run:
+            _print_json({"dryRun": True, "operation": "credential issue",
+                         "apiProfileId": args.apiProfileId,
+                         "expiresAt": args.expiresAt,
+                         "outputFile": args.output_file,
+                         "note": "no credential was created"})
+            return 0
+        if not args.output_file:
+            _deny_message("--output-file is required; secrets are never "
+                          "printed")
+            return 1
+        try:
+            actor = _actor(args, "issue a credential")
+        except credops_error() as exc:
+            return _deny(exc)
+        try:
+            out = ops.issue(
+                api_profile_id=args.apiProfileId,
+                expires_at=args.expiresAt,
+                actor=actor,
+                output_path=args.output_file,
+                label=args.label,
+                reason=args.reason,
+                idempotency_key=args.idempotency_key,
+            )
+        except ops.CredentialOutputFailed as exc:
+            # The credential EXISTS. Never claim a rollback, never re-issue,
+            # never reveal the secret.
+            _print_json({
+                "outcome": "CREDENTIAL_CREATED_OUTPUT_FAILED",
+                "credentialId": exc.credential_id,
+                "detail": exc.detail,
+                "recovery": "the secret was never persisted and cannot be "
+                            "recovered; revoke this credential and issue a "
+                            "new one deliberately",
+            })
+            return 1
+        except ops.AdminAuthorizationError as exc:
+            return _deny(exc)
+        except ops.OutputDestinationError as exc:
+            _deny_message(str(exc))
+            return 1
+        except ValueError as exc:
+            _deny_message(str(exc))
+            return 1
+        except Exception as exc:
+            return _domain_error("issue", exc)
+        # The secret is never part of this payload.
+        _print_json(out)
+        return 0
+
+    issue_c = cred_sub.add_parser("issue", help="Issue a credential")
     issue_c.add_argument("--apiProfileId", required=True)
     issue_c.add_argument("--expiresAt", required=True)
-    issue_c.add_argument("--output-file", required=False, help="Secure destination for secret")
+    issue_c.add_argument("--output-file", required=True,
+                         help="Secure destination for the once-only secret")
+    issue_c.add_argument("--label", default=None)
+    issue_c.add_argument("--reason", default=None)
+    issue_c.add_argument("--idempotency-key", default=None)
+    issue_c.add_argument("--authorization-file", default=None)
     issue_c.set_defaults(func=_cred_issue)
-    
+
     def _cred_revoke(args):
-        _print_json({"revoked": args.credentialId})
+        ops = _credential_ops()
+        if args.dry_run:
+            _print_json({"dryRun": True, "operation": "credential revoke",
+                         "credentialId": args.credentialId})
+            return 0
+        if not args.yes:
+            _deny_message("revocation is terminal; pass --yes to confirm")
+            return 1
+        try:
+            actor = _actor(args, "revoke a credential")
+        except credops_error() as exc:
+            return _deny(exc)
+        try:
+            out = ops.revoke(args.credentialId, actor, reason=args.reason)
+        except ops.AdminAuthorizationError as exc:
+            return _deny(exc)
+        except Exception as exc:
+            return _domain_error("revoke", exc)
+        _print_json(out)
         return 0
-    revoke_c = cred_sub.add_parser("revoke", help="Revoke credential")
+
+    revoke_c = cred_sub.add_parser("revoke", help="Revoke a credential")
     revoke_c.add_argument("credentialId")
+    revoke_c.add_argument("--yes", action="store_true",
+                          help="Confirm the terminal revocation")
+    revoke_c.add_argument("--reason", default=None)
+    revoke_c.add_argument("--authorization-file", default=None)
     revoke_c.set_defaults(func=_cred_revoke)
 
     ent = sub.add_parser("entitlement", help="Entitlement management")

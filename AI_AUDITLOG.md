@@ -1115,3 +1115,42 @@ OPEN RISK (documented, not changed): resolve_partner_application returns the
   close this; out of scope for this wiring checkpoint.
 AWS MUTATIONS: NONE
 GIT PUSH: NONE
+
+[MAYS-RIS-ADMIN-CLI-CREDENTIAL-IMPLEMENTATION-01]
+Date: 2026-10-11
+Status: GREEN for local implementation
+BASELINE: bf0f1ef8e37cdb57077685c7e4c7e82d9c89f518
+STUBS REPLACED: credential list/show/issue/revoke previously returned fabricated
+  JSON ("credentials": [], "status": "unknown", "credentialId": "placeholder").
+  All four now drive the REAL domain (issue_credential, revoke_credential,
+  list_credentials, get_credential_metadata) against real stores.
+NEW FILE: tools/ris_admin/credentials.py (domain wiring + secret destination)
+AUTHORIZATION: the RIS actor role is NEVER taken from a CLI flag. It is derived
+  from the authenticated AWS principal (STS GetCallerIdentity) resolved through
+  an operator-supplied authorization file mapping principal ARN -> {role,
+  tenantId}. No file, no entry, no role, or no tenant scope => FAIL CLOSED.
+  sts:GetCallerIdentity proves WHO is calling, not that they are a RIS admin, so
+  the mapping must exist. There is deliberately no --actor-role/--role flag.
+  This is the reported MISSING DEPENDENCY: no trusted principal->RIS-admin
+  binding exists in the repository yet, so every real mutation refuses until an
+  operator supplies one.
+SECRET HANDLING:
+  - --output-file is required; the secret is never printed by default
+  - O_CREAT|O_EXCL (no clobber), 0o600 (owner-only), symlink refused
+  - O_EXCL is the load-bearing symlink guard; O_NOFOLLOW is defence in depth
+  - world/group-writable destination directories are refused
+  - issuance failure removes the placeholder file
+  - idempotent replay writes nothing (the original secret is never re-issued)
+  - post-issuance write failure reports CREDENTIAL_CREATED_OUTPUT_FAILED with
+    the credential id; it never claims a rollback and never re-issues
+FILES: tools/ris_admin/credentials.py (new), tools/ris_admin/cli.py,
+  tests/test_ris_admin_credentials.py (new, 42 tests), AI_AUDITLOG.md
+TESTS: python3 -m pytest tests/test_ris_admin_credentials.py -q => 42 passed
+FULL SUITE: 1364 passed, 8 failed, 9 skipped (same 8 pre-existing)
+MUTATION TESTING: weakening file perms -> 3 failed; claiming a rollback instead
+  of reporting the id -> 2 failed; accepting an entry without tenant scope ->
+  1 failed; dropping O_NOFOLLOW -> 0 failed, which proved O_EXCL is the real
+  guard, so the code comment and a dedicated test were corrected rather than
+  claiming a protection the test does not demonstrate.
+AWS MUTATIONS: NONE
+GIT PUSH: NONE
