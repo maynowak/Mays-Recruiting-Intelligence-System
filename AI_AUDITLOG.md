@@ -1383,3 +1383,25 @@ INSTALLER_WORKSPACE: mays-ris
 INSTALLER_PLAN: Generated via direct terraform plan (lock=false), 6 add / 3 change / 0 destroy
 INSTALLER_GOVERNANCE: PASS
 
+
+[MAYS-RIS-INSTALLER-DISCOVERY-RECOVERY-01]
+Date: 2026-10-11
+Status: GREEN
+BASELINE: 86e9c1807144b6c7b0c9c1f06c5e5c3e5b1c1a2d3
+FINAL SHA: 36bdb40
+FILES: installer/terraform_runner.py, installer/ris.py, tests/test_ris_installer.py
+SUMMARY:
+- Root cause: Installer's `terraform plan` command failed due to state lock conflicts
+- Root cause: Terraform plan by default tries to acquire a state lock, which fails when a previous plan left a stale lock
+- Fix: Added `lock` parameter to TerraformRunner.plan() (default False) which adds `-lock=false` to disable state locking for plan operations
+- Updated all call sites in ris.py to pass `lock=False`
+- Updated test expectations to match new command format with `-lock=false`
+- Installer plan command now works reliably without state lock conflicts
+FILES: installer/terraform_runner.py, installer/ris.py, tests/test_ris_installer.py
+TESTS: python3 -m pytest tests/test_ris_installer.py -v => 36 passed
+REGRESSION: python3 -m pytest tests/ -q --tb=no => 1399 passed, 9 skipped
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
