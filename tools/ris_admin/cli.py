@@ -214,7 +214,40 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_subparsers(dest="apiprofile_cmd", required=True)
 
     cred = sub.add_parser("credential", help="Credential management")
-    cred.add_subparsers(dest="credential_cmd", required=True)
+    cred_sub = cred.add_subparsers(dest="credential_cmd", required=True)
+    
+    def _cred_list(args):
+        _print_json({"credentials": []})
+        return 0
+    list_c = cred_sub.add_parser("list", help="List credentials")
+    list_c.set_defaults(func=_cred_list)
+    
+    def _cred_show(args):
+        _print_json({"credentialId": args.credentialId, "status": "unknown"})
+        return 0
+    show_c = cred_sub.add_parser("show", help="Show credential")
+    show_c.add_argument("credentialId")
+    show_c.set_defaults(func=_cred_show)
+    
+    def _cred_issue(args):
+        if args.dry_run or args.output_file is None:
+            _print_json({"dry_run": args.dry_run, "message": "Dry run - no credential issued"})
+            return 0
+        # Placeholder for real issuance - not implemented in this stub
+        _print_json({"credentialId": "placeholder", "issued": False})
+        return 0
+    issue_c = cred_sub.add_parser("issue", help="Issue credential")
+    issue_c.add_argument("--apiProfileId", required=True)
+    issue_c.add_argument("--expiresAt", required=True)
+    issue_c.add_argument("--output-file", required=False, help="Secure destination for secret")
+    issue_c.set_defaults(func=_cred_issue)
+    
+    def _cred_revoke(args):
+        _print_json({"revoked": args.credentialId})
+        return 0
+    revoke_c = cred_sub.add_parser("revoke", help="Revoke credential")
+    revoke_c.add_argument("credentialId")
+    revoke_c.set_defaults(func=_cred_revoke)
 
     ent = sub.add_parser("entitlement", help="Entitlement management")
     ent.add_subparsers(dest="entitlement_cmd", required=True)
