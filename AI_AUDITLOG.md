@@ -975,3 +975,25 @@ OPEN RISKS (documented, not fixed here): Terraform env/IAM wiring missing,
   test for real TransactWriteItems, no audit timestamps on registry rows.
 AWS MUTATIONS: NONE
 GIT PUSH: NONE
+
+[MAYS-RIS-PARTNER-SECURITY-BOUNDARY-01]
+Date: 2026-10-11
+Status: GREEN
+ROOT CAUSE: lambda/handler.py _machine_execute_agent contained an environment-driven
+  bypass: if os.getenv('RIS_TEST_MODE') was set, api_profile_match was forced True,
+  skipping the Partner Registry -> credential APIProfile comparison. Because the
+  variable is settable in Lambda configuration, production could disable the binding.
+BYPASSED CHECKS: registry apiProfileId vs credential apiProfileId only.
+  NOT bypassed: client_id presence, registry ACTIVE status, registry tenant match,
+  JWT tenant match, credential verification, entitlement enforcement.
+REMOVED: RIS_TEST_MODE branch entirely; binding is now unconditional.
+  Testability preserved via dependency injection of resolve_partner_application.
+FILES CHANGED: lambda/handler.py, AI_AUDITLOG.md
+FILES ADDED: tests/test_partner_security_boundary.py
+TESTS: python3 -m pytest tests/test_partner_security_boundary.py -q => 27 passed
+REGRESSION: python3 -m pytest tests/test_machine_entrypoint.py tests/test_p21_cognito_m2m_boundary.py tests/test_p22_m2m_binding.py tests/test_partner_registry_atomicity.py tests/test_ris_admin_cli.py -q => 81 passed
+FULL SUITE: 1271 passed, 13 failed (same pre-existing set), 9 skipped
+MUTATION TEST: reintroducing the RIS_TEST_MODE branch makes 2 boundary tests fail,
+  proving the tests detect a regression of this exact defect.
+AWS MUTATIONS: NONE
+GIT PUSH: NONE

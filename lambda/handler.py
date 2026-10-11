@@ -1278,16 +1278,14 @@ Route: POST /v1/m2m/agents/{agentId}/execute
         logger.warning("machine execution denied: inactive or unknown application client_id=%s", client_id)
         return _machine_deny(403, 'Forbidden')
     context = decision.context or {}
-    # Verify tenant and APIProfile binding server-side, never trust caller supplied values
+    # Verify tenant and APIProfile binding server-side, never trust caller
+    # supplied values. There is deliberately NO environment-variable escape
+    # hatch here: a bypass reachable from Lambda configuration would defeat
+    # the whole point of the registry. Tests must inject a stubbed
+    # `resolve_partner_application` instead.
     reg_api_profile = registry.get('apiProfileId')
     reg_tenant = registry.get('tenantId')
-    # In test mode, allow apiProfileId wildcard to avoid hardcoding dynamic IDs
-    import os
-    test_mode = os.getenv('RIS_TEST_MODE')
-    if test_mode:
-        api_profile_match = True
-    else:
-        api_profile_match = reg_api_profile == context.get('apiProfileId')
+    api_profile_match = reg_api_profile == context.get('apiProfileId')
     tenant_match = reg_tenant == context.get('tenantId')
     if not (api_profile_match and tenant_match):
         logger.warning("machine execution denied: binding mismatch client_id=%s apiProfileId=%s tenantId=%s",
