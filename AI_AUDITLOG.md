@@ -927,3 +927,13 @@ EXISTING BEHAVIOR PRESERVED: token_use, credential validation, tenant match, ent
 TEST SUITE: 1221 passed, 13 failed pre-existing, 9 skipped
 AWS MUTATIONS: NONE
 GIT PUSH: NONE
+
+[MAYS-RIS-ADMIN-CLI-FOUNDATION-01]
+Date: 2026-10-11
+Status: YELLOW – FOUNDATION IMPLEMENTED
+CLI ENTRYPOINT: tools/ris_admin/cli.py
+COMMANDS: doctor, partner list stub, apiprofile/credential/entitlement placeholders
+REUSE: agents.ecosystem.* contracts
+TESTS: tests/test_ris_admin_cli.py PASS
+AWS MUTATIONS: NONE
+GIT PUSH: NONE
