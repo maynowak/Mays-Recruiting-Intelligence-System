@@ -338,6 +338,7 @@ resource "aws_dynamodb_table" "partner_applications" {
   global_secondary_index {
     name            = "gsi-client"
     hash_key        = "cognitoClientId"
+    range_key       = "tenantId"
     projection_type = "ALL"
   }
 
