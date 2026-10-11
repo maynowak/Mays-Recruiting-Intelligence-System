@@ -149,7 +149,7 @@ def _cmd_plan(
     runner = ctx.make_runner()
     return [
         runner.init(backend_config=ctx.backend_config()),
-        runner.plan(out_file=out_file, var=ctx.terraform_vars()),
+        runner.plan(out_file=out_file, var=ctx.terraform_vars(), lock=False),
     ]
 
 
@@ -378,7 +378,7 @@ def _cmd_install(
     for result in (
         runner.init(backend_config=config),
         runner.validate(),
-        runner.plan(out_file=out_file, var=ctx.terraform_vars()),
+        runner.plan(out_file=out_file, var=ctx.terraform_vars(), lock=False),
     ):
         print(f"$ {' '.join(result.command)} -> exit {result.returncode}")
         if result.returncode != 0:

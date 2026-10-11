@@ -286,9 +286,12 @@ class TerraformRunner:
         out_file: Optional[str] = None,
         destroy: bool = False,
         var: Optional[Dict[str, str]] = None,
+        lock: bool = False,
     ) -> TerraformResult:
         """Run `terraform plan` (workspace resolved first)."""
         args = ["plan"]
+        if not lock:
+            args.append("-lock=false")
         if destroy:
             args.append("-destroy")
         if out_file:

@@ -591,10 +591,10 @@ def test_destroy_plans_and_applies_scope():
             rc = ris._cmd_destroy(ctx, out_file="gone.tfplan")
     flat = [" ".join(c) for c in seen["cmds"]]
     assert rc == 0
-    assert any("terraform plan -destroy" in c and "-out gone.tfplan" in c for c in flat)
+    assert any("terraform plan -lock=false -destroy" in c and "-out gone.tfplan" in c for c in flat)
     assert any(c.startswith("terraform apply gone.tfplan") for c in flat)
     assert "-var project_name=mays-ris-lifecycle" in \
-        [c for c in flat if "terraform plan -destroy" in c][0]
+        [c for c in flat if "terraform plan -lock=false -destroy" in c][0]
 
 
 def test_destroy_in_commands():
