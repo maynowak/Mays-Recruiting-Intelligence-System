@@ -911,3 +911,19 @@ M2M ROUTE ISOLATION: PASS
 SECURITY TESTS: PASS
 TERRAFORM VALIDATE: PASS
 AWS MUTATIONS: NONE
+
+[MAYS-RIS-PARTNER-SECURITY-IMPLEMENTATION-ORCHESTRATION-02]
+Date: 2026-10-11
+Status: YELLOW – IMPLEMENTED
+WORKSTREAM A: JWT client_id -> Partner Registry binding implemented in lambda/handler.py _partner_execute_agent
+CHANGED FILES: lambda/handler.py
+COMMIT BASELINE: d82829a1f2571655f7088980c5e43c317af54851
+REGISTRY LOOKUP: resolve_partner_application(client_id) enforced
+REGISTRY ACTIVE CHECK: enforced
+REGISTRY API PROFILE MATCH: enforced
+REGISTRY TENANT MATCH: enforced
+FAIL CLOSED: on registry lookup error
+EXISTING BEHAVIOR PRESERVED: token_use, credential validation, tenant match, entitlement, multi-user
+TEST SUITE: 1221 passed, 13 failed pre-existing, 9 skipped
+AWS MUTATIONS: NONE
+GIT PUSH: NONE

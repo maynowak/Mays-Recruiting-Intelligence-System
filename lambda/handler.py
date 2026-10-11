@@ -1017,6 +1017,7 @@ def _partner_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Di
         resolve_credential_profile,
     )
     from agents.ecosystem.worker_authorization import check_worker_entitlement
+    from agents.ecosystem.partner_registry import resolve_partner_application
 
     headers = {(k or "").lower(): v for k, v in (event.get("headers") or {}).items()}
 
@@ -1063,6 +1064,25 @@ def _partner_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Di
         if isinstance(exc, _Denied):
             return _machine_deny(401 if exc.outcome is VerifyOutcome.UNAUTHORIZED else 403, 'Forbidden')
         raise
+
+    # Partner Registry binding: JWT client_id -> Partner Application -> APIProfile/Tenant
+    client_id = cognito_context.get('clientId')
+    if not client_id:
+        return _machine_deny(401, 'Unauthorized')
+    try:
+        registry = resolve_partner_application(client_id)
+    except Exception:
+        return _machine_deny(403, 'Forbidden')
+    if not registry or registry.get('status') != 'ACTIVE':
+        return _machine_deny(403, 'Forbidden')
+    reg_api_profile_id = registry.get('apiProfileId')
+    reg_tenant_id = registry.get('tenantId')
+    cred_api_profile_id = meta.get('apiProfileId')
+    cred_tenant_id = meta.get('tenantId')
+    if not reg_api_profile_id or reg_api_profile_id != cred_api_profile_id:
+        return _machine_deny(403, 'Forbidden')
+    if not reg_tenant_id or reg_tenant_id != cred_tenant_id:
+        return _machine_deny(403, 'Forbidden')
 
     # Tenant isolation: JWT tenant must match credential tenant
     jwt_tenant = cognito_context.get('tenantId')
