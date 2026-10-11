@@ -102,8 +102,15 @@ class LifecycleHarness(unittest.TestCase):
             The route is Cognito-JWT protected: the authorizer claims below are
             what the gateway validated before invoking the Lambda, and the opaque
             credential travels in X-Api-Credential.
+
+            The claims mirror the production shape: a client-credentials
+            ACCESS token always carries `token_use=access`, the tenant and the
+            issuing `client_id`. The Partner Registry lookup is stubbed here so
+            the fixture exercises the credential lifecycle, not the registry.
             """
             import handler as h
+            tenant = self.owner["tenantId"]
+            client_id = "p17-m2m-client"
             event = {
                 "httpMethod": "POST",
                 "path": "/v1/m2m/agents/%s/execute" % agent,
@@ -113,16 +120,30 @@ class LifecycleHarness(unittest.TestCase):
                                     "payload": {}}),
                 "requestContext": {"requestId": "req-p17-m",
                                    "http": {"method": "POST"},
-                                   "authorizer": {"jwt": {"claims": {"sub": "u1"}}}},
+                                   "authorizer": {"jwt": {"claims": {
+                                       "sub": "u1",
+                                       "token_use": "access",
+                                       "custom:tenant_id": tenant,
+                                       "client_id": client_id}}}},
             }
             sources = {"profile_store": self.profiles,
                        "credential_store": self.creds,
                        "entitlement_resolver": self.resolver,
                        "catalog": self.catalog}
+            registry_stub = lambda cid: {
+                "applicationId": "p17-app",
+                "cognitoClientId": cid,
+                "apiProfileId": self.pid,
+                "tenantId": tenant,
+                "status": "ACTIVE",
+            }
             with patch.object(h, "_build_introspection_sources",
                               return_value=sources), \
                  patch.object(h, "_enqueue_agent_work",
-                              side_effect=self._enq) as enq:
+                              side_effect=self._enq) as enq, \
+                 patch("agents.ecosystem.partner_registry."
+                       "resolve_partner_application",
+                       side_effect=registry_stub):
                 out = h.handler(event, None)
             self.enqueued = enq.call_args_list
             return out["statusCode"], json.loads(out["body"])

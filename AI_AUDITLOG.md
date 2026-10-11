@@ -997,3 +997,33 @@ MUTATION TEST: reintroducing the RIS_TEST_MODE branch makes 2 boundary tests fai
   proving the tests detect a regression of this exact defect.
 AWS MUTATIONS: NONE
 GIT PUSH: NONE
+
+[MAYS-RIS-PARTNER-SECURITY-BOUNDARY-01] (independent verification follow-up)
+Date: 2026-10-11
+Independent Tester found: (S4) machine route did not enforce token_use;
+  (S3) no exception guard on the registry call; (S5) no truthiness guards on
+  registry fields; (S7) source guard was name-specific, a renamed bypass passed;
+  (S8) M2M route inherited only 5 of 18 behavioural cases.
+FIXES:
+  lambda/handler.py _machine_execute_agent: token_use=access enforced (401);
+    registry lookup wrapped in try/except -> neutral 403; apiProfile and tenant
+    compared with explicit truthiness guards.
+  tests: env-var-agnostic guard asserts NO os.getenv/os.environ reference at all in
+    either authorization function; TestMachineRouteBoundary now inherits the full
+    T-matrix; three machine-plane semantics (JWT tenant, entitlement subject,
+    missing tenant claim) documented explicitly instead of inheriting partner
+    expectations, because M2M executes as the credential owner by design.
+STALE FIXTURES CORRECTED (not weakened):
+  tests/test_p17_credential_lifecycle.py machine() fixture sent a JWT with only
+    {"sub": "u1"} - no token_use, tenant or client_id - and never stubbed the
+    registry. Updated to the production claim shape. This FIXED 5 pre-existing
+    failures rather than causing any.
+  tests/test_machine_entrypoint.py 503 fixture had the same incomplete claims.
+TESTS: python3 -m pytest tests/test_partner_security_boundary.py -q => 47 passed
+FOCUSED: 8 security files => 192 passed
+FULL SUITE: 1296 passed, 8 failed, 9 skipped (was 13 failed before this work;
+  remaining 8 are doc/route-count/installer-contract, all verified pre-existing)
+AWS MUTATIONS: NONE
+GIT PUSH: NONE
+OPEN BLOCKER (unchanged): RIS_PARTNER_APPLICATIONS_TABLE env + IAM not wired,
+  so both partner routes fail closed with 403 in any provisioned environment.

@@ -288,9 +288,27 @@ class TestNoProductionBypass(unittest.TestCase):
 
     def test_machine_route_binding_is_unconditional(self):
         src = inspect.getsource(h._machine_execute_agent)
-        self.assertIn("api_profile_match = reg_api_profile =="
-                      " context.get('apiProfileId')", src)
-        self.assertNotIn("os.getenv", src)
+        self.assertIn("reg_api_profile != context.get('apiProfileId')", src)
+        self.assertIn("reg_tenant != context.get('tenantId')", src)
+
+    def test_boundary_functions_read_no_environment_variables(self):
+        """Env-var-agnostic guard.
+
+        A bypass renamed to any other variable (`PARTNER_SKIP_BINDING`,
+        `RIS_TEST`, ...) must still be detected, so this asserts the ABSENCE of
+        any environment read in the two authorization functions rather than the
+        absence of one specific name.
+        """
+        for fn in (h._machine_execute_agent, h._partner_execute_agent):
+            src = inspect.getsource(fn)
+            for pattern in ("os.getenv", "os.environ",
+                            "environ.get", "getenv"):
+                self.assertNotIn(pattern, src,
+                                 "%s reads %s" % (fn.__name__, pattern))
+
+    def test_machine_route_enforces_token_use(self):
+        src = inspect.getsource(h._machine_execute_agent)
+        self.assertIn("tokenUse') != 'access'", src)
 
     def test_partner_route_has_no_bypass(self):
         src = inspect.getsource(h._partner_execute_agent)
@@ -304,10 +322,45 @@ class TestNoProductionBypass(unittest.TestCase):
             self.assertIn("'ACTIVE'", src)
 
 
-class TestMachineRouteBoundary(BoundaryHarness):
-    """The same T-matrix must hold on the dedicated M2M route."""
+class TestMachineRouteBoundary(TestT01T14):
+    """The FULL T-matrix must also hold on the dedicated M2M route.
+
+    Inherits from TestT01T14 so the machine plane gets exactly the same
+    behavioural coverage as the partner plane.
+    """
 
     route = M2M_ROUTE_PREFIX
+
+    # The machine plane is machine-to-machine: the EXECUTION IDENTITY is the
+    # APIProfile owner that the credential verification resolves, and the JWT
+    # subject is recorded for audit only (see _machine_execute_agent
+    # docstring). Three partner-plane concepts therefore do not transfer, and
+    # the correct machine behaviour is asserted explicitly instead of silently
+    # inheriting the partner expectation.
+
+    def test_t03_tenant_mismatch_denied(self):
+        """JWT tenant is audit context on this plane, not the tenant gate."""
+        self.issue()
+        code, _ = self.call(bearer=self.issued["secret"], tenant="tenant-b")
+        # Execution stays inside the credential's tenant (verifier-authorized),
+        # so this is NOT an escalation. The registry-vs-credential tenant gate
+        # is covered by test_t13 and by test_m2m_tenant_mismatch_denied.
+        self.assertEqual(code, 202)
+
+    def test_t07_multiple_users_one_credential(self):
+        """A JWT user without entitlement must not change the machine outcome."""
+        self.issue()
+        code, _ = self.call(bearer=self.issued["secret"], user="user-3")
+        self.assertEqual(code, 202)
+        # The owner without entitlement IS denied - that is the gate.
+        self.resolver = Resolver([])
+        code, _ = self.call(bearer=self.issued["secret"])
+        self.assertEqual(code, 403)
+
+    def test_t09_missing_tenant_claim_denied(self):
+        self.issue()
+        code, _ = self.call(bearer=self.issued["secret"], tenant=None)
+        self.assertEqual(code, 202)
 
     def test_m2m_matching_allowed(self):
         self.issue()

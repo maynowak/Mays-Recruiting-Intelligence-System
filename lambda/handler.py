@@ -1213,6 +1213,13 @@ Route: POST /v1/m2m/agents/{agentId}/execute
     if cognito_error:
         return _machine_deny(cognito_error, 'Unauthorized')
 
+    # token_use is mandatory here too. The gateway authorizer pins audience and
+    # requires the m2m/execute scope, but the in-Lambda check must stand on its
+    # own: an ID token or a token with no token_use claim must never reach the
+    # registry binding or the execution contract.
+    if cognito_context.get('tokenUse') != 'access':
+        return _machine_deny(401, 'Unauthorized')
+
     # Boundary 2: the opaque product credential.
     bearer, header_error = _machine_bearer(headers)
     if header_error:
@@ -1273,7 +1280,13 @@ Route: POST /v1/m2m/agents/{agentId}/execute
     if not client_id:
         logger.warning("machine execution denied: missing client_id")
         return _machine_deny(401, 'Unauthorized')
-    registry = resolve_partner_application(client_id)
+    try:
+        registry = resolve_partner_application(client_id)
+    except Exception:
+        # Never surface a registry infrastructure failure as a 5xx on the
+        # authorization path: fail closed with a neutral 403.
+        logger.warning("machine execution denied: registry lookup failed")
+        return _machine_deny(403, 'Forbidden')
     if not registry or registry.get('status') != 'ACTIVE':
         logger.warning("machine execution denied: inactive or unknown application client_id=%s", client_id)
         return _machine_deny(403, 'Forbidden')
@@ -1285,11 +1298,13 @@ Route: POST /v1/m2m/agents/{agentId}/execute
     # `resolve_partner_application` instead.
     reg_api_profile = registry.get('apiProfileId')
     reg_tenant = registry.get('tenantId')
-    api_profile_match = reg_api_profile == context.get('apiProfileId')
-    tenant_match = reg_tenant == context.get('tenantId')
-    if not (api_profile_match and tenant_match):
-        logger.warning("machine execution denied: binding mismatch client_id=%s apiProfileId=%s tenantId=%s",
-                       client_id, context.get('apiProfileId'), context.get('tenantId'))
+    if not reg_api_profile or reg_api_profile != context.get('apiProfileId'):
+        logger.warning("machine execution denied: apiProfile binding mismatch client_id=%s",
+                       client_id)
+        return _machine_deny(403, 'Forbidden')
+    if not reg_tenant or reg_tenant != context.get('tenantId'):
+        logger.warning("machine execution denied: tenant binding mismatch client_id=%s",
+                       client_id)
         return _machine_deny(403, 'Forbidden')
 
     # Authorized. The credential's own persisted tenant/owner context is the

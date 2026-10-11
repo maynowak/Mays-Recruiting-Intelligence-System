@@ -294,7 +294,10 @@ class TestNegative(Harness):
                  "requestContext": {
                      "requestId": "r",
                      "http": {"method": "POST", "path": ROUTE},
-                     "authorizer": {"jwt": {"claims": {"sub": "u1"}}}}}
+                     "authorizer": {"jwt": {"claims": {
+                     "sub": "u1", "token_use": "access",
+                     "custom:tenant_id": "t1",
+                     "client_id": "client-test"}}}}}
         with patch.object(h, "_build_introspection_sources",
                           side_effect=RuntimeError("stores unconfigured")):
             out = h.handler(event, None)
