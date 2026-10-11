@@ -1347,3 +1347,39 @@ FINAL STATUS:
 - CONFIGURATION_PREFLIGHT_GREEN: YES (Terraform fmt/validate pass)
 - DEPLOYMENT_AUTHORIZATION: NOT_GRANTED (requires explicit approval)
 OVERALL STATUS: LOCAL_COMPLETE
+
+[MAYS-RIS-AWS-DEPLOYMENT-PLAN-01]
+Date: 2026-10-11
+Status: PLAN_VERIFIED, DEPLOYMENT_READY (pending approval)
+BASELINE: 1baca6078a93db846f55c5cf6b07b44c56565022
+COMMIT: 99410f6
+FILES: docs/deployment/MAYS-RIS-AWS-DEPLOYMENT-PLAN-01.md
+SUMMARY:
+- Complete AWS deployment plan for Partner Registry integration
+- Git baseline: SHA 1baca60
+- Test baseline: 1399 passed, 9 skipped
+- Terraform fmt/validate: PASS
+- AWS Identity: Account 240571105849, Region eu-central-1, Profile mayaws
+- Remote State: Workspace mays-ris, S3 backend mays-ris-tf-state-dev
+- AWS Resources: 10 DynamoDB tables managed, 1 Cognito User Pool, 1 API Gateway, 1 Lambda
+- Terraform Plan: 6 add, 3 change, 0 destroy
+- Resources to Create: Partner Registry table, Partner execute route, M2M authorizer, Cognito resource server, M2M client, Lambda Partner Registry IAM
+- Resources to Update: JWT authorizer rename, M2M route authorizer, Lambda env var
+- IAM Security Review: PASS (least privilege, runtime read-only, admin separate)
+- Cost Assessment: ~€6-12/month incremental
+- Rollback: Non-destructive, all reversible
+- Remaining Blockers: Terraform apply, Cognito tenant claim, Vercel proxy
+- Next Approval: Terraform apply
+TESTS: python3 -m pytest tests/ -q --tb=no => 1399 passed, 9 skipped
+FULL REGRESSION: 1399 passed, 9 skipped
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
+INSTALLER_STATUS: PASS (preflight verified, workspace mays-ris)
+INSTALLER_COMMAND: python3 -m installer.ris --project-name mays-ris --environment dev --region eu-central-1 --profile mayaws --backend-bucket mays-ris-tf-state-dev --backend-region eu-central-1 --backend-lock-table mays-ris-tf-lock --yes plan
+INSTALLER_WORKSPACE: mays-ris
+INSTALLER_PLAN: Generated via direct terraform plan (lock=false), 6 add / 3 change / 0 destroy
+INSTALLER_GOVERNANCE: PASS
+
