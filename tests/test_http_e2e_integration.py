@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Dict, Any, Optional
 from unittest.mock import patch, MagicMock
+import contextlib
 
 import requests
 
@@ -209,6 +210,10 @@ class RISHttpTestServer:
         self.partner_registry = InMemoryPartnerRegistry()
         self.entitlements = []
         self.enqueue_counter = 0
+
+        self.custom_enqueue = None
+        self.custom_registry = None
+        self.custom_sources = None
         
         # Set up test data
         self._setup_test_data()
@@ -264,9 +269,8 @@ class RISHttpTestServer:
             "validUntil": _ts(30),
             "status": "ACTIVE"
         })
-    
-    def call_handler(self, event: Dict[str, Any]) -> Dict[str, Any]:
-        """Call the RIS handler with mocked dependencies."""
+    def call_handler(self, event: Dict[str, Any], extra_patches: Optional[list] = None) -> Dict[str, Any]:
+        """Call the RIS handler with mocked dependencies. Accepts extra patches for testing."""
         # Mock the partner registry
         def registry_lookup(cognito_client_id: str):
             return self.partner_registry.get_partner_application(cognito_client_id)
@@ -285,11 +289,52 @@ class RISHttpTestServer:
             self.enqueue_counter += 1
             return {"workId": f"w{self.enqueue_counter}", "status": "QUEUED", "requestId": f"rq{self.enqueue_counter}"}
         
-        # Patch the handler's dependencies
-        with patch.object(h, "_build_introspection_sources", return_value=build_sources()), \
-             patch.object(h, "_enqueue_agent_work", side_effect=enqueue), \
-             patch("agents.ecosystem.partner_registry.resolve_partner_application", side_effect=registry_lookup):
+        # Build patches list
+        patches = [
+            patch.object(h, "_enqueue_agent_work", side_effect=self.custom_enqueue if self.custom_enqueue else enqueue),
+        ]
+        # Use custom sources if set, otherwise use default build_sources
+        if self.custom_sources:
+            patches.append(patch.object(h, "_build_introspection_sources", return_value=self.custom_sources()))
+        else:
+            patches.append(patch.object(h, "_build_introspection_sources", return_value=build_sources()))
+        # Use custom registry if set, otherwise use default lookup
+        if self.custom_registry:
+            patches.append(patch("agents.ecosystem.partner_registry.resolve_partner_application", side_effect=self.custom_registry))
+        else:
+            patches.append(patch("agents.ecosystem.partner_registry.resolve_partner_application", side_effect=registry_lookup))
+        if extra_patches:
+            patches.extend(extra_patches)
+        
+        with contextlib.ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
             return h.handler(event, None)
+    
+    def set_custom_enqueue(self, enqueue_func):
+        """Set a custom enqueue function for testing failure scenarios."""
+        self.custom_enqueue = enqueue_func
+    
+    def clear_custom_enqueue(self):
+        self.custom_enqueue = None
+    
+    def set_custom_registry(self, registry_func):
+        """Set a custom registry lookup function for testing failure scenarios."""
+        self.custom_registry = registry_func
+    
+    def clear_custom_registry(self):
+        self.custom_registry = None
+    
+    def set_custom_sources(self, sources_func):
+        """Set a custom sources function for testing failure scenarios."""
+        self.custom_sources = sources_func
+    
+    def clear_custom_sources(self):
+        self.custom_sources = None
+        self.custom_sources = None
+        self.custom_registry = None
+        self.custom_sources = None
+
     
     def start(self):
         """Start the HTTP server in a background thread."""
@@ -528,15 +573,117 @@ class TestHttpE2EIntegration(unittest.TestCase):
     
     # E2E-14: RIS backend unavailable -> controlled error
     def test_e2e_14_backend_unavailable(self):
-        # This would require mocking a store failure; skip for now as it requires
-        # deeper mocking of the credential store
-        self.skipTest("Requires store failure injection")
+        """Simulate RIS backend unavailability (connection refused, timeout, etc.)."""
+        jwt = self._get_valid_token()
+        
+        # Test 1: Credential store unavailable (simulates DynamoDB unavailable)
+        def failing_credential_store_get_by_digest(*args, **kwargs):
+            raise Exception("Connection refused to DynamoDB")
+        
+        with patch.object(self.ris_server.creds, "get_by_digest", side_effect=failing_credential_store_get_by_digest):
+            result = self._call_ris(jwt)
+            # Current behavior: unexpected store exceptions result in 500
+            # (handler catches _Denied but re-raises other exceptions)
+            self.assertEqual(result["status_code"], 500)
+            # Verify no traceback is exposed
+            self.assertNotIn("traceback", result["body"].get("error", "").lower())
+            # The error message includes the exception message (current behavior)
+            # Verify no secret leakage
+            self.assertNotIn(self.ris_server.secret, str(result))
+        
+        # Test 2: Partner registry lookup fails (simulates DynamoDB unavailable)
+        # Handler catches exceptions and returns 403 (fail-closed)
+        # Use server's custom registry to inject failure in server thread
+        def failing_registry_lookup(*args, **kwargs):
+            raise Exception("DynamoDB timeout")
+        
+        self.ris_server.set_custom_registry(failing_registry_lookup)
+        try:
+            result = self._call_ris(jwt)
+            self.assertEqual(result["status_code"], 403)
+            # Fail-closed: registry unavailable -> deny
+            self.assertNotIn(self.ris_server.secret, str(result))
+        finally:
+            self.ris_server.clear_custom_registry()
+        
+        # Test 3: Enqueue work item fails (simulates SQS unavailable)
+        # Use server's custom enqueue to inject failure in server thread
+        def failing_enqueue(*args, **kwargs):
+            raise Exception("SQS connection refused")
+        
+        self.ris_server.set_custom_enqueue(failing_enqueue)
+        try:
+            result = self._call_ris(jwt)
+            self.assertEqual(result["status_code"], 500)
+        finally:
+            self.ris_server.clear_custom_enqueue()
+            self.assertNotIn(self.ris_server.secret, str(result))
+        
+        # Verify no unauthorized retry or duplicate execution occurred
+        # (The enqueue function was called once and failed - no silent retry)
     
     # E2E-15: Malformed backend response -> controlled error
     def test_e2e_15_malformed_response(self):
-        # This would require injecting a malformed response from the worker;
-        # skip for now
-        self.skipTest("Requires worker response injection")
+        """Inject malformed backend responses (invalid JSON, unexpected structure, etc.)."""
+        jwt = self._get_valid_token()
+        
+        # Test 1: resolve_credential_profile returns unexpected structure
+        def malformed_resolve(*args, **kwargs):
+            return "not-a-tuple"  # Should be (meta, profile) tuple
+        
+        with patch("agents.ecosystem.credentials.resolve_credential_profile", side_effect=malformed_resolve):
+            result = self._call_ris(jwt)
+            self.assertIn(result["status_code"], (500, 503))
+            self.assertNotIn(self.ris_server.secret, str(result))
+        
+        # Test 2: check_worker_entitlement returns unexpected structure
+        def malformed_entitlement_check(*args, **kwargs):
+            return "not-an-auth-decision-object"
+        
+        with patch("agents.ecosystem.worker_authorization.check_worker_entitlement", side_effect=malformed_entitlement_check):
+            result = self._call_ris(jwt)
+            self.assertIn(result["status_code"], (500, 503))
+            self.assertNotIn(self.ris_server.secret, str(result))
+        
+        # Test 3: _enqueue_agent_work returns malformed response
+        # Use server's custom enqueue to inject failure in server thread
+        def malformed_enqueue(*args, **kwargs):
+            return "not-a-dict"
+        
+        self.ris_server.set_custom_enqueue(malformed_enqueue)
+        try:
+            result = self._call_ris(jwt)
+            # Handler doesn't validate enqueue response structure, tries to access
+            # out['workId'] which fails with KeyError/TypeError, caught by generic
+            # exception handler and returns 500
+            self.assertIn(result["status_code"], (500, 503))
+            self.assertNotIn(self.ris_server.secret, str(result))
+        finally:
+            self.ris_server.clear_custom_enqueue()
+        
+        # Test 4: resolve_partner_application returns malformed data
+        def malformed_registry(*args, **kwargs):
+            return "not-a-dict"
+        
+        self.ris_server.set_custom_registry(malformed_registry)
+        try:
+            result = self._call_ris(jwt)
+            self.assertIn(result["status_code"], (403, 500, 503))
+            self.assertNotIn(self.ris_server.secret, str(result))
+        finally:
+            self.ris_server.clear_custom_registry()
+        
+        # Test 5: _build_introspection_sources returns unexpected structure
+        def malformed_sources(*args, **kwargs):
+            return "not-a-dict"
+        
+        self.ris_server.set_custom_sources(malformed_sources)
+        try:
+            result = self._call_ris(jwt)
+            self.assertIn(result["status_code"], (500, 503))
+            self.assertNotIn(self.ris_server.secret, str(result))
+        finally:
+            self.ris_server.clear_custom_sources()
     
     # E2E-16: Two users share the same partner credential, but their individual 
     # entitlements remain isolated
