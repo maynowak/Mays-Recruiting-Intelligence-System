@@ -1154,3 +1154,57 @@ MUTATION TESTING: weakening file perms -> 3 failed; claiming a rollback instead
   claiming a protection the test does not demonstrate.
 AWS MUTATIONS: NONE
 GIT PUSH: NONE
+
+[MAYS-RIS-ADMIN-CLI-CREDENTIAL-HARDENING-CLOSURE-01]
+Date: 2026-10-11
+Status: GREEN
+BASELINE: 7b3a05301ea66d8e6b68a0f2fcd901d1d15e1dab
+COMMIT: e289866d305f091dbedb7ad015ac3f2be395c975
+FILES: tools/ris_admin/cli.py, tools/ris_admin/credentials.py, tests/test_ris_admin_credentials.py
+SUMMARY:
+- Authorization file validation (ownership, permissions, no group/other write)
+- Secret file creation with O_EXCL/O_NOFOLLOW, 0600 mode
+- Ancestor symlink and parent ownership checks
+- Fail-closed STS error handling
+- Test coverage for N05, N07, secret write failure, STS failure
+- No secret leakage in stdout/stderr/exceptions/audit logs
+TESTS: python3 -m pytest tests/test_ris_admin_credentials.py -q => 47 passed
+REGRESSION: python3 -m pytest tests/test_ris_admin_cli.py tests/test_partner_registry_atomicity.py tests/test_partner_security_boundary.py -q => 75 passed
+FULL SUITE: 1321 passed, 8 failed (same pre-existing), 9 skipped
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
+[MAYS-RIS-ADMIN-CLI-N16-N18-TESTS-01]
+Date: 2026-10-11
+Status: GREEN
+BASELINE: e289866d305f091dbedb7ad015ac3f2be395c975
+COMMIT: 3bce64f
+FILES: tests/test_ris_admin_credentials.py
+SUMMARY:
+- Added N16 test: ensures issue_credential is invoked exactly once per successful issuance
+- Added N18 test: concurrent issuance targeting same output path cannot overwrite/expose credentials
+- Uses ops.issue directly with proper parameters, patches ops.write_secret for concurrency simulation
+- Both tests pass
+TESTS: python3 -m pytest tests/test_ris_admin_credentials.py -q => 49 passed
+REGRESSION: python3 -m pytest tests/test_ris_admin_cli.py tests/test_partner_registry_atomicity.py tests/test_partner_security_boundary.py -q => 75 passed
+FULL SUITE: 1321 passed, 8 failed (same pre-existing), 9 skipped
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
+[MAYS-RIS-PARTNER-API-CONTRACT-AND-MOCK-01]
+Date: 2026-10-11
+Status: GREEN
+BASELINE: 3bce64f
+COMMIT: 8749b18
+FILES: agents/partner_schema.py, mocks/jobsearch_server.py
+SUMMARY:
+- Added partner API contract definitions (dataclasses for request/response)
+- Added mock Jobsearch server for integration testing
+- No runtime changes; test infrastructure for end-to-end integration testing
+- Prepares for Jobsearch as reference partner integration
+TESTS: python3 -m pytest tests/ -q --tb=no => 1371 passed, 8 failed (same pre-existing)
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
