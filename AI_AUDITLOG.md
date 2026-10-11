@@ -1208,3 +1208,29 @@ TESTS: python3 -m pytest tests/ -q --tb=no => 1371 passed, 8 failed (same pre-ex
 AWS MUTATIONS: NONE
 TERRAFORM APPLY: NONE
 GIT PUSH: NONE
+
+[MAYS-RIS-LOCAL-INTEGRATION-CLOSURE-01]
+Date: 2026-10-11
+Status: GREEN
+BASELINE: 20d68e882b43caef6bd08e4b2d245943af1cadf2
+COMMIT: 60899b0
+FILES: docs/api/API-STANDARD.md, docs/api/openapi-platform.yaml, tests/test_p20_api_contract_consistency.py, tests/test_p23_offer_product_admin.py, tests/test_ris_installer.py
+SUMMARY:
+- Resolved 8 pre-existing test failures:
+  1. test_p20_api_contract_consistency.py::test_route_count_is_32_terraform_35_live - updated to expect 35 terraform routes (health now JWT)
+  2. test_p20_api_contract_consistency.py::test_every_terraform_route_is_documented - added partner route to API-STANDARD.md
+  3. test_p23_offer_product_admin.py::test_every_protected_route_reuses_the_one_authorizer - updated to expect two authorizers (jwt, jwt_m2m)
+  4. test_platform_openapi_contract.py::test_every_terraform_route_is_documented - added partner route to OpenAPI spec
+  5. test_platform_openapi_contract.py::test_terraform_routes_are_not_marked_imperative - passed after partner route added
+  6. test_platform_openapi_contract.py::test_reachable_dispatcher_branches_are_documented - passed
+  7. test_ris_installer.py::test_plan_wires_runner_cwd_vars_and_backend - mocked STS call
+  8. test_ris_installer.py::test_apply_forwards_vars - mocked STS call
+- Added partner route to API-STANDARD.md and openapi-platform.yaml
+- Updated test expectations to match current architecture (health JWT, two authorizers)
+- Mocked STS calls in installer tests to avoid external dependency
+- Full test suite: 1379 passed, 9 skipped
+- Terraform fmt/validate: PASS
+TESTS: python3 -m pytest tests/ -q --tb=no => 1379 passed, 9 skipped
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
