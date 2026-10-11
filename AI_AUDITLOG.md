@@ -937,3 +937,26 @@ REUSE: agents.ecosystem.* contracts
 TESTS: tests/test_ris_admin_cli.py PASS
 AWS MUTATIONS: NONE
 GIT PUSH: NONE
+
+[MAYS-RIS-REGISTRY-ATOMIC-IMPLEMENTATION-01]
+Date: 2026-10-11
+Status: GREEN (local implementation)
+BASELINE REMOTE: dca8e11236926d409c24add45f8730e5327f95bd
+BASELINE LOCAL: 3857b450a77828eae15353a130da84dafd00192d
+REGISTRY UNIQUENESS: DynamoDB TransactWriteItems with two conditional Put operations
+  1. application record (PK=applicationId, ConditionExpression attribute_not_exists(applicationId))
+  2. client reservation item (PK="CLIENT#<cognitoClientId>", same condition)
+ATOMICITY: both writes applied or none; GSI does not enforce uniqueness so PK reservation is used
+LOOKUP: resolve_partner_application unchanged contract, paginates gsi-client, filters reservation items
+NEW FUNCTIONS: list_partner_applications (reservation items excluded), deactivate_partner_application
+  (reservation retained so a client ID cannot be rebound after deactivation)
+CLI: ris-admin partner list/show/create/validate/deactivate wired to registry functions
+FILES CHANGED: agents/ecosystem/partner_registry.py, tools/ris_admin/cli.py, AI_AUDITLOG.md
+FILES ADDED: tests/test_partner_registry_atomicity.py
+TESTS: python3 -m pytest tests/test_partner_registry_atomicity.py -q => 18 passed
+REGRESSION: python3 -m pytest tests/test_p22_m2m_binding.py tests/test_p21_cognito_m2m_boundary.py tests/test_machine_entrypoint.py tests/test_ris_admin_cli.py -q => 60 passed
+FULL SUITE: 1241 passed, 13 failed (identical 13 verified pre-existing via git stash baseline), 9 skipped
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+REMAINING BLOCKER: RIS_PARTNER_APPLICATIONS_TABLE env + IAM wiring not yet in Terraform

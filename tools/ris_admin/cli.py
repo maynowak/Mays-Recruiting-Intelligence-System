@@ -102,114 +102,120 @@ def build_parser() -> argparse.ArgumentParser:
 
     partner = sub.add_parser("partner", help="Partner management")
     partner_sub = partner.add_subparsers(dest="partner_cmd", required=True)
-    partner_sub.add_parser("list", help="List partners").set_defaults(func=cmd_partner_list)
-    
-    def _partner_cmd_show(args):
-        table = _table_name(args, "partner-applications")
-        try:
-            client = _get_dynamo_client(args)
-            resp = client.get_item(TableName=table, Key={"applicationId": {"S": args.applicationId}})
-            item = resp.get("Item")
-            if not item:
-                print(json.dumps({"error": "not found"}))
-                return 1
-            def unmarshal(it):
-                return {k: list(v.values())[0] for k,v in it.items()}
-            _print_json(unmarshal(item))
+
+    def _registry():
+        sys.path.insert(0, os.getcwd())
+        import agents.ecosystem.partner_registry as reg
+        return reg
+
+    def _partner_cmd_list(args):
+        if args.dry_run:
+            _print_json({"dry_run": True})
             return 0
-        except Exception as e:
-            print(f"partner show failed: {e}", file=sys.stderr)
+        reg = _registry()
+        rows = reg.list_partner_applications(
+            table_name=_table_name(args, "partner-applications"))
+        _print_json({"applications": rows})
+        return 0
+
+    partner_sub.add_parser("list", help="List partners").set_defaults(
+        func=_partner_cmd_list)
+
+    def _partner_cmd_show(args):
+        reg = _registry()
+        client = _get_dynamo_client(args)
+        resp = client.get_item(
+            TableName=_table_name(args, "partner-applications"),
+            Key={"applicationId": {"S": args.applicationId}})
+        item = resp.get("Item")
+        if not item or reg._is_reservation(item):
+            _print_json({"error": "not found"})
             return 1
-    
+        _print_json({k: list(v.values())[0] for k, v in item.items()})
+        return 0
+
     show_p = partner_sub.add_parser("show", help="Show partner")
     show_p.add_argument("applicationId")
     show_p.set_defaults(func=_partner_cmd_show)
-    
+
     def _partner_cmd_create(args):
+        reg = _registry()
         if args.dry_run:
-            _print_json({"dry_run": True, "action": "create", "applicationId": args.applicationId})
+            _print_json({"dry_run": True,
+                         "action": "create",
+                         "applicationId": args.applicationId})
             return 0
-        # Minimal validation using existing registry function
+        client = _get_dynamo_client(args)
         try:
-            from agents.ecosystem.partner_registry import create_partner_application
-        except Exception as e:
-            print(f"registry import failed: {e}", file=sys.stderr)
-            return 1
-        try:
-            res = create_partner_application(
+            res = reg.create_partner_application(
                 application_id=args.applicationId,
                 cognito_client_id=args.cognitoClientId,
                 api_profile_id=args.apiProfileId,
                 tenant_id=args.tenantId,
+                table_name=_table_name(args, "partner-applications"),
+                dynamodb_client=client,
             )
             _print_json(res)
             return 0
         except Exception as e:
             print(f"partner create failed: {e}", file=sys.stderr)
             return 1
-    
+
     create_p = partner_sub.add_parser("create", help="Create partner")
     create_p.add_argument("applicationId")
     create_p.add_argument("--cognitoClientId", required=True)
     create_p.add_argument("--apiProfileId", required=True)
     create_p.add_argument("--tenantId", required=True)
     create_p.set_defaults(func=_partner_cmd_create)
-    
+
     def _partner_cmd_validate(args):
-        # Simple validation: resolve by client id
-        try:
-            from agents.ecosystem.partner_registry import resolve_partner_application
-        except Exception as e:
-            print(f"registry import failed: {e}", file=sys.stderr)
+        reg = _registry()
+        client = _get_dynamo_client(args)
+        table = _table_name(args, "partner-applications")
+        resp = client.get_item(TableName=table,
+                               Key={"applicationId": {"S": args.applicationId}})
+        item = resp.get("Item")
+        if not item or reg._is_reservation(item):
+            _print_json({"valid": False, "reason": "not found"})
             return 1
-        try:
-            # Need client id, use applicationId as placeholder? Use resolve by applicationId via get_item
-            table = _table_name(args, "partner-applications")
-            client = _get_dynamo_client(args)
-            resp = client.get_item(TableName=table, Key={"applicationId": {"S": args.applicationId}})
-            item = resp.get("Item")
-            if not item:
-                _print_json({"valid": False, "reason": "not found"})
-                return 0
-            def unmarshal(it):
-                return {k: list(v.values())[0] for k,v in it.items()}
-            rec = unmarshal(item)
-            _print_json({"valid": True, "record": rec})
-            return 0
-        except Exception as e:
-            print(f"partner validate failed: {e}", file=sys.stderr)
-            return 1
-    
+        rec = {k: list(v.values())[0] for k, v in item.items()}
+        problems = []
+        if rec.get("status") != "ACTIVE":
+            problems.append(f"status={rec.get('status')}")
+        for field in ("cognitoClientId", "tenantId", "apiProfileId"):
+            if not rec.get(field):
+                problems.append(f"missing {field}")
+        _print_json({"valid": not problems, "problems": problems,
+                     "record": rec})
+        return 0 if not problems else 1
+
     val_p = partner_sub.add_parser("validate", help="Validate partner")
     val_p.add_argument("applicationId")
     val_p.set_defaults(func=_partner_cmd_validate)
-    
+
     def _partner_cmd_deactivate(args):
         if args.dry_run:
-            _print_json({"dry_run": True, "action": "deactivate", "applicationId": args.applicationId})
+            _print_json({"dry_run": True,
+                         "action": "deactivate",
+                         "applicationId": args.applicationId})
             return 0
+        reg = _registry()
         try:
-            client = _get_dynamo_client(args)
-            table = _table_name(args, "partner-applications")
-            resp = client.update_item(
-                TableName=table,
-                Key={"applicationId": {"S": args.applicationId}},
-                UpdateExpression="SET #s = :s",
-                ExpressionAttributeNames={"#s": "status"},
-                ExpressionAttributeValues={":s": {"S": "INACTIVE"}},
-                ReturnValues="UPDATED_NEW"
+            res = reg.deactivate_partner_application(
+                args.applicationId,
+                table_name=_table_name(args, "partner-applications"),
+                dynamodb_client=_get_dynamo_client(args),
             )
-            _print_json({"deactivated": True, "response": resp})
+            _print_json(res)
             return 0
         except Exception as e:
             print(f"partner deactivate failed: {e}", file=sys.stderr)
             return 1
-    
+
     deact_p = partner_sub.add_parser("deactivate", help="Deactivate partner")
     deact_p.add_argument("applicationId")
     deact_p.set_defaults(func=_partner_cmd_deactivate)
-
-    # Placeholder commands for future expansion
+    
     ap = sub.add_parser("apiprofile", help="APIProfile management")
     ap.add_subparsers(dest="apiprofile_cmd", required=True)
 
