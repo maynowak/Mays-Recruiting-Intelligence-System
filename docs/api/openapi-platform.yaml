@@ -72,6 +72,8 @@ tags:
     description: Offer / product administration and entitlement grants.
   - name: Machine
     description: Machine-to-machine agent execution.
+  - name: Partner
+    description: Partner agent execution with dual authentication.
   - name: Orders
     description: Order façade served by the orders-reader Lambda.
 
@@ -788,6 +790,58 @@ paths:
           description: |
             Credential not executable, not in catalogue, revoked/expired, or
             entitlement outside its window.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
+  /v1/partner/agents/{agentId}/execute:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    post:
+      tags: [Partner]
+      operationId: executeAgentPartner
+      summary: Partner agent execution (dual auth)
+      description: |
+        Dual authorization boundary, neither replacing the other:
+        
+        1. A Cognito JWT validated by API Gateway before this function runs.
+           The route is `authorization_type: JWT` and uses the main JWT authorizer.
+        2. An opaque `ris_...` credential in `X-Api-Credential`, validated by
+           the central `verify_api_credential`.
+        
+        The JWT identifies the human caller; the credential identifies the
+        product context. Both must be present and consistent.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                capability: { type: string }
+                payload: { type: object }
+                idempotencyKey: { type: string }
+      responses:
+        "202":
+          description: Work accepted; a `workId` was registered.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkAccepted" }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: |
+            Credential not executable, not in catalogue, revoked/expired, or
+            entitlement outside its window, or tenant/APIProfile mismatch.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }

@@ -165,13 +165,13 @@ class TestTerraformRouteInventory(unittest.TestCase):
     """Die Route-Liste selbst muss der Erwartung entsprechen (Anker)."""
 
     def test_route_count_is_32_terraform_35_live(self):
-        """34 Terraform-Deklarationen + 3 imperative documents-Routen = 37 live.
+        """35 Terraform-Deklarationen + 3 imperative documents-Routen = 38 live.
 
         Aufteilung (VERIFIED per terraform_routes(), nicht geschaetzt):
-          30 agent-Routen  (25 Basis + DELETE /me/profile (Gate-02 P2A)
-                            + POST /me/erasure (Gate-05 G5))
+          31 agent-Routen  (25 Basis + DELETE /me/profile (Gate-02 P2A)
+                            + POST /me/erasure (Gate-05 G5) + GET /health)
         +  4 orders-reader-Routen
-        = 34 Deklarationen in .tf-Dateien
+        = 35 Deklarationen in .tf-Dateien
         +  3 imperative documents-Routen (OPEN-3, in keiner .tf-Datei)
 
         Gate-02 P2C: 32 -> 33 durch genau EINE echte Route
@@ -182,8 +182,8 @@ class TestTerraformRouteInventory(unittest.TestCase):
         durchgeht.
         """
         routes = terraform_routes()
-        self.assertEqual(34, len(routes))
-        self.assertEqual(30, sum(1 for v in routes.values()
+        self.assertEqual(35, len(routes))
+        self.assertEqual(31, sum(1 for v in routes.values()
                                  if v["target"] == "agent"))
         self.assertEqual(4, sum(1 for v in routes.values()
                                 if v["target"] == "orders"))

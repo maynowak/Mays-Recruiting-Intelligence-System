@@ -599,8 +599,8 @@ class TestRouteAndIamContract(OfferHarness):
                 self.assertNotIn('"NONE"', block)
 
     def test_every_protected_route_reuses_the_one_authorizer(self):
-        """Nur /health ist bewusst ohne Authorizer; alle anderen 34 nutzen
-        denselben Cognito-Authorizer. Es gibt keinen zweiten."""
+        """Alle 35 Routen nutzen einen von zwei Cognito-Authorizern (jwt oder jwt_m2m).
+        Es gibt genau zwei Authorizer; keine Route ohne Authorizer."""
         path = os.path.join(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__))), "terraform", "modules", "api",
             "main.tf")
@@ -611,14 +611,17 @@ class TestRouteAndIamContract(OfferHarness):
             source, re.S)
         without = [name for name, block in blocks
                    if "authorizer_id" not in block]
-        self.assertEqual(["health"], without,
-                         "nur /health ist unauthentifiziert")
+        self.assertEqual([], without,
+                         "alle Routen haben einen Authorizer")
         for name, block in blocks:
-            if name == "health":
-                continue
             with self.subTest(route=name):
-                self.assertIn("aws_apigatewayv2_authorizer.jwt.id", block)
-        self.assertEqual(1, source.count(
+                # Jede Route nutzt entweder jwt oder jwt_m2m Authorizer
+                self.assertTrue(
+                    "aws_apigatewayv2_authorizer.jwt.id" in block
+                    or "aws_apigatewayv2_authorizer.jwt_m2m.id" in block,
+                    f"Route {name} nutzt unerwarteten Authorizer: {block}")
+        # Genau zwei Authorizer definiert
+        self.assertEqual(2, source.count(
             'resource "aws_apigatewayv2_authorizer"'))
 
     def test_entitlements_admin_policy_is_scoped_to_one_table(self):

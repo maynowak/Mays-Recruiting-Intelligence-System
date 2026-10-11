@@ -107,6 +107,19 @@ Antwort 202: `{"workId": string, "status": string, "requestId": string}`
 
 **Reihenfolge der Prüfungen:**
 
+### 2.1.1 Partner API (Dual Auth)
+
+| Route | Auth | Erfolg | Weitere Codes |
+|---|---|---|---|
+| `POST /v1/partner/agents/{agentId}/execute` | JWT **+** `X-Api-Credential` | 202 | 401, 403, 500, 503 |
+
+Request-Body (alle Felder optional):
+`{"capability": string, "payload": object, "idempotencyKey": string}`
+
+Antwort 202: `{"workId": string, "status": string, "requestId": string}`
+
+**Reihenfolge der Prüfungen:**
+
 1. API Gateway validiert das Cognito-JWT. Fehlt oder ist es ungültig, wird der
    Request **vor** dem Lambda mit 401 abgewiesen.
 2. Der Lambda verlangt eine Cognito-Identität (`sub`). Fehlt sie — etwa bei

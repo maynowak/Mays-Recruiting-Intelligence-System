@@ -109,8 +109,14 @@ def test_plan_wires_runner_cwd_vars_and_backend():
             backend_bucket="b",
             backend_region="r",
         )
-    with patch("subprocess.run", side_effect=fake_run):
-        results = ris._cmd_plan(ctx, out_file="tfplan")
+    # Mock STS call to return a fixed identity
+    with patch("installer.identity_context._run_sts", return_value={
+        "Account": "123456789012",
+        "UserId": "AIDATEST",
+        "Arn": "arn:aws:iam::123456789012:user/tester"
+    }):
+        with patch("subprocess.run", side_effect=fake_run):
+            results = ris._cmd_plan(ctx, out_file="tfplan")
     flat = [" ".join(c) for c in seen["cmds"]]
     assert any(c.startswith("terraform init -backend-config=") for c in flat)
     assert any("terraform plan" in c and "-var project_name=mays-ris" in c for c in flat)
@@ -542,8 +548,14 @@ def test_apply_forwards_vars():
             dry_run=False,
             extra_vars={"identity_email_verification_enabled": "true"},
         )
-    with patch("subprocess.run", side_effect=fake_run):
-        results = ris._cmd_apply(ctx)
+    # Mock STS call to return a fixed identity
+    with patch("installer.identity_context._run_sts", return_value={
+        "Account": "123456789012",
+        "UserId": "AIDATEST",
+        "Arn": "arn:aws:iam::123456789012:user/tester"
+    }):
+        with patch("subprocess.run", side_effect=fake_run):
+            results = ris._cmd_apply(ctx)
     flat = [" ".join(c) for c in seen["cmds"]]
     apply = [c for c in flat if c.startswith("terraform apply")]
     assert len(apply) == 1
