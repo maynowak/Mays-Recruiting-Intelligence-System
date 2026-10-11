@@ -32,9 +32,8 @@ from __future__ import annotations
 import json
 import os
 import stat
-import tempfile
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 
 class AdminAuthorizationError(Exception):
@@ -79,6 +78,23 @@ def resolve_admin_authorization(
     if not os.path.exists(authorization_file):
         raise AdminAuthorizationError(
             "authorization file not found; refusing to %s" % operation)
+    # The mapping is a trust anchor, so it must not be writable by anyone
+    # else: a world-writable file would let any local user grant themselves
+    # RIS admin rights for any tenant.
+    try:
+        info = os.stat(authorization_file)
+    except OSError as exc:
+        raise AdminAuthorizationError(
+            "authorization file not readable (%s); refusing to %s"
+            % (type(exc).__name__, operation))
+    if info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        raise AdminAuthorizationError(
+            "authorization file is group/other writable; refusing to %s"
+            % operation)
+    if hasattr(os, "getuid") and info.st_uid != os.getuid():
+        raise AdminAuthorizationError(
+            "authorization file is not owned by the invoking user; "
+            "refusing to %s" % operation)
     try:
         with open(authorization_file, "r", encoding="utf-8") as fh:
             policy = json.load(fh)
@@ -114,27 +130,51 @@ def precheck_output_destination(path: str) -> None:
     """Reject an unsafe destination BEFORE a credential is issued.
 
     Checks, in order:
-      * the path is absolute or resolvable
-      * no component is a symlink (prevents redirecting the secret)
+      * the path is given and absolute
+      * NO PATH COMPONENT is a symlink, at any depth. Only the final
+        component is covered by O_EXCL at open time, so a symlinked
+        intermediate directory would otherwise redirect the whole write.
+      * the parent directory exists, is a real directory (lstat, not stat),
+        is owned by the invoking user, and is not group/other writable
       * the target does not already exist (never clobber)
-      * the parent directory exists and is not world/group writable
     """
     if not path:
         raise OutputDestinationError("no secret output destination given")
-    parent = os.path.dirname(os.path.abspath(path)) or "."
+    absolute = os.path.abspath(path)
+
+    # Every existing ancestor must be a real directory, not a link.
+    current = os.path.abspath(os.sep)
+    for part in absolute.split(os.sep):
+        if not part:
+            continue
+        current = os.path.join(current, part)
+        if os.path.islink(current):
+            raise OutputDestinationError(
+                "secret output path traverses a symlink: %s" % part)
+        if not os.path.exists(current):
+            break
+    if os.path.islink(absolute):
+        raise OutputDestinationError(
+            "secret output path is a symlink")
+    if os.path.exists(absolute):
+        raise OutputDestinationError(
+            "secret output file already exists; refusing to overwrite")
+
+    parent = os.path.dirname(absolute) or "."
     if not os.path.isdir(parent):
         raise OutputDestinationError(
             "secret output directory does not exist")
-    mode = stat.S_IMODE(os.stat(parent).st_mode)
+    parent_stat = os.lstat(parent)
+    if not stat.S_ISDIR(parent_stat.st_mode):
+        raise OutputDestinationError(
+            "secret output directory is not a real directory")
+    if hasattr(os, "getuid") and parent_stat.st_uid != os.getuid():
+        raise OutputDestinationError(
+            "secret output directory is not owned by the invoking user")
+    mode = stat.S_IMODE(parent_stat.st_mode)
     if mode & (stat.S_IWOTH | stat.S_IWGRP):
         raise OutputDestinationError(
             "secret output directory is writable by group or other")
-    if os.path.islink(path):
-        raise OutputDestinationError(
-            "secret output path is a symlink")
-    if os.path.exists(path):
-        raise OutputDestinationError(
-            "secret output file already exists; refusing to overwrite")
 
 
 def open_secret_file(path: str) -> int:
@@ -302,7 +342,12 @@ def issue(
     except CredentialOutputFailed as exc:
         raise CredentialOutputFailed(
             metadata.get("credentialId"), exc.detail)
-    except OSError as exc:
+    except Exception as exc:
+        # The credential EXISTS at this point and cannot be un-issued. Catch
+        # broadly: a narrowed handler (e.g. OSError only) would let an
+        # unexpected failure escape with no credential id, leaving the
+        # operator with a live credential they cannot identify or revoke.
+        # The detail is the exception TYPE only - never the secret.
         raise CredentialOutputFailed(
             metadata.get("credentialId"),
             "secret write failed (%s)" % type(exc).__name__)

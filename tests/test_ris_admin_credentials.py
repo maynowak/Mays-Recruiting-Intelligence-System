@@ -144,6 +144,21 @@ class TestAuthorization(Base):
         self.assertNotIn("--role", flags)
         self.assertNotIn("--admin", flags)
 
+    def test_world_writable_authorization_file_is_rejected(self):
+        """The mapping is a trust anchor; anyone who can edit it can grant
+        themselves admin rights."""
+        path = os.path.join(self.tmp, "loose-auth.json")
+        with open(path, "w") as fh:
+            json.dump({"principals": {
+                PRINCIPAL: {"role": "admin", "tenantId": "victim-tenant"}}},
+                fh)
+        os.chmod(path, 0o666)
+        try:
+            with self.assertRaises(ops.AdminAuthorizationError):
+                ops.resolve_admin_authorization(path, PRINCIPAL, "issue")
+        finally:
+            os.chmod(path, 0o600)
+
     def test_aws_identity_alone_does_not_authorize(self):
         """Correct AWS identity, unmapped principal -> still denied."""
         with self.assertRaises(ops.AdminAuthorizationError):
@@ -211,6 +226,29 @@ class TestOutputDestination(Base):
         finally:
             os.open = real_open
         self.assertEqual(open(target).read(), "x")
+
+    def test_symlinked_parent_directory_is_rejected(self):
+        """Only the final component is covered by O_EXCL, so a symlinked
+        intermediate directory would redirect the entire write."""
+        real_dir = os.path.join(self.tmp, "realdir")
+        os.makedirs(real_dir, exist_ok=True)
+        link_dir = os.path.join(self.tmp, "linkdir")
+        os.symlink(real_dir, link_dir)
+        with self.assertRaises(ops.OutputDestinationError):
+            ops.precheck_output_destination(
+                os.path.join(link_dir, "secret.txt"))
+        # Nothing may have been created in the redirect target.
+        self.assertFalse(os.path.exists(os.path.join(real_dir, "secret.txt")))
+
+    def test_nested_symlinked_directory_is_rejected(self):
+        deep_real = os.path.join(self.tmp, "deep")
+        os.makedirs(deep_real, exist_ok=True)
+        mid = os.path.join(self.tmp, "mid")
+        os.makedirs(mid, exist_ok=True)
+        os.symlink(deep_real, os.path.join(mid, "hop"))
+        with self.assertRaises(ops.OutputDestinationError):
+            ops.precheck_output_destination(
+                os.path.join(mid, "hop", "secret.txt"))
 
     def test_open_refuses_existing_file(self):
         with open(self.out, "w") as fh:
@@ -354,6 +392,24 @@ class TestIssue(Base):
 
         def boom(fd, secret):
             raise mod.CredentialOutputFailed("", "disk full")
+
+        with patch.object(mod, "write_secret", side_effect=boom):
+            with self.assertRaises(mod.CredentialOutputFailed) as ctx:
+                self.issue()
+        self.assertTrue(ctx.exception.credential_id)
+        self.assertIn(ctx.exception.credential_id, self.creds.by_id)
+        self.assertNotIn("ris_", ctx.exception.detail)
+
+    def test_unexpected_write_error_still_reports_credential_id(self):
+        """A non-OSError failure must not orphan a credential silently.
+
+        The credential is already issued at this point, so the operator must
+        always receive the id regardless of how the write failed.
+        """
+        import ris_admin.credentials as mod
+
+        def boom(fd, secret):
+            raise ValueError("simulated non-OSError")
 
         with patch.object(mod, "write_secret", side_effect=boom):
             with self.assertRaises(mod.CredentialOutputFailed) as ctx:
@@ -536,6 +592,27 @@ class TestCliSurface(Base):
         self.assertNotIn("ris_", out)
         self.assertTrue(os.path.exists(self.out))
         self.assertEqual(stat.S_IMODE(os.stat(self.out).st_mode), 0o600)
+
+    def test_aws_identity_failure_is_a_neutral_refusal(self):
+        """An unavailable AWS identity must not produce a traceback."""
+        patches = [patch.object(cli, "_caller_arn",
+                                side_effect=RuntimeError("no credentials"))]
+        for p in patches:
+            p.start()
+        try:
+            grab = SecretGrabber()
+            with patch("builtins.print") as printer, patch("sys.stderr"):
+                printer.side_effect = lambda text="", **kw: grab(text)
+                code = cli.main([
+                    "--environment", "dev", "credential", "issue",
+                    "--apiProfileId", self.pid, "--expiresAt", _ts(30),
+                    "--output-file", self.out])
+        finally:
+            for p in patches:
+                p.stop()
+        self.assertEqual(code, 1)
+        self.assertNotIn("Traceback", grab.out)
+        self.assertFalse(os.path.exists(self.out))
 
     def test_cli_issue_denied_without_authorization_file(self):
         code, out = self.run_cli([

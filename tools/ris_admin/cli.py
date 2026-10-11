@@ -55,6 +55,7 @@ def _domain_error(operation: str, exc: Exception) -> int:
 
 def credops_error():
     from ris_admin.credentials import AdminAuthorizationError
+
     return (AdminAuthorizationError,)
 
 
@@ -286,7 +287,20 @@ def build_parser() -> argparse.ArgumentParser:
         the operation fails closed.
         """
         credops = _credential_ops()
-        principal_arn = _caller_arn(args)
+        try:
+            principal_arn = _caller_arn(args)
+        except credops_error() as exc:
+            raise
+        except Exception as exc:
+            # An unavailable or misconfigured AWS identity must be a neutral
+            # refusal, never an unhandled traceback.
+            raise credops.AdminAuthorizationError(
+                "AWS identity could not be established (%s); refusing to %s"
+                % (type(exc).__name__, operation))
+        if not principal_arn:
+            raise credops.AdminAuthorizationError(
+                "AWS identity could not be established; refusing to %s"
+                % operation)
         return credops.resolve_admin_authorization(
             getattr(args, "authorization_file", None)
             or os.getenv("RIS_ADMIN_AUTHORIZATION_FILE"),
