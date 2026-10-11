@@ -125,6 +125,13 @@ def resolve_partner_application(
         # GSI results for a client ID contain BOTH the application record and
         # the "CLIENT#<clientId>" reservation item, so a single-item page would
         # be non-deterministic. Page through until a real record is found.
+        #
+        # ConsistentRead=True is required, not optional. deactivate_partner_
+        # application writes the BASE table, but this lookup goes through
+        # gsi-client, which is eventually consistent by default. Without a
+        # strongly consistent read a deactivated partner would keep resolving
+        # as ACTIVE for the propagation window, i.e. a revocation lag on the
+        # authorization hot path. Revocation must take effect immediately.
         start_key = None
         items = []
         while True:
@@ -133,6 +140,7 @@ def resolve_partner_application(
                 'IndexName': 'gsi-client',
                 'KeyConditionExpression': 'cognitoClientId = :cid',
                 'ExpressionAttributeValues': {':cid': {'S': client_id}},
+                'ConsistentRead': True,
                 'Limit': 10,
             }
             if start_key:

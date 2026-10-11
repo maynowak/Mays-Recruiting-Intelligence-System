@@ -302,6 +302,41 @@ resource "aws_iam_role_policy" "lambda_dynamodb_product" {
   })
 }
 
+# Partner Application Registry — RUNTIME ROLE, READ ONLY.
+#
+# The runtime execution path (lambda/handler.py _partner_execute_agent and
+# _machine_execute_agent) calls resolve_partner_application ONLY. That function
+# performs exactly one DynamoDB operation: a Query on the gsi-client index.
+#
+# It deliberately does NOT receive create/deactivate/list permissions:
+#   - create_partner_application needs dynamodb:TransactWriteItems
+#   - deactivate_partner_application needs dynamodb:UpdateItem
+#   - list_partner_applications needs dynamodb:Scan
+# Those are ADMINISTRATIVE operations driven by tools/ris_admin/cli.py and run
+# under an operator IAM identity, never under the public-facing API Lambda.
+#
+# DynamoDB does not accept a table ARN for index access, so gsi-client must be
+# granted on its own ARN.
+resource "aws_iam_role_policy" "lambda_dynamodb_partner_registry" {
+  name = "${var.project_name}-${var.environment}-lambda-dynamodb-partner-registry"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:Query"
+        ]
+        Resource = [
+          var.partner_applications_gsi_client_arn
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_logs" {
   name = "${var.project_name}-${var.environment}-lambda-logs"
   role = aws_iam_role.lambda_execution.id
@@ -345,7 +380,11 @@ resource "aws_lambda_function" "agent" {
       API_PROFILES_TABLE  = var.api_profiles_table_name
       OFFERS_TABLE        = var.offers_table_name
       CREDENTIALS_TABLE   = var.credentials_table_name
-      LOG_LEVEL           = var.log_level
+      # Partner Application Registry. Read by resolve_partner_application on
+      # every authorized partner/M2M execution. Absent -> registry returns
+      # None -> both partner routes fail closed with 403.
+      RIS_PARTNER_APPLICATIONS_TABLE = var.partner_applications_table_name
+      LOG_LEVEL                      = var.log_level
     }
   }
 
@@ -354,6 +393,7 @@ resource "aws_lambda_function" "agent" {
     aws_iam_role_policy.lambda_dynamodb_work,
     aws_iam_role_policy.lambda_dynamodb_jobsearch,
     aws_iam_role_policy.lambda_dynamodb_product,
+    aws_iam_role_policy.lambda_dynamodb_partner_registry,
     aws_iam_role_policy.lambda_documents,
     aws_iam_role_policy.lambda_s3,
     aws_iam_role_policy.lambda_logs,

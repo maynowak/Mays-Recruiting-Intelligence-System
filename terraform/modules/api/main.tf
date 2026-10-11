@@ -276,20 +276,20 @@ resource "aws_apigatewayv2_route" "credentials_revoke" {
 # are mandatory; neither substitutes the other, and there is no downgrade path
 # that would let a request skip Cognito.
 resource "aws_apigatewayv2_route" "m2m_agent_execute" {
-  api_id              = aws_apigatewayv2_api.ris_api.id
-  route_key           = "POST /v1/m2m/agents/{agentId}/execute"
-  target              = "integrations/${aws_apigatewayv2_integration.lambda.id}"
-  authorization_type  = "JWT"
-  authorizer_id       = aws_apigatewayv2_authorizer.jwt_m2m.id
+  api_id               = aws_apigatewayv2_api.ris_api.id
+  route_key            = "POST /v1/m2m/agents/{agentId}/execute"
+  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type   = "JWT"
+  authorizer_id        = aws_apigatewayv2_authorizer.jwt_m2m.id
   authorization_scopes = ["ris-api/m2m/execute"]
 }
 
 resource "aws_apigatewayv2_route" "partner_agent_execute" {
-  api_id              = aws_apigatewayv2_api.ris_api.id
-  route_key           = "POST /v1/partner/agents/{agentId}/execute"
-  target              = "integrations/${aws_apigatewayv2_integration.lambda.id}"
-  authorization_type  = "JWT"
-  authorizer_id       = aws_apigatewayv2_authorizer.jwt.id
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/partner/agents/{agentId}/execute"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
 # Product Admin: Offer -> Entitlement provisioning (P23-01).

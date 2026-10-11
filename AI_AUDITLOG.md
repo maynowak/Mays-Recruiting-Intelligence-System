@@ -1027,3 +1027,42 @@ AWS MUTATIONS: NONE
 GIT PUSH: NONE
 OPEN BLOCKER (unchanged): RIS_PARTNER_APPLICATIONS_TABLE env + IAM not wired,
   so both partner routes fail closed with 403 in any provisioned environment.
+
+[MAYS-RIS-PARTNER-TERRAFORM-WIRING-01]
+Date: 2026-10-11
+Status: GREEN (local configuration; NOT deployed)
+BASELINE: 9e94168b3726605c2261347e92a403e26e1b5e89
+ROOT CAUSE FIXED: the partner-applications table existed but nothing told the
+  runtime Lambda which table to read, and no IAM policy covered the lookup, so
+  resolve_partner_application returned None and BOTH partner routes returned 403.
+DYNAMODB OUTPUTS (modules/dynamodb/outputs.tf):
+  partner_applications_table_name, partner_applications_table_arn,
+  partner_applications_gsi_client_arn (DynamoDB does not accept a table ARN
+  for index access, so the GSI needs its own ARN)
+LAMBDA ENV (modules/lambda/main.tf): RIS_PARTNER_APPLICATIONS_TABLE =
+  var.partner_applications_table_name, wired from module.dynamodb via main.tf.
+RUNTIME IAM (lambda_dynamodb_partner_registry): dynamodb:Query ONLY, scoped to
+  the gsi-client index ARN. No wildcards, no table-wide grant.
+ADMIN IAM SEPARATION: create_partner_application (TransactWriteItems),
+  deactivate_partner_application (UpdateItem) and list_partner_applications
+  (Scan) are NOT granted to the public-facing runtime Lambda. They run through
+  tools/ris_admin/cli.py under an operator IAM identity.
+CONSISTENCY FIX: resolve_partner_application now passes ConsistentRead=True.
+  deactivate writes the base table but the lookup reads gsi-client, which is
+  eventually consistent by default; without a strong read a deactivated partner
+  kept resolving as ACTIVE for the propagation window (revocation lag on the
+  authorization hot path).
+FMT: terraform fmt -check -recursive now passes; it FAILED at baseline because
+  modules/api/main.tf and modules/cognito/main.tf were unformatted (fixed).
+VALIDATE: terraform init -backend=false && terraform validate => Success
+TESTS ADDED: tests/test_partner_terraform_wiring.py (21 structural assertions),
+  2 new consistency tests in tests/test_partner_registry_atomicity.py
+TESTS: python3 -m pytest tests/test_partner_terraform_wiring.py -q => 21 passed
+SECURITY REGRESSION: tests/test_partner_registry_atomicity.py +
+  tests/test_partner_security_boundary.py => 70 passed
+FULL SUITE: 1319 passed, 8 failed, 9 skipped (same 8 pre-existing)
+INSTALLER: no changes required; no new variable surface, no second installer.
+  RIS infra flows through the existing package -> plan -> apply contract.
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE

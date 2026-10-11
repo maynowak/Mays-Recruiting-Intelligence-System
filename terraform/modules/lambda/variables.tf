@@ -72,6 +72,21 @@ variable "credentials_table_name" {
   type        = string
 }
 
+variable "partner_applications_table_name" {
+  description = "DynamoDB table name for the Partner Application Registry. Read on every authorized partner/M2M execution; absent means the registry lookup returns None and both partner routes fail closed with 403."
+  type        = string
+}
+
+variable "partner_applications_table_arn" {
+  description = "DynamoDB table ARN for the Partner Application Registry (reserved for administrative tooling; the runtime role is granted only the gsi-client index ARN)"
+  type        = string
+}
+
+variable "partner_applications_gsi_client_arn" {
+  description = "DynamoDB GSI ARN for gsi-client on the Partner Application Registry. DynamoDB does not accept a table ARN for index access, so the runtime role is granted here."
+  type        = string
+}
+
 variable "user_profile_table_arn" {
   description = "DynamoDB table ARN for user profiles"
   type        = string

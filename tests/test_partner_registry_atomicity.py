@@ -74,7 +74,12 @@ class FakeDynamoDB:
             self.items[pk] = dict(Item)
 
     def query(self, TableName, IndexName, KeyConditionExpression,
-              ExpressionAttributeValues, Limit=1):
+              ExpressionAttributeValues, Limit=1, ConsistentRead=None):
+        if ConsistentRead is None:
+            raise AssertionError(
+                "resolve_partner_application must request a strongly "
+                "consistent read; revocation lag on the authorization hot "
+                "path is not acceptable")
         with self.lock:
             cid = ExpressionAttributeValues[":cid"]["S"]
             hits = [it for it in self.items.values()
@@ -283,6 +288,33 @@ class TestRegistryUniqueness(unittest.TestCase):
 
     def test_reservation_prefix_constant(self):
         self.assertEqual(CLIENT_RESERVATION_PREFIX, "CLIENT#")
+
+    # --- strong consistency on the authorization hot path ---------------
+    def test_resolve_uses_consistent_read(self):
+        """Revocation must not lag: deactivate writes the base table, the
+        lookup reads the GSI, so the read must be strongly consistent."""
+        seen = []
+        original = self.db.query
+
+        def spy(**kwargs):
+            seen.append(kwargs)
+            return original(**kwargs)
+
+        self.create("app-1", "client-1")
+        self.db.query = spy
+        resolve_partner_application("client-1", table_name=TBL,
+                                    dynamodb_client=self.db)
+        self.assertTrue(seen, "query was never called")
+        for call in seen:
+            self.assertIs(call.get("ConsistentRead"), True)
+
+    def test_deactivation_is_immediately_visible_to_resolve(self):
+        self.create("app-1", "client-1")
+        deactivate_partner_application("app-1", table_name=TBL,
+                                       dynamodb_client=self.db)
+        rec = resolve_partner_application("client-1", table_name=TBL,
+                                          dynamodb_client=self.db)
+        self.assertEqual(rec["status"], "INACTIVE")
 
     # --- reserved namespace protection (independent-tester findings) ---
     def test_application_id_may_not_use_reserved_prefix(self):

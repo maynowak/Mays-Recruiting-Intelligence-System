@@ -40,3 +40,22 @@ output "jobsearches_table_name" {
 output "jobsearches_table_arn" {
   value = aws_dynamodb_table.jobsearches.arn
 }
+
+# Partner Application Registry. The runtime Lambda resolves this table on every
+# authorized agent execution (agents/ecosystem/partner_registry.py reads
+# RIS_PARTNER_APPLICATIONS_TABLE); without it the registry lookup returns None
+# and BOTH partner routes fail closed with 403. Not optional.
+output "partner_applications_table_name" {
+  value = aws_dynamodb_table.partner_applications.name
+}
+
+output "partner_applications_table_arn" {
+  value = aws_dynamodb_table.partner_applications.arn
+}
+
+# gsi-client is a separate index ARN and DynamoDB does NOT honour a table ARN
+# for index access. resolve_partner_application queries this index, so the
+# runtime role must be granted on the index ARN explicitly.
+output "partner_applications_gsi_client_arn" {
+  value = "${aws_dynamodb_table.partner_applications.arn}/index/gsi-client"
+}
