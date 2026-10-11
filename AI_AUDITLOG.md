@@ -960,3 +960,18 @@ AWS MUTATIONS: NONE
 TERRAFORM APPLY: NONE
 GIT PUSH: NONE
 REMAINING BLOCKER: RIS_PARTNER_APPLICATIONS_TABLE env + IAM wiring not yet in Terraform
+
+[MAYS-RIS-REGISTRY-ATOMIC-IMPLEMENTATION-01] (independent verification follow-up)
+Date: 2026-10-11
+Independent Tester Agent verified TransactWriteItems wiring and executed all suites.
+FINDINGS FIXED: reserved-namespace collision. applicationId starting with "CLIENT#"
+  is now rejected by create_partner_application, and deactivate_partner_application
+  refuses to modify reservation items.
+TESTS: python3 -m pytest tests/test_partner_registry_atomicity.py -q => 21 passed
+REGRESSION: python3 -m pytest tests/test_p22_m2m_binding.py tests/test_p21_cognito_m2m_boundary.py tests/test_machine_entrypoint.py tests/test_ris_admin_cli.py -q => 60 passed
+FULL SUITE: 1244 passed, 13 failed (same pre-existing set), 9 skipped
+OPEN RISKS (documented, not fixed here): Terraform env/IAM wiring missing,
+  RIS_TEST_MODE bypass in lambda/handler.py machine route, no moto-backed integration
+  test for real TransactWriteItems, no audit timestamps on registry rows.
+AWS MUTATIONS: NONE
+GIT PUSH: NONE

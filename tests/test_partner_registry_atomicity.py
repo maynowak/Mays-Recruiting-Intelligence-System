@@ -284,6 +284,34 @@ class TestRegistryUniqueness(unittest.TestCase):
     def test_reservation_prefix_constant(self):
         self.assertEqual(CLIENT_RESERVATION_PREFIX, "CLIENT#")
 
+    # --- reserved namespace protection (independent-tester findings) ---
+    def test_application_id_may_not_use_reserved_prefix(self):
+        with self.assertRaises(PartnerRegistryError):
+            self.create("CLIENT#victim", "victim")
+        # The real client must still be registrable afterwards.
+        self.create("app-ok", "victim")
+        rec = resolve_partner_application("victim", table_name=TBL,
+                                          dynamodb_client=self.db)
+        self.assertEqual(rec["applicationId"], "app-ok")
+
+    def test_deactivate_refuses_reservation_item(self):
+        self.create("app-1", "client-1")
+        with self.assertRaises(PartnerRegistryError):
+            deactivate_partner_application(
+                CLIENT_RESERVATION_PREFIX + "client-1",
+                table_name=TBL, dynamodb_client=self.db)
+        # Reservation untouched, client ID still reserved.
+        with self.assertRaises(PartnerRegistryError):
+            self.create("app-2", "client-1")
+
+    def test_reserved_prefix_application_not_listed_as_reservation(self):
+        # Nothing should be creatable in the reserved namespace at all.
+        with self.assertRaises(PartnerRegistryError):
+            self.create("CLIENT#x", "other-client")
+        rows = list_partner_applications(table_name=TBL,
+                                         dynamodb_client=self.db)
+        self.assertEqual(len(rows), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -39,6 +39,14 @@ def create_partner_application(
     """
     if not application_id or not cognito_client_id:
         raise PartnerRegistryError("application_id and cognito_client_id required")
+    # `CLIENT#` is the reserved primary-key namespace for client-ID reservation
+    # items. An applicationId inside that namespace would be indistinguishable
+    # from a reservation, would be invisible to resolve/list, and would burn a
+    # client ID. Reject it instead of corrupting the registry.
+    if application_id.startswith(CLIENT_RESERVATION_PREFIX):
+        raise PartnerRegistryError(
+            "application_id must not start with the reserved prefix "
+            f"{CLIENT_RESERVATION_PREFIX!r}")
     try:
         if dynamodb_client is None:
             import boto3
@@ -219,6 +227,9 @@ def deactivate_partner_application(
     """
     if not application_id:
         raise PartnerRegistryError("application_id required")
+    if application_id.startswith(CLIENT_RESERVATION_PREFIX):
+        raise PartnerRegistryError(
+            "refusing to modify a client-ID reservation item")
     try:
         if dynamodb_client is None:
             import boto3
