@@ -142,14 +142,14 @@ def _cmd_validate(ctx: RisInstallContext) -> List[TerraformResult]:
 
 
 def _cmd_plan(
-    ctx: RisInstallContext, out_file: Optional[str] = None
+    ctx: RisInstallContext, out_file: Optional[str] = None, diagnostic_no_lock: bool = False
 ) -> List[TerraformResult]:
     if ctx.aws_context is None:
         ctx.aws_context = validate_aws_context(profile=ctx.aws_profile, region=ctx.aws_region)
     runner = ctx.make_runner()
     return [
         runner.init(backend_config=ctx.backend_config()),
-        runner.plan(out_file=out_file, var=ctx.terraform_vars(), lock=False),
+        runner.plan(out_file=out_file, var=ctx.terraform_vars(), lock=not diagnostic_no_lock),
     ]
 
 
@@ -378,7 +378,7 @@ def _cmd_install(
     for result in (
         runner.init(backend_config=config),
         runner.validate(),
-        runner.plan(out_file=out_file, var=ctx.terraform_vars(), lock=False),
+        runner.plan(out_file=out_file, var=ctx.terraform_vars()),
     ):
         print(f"$ {' '.join(result.command)} -> exit {result.returncode}")
         if result.returncode != 0:
@@ -460,6 +460,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["agent", "reader", "all"],
         help="Bundle scope for the package command.",
     )
+    parser.add_argument(
+        "--diagnostic-no-lock",
+        action="store_true",
+        help="Disable state locking for diagnostic plan only. WARNING: disables Terraform state locking. Use only for debugging stale locks. Never use for deployment planning.",
+    )
     parser.add_argument("command", choices=list(COMMANDS))
     return parser
 
@@ -516,7 +521,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         if parsed.command == "validate":
             results = _cmd_validate(ctx)
         elif parsed.command == "plan":
-            results = _cmd_plan(ctx, out_file=parsed.out)
+            results = _cmd_plan(ctx, out_file=parsed.out, diagnostic_no_lock=parsed.diagnostic_no_lock)
         elif parsed.command == "destroy":
             return _cmd_destroy(ctx, out_file=parsed.out)
         elif parsed.command == "package":

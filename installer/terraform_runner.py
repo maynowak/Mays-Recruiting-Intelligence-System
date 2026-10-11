@@ -286,9 +286,14 @@ class TerraformRunner:
         out_file: Optional[str] = None,
         destroy: bool = False,
         var: Optional[Dict[str, str]] = None,
-        lock: bool = False,
+        lock: bool = True,
     ) -> TerraformResult:
-        """Run `terraform plan` (workspace resolved first)."""
+        """Run `terraform plan` (workspace resolved first).
+
+        By default, state locking is enabled (lock=True) to ensure safe
+        concurrent operations. Pass lock=False only for explicit diagnostic
+        purposes (e.g., --diagnostic-no-lock flag).
+        """
         args = ["plan"]
         if not lock:
             args.append("-lock=false")
