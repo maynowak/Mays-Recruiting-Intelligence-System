@@ -75,16 +75,24 @@ class FakeDynamoDB:
 
     def query(self, TableName, IndexName, KeyConditionExpression,
               ExpressionAttributeValues, Limit=1, ConsistentRead=None):
-        if ConsistentRead is None:
+        if ConsistentRead:
             raise AssertionError(
-                "resolve_partner_application must request a strongly "
-                "consistent read; revocation lag on the authorization hot "
-                "path is not acceptable")
+                "GSI queries are eventually consistent only; requesting "
+                "ConsistentRead on gsi-client gives a false guarantee")
         with self.lock:
             cid = ExpressionAttributeValues[":cid"]["S"]
             hits = [it for it in self.items.values()
                     if it.get("cognitoClientId", {}).get("S") == cid]
         return {"Items": hits[:Limit]}
+
+    def get_item(self, TableName, Key, ConsistentRead=None):
+        if not ConsistentRead:
+            raise AssertionError(
+                "the authoritative base-table read must be strongly "
+                "consistent; revocation must not lag")
+        pk = Key["applicationId"]["S"]
+        item = self.items.get(pk)
+        return {"Item": dict(item)} if item else {}
 
     def update_item(self, TableName, Key, UpdateExpression,
                     ExpressionAttributeNames, ExpressionAttributeValues,
@@ -290,9 +298,9 @@ class TestRegistryUniqueness(unittest.TestCase):
         self.assertEqual(CLIENT_RESERVATION_PREFIX, "CLIENT#")
 
     # --- strong consistency on the authorization hot path ---------------
-    def test_resolve_uses_consistent_read(self):
-        """Revocation must not lag: deactivate writes the base table, the
-        lookup reads the GSI, so the read must be strongly consistent."""
+    def test_resolve_does_not_claim_consistency_on_the_gsi(self):
+        """GSIs are eventually consistent only. Requesting ConsistentRead
+        there would be a false guarantee and a needless write charge."""
         seen = []
         original = self.db.query
 
@@ -306,6 +314,24 @@ class TestRegistryUniqueness(unittest.TestCase):
                                     dynamodb_client=self.db)
         self.assertTrue(seen, "query was never called")
         for call in seen:
+            self.assertNotIn("ConsistentRead", call)
+
+    def test_resolve_revalidates_on_the_base_table(self):
+        """The GSI result is a locator; the authoritative answer must come
+        from a strongly consistent base-table read."""
+        self.create("app-1", "client-1")
+        calls = []
+        original = self.db.get_item
+
+        def spy(**kwargs):
+            calls.append(kwargs)
+            return original(**kwargs)
+
+        self.db.get_item = spy
+        resolve_partner_application("client-1", table_name=TBL,
+                                    dynamodb_client=self.db)
+        self.assertTrue(calls, "no authoritative base-table read was made")
+        for call in calls:
             self.assertIs(call.get("ConsistentRead"), True)
 
     def test_deactivation_is_immediately_visible_to_resolve(self):
@@ -315,6 +341,20 @@ class TestRegistryUniqueness(unittest.TestCase):
         rec = resolve_partner_application("client-1", table_name=TBL,
                                           dynamodb_client=self.db)
         self.assertEqual(rec["status"], "INACTIVE")
+
+    def test_stale_index_cannot_resurrect_a_deleted_application(self):
+        """If the base table no longer has the row, resolution must fail
+        closed even though the GSI would still return it."""
+        self.create("app-1", "client-1")
+        original_get = self.db.get_item
+
+        def missing(**kwargs):
+            return {}
+
+        self.db.get_item = missing
+        self.assertIsNone(resolve_partner_application(
+            "client-1", table_name=TBL, dynamodb_client=self.db))
+        self.db.get_item = original_get
 
     # --- reserved namespace protection (independent-tester findings) ---
     def test_application_id_may_not_use_reserved_prefix(self):

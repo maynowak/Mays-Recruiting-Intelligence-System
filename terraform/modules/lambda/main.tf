@@ -306,7 +306,13 @@ resource "aws_iam_role_policy" "lambda_dynamodb_product" {
 #
 # The runtime execution path (lambda/handler.py _partner_execute_agent and
 # _machine_execute_agent) calls resolve_partner_application ONLY. That function
-# performs exactly one DynamoDB operation: a Query on the gsi-client index.
+# performs two DynamoDB operations:
+#   1. Query on the gsi-client index  -> LOCATES the application
+#   2. GetItem on the base table      -> AUTHORITATIVE read
+# The second read is mandatory, not an optimisation: GSI queries support
+# eventual consistency only, so a strongly consistent base-table read is the
+# only way to make partner deactivation take effect immediately instead of
+# lagging on the authorization hot path.
 #
 # It deliberately does NOT receive create/deactivate/list permissions:
 #   - create_partner_application needs dynamodb:TransactWriteItems
@@ -315,8 +321,8 @@ resource "aws_iam_role_policy" "lambda_dynamodb_product" {
 # Those are ADMINISTRATIVE operations driven by tools/ris_admin/cli.py and run
 # under an operator IAM identity, never under the public-facing API Lambda.
 #
-# DynamoDB does not accept a table ARN for index access, so gsi-client must be
-# granted on its own ARN.
+# DynamoDB does not accept a table ARN for index access, so gsi-client is
+# granted on its own ARN; GetItem is granted on the table ARN.
 resource "aws_iam_role_policy" "lambda_dynamodb_partner_registry" {
   name = "${var.project_name}-${var.environment}-lambda-dynamodb-partner-registry"
   role = aws_iam_role.lambda_execution.id
@@ -331,6 +337,16 @@ resource "aws_iam_role_policy" "lambda_dynamodb_partner_registry" {
         ]
         Resource = [
           var.partner_applications_gsi_client_arn
+        ]
+      },
+      {
+        # Authoritative re-read of the application row. Read-only.
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem"
+        ]
+        Resource = [
+          var.partner_applications_table_arn
         ]
       }
     ]

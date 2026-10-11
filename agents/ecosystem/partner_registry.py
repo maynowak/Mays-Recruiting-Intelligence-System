@@ -121,17 +121,16 @@ def resolve_partner_application(
         else:
             dynamodb = dynamodb_client
 
-        # Query GSI gsi-client.
+        # Step 1: locate the application via GSI gsi-client.
         # GSI results for a client ID contain BOTH the application record and
         # the "CLIENT#<clientId>" reservation item, so a single-item page would
         # be non-deterministic. Page through until a real record is found.
         #
-        # ConsistentRead=True is required, not optional. deactivate_partner_
-        # application writes the BASE table, but this lookup goes through
-        # gsi-client, which is eventually consistent by default. Without a
-        # strongly consistent read a deactivated partner would keep resolving
-        # as ACTIVE for the propagation window, i.e. a revocation lag on the
-        # authorization hot path. Revocation must take effect immediately.
+        # DynamoDB GSIs support EVENTUAL CONSISTENCY ONLY. ConsistentRead on a
+        # GSI query does not make the index current, so a deactivated partner
+        # can still appear here for the propagation window. That is exactly why
+        # this function does NOT trust the GSI result as authoritative - see
+        # step 2 below.
         start_key = None
         items = []
         while True:
@@ -140,7 +139,6 @@ def resolve_partner_application(
                 'IndexName': 'gsi-client',
                 'KeyConditionExpression': 'cognitoClientId = :cid',
                 'ExpressionAttributeValues': {':cid': {'S': client_id}},
-                'ConsistentRead': True,
                 'Limit': 10,
             }
             if start_key:
@@ -167,8 +165,26 @@ def resolve_partner_application(
                 if 'N' in v:
                     return int(v['N'])
                 return v
-            record = {k: unmarshal(v) for k, v in item.items()}
-            return record
+            application_id = unmarshal(item.get('applicationId', {}))
+
+            # Step 2: re-read the application from the BASE table.
+            #
+            # The GSI result is only a locator. Because GSI reads are always
+            # eventually consistent, an application deactivated moments ago can
+            # still be returned here as ACTIVE. A base-table GetItem IS
+            # strongly consistent, so this second read is what actually makes
+            # revocation take effect immediately on the authorization hot path.
+            #
+            # If the base read disagrees with the index, the index is stale and
+            # the authoritative answer is "not resolvable".
+            authoritative = dynamodb.get_item(
+                TableName=table_name,
+                Key={'applicationId': {'S': application_id}},
+                ConsistentRead=True,
+            ).get('Item')
+            if not authoritative:
+                return None
+            return {k: unmarshal(v) for k, v in authoritative.items()}
         return None
     except Exception:
         # Fail closed

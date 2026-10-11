@@ -113,34 +113,42 @@ class TestLambdaModule(unittest.TestCase):
         self.assertIn("os.getenv('RIS_PARTNER_APPLICATIONS_TABLE')", py)
         self.assertIn("RIS_PARTNER_APPLICATIONS_TABLE", self.main)
 
-    def test_variables_declared(self):
+    def test_every_declared_variable_is_consumed(self):
+        """A declared-but-unused module variable is misleading wiring: it
+        implies a grant that does not exist."""
+        body = self.main
         for name in ("partner_applications_table_name",
                      "partner_applications_table_arn",
                      "partner_applications_gsi_client_arn"):
             self.assertIn('variable "%s"' % name, self.vars)
+            self.assertIn("var.%s" % name, body,
+                          "%s is declared but never used" % name)
 
     def test_runtime_policy_exists(self):
         self.assertIn(
             'resource "aws_iam_role_policy" "lambda_dynamodb_partner_registry"',
             self.main)
 
-    def test_runtime_policy_is_scoped_to_the_gsi_arn(self):
+    def test_runtime_policy_scopes_query_to_gsi_and_getitem_to_table(self):
         block = self.main.split(
             'resource "aws_iam_role_policy" '
             '"lambda_dynamodb_partner_registry"')[1]
         block = block.split("\nresource ")[0]
+        # Query is scoped to the index ARN: DynamoDB does not accept a table
+        # ARN for index access.
         self.assertIn("var.partner_applications_gsi_client_arn", block)
-        # The runtime role must not receive a table-wide grant.
-        self.assertNotIn("var.partner_applications_table_arn", block)
+        # GetItem is scoped to the table ARN: that is the authoritative
+        # base-table re-read which makes revocation immediate.
+        self.assertIn("var.partner_applications_table_arn", block)
 
-    def test_runtime_policy_grants_only_query(self):
+    def test_runtime_policy_grants_only_read_operations(self):
         block = self.main.split(
             'resource "aws_iam_role_policy" '
             '"lambda_dynamodb_partner_registry"')[1]
         block = block.split("\nresource ")[0]
-        actions = re.search(r"Action = \[(.*?)\]", block, re.S).group(1)
-        granted = re.findall(r"dynamodb:\w+", actions)
-        self.assertEqual(granted, ["dynamodb:Query"])
+        granted = re.findall(r"dynamodb:\w+", block)
+        self.assertEqual(sorted(set(granted)),
+                         ["dynamodb:GetItem", "dynamodb:Query"])
 
     def test_runtime_policy_has_no_wildcards(self):
         block = self.main.split(

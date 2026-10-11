@@ -1066,3 +1066,30 @@ INSTALLER: no changes required; no new variable surface, no second installer.
 AWS MUTATIONS: NONE
 TERRAFORM APPLY: NONE
 GIT PUSH: NONE
+
+[MAYS-RIS-PARTNER-TERRAFORM-WIRING-01] (independent verification correction)
+Date: 2026-10-11
+FINDING: my earlier ConsistentRead=True claim was FACTUALLY WRONG. DynamoDB GSIs
+  support eventual consistency only; ConsistentRead on a GSI query does not make
+  the index current. The claimed "revocation takes effect immediately" guarantee
+  could not hold, and the flag was an unnecessary strong-read charge.
+CORRECTION: resolve_partner_application is now two steps.
+  1. Query gsi-client -> LOCATES the candidate application (eventually
+     consistent, treated as a hint only).
+  2. GetItem on the BASE table with ConsistentRead=True -> AUTHORITATIVE.
+  A base-table read IS strongly consistent, so this actually removes the
+  revocation lag the original change claimed to fix. If the base row is missing
+  the lookup fails closed.
+  ConsistentRead was REMOVED from the GSI query.
+IAM UPDATED: runtime role now gets dynamodb:Query on the GSI ARN plus
+  dynamodb:GetItem on the table ARN. Still read-only. A test now asserts every
+  declared lambda variable is actually consumed, so the previously dead
+  partner_applications_table_arn cannot silently reappear.
+TESTS: 3 new consistency tests (no ConsistentRead on the GSI; authoritative base
+  re-read present; stale index cannot resurrect a deleted application).
+VALIDATE: terraform fmt -check -recursive => exit 0; terraform validate => Success
+TESTS: terraform wiring + registry + boundary => 93 passed
+FULL SUITE: 1321 passed, 8 failed, 9 skipped (same 8 pre-existing)
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE

@@ -78,12 +78,12 @@ variable "partner_applications_table_name" {
 }
 
 variable "partner_applications_table_arn" {
-  description = "DynamoDB table ARN for the Partner Application Registry (reserved for administrative tooling; the runtime role is granted only the gsi-client index ARN)"
+  description = "DynamoDB table ARN for the Partner Application Registry. Grants the runtime role read-only GetItem for the authoritative base-table re-read that makes partner deactivation take effect immediately."
   type        = string
 }
 
 variable "partner_applications_gsi_client_arn" {
-  description = "DynamoDB GSI ARN for gsi-client on the Partner Application Registry. DynamoDB does not accept a table ARN for index access, so the runtime role is granted here."
+  description = "DynamoDB GSI ARN for gsi-client on the Partner Application Registry. DynamoDB does not accept a table ARN for index access, so the Query grant uses this ARN."
   type        = string
 }
 
