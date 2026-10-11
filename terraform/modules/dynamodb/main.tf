@@ -315,6 +315,35 @@ resource "aws_dynamodb_table" "credentials" {
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
+resource "aws_dynamodb_table" "partner_applications" {
+  name         = "${var.project_name}-${var.environment}-partner-applications"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "applicationId"
+
+  attribute {
+    name = "applicationId"
+    type = "S"
+  }
+
+  attribute {
+    name = "cognitoClientId"
+    type = "S"
+  }
+
+  attribute {
+    name = "tenantId"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "gsi-client"
+    hash_key        = "cognitoClientId"
+    projection_type = "ALL"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
 output "api_profiles_table_name" {
   value = aws_dynamodb_table.api_profiles.name
 }

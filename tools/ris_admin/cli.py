@@ -58,10 +58,35 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     _print_json(report)
     return 0
 
+def _get_dynamo_client(args: argparse.Namespace):
+    if boto3 is None:
+        raise RuntimeError("boto3 not available")
+    region = args.region or os.getenv("AWS_REGION", "eu-central-1")
+    session_kwargs = {"region_name": region}
+    if args.profile:
+        session_kwargs["profile_name"] = args.profile
+    session = boto3.session.Session(**session_kwargs)
+    return session.client("dynamodb")
+
+def _table_name(args: argparse.Namespace, suffix: str) -> str:
+    project = os.getenv("RIS_PROJECT_NAME", "mays-ris")
+    env = args.environment or os.getenv("RIS_ENVIRONMENT", "dev")
+    return f"{project}-{env}-{suffix}"
+
 def cmd_partner_list(args: argparse.Namespace) -> int:
-    """List partner applications - stub implementation."""
-    print(json.dumps({"applications": []}))
-    return 0
+    try:
+        client = _get_dynamo_client(args)
+        table = _table_name(args, "partner-applications")
+        resp = client.scan(TableName=table, Limit=100)
+        items = resp.get("Items", [])
+        def unmarshal(it):
+            return {k: list(v.values())[0] for k,v in it.items()}
+        apps = [unmarshal(i) for i in items]
+        _print_json({"applications": apps, "table": table})
+        return 0
+    except Exception as e:
+        print(f"partner list failed: {e}", file=sys.stderr)
+        return 1
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ris-admin", description="Mays-RIS Administration CLI")
@@ -78,6 +103,111 @@ def build_parser() -> argparse.ArgumentParser:
     partner = sub.add_parser("partner", help="Partner management")
     partner_sub = partner.add_subparsers(dest="partner_cmd", required=True)
     partner_sub.add_parser("list", help="List partners").set_defaults(func=cmd_partner_list)
+    
+    def _partner_cmd_show(args):
+        table = _table_name(args, "partner-applications")
+        try:
+            client = _get_dynamo_client(args)
+            resp = client.get_item(TableName=table, Key={"applicationId": {"S": args.applicationId}})
+            item = resp.get("Item")
+            if not item:
+                print(json.dumps({"error": "not found"}))
+                return 1
+            def unmarshal(it):
+                return {k: list(v.values())[0] for k,v in it.items()}
+            _print_json(unmarshal(item))
+            return 0
+        except Exception as e:
+            print(f"partner show failed: {e}", file=sys.stderr)
+            return 1
+    
+    show_p = partner_sub.add_parser("show", help="Show partner")
+    show_p.add_argument("applicationId")
+    show_p.set_defaults(func=_partner_cmd_show)
+    
+    def _partner_cmd_create(args):
+        if args.dry_run:
+            _print_json({"dry_run": True, "action": "create", "applicationId": args.applicationId})
+            return 0
+        # Minimal validation using existing registry function
+        try:
+            from agents.ecosystem.partner_registry import create_partner_application
+        except Exception as e:
+            print(f"registry import failed: {e}", file=sys.stderr)
+            return 1
+        try:
+            res = create_partner_application(
+                application_id=args.applicationId,
+                cognito_client_id=args.cognitoClientId,
+                api_profile_id=args.apiProfileId,
+                tenant_id=args.tenantId,
+            )
+            _print_json(res)
+            return 0
+        except Exception as e:
+            print(f"partner create failed: {e}", file=sys.stderr)
+            return 1
+    
+    create_p = partner_sub.add_parser("create", help="Create partner")
+    create_p.add_argument("applicationId")
+    create_p.add_argument("--cognitoClientId", required=True)
+    create_p.add_argument("--apiProfileId", required=True)
+    create_p.add_argument("--tenantId", required=True)
+    create_p.set_defaults(func=_partner_cmd_create)
+    
+    def _partner_cmd_validate(args):
+        # Simple validation: resolve by client id
+        try:
+            from agents.ecosystem.partner_registry import resolve_partner_application
+        except Exception as e:
+            print(f"registry import failed: {e}", file=sys.stderr)
+            return 1
+        try:
+            # Need client id, use applicationId as placeholder? Use resolve by applicationId via get_item
+            table = _table_name(args, "partner-applications")
+            client = _get_dynamo_client(args)
+            resp = client.get_item(TableName=table, Key={"applicationId": {"S": args.applicationId}})
+            item = resp.get("Item")
+            if not item:
+                _print_json({"valid": False, "reason": "not found"})
+                return 0
+            def unmarshal(it):
+                return {k: list(v.values())[0] for k,v in it.items()}
+            rec = unmarshal(item)
+            _print_json({"valid": True, "record": rec})
+            return 0
+        except Exception as e:
+            print(f"partner validate failed: {e}", file=sys.stderr)
+            return 1
+    
+    val_p = partner_sub.add_parser("validate", help="Validate partner")
+    val_p.add_argument("applicationId")
+    val_p.set_defaults(func=_partner_cmd_validate)
+    
+    def _partner_cmd_deactivate(args):
+        if args.dry_run:
+            _print_json({"dry_run": True, "action": "deactivate", "applicationId": args.applicationId})
+            return 0
+        try:
+            client = _get_dynamo_client(args)
+            table = _table_name(args, "partner-applications")
+            resp = client.update_item(
+                TableName=table,
+                Key={"applicationId": {"S": args.applicationId}},
+                UpdateExpression="SET #s = :s",
+                ExpressionAttributeNames={"#s": "status"},
+                ExpressionAttributeValues={":s": {"S": "INACTIVE"}},
+                ReturnValues="UPDATED_NEW"
+            )
+            _print_json({"deactivated": True, "response": resp})
+            return 0
+        except Exception as e:
+            print(f"partner deactivate failed: {e}", file=sys.stderr)
+            return 1
+    
+    deact_p = partner_sub.add_parser("deactivate", help="Deactivate partner")
+    deact_p.add_argument("applicationId")
+    deact_p.set_defaults(func=_partner_cmd_deactivate)
 
     # Placeholder commands for future expansion
     ap = sub.add_parser("apiprofile", help="APIProfile management")
