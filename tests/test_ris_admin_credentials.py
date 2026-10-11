@@ -10,6 +10,7 @@ import os
 import stat
 import sys
 import tempfile
+import threading
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
@@ -630,6 +631,55 @@ class TestCliSurface(Base):
         self.assertIn("issue_credential", source)
         self.assertIn("revoke_credential", source)
 
+
+    def test_issue_called_once_per_successful(self):
+        """Ensure domain issue_credential is invoked exactly once per issuance."""
+        from agents.ecosystem import credentials as cred_domain
+        with patch.object(cred_domain, "issue_credential", wraps=cred_domain.issue_credential) as mock_issue:
+            ops.issue(
+                api_profile_id=self.pid,
+                expires_at=_ts(30),
+                actor=self.actor,
+                output_path=self.out,
+                label="cli-test",
+                reason="cli test",
+                idempotency_key=None,
+                profile_store=self.profiles,
+                credential_store=self.creds,
+            )
+            self.assertEqual(mock_issue.call_count, 1)
+
+    def test_concurrent_issuance_same_output(self):
+        """Simulate two threads racing to write the same output path.
+        Only one should succeed; the other must get OutputDestinationError."""
+        out = os.path.join(self.tmp, "concurrent.txt")
+        def dummy_write(fd, secret):
+            os.write(fd, secret.encode("utf-8"))
+            os.fsync(fd)
+        with patch.object(ops, "write_secret", side_effect=dummy_write):
+            results = [None, None]
+            def worker(idx):
+                try:
+                    ops.issue(
+                        api_profile_id=self.pid,
+                        expires_at=_ts(30),
+                        actor=self.actor,
+                        output_path=out,
+                        label="cli-test",
+                        reason="cli test",
+                        idempotency_key=None,
+                        profile_store=self.profiles,
+                        credential_store=self.creds,
+                    )
+                except Exception as exc:
+                    results[idx] = exc
+            t1 = threading.Thread(target=worker, args=(0,))
+            t2 = threading.Thread(target=worker, args=(1,))
+            t1.start(); t2.start(); t1.join(); t2.join()
+            self.assertEqual(sum(1 for e in results if isinstance(e, ops.OutputDestinationError)), 1)
+            self.assertEqual(len(self.creds.by_id), 1)
+            self.assertTrue(os.path.exists(out))
+            self.assertEqual(stat.S_IMODE(os.stat(out).st_mode), 0o600)
 
 if __name__ == "__main__":
     unittest.main()
