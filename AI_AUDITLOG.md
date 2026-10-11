@@ -1405,3 +1405,34 @@ AWS MUTATIONS: NONE
 TERRAFORM APPLY: NONE
 GIT PUSH: NONE
 
+
+[MAYS-RIS-INSTALLER-STATE-LOCK-SAFETY-01]
+Date: 2026-10-11
+Status: GREEN
+BASELINE: 86e9c1807144b6c7b0c9c1f06c5e5c3e5b1c1a2d3
+COMMIT: 176d230 (previous) -> d9ca0b9 (audit log) -> current
+FILES: installer/terraform_runner.py, installer/ris.py, tests/test_ris_installer.py
+SUMMARY:
+- Root cause verified: Installer's `terraform plan` was using `lock=False` by default, bypassing Terraform state locking
+- Fixed: Changed `TerraformRunner.plan()` default `lock` parameter from `False` to `True`
+- Added `--diagnostic-no-lock` CLI flag for explicit diagnostic planning (lock=False)
+- Updated all call sites in ris.py to use default `lock=True`
+- Updated test expectations to match new locking behavior
+- Lock conflicts now fail closed with clear error messages
+- No automatic retry with `-lock=false`
+- No automatic force-unlock
+- No workspace/backend fallback
+- Normal lifecycle operations (plan/install/destroy/apply) now use Terraform state locking by default
+- Diagnostic unlocked planning available via explicit `--diagnostic-no-lock` flag
+TESTS: python3 -m pytest tests/test_ris_installer.py -v => 36 passed
+REGRESSION: python3 -m pytest tests/ -q --tb=no => 1399 passed, 9 skipped
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+INSTALLER_STATUS: PASS (preflight verified, workspace mays-ris)
+INSTALLER_COMMAND: python3 -m installer.ris --project-name mays-ris --environment dev --region eu-central-1 --profile mayaws --backend-bucket mays-ris-tf-state-dev --backend-region eu-central-1 --backend-lock-table mays-ris-tf-lock --yes plan
+INSTALLER_WORKSPACE: mays-ris
+INSTALLER_PLAN: Generated via terraform plan (lock enabled by default), 6 add / 3 change / 0 destroy
+INSTALLER_GOVERNANCE: PASS
+
