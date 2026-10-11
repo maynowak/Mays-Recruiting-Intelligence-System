@@ -407,11 +407,13 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         body = json.loads(event.get('body', '{}'))
         return _create_work(body, event)
     elif method == 'POST' and path.startswith('/v1/m2m/'):
-        # B3 / Option D: dedicated MACHINE plane. It is reached with an
-        # opaque `ris_...` credential, NOT a Cognito JWT, so its gateway
-        # route carries AuthorizationType NONE (P03 route boundary: human
-        # JWT and machine credential never compete for one route). All
-        # human paths above are unchanged.
+        # B3 / Option D: dedicated MACHINE plane. Both authentication
+        # boundaries apply (P21-01): the gateway route is JWT-protected on
+        # the DEDICATED M2M authorizer (`authorization_type = "JWT"`,
+        # audience = M2M app client, required scope `ris-api/m2m/execute`,
+        # see terraform/modules/api/main.tf), AND the opaque `ris_...`
+        # credential is verified in-Lambda. Neither replaces the other.
+        # All human paths above are unchanged.
         return _machine_execute_agent(event, _machine_agent_id(path))
     elif method == 'POST' and path.startswith('/v1/partner/agents/'):
         return _partner_execute_agent(event, _machine_agent_id(path.replace('/v1/partner/agents/', '/v1/m2m/agents/')))
