@@ -1436,3 +1436,100 @@ INSTALLER_WORKSPACE: mays-ris
 INSTALLER_PLAN: Generated via terraform plan (lock enabled by default), 6 add / 3 change / 0 destroy
 INSTALLER_GOVERNANCE: PASS
 
+
+[MAYS-RIS-TERRAFORM-STATE-LOCK-RECOVERY-01]
+Date: 2026-10-12
+Status: PARTIAL - LOCK_FORENSICS_COMPLETE, RECOVERY_REQUIRES_MANUAL_CLEANUP
+BASELINE: e62cbe1d7299d1cb536bf8d3e50ce9cba758dbb3
+FINAL SHA: e62cbe1d7299d1cb536bf8d3e50ce9cba758dbb3 (no new commits - investigation only)
+FILES: No code changes (investigation only)
+
+SUMMARY:
+- Investigated Terraform state-lock conflict blocking normal plan execution
+- Root cause identified: Installer's backend key format causes duplicated state path
+- Lock forensics completed: Two stale locks identified (one on correct path, one on duplicated path)
+- No active Terraform operations holding the locks
+- Recovery requires manual lock cleanup + installer key format fix
+
+BACKEND CONFIGURATION:
+- Type: S3 + DynamoDB locking
+- Bucket: mays-ris-tf-state-dev
+- Region: eu-central-1
+- Lock Table: mays-ris-tf-lock
+- Configured Key (Terraform): terraform.tfstate
+- Installer Key (current): env:/mays-ris/dev/terraform.tfstate
+- Workspace: mays-ris (derived from project_name)
+- Workspace Key Prefix: env: (default)
+
+EFFECTIVE STATE PATHS:
+- Configured Key (installer): env:/mays-ris/dev/terraform.tfstate
+- Workspace Key Prefix (Terraform default): env:
+- Workspace: mays-ris
+- Effective State Path (CURRENT - DUPLICATED): env:/mays-ris/env:/mays-ris/dev/terraform.tfstate
+- Effective State Path (CORRECT): env:/mays-ris/dev/terraform.tfstate
+
+LOCK FORENSICS:
+Reported Lock ID: 6369447e-b76f-7e8b-8b31-8a1880b49e8b
+Lock Path: mays-ris-tf-state-dev/env:/mays-ris/env:/mays-ris/dev/terraform.tfstate
+Lock Operation: OperationTypePlan
+Lock Owner: dci-student@dci-student-Lenovo-V15-G4-AMN
+Lock Created: 2026-10-11T19:03:29.108250648Z
+Lock Status: STALE (no active Terraform processes)
+
+Second Lock (on correct path):
+Lock ID: 84bbc01c-3fa7-0bb1-dd66-1810b850591e
+Lock Path: mays-ris-tf-state-dev/env:/mays-ris/dev/terraform.tfstate
+Lock Created: 2026-10-08T20:29:24.829799439Z
+Lock Status: STALE
+
+ROOT CAUSE:
+The installer's backend key format `env:/{project_name}/{environment}/terraform.tfstate` combines with Terraform's default `workspace_key_prefix=env:` and workspace `mays-ris` to produce a duplicated path:
+`env:/mays-ris/env:/mays-ris/dev/terraform.tfstate`
+
+The correct key format should be `{environment}/terraform.tfstate` (without `env:/` prefix and without project_name).
+
+STATE CANDIDATES:
+1. env:/mays-ris/dev/terraform.tfstate (CORRECT, 326018 bytes, has stale lock)
+2. env:/mays-ris/env:/mays-ris/dev/terraform.tfstate (DUPLICATED, 326018 bytes, has blocking lock)
+3. env:/mays-ris/env:/mays-ris/terraform.tfstate (alternative)
+4. env:/mays-ris-test-e2e-01/env:/mays-ris/terraform.tfstate (test env)
+
+INSTALLER STATE IDENTITY VERIFIED:
+- AWS Account: 240571105849
+- Region: eu-central-1
+- Project: mays-ris
+- Environment: dev
+- Workspace: mays-ris
+- Backend Bucket: mays-ris-tf-state-dev
+- State Key (current): env:/mays-ris/dev/terraform.tfstate
+- State Key (correct): dev/terraform.tfstate
+
+LOCK STATUS: LOCK_POSSIBLY_STALE (both locks stale, no active operations)
+RECOVERY RECOMMENDATION: MANUAL_LOCK_CLEANUP_REQUIRED
+
+RECOVERY RECOMMENDATION:
+1. Fix installer key format: change `env:/{project_name}/{environment}/terraform.tfstate` to `{environment}/terraform.tfstate`
+2. Manually remove BOTH stale locks from DynamoDB table `mays-ris-tf-lock`:
+   - `mays-ris-tf-state-dev/env:/mays-ris/env:/mays-ris/dev/terraform.tfstate`
+   - `mays-ris-tf-state-dev/env:/mays-ris/dev/terraform.tfstate`
+3. Normal locked plan will then execute successfully (6 add, 3 change, 0 destroy)
+
+TESTS: 
+- python3 -m pytest tests/ -q --tb=no => 1399 passed, 9 skipped
+- HTTP E2E tests: 20/20 passed
+- Installer tests: 36/36 passed
+
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE (read-only investigation)
+TERRAFORM APPLY: NOT EXECUTED
+GIT PUSH: NO
+
+INSTALLER_STATUS: PASS (preflight verified, workspace mays-ris)
+INSTALLER_PLAN: 6 add, 3 change, 0 destroy (requires lock cleanup first)
+
+LOCK_RECOVERY_STATUS: BLOCKED (requires manual lock cleanup)
+LOCK_RECOVERED: NO
+NORMAL_LOCKED_PLAN_VERIFIED: NO (blocked by stale locks)
+
+NEXT_RECOMMENDED_CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01
+
