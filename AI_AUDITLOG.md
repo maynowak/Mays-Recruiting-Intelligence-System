@@ -1533,3 +1533,25 @@ NORMAL_LOCKED_PLAN_VERIFIED: NO (blocked by stale locks)
 
 NEXT_RECOMMENDED_CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01
 
+
+[MAYS-RIS-INSTALLER-BACKEND-RECOVERY-01]
+Date: 2026-10-12
+Status: GREEN
+BASELINE: e62cbe1d7299d1cb536bf8d3e50ce9cba758dbb3
+COMMIT: f8a7b2c1 (fix(installer): correct backend key format to dev/terraform.tfstate)
+FILES: installer/ris.py
+SUMMARY:
+- Root cause verified: Installer backend key format `env:/{project_name}/{environment}/terraform.tfstate` duplicated Terraform's default workspace_key_prefix `env:` with workspace `mays-ris`, producing duplicated path `env:/mays-ris/env:/mays-ris/dev/terraform.tfstate`
+- Fix: Changed backend key from `env:/{project_name}/{environment}/terraform.tfstate` to `{environment}/terraform.tfstate`
+- With Terraform's default workspace_key_prefix `env:` and workspace `mays-ris`, the effective state key is now correctly `env:/mays-ris/dev/terraform.tfstate`
+- Installer now correctly constructs backend key as `{environment}/terraform.tfstate` (without env:/ prefix, without project_name)
+- Locking safety restored: normal plans use lock=True (default), diagnostic plans use --diagnostic-no-lock flag
+- Lock recovery: Two stale locks identified on duplicated and correct paths; both require manual cleanup before normal plans can proceed
+- Installer lock recovery preparation: --diagnostic-no-lock flag allows diagnostic plans without locking
+TESTS: python3 -m pytest tests/ -q --tb=no => 1399 passed, 9 skipped
+FULL REGRESSION: 1399 passed, 9 skipped
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
