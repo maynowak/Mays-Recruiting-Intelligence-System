@@ -287,12 +287,15 @@ class TerraformRunner:
         destroy: bool = False,
         var: Optional[Dict[str, str]] = None,
         lock: bool = True,
+        ensure_workspace: bool = True,
     ) -> TerraformResult:
         """Run `terraform plan` (workspace resolved first).
 
         By default, state locking is enabled (lock=True) to ensure safe
         concurrent operations. Pass lock=False only for explicit diagnostic
         purposes (e.g., --diagnostic-no-lock flag).
+        Pass ensure_workspace=False to skip workspace creation/selection
+        (e.g., for diagnostic plans that should not acquire locks).
         """
         args = ["plan"]
         if not lock:
@@ -303,7 +306,7 @@ class TerraformRunner:
             args.extend(["-out", out_file])
         for key, value in (var or {}).items():
             args.extend(["-var", f"{key}={value}"])
-        return self.run_and_get_result(args)
+        return self.run_and_get_result(args, ensure_workspace=ensure_workspace)
 
     def apply(
         self,

@@ -152,7 +152,12 @@ def _cmd_plan(
     runner = ctx.make_runner()
     return [
         runner.init(backend_config=ctx.backend_config()),
-        runner.plan(out_file=out_file, var=ctx.terraform_vars(), lock=not diagnostic_no_lock),
+        runner.plan(
+            out_file=out_file,
+            var=ctx.terraform_vars(),
+            lock=not diagnostic_no_lock,
+            ensure_workspace=not diagnostic_no_lock,
+        ),
     ]
 
 
@@ -279,9 +284,13 @@ def _cmd_lock(
             lock_ids_to_check = [lock_id]
         else:
             # Check both canonical and legacy paths
+            # Canonical: workspace prefix + environment/terraform.tfstate
+            # Legacy: workspace prefix + project_name/environment (old format with duplicated project name)
+            canonical_lock_suffix = f"env:/{ctx.workspace}/{ctx.environment}/terraform.tfstate"
+            legacy_lock_suffix = f"env:/{ctx.project_name}/env:/{ctx.project_name}/{ctx.environment}/terraform.tfstate"
             lock_ids_to_check = [
-                f"{ctx.environment}/terraform.tfstate",  # canonical
-                f"env:/{ctx.project_name}/{ctx.environment}/terraform.tfstate",  # legacy
+                f"env:/{ctx.workspace}/{ctx.environment}/terraform.tfstate",  # canonical: env:/workspace/environment/terraform.tfstate
+                f"env:/{ctx.project_name}/env:/{ctx.project_name}/{ctx.environment}/terraform.tfstate",  # legacy: duplicated project name
             ]
 
         canonical_lock_found = False
@@ -310,8 +319,20 @@ def _cmd_lock(
                 info_str = item.get("Info", {}).get("S", "")
                 info = json.loads(info_str) if info_str else {}
 
-                is_canonical = lock_id_suffix == f"{ctx.environment}/terraform.tfstate"
-                lock_type = "CANONICAL" if is_canonical else "LEGACY"
+                # Canonical format: env:/workspace/environment/terraform.tfstate (exactly one workspace prefix)
+                # Legacy: env:/project_name/env:/project_name/environment/terraform.tfstate (duplicated project name)
+                canonical_pattern = f"env:/{ctx.workspace}/{ctx.environment}/terraform.tfstate"
+                legacy_pattern = f"env:/{ctx.project_name}/env:/{ctx.project_name}/{ctx.environment}/terraform.tfstate"
+                
+                is_canonical = lock_id_suffix == f"env:/{ctx.workspace}/{ctx.environment}/terraform.tfstate"
+                is_legacy = lock_id_suffix == f"env:/{ctx.project_name}/env:/{ctx.project_name}/{ctx.environment}/terraform.tfstate"
+                
+                if lock_id_suffix == f"env:/{ctx.workspace}/{ctx.environment}/terraform.tfstate":
+                    lock_type = "CANONICAL"
+                elif lock_id_suffix == f"env:/{ctx.project_name}/env:/{ctx.project_name}/{ctx.environment}/terraform.tfstate":
+                    lock_type = "LEGACY"
+                else:
+                    lock_type = "UNKNOWN"
 
                 print(f"Lock found ({lock_type}):")
                 print(f"  LockID: {lock_id_val}")
@@ -376,7 +397,6 @@ def _cmd_lock(
 
     return 0
 
-# Keep the rest of the file after _cmd_lock
 def _cmd_state(
     ctx: RisInstallContext,
     state_command: str,

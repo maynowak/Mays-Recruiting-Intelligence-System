@@ -1899,3 +1899,52 @@ STATUS:
 
 NEXT CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01 (manual lock cleanup + state migration)
 
+
+[MAYS-RIS-INSTALLER-STATE-MIGRATION-PREFLIGHT-01]
+Date: 2026-10-12
+Status: PARTIAL - STATE_IDENTITY_DISCREPANCY_CONFIRMED
+BASELINE: fb09411
+COMMIT: (current HEAD - no new commits for this phase)
+FILES: installer/ris.py, installer/terraform_runner.py, tests/test_ris_installer.py, AI_AUDITLOG.md
+SUMMARY:
+- Root cause verified: Installer backend key format corrected from `env:/{project_name}/{environment}/terraform.tfstate` to `{environment}/terraform.tfstate`
+- With Terraform's default `workspace_key_prefix=env:` and workspace `mays-ris`, effective state key is now correctly `env:/mays-ris/dev/terraform.tfstate`
+- State identity discrepancy confirmed: Legacy state at `env:/mays-ris/env:/mays-ris/dev/terraform.tfstate` (serial 21, 326018 bytes, REAL INFRASTRUCTURE) vs canonical path `env:/mays-ris/dev/terraform.tfstate` (NOT FOUND, empty)
+- Lock forensics: Two stale locks found
+  - Canonical lock (env:/mays-ris/dev/terraform.tfstate): STALE, ID=84bbc01c..., blocks normal plan
+  - Legacy lock (env:/mays-ris/env:/mays-ris/dev/terraform.tfstate): STALE, ID=6369447e...
+- Lock inspection bug FIXED: Now correctly identifies canonical vs legacy locks using exact pattern matching
+- Lock inspection command: `ris-installer lock --lock-command inspect` now correctly classifies canonical vs legacy locks
+- Recovery plan command added: `ris-installer lock --lock-command recovery-plan` provides manual force-unlock instructions
+- Diagnostic plan support: `--diagnostic-no-lock` flag disables locking and workspace creation for diagnostic plans
+- Locking safety restored: Normal plans use lock=True by default, diagnostic plans use --diagnostic-no-lock flag
+TESTS: python3 -m pytest tests/ -q --tb=no => 1399 passed, 9 skipped
+REGRESSION: python3 -m pytest tests/test_ris_installer.py tests/test_http_e2e_integration.py -q => 56 passed
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
+LOCK FORENSICS:
+- CANONICAL_LOCK (env:/mays-ris/dev/terraform.tfstate): STALE, ID=84bbc01c-3fa7-0bb1-dd66-1810b850591e, blocks normal plan
+- LEGACY_LOCK (env:/mays-ris/env:/mays-ris/dev/terraform.tfstate): STALE, ID=6369447e...
+- Both locks STALE (no active Terraform processes)
+
+ROOT CAUSE CONFIRMED:
+1. Installer backend key corrected from `env:/{project_name}/{environment}/terraform.tfstate` to `{environment}/terraform.tfstate`
+2. But existing Terraform state was never migrated from legacy duplicated path to canonical path
+4. Stale lock on canonical path blocks normal plan execution
+5. Actual infrastructure state resides at LEGACY duplicated path (serial 21, 326018 bytes)
+
+RECOVERY REQUIRED:
+1. Manual force-unlock of stale canonical lock: `terraform force-unlock -force 84bbc01c-3fa7-0bb1-dd66-1810b850591e`
+2. State migration from legacy path to canonical path (or accept empty canonical state)
+3. Then normal locked plan will work
+
+TESTS: python3 -m pytest tests/ -q => 1399 passed, 9 skipped
+REGRESSION: python3 -m pytest tests/test_ris_installer.py tests/test_http_e2e_integration.py -q => 56 passed
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
