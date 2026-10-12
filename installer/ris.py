@@ -527,7 +527,12 @@ def _cmd_install(
         return 1
     # PHASE C..G — init / workspace / validate / plan / apply via runner.
     runner = ctx.make_runner()
-    config = ctx.backend_config()
+    config = BackendConfig(
+        bucket=names.bucket,
+        region=names.region,
+        dynamodb_table=names.lock_table,
+        key=f"{ctx.environment}/terraform.tfstate",
+    )
     for result in (
         runner.init(backend_config=config, reconfigure=True),
         runner.validate(),
