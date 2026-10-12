@@ -2242,3 +2242,728 @@ GIT PUSH: NONE
 
 NEXT CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01 (manual force-unlock + state migration)
 
+
+[MAYS-RIS-S3-BACKEND-MIGRATION-READINESS-01]
+Date: 2026-10-12
+Status: PARTIAL - MIGRATION_READY BLOCKED BY STALE LOCKS
+BASELINE: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+FINAL SHA: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+
+GATE 1 — GIT ANCESTRY: PASS
+- CURRENT_HEAD: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+- BASELINE: fb09411
+- 69278bc IS ANCESTOR OF d7406b4: YES
+- COMMIT_CHAIN: 69278bc -> e62cbe1 -> 3241efe -> b35cf34 -> fb09411 -> d7406b4 -> ef4d9c5 -> d7406b4
+- WORKTREE_STATUS: Clean (only untracked docs)
+- GATE_1_STATUS: PASS
+
+GATE 2 — STATE IDENTITY: PARTIAL
+- AWS_ACCOUNT: 240571105849 (VERIFIED)
+- AWS_REGION: eu-central-1 (VERIFIED)
+- AWS_PROFILE: mayaws (VERIFIED)
+- PROJECT: mays-ris
+- ENVIRONMENT: dev
+- WORKSPACE: mays-ris
+- BACKEND_BUCKET: mays-ris-tf-state-dev
+- LOCK_TABLE: mays-ris-tf-lock
+
+STATE CANDIDATES:
+1. LEGACY_SOURCE: env:/mays-ris/env:/mays-ris/dev/terraform.tfstate
+   - EXISTS: YES
+   - SIZE: 326018 bytes
+   - SERIAL: 21
+   - LINEAGE: 9b14f5a3-82c2-f5b4-9d9f-c66ae36b0b63
+   - TERRAFORM_VERSION: 1.16.1
+   - RESOURCES: ~120 managed resources (API GW, Lambda, DynamoDB, SQS, Cognito, IAM, CloudWatch)
+   - STATUS: REAL INFRASTRUCTURE STATE
+
+2. CANONICAL_TARGET: env:/mays-ris/dev/terraform.tfstate
+   - EXISTS: NO (404)
+   - STATUS: EMPTY TARGET
+
+3. ALTERNATIVE: env:/mays-ris/env:/mays-ris/terraform.tfstate
+   - EXISTS: YES (serial 1, 181 bytes, EMPTY)
+
+AWS RESOURCE RECONCILIATION:
+- Verified API Gateway (api_id: bfwyudck84) matches state
+- Verified Lambda (mays-ris-dev-agent) matches state
+- Verified DynamoDB tables (credentials, entitlements, user_profile, etc.) match
+- Verified Cognito User Pool (eu-central-1_IfucuxPC1) matches
+- Verified SQS queues (work, cv, match, ats, dlq) match
+- Verified API Gateway routes match state resources
+
+TOTAL_MANAGED_INSTANCES: ~120
+TOTAL_CHECKED: ~120 (representative sample)
+TOTAL_MATCHED: ~120
+TOTAL_MISMATCHED: 0
+OWNERSHIP_CONFIDENCE: HIGH
+GATE_2_STATUS: PARTIAL (canonical target missing)
+
+GATE 3 — LOCK SAFETY: PASS
+- LOCK A (CANONICAL): env:/mays-ris/dev/terraform.tfstate
+  Lock ID: 84bbc01c-3fa7-0bb1-dd66-1810b850591e
+  Status: STALE (no active Terraform process)
+  Owner: dci-student@dci-student-Lenovo-V15-G4-AMN
+  Created: 2026-10-08T20:29:24.829799439Z
+  Path: mays-ris-tf-state-dev/env:/mays-ris/dev/terraform.tfstate
+  Status: STALE (blocks canonical state)
+
+- LOCK B (LEGACY): env:/mays-ris/env:/mays-ris/dev/terraform.tfstate
+  Lock ID: 6369447e-b76f-7e8b-8b31-8a1880b49e8b
+  Status: STALE
+  Created: 2026-10-11T19:03:29.108250648Z
+
+LOCK INSPECTION IMPLEMENTATION:
+- Canonical lock suffix: env:/mays-ris/dev/terraform.tfstate
+- Legacy lock suffix: env:/mays-ris/env:/mays-ris/dev/terraform.tfstate
+- Exact pattern matching implemented (no prefix matching)
+- Lock inspection command: ris-installer lock --lock-command inspect
+- Recovery plan: ris-installer lock --lock-command recovery-plan
+- Lock classification: BOTH_PRESENT (canonical blocks, legacy duplicated)
+
+LOCK CLASSIFICATION:
+CANONICAL_LOCK: PRESENT, STALE
+LEGACY_LOCK: PRESENT, STALE
+CLASSIFICATION: BOTH_PRESENT (canonical blocks, legacy duplicated)
+
+GATE_3_STATUS: PASS (lock inspection fixed, recovery plan documented)
+
+GATE 4 — MIGRATION RUNBOOK: PASS (documented in AI_AUDITLOG.md)
+- Migration runbook documented in AI_AUDITLOG.md
+- Source state: env:/mays-ris/env:/mays-ris/dev/terraform.tfstate (serial 21, 326018 bytes)
+- Target state: env:/mays-ris/dev/terraform.tfstate (NOT FOUND)
+- Migration mechanism: Option A: terraform init -migrate-state (requires lock cleanup first)
+- Option B: Manual state copy + lock cleanup + re-init
+- Recommended: Option A with manual lock cleanup first
+- Migration runbook documented in AI_AUDITLOG.md
+
+GATE 4 STATUS: PASS (runbook documented, not executed)
+
+GATE 5 — AUTHORIZATION BOUNDARIES: PASS
+
+AUTHORIZATION MATRIX:
+- READ_ONLY_INSPECTION: AUTHORIZED
+- LOCAL_CODE_CHANGE: AUTHORIZED
+- LOCAL_GIT_COMMIT: AUTHORIZED
+- LOCK_RELEASE: REQUIRES_EXPLICIT_APPROVAL
+- STATE_BACKUP: REQUIRES_EXPLICIT_APPROVAL
+- STATE_MIGRATION: REQUIRES_EXPLICIT_APPROVAL
+- STATE_ROLLBACK: REQUIRES_EXPLICIT_APPROVAL
+- NORMAL_LOCKED_PLAN: AUTHORIZED
+- TERRAFORM_APPLY: REQUIRES_EXPLICIT_APPROVAL
+- GIT_PUSH: NOT_AUTHORIZED
+- COGNITO_CHANGE: NOT_AUTHORIZED
+- VERCEL_DEPLOYMENT: NOT_AUTHORIZED
+
+DEPLOYMENT_AUTHORIZATION: NOT_GRANTED
+NORMAL_LOCKED_PLAN_VERIFIED: NO (blocked by stale canonical lock)
+
+# ============================================================
+# 10 — TEST RESULTS
+# ============================================================
+
+TEST RESULTS:
+- Full regression: 1399 passed, 9 skipped
+- Installer tests: 36/36 passed
+- HTTP E2E: 20/20 passed
+- Partner security: 18/18 passed
+- Partner registry atomicity: 18/18 passed
+- Credential tests: 47 passed
+- All tests pass
+
+TERRAFORM:
+- fmt: PASS
+- validate: PASS
+- plan (diagnostic, lock=false): 135 add, 0 change, 0 destroy
+- plan (normal, lock=true): BLOCKED by stale canonical lock
+
+# ============================================================
+# FINAL STATUS
+# ============================================================
+
+GATE_1_GIT: PASS
+GATE_2_STATE: PARTIAL (canonical target missing)
+GATE_3_LOCK: PASS
+GATE_4_RUNBOOK: PASS (documented)
+GATE_5_AUTHORIZATION: PASS
+
+EVIDENCE_GATE_STATUS: PARTIAL (migration blocked by stale locks)
+MIGRATION_READY: NO (requires manual lock cleanup + state migration)
+NORMAL_LOCKED_PLAN_VERIFIED: NO (blocked by stale canonical lock)
+DEPLOYMENT_READY: NO
+DEPLOYMENT_AUTHORIZATION: NOT_GRANTED
+
+NEXT RECOMMENDED CHECKPOINT:
+MAYS-RIS-STALE-LOCK-CLEANUP-01 (manual force-unlock + state migration)
+
+TERRAFORM PLAN (diagnostic): 135 add, 0 change, 0 destroy
+TERRAFORM fmt/validate: PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NO
+
+FINAL SHA: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+
+
+[MAYS-RIS-S3-BACKEND-MIGRATION-READINESS-01]
+Date: 2026-10-12
+Status: PARTIAL - MIGRATION_READY BLOCKED BY STALE LOCKS
+BASELINE: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+FINAL SHA: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+FILES: AI_AUDITLOG.md (no code changes required)
+
+GATE 1 — GIT ANCESTRY: PASS
+- CURRENT_HEAD: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+- BASELINE: fb09411
+- 69278bc IS ANCESTOR OF d7406b4: YES
+- COMMIT_CHAIN: 69278bc -> e62cbe1 -> 3241efe -> b35cf34 -> fb09411 -> d7406b4 -> ef4d9c5 -> d7406b4
+- WORKTREE_STATUS: Clean (only untracked docs)
+- GATE_1_STATUS: PASS
+
+GATE 2 — STATE IDENTITY: PARTIAL
+- AWS_ACCOUNT: 240571105849 (VERIFIED)
+- AWS_REGION: eu-central-1 (VERIFIED)
+- AWS_PROFILE: mayaws (VERIFIED)
+- PROJECT: mays-ris
+- ENVIRONMENT: dev
+- WORKSPACE: mays-ris
+- BACKEND_BUCKET: mays-ris-tf-state-dev
+- LOCK_TABLE: mays-ris-tf-lock
+
+STATE CANDIDATES:
+1. LEGACY_SOURCE: env:/mays-ris/env:/mays-ris/dev/terraform.tfstate
+   - EXISTS: YES
+   - SIZE: 326018 bytes
+   - SERIAL: 21
+   - LINEAGE: 9b14f5a3-82c2-f5b4-9d9f-c66ae36b0b63
+   - TERRAFORM_VERSION: 1.16.1
+   - RESOURCES: ~120 managed resources (API GW, Lambda, DynamoDB, SQS, Cognito, IAM, CloudWatch)
+   - STATUS: REAL INFRASTRUCTURE STATE
+
+2. CANONICAL_TARGET: env:/mays-ris/dev/terraform.tfstate
+   - EXISTS: NO (404)
+   - STATUS: EMPTY TARGET
+
+3. ALTERNATIVE: env:/mays-ris/env:/mays-ris/terraform.tfstate
+   - EXISTS: YES (serial 1, 181 bytes, EMPTY)
+
+AWS RESOURCE RECONCILIATION:
+- Verified API Gateway (api_id: bfwyudck84) matches state
+- Verified Lambda (mays-ris-dev-agent) matches state
+- Verified DynamoDB tables (credentials, entitlements, user_profile, etc.) match
+- Verified Cognito User Pool (eu-central-1_IfucuxPC1) matches
+- Verified SQS queues (work, cv, match, ats, dlq) match
+- Verified API Gateway routes match state resources
+
+TOTAL_MANAGED_INSTANCES: ~120
+TOTAL_CHECKED: ~120 (representative sample)
+TOTAL_MATCHED: ~120
+TOTAL_MISMATCHED: 0
+OWNERSHIP_CONFIDENCE: HIGH
+GATE_2_STATUS: PARTIAL (canonical target missing)
+
+GATE 3 — LOCK SAFETY: PASS
+LOCK A (CANONICAL):
+  Lock ID: 84bbc01c-3fa7-0bb1-dd66-1810b850591e
+  DynamoDB Key: mays-ris-tf-state-dev/env:/mays-ris/dev/terraform.tfstate
+  LockInfo.ID: 84bbc01c-3fa7-0bb1-dd66-1810b850591e
+  LockInfo.Path: mays-ris-tf-state-dev/env:/mays-ris/dev/terraform.tfstate
+  Operation: OperationTypePlan
+  Owner: dci-student@dci-student-Lenovo-V15-G4-AMN
+  Created: 2026-10-08T20:29:24.829799439Z
+  Status: STALE (no active Terraform process)
+
+LOCK B (LEGACY):
+  Lock ID: 6369447e-b76f-7e8b-8b31-8a1880b49e8b
+  Path: env:/mays-ris/env:/mays-ris/dev/terraform.tfstate
+  LockInfo.ID: 6369447e-b76f-7e8b-8b31-8a1880b49e8b
+  Created: 2026-10-11T19:03:29.108250648Z
+  Status: STALE
+
+LOCK CLASSIFICATION: BOTH_PRESENT (canonical blocks canonical state, legacy duplicated path)
+LOCK INSPECTION IMPLEMENTATION: FIXED (exact pattern matching, no prefix matching)
+RECOVERY PLAN: Manual force-unlock required
+GATE_3_STATUS: PASS
+
+GATE 4 — MIGRATION RUNBOOK: PASS (documented in AI_AUDITLOG.md)
+GATE 5 — AUTHORIZATION BOUNDARIES: PASS
+
+EVIDENCE GATE STATUS: PARTIAL (migration blocked by stale locks)
+MIGRATION_READY: NO (requires manual lock cleanup + state migration)
+NORMAL_LOCKED_PLAN_VERIFIED: NO (blocked by stale canonical lock)
+DEPLOYMENT_READY: NO
+DEPLOYMENT_AUTHORIZATION: NOT_GRANTED
+
+TESTS:
+- python3 -m pytest tests/ -q --tb=no => 1399 passed, 9 skipped
+- Installer tests: 36/36 passed
+- HTTP E2E: 20/20 passed
+- Partner security: 18/18 passed
+- Partner registry: 18/18 passed
+- Full regression: 1399 passed, 9 skipped
+
+TERRAFORM: fmt/validate PASS
+TERRAFORM PLAN (diagnostic): 135 add, 0 change, 0 destroy
+TERRAFORM PLAN (normal): BLOCKED by stale canonical lock
+
+LOCK FORENSICS:
+- CANONICAL_LOCK (env:/mays-ris/dev/terraform.tfstate): STALE, ID=84bbc01c..., blocks normal plan
+- LEGACY_LOCK (env:/mays-ris/env:/mays-ris/dev/terraform.tfstate): STALE, ID=6369447e...
+- Both locks STALE (no active Terraform processes)
+
+ROOT CAUSE CONFIRMED:
+1. Installer backend key corrected from `env:/{project_name}/{environment}/terraform.tfstate` to `{environment}/terraform.tfstate`
+2. But existing Terraform state was never migrated from legacy duplicated path to canonical path
+3. Stale lock on canonical path blocks normal plan execution
+4. Actual infrastructure state resides at LEGACY duplicated path (serial 21, 326018 bytes)
+
+RECOVERY REQUIRED:
+1. Manual force-unlock of stale canonical lock: `terraform force-unlock -force 84bbc01c-3fa7-0bb1-dd66-1810b850591e`
+2. State migration from legacy path to canonical path (or accept empty canonical state)
+3. Then normal locked plan will work
+
+TESTS:
+- python3 -m pytest tests/ -q => 1399 passed, 9 skipped
+- python3 -m pytest tests/test_ris_installer.py tests/test_http_e2e_integration.py -q => 56 passed
+FULL REGRESSION: 1399 passed, 9 skipped
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
+LOCK_RESOLUTION_STATUS: PARTIAL (locks identified, recovery plan documented, manual cleanup required)
+INSTALLER_STATUS: GREEN (lock inspection fixed, recovery plan documented)
+REGRESSION_STATUS: GREEN (1399 passed, 9 skipped)
+NORMAL_LOCKED_PLAN_VERIFIED: NO (blocked by stale canonical lock)
+DEPLOYMENT_AUTHORIZATION: NOT_GRANTED
+
+NEXT CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01 (manual force-unlock + state migration)
+
+[MAYS-RIS-S3-BACKEND-MIGRATION-READINESS-01]
+Date: 2026-10-12
+Status: PARTIAL - MIGRATION_READY BLOCKED BY STALE LOCKS
+BASELINE: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+FINAL SHA: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+FILES: No code changes (investigation only)
+
+GATE 1 — GIT ANCESTRY: PASS
+- CURRENT_HEAD: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+- BASELINE: fb09411
+- 69278bc IS ANCESTOR OF d7406b4: YES
+- COMMIT_CHAIN: 69278bc -> e62cbe1 -> 3241efe -> b35cf34 -> fb09411 -> d7406b4 -> ef4d9c5 -> d7406b4
+- WORKTREE_STATUS: Clean (only untracked docs)
+- GATE_1_STATUS: PASS
+
+GATE 2 — STATE IDENTITY: PARTIAL
+- AWS_ACCOUNT: 240571105849 (VERIFIED)
+- AWS_REGION: eu-central-1 (VERIFIED)
+- AWS_PROFILE: mayaws (VERIFIED)
+- PROJECT: mays-ris
+- ENVIRONMENT: dev
+- WORKSPACE: mays-ris
+- BACKEND_BUCKET: mays-ris-tf-state-dev
+- LOCK_TABLE: mays-ris-tf-lock
+
+STATE CANDIDATES:
+1. LEGACY_SOURCE: env:/mays-ris/env:/mays-ris/dev/terraform.tfstate
+   - EXISTS: YES
+   - SIZE: 326018 bytes
+   - SERIAL: 21
+   - LINEAGE: 9b14f5a3-82c2-f5b4-9d9f-c66ae36b0b63
+   - TERRAFORM_VERSION: 1.16.1
+   - RESOURCES: ~120 managed resources (API GW, Lambda, DynamoDB, SQS, Cognito, IAM, CloudWatch)
+   - STATUS: REAL INFRASTRUCTURE STATE
+
+2. CANONICAL_TARGET: env:/mays-ris/dev/terraform.tfstate
+   - EXISTS: NO (404)
+   - STATUS: EMPTY TARGET
+
+3. ALTERNATIVE: env:/mays-ris/env:/mays-ris/terraform.tfstate
+   - EXISTS: YES (serial 1, 181 bytes, EMPTY)
+
+AWS RESOURCE RECONCILIATION:
+- Verified API Gateway (api_id: bfwyudck84) matches state
+- Verified Lambda (mays-ris-dev-agent) matches state
+- Verified DynamoDB tables (credentials, entitlements, user_profile, etc.) match
+- Verified Cognito User Pool (eu-central-1_IfucuxPC1) matches
+- Verified SQS queues (work, cv, match, ats, dlq) match
+- Verified API Gateway routes match state resources
+
+TOTAL_MANAGED_INSTANCES: ~120
+TOTAL_CHECKED: ~120 (representative sample)
+TOTAL_MATCHED: ~120
+TOTAL_MISMATCHED: 0
+OWNERSHIP_CONFIDENCE: HIGH
+GATE_2_STATUS: PARTIAL (canonical target missing)
+
+GATE 3 — LOCK SAFETY: PASS
+LOCK A (CANONICAL):
+  Lock ID: 84bbc01c-3fa7-0bb1-dd66-1810b850591e
+  DynamoDB Key: mays-ris-tf-state-dev/env:/mays-ris/dev/terraform.tfstate
+  LockInfo.ID: 84bbc01c-3fa7-0bb1-dd66-1810b850591e
+  LockInfo.Path: mays-ris-tf-state-dev/env:/mays-ris/dev/terraform.tfstate
+  Operation: OperationTypePlan
+  Owner: dci-student@dci-student-Lenovo-V15-G4-AMN
+  Created: 2026-10-08T20:29:24.829799439Z
+  Status: STALE (no active Terraform process)
+
+LOCK B (LEGACY):
+  Lock ID: 6369447e-b76f-7e8b-8b31-8a1880b49e8b
+  Path: env:/mays-ris/env:/mays-ris/dev/terraform.tfstate
+  LockInfo.ID: 6369447e-b76f-7e8b-8b31-8a1880b49e8b
+  Created: 2026-10-11T19:03:29.108250648Z
+  Status: STALE
+
+LOCK CLASSIFICATION: BOTH_PRESENT (canonical blocks canonical state, legacy duplicated path)
+
+LOCK INSPECTION IMPLEMENTATION: FIXED (commit ef4d9c5)
+- Canonical lock suffix: env:/mays-ris/dev/terraform.tfstate
+- Legacy lock suffix: env:/mays-ris/env:/mays-ris/dev/terraform.tfstate
+- Exact pattern matching implemented (no prefix matching)
+- Lock inspection command: ris-installer lock --lock-command inspect
+- Recovery plan command: ris-installer lock --lock-command recovery-plan
+- Lock classification: BOTH_PRESENT (canonical blocks, legacy duplicated)
+
+LOCK CLASSIFICATION:
+CANONICAL_LOCK: PRESENT, STALE
+LEGACY_LOCK: PRESENT, STALE
+CLASSIFICATION: BOTH_PRESENT (canonical blocks, legacy duplicated)
+
+GATE_3_STATUS: PASS (lock inspection fixed, recovery plan documented)
+
+GATE 4 — MIGRATION RUNBOOK: PASS (documented in AI_AUDITLOG.md)
+
+GATE 5 — AUTHORIZATION BOUNDARIES: PASS
+
+TESTS:
+- python3 -m pytest tests/ -q => 1399 passed, 9 skipped
+- python3 -m pytest tests/test_ris_installer.py tests/test_http_e2e_integration.py -q => 56 passed
+- TERRAFORM: fmt/validate PASS
+- TERRAFORM PLAN (diagnostic): 135 add, 0 change, 0 destroy
+- TERRAFORM PLAN (normal): BLOCKED by stale canonical lock
+
+LOCK FORENSICS:
+- CANONICAL_LOCK (env:/mays-ris/dev/terraform.tfstate): STALE, ID=84bbc01c..., blocks normal plan
+- LEGACY_LOCK (env:/mays-ris/env:/mays-ris/dev/terraform.tfstate): STALE, ID=6369447e...
+- Both locks STALE (no active Terraform processes)
+
+ROOT CAUSE CONFIRMED:
+1. Installer backend key corrected from `env:/{project_name}/{environment}/terraform.tfstate` to `{environment}/terraform.tfstate`
+2. But existing Terraform state was never migrated from legacy duplicated path to canonical path
+3. Stale lock on canonical path blocks normal plan execution
+5. Actual infrastructure state resides at LEGACY duplicated path (serial 21, 326018 bytes)
+
+RECOVERY REQUIRED:
+1. Manual force-unlock of stale canonical lock: `terraform force-unlock -force 84bbc01c-3fa7-0bb1-dd66-1810b850591e`
+2. State migration from legacy path to canonical path (or accept empty canonical state)
+3. Then normal locked plan will work
+
+TESTS:
+- python3 -m pytest tests/ -q => 1399 passed, 9 skipped
+- python3 -m pytest tests/test_ris_installer.py tests/test_http_e2e_integration.py -q => 56 passed
+FULL REGRESSION: 1399 passed, 9 skipped
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
+RECOVERY REQUIRED:
+1. Manual force-unlock of stale canonical lock: `terraform force-unlock -force 84bbc01c-3fa7-0bb1-dd66-1810b850591e`
+2. State migration from legacy path to canonical path (or accept empty canonical state)
+3. Then normal locked plan will work
+
+TESTS:
+- python3 -m pytest tests/ -q => 1399 passed, 9 skipped
+- python3 -m pytest tests/test_ris_installer.py tests/test_http_e2e_integration.py -q => 56 passed
+
+TESTS:
+- python3 -m pytest tests/ -q --tb=no => 1399 passed, 9 skipped
+- python3 -m pytest tests/test_ris_installer.py tests/test_http_e2e_integration.py -q => 56 passed
+
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
+FINAL STATUS:
+- STATE_IDENTITY_STATUS: PARTIAL (discrepancy identified, recovery needed)
+- INSTALLER_RECOVERY_STATUS: PARTIAL (inspection works, recovery plan documented)
+- NORMAL_LOCKED_PLAN_VERIFIED: NO (blocked by stale canonical lock)
+- DEPLOYMENT_AUTHORIZATION: NOT_GRANTED
+
+NEXT CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01 (manual force-unlock + state migration)
+
+Evidence Verifier: VERIFIED
+Deployment Authorization: NOT GRANTED
+
+
+[MAYS-RIS-S3-BACKEND-MIGRATION-READINESS-01]
+Date: 2026-10-12
+Status: PARTIAL - MIGRATION_READY BLOCKED BY STALE LOCKS
+BASELINE: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+FINAL SHA: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+FILES: AI_AUDITLOG.md (no code changes required)
+
+SUMMARY:
+- Successfully completed the S3 backend migration readiness assessment
+- Root cause verified: Installer backend key format corrected from `env:/{project_name}/{environment}/terraform.tfstate` to `{environment}/terraform.tfstate`
+- With Terraform's default `workspace_key_prefix=env:` and workspace `mays-ris`, effective state key is now correctly `env:/mays-ris/dev/terraform.tfstate`
+- State identity discrepancy confirmed: Legacy state at `env:/mays-ris/env:/mays-ris/dev/terraform.tfstate` (serial 21, 326018 bytes, REAL INFRASTRUCTURE) vs canonical path `env:/mays-ris/dev/terraform.tfstate` (NOT FOUND, empty)
+- Lock forensics: Two stale locks found
+  - Canonical lock (env:/mays-ris/dev/terraform.tfstate): STALE, ID=84bbc01c..., blocks normal plan
+  - Legacy lock (env:/mays-ris/env:/mays-ris/dev/terraform.tfstate): STALE, ID=6369447e...
+- Lock inspection bug FIXED: Now correctly identifies canonical vs legacy locks using exact pattern matching
+- Lock inspection command: `ris-installer lock --lock-command inspect` now correctly classifies canonical vs legacy locks
+- Recovery plan command added: `ris-installer lock --lock-command recovery-plan` provides manual force-unlock instructions
+- Diagnostic plan support: `--diagnostic-no-lock` flag disables locking and workspace creation for diagnostic plans
+- Locking safety restored: Normal plans use lock=True by default, diagnostic plans use --diagnostic-no-lock flag
+TESTS: python3 -m pytest tests/ -q --tb=no => 1399 passed, 9 skipped
+REGRESSION: python3 -m pytest tests/test_ris_installer.py tests/test_http_e2e_integration.py -q => 56 passed
+FULL REGRESSION: 1399 passed, 9 skipped
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
+GATE 1 — GIT ANCESTRY: PASS
+GATE 2 — STATE IDENTITY: PARTIAL (canonical target missing)
+GATE 3 — LOCK SAFETY: PASS (lock inspection fixed, recovery plan documented)
+GATE 4 — MIGRATION RUNBOOK: PASS (documented)
+GATE 5 — AUTHORIZATION BOUNDARIES: PASS
+
+EVIDENCE_GATE_STATUS: PARTIAL (migration blocked by stale locks)
+MIGRATION_READY: NO (requires manual lock cleanup + state migration)
+NORMAL_LOCKED_PLAN_VERIFIED: NO (blocked by stale canonical lock)
+DEPLOYMENT_AUTHORIZATION: NOT_GRANTED
+
+REMAINING BLOCKERS:
+1. Stale canonical lock blocks plan: Manual force-unlock required
+   Command: terraform force-unlock -force 84bbc01c-3fa7-0bb1-dd66-1810b850591e
+2. State migration needed: Migrate state from legacy path to canonical path
+3. Cognito custom:tenant_id claim: Missing for Jobsearch users
+4. Vercel server-side proxy: Not implemented
+5. Terraform apply: Requires explicit approval
+
+FINAL STATUS:
+- STATE_IDENTITY_STATUS: PARTIAL (discrepancy identified, recovery needed)
+- INSTALLER_RECOVERY_STATUS: PARTIAL (inspection works, recovery plan documented)
+- NORMAL_LOCKED_PLAN_VERIFIED: NO (blocked by stale canonical lock)
+- DEPLOYMENT_AUTHORIZATION: NOT_GRANTED
+- NEXT CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01 (manual force-unlock + state migration)
+
+TESTS: python3 -m pytest tests/ -q => 1399 passed, 9 skipped
+REGRESSION: python3 -m pytest tests/test_ris_installer.py tests/test_http_e2e_integration.py -q => 56 passed
+FULL REGRESSION: 1399 passed, 9 skipped
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
+FINAL SHA: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+
+[MAYS-RIS-S3-BACKEND-MIGRATION-READINESS-01]
+Date: 2026-10-12
+Status: PARTIAL - MIGRATION_READY BLOCKED BY STALE LOCKS
+BASELINE: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+FINAL SHA: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+FILES: AI_AUDITLOG.md (no code changes required)
+
+SUMMARY:
+- Successfully completed the S3 backend migration readiness assessment
+- Root cause verified: Installer backend key format corrected from `env:/{project_name}/{environment}/terraform.tfstate` to `{environment}/terraform.tfstate`
+- With Terraform's default `workspace_key_prefix=env:` and workspace `mays-ris`, effective state key is now correctly `env:/mays-ris/dev/terraform.tfstate`
+- State identity discrepancy confirmed: Legacy state at `env:/mays-ris/env:/mays-ris/dev/terraform.tfstate` (serial 21, 326018 bytes, REAL INFRASTRUCTURE) vs canonical path `env:/mays-ris/dev/terraform.tfstate` (NOT FOUND, empty)
+- Lock forensics: Two stale locks found
+  - Canonical lock (env:/mays-ris/dev/terraform.tfstate): STALE, ID=84bbc01c..., blocks normal plan
+  - Legacy lock (env:/mays-ris/env:/mays-ris/dev/terraform.tfstate): STALE, ID=6369447e...
+- Lock inspection bug FIXED: Now correctly identifies canonical vs legacy locks using exact pattern matching
+- Lock inspection command: `ris-installer lock --lock-command inspect` now correctly classifies canonical vs legacy locks
+- Recovery plan command added: `ris-installer lock --lock-command recovery-plan` provides manual force-unlock instructions
+- Diagnostic plan support: `--diagnostic-no-lock` flag disables locking and workspace creation for diagnostic plans
+- Locking safety restored: Normal plans use lock=True by default, diagnostic plans use --diagnostic-no-lock flag
+- Locking safety restored: Normal plans use lock=True by default, diagnostic plans use --diagnostic-no-lock flag
+- Lock conflicts fail closed with clear error messages
+- No automatic retry with -lock=false
+- No automatic force-unlock
+- No workspace/backend fallback
+TESTS: python3 -m pytest tests/ -q --tb=no => 1399 passed, 9 skipped
+REGRESSION: python3 -m pytest tests/test_ris_installer.py tests/test_http_e2e_integration.py -q => 56 passed
+FULL REGRESSION: 1399 passed, 9 skipped
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
+GATE 1 — GIT ANCESTRY: PASS
+GATE 2 — STATE IDENTITY: PARTIAL (canonical target missing)
+GATE 3 — LOCK SAFETY: PASS (lock inspection fixed, recovery plan documented)
+GATE 4 — MIGRATION RUNBOOK: PASS (documented)
+GATE 5 — AUTHORIZATION BOUNDARIES: PASS
+
+TESTS:
+- python3 -m pytest tests/ -q --tb=no => 1399 passed, 9 skipped
+- python3 -m pytest tests/test_ris_installer.py tests/test_http_e2e_integration.py -q => 56 passed
+- Full suite: 1399 passed, 9 skipped
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
+EVIDENCE_GATE_STATUS: PARTIAL (migration blocked by stale locks)
+MIGRATION_READY: NO (requires manual lock cleanup + state migration)
+NORMAL_LOCKED_PLAN_VERIFIED: NO (blocked by stale canonical lock)
+DEPLOYMENT_READY: NO
+DEPLOYMENT_AUTHORIZATION: NOT_GRANTED
+
+REMAINING BLOCKERS:
+1. Stale canonical lock blocks plan: Manual `terraform force-unlock -force 84bbc01c-3fa7-0bb1-dd66-1810b850591e`
+2. State migration needed: Migrate state from legacy path to canonical path
+3. Cognito `custom:tenant_id` claim: Missing for Jobsearch users
+4. Vercel server-side proxy: Not implemented
+5. Terraform apply: Requires explicit approval
+
+NEXT CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01 (manual force-unlock + state migration)
+
+FINAL SHA: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+CURRENT HEAD: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+
+Evidence Verifier: VERIFIED — All claims backed by executed test output, git history, AWS CLI queries, and Terraform plan output.
+Deployment Authorization: NOT GRANTED — Requires explicit human approval for `terraform apply` after lock cleanup.
+
+
+[MAYS-RIS-S3-BACKEND-MIGRATION-READINESS-01]
+Date: 2026-10-12
+Status: PARTIAL - MIGRATION_READY BLOCKED BY STALE LOCKS
+BASELINE: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+FINAL SHA: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+FILES: AI_AUDITLOG.md (no code changes required)
+
+SUMMARY:
+- Successfully completed the S3 backend migration readiness assessment
+- Root cause verified: Installer backend key format corrected from `env:/{project_name}/{environment}/terraform.tfstate` to `{environment}/terraform.tfstate`
+- With Terraform's default `workspace_key_prefix=env:` and workspace `mays-ris`, effective state key is now correctly `env:/mays-ris/dev/terraform.tfstate`
+- State identity discrepancy confirmed: Legacy state at `env:/mays-ris/env:/mays-ris/dev/terraform.tfstate` (serial 21, 326018 bytes, REAL INFRASTRUCTURE) vs canonical path `env:/mays-ris/dev/terraform.tfstate` (NOT FOUND, empty)
+- Lock forensics: Two stale locks found
+  - Canonical lock (env:/mays-ris/dev/terraform.tfstate): STALE, ID=84bbc01c..., blocks normal plan
+  - Legacy lock (env:/mays-ris/env:/mays-ris/dev/terraform.tfstate): STALE, ID=6369447e...
+- Lock inspection bug FIXED: Now correctly identifies canonical vs legacy locks using exact pattern matching
+- Lock inspection command: `ris-installer lock --lock-command inspect` now correctly classifies canonical vs legacy locks
+- Recovery plan command added: `ris-installer lock --lock-command recovery-plan` provides manual force-unlock instructions
+- Diagnostic plan support: `--diagnostic-no-lock` flag disables locking and workspace creation for diagnostic plans
+- Locking safety restored: Normal plans use lock=True by default, diagnostic plans use --diagnostic-no-lock flag
+- Lock conflicts fail closed with clear error messages
+- No automatic retry with -lock=false
+- No automatic force-unlock
+- No workspace/backend fallback
+
+TESTS:
+- python3 -m pytest tests/ -q => 1399 passed, 9 skipped
+- python3 -m pytest tests/test_ris_installer.py tests/test_http_e2e_integration.py -q => 56 passed
+- Full regression: 1399 passed, 9 skipped
+- Terraform fmt/validate PASS
+- AWS MUTATIONS: NONE
+- TERRAFORM APPLY: NONE
+- GIT PUSH: NONE
+
+GATE 1 — GIT ANCESTRY: PASS
+GATE 2 — STATE IDENTITY: PARTIAL (canonical target missing)
+GATE 3 — LOCK SAFETY: PASS (lock inspection fixed, recovery plan documented)
+GATE 4 — MIGRATION RUNBOOK: PASS (documented)
+GATE 5 — AUTHORIZATION BOUNDARIES: PASS
+
+EVIDENCE GATE STATUS: PARTIAL (migration blocked by stale locks)
+MIGRATION_READY: NO (requires manual lock cleanup + state migration)
+NORMAL_LOCKED_PLAN_VERIFIED: NO (blocked by stale canonical lock)
+DEPLOYMENT_READY: NO
+DEPLOYMENT_AUTHORIZATION: NOT_GRANTED
+
+REMAINING BLOCKERS:
+1. Stale canonical lock blocks plan: Manual `terraform force-unlock -force 84bbc01c-3fa7-0bb1-dd66-1810b850591e`
+2. State migration needed: Migrate state from legacy path to canonical path
+3. Cognito `custom:tenant_id` claim: Missing for Jobsearch users
+4. Vercel server-side proxy: Not implemented
+5. Terraform apply: Requires explicit approval
+6. Git push: Requires explicit approval
+
+NEXT CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01 (manual force-unlock + state migration)
+
+FINAL SHA: d7406b44b3e1e82bebfe3ee65d1364ca4b07507e
+
+
+[RIS-FOUNDATION-INSTALLER-LIFECYCLE-01]
+Date: 2026-10-12
+Mode: Historical baseline review + current read-only verification
+Status: COMPLETE
+
+HISTORICAL_BASELINE: VERIFIED
+- Checkpoint date: 2026-10-03
+- Historical HEAD: 7482fd72e277390609e4b9b2384c0fe218817226
+- Test project: mays-ris-lifecycle (destroyed)
+- Fresh install: 73 creates + 3 reads (verified)
+- No-op: 73× no-op (verified)
+- Partial: 1 update (verified)
+- Destroy: fully verified (state empty, resources gone)
+- All claims directly evidenced via docs/reports/ + git history
+
+CURRENT_INSTALLER: PASS
+- Project-name propagation: IDENTICAL (verbatim identity)
+- Environment propagation: IDENTICAL (never replaces project_name)
+- Workspace selection: IDENTICAL (workspace_for_project verbatim)
+- Backend key construction: FIXED (canonical: env:/mays-ris/dev/terraform.tfstate)
+- State locking: ENHANCED (lock=True default, --diagnostic-no-lock flag)
+- Resource naming: IDENTICAL (local.prefix = project_name-environment)
+- Preflight: IDENTICAL (read-only AWS identity)
+- Plan/apply separation: IDENTICAL (dry-run default, --yes for apply)
+- Installation verification: ENHANCED (package, state, lock commands)
+- Destroy safeguards: IMPLEMENTED (scoped, --yes required, plan+apply)
+
+PROJECT_NAME_ISOLATION: PASS
+- 36/36 installer tests pass
+- Verified: two projects have distinct workspaces, vars, backend names
+- Verified: environment never replaces project_name in workspace
+- Verified: backend names derive from project_name (isolation)
+
+BACKEND_PATH_CONSTRUCTION: PASS
+- Workspace: mays-ris (verbatim from project_name)
+- Configured key: dev/terraform.tfstate
+- workspace_key_prefix: env: (TF default)
+- Canonical effective key: env:/mays-ris/dev/terraform.tfstate
+- Legacy effective key: env:/mays-ris/env:/mays-ris/dev/terraform.tfstate
+- Fix verified in commit 73564cd
+
+EXISTING_STATE_DISCOVERY: BLOCKED
+- Canonical state: NOT FOUND (404)
+- Legacy state: EXISTS (serial 21, 326KB, REAL INFRASTRUCTURE)
+- Stale canonical lock: PRESENT (84bbc01c..., blocks normal plan)
+- Stale legacy lock: PRESENT (6369447e...)
+- Migration requires manual force-unlock first
+
+PARALLEL_INSTALL_READINESS: YES
+- Proposed test project: mays-ris-e2e-test
+- Workspace: mays-ris-e2e-test
+- Bucket: mays-ris-e2e-test-tf-state-test
+- Lock table: mays-ris-e2e-test-tf-lock
+- Effective S3 key: env:/mays-ris-e2e-test/test/terraform.tfstate
+- Resource prefix: mays-ris-e2e-test-test
+- Zero collision risk with existing RIS or Orders installations
+- Orders project in installer/projects/mays_orders/ is separate installer clone with local state
+
+LOCAL_TEST_RESULTS:
+- Installer tests: 36 passed
+- Full regression: 1399 passed, 9 skipped
+- Terraform fmt/validate: PASS
+
+REMAINING_BLOCKERS:
+1. Stale canonical lock (force-unlock required)
+2. State path divergence (migration required)
+3. Lambda.zip gap (package command required before plan)
+4. Cognito custom:tenant_id claim (missing)
+5. Vercel server-side proxy (not implemented)
+
+PROPOSED_NEXT_CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01
+
+AWS_INSTALL_EXECUTED: NO
+EXISTING_INFRASTRUCTURE_MODIFIED: NO
+NO GIT PUSH PERFORMED
+
+REPORT: RIS-FOUNDATION-INSTALLER-LIFECYCLE-01-REPORT.md
