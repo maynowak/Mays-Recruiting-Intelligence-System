@@ -2967,3 +2967,96 @@ EXISTING_INFRASTRUCTURE_MODIFIED: NO
 NO GIT PUSH PERFORMED
 
 REPORT: RIS-FOUNDATION-INSTALLER-LIFECYCLE-01-REPORT.md
+
+[MAYS-RIS-PARALLEL-INSTALLATION-PREFLIGHT-01]
+Date: 2026-10-12
+Mode: Read-only AWS + Local Verification
+Status: COMPLETE - GO
+
+REPOSITORY_VERIFICATION:
+- Remote origin: git@github.com:maynowak/Mays-Recruiting-Intelligent-System.git
+- Remote main HEAD: eb317a0
+- Local HEAD: eb317a0
+- Working tree: Clean (pre-existing untracked only)
+- Installer entry: installer/ris.py
+- Terraform root: terraform/
+
+EXISTING_RIS_INSTALLATION:
+- project_name: mays-ris, environment: dev, workspace: mays-ris
+- Backend bucket: mays-ris-tf-state-dev, Lock table: mays-ris-tf-lock
+- Legacy state: env:/mays-ris/env:/mays-ris/dev/terraform.tfstate (EXISTS, serial 21, 326KB)
+- Canonical state: env:/mays-ris/dev/terraform.tfstate (NOT FOUND)
+- Stale locks on both paths
+
+ORDERS_INSTALLATION_BOUNDARY: PASS
+- Directory: installer/projects/mays_orders/ (underscore, not hyphen)
+- Pinned commit: 9c61237185d202e072b2304355ee836154368846
+- Local state: terraform/terraform.tfstate (serial 129)
+- Workspace: mays-orders (hardcoded)
+- No S3 backend
+- Manages integration config only (Orders reader Lambda + routes)
+
+PARALLEL_TEST_PARAMETERS (derived from installer code):
+- project_name: mays-ris-e2e-test
+- environment: test (VALID_ENVIRONMENTS: dev, test, prod)
+- workspace: mays-ris-e2e-test
+- Backend bucket: mays-ris-e2e-test-tf-state-test (NOT FOUND)
+- Lock table: mays-ris-e2e-test-tf-lock (NOT FOUND)
+- Configured key: test/terraform.tfstate
+- Effective state key: env:/mays-ris-e2e-test/test/terraform.tfstate (NOT FOUND)
+- Resource prefix: mays-ris-e2e-test-test
+- Naming constraints: ALL PASS
+
+RESOURCE_COLLISION_ANALYSIS: PASS
+- 88 resources enumerated across 12 modules
+- All names use ${var.project_name}-${var.environment} prefix
+- Zero collision risk with existing RIS (mays-ris-dev-*) or Orders (mays-orders-*)
+- Orders reader defaults point to Mays-Orders production (INTENTIONAL shared read)
+- No hardcoded names, no shared account-level resources, no global namespace conflicts
+
+BACKEND_ISOLATION: PASS
+- Test backend bucket: NOT FOUND (404)
+- Test lock table: NOT FOUND
+- Test state key: NOT FOUND
+- Test lock: NOT FOUND
+- Complete isolation from all existing states
+
+INSTALLER_EXECUTION_SAFETY:
+- Read-only commands: validate, plan (with --diagnostic-no-lock), preflight, package, lock, state list/show/pull
+- Mutating commands (require --yes): apply, install, state push, destroy
+- Workspace isolation: project_name → workspace verbatim, cannot select mays-ris
+- project_name propagated through all stages
+
+LOCAL_TESTS: PASS
+- Installer tests: 36/36 passed
+- Full regression: 1399 passed, 9 skipped
+- Terraform fmt/validate: PASS
+- Custom isolation tests: ALL PASS (A-L)
+
+COST_ESTIMATE: PROVIDED
+- ~88 resources, ~$7.70/month, ~$0.26/day for short-lived test
+- Primary costs: API Gateway ($3.50), CloudWatch Dashboard ($3), Alarms ($0.70)
+
+DESTROY_SCOPE: VERIFIED
+- Scoped to project workspace
+- Requires --yes
+- Plan (-destroy) + Apply
+- Backend resources (bucket, lock table) survive - manual cleanup optional
+
+PARALLEL_INSTALL_READY: YES
+- All mandatory isolation gates evidenced
+- Runbook documented with explicit approval gates
+
+BLOCKERS_FOR_PRODUCTION_RIS (not affecting parallel test):
+1. Stale canonical lock (84bbc01c...)
+2. State path divergence
+3. Cognito custom:tenant_id claim missing
+4. Vercel proxy not implemented
+
+RUNBOOK: docs/reports/MAYS-RIS-PARALLEL-INSTALLATION-PREFLIGHT-01.md
+REPORT: docs/reports/MAYS-RIS-PARALLEL-INSTALLATION-PREFLIGHT-01.md
+
+AWS_INSTALL_EXECUTED: NO
+EXISTING_INFRASTRUCTURE_MODIFIED: NO
+NO GIT PUSH
+
