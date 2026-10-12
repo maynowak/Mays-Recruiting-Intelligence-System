@@ -1555,3 +1555,48 @@ AWS MUTATIONS: NONE
 TERRAFORM APPLY: NONE
 GIT PUSH: NONE
 
+
+[MAYS-RIS-INSTALLER-LOCK-RESOLUTION-01]
+Date: 2026-10-12
+Status: GREEN
+BASELINE: 73564cd
+FINAL SHA: (current HEAD)
+FILES: installer/ris.py, tests/test_ris_installer.py, AI_AUDITLOG.md
+SUMMARY:
+- Root cause verified: Installer backend key format caused duplicated state path
+- Fixed: Backend key changed from 'env:/{project_name}/{environment}/terraform.tfstate' to '{environment}/terraform.tfstate'
+- Locking safety: Normal plans use lock=True by default; --diagnostic-no-lock for diagnostics
+- Lock inspection: New 'lock inspect' command reports canonical and legacy lock status
+- Lock recovery: 'recovery-plan' provides manual force-unlock instructions
+- Locking safety: Normal plans use lock=True; diagnostic plans use --diagnostic-no-lock
+- Lock conflicts fail closed with clear error messages
+- No automatic retry, force-unlock, or state migration
+TESTS: python3 -m pytest tests/test_ris_installer.py -v => 36 passed
+REGRESSION: python3 -m pytest tests/ -q --tb=no => 1399 passed, 9 skipped
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
+LOCK FORENSICS:
+- CANONICAL_LOCK (env:/mays-ris/dev/terraform.tfstate): PRESENT, STALE
+  ID: 84bbc01c-3fa7-0bb1-dd66-1810b850591e
+  Owner: dci-student@dci-student-Lenovo-V15-G4-AMN
+  Created: 2026-10-08T20:29:24.829799439Z
+  Blocks canonical state path
+- LEGACY_LOCK (env:/mays-ris/env:/mays-ris/dev/terraform.tfstate): PRESENT, STALE
+  ID: 6369447e-b76f-7e8b-8b31-8a1880b49e8b
+  Created: 2026-10-11T19:03:29.108250648Z
+
+RECOVERY REQUIRED: YES
+- Both locks are STALE (no active Terraform processes)
+- Canonical lock blocks normal plan execution
+- Recovery: Manual force-unlock required with explicit approval
+- Recovery command: terraform force-unlock -force 84bbc01c-3fa7-0bb1-dd66-1810b850591e
+
+LOCK_RESOLUTION_STATUS: PARTIAL (locks identified, recovery procedure documented, manual cleanup required)
+INSTALLER_STATUS: FUNCTIONAL (36 tests pass)
+REGRESSION: GREEN (1399 passed, 9 skipped)
+DEPLOYMENT_AUTHORIZATION: NOT_GRANTED
+NEXT_CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01
+
