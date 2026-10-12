@@ -1600,3 +1600,67 @@ REGRESSION: GREEN (1399 passed, 9 skipped)
 DEPLOYMENT_AUTHORIZATION: NOT_GRANTED
 NEXT_CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01
 
+
+[MAYS-RIS-INSTALLER-LOCK-RESOLUTION-01]
+Date: 2026-10-12
+Status: GREEN
+BASELINE: 73564cdbe9c135f656a3917a1a11f1eb5fb5be8e
+COMMIT: (current HEAD)
+FILES: installer/ris.py, tests/test_ris_installer.py, AI_AUDITLOG.md
+SUMMARY:
+- Root cause verified: Installer backend key format `env:/{project_name}/{environment}/terraform.tfstate` duplicated Terraform's default workspace_key_prefix `env:` with workspace `mays-ris`, producing duplicated path `env:/mays-ris/env:/mays-ris/dev/terraform.tfstate`
+- Fix: Changed backend key from `env:/{project_name}/{environment}/terraform.tfstate` to `{environment}/terraform.tfstate`
+- With Terraform's default `workspace_key_prefix=env:` and workspace `mays-ris`, effective state key is now correctly `env:/mays-ris/dev/terraform.tfstate`
+- Locking safety restored: normal plans use `lock=True` by default; diagnostic plans use `--diagnostic-no-lock` flag
+- Lock inspection: New `lock inspect` command reports canonical and legacy lock status
+- Recovery plan: `lock recovery-plan` provides manual `force-unlock` instructions
+- Locking safety: Normal plans use `lock=True` by default; diagnostic plans use `--diagnostic-no-lock` flag
+- Lock conflicts fail closed with clear error messages
+- No automatic retry with `-lock=false`
+- No automatic force-unlock
+- No workspace/backend fallback
+- Normal lifecycle operations use locking by default
+- Diagnostic unlocked planning available via explicit `--diagnostic-no-lock` flag
+- Lock conflicts fail closed with clear error messages
+- No automatic retry with `-lock=false`
+- No automatic force-unlock
+- No workspace/backend fallback
+TESTS: python3 -m pytest tests/test_ris_installer.py -v => 36 passed
+REGRESSION: python3 -m pytest tests/ -q --tb=no => 1399 passed, 9 skipped
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
+LOCK FORENSICS:
+- CANONICAL_LOCK (env:/mays-ris/dev/terraform.tfstate): ABSENT
+  (previously present, now cleared or never existed on correct path)
+- LEGACY_LOCK (env:/mays-ris/env:/mays-ris/dev/terraform.tfstate): PRESENT, STALE
+  ID: 84bbc01c-3fa7-0bb1-dd66-1810b850591e
+  Owner: dci-student@dci-student-Lenovo-V15-G4-AMN
+  Created: 2026-10-08T20:29:24.829799439Z
+  Blocks legacy duplicated path
+
+LOCK FORENSICS:
+- CANONICAL_LOCK_STATUS: ABSENT (previously present, now cleared or never existed on correct path)
+- LEGACY_LOCK_STATUS: PRESENT, STALE
+  ID: 84bbc01c-3fa7-0bb1-dd66-1810b850591e
+  Owner: dci-student@dci-student-Lenovo-V15-G4-AMN
+  Created: 2026-10-08T20:29:24.829799439Z
+
+LOCK CLASSIFICATION: LEGACY_ONLY (canonical absent, legacy present but stale)
+RECOVERY RECOMMENDATION: Manual cleanup of legacy lock required if it blocks operations; canonical lock is already clear
+RECOVERY PROCEDURE: Manual `terraform force-unlock -force 84bbc01c-3fa7-0bb1-dd66-1810b850591e` if legacy lock blocks operations
+TESTS: python3 -m pytest tests/test_ris_installer.py -v => 36 passed
+REGRESSION: python3 -m pytest tests/ -q --tb=no => 1399 passed, 9 skipped
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE
+TERRAFORM APPLY: NONE
+GIT PUSH: NONE
+
+LOCK_RESOLUTION_STATUS: GREEN (lock inspection functional, recovery plan documented, locks classified)
+INSTALLER_STATUS: GREEN (36 tests pass, lock inspection functional)
+REGRESSION_STATUS: GREEN (1399 passed, 9 skipped)
+DEPLOYMENT_AUTHORIZATION: NOT_GRANTED
+NEXT_CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01 (manual lock cleanup)
+
