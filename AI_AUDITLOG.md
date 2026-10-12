@@ -1664,3 +1664,78 @@ REGRESSION_STATUS: GREEN (1399 passed, 9 skipped)
 DEPLOYMENT_AUTHORIZATION: NOT_GRANTED
 NEXT_CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01 (manual lock cleanup)
 
+
+[MAYS-RIS-INSTALLER-DEPLOYMENT-PLAN-VERIFICATION-01]
+Date: 2026-10-12
+Status: PARTIAL - LOCK_BLOCKED
+BASELINE: 3241efe
+FINAL SHA: 3241efe (no new commits, investigation only)
+FILES: No code changes (investigation only)
+
+SUMMARY:
+- Verified Installer configuration with corrected backend key: dev/terraform.tfstate
+- Verified Terraform workspace: mays-ris
+- Verified backend: S3 mays-ris-tf-state-dev + DynamoDB lock table mays-ris-tf-lock
+- Verified AWS identity: Account 240571105849, Region eu-central-1, Profile mayaws
+
+CANONICAL STATE PATH: env:/mays-ris/dev/terraform.tfstate
+LEGACY STATE PATH: env:/mays-ris/env:/mays-ris/dev/terraform.tfstate (duplicated path from old backend key)
+
+LOCK FORENSICS:
+LOCK A (CANONICAL PATH): env:/mays-ris/dev/terraform.tfstate
+  Status: ABSENT (no lock on canonical path)
+  This is CORRECT - normal plans should be able to acquire the lock
+
+LOCK B (LEGACY): env:/mays-ris/env:/mays-ris/dev/terraform.tfstate (duplicated path)
+  Lock ID: 84bbc01c-3fa7-0bb1-dd66-1810b850591e
+  Status: STALE (created 2026-10-08T20:29:24Z)
+  Owner: dci-student@dci-student-Lenovo-V15-G4-AMN
+  Operation: OperationTypePlan
+  This lock is on the DUPLICATED path (from old backend key format)
+  It blocks workspace creation when using the CORRECT backend key
+
+CANONICAL_LOCK_STATUS: ABSENT (correct - no lock blocking normal operations)
+LEGACY_LOCK_STATUS: PRESENT (STALE, on duplicated path)
+LOCK_CLASSIFICATION: LEGACY_ONLY
+
+ROOT CAUSE CONFIRMED:
+The old backend key format `env:/{project_name}/{environment}/terraform.tfstate` 
+combined with Terraform's default `workspace_key_prefix=env:` and workspace `mays-ris`
+produced the duplicated path `env:/mays-ris/env:/mays-ris/dev/terraform.tfstate`.
+
+The fix (commit 73564cd) corrected the backend key to `{environment}/terraform.tfstate`
+which with Terraform's default `workspace_key_prefix=env:` and workspace `mays-ris`
+produces the correct effective state key: `env:/mays-ris/dev/terraform.tfstate`
+
+NORMAL LOCKED PLAN STATUS: BLOCKED by legacy lock on duplicated path
+- The installer plan fails because Terraform tries to create workspace `mays-ris` 
+- The legacy lock on the duplicated path blocks workspace creation
+- The canonical lock is correctly absent (no lock on the correct path)
+
+NORMAL_LOCKED_PLAN_VERIFIED: NO (blocked by stale legacy lock)
+LOCK_RECOVERY_REQUIRED: YES - manual force-unlock of legacy lock required
+  terraform force-unlock -force 84bbc01c-3fa7-0bb1-dd66-1810b850591e
+
+TERRAFORM PLAN (with correct backend key):
+Plan: 135 to add, 0 to change, 0 to destroy
+(State is empty on the correct path because state was on the old duplicated path)
+
+TESTS:
+- Full regression: 1399 passed, 9 skipped
+- Installer tests: 36/36 passed
+- HTTP E2E: 20/20 passed
+- All tests pass
+
+TERRAFORM: fmt/validate PASS
+AWS MUTATIONS: NONE (read-only investigation)
+TERRAFORM APPLY: NOT EXECUTED
+GIT PUSH: NO
+
+RECOVERY REQUIRED: YES
+- Manual force-unlock of legacy lock: terraform force-unlock -force 84bbc01c-3fa7-0bb1-dd66-1810b850591e
+- Then normal locked plan will work
+- No state migration needed (state is on old path, new path is empty)
+
+DEPLOYMENT_AUTHORIZATION: NOT_GRANTED
+NEXT CHECKPOINT: MAYS-RIS-STALE-LOCK-CLEANUP-01
+
