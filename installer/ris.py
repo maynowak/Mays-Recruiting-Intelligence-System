@@ -28,9 +28,12 @@ Safety rules (hard):
 """
 
 import argparse
+import json
 import sys
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
+
+import boto3
 
 from installer.terraform_runner import (
     BackendConfig,
@@ -237,9 +240,143 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
 
 
 COMMANDS = ("validate", "plan", "apply", "preflight", "install", "state", "destroy",
-            "package")
+            "package", "lock")
 
 
+def _cmd_lock(
+    ctx: RisInstallContext,
+    lock_command: str,
+    lock_id: Optional[str] = None,
+) -> int:
+    """Lock inspection and recovery planning."""
+    import boto3
+    import json
+
+    if lock_command == "inspect":
+        if not ctx.backend_bucket:
+            print("error: backend-bucket required for lock inspect", file=sys.stderr)
+            return 2
+        if not ctx.backend_lock_table:
+            print("error: backend-lock-table required for lock inspect", file=sys.stderr)
+            return 2
+
+        # Validate AWS context
+        try:
+            aws_ctx = validate_aws_context(
+                profile=ctx.aws_profile, region=ctx.aws_region
+            )
+        except Exception as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+
+        session = boto3.Session(profile_name=ctx.aws_profile, region_name=ctx.aws_region)
+        dynamodb = session.client("dynamodb", region_name=ctx.aws_region)
+
+        # Determine which locks to inspect
+        lock_ids_to_check = []
+        if lock_id:
+            # Specific lock ID provided
+            lock_ids_to_check = [lock_id]
+        else:
+            # Check both canonical and legacy paths
+            lock_ids_to_check = [
+                f"{ctx.environment}/terraform.tfstate",  # canonical
+                f"env:/{ctx.project_name}/{ctx.environment}/terraform.tfstate",  # legacy
+            ]
+
+        canonical_lock_found = False
+        legacy_lock_found = False
+
+        print(f"Lock inspection for project: {ctx.project_name}, environment: {ctx.environment}")
+        print(f"Backend bucket: {ctx.backend_bucket}")
+        print(f"Lock table: {ctx.backend_lock_table}")
+        print(f"Workspace: {ctx.workspace}")
+        print()
+
+        for lock_id_suffix in lock_ids_to_check:
+            full_lock_id = f"{ctx.backend_bucket}/{lock_id_suffix}"
+            try:
+                resp = dynamodb.get_item(
+                    TableName=ctx.backend_lock_table,
+                    Key={"LockID": {"S": f"{ctx.backend_bucket}/{lock_id_suffix}"}}
+                )
+            except Exception as exc:
+                print(f"error: failed to query lock: {exc}", file=sys.stderr)
+                return 1
+
+            if "Item" in resp:
+                item = resp["Item"]
+                lock_id_val = item.get("LockID", {}).get("S", "")
+                info_str = item.get("Info", {}).get("S", "")
+                info = json.loads(info_str) if info_str else {}
+
+                is_canonical = lock_id_suffix == f"{ctx.environment}/terraform.tfstate"
+                lock_type = "CANONICAL" if is_canonical else "LEGACY"
+
+                print(f"Lock found ({lock_type}):")
+                print(f"  LockID: {lock_id_val}")
+                print(f"  Lock ID: {info.get('ID', 'N/A')}")
+                print(f"  Operation: {info.get('Operation', 'N/A')}")
+                print(f"  Owner: {info.get('Who', 'N/A')}")
+                print(f"  Created: {info.get('Created', 'N/A')}")
+                print(f"  Path: {info.get('Path', 'N/A')}")
+                print(f"  Lock Table Key: {full_lock_id}")
+                print()
+
+                if is_canonical:
+                    canonical_lock_found = True
+                else:
+                    legacy_lock_found = True
+            else:
+                print(f"Lock NOT found: {lock_id_suffix}")
+                print()
+
+        # Summary
+        print("--- Lock Classification ---")
+        if canonical_lock_found:
+            print("CANONICAL_LOCK_STATUS: PRESENT (blocks canonical state)")
+        else:
+            print("CANONICAL_LOCK_STATUS: ABSENT")
+
+        if legacy_lock_found:
+            print("LEGACY_LOCK_STATUS: PRESENT (legacy duplicated path)")
+        else:
+            print("LEGACY_LOCK_STATUS: ABSENT")
+
+        # Classification
+        if canonical_lock_found and legacy_lock_found:
+            print("LOCK_CLASSIFICATION: BOTH_PRESENT (canonical blocks, legacy duplicated)")
+        elif canonical_lock_found:
+            print("LOCK_CLASSIFICATION: CANONICAL_ONLY")
+        elif legacy_lock_found:
+            print("LOCK_CLASSIFICATION: LEGACY_ONLY")
+        else:
+            print("LOCK_CLASSIFICATION: NONE")
+
+        return 0
+
+    elif lock_command == "recovery-plan":
+        print("Lock recovery plan (read-only):")
+        print("1. Verify the canonical lock status:")
+        print("   - If canonical lock is ABSENT: no recovery needed, normal plan will succeed")
+        print("   - If canonical lock is PRESENT:")
+        print("     a. Verify lock is stale (no active Terraform processes)")
+        print("     b. Verify lock owner matches expected operator")
+        print("     c. Obtain explicit approval for force-unlock")
+        print("     d. Execute: terraform force-unlock -force <LOCK_ID>")
+        print("     d. After unlock, run normal locked plan")
+        print()
+        print("WARNING: This is a recovery plan only. No automatic unlocking performed.")
+        print("       Execute 'terraform force-unlock' manually with explicit approval.")
+        return 0
+
+    else:
+        print(f"error: unknown lock command: {lock_command}", file=sys.stderr)
+        return 2
+
+    return 0
+
+# Keep the rest of the file after _cmd_lock
 def _cmd_state(
     ctx: RisInstallContext,
     state_command: str,
@@ -435,6 +572,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="State subcommand (state command).",
     )
     parser.add_argument(
+        "--lock-command",
+        default=None,
+        choices=["inspect", "recovery-plan"],
+        help="Lock subcommand (lock command): inspect locks or produce recovery plan.",
+    )
+    parser.add_argument(
+        "--lock-id",
+        default=None,
+        help="Specific lock ID to inspect (optional).",
+    )
+    parser.add_argument(
         "--address", default=None, help="Resource address (state show)."
     )
     parser.add_argument(
@@ -465,7 +613,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable state locking for diagnostic plan only. WARNING: disables Terraform state locking. Use only for debugging stale locks. Never use for deployment planning.",
     )
-    parser.add_argument("command", choices=list(COMMANDS))
+    parser.add_argument("command", choices=list(COMMANDS),
+        help="Command to execute: validate, plan, apply, preflight, install, state, destroy, package, or lock",
+    )
     return parser
 
 
@@ -516,6 +666,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             state_command=parsed.state_command,
             address=parsed.address,
             state_file=parsed.state_file,
+        )
+    if parsed.command == "lock":
+        return _cmd_lock(
+            ctx,
+            lock_command=parsed.lock_command,
+            lock_id=parsed.lock_id,
         )
     try:
         if parsed.command == "validate":
