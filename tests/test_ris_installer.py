@@ -367,7 +367,8 @@ def test_install_full_order_with_yes():
     assert any("terraform init -backend-config=" in c for c in cmds)
     assert any(c == "terraform validate" for c in cmds)
     assert any("terraform plan" in c and "-var project_name=mays-ris" in c for c in cmds)
-    assert any("terraform apply -auto-approve" in c for c in cmds)
+    # New behavior: apply uses plan file, not -auto-approve
+    assert any("terraform apply" in c and "tfplan" in c for c in cmds)
     # init before validate before plan before apply (workspace selects ignored)
     kinds = ["init" if " init " in f" {c} " else
              "validate" if c.endswith("validate") else
@@ -557,10 +558,14 @@ def test_apply_forwards_vars():
         with patch("subprocess.run", side_effect=fake_run):
             results = ris._cmd_apply(ctx)
     flat = [" ".join(c) for c in seen["cmds"]]
-    apply = [c for c in flat if c.startswith("terraform apply")]
-    assert len(apply) == 1
-    assert "-var identity_email_verification_enabled=true" in apply[0]
-    assert "-var project_name=mays-ris" in apply[0]
+    # New behavior: plan phase includes vars, apply phase uses plan file
+    plan_cmds = [c for c in flat if c.startswith("terraform plan")]
+    apply_cmds = [c for c in flat if c.startswith("terraform apply")]
+    assert len(plan_cmds) == 1
+    assert len(apply_cmds) == 1
+    assert "-var identity_email_verification_enabled=true" in plan_cmds[0]
+    assert "-var project_name=mays-ris" in plan_cmds[0]
+    assert "apply" in apply_cmds[0] and ".tfplan" in apply_cmds[0]
     assert all(r.returncode == 0 for r in results)
 
 

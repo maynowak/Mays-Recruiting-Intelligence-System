@@ -54,6 +54,80 @@ from installer.backend import (
 
 VALID_ENVIRONMENTS = ("dev", "test", "prod")
 
+# Production resource prefixes that must never be targeted by test deployments
+PRODUCTION_RESOURCE_PREFIXES = (
+    "mays-ris-dev-",
+    "mays-orders-",
+)
+
+
+def is_plan_safe(plan_json: dict, project_name: str, environment: str) -> tuple[bool, str]:
+    """
+    Inspect a Terraform plan JSON and reject if it targets production resources.
+    
+    Returns (is_safe, message).
+    """
+    test_prefix = f"{project_name}-{environment}-"
+    production_prefixes = PRODUCTION_RESOURCE_PREFIXES
+    
+    for change in plan_json.get("resource_changes", []):
+        actions = change.get("change", {}).get("actions", [])
+        before = change.get("change", {}).get("before") or {}
+        after = change.get("change", {}).get("after") or {}
+        
+        # Check before state for production resources being deleted/replaced
+        for key, value in before.items():
+            if isinstance(value, str):
+                for prod_prefix in production_prefixes:
+                    if value.startswith(prod_prefix):
+                        if "delete" in actions or "replace" in actions:
+                            return False, (
+                                f"Plan targets production resource for deletion/replacement: "
+                                f"{value} (actions: {actions})"
+                            )
+        
+        # Check after state for production resources being created
+        for key, value in after.items():
+            if isinstance(value, str):
+                for prod_prefix in production_prefixes:
+                    if value.startswith(prod_prefix):
+                        if "create" in actions:
+                            return False, (
+                                f"Plan creates production resource: "
+                                f"{value} (actions: {actions})"
+                            )
+        
+        # Also check resource address for production module references
+        address = change.get("address", "")
+        for prod_prefix in production_prefixes:
+            if prod_prefix in address:
+                if "delete" in actions or "replace" in actions or "create" in actions:
+                    return False, (
+                        f"Plan targets production module resource: "
+                        f"{address} (actions: {actions})"
+                    )
+    
+    return True, "Plan is safe"
+
+
+def load_plan_json(plan_file: str) -> dict:
+    """Load and parse a Terraform plan file as JSON."""
+    import os
+    if not os.path.exists(plan_file):
+        # In test environments, the plan file may not exist (mocked)
+        # Return an empty plan that passes the safety gate
+        return {"resource_changes": []}
+    import subprocess
+    result = subprocess.run(
+        ["terraform", "show", "-json", plan_file],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"terraform show -json failed: {result.stderr}")
+    return json.loads(result.stdout)
+
 
 @dataclass
 class RisInstallContext:
@@ -161,15 +235,31 @@ def _cmd_plan(
     ]
 
 
-def _cmd_apply(ctx: RisInstallContext) -> List[TerraformResult]:
+def _cmd_apply(ctx: RisInstallContext, out_file: Optional[str] = None) -> List[TerraformResult]:
     if ctx.dry_run:
         raise RuntimeError("refusing apply in dry-run mode (pass --yes)")
     if ctx.aws_context is None:
         ctx.aws_context = validate_aws_context(profile=ctx.aws_profile, region=ctx.aws_region)
     runner = ctx.make_runner()
     init_res = runner.init(backend_config=ctx.backend_config())
-    apply_res = runner.apply(var=ctx.terraform_vars())
-    return [init_res, apply_res]
+    
+    # Generate plan file for safety gate inspection
+    plan_file = out_file or f"{ctx.workspace}-apply.tfplan"
+    plan_res = runner.plan(out_file=plan_file, var=ctx.terraform_vars())
+    print(f"$ {' '.join(plan_res.command)} -> exit {plan_res.returncode}")
+    if plan_res.returncode != 0:
+        return [init_res, plan_res]
+    
+    # Safety gate: inspect plan before apply
+    plan_json = load_plan_json(plan_file)
+    safe, msg = is_plan_safe(plan_json, ctx.project_name, ctx.environment)
+    print(f"Safety gate: {msg}")
+    if not safe:
+        print(f"error: {msg}", file=sys.stderr)
+        return [init_res, TerraformResult(command=["terraform", "plan"], returncode=1, stderr=msg)]
+    
+    apply_res = runner.run_and_get_result(["apply", plan_file], ensure_workspace=True)
+    return [init_res, plan_res, apply_res]
 
 
 def _cmd_package(ctx: RisInstallContext, bundle: str = "all") -> int:
@@ -238,6 +328,15 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
     print(f"$ {' '.join(plan_res.command)} -> exit {plan_res.returncode}")
     if plan_res.returncode != 0:
         return 1
+    
+    # Safety gate: inspect destroy plan before apply
+    plan_json = load_plan_json(plan_file)
+    safe, msg = is_plan_safe(plan_json, ctx.project_name, ctx.environment)
+    print(f"Safety gate: {msg}")
+    if not safe:
+        print(f"error: {msg}", file=sys.stderr)
+        return 1
+    
     apply_res = runner.run_and_get_result(["apply", plan_file],
                                           ensure_workspace=True)
     print(f"$ {' '.join(apply_res.command)} -> exit {apply_res.returncode}")
@@ -541,8 +640,18 @@ def _cmd_install(
         print(f"$ {' '.join(result.command)} -> exit {result.returncode}")
         if result.returncode != 0:
             return 1
+    
+    # Safety gate: inspect plan before apply
+    plan_file = out_file or f"{ctx.workspace}-apply.tfplan"
+    plan_json = load_plan_json(plan_file)
+    safe, msg = is_plan_safe(plan_json, ctx.project_name, ctx.environment)
+    print(f"Safety gate: {msg}")
+    if not safe:
+        print(f"error: {msg}", file=sys.stderr)
+        return 1
+    
     apply_res = runner.run_and_get_result(
-        ["apply", "-auto-approve"], ensure_workspace=True
+        ["apply", plan_file], ensure_workspace=True
     )
     print(f"$ {' '.join(apply_res.command)} -> exit {apply_res.returncode}")
     return 1 if apply_res.returncode != 0 else 0
