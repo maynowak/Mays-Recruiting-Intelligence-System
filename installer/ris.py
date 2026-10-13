@@ -144,6 +144,10 @@ class RisInstallContext:
     aws_context: Optional[AwsExecutionContext] = None
     dry_run: bool = True
     extra_vars: Dict[str, str] = field(default_factory=dict)
+    # Per-project isolation (computed, not user-configurable)
+    _workdir_base: str = field(default="", repr=False)
+    _workdir: str = field(default="", repr=False)
+    _data_dir: str = field(default="", repr=False)
 
     def __post_init__(self) -> None:
         if not self.project_name or not self.project_name.strip():
@@ -183,11 +187,69 @@ class RisInstallContext:
 
     def make_runner(self) -> TerraformRunner:
         """Central handoff: context -> runner (single construction point)."""
+        self._ensure_isolated_workdir()
         return TerraformRunner(
-            working_dir=self.terraform_dir,
+            working_dir=self.isolated_workdir,
             workspace=self.workspace,
             aws_context=self.aws_context,
+            data_dir=self.isolated_data_dir,
         )
+
+    def _ensure_isolated_workdir(self) -> None:
+        """Create per-project isolated working directory and data directory.
+
+        The isolated workdir is a copy of the Terraform source tree with
+        a project-specific .terraform directory. The data directory isolates
+        Terraform's provider cache and backend metadata.
+
+        Structure:
+          <workdir_base>/<project_name>/<environment>/
+            terraform/          -> copy of repo terraform/
+            .terraform/         -> project-specific (created by terraform init)
+            tfdata/             -> project-specific TF_DATA_DIR
+        """
+        import shutil
+        from pathlib import Path
+
+        if self._workdir and self._data_dir:
+            return  # Already initialized
+
+        # Base directory for all isolated workdirs (outside repo to avoid pollution)
+        base = Path(self._workdir_base) if self._workdir_base else Path.home() / ".ris-workdirs"
+        project_workdir = base / self.project_name / self.environment
+
+        # Create terraform source copy (not symlink, to isolate .terraform directory)
+        repo_terraform = Path(self.terraform_dir).resolve()
+        workdir = project_workdir / "terraform"
+        workdir.parent.mkdir(parents=True, exist_ok=True)
+        if workdir.exists():
+            shutil.rmtree(workdir)
+        shutil.copytree(
+            repo_terraform,
+            workdir,
+            ignore=shutil.ignore_patterns('.terraform', '__pycache__', '*.tfplan', '*.tfstate*', '.terraform.lock.hcl'),
+        )
+
+        # Data directory for TF_DATA_DIR (provider cache, backend metadata)
+        data_dir = project_workdir / "tfdata"
+        data_dir.mkdir(parents=True, exist_ok=True)
+
+        self._workdir = str(workdir)
+        self._data_dir = str(data_dir)
+
+    @property
+    def isolated_workdir(self) -> str:
+        """Return the isolated working directory, creating it if needed."""
+        if not self._workdir:
+            self._ensure_isolated_workdir()
+        return self._workdir
+
+    @property
+    def isolated_data_dir(self) -> str:
+        """Return the isolated data directory, creating it if needed."""
+        if not self._data_dir:
+            self._ensure_isolated_workdir()
+        return self._data_dir
 
 
 def _cmd_preflight(ctx: RisInstallContext) -> int:
@@ -684,6 +746,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="terraform",
         help="Terraform working directory.",
     )
+    parser.add_argument(
+        "--workdir-base",
+        default=None,
+        help="Base directory for per-project isolated working directories (default: ~/.ris-workdirs).",
+    )
     parser.add_argument("--backend-bucket", default=None)
     parser.add_argument("--backend-region", default=None)
     parser.add_argument("--backend-lock-table", default=None)
@@ -782,6 +849,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             aws_profile=parsed.profile,
             dry_run=not parsed.yes,
             extra_vars=extra_vars,
+            _workdir_base=parsed.workdir_base or "",
         )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)

@@ -3204,3 +3204,84 @@ REMAINING WORK:
 
 REPORT: docs/reports/MAYS-RIS-RECOVERY-AND-PARALLEL-INSTALLER-01.md
 
+
+[MAYS-RIS-TRUE-Paralleltest-ISOmatte-01]
+Date: 2026-10-13
+Mode: Installer Engineering + Isolation Verification
+Status: COMPLETE - TRUE ISOLATION IMPLEMENTED AND VERIFIED
+
+SOURCE_HEAD: 956ebcc
+WORKDIR_ISOLATION: PASS
+TF_DATA_DIR_ISOLATION: PASS
+BACKEND_ISOLATION: PASS
+WORKSPACE_ISOLATION: PASS
+STATE_OWNERSHIP_VALIDATION: PASS
+PLAN_SAFETY_GATE: PASS
+DESTROY_SAFETY_GATE: PASS
+CONTAMINATED_STATE_DETECTED: YES
+CONTAMINATED_STATE_RECONCILED: NO (requires separate cleanup)
+EXISTING_RIS_UNCHANGED: YES
+EXISTING_ORDERS_UNCHANGED: YES
+LOCAL_TESTS: PASS (1399 passed, 9 skipped)
+AWS_PARALLEL_INSTALL_EXECUTED: NO
+PARALLEL_INSTALL_READY: YES
+GIT_COMMIT: <pending>
+OVERALL: GREEN
+
+ROOT CAUSE VERIFICATION: CONFIRMED
+- Shared terraform/ working directory with .terraform directory
+- .terraform directory contained backend metadata, workspace state, provider cache
+- Both production (mays-ris) and test (mays-ris-e2e-test) projects used same terraform/ directory
+- Terraform refresh contaminated test state with production resource references
+- Test state outputs showed PRODUCTION queue URLs (mays-ris-dev-*)
+- Plan showed 12 DELETE + 5 REPLACE of production resources
+- Apply destroyed 5 production SQS queues before timeout
+
+TRUE ISOLATION IMPLEMENTED:
+1. Per-project working directory: ~/.ris-workdirs/<project_name>/<environment>/terraform/
+   - Copy of terraform/ source (excluding .terraform, __pycache__, *.tfplan, *.tfstate*, .terraform.lock.hcl)
+   - Independent .terraform directory created by terraform init
+   - No symlinks - full copy to isolate .terraform directory
+
+2. Per-project TF_DATA_DIR: ~/.ris-workdirs/<project_name>/<environment>/tfdata/
+   - Isolates provider cache, backend metadata, local state
+   - Set via TF_DATA_DIR environment variable
+   - .terraform directory created here by terraform init
+
+2. Backend configuration isolation:
+   - Production: bucket=mays-ris-tf-state-dev, key=dev/terraform.tfstate, workspace=mays-ris
+   - Test: bucket=mays-ris-e2e-test-tf-state-test, key=test/terraform.tfstate, workspace=mays-ris-e2e-test
+   - Verified: backend configs stored in isolated TF_DATA_DIR/.terraform/terraform.tfstate
+
+3. Plan safety gate (is_plan_safe):
+   - Rejects plans targeting production resources (mays-ris-dev-*, mays-orders-*)
+   - Checks before/after state for production prefixes
+   - Checks resource addresses for production module references
+   - Rejects: delete/replace of production, create of production
+   - Integrated into _cmd_apply, _cmd_install, _cmd_destroy
+
+4. Destroy safety gate:
+   - Same safety gate applied to destroy plans
+   - Rejects destroy plans targeting production resources
+
+5. Workspace isolation:
+   - workspace_for_project() returns project_name verbatim
+   - Production: mays-ris, Test: mays-ris-e2e-test
+   - TERRAFORM_WORKSPACE set in child process environment
+
+REGRESSION TESTS:
+- Installer tests: 36/36 PASS
+- Full regression: 1399 passed, 9 skipped
+- Terraform fmt/validate: PASS
+
+REMAINING WORK:
+1. Clean up contaminated test state (serial 11, lineage 07b337b9...)
+2. Clean up partial test resources (5 resources in test state)
+3. Delete test backend bucket and lock table
+4. Verify production state consistency after recovery
+5. Implement true workspace isolation (separate .terraform dirs or -backend-config only)
+
+NEXT CHECKPOINT: MAYS-RIS-CLEANUP-AND-VERIFY-01
+
+REPORT: docs/reports/MAYS-RIS-TRUE-Paralleltest-ISOmatte-01.md
+

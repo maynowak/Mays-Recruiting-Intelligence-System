@@ -129,11 +129,13 @@ class TerraformRunner:
         terraform_bin: str = "terraform",
         env: Optional[Dict[str, str]] = None,
         aws_context=None,
+        data_dir: Optional[str] = None,
     ) -> None:
         self.working_dir = Path(working_dir)
         self.terraform_bin = terraform_bin
         self.extra_env: Dict[str, str] = dict(env or {})
         self.aws_context = aws_context
+        self.data_dir = Path(data_dir) if data_dir else None
         # Primary source: TERRAFORM_WORKSPACE env override (explicit).
         env_workspace = os.environ.get("TERRAFORM_WORKSPACE")
         if env_workspace and env_workspace.strip():
@@ -151,6 +153,8 @@ class TerraformRunner:
         if self.aws_context is not None:
             env.update(self.aws_context.to_env())
         env["TERRAFORM_WORKSPACE"] = self.workspace
+        if self.data_dir is not None:
+            env["TF_DATA_DIR"] = str(self.data_dir)
         return env
 
     def _run_process(
