@@ -3412,3 +3412,72 @@ Working tree: Clean (pre-existing untracked only)
 
 NEXT PHASE: PHASE 1 — INSTALL A (mays-ris rebuild)
 
+
+[MAYS-RIS-DUAL-INSTALL-LIFECYCLE-01 - GATE 1A]
+Date: 2026-10-13
+Status: DESTROY COMPLETE - GATE 1A PASSED
+
+DESTROY EXECUTED:
+- Command: terraform apply "destroy.tfplan"
+- Plan: 126 DESTROY (original), then 5, then 3 (final)
+- Actual destructions completed in 3 phases due to stale locks and non-empty buckets
+- Total resources destroyed: 126 (matches original plan)
+
+PHASE 1: Original destroy plan (126 resources) - partial execution due to lock/bucket issues
+PHASE 2: Regenerated plan (5 resources) - partial execution due to non-empty buckets/Cognito domain
+PHASE 3: Final plan (3 resources) - SUCCESSFUL
+
+DESTROYED RESOURCES (126 total):
+- Cognito: User Pool (eu-central-1_IfucuxPC1), 6 Groups, Client, Domain
+- API Gateway: API (bfwyudck84), Stage, 2 Authorizers, 24 Routes, Integration, Permission
+- Lambda: 4 functions (agent, health-writer, health-publisher, orders-reader)
+- Lambda Permissions: 5
+- Lambda Event Source Mapping: 1 (SQS → Agent)
+- SQS: 5 queues (work, cv, ats, match, dlq)
+- DynamoDB: 10 tables + 1 seed item
+- S3: 5 buckets (data, documents, health-public, health-state, trail) + configs
+- CloudTrail: Trail, Bucket, Configs
+- CloudWatch: Dashboard, 7 Alarms
+- IAM: 3 Roles, 14 Policies/Attachments
+- EventBridge: 2 Rules
+- Lambda Event Source Mapping: 1
+
+ORDERS RESOURCES: 0 in destroy plan (verified)
+ORDERS EXCLUSIONS: VERIFIED (0 Orders resources in destroy plan)
+
+POST-DESTROY VERIFICATION:
+- SQS: 0 mays-ris-dev queues ✅
+- Lambda: 0 mays-ris-dev functions ✅
+- DynamoDB: 0 mays-ris-dev tables ✅
+- API Gateway: 0 mays-ris-dev APIs ✅
+- Cognito: 0 mays-ris-dev User Pools ✅
+- S3: 0 mays-ris-dev buckets ✅
+- CloudTrail: 0 mays-ris trails ✅
+- CloudWatch: 0 mays-ris alarms/dashboard ✅
+- Lock Table: mays-ris-tf-lock remains (correct)
+
+ORDERS UNCHANGED: VERIFIED
+- SQS: mays-orders-orders-queue ✅
+- DynamoDB: mays-orders, mays-orders-terraform-locks ✅
+- Lambda: 3 functions ✅
+- API GW: vmmqrwcb26 (mays-orders-api) ✅
+- Cognito: 2 pools (eu-central-1_ENMwxNFS9, eu-central-1_xhjl0PxEH) ✅
+- S3: 4 buckets ✅
+
+AWS MUTATIONS:
+- Terraform destroy: 126 resources
+- Manual cleanup: Cognito domain deletion, S3 bucket emptying
+- No Orders mutations
+
+STATE:
+- Legacy state serial advanced from 21 to 26 (destroy operations)
+- Canonical state: still NOT FOUND (404)
+- State archived: archived-evidence/production-state-v21/
+
+TESTS: 1399 passed, 9 skipped
+
+GATE 1A: PASSED
+A_DESTROY: PASS
+
+NEXT: PHASE 3 — INSTALL A (RIS rebuild)
+
