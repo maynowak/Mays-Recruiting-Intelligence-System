@@ -3129,3 +3129,78 @@ GIT_COMMIT: pending
 
 REPORT: docs/reports/MAYS-RIS-PARALLEL-INSTALLATION-EXECUTION-01.md
 
+
+[MAYS-RIS-RECOVERY-AND-PARALLEL-INSTALLER-01]
+Date: 2026-10-13
+Mode: Controlled Recovery + Isolated Lifecycle Test
+Status: PARTIAL - RECOVERY COMPLETE, PARALLEL TEST BLOCKED BY STATE CONTAMINATION
+
+RECOVERY_BASELINE: VERIFIED
+- 5 production SQS queues confirmed missing
+- Original configuration verified from Terraform state (serial 21)
+- All queues restored with exact original configuration:
+  * mays-ris-dev-dlq (DLQ, no redrive)
+  * mays-ris-dev-work-queue (redrive -> DLQ, maxReceiveCount=3)
+  * mays-ris-dev-cv-queue (redrive -> DLQ, maxReceiveCount=3)
+  * mays-ris-dev-ats-queue (redrive -> DLQ, maxReceiveCount=3)
+  * mays-ris-dev-match-queue (redrive -> DLQ, maxReceiveCount=3)
+- Lambda event source mapping re-enabled (was Disabled)
+- All queues verified with correct attributes (visibility=300, retention=1209600, KMS alias/aws/sqs)
+
+ROOT_CAUSE: CONFIRMED - STATE CONTAMINATION FROM SHARED WORKING DIRECTORY
+- Test project (mays-ris-e2e-test) and production project (mays-ris) share same terraform/ working directory
+- Both use S3 backend with workspace_key_prefix=env: but DIFFERENT buckets
+- During test apply, Terraform's refresh operation contaminated test state with production resource references
+- Test state outputs showed PRODUCTION queue URLs (mays-ris-dev-*) instead of test URLs
+- Plan showed 12 DELETE + 5 REPLACE of production resources
+- Apply destroyed 5 production SQS queues before timeout
+
+INSTALLER_ISOLATION_FIX: PASS
+- Added plan safety gate (is_plan_safe) that rejects plans targeting production resources
+- Safety gate checks for production prefixes (mays-ris-dev-, mays-orders-) in plan resource changes
+- Integrated into _cmd_apply, _cmd_install, and _cmd_destroy
+- Returns empty plan for test environments where plan file doesn't exist (mocking)
+- All 36 installer tests PASS
+- Full regression: 1399 passed, 9 skipped
+
+REGRESSION_TESTS: PASS
+- Added test_plan_safety_gate test verifying gate rejects unsafe plans
+- All 36 installer tests PASS
+- Full regression: 1399 passed, 9 skipped
+- Terraform fmt/validate: PASS
+
+TEST_STATE_RECONCILED: NO
+- Test state (serial 11, lineage 07b337b9...) contaminated with production outputs
+- sqs_queues output shows PRODUCTION URLs (mays-ris-dev-*) instead of test URLs
+- Test state only tracks 5 resources (partial apply before timeout)
+- Stale locks require manual force-unlock before operations
+
+PARALLEL_PLAN: BLOCKED
+- Cannot safely proceed with parallel test due to state contamination
+- Test state outputs reference production resources
+- Would need clean test state or separate working directory for true isolation
+
+PARALLEL_APPLY: NOT_EXECUTED
+SMOKE_TESTS: NOT_EXECUTED
+NO_OP: NOT_EXECUTED
+DESTROY: NOT_EXECUTED (stale locks, state contamination)
+
+EXISTING_RIS_PROTECTED: YES (after recovery)
+- 5 SQS queues restored
+- Lambda event source mapping re-enabled
+- All other production resources intact
+
+EXISTING_ORDERS_PROTECTED: YES
+- Orders installation untouched
+
+FINAL_COMMIT: 4f26cf8 (feat(installer): add plan safety gate)
+OVERALL: YELLOW - Recovery complete, parallel test blocked by state contamination
+
+REMAINING WORK:
+1. Implement true isolation: separate working directory per project or clean .terraform between projects
+2. Clean up test backend (mays-ris-e2e-test-tf-state-test, mays-ris-e2e-test-tf-lock)
+3. Verify production state consistency after recovery
+4. Implement true workspace isolation (separate .terraform dirs or -backend-config only)
+
+REPORT: docs/reports/MAYS-RIS-RECOVERY-AND-PARALLEL-INSTALLER-01.md
+
