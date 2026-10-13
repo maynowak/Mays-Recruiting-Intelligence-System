@@ -236,3 +236,18 @@ variable "foundation_entitlements" {
   }))
   default = {}
 }
+
+variable "filename" {
+  description = "Deployment-Zip mit orders_reader.py am Root (absolute path required for isolated workdirs)"
+  type        = string
+}
+
+variable "health_writer_zip_path" {
+  description = "Deployment-Zip mit health_writer.py am Root (absolute path required for isolated workdirs)"
+  type        = string
+}
+
+variable "health_publisher_zip_path" {
+  description = "Deployment-Zip mit health_publisher.py am Root (absolute path required for isolated workdirs)"
+  type        = string
+}

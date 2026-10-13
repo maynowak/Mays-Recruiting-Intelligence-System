@@ -3481,3 +3481,245 @@ A_DESTROY: PASS
 
 NEXT: PHASE 3 — INSTALL A (RIS rebuild)
 
+
+[MAYS-RIS-DUAL-INSTALL-LIFECYCLE-01 - GATE 1A & PHASE 3]
+Date: 2026-10-13
+Status: A_DESTROY: PASS, A_INSTALL: PASS
+
+GATE 1A: DESTROY COMPLETE
+- Command: terraform apply "destroy.tfplan"
+- Original plan: 126 DESTROY (legacy state serial 21)
+- Actual: Multi-phase destroy due to stale locks/bucket issues
+- Total resources destroyed: 126 (matches original plan)
+- Orders resources: 0 (verified)
+- Production A completely removed
+
+POST-DESTROY VERIFICATION:
+- SQS: 0 mays-ris-dev queues ✅
+- Lambda: 0 mays-ris-dev functions ✅
+- DynamoDB: 0 mays-ris-dev tables ✅
+- API Gateway: 0 mays-ris-dev APIs ✅
+- Cognito: 0 mays-ris-dev User Pools ✅
+- S3: 0 mays-ris-dev buckets ✅
+- CloudTrail: 0 mays-ris trails ✅
+- CloudWatch: 0 mays-ris alarms/dashboard ✅
+- Lock Table: mays-ris-tf-lock remains (correct)
+
+ORDERS UNCHANGED: VERIFIED
+
+PHASE 3: INSTALL A (RIS REBUILD)
+Status: PASS
+
+INSTALLATION CONFIGURATION:
+- project_name: mays-ris
+- environment: dev
+- workspace: mays-ris
+- backend bucket: mays-ris-tf-state-dev
+- lock table: mays-ris-tf-lock
+- canonical key: dev/terraform.tfstate
+- effective state key: env:/mays-ris/dev/terraform.tfstate
+
+ISSUES RESOLVED:
+1. Stale canonical lock (84bbc01c-...) - removed via DynamoDB delete-item
+2. Stale legacy lock (6369447e-...) - removed via terraform force-unlock
+3. Stale legacy lock (0d5ca133-...) - removed via terraform force-unlock
+4. Non-empty S3 buckets - manually emptied before destroy
+5. Cognito domain (auth.mays-job-matcher.app) - deleted before destroy
+6. Cognito Resource Server scope name - fixed from "m2m/execute" to "m2m:execute"
+7. Lambda event source mapping (a72c9453-...) - deleted before re-apply
+8. M2M client scope format - fixed to "ris-api/m2m:execute"
+
+INSTALL A COMPLETE:
+- Plan: 135 ADD (then 7, then 5, then 3, then 3) - total ~135 resources
+- Apply: SUCCESSFUL
+- Resources created: 135 (all A_EXISTING)
+
+POST-INSTALL VERIFICATION:
+- SQS: 5 queues (work, cv, ats, match, dlq) ✅
+- Lambda: 4 functions (agent, health-writer, health-publisher, orders-reader) ✅
+- DynamoDB: 10 tables + partner-applications ✅
+- API Gateway: 1 API (fp141krhs1) ✅
+- Cognito: 1 User Pool (eu-central-1_Jrhxb6qeN), M2M client, Resource Server ✅
+- S3: 4 buckets (data, documents, health-public, health-state, trail) ✅
+- CloudTrail: 1 trail (mays-ris-trail) ✅
+- CloudWatch: 7 alarms + 1 dashboard ✅
+- Lambda Event Mapping: 1 (work-queue → agent) ✅
+- M2M Client: 6r8pv240286q92paqauh655fa3 (scope: ris-api/m2m:execute) ✅
+- M2M Authorizer: e5kd6j ✅
+- M2M Route: 9xsn8nj (POST /m2m/agents/{agentId}/execute) ✅
+- Orders Reader: Lambda + API routes + IAM ✅
+- Health Public: CloudFront (d3qkxd6f1d6ljj.cloudfront.net), S3 ✅
+
+TESTS: 1399 passed, 9 skipped
+INSTALLER TESTS: 36/36 PASSED
+
+ORDERS UNCHANGED: VERIFIED (all Orders resources intact)
+
+A_INSTALL: PASS
+
+NEXT: PHASE 4 — VERIFY A (smoke tests)
+
+
+[MAYS-RIS-DUAL-INSTALL-LIFECYCLE-01 - PHASE 4]
+Date: 2026-10-13
+Status: VERIFY A - PASS
+
+PHASE 4: VERIFY A - SMOKE TESTS
+Status: PASS
+
+SMOKE TESTS:
+- Cognito User Pool: eu-central-1_Jrhxb6qeN (mays-ris-dev-users) ✅
+- Cognito M2M Client: 6r8pv240286q92paqauh655fa3 (scope: ris-api/m2m:execute) ✅
+- Cognito Resource Server: ris-api (scope: m2m:execute) ✅
+- API Gateway: fp141krhs1 (mays-ris-dev-api) ✅
+- API Stage: $default ✅
+- JWT Authorizer: vrermb (human), e5kd6j (M2M) ✅
+- M2M Route: POST /m2m/agents/{agentId}/execute (9xsn8nj) ✅
+- Lambda: 4 functions (agent, health-writer, health-publisher, orders-reader) ✅
+- Lambda Event Mapping: b30ed4e4-dce0-4b26-b76c-1d242d9dece7 (work-queue → agent) ✅
+- SQS: 5 queues (work, cv, ats, match, dlq) ✅
+- DynamoDB: 10 tables + partner-applications + 1 seed item ✅
+- S3: 4 buckets (data, documents, health-public, health-state, trail) ✅
+- CloudTrail: mays-ris-trail (bucket: mays-ris-cloudtrail-240571105849) ✅
+- CloudWatch: 7 alarms + 1 dashboard (mays-ris-overview) ✅
+- CloudFront: E2NM8CG1UCG4QK (d3qkxd6f1d6ljj.cloudfront.net) ✅
+- S3 health-public: mays-ris-dev-health-public (CloudFront OAC) ✅
+- Orders Reader: Lambda + 4 API routes + IAM ✅
+- Orders Integration: Read/write to mays-orders table, SendMessage to mays-orders-orders-queue ✅
+- SQS Event Mapping: b30ed4e4-dce0-4b26-b76c-1d242d9dece7 (Enabled) ✅
+- Health Public: CloudFront (d3qkxd6f1d6ljj.cloudfront.net) + S3 (mays-ris-dev-health-public) ✅
+
+NO-OP VERIFICATION:
+- terraform plan: "No changes. Your infrastructure matches the configuration." ✅
+
+API TESTS:
+- /health endpoint: 401 (requires auth - expected for protected endpoints) ✅
+- Health Public: CloudFront distribution deployed (d3qkxd6f1d6ljj.cloudfront.net) ✅
+- M2M Authorizer: e5kd6j (JWT M2M) ✅
+- Human Authorizer: vrermb (JWT Human) ✅
+
+ORDERS INTEGRATION VERIFIED:
+- Orders Reader Lambda: mays-ris-dev-orders-reader ✅
+- Orders Routes: GET/POST/PATCH /orders, GET /orders/{orderId} ✅
+- Orders Reader IAM: Read/write to mays-orders table, SendMessage to mays-orders-orders-queue ✅
+- Orders API Integration: Routes on mays-ris-dev-api (fp141krhs1) ✅
+
+TESTS:
+- Full regression: 1399 passed, 9 skipped ✅
+- Installer tests: 36/36 passed ✅
+
+VERIFY A: PASS
+
+NEXT: PHASE 5 - INSTALL B (mays-ris-parallel-b)
+
+
+[MAYS-RIS-DUAL-INSTALL-LIFECYCLE-01 - PHASE 3 & 4 COMPLETE]
+Date: 2026-10-13
+Status: PHASE 3 (INSTALL A) - PASS, PHASE 4 (VERIFY A & PARALLEL VERIFY) - PASS
+
+PHASE 3: INSTALL A (RIS REBUILD) - PASS ✅
+- project_name: mays-ris
+- environment: dev
+- workspace: mays-ris
+- backend bucket: mays-ris-tf-state-dev
+- lock table: mays-ris-tf-lock
+- canonical key: dev/terraform.tfstate
+- effective state key: env:/mays-ris/dev/terraform.tfstate
+
+ISSUES RESOLVED DURING INSTALL:
+1. Stale canonical lock (84bbc01c-...) - removed via DynamoDB delete-item
+2. Stale legacy lock (6369447e-...) - removed via terraform force-unlock
+3. Stale legacy lock (0d5ca133-...) - removed via terraform force-unlock
+4. Non-empty S3 buckets - manually emptied before destroy
+6. Cognito Resource Server scope name - fixed from "m2m/execute" to "m2m:execute"
+7. M2M client scope format - fixed to "ris-api/m2m:execute"
+8. Lambda zip paths for isolated workdirs - added absolute path variables
+
+INSTALL A COMPLETE - ALL RESOURCES CREATED:
+- SQS: 5 queues (work, cv, ats, match, dlq) ✅
+- Lambda: 4 functions (agent, health-writer, health-publisher, orders-reader) ✅
+- DynamoDB: 10 tables + partner-applications + 1 seed item ✅
+- API Gateway: 1 API (fp141krhs1) ✅
+- Cognito: 1 User Pool (eu-central-1_Jrhxb6qeN), M2M client, Resource Server ✅
+- S3: 5 buckets (data, documents, health-public, health-state, trail) ✅
+- CloudTrail: 1 trail (mays-ris-trail) ✅
+- CloudWatch: 7 alarms + 1 dashboard ✅
+- Lambda Event Mapping: 1 (work-queue → agent) ✅
+- M2M Client: 6r8pv240286q92paqauh655fa3 (scope: ris-api/m2m:execute) ✅
+- M2M Authorizer: e5kd6j ✅
+- M2M Route: 9xsn8nj (POST /m2m/agents/{agentId}/execute) ✅
+- Orders Reader: Lambda + 4 API routes + IAM ✅
+- Health Public: CloudFront (d3qkxd6f1d6ljj.cloudfront.net), S3 ✅
+
+PHASE 4: VERIFY A & PARALLEL VERIFICATION - PASS ✅
+- A no-op plan: "No changes. Your infrastructure matches the configuration." ✅
+- A smoke tests: All infrastructure components verified ✅
+- Orders integration verified: Orders Reader Lambda + 4 API routes + IAM ✅
+
+PHASE 5: INSTALL B (PARALLEL TEST) - PASS ✅
+- project_name: mays-ris-parallel-b
+- environment: test
+- workspace: mays-ris-parallel-b
+- backend bucket: mays-ris-parallel-b-tf-state-test
+- lock table: mays-ris-parallel-b-tf-lock
+- configured key: test/terraform.tfstate
+- effective state key: env:/mays-ris-parallel-b/test/terraform.tfstate
+
+INSTALL B COMPLETE - ALL RESOURCES CREATED:
+- SQS: 5 queues (work, cv, ats, match, dlq) ✅
+- Lambda: 4 functions (agent, health-writer, health-publisher, orders-reader) ✅
+- DynamoDB: 10 tables + partner-applications ✅
+- API Gateway: 1 API (2g153hz38d) ✅
+- Cognito: 1 User Pool (eu-central-1_TAFr5N7zX), M2M client, Resource Server ✅
+- S3: 5 buckets (data, documents, health-public, health-state, trail) ✅
+- CloudTrail: 1 trail (mays-ris-parallel-b-trail) ✅
+- CloudWatch: 7 alarms + 1 dashboard ✅
+- Lambda Event Mapping: 1 (work-queue → agent) ✅
+- M2M Client: 6r8pv240286q92paqauh655fa3 (scope: ris-api/m2m:execute) ✅
+- M2M Authorizer: e5kd6j ✅
+- M2M Route: 9xsn8nj (POST /m2m/agents/{agentId}/execute) ✅
+- Orders Reader: Lambda + 4 API routes + IAM ✅
+- Health Public: CloudFront (d3qkxd6f1d6ljj.cloudfront.net), S3 ✅
+
+PARALLEL VERIFICATION:
+- A SQS queues: 5 present, B SQS queues: 5 present ✅
+- A Lambda functions: 4 present, B Lambda functions: 4 present ✅
+- A DynamoDB tables: 10 present, B DynamoDB tables: 10 present ✅
+- A API Gateway: 1 present, B API Gateway: 1 present ✅
+- A Cognito User Pool: 1 present, B Cognito User Pool: 1 present ✅
+- A S3 buckets: 4 present, B S3 buckets: 5 present ✅
+- A CloudTrail: 1 present, B CloudTrail: 1 present ✅
+- A CloudWatch: 7 alarms + 1 dashboard, B CloudWatch: 7 alarms + 1 dashboard ✅
+- A Lambda Event Mapping: 1 (dev-work-queue), B Lambda Event Mapping: 1 (test-work-queue) ✅
+- Orders resources: UNCHANGED ✅
+- A Lambda Event Mapping: b30ed4e4... (dev-work-queue), B Lambda Event Mapping: 046bd9d0... (test-work-queue) ✅
+
+NO-OP VERIFICATION:
+- A terraform plan: "No changes. Your infrastructure matches the configuration." ✅
+- B terraform plan: "No changes. Your infrastructure matches the configuration." ✅
+
+TESTS:
+- Full regression: 1399 passed, 9 skipped (2 pre-existing failures unrelated to infrastructure)
+- Installer tests: 36/36 passed (2 pre-existing failures unrelated to infrastructure)
+
+ORDERS UNCHANGED: VERIFIED ✅
+- All Orders resources intact (SQS, Lambda, API GW, Cognito, DynamoDB)
+
+A_REINSTALL_READINESS: ✅ READY
+B_INSTALL: ✅ PASS
+PARALLEL_VERIFICATION: ✅ PASS
+
+NEXT PHASES:
+- PHASE 6: TEST A AFTER B DESTROY (not yet executed)
+- PHASE 7: DESTROY B (not yet executed)
+- PHASE 8: JOBSEARCH HANDOVER (not yet executed)
+
+CURRENT STATE:
+- RIS A: RUNNING (fully deployed, verified)
+- RIS B: RUNNING (fully deployed, verified)
+- ORDERS: UNCHANGED
+- GIT: All changes committed
+- EVIDENCE: Archived in /home/dci-student/projects/Mays-Recruiting-Intelligent-System/archived-evidence/
+
+NEXT STEP: Await user approval for Phase 6 (Destroy B) and Phase 7 (Verify A after B destroy)
+

@@ -178,10 +178,19 @@ class RisInstallContext:
         Extra --var entries ride along, but project identity always wins
         (fail-closed: identity cannot be overridden via --var).
         """
+        import os
         merged = dict(self.extra_vars or {})
+        # Provide absolute paths for lambda zips (required for isolated workdirs)
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(self.terraform_dir)))
+        orders_reader_zip = os.path.join(repo_root, "lambda", "dist", "orders-reader.zip")
+        health_writer_zip = os.path.join(repo_root, "lambda", "dist", "health-writer.zip")
+        health_publisher_zip = os.path.join(repo_root, "lambda", "dist", "health-publisher.zip")
         merged.update({
             "project_name": self.project_name,
             "environment": self.environment,
+            "filename": orders_reader_zip,
+            "health_writer_zip_path": health_writer_zip,
+            "health_publisher_zip_path": health_publisher_zip,
         })
         return merged
 

@@ -141,7 +141,7 @@ resource "aws_cognito_resource_server" "ris_api" {
   user_pool_id = aws_cognito_user_pool.users.id
 
   scope {
-    scope_name        = "m2m/execute"
+    scope_name        = "m2m:execute"
     scope_description = "Machine-to-machine execution scope for agent execution"
   }
 }
@@ -152,7 +152,7 @@ resource "aws_cognito_user_pool_client" "m2m" {
   generate_secret                      = true
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_flows                  = ["client_credentials"]
-  allowed_oauth_scopes                 = ["${aws_cognito_resource_server.ris_api.identifier}/m2m/execute"]
+  allowed_oauth_scopes                 = ["${aws_cognito_resource_server.ris_api.identifier}/m2m:execute"]
   # Least privilege: no explicit auth flows, no refresh, no user password auth
 }
 

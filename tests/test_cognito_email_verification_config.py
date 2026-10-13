@@ -116,8 +116,12 @@ class TestInstallerAgreesWithConfig(unittest.TestCase):
         variables = ctx.terraform_vars()
         # The installer supplies identity, not behaviour flags. That is
         # correct -- behaviour must come from committed configuration.
-        self.assertEqual({"project_name": "mays-ris", "environment": "dev"},
-                         variables)
+        # Also includes absolute paths for lambda zips (required for isolated workdirs).
+        self.assertEqual(variables["project_name"], "mays-ris")
+        self.assertEqual(variables["environment"], "dev")
+        self.assertIn("filename", variables)
+        self.assertIn("health_writer_zip_path", variables)
+        self.assertIn("health_publisher_zip_path", variables)
         self.assertNotIn("identity_email_verification_enabled", variables,
                          "installer must not need to pass this flag; the root "
                          "default is the single source of truth")

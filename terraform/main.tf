@@ -148,7 +148,7 @@ module "orders_reader" {
   api_id        = module.api.api_id
   authorizer_id = module.api.authorizer_id
   aws_region    = var.aws_region
-  filename      = "${path.root}/../lambda/dist/orders-reader.zip"
+  filename      = var.filename
   tags          = var.tags
 }
 
@@ -244,10 +244,10 @@ module "health_plane" {
   environment        = var.environment
   tags               = var.tags
   writer_role_arn    = module.iam.role_arn
-  writer_zip_path    = "${path.root}/../lambda/dist/health-writer.zip"
+  writer_zip_path    = var.health_writer_zip_path
   public_bucket_name = module.health_public.bucket_name
   public_bucket_arn  = module.health_public.bucket_arn
-  publisher_zip_path = "${path.root}/../lambda/dist/health-publisher.zip"
+  publisher_zip_path = var.health_publisher_zip_path
   aws_region         = var.aws_region
 }
 

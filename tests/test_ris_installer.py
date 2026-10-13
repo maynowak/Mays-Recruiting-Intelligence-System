@@ -64,7 +64,12 @@ def test_environment_never_replaces_project_name():
     with patch.dict(os.environ, _clean_env(), clear=True):
         ctx = RisInstallContext(project_name="mays-ris", environment="test")
     assert ctx.workspace == "mays-ris"
-    assert ctx.terraform_vars() == {"project_name": "mays-ris", "environment": "test"}
+    vars = ctx.terraform_vars()
+    assert vars["project_name"] == "mays-ris"
+    assert vars["environment"] == "test"
+    assert "filename" in vars
+    assert "health_writer_zip_path" in vars
+    assert "health_publisher_zip_path" in vars
     with pytest.raises(ValueError):
         RisInstallContext(project_name="mays-ris", environment="prod2")
 
