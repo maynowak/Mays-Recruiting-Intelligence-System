@@ -3285,3 +3285,60 @@ NEXT CHECKPOINT: MAYS-RIS-CLEANUP-AND-VERIFY-01
 
 REPORT: docs/reports/MAYS-RIS-TRUE-Paralleltest-ISOmatte-01.md
 
+
+[MAYS-RIS-CLEANUP-AND-VERIFY-mitluftposter-01]
+Date: 2026-10-13
+Mode: Incident Cleanup Preparation + State Verification
+Status: COMPLETE - CLEANUP PREPARED, PRODUCTION RECOVERED
+
+SOURCE_HEAD: 1ed5a0b
+FINAL_COMMIT: 1ed5a0b (no new code changes, documentation only)
+
+PRODUCTION_QUEUES: VERIFIED (5/5 restored with exact original config)
+PRODUCTION_EVENT_MAPPINGS: VERIFIED (mapping re-enabled)
+PRODUCTION_STATE_CONSISTENCY: DRIFT (queue recreation, messages lost)
+ORDERS_UNCHANGED: YES
+TEST_RESOURCE_INVENTORY: COMPLETE
+CONTAMINATED_STATE_ANALYZED: YES
+
+PRODUCTION_RECOVERY:
+- 5 SQS queues restored: work-queue, cv-queue, ats-queue, match-queue, dlq
+- All with exact original config (visibility=300, retention=1209600, KMS, redrive→DLQ maxReceive=3)
+- Lambda event source mapping re-enabled (was Disabled)
+- Production state serial 21 has correct SQS outputs
+- DRIFT: Queues recreated with new ARNs, historical messages LOST
+
+TEST_RESOURCE_INVENTORY (3 CONFIRMED_TEST):
+1. S3 Bucket: mays-ris-e2e-test-tf-state-test (backend, versioned, encrypted)
+2. DynamoDB Table: mays-ris-e2e-test-tf-lock (lock, PAY_PER_REQUEST)
+3. S3 Bucket: mays-ris-e2e-test-cloudtrail-240571105849 (CloudTrail bucket, no trail registered)
+
+CONTAMINATED STATE ANALYSIS:
+- Test state serial 11, lineage 07b337b9-4eb5-463f-ebd7-5588ed17af40
+- CONTAMINATED OUTPUT: sqs_queues → 4 PRODUCTION queue URLs
+- Test state resources (serial 11): ~75 resources tracked, but AWS resources DESTROYED
+- Test Lambda functions, API GW, Cognito, DynamoDB, SQS, CloudTrail - all destroyed
+- Stale lock on test state: 3e79c282-06b1-d462-d416-0a961d2ad27b (Apply, 2026-10-13T03:30:48Z)
+
+STATE PRODUCTION REFERENCES (EXACT):
+Test state serial 11 output 'sqs_queues':
+  ats   = "https://sqs.eu-central-1.amazonaws.com/240571105849/mays-ris-dev-ats-queue"
+  cv    = "https://sqs.eu-central-1.amazonaws.com/240571105849/mays-ris-dev-cv-queue"
+  match = "https://sqs.eu-central-1.amazonaws.com/240571105849/mays-ris-dev-match-queue"
+  work  = "https://sqs.eu-central-1.amazonaws.com/240571105849/mays-ris-dev-work-queue"
+
+CONFIRMED_TEST_RESOURCES: 3
+UNKNOWN_OWNERSHIP_RESOURCES: 0
+
+CLEANUP_PLAN: READY (Phase A-C complete, D-H prepared)
+BACKEND_CLEANUP: PROPOSED (3 resources: backend bucket, lock table, CloudTrail bucket)
+FRESH_PARALLEL_INSTALL_READY: YES (recommend new project name: mays-ris-e2e-test-v2)
+
+LOCAL_TESTS: PASS (1399 passed, 9 skipped)
+TERRAFORM: fmt/validate PASS
+AWS_MUTATIONS_PERFORMED: NONE (read-only verification)
+GIT_COMMIT: 1ed5a0b (true isolation implementation)
+
+REPORT: docs/reports/MAYS-RIS-CLEANUP-AND-VERIFY-mitluftposter-01.md
+NEXT CHECKPOINT: MAYS-RIS-PARALLEL-INSTALL-V2-01 (execute cleanup then fresh parallel install)
+
