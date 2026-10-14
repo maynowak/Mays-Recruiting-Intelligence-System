@@ -140,16 +140,22 @@ module "lambda" {
 # Gate 4 — eigene Order-Fassade (orders_reader) auf unserer API.
 # Liest/schreibt die Mays-Orders-Tabelle (gleiches Konto, eigene Rolle).
 # Fremdes Projekt wird nicht veraendert.
+# GLUE-01: Composite-Installationen zeigen auf die projekt-eigene
+# Orders-Instanz (var.orders_*), Standalone behaelt die Defaults.
 module "orders_reader" {
   source = "./modules/orders_reader"
 
-  project_name  = var.project_name
-  environment   = var.environment
-  api_id        = module.api.api_id
-  authorizer_id = module.api.authorizer_id
-  aws_region    = var.aws_region
-  filename      = var.filename
-  tags          = var.tags
+  project_name      = var.project_name
+  environment       = var.environment
+  api_id            = module.api.api_id
+  authorizer_id     = module.api.authorizer_id
+  aws_region        = var.aws_region
+  filename          = var.filename
+  tags              = var.tags
+  orders_table_name = var.orders_table_name
+  orders_table_arn  = var.orders_table_arn
+  orders_queue_url  = var.orders_queue_url
+  orders_queue_arn  = var.orders_queue_arn
 }
 
 # Observability-Foundation: CloudWatch (Runtime) + CloudTrail (Audit),

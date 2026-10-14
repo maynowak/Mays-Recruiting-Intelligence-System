@@ -31,7 +31,7 @@ import argparse
 import json
 import sys
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import boto3
 
@@ -51,6 +51,8 @@ from installer.backend import (
     BackendConflictError,
     BackendNames,
 )
+from installer.orchestrator import RISInstaller
+
 
 VALID_ENVIRONMENTS = ("dev", "test", "prod")
 
@@ -59,6 +61,147 @@ PRODUCTION_RESOURCE_PREFIXES = (
     "mays-ris-dev-",
     "mays-orders-",
 )
+
+
+# ---------------------------------------------------------------------------
+# GLUE-01 (Composite Lifecycle): Orders component naming + output handoff.
+#
+# Mays-Orders-AWS is a closed, multiply-reusable component. Every RIS
+# project installation owns exactly ONE project-specific Orders instance
+# with its OWN identity, derived deterministically from the RIS project:
+#
+#     orders_project_name = f"{ris_project_name}-mays-orders"
+#
+# Historical origin (2026-10, account 240571105849): un-suffixed Orders
+# project names collided on the DynamoDB table (table name == project
+# name, exact) — the reason the historical composite tests used names
+# like "mays-ris-mays-orders-test-e2e-01". This derivation preserves
+# that collision-prevention contract and makes RIS ownership evident in
+# the Orders installer collision scan (5cf50a0).
+#
+# Contract consequences (all established Orders contracts, none new):
+# - Orders DynamoDB table == orders_project_name (exact, account-unique)
+# - Orders resources      == f"{orders_project_name}-*"
+# - Orders SQS queue     == f"{orders_project_name}-orders-queue"
+# - Orders TF workspace  == orders_project_name (verbatim)
+# - Orders TF state      == env:/{orders_project_name}/terraform.tfstate
+# - Orders deployment-id == account:orders_project_name:environment
+# - RIS resources        == f"{ris_project_name}-{environment}-*" (distinct)
+#
+# The component is invoked via installer/orchestrator.py (the ONLY
+# orchestration path; no second orchestrator).
+# ---------------------------------------------------------------------------
+ORDERS_COMPONENT_SUFFIX = "-mays-orders"
+ORDERS_QUEUE_SUFFIX = "-orders-queue"
+#: Orders project_name length limit: the CloudTrail bucket
+#: f"{project_name}-cloudtrail-<12-digit-account>" must stay <= 63 chars.
+ORDERS_PROJECT_NAME_MAX_LENGTH = 39
+
+#: Output handoff (GLUE-01): Orders terraform output -> RIS -var.
+#: Only mappings the RIS orders_reader module actually consumes.
+ORDERS_OUTPUT_VAR_MAP = {
+    "dynamodb_table_name": "orders_table_name",
+    "dynamodb_table_arn": "orders_table_arn",
+}
+
+
+def orders_component_project_name(
+    ris_project_name: str, override: Optional[str] = None
+) -> str:
+    """Derive the Orders component project name for one RIS project.
+
+    Deterministic (recomputable at destroy time without any stored
+    state). `override` is the documented escape hatch for pre-existing
+    component installations (historical composite test names) without
+    changing the default contract.
+    """
+    import re
+
+    name = (
+        override
+        or (ris_project_name.strip() + ORDERS_COMPONENT_SUFFIX)
+    ).strip()
+    if len(name) < 3 or not re.fullmatch(r"[a-z0-9][a-z0-9-]*[a-z0-9]", name):
+        raise ValueError(
+            f"orders component project name {name!r} violates the Orders "
+            f"naming contract ([a-z0-9-], min 3, no leading/trailing hyphen)"
+        )
+    if len(name) > ORDERS_PROJECT_NAME_MAX_LENGTH:
+        raise ValueError(
+            f"orders component project name {name!r} exceeds "
+            f"{ORDERS_PROJECT_NAME_MAX_LENGTH} chars (CloudTrail bucket limit)"
+        )
+    if name == "mays-orders" or name.startswith("mays-orders-"):
+        raise ValueError(
+            f"orders component project name {name!r} collides with the "
+            f"protected standalone Mays-Orders installation namespace"
+        )
+    return name
+
+
+def derive_orders_queue_url(orders_project_name: str, region: str, account_id: str) -> str:
+    """Queue URL per published Orders naming contract ({project}-orders-queue)."""
+    return (
+        f"https://sqs.{region}.amazonaws.com/{account_id}/"
+        f"{orders_project_name}{ORDERS_QUEUE_SUFFIX}"
+    )
+
+
+def derive_orders_queue_arn(orders_project_name: str, region: str, account_id: str) -> str:
+    """Queue ARN per published Orders naming contract ({project}-orders-queue)."""
+    return (
+        f"arn:aws:sqs:{region}:{account_id}:"
+        f"{orders_project_name}{ORDERS_QUEUE_SUFFIX}"
+    )
+
+
+def parse_orders_outputs(stdout: str) -> Dict[str, Any]:
+    """Parse `terraform output -json` stdout (tolerant to surrounding CLI text)."""
+    start = stdout.find("{")
+    if start < 0:
+        raise RuntimeError("Orders output contained no JSON object")
+    try:
+        return json.loads(stdout[start:])
+    except json.JSONDecodeError:
+        # Brace matching from the first '{' to its partner (truncation guard).
+        depth = 0
+        for idx in range(start, len(stdout)):
+            if stdout[idx] == "{":
+                depth += 1
+            elif stdout[idx] == "}":
+                depth -= 1
+                if depth == 0:
+                    return json.loads(stdout[start : idx + 1])
+        raise RuntimeError("Orders output JSON is truncated or malformed")
+
+
+def orders_handoff_vars(
+    outputs: Dict[str, Any],
+    orders_project_name: str,
+    region: str,
+    account_id: str,
+) -> Dict[str, str]:
+    """Map Orders outputs to RIS -var entries (only necessary mappings).
+
+    Table name/ARN come from the Orders `output` command. Queue URL/ARN
+    are derived from the published Orders naming contract (the component
+    does not export SQS outputs). Fail-closed when a required output is
+    missing or empty.
+    """
+    handoff: Dict[str, str] = {}
+    for out_name, var_name in ORDERS_OUTPUT_VAR_MAP.items():
+        entry = outputs.get(out_name)
+        value = entry.get("value") if isinstance(entry, dict) else entry
+        if not value:
+            raise RuntimeError(f"required Orders output missing or empty: {out_name}")
+        handoff[var_name] = str(value)
+    handoff["orders_queue_url"] = derive_orders_queue_url(
+        orders_project_name, region, account_id
+    )
+    handoff["orders_queue_arn"] = derive_orders_queue_arn(
+        orders_project_name, region, account_id
+    )
+    return handoff
 
 
 def is_plan_safe(plan_json: dict, project_name: str, environment: str) -> tuple[bool, str]:
@@ -144,6 +287,10 @@ class RisInstallContext:
     aws_context: Optional[AwsExecutionContext] = None
     dry_run: bool = True
     extra_vars: Dict[str, str] = field(default_factory=dict)
+    # Composite lifecycle (GLUE-01): when True, preflight/install/destroy
+    # orchestrate the Mays-Orders-AWS component. Existing standalone RIS
+    # tests set composite=False to assert pure-RIS terraform sequencing.
+    composite: bool = True
     # Per-project isolation (computed, not user-configurable)
     _workdir_base: str = field(default="", repr=False)
     _workdir: str = field(default="", repr=False)
@@ -262,7 +409,13 @@ class RisInstallContext:
 
 
 def _cmd_preflight(ctx: RisInstallContext) -> int:
-    """PHASE A: read-only AWS identity check (no mutation possible)."""
+    """PHASE A: read-only AWS identity + composite component validation.
+
+    Validates AWS identity (STS), then verifies the Mays-Orders-AWS
+    component: Git pin, installer discovery, and (read-only) AWS
+    collision scan for the derived component project name. No resource
+    mutation and no Terraform apply anywhere in this path.
+    """
     try:
         aws_ctx = validate_aws_context(
             profile=ctx.aws_profile, region=ctx.aws_region
@@ -275,6 +428,69 @@ def _cmd_preflight(ctx: RisInstallContext) -> int:
     print(f"region: {aws_ctx.region}")
     print(f"identity: {aws_ctx.identity_arn}")
     print(f"profile-source: {aws_ctx.profile_source}")
+
+    # GLUE-01: Composite preflight — validate the Orders component.
+    if ctx.composite and not ctx.dry_run:
+        orders_project = orders_component_project_name(ctx.project_name)
+        print(f"composite component project: {orders_project}")
+        orchestrator = RISInstaller(dry_run=ctx.dry_run)
+        info = orchestrator.discover_project("mays-orders")
+        if not info.installer_exists:
+            print(
+                f"error: Mays-Orders component not available at "
+                f"{info.local_path}",
+                file=sys.stderr,
+            )
+            return 1
+        if not info.git_info:
+            print(
+                "error: component clone missing or not a git repo",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"component commit: {info.git_info.commit}")
+
+        # Pin verification (fail-closed: drift must be visible, not ignored).
+        pin_path = (
+            Path(__file__).resolve().parent / "mays-orders-clone.pinned.json"
+        )
+        if pin_path.exists():
+            import json as _json
+
+            pin = _json.loads(pin_path.read_text())
+            pinned = pin.get("pinned_commit")
+            if pinned and info.git_info.commit != pinned:
+                print(
+                    f"error: component HEAD {info.git_info.commit} != pinned "
+                    f"{pinned}",
+                    file=sys.stderr,
+                )
+                return 1
+            print(f"component pinned commit verified: {pinned}")
+        else:
+            print("warning: no pin file for component (cannot verify revision)")
+
+        # AWS collision scan + context validation via Orders validate command.
+        try:
+            result = orchestrator.run_project_installer(
+                "mays-orders",
+                command="validate",
+                region=ctx.aws_region,
+                environment=ctx.environment,
+                project_name_override=orders_project,
+            )
+            if result.get("status") not in ("SUCCESS", "DRY_RUN"):
+                print(
+                    f"error: component validation failed: "
+                    f"{result.get('stderr', result.get('error', 'unknown'))}",
+                    file=sys.stderr,
+                )
+                return 1
+            print("component validation: OK")
+        except Exception as exc:
+            print(f"error: component preflight failed: {exc}", file=sys.stderr)
+            return 1
+
     return 0
 
 
@@ -368,11 +584,12 @@ def _cmd_package(ctx: RisInstallContext, bundle: str = "all") -> int:
 
 
 def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
-    """Destroy exactly one project's foundation (scoped, explicit).
+    """Destroy exactly one composite project (RIS first, then Orders component).
 
-    Scope = ctx.workspace (verbatim aus project_name); NICHTS ausserhalb
-    dieses Workspaces wird angefasst. Erfordert --yes. Gibt 0 nur zurueck,
-    wenn Plan UND Apply erfolgreich waren.
+    Order: RIS foundation -> project-specific Orders component instance.
+    The protected standalone Mays-Orders installation is never touched
+    (orders_component_project_name() raises on the 'mays-orders' namespace).
+    Requires --yes. Returns 0 only if both plans/apply succeed.
     """
     if ctx.dry_run:
         print("error: refusing destroy in dry-run mode (pass --yes)",
@@ -386,8 +603,13 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
         print(f"error: preflight failed: {exc}", file=sys.stderr)
         return 1
     ctx.aws_context = aws_ctx
-    print(f"DESTROY scope: project {ctx.project_name} -> workspace {ctx.workspace}")
-    print(f"DESTROY scope: account {aws_ctx.account_id}, region {aws_ctx.region}")
+    orders_project = orders_component_project_name(ctx.project_name)
+    print(f"DESTROY scope: composite project {ctx.project_name}")
+    print(f"  RIS workspace: {ctx.workspace}")
+    print(f"  Orders component: {orders_project}")
+    print(f"  account: {aws_ctx.account_id}, region: {aws_ctx.region}")
+
+    # --- 1. RIS foundation destroy ---
     runner = ctx.make_runner()
     init_res = runner.init(backend_config=ctx.backend_config())
     print(f"$ {' '.join(init_res.command)} -> exit {init_res.returncode}")
@@ -399,19 +621,70 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
     print(f"$ {' '.join(plan_res.command)} -> exit {plan_res.returncode}")
     if plan_res.returncode != 0:
         return 1
-    
+
     # Safety gate: inspect destroy plan before apply
     plan_json = load_plan_json(plan_file)
     safe, msg = is_plan_safe(plan_json, ctx.project_name, ctx.environment)
-    print(f"Safety gate: {msg}")
+    print(f"RIS destroy safety gate: {msg}")
     if not safe:
-        print(f"error: {msg}", file=sys.stderr)
+        print(f"error: RIS destroy plan unsafe: {msg}", file=sys.stderr)
         return 1
-    
+
     apply_res = runner.run_and_get_result(["apply", plan_file],
                                           ensure_workspace=True)
     print(f"$ {' '.join(apply_res.command)} -> exit {apply_res.returncode}")
-    return 1 if apply_res.returncode != 0 else 0
+    if apply_res.returncode != 0:
+        return 1
+
+    # --- 2. Orders component destroy (only its own project name) ---
+    if ctx.composite:
+        orchestrator = RISInstaller(dry_run=False)
+        env_extra = {
+            "ALLOW_AWS_OPERATIONS": "true",
+            "PROJECT_NAME": orders_project,
+        }
+        destroy_plan = orchestrator.run_project_installer(
+            "mays-orders",
+            command="plan-destroy",
+            profile=ctx.aws_profile,
+            region=ctx.aws_region,
+            environment=ctx.environment,
+            project_name_override=orders_project,
+            extra_args=["--var", f"project_name={orders_project}",
+                        "--var", f"aws_region={ctx.aws_region}"],
+            extra_env=env_extra,
+        )
+        if destroy_plan.get("status") not in ("SUCCESS", "DRY_RUN"):
+            print(
+                f"error: Orders plan-destroy failed: "
+                f"{destroy_plan.get('stderr', destroy_plan.get('error', 'unknown'))}",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"$ Orders plan-destroy -> {destroy_plan.get('status')}")
+
+        destroy_apply = orchestrator.run_project_installer(
+            "mays-orders",
+            command="destroy",
+            profile=ctx.aws_profile,
+            region=ctx.aws_region,
+            environment=ctx.environment,
+            project_name_override=orders_project,
+            extra_args=["--yes"],
+            extra_env=env_extra,
+            full_output=True,
+        )
+        if destroy_apply.get("status") != "SUCCESS":
+            print(
+                f"error: Orders destroy failed: "
+                f"{destroy_apply.get('stdout', '')[-500:]} | "
+                f"{destroy_apply.get('stderr', destroy_apply.get('error', 'unknown'))[-500:]}",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"$ Orders destroy -> SUCCESS")
+
+    return 0
 
 
 COMMANDS = ("validate", "plan", "apply", "preflight", "install", "state", "destroy",
@@ -659,13 +932,112 @@ def _cmd_state(
     return 2
 
 
+def _run_orders_component(
+    ctx: RisInstallContext,
+    orchestrator: RISInstaller,
+    orders_project: str,
+) -> Dict[str, Any]:
+    """Execute the Orders component lifecycle via the existing orchestrator.
+
+    Sequence (RIS-ORDERS-INSTALLER-CONTRACT-ALIGNMENT-01):
+      validate -> plan -> deploy -> output
+    - profile/region passed as *global* args (argparse subcommand contract).
+    - --project-name = orders_project (isolated component identity).
+    - --yes on deploy requires ALLOW_AWS_OPERATIONS=true (env-only, set by caller).
+    Returns the orchestrator result dicts for each stage.
+    Preserves the Orders state: a RIS-side failure later does NOT destroy a
+    successfully installed Orders component (no auto-cleanup; destroy is a
+    separate, explicit composite destroy operation).
+    """
+    # Global options go first; command word; then command-specific args.
+    # Dry-run is the Orders default; live deploy is opt-in via env + --yes.
+    allow_aws = "true" if not ctx.dry_run else "false"
+    env_extra: Dict[str, str] = {
+        "ALLOW_AWS_OPERATIONS": allow_aws,
+        # Force the component's Terraform workspace to match its project name.
+        "PROJECT_NAME": orders_project,
+    }
+
+    # 1. validate -- the pinned Orders installer performs AWS identity,
+    #    remote-state lifecycle, lambda artifact, AND collision scan.
+    val = orchestrator.run_project_installer(
+        "mays-orders",
+        command="validate",
+        profile=ctx.aws_profile,
+        region=ctx.aws_region,
+        environment=ctx.environment,
+        project_name_override=orders_project,
+        extra_env=env_extra,
+    )
+    if val.get("status") not in ("SUCCESS", "DRY_RUN"):
+        raise RuntimeError(
+            f"Orders validate failed: {val.get('stderr', val.get('error', 'unknown'))}"
+        )
+    print(f"$ Orders validate -> {val.get('status')}")
+
+    # 2. plan (dry-run plan file is generated but NOT applied).
+    plan = orchestrator.run_project_installer(
+        "mays-orders",
+        command="plan",
+        profile=ctx.aws_profile,
+        region=ctx.aws_region,
+        environment=ctx.environment,
+        project_name_override=orders_project,
+        extra_args=["--var", f"project_name={orders_project}",
+                    "--var", f"aws_region={ctx.aws_region}"],
+        extra_env=env_extra,
+    )
+    if plan.get("status") not in ("SUCCESS", "DRY_RUN"):
+        raise RuntimeError(
+            f"Orders plan failed: {plan.get('stderr', plan.get('error', 'unknown'))}"
+        )
+    print(f"$ Orders plan -> {plan.get('status')}")
+
+    # 3. deploy -- only when --yes was passed (ctx.dry_run is False).
+    if not ctx.dry_run:
+        deploy = orchestrator.run_project_installer(
+            "mays-orders",
+            command="deploy",
+            profile=ctx.aws_profile,
+            region=ctx.aws_region,
+            environment=ctx.environment,
+            project_name_override=orders_project,
+            extra_args=["--yes"],
+            extra_env=env_extra,
+            # Must not truncate: deploy prints structured summary.
+            full_output=True,
+        )
+        if deploy.get("status") != "SUCCESS":
+            raise RuntimeError(
+                f"Orders deploy failed: "
+                f"{deploy.get('stdout', '')[-500:]} | "
+                f"{deploy.get('stderr', deploy.get('error', 'unknown'))[-500:]}"
+            )
+        print(f"$ Orders deploy -> SUCCESS")
+
+    # 4. output -- read-only handoff (workspace is the component project name).
+    out = orchestrator.run_project_installer(
+        "mays-orders",
+        command="output",
+        profile=ctx.aws_profile,
+        region=ctx.aws_region,
+        environment=ctx.environment,
+        project_name_override=orders_project,
+        extra_env=env_extra,
+        full_output=True,
+    )
+    if out.get("status") != "SUCCESS":
+        raise RuntimeError(f"Orders output failed: {out.get('stderr', out.get('error'))}")
+    return parse_orders_outputs(out.get("stdout", ""))
+
+
 def _cmd_install(
     ctx: RisInstallContext, out_file: Optional[str] = None
 ) -> int:
-    """Phased installation: preflight -> bootstrap -> init -> workspace ->
-    validate -> plan -> (apply, only with --yes). Without --yes, prints the
-    planned phases and stops before any mutation (dry-run)."""
-    # PHASE A — preflight (read-only identity check).
+    """Composite phased installation: preflight -> orders validate/plan/deploy ->
+    output handoff -> RIS package/plan/apply. Dry-run (no --yes) stops before
+    any mutation and reports the planned phases."""
+    # PHASE A — preflight (read-only identity + component validation).
     try:
         aws_ctx = validate_aws_context(
             profile=ctx.aws_profile, region=ctx.aws_region
@@ -677,15 +1049,66 @@ def _cmd_install(
     names = BackendNames.for_project(
         ctx.project_name, ctx.environment, region=ctx.aws_region
     )
+    orders_project = orders_component_project_name(ctx.project_name)
+
     if ctx.dry_run:
-        print("dry-run installation plan (no mutation performed):")
+        print("dry-run composite installation plan (no mutation performed):")
         print(f"  account: {aws_ctx.account_id}")
         print(f"  region: {aws_ctx.region}")
-        print(f"  project: {ctx.project_name} -> workspace {ctx.workspace}")
+        print(f"  RIS project: {ctx.project_name} -> workspace {ctx.workspace}")
+        print(f"  Orders component: {orders_project}")
         print(f"  backend bucket: {names.bucket}")
         print(f"  lock table: {names.lock_table}")
-        print("  phases: bootstrap -> init -> validate -> plan")
+        print("  phases: orders validate -> orders plan -> output handoff -> "
+              "RIS package -> RIS plan")
         return 0
+
+    # --- Composite preflight + Orders component (fail fast, no mutation) ---
+    if ctx.composite:
+        pf_rc = _cmd_preflight(ctx)
+        if pf_rc != 0:
+            print("error: composite preflight failed", file=sys.stderr)
+            return 1
+        orchestrator = RISInstaller(dry_run=False)
+
+        # PHASE C — Orders component lifecycle + output handoff.
+        try:
+            orders_outputs = _run_orders_component(ctx, orchestrator, orders_project)
+        except RuntimeError as exc:
+            print(f"error: orders component lifecycle failed: {exc}", file=sys.stderr)
+            print(
+                "note: Orders state is preserved. Re-run install to resume "
+                "RIS phase (Orders validate is idempotent).",
+                file=sys.stderr,
+            )
+            return 1
+
+        # GLUE-01: merge Orders outputs into RIS Terraform vars.
+        handoff = orders_handoff_vars(
+            orders_outputs,
+            orders_project,
+            ctx.aws_region,
+            aws_ctx.account_id,
+        )
+        merged_extra = dict(ctx.extra_vars)
+        merged_extra.update(handoff)
+        ctx = RisInstallContext(
+            project_name=ctx.project_name,
+            environment=ctx.environment,
+            aws_region=ctx.aws_region,
+            terraform_dir=ctx.terraform_dir,
+            backend_bucket=ctx.backend_bucket,
+            backend_region=ctx.backend_region,
+            backend_lock_table=ctx.backend_lock_table,
+            aws_profile=ctx.aws_profile,
+            aws_context=ctx.aws_context,
+            dry_run=ctx.dry_run,
+            extra_vars=merged_extra,
+            composite=ctx.composite,
+        )
+    else:
+        merged_extra = dict(ctx.extra_vars or {})
+
     # PHASE B — backend bootstrap (explicit --yes only).
     bootstrap = BackendBootstrap(
         names, project_name=ctx.project_name, profile=ctx.aws_profile
@@ -695,7 +1118,15 @@ def _cmd_install(
     except (BackendConflictError, RuntimeError) as exc:
         print(f"error: backend bootstrap failed: {exc}", file=sys.stderr)
         return 1
-    # PHASE C..G — init / workspace / validate / plan / apply via runner.
+
+    # PHASE D — Lambda packaging (must precede plan, per package contract).
+    pkg_rc = _cmd_package(ctx, bundle="all")
+    if pkg_rc != 0:
+        print(f"error: lambda packaging failed (rc={pkg_rc})", file=sys.stderr)
+        # Packaging failure does NOT roll back Orders (no auto-destroy).
+        return 1
+
+    # PHASE E..G — RIS init / validate / plan / apply.
     runner = ctx.make_runner()
     config = BackendConfig(
         bucket=names.bucket,
@@ -711,7 +1142,7 @@ def _cmd_install(
         print(f"$ {' '.join(result.command)} -> exit {result.returncode}")
         if result.returncode != 0:
             return 1
-    
+
     # Safety gate: inspect plan before apply
     plan_file = out_file or f"{ctx.workspace}-apply.tfplan"
     plan_json = load_plan_json(plan_file)
@@ -720,7 +1151,7 @@ def _cmd_install(
     if not safe:
         print(f"error: {msg}", file=sys.stderr)
         return 1
-    
+
     apply_res = runner.run_and_get_result(
         ["apply", plan_file], ensure_workspace=True
     )
@@ -819,6 +1250,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable state locking for diagnostic plan only. WARNING: disables Terraform state locking. Use only for debugging stale locks. Never use for deployment planning.",
     )
+    # GLUE-01: composite lifecycle toggle (default on; OFF for pure-RIS).
+    parser.add_argument(
+        "--composite/--no-composite",
+        dest="composite",
+        default=True,
+        help="Enable composite Orders-component lifecycle (default: on). "
+             "Use --no-composite to operate on RIS foundation only.",
+    )
     parser.add_argument("command", choices=list(COMMANDS),
         help="Command to execute: validate, plan, apply, preflight, install, state, destroy, package, or lock",
     )
@@ -858,6 +1297,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             aws_profile=parsed.profile,
             dry_run=not parsed.yes,
             extra_vars=extra_vars,
+            composite=parsed.composite,
             _workdir_base=parsed.workdir_base or "",
         )
     except ValueError as exc:

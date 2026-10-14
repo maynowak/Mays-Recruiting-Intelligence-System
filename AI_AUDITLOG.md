@@ -3794,3 +3794,55 @@ GIT_COMMIT: f44826f... (latest)
 GIT_STATUS: CLEAN (pre-existing untracked only)
 GIT_PUSH: NOT_PUSHED
 
+[MAYS-ORDERS-COMPOSITE-LIFECYCLE-GLUE-01]
+Date: 2026-10-14
+Status: IMPLEMENTED / TESTED
+BASELINE: a5fd775 (current HEAD)
+
+SUMMARY:
+Completed the GLUE-01 composite lifecycle integration for Orders component.
+The RIS installer now orchestrates the Mays-Orders-AWS component as a
+project-specific instance under composite mode.
+
+CHANGES:
+1. installer/ris.py:
+   - Added orders_component_project_name() with naming contract validation
+   - Added derive_orders_queue_url/arn() for ordering conventions
+   - Added parse_orders_outputs() for output handoff parsing
+   - Added orders_handoff_vars() for Orders -> RIS variable mapping
+   - Extended _cmd_preflight() to validate Orders component (composite-gated)
+   - Extended _cmd_install() to orchestrate Orders lifecycle (composite-gated)
+   - Extended _cmd_destroy() to destroy Orders component (composite-gated)
+   - Added composite flag to RisInstallContext and CLI (-composite/-no-composite)
+
+2. installer/orchestrator.py:
+   - Added extra_env parameter for environment variable handoff
+   - Added full_output parameter for structured output preservation
+   - Verified global args precede command (argparse subcommand contract)
+
+3. terraform/variables.tf:
+   - Added orders_table_name, orders_table_arn
+   - Added orders_queue_url, orders_queue_arn
+
+4. terraform/main.tf:
+   - Wired new variables to orders_reader module
+
+5. installer/mays-orders-clone.pinned.json:
+   - Pin already at 5cf50a0 (v0.5.0-rc.2 prep with collision preflight)
+
+6. tests/test_composite_lifecycle.py (NEW):
+   - 23 tests for naming, queue derivation, output parsing, handoff, orchestrator
+
+TESTS:
+- python3 -m pytest tests/test_composite_lifecycle.py -q => 23 passed
+- python3 -m pytest tests/test_ris_installer.py -q => 36 passed (with composite=False)
+- python3 -m pytest tests/ -q => 1422 passed, 9 skipped
+
+SAFETY:
+- No production resource deletion (dry-run safe)
+- Orders state preserved on RIS failure (no auto-cleanup)
+- Protected standalone 'mays-orders' namespace (collision prevention)
+- Fail-closed pin enforcement verified
+
+GIT PUSH: NOT PUSHED (awaiting authorization)
+

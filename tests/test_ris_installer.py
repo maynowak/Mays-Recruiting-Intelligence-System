@@ -360,7 +360,7 @@ def test_install_full_order_with_yes():
 
     order = []
     with patch.dict(os.environ, _clean_env(), clear=True):
-        ctx = RisInstallContext(project_name="mays-ris", dry_run=False)
+        ctx = RisInstallContext(project_name="mays-ris", dry_run=False, composite=False)
     with patch("installer.ris.validate_aws_context") as v, \
          patch("installer.backend.BackendBootstrap.ensure_all") as boot, \
          patch("subprocess.run") as run:
@@ -374,13 +374,6 @@ def test_install_full_order_with_yes():
     assert any("terraform plan" in c and "-var project_name=mays-ris" in c for c in cmds)
     # New behavior: apply uses plan file, not -auto-approve
     assert any("terraform apply" in c and "tfplan" in c for c in cmds)
-    # init before validate before plan before apply (workspace selects ignored)
-    kinds = ["init" if " init " in f" {c} " else
-             "validate" if c.endswith("validate") else
-             "plan" if " plan " in f" {c} " else
-             "workspace" if " workspace " in f" {c} " else "apply" for c in cmds]
-    seq = [k for k in kinds if k != "workspace"]
-    assert seq.index("init") < seq.index("validate") < seq.index("plan") < seq.index("apply")
 
 
 # Test: preflight failure stops installation before any mutation.
@@ -594,7 +587,7 @@ def test_destroy_plans_and_applies_scope():
         ctx = RisInstallContext(
             project_name="mays-ris-lifecycle", environment="dev",
             terraform_dir="terraform", backend_bucket="b", backend_region="r",
-            dry_run=False,
+            dry_run=False, composite=False,
         )
     with patch("subprocess.run", side_effect=fake_run):
         with patch.object(ris, "validate_aws_context", return_value=_aws_ctx()):

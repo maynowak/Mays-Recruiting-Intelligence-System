@@ -251,3 +251,33 @@ variable "health_publisher_zip_path" {
   description = "Deployment-Zip mit health_publisher.py am Root (absolute path required for isolated workdirs)"
   type        = string
 }
+
+# GLUE-01 (Composite Lifecycle): Werte der projekt-spezifischen
+# Mays-Orders-Instanz, die zu DIESER RIS-Installation gehoert.
+# Defaults = bisheriges Standalone-Verhalten (Orders-Reader zeigt auf die
+# bestehende 'mays-orders'-Installation). Composite-Installationen
+# ueberschreiben diese Variablen via -var aus dem Orders-Output-Handoff
+# (installer/ris.py, composite preflight/install).
+variable "orders_table_name" {
+  description = "Mays-Orders-Tabelle fuer den Orders-Reader (Composite: Output der Projekt-Orders-Instanz)."
+  type        = string
+  default     = "mays-orders"
+}
+
+variable "orders_table_arn" {
+  description = "ARN der Mays-Orders-Tabelle fuer den Orders-Reader (Composite: Output-Handoff)."
+  type        = string
+  default     = "arn:aws:dynamodb:eu-central-1:240571105849:table/mays-orders"
+}
+
+variable "orders_queue_url" {
+  description = "URL der Mays-Orders-Queue fuer Worker-Anstoss (nur SendMessage; Composite: Naming-Contract-Ableitung)."
+  type        = string
+  default     = "https://sqs.eu-central-1.amazonaws.com/240571105849/mays-orders-orders-queue"
+}
+
+variable "orders_queue_arn" {
+  description = "ARN der Mays-Orders-Queue (nur SendMessage-Recht; Composite: Naming-Contract-Ableitung)."
+  type        = string
+  default     = "arn:aws:sqs:eu-central-1:240571105849:mays-orders-orders-queue"
+}

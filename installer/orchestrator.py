@@ -205,26 +205,26 @@ class RISInstaller:
                 check=True
             )
             
-        # Ensure pinned checkout if configured
-        try:
+        # Ensure pinned checkout if configured (fail-closed: a configured pin
+        # that cannot be enforced must abort — never fall back silently).
+        pin_path = Path(__file__).parent.parent / "installer" / self.pin_filename(project_name)
+        if pin_path.exists():
             import json
-            pin_file_map = {
-                "mays-orders": "installer/mays-orders-clone.pinned.json",
-                "mays-jobsearch": "installer/mays-jobsearch-clone.pinned.json",
-            }
-            if project_config.get("name") in pin_file_map:
-                pin_path = Path(__file__).parent.parent / pin_file_map[project_config["name"]]
-                if pin_path.exists():
-                    pin = json.loads(pin_path.read_text())
-                    pinned_commit = pin.get("pinned_commit")
-                    if pinned_commit:
-                        # Fetch latest
-                        subprocess.run(["git","fetch","origin"], cwd=local_path, check=True)
-                        # Checkout pinned commit
-                        subprocess.run(["git","checkout",pinned_commit], cwd=local_path, check=True)
-        except Exception:
-            # Non-fatal: continue with existing checkout
-            pass
+            pin = json.loads(pin_path.read_text())
+            pinned_commit = pin.get("pinned_commit")
+            if pinned_commit:
+                head = self.local_head_sha(local_path)
+                if head != pinned_commit:
+                    subprocess.run(["git", "fetch", "origin"], cwd=local_path, check=True)
+                    subprocess.run(
+                        ["git", "checkout", pinned_commit], cwd=local_path, check=True
+                    )
+                    head_after = self.local_head_sha(local_path)
+                    if head_after != pinned_commit:
+                        raise RuntimeError(
+                            f"Pin enforcement failed for {project_name}: "
+                            f"HEAD {head_after} != pinned {pinned_commit}"
+                        )
             
         # Verify it's the correct repository
         git_dir = local_path / ".git"
@@ -363,7 +363,7 @@ class RISInstaller:
                     "head": head, "pinned": pinned}
         return {"ok": True, "commit": head}
     
-    def run_project_installer(self, project_name: str, command: str = "validate", profile: Optional[str] = None, region: Optional[str] = None, environment: Optional[str] = None, project_name_override: Optional[str] = None) -> Dict[str, Any]:
+    def run_project_installer(self, project_name: str, command: str = "validate", profile: Optional[str] = None, region: Optional[str] = None, environment: Optional[str] = None, project_name_override: Optional[str] = None, extra_args: Optional[List[str]] = None, extra_env: Optional[Dict[str, str]] = None, full_output: bool = False) -> Dict[str, Any]:
         """
         Run the project-specific installer.
         
@@ -374,6 +374,9 @@ class RISInstaller:
             region: AWS region to pass to installer
             environment: Environment to pass to installer
             project_name_override: Project name override for installer
+            extra_args: Additional CLI args appended verbatim (e.g. --yes, --var K=V)
+            extra_env: Additional env vars for the child process only
+            full_output: Do not truncate stdout/stderr in the result (needed for `output` JSON)
             
         Returns:
             Result dictionary
@@ -417,17 +420,26 @@ class RISInstaller:
         import shutil
         venv_python = info.local_path / ".venv" / "bin" / "python"
         python_exec = str(venv_python) if venv_python.exists() else sys.executable
-        # Build installer args with explicit context propagation
-        installer_args = [python_exec, str(installer_script), command]
+        # Build installer args with explicit context propagation.
+        # argparse subcommand contract (verified against the pinned
+        # Mays-Order-AWS-installer CLI): GLOBAL options (--profile,
+        # --region, --aws-region, --environment, --project-name) must
+        # precede the command word; flags after the command are rejected
+        # as "unrecognized arguments". Subcommand-specific args (deploy
+        # --yes, state list, plan --var K=V) ride along AFTER the command
+        # via extra_args.
+        installer_args = [python_exec, str(installer_script)]
         if profile:
             installer_args += ["--profile", profile]
         if region:
-            installer_args += ["--region", region]
-            installer_args += ["--aws-region", region]
+            installer_args += ["--region", region, "--aws-region", region]
         if environment:
             installer_args += ["--environment", environment]
         if project_name_override:
             installer_args += ["--project-name", project_name_override]
+        installer_args.append(command)
+        if extra_args:
+            installer_args += list(extra_args)
         
         if self.dry_run:
             return {
@@ -439,6 +451,7 @@ class RISInstaller:
                     "branch": info.git_info.branch,
                     "commit": info.git_info.commit
                 },
+                "extra_env": dict(extra_env or {}),
                 "would_run": " ".join(installer_args)
             }
             
@@ -450,18 +463,22 @@ class RISInstaller:
         results = {"project": project_name, "git_info": info.git_info}
         
         try:
+            child_env = {**os.environ}
+            if extra_env:
+                child_env.update(extra_env)
             result = subprocess.run(
                 installer_args,
                 cwd=info.local_path,
                 capture_output=True,
                 text=True,
-                timeout=300
+                timeout=300,
+                env=child_env,
             )
             results.update({
                 "status": "SUCCESS" if result.returncode == 0 else "FAILED",
                 "returncode": result.returncode,
-                "stdout": result.stdout[-2000:] if result.stdout else "",
-                "stderr": result.stderr[-2000:] if result.stderr else ""
+                "stdout": result.stdout if full_output else (result.stdout[-2000:] if result.stdout else ""),
+                "stderr": result.stderr if full_output else (result.stderr[-2000:] if result.stderr else ""),
             })
         except subprocess.TimeoutExpired:
             results["status"] = "TIMEOUT"
