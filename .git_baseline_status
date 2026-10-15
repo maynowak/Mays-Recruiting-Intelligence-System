@@ -1,0 +1,26 @@
+Auf Branch main
+Ihr Branch ist 70 Commits vor 'origin/main'.
+  (benutzen Sie "git push", um lokale Commits zu publizieren)
+
+Änderungen, die nicht zum Commit vorgemerkt sind:
+  (benutzen Sie "git add <Datei>...", um die Änderungen zum Commit vorzumerken)
+  (benutzen Sie "git restore <Datei>...", um die Änderungen im Arbeitsverzeichnis zu verwerfen)
+	geändert:       .gitignore
+
+Unversionierte Dateien:
+  (benutzen Sie "git add <Datei>...", um die Änderungen zum Commit vorzumerken)
+	.git_baseline_head
+	.git_baseline_main
+	.git_baseline_status
+	GATE_0_FINAL_EXECUTION_CHECKLIST.md
+	archived-evidence/
+	docs-git-ris-11102026.zip
+	docs/MAYS_RIS_PARTNER_AGENT_INTEGRATION.md
+	docs/architecture/M2M_CLIENT_APIPROFILE_BINDING_ADR.md
+	docs/privacy/
+	docs/reports/M2M-COST-CONTROL-01.md
+	docs/reports/MAYS-RIS-DUAL-INSTALL-LIFECYCLE-01-PHASE1A-REPORT.md
+	docs/security/SECURITY_TEST_PLAN.md
+	source/
+
+keine Änderungen zum Commit vorgemerkt (benutzen Sie "git add" und/oder "git commit -a")

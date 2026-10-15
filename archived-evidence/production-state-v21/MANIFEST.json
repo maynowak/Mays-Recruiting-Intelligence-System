@@ -1,0 +1,23 @@
+{
+  "archive_date": "2026-10-13",
+  "bucket": "mays-ris-tf-state-dev",
+  "key": "env:/mays-ris/env:/mays-ris/dev/terraform.tfstate",
+  "lineage": "9b14f5a3-82c2-f5b4-9d9f-c66ae36b0b63",
+  "serial": 21,
+  "size": 326018,
+  "etag": "4c8b87db1a4aba7f63d4b23dff770ed9",
+  "terraform_version": "1.16.1",
+  "resource_count": 138,
+  "sha256": "fedd69c53299f364274bb65d1c6939ba7e9a2470c56fd87a4e47240644f13703",
+  "backend_config": {
+    "bucket": "mays-ris-tf-state-dev",
+    "key": "terraform.tfstate",
+    "region": "eu-central-1",
+    "dynamodb_table": "mays-ris-tf-lock",
+    "encrypt": true
+  },
+  "workspace": "mays-ris",
+  "effective_key": "env:/mays-ris/env:/mays-ris/dev/terraform.tfstate",
+  "canonical_key": "env:/mays-ris/dev/terraform.tfstate",
+  "canonical_exists": false
+}

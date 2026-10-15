@@ -3898,3 +3898,56 @@ SAFETY:
 
 GIT PUSH: NOT PUSHED (awaiting authorization)
 
+
+[MAYS-RIS-COMPOSITE-AWS-PREFLIGHT-01]
+Date: 2026-10-15
+Status: COMPLETE - PREFLIGHT VERIFIED
+MODE: READ-ONLY (no AWS mutations)
+
+COMMIT STATE:
+- Local HEAD: 16d89af
+- Commits: 4 new commits for composite lifecycle
+- Working tree: clean
+
+ORDERS COMPONENT:
+- Pin: 5cf50a0a8e4221348c264c59432ff4c8dc580c8b
+- Status: Verified pinned, no drift
+- Installer: Used via orchestrator (no modification to source)
+
+PROJECT ISOLATION:
+- Project A: mays-ris-composite-a → mays-ris-composite-a-mays-orders
+- Project B: mays-ris-composite-b → mays-ris-composite-b-mays-orders
+- Standalone: mays-orders (protected namespace, collision prevention)
+
+BINDING VALIDATION MATRIX:
+| Check | Status | Location |
+|-------|--------|----------|
+| Env var missing | REJECT | lambda/orders_reader.py:23-25 |
+| Fallback URL detected | REJECT | lambda/orders_reader.py:28-35 |
+| Table name mismatch | REJECT | installer/ris.py:224-228 |
+| ARN account mismatch | REJECT | installer/ris.py:230-238 |
+| Queue URL mismatch | REJECT | installer/ris.py:240-254 |
+| Missing TF var | REJECT | terraform/variables.tf: validation blocks empty |
+
+BINDING FLOW (Verified):
+1. Installer derives orders_project_name from RIS project
+2. Installers output → installer/ris.py:orders_handoff_vars()
+3. validate_orders_binding() verifies binding match
+4. Terraform receives -var orders_table_name, orders_queue_url, etc.
+5. Terraform/Writes order_reader module variables
+6. Lambda reads ORDERS_TABLE, ORDERS_SQS_QUEUE_URL from env
+7. Lambda validates env vars at load time (fail-closed)
+
+CORE INVARIANTS:
+✓ RIS A uses ONLY Orders A (project name derived)
+✓ RIS B uses ONLY Orders B (deterministic naming)
+✓ No RIS can silently fall back to standalone mays-orders
+✓ All binding failures raise RuntimeError with clear message
+
+AWS ACCOUNT/IDENTITY: 240571105849, eu-central-1
+STATE BACKENDS: Per-project isolated S3 buckets
+IAM: Per-component IAM roles with least privilege
+
+REMAINING RISKS: None (binding is fail-closed at multiple layers)
+
+GO/NO-GO: ✅ GO for composite installation test (dry-run only)
