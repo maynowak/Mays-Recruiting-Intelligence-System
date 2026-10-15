@@ -393,12 +393,12 @@ class RISInstaller:
         installer_script = installer_path / f"{info.name.lower().replace('-', '_')}"
         
         # Check if installer script exists
-        if not installer_script.exists():
+        if not installer_script.exists() or not installer_script.is_file():
             # Try alternative names
             possible_names = ["installer", "main", "cli"]
             installer_script = next(
                 (installer_path / name for name in possible_names 
-                 if (installer_path / name).exists()),
+                 if (installer_path / name).is_file()),
                 None
             )
         
@@ -409,7 +409,7 @@ class RISInstaller:
                 info.local_path / "Mays-Order-AWS-installer.py",
             ]
             installer_script = next(
-                (p for p in root_candidates if p.exists()),
+                (p for p in root_candidates if p.is_file()),
                 None
             )
             
