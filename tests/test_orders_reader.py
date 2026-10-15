@@ -12,6 +12,12 @@ import unittest
 from decimal import Decimal
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Set required environment variables for orders_reader module loading
+# (fail-closed binding validation)
+os.environ.setdefault("ORDERS_TABLE", "mays-orders")
+os.environ.setdefault("ORDERS_SQS_QUEUE_URL", "https://sqs.eu-central-1.amazonaws.com/240571105849/mays-orders-orders-queue")
+
 _SPEC = importlib.util.spec_from_file_location(
     "orders_reader", os.path.join(_REPO_ROOT, "lambda", "orders_reader.py")
 )

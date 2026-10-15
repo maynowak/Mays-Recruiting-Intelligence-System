@@ -20,14 +20,15 @@ import os
 from decimal import Decimal
 from typing import Any, Dict, Optional
 
-ORDERS_TABLE = os.environ["ORDERS_TABLE"]
-ORDERS_SQS_QUEUE_URL = os.environ["ORDERS_SQS_QUEUE_URL"]
-# Validate non-empty binding (fail-closed: reject missing binding)
-if not ORDERS_TABLE or ORDERS_TABLE.strip() == "":
-    raise RuntimeError("ORDERS_TABLE environment variable must not be empty")
+ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "")
+ORDERS_SQS_QUEUE_URL = os.environ.get("ORDERS_SQS_QUEUE_URL", "")
+# Validate non-empty binding (fail-closed: reject missing binding at runtime)
+if not ORDERS_TABLE:
+    raise RuntimeError("ORDERS_TABLE environment variable must be set")
+if not ORDERS_SQS_QUEUE_URL:
+    raise RuntimeError("ORDERS_SQS_QUEUE_URL environment variable must be set")
 if "mays-orders-orders-queue" in ORDERS_SQS_QUEUE_URL and "-mays-orders" not in ORDERS_TABLE:
     # Detect fallback attempt to standalone mays-orders when project != mays-orders
-    # (only enforce when not the standalone project itself)
     if ORDERS_TABLE != "mays-orders":
         raise RuntimeError(
             f"ORDERS_SQS_QUEUE_URL appears to bind to standalone mays-orders "
