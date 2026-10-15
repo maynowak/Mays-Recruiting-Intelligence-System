@@ -226,10 +226,13 @@ class TerraformRunner:
         reconfigure: bool = False,
         backend_config: Optional[BackendConfig] = None,
     ) -> TerraformResult:
-        """Run `terraform init` WITHOUT any workspace operation.
+        """Run `terraform init` with workspace selection for non-default workspaces.
 
         Backend values travel ONLY via `-backend-config=...` (from an
         explicit BackendConfig) — never via input variables or `-var`.
+
+        For non-default workspaces, workspace selection is performed
+        before init to ensure the correct state key (workspace_key_prefix).
         """
         args = ["init"]
         if not backend:
@@ -240,7 +243,10 @@ class TerraformRunner:
             args.append("-upgrade")
         if reconfigure:
             args.append("-reconfigure")
-        return self.run_and_get_result(args, ensure_workspace=False)
+        # Select workspace before init for non-default workspaces
+        # This ensures the correct state path with workspace_key_prefix
+        ensure_ws = self.workspace != DEFAULT_WORKSPACE
+        return self.run_and_get_result(args, ensure_workspace=ensure_ws)
 
     def validate(self) -> TerraformResult:
         """Run `terraform validate` (workspace resolved first)."""
