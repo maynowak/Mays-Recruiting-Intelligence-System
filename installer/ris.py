@@ -705,6 +705,7 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
         env_extra = {
             "ALLOW_AWS_OPERATIONS": "true",
             "PROJECT_NAME": orders_project,
+            "TERRAFORM_WORKSPACE": orders_project,
         }
         destroy_plan = orchestrator.run_project_installer(
             "mays-orders",
@@ -1019,6 +1020,8 @@ def _run_orders_component(
         "ALLOW_AWS_OPERATIONS": allow_aws,
         # Force the component's Terraform workspace to match its project name.
         "PROJECT_NAME": orders_project,
+        # Also set TERRAFORM_WORKSPACE for the Orders installer's from_env() logic.
+        "TERRAFORM_WORKSPACE": orders_project,
     }
 
     # 1. validate -- the pinned Orders installer performs AWS identity,
