@@ -20,11 +20,19 @@ import os
 from decimal import Decimal
 from typing import Any, Dict, Optional
 
-ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "mays-orders")
-ORDERS_SQS_QUEUE_URL = os.environ.get(
-    "ORDERS_SQS_QUEUE_URL",
-    "https://sqs.eu-central-1.amazonaws.com/240571105849/mays-orders-orders-queue",
-)
+ORDERS_TABLE = os.environ["ORDERS_TABLE"]
+ORDERS_SQS_QUEUE_URL = os.environ["ORDERS_SQS_QUEUE_URL"]
+# Validate non-empty binding (fail-closed: reject missing binding)
+if not ORDERS_TABLE or ORDERS_TABLE.strip() == "":
+    raise RuntimeError("ORDERS_TABLE environment variable must not be empty")
+if "mays-orders-orders-queue" in ORDERS_SQS_QUEUE_URL and "-mays-orders" not in ORDERS_TABLE:
+    # Detect fallback attempt to standalone mays-orders when project != mays-orders
+    # (only enforce when not the standalone project itself)
+    if ORDERS_TABLE != "mays-orders":
+        raise RuntimeError(
+            f"ORDERS_SQS_QUEUE_URL appears to bind to standalone mays-orders "
+            f"but ORDERS_TABLE is {ORDERS_TABLE!r} — reject implicit fallback"
+        )
 ORDER_ID_PREFIX = "ord_"
 ORDER_SK = "#ORDER"
 GSI1_PK = "LIST"

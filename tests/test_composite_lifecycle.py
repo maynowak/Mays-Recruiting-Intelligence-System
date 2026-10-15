@@ -303,3 +303,64 @@ class TestCompositeDestroySequence:
     def test_name_protection_blocks_standalone_namespace(self):
         with pytest.raises(ValueError):
             orders_component_project_name("mays-orders")
+
+
+# ---------------------------------------------------------------------------
+# 7. Binding validation (fail-closed)
+# ---------------------------------------------------------------------------
+
+
+class TestBindingValidation:
+    """Test that binding validation rejects incorrect Orders component linkage."""
+    
+    def _make_handoff(self, project: str, account: str = "240571105849"):
+        """Create handoff dict in the format orders_handoff_vars returns."""
+        outputs = {
+            "dynamodb_table_name": {"value": project},
+            "dynamodb_table_arn": {"value": f"arn:aws:dynamodb:eu-central-1:{account}:table/{project}"},
+        }
+        return orders_handoff_vars(outputs, project, "eu-central-1", account)
+    
+    def test_standalone_orders_table_rejected_for_non_standalone_project(self):
+        """Non-standalone projects reject binding to standalone mays-orders table."""
+        from installer.ris import validate_orders_binding
+        
+        handoff = self._make_handoff("mays-orders", "240571105849")
+        # Should FAIL because project= mays-orders but we're binding to mays-ris-mays-orders
+        with pytest.raises(RuntimeError, match="mismatch|standalone"):
+            validate_orders_binding(handoff, "mays-ris-mays-orders", "240571105849")
+    
+    def test_cross_project_binding_rejected(self):
+        """RIS A cannot be bound to Orders B outputs."""
+        from installer.ris import validate_orders_binding
+        
+        # Orders B outputs for project B
+        handoff = self._make_handoff("project-b-mays-orders")
+        # But we're trying to bind to project A
+        queue_url = derive_orders_queue_url("mays-ris-mays-orders", "eu-central-1", "240571105849")
+        with pytest.raises(RuntimeError, match="mismatch"):
+            validate_orders_binding(handoff, "mays-ris-mays-orders", "240571105849", queue_url)
+    
+    def test_account_mismatch_detected(self):
+        """Detect when Orders outputs belong to different AWS account."""
+        from installer.ris import validate_orders_binding
+        
+        # Create handoff for wrong account
+        outputs = {
+            "dynamodb_table_name": {"value": "mays-ris-mays-orders"},
+            "dynamodb_table_arn": {"value": "arn:aws:dynamodb:eu-central-1:999999999999:table/mays-ris-mays-orders"},
+        }
+        handoff = orders_handoff_vars(outputs, "mays-ris-mays-orders", "eu-central-1", "999999999999")
+        # Account mismatch - we're saying account 2405... but outputs belong to 9999...
+        with pytest.raises(RuntimeError, match="account mismatch"):
+            validate_orders_binding(handoff, "mays-ris-mays-orders", "240571105849")
+    
+    def test_valid_project_binding_passes(self):
+        """Valid binding for correct project passes validation."""
+        from installer.ris import validate_orders_binding
+        
+        project = "mays-ris-mays-orders"
+        account = "240571105849"
+        handoff = self._make_handoff(project, account)
+        # Should not raise
+        validate_orders_binding(handoff, project, account)

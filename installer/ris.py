@@ -204,6 +204,69 @@ def orders_handoff_vars(
     return handoff
 
 
+def validate_orders_binding(
+    handoff_vars: Dict[str, str],
+    orders_project_name: str,
+    account_id: str,
+    expected_queue_url: Optional[str] = None,
+) -> None:
+    """Validate that Orders outputs match the expected component binding.
+    
+    Fail-closed: reject mismatched, empty, or malformed bindings.
+    Raises RuntimeError on any mismatch.
+    """
+    errors = []
+    
+    # 1. Table name must match expected project name
+    table_name = handoff_vars.get("orders_table_name", "")
+    if not table_name:
+        errors.append("orders_table_name is empty or missing")
+    elif table_name != orders_project_name:
+        errors.append(
+            f"orders_table_name mismatch: got {table_name!r}, "
+            f"expected {orders_project_name!r} (binding collision detected)"
+        )
+    
+    # 2. Table ARN must be in same account
+    table_arn = handoff_vars.get("orders_table_arn", "")
+    if not table_arn:
+        errors.append("orders_table_arn is empty or missing")
+    elif not table_arn.startswith(f"arn:aws:dynamodb:") or account_id not in table_arn:
+        errors.append(
+            f"orders_table_arn account mismatch: {table_arn!r} "
+            f"does not contain expected account {account_id}"
+        )
+    
+    # 3. Queue URL must match expected
+    queue_url = handoff_vars.get("orders_queue_url", "")
+    if not queue_url:
+        errors.append("orders_queue_url is empty or missing")
+    elif expected_queue_url and queue_url != expected_queue_url:
+        errors.append(
+            f"orders_queue_url mismatch: got {queue_url!r}, "
+            f"expected {expected_queue_url!r}"
+        )
+    elif "mays-orders-orders-queue" in queue_url and "-mays-orders" not in orders_project_name:
+        # Detect binding to standalone mays-orders when not standalone project
+        errors.append(
+            f"orders_queue_url appears to bind to standalone mays-orders "
+            f"but project is {orders_project_name!r}"
+        )
+    
+    # 4. Queue ARN must be in same account
+    queue_arn = handoff_vars.get("orders_queue_arn", "")
+    if not queue_arn:
+        errors.append("orders_queue_arn is empty or missing")
+    elif not queue_arn.startswith(f"arn:aws:sqs:") or account_id not in queue_arn:
+        errors.append(
+            f"orders_queue_arn account mismatch: {queue_arn!r} "
+            f"does not contain expected account {account_id}"
+        )
+    
+    if errors:
+        raise RuntimeError("Orders binding validation failed:\n  " + "\n  ".join(errors))
+
+
 def is_plan_safe(plan_json: dict, project_name: str, environment: str) -> tuple[bool, str]:
     """
     Inspect a Terraform plan JSON and reject if it targets production resources.
@@ -1090,6 +1153,12 @@ def _cmd_install(
             ctx.aws_region,
             aws_ctx.account_id,
         )
+        # Validate binding matches expected component (fail-closed)
+        expected_queue_url = derive_orders_queue_url(
+            orders_project, ctx.aws_region, aws_ctx.account_id
+        )
+        validate_orders_binding(handoff, orders_project, aws_ctx.account_id, expected_queue_url)
+        print(f"Orders binding validated: {orders_project}")
         merged_extra = dict(ctx.extra_vars)
         merged_extra.update(handoff)
         ctx = RisInstallContext(

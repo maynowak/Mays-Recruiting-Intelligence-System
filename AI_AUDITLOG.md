@@ -3846,3 +3846,55 @@ SAFETY:
 
 GIT PUSH: NOT PUSHED (awaiting authorization)
 
+[MAYS-ORDERS-BINDING-FAIL-CLOSED-01]
+Date: 2026-10-15
+Status: IMPLEMENTED / TESTED
+BASELINE: a5fd775 (current HEAD)
+
+SUMMARY:
+Implemented fail-closed binding validation to eliminate implicit fallback
+behavior that could bind RIS installations to standalone mays-orders
+infrastructure. This closes a critical safety hole where misconfigured
+deployments could silently use the wrong Orders component.
+
+CHANGES:
+1. lambda/orders_reader.py:
+   - Removed hardcoded defaults for ORDERS_TABLE, ORDERS_SQS_QUEUE_URL
+   - Added raise RuntimeError when env vars not set or appear to use
+     standalone mays-orders for non-standalone projects
+   - Validation detects "mays-orders-orders-queue" in URL when project
+     != "mays-orders"
+
+2. terraform/variables.tf:
+   - Removed hardcoded defaults for orders_table_name, orders_table_arn,
+     orders_queue_url, orders_queue_arn
+   - Empty string defaults with validation constraints
+   - Tables fail when required binding values not explicitly provided
+
+3. installer/ris.py:
+   - Added validate_orders_binding() function with comprehensive checks
+   - Validates table name matches expected component project name
+   - Validates ARN contains correct AWS account
+   - Validates queue URL matches expected derived value
+   - Added binding validation call in _cmd_install() after handoff
+
+4. tests/test_composite_lifecycle.py:
+   - Added TestBindingValidation class with 4 new tests:
+     - test_standalone_orders_table_rejected_for_non_standalone_project
+     - test_cross_project_binding_rejected
+     - test_account_mismatch_detected
+     - test_valid_project_binding_passes
+
+TESTS:
+- python3 -m pytest tests/test_composite_lifecycle.py -q => 27 passed (+4 new)
+- python3 -m pytest tests/test_ris_installer.py -q => 36 passed
+- python3 -m pytest tests/ -q => 1426 passed, 9 skipped
+
+SAFETY:
+- No implicit fallback to standalone mays-orders
+- All binding validation failures raise RuntimeError
+- Cross-account binding rejection
+- Cross-project binding rejection
+
+GIT PUSH: NOT PUSHED (awaiting authorization)
+

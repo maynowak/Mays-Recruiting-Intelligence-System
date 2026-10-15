@@ -254,30 +254,51 @@ variable "health_publisher_zip_path" {
 
 # GLUE-01 (Composite Lifecycle): Werte der projekt-spezifischen
 # Mays-Orders-Instanz, die zu DIESER RIS-Installation gehoert.
-# Defaults = bisheriges Standalone-Verhalten (Orders-Reader zeigt auf die
-# bestehende 'mays-orders'-Installation). Composite-Installationen
+# NO DEFAULTS: Fail-closed binding. Composite-Installationen
 # ueberschreiben diese Variablen via -var aus dem Orders-Output-Handoff
 # (installer/ris.py, composite preflight/install).
+# Fuer Standalone-Modus (-no-composite) muss ein expliziter Binding
+# konfiguriert werden, sonst schlaegt der Planschritt fehl.
 variable "orders_table_name" {
   description = "Mays-Orders-Tabelle fuer den Orders-Reader (Composite: Output der Projekt-Orders-Instanz)."
   type        = string
-  default     = "mays-orders"
+  default     = ""
+  
+  validation {
+    condition     = var.orders_table_name == "" || length(var.orders_table_name) > 0
+    error_message = "orders_table_name must be explicitly configured (empty default = fail-closed binding)"
+  }
 }
 
 variable "orders_table_arn" {
   description = "ARN der Mays-Orders-Tabelle fuer den Orders-Reader (Composite: Output-Handoff)."
   type        = string
-  default     = "arn:aws:dynamodb:eu-central-1:240571105849:table/mays-orders"
+  default     = ""
+  
+  validation {
+    condition     = var.orders_table_arn == "" || can(regex("^arn:", var.orders_table_arn))
+    error_message = "orders_table_arn must be an ARN or explicitly configured"
+  }
 }
 
 variable "orders_queue_url" {
   description = "URL der Mays-Orders-Queue fuer Worker-Anstoss (nur SendMessage; Composite: Naming-Contract-Ableitung)."
   type        = string
-  default     = "https://sqs.eu-central-1.amazonaws.com/240571105849/mays-orders-orders-queue"
+  default     = ""
+  
+  validation {
+    condition     = var.orders_queue_url == "" || can(regex("^https://sqs\\..*\\.amazonaws\\.com/", var.orders_queue_url))
+    error_message = "orders_queue_url must be a valid SQS URL or explicitly configured"
+  }
 }
 
 variable "orders_queue_arn" {
   description = "ARN der Mays-Orders-Queue (nur SendMessage-Recht; Composite: Naming-Contract-Ableitung)."
   type        = string
-  default     = "arn:aws:sqs:eu-central-1:240571105849:mays-orders-orders-queue"
+  default     = ""
+  
+  validation {
+    condition     = var.orders_queue_arn == "" || can(regex("^arn:aws:sqs:", var.orders_queue_arn))
+    error_message = "orders_queue_arn must be an ARN or explicitly configured"
+  }
 }
