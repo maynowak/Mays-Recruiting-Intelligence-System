@@ -4166,3 +4166,89 @@ STILL OPEN:
     guard models reality. The composite suffix interaction (27 chars of RIS
     headroom) is documented, not yet asserted in code.
   D4 mays-orders-ci-artifacts-dev remains the other team's open item.
+
+[MAYS-RIS-ORDERS-A-CLEANUP-COMPLETE-01]
+Date: 2026-10-17
+Status: GREEN. ORPHANED INSTALLATION REMOVED FROM AWS.
+BASELINE: a92f7ed
+AWS ACCOUNT: 240571105849, eu-central-1, profile mayaws
+
+DECISION: user chose variant A (clean AWS FIRST, orchestrate afterwards),
+overriding the earlier "switch first, then destroy" preference, accepting
+that the Orders path would go dark.
+
+PRE-DESTROY INVENTORY (read-only, verified before every step):
+  Terraform-adopted 11: cognito pool+client, dynamodb, 2 lambdas, sqs queue,
+    2 iam roles, apigateway, cloudtrail trail, cloudtrail bucket
+  NOT adopted, would have survived the destroy: 2 lambda log groups,
+    6 cloudwatch alarms, 1 dashboard.
+  MO's own (never touched): 2 CI iam roles, 3 codebuild log groups,
+    mays-orders-ci-artifacts-dev, mays-orders-tfstate-central-* (shared).
+
+COMPLETION OF THE ADOPTION (10 further imports, state-write only):
+  module.lambda.aws_cloudwatch_log_group.handler[0]
+  module.sqs_worker.aws_cloudwatch_log_group.worker[0]
+  module.monitoring.aws_cloudwatch_dashboard.orders_overview[0]
+  module.monitoring.aws_cloudwatch_metric_alarm.{api_4xx,api_5xx,lambda_errors,
+    lambda_duration,lambda_throttles,dynamodb_throttled}[0]
+  All addresses taken from a live plan, not guessed. State: 11 -> 20 managed.
+
+DESTROY EXECUTED via the pinned MO installer (its own gates, not raw terraform):
+  plan-destroy -> destroy --plan <run-dir plan> --yes, with
+  ALLOW_AWS_OPERATIONS=true and DRY_RUN=false.
+  MO re-validated the plan against the deployment identity and ran its own
+  "Safety Analysis: PASS" before applying.
+
+PARTIAL FAILURE #1 - EXPECTED, NOT A DEFECT:
+  "Error: deleting S3 Bucket (mays-orders-cloudtrail-240571105849):
+   BucketNotEmpty"
+  Terraform deletes in dependency order: the CloudTrail TRAIL was already gone
+  when the bucket was reached, so the trail had stopped writing. The bucket
+  held 5864 AWSLogs/*/CloudTrail-Digest/* files (11.1 MB) - audit digests,
+  no payload, no PII.
+  Pre-delete safety check: 1000 of 1000 sampled keys were Digest paths,
+  0 other keys, and the trail no longer existed (so no write could race).
+  User-approved remedy: empty the bucket, then destroy.
+
+PARTIAL FAILURE #2 - CORRECT TERRAFORM BEHAVIOUR, NOT A BUG:
+  Re-running the first plan then failed with "Saved plan is stale ... state was
+  changed by another operation after the plan was created". The first destroy
+  had already mutated state. A fresh plan-destroy (destroy-0002) was generated,
+  verified to contain exactly 1 delete and 0 other actions, then applied.
+  RECOMMENDATION for the orchestrator design: a composite destroy must
+  regenerate the plan between attempts rather than reuse a plan file across a
+  partially-applied run.
+
+RESULT - DESTROY SUCCESSFUL (second apply, "Destruction completed successfully!"):
+  Terraform state for workspace mays-orders: 0 managed resources.
+  Verified gone in AWS: DynamoDB mays-orders, both lambdas, SQS queue,
+    both IAM roles, API gateway mays-orders-api, CloudTrail trail,
+    CloudTrail bucket (5864 objects removed), cognito pool mays-orders-users.
+  MY OWN CHECK WAS WRONG FIRST TIME: a bare list-user-pools query appeared to
+  show the pool surviving; that call does not filter server-side. Re-run with
+  a proper filter returned 0. Recorded because the false positive briefly
+  suggested an incomplete destroy.
+
+WHAT DELIBERATELY REMAINS (not ours):
+  mays-orders-development-ci-cd-pipeline-role, -ci-codebuild-role,
+  3 codebuild log groups, mays-orders-ci-artifacts-dev  -> MO team's CI/CD
+  mays-orders-tfstate-central-240571105849 + mays-orders-terraform-locks
+    -> SHARED backend infrastructure, never touched
+  /aws/lambda/mays-orders-cognito-backup-lambda (log group) -> no config
+    address exists because enable_cognito_backup=false; left in place rather
+    than deleted outside Terraform. Known residual, ~0 cost.
+
+CONSEQUENCE (accepted, stated plainly):
+  The Orders path is now DEAD by design. No live Orders installation exists
+  in this account for project mays-orders. The composite Orders A plan
+  (mays-ris-composite-a-mays-orders, 37 create / 0 destroy) exists but is NOT
+  applied. Until it is, RIS has no functional Orders backend.
+
+AWS MUTATIONS: the 20-resource destroy plus deletion of 5864 log objects.
+  This was the FIRST destructive AWS operation of this engagement and was
+  explicitly authorised after the inventory and the residue were shown.
+TERRAFORM APPLY: none for RIS. GIT PUSH: NONE.
+MAYS-ORDERS-AWS SOURCE: unmodified, clone still at pin 5cf50a0.
+
+OPEN (unchanged): composite deploy + RIS rebinding must now happen before any
+  orchestration work is meaningful. D4 (ci-artifacts-dev) belongs to MO.
