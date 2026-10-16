@@ -3951,3 +3951,118 @@ IAM: Per-component IAM roles with least privilege
 REMAINING RISKS: None (binding is fail-closed at multiple layers)
 
 GO/NO-GO: ✅ GO for composite installation test (dry-run only)
+
+[MAYS-RIS-COMPOSITE-ORDERS-A-STATE-RECOVERY-AND-PLAN-01]
+Date: 2026-10-16
+Status: GREEN (plan) — adoption complete, destroy NOT executed
+BASELINE: 1fac73f
+PROJECT: mays-ris-composite-a / mays-ris-composite-a-mays-orders
+ACCOUNT: 240571105849, eu-central-1, profile mayaws
+
+ROOT CAUSE (verified, not assumed):
+  Terraform init failed with ConditionalCheckFailedException on
+  mays-orders-tfstate-central-240571105849/terraform.tfstate (DEFAULT workspace).
+  EVIDENCE that it was an ORPHAN lock, not concurrency:
+    - S3 head-object on that key => 404 Not Found (state object does not exist)
+    - Lock ID cf1295e2-5300-44a1-b48f-bbbb6237d6ea, OperationTypePlan,
+      Created 2026-09-27T10:14:28Z (19 days stale)
+    - pgrep terraform => no process running
+    - Lock table has no TTL attribute, so it could never self-expire.
+  All 5 named-workspace states in the bucket held 0 managed resources
+  (serials 19/9/8/1/1, 181-413 bytes). Orders A had never been deployed.
+
+DISCLOSURE (own action, material):
+  Local state files under installer/projects/mays_orders/terraform
+  (terraform.tfstate 99 KB dated 2026-10-08 22:34, plus .tfstate.backup and
+  26 *.tfplan) were disposed at user instruction before the ownership of the
+  live resources was established. Consequence: the live mays-orders
+  installation lost its last state and became UNMANAGED. This is what made
+  cleanup impossible without adoption. Recorded rather than glossed over.
+
+ORPHANED INSTALLATION (discovered via installer/core/collision_scan.py plus a
+  sweep of services collision_scan does NOT cover):
+  Live, untagged, created 2026-10-08, managed by NO state anywhere:
+    Cognito pool mays-orders-users (eu-central-1_ENMwxNFS9) + client
+    DynamoDB mays-orders (0 items)   SQS mays-orders-orders-queue (0 msgs)
+    Lambda mays-orders-handler / mays-orders-sqs-worker (both ORDERS_TABLE=mays-orders)
+    API GW mays-orders-api (vmmqrwcb26) — EMPTY SHELL: 0 routes/0 stage/0
+      integration/0 authorizer. Cognito group "staff" absent. SNS/Scheduler absent.
+    IAM roles mays-orders-handler-role / -sqs-worker-role, CloudTrail trail +
+    bucket, 6 alarms, 1 dashboard, 3 log groups.
+  14 local state files searched; none manage these resources.
+  NOT touched (deliberately): mays-orders-terraform-locks,
+  mays-orders-tfstate-central-* (shared backend infra), and the MO CI/CD set
+  (mays-orders-development-ci-*-role, 3 codebuild log groups,
+  mays-orders-ci-artifacts-dev) which belongs to the other team.
+
+AWS MUTATIONS PERFORMED (both user-approved, both state-only, no resource deleted):
+  1. Deleted ONE orphaned DynamoDB lock row
+     mays-orders-tfstate-central-240571105849/terraform.tfstate.
+     Table now: 0 real locks, 5 md5 digest rows (not locks).
+  2. terraform import x11 into workspace "mays-orders" in OUR clone
+     (installer/projects/mays_orders/terraform, backend
+     mays-orders-tfstate-central-240571105849, key terraform.tfstate,
+     workspace_key_prefix "env:", dynamodb_table mays-orders-terraform-locks).
+     State serial 19 -> 30; managed resources 0 -> 12 (11 imported +
+     1 terraform_data).
+  Destroy plan after adoption: 11 to destroy, 0 to add, 0 to change.
+
+PLAN RESULT (the original success criterion of MAYS-RIS-COMPOSITE-ORDERS-A-PLAN-FINAL-01):
+  Executed THROUGH THE RIS ORCHESTRATOR (run_project_installer, not directly):
+  python3 Mays-Order-AWS-installer --profile mayaws --region eu-central-1
+    --environment test --project-name mays-ris-composite-a-mays-orders
+    plan --var project_name=mays-ris-composite-a-mays-orders
+         --var aws_region=eu-central-1 --var enable_cognito_backup=false
+  RESULT: STATUS SUCCESS, exit 0.
+  terraform init SUCCESS, terraform validate PASSED (lock was the only blocker).
+  plan file: mays-ris-composite-a-mays-orders-test-0.1.0-H2-240571105849-deploy-0001.tfplan
+  workspace: mays-ris-composite-a-mays-orders
+  state path: s3://mays-orders-tfstate-central-240571105849/env:/mays-ris-composite-a-mays-orders/terraform.tfstate
+  COUNTS: create 37, read 2, DESTROY 0. Terraform 1.16.1.
+  No unrelated resources, no production deletions.
+
+BLOCKERS FOUND AND RESOLVED ON THE WAY:
+  B1 missing lambda artifact cognito_backup.zip — MO ships no build script for it
+     (their own report MAYS-ORDERS-LAMBDA-ARTIFACT-INTEGRITY-01:32 says so).
+     Built from lambda/cognito_backup_handler.py into lambda/dist/. Not source mod.
+  B2 S3 bucket name length — modules/cognito_backup/main.tf:3 builds
+     "<prefix>-<environment>-<project_name>". With the composite name it is
+     "mays-orders-cognito-backup-development-mays-ris-composite-a-mays-orders"
+     = 71 chars vs the 63-char S3 limit. Note main.tf:210 hardcodes
+     environment="Development", which is why the bucket says development.
+     Resolved with the EXISTING variable enable_cognito_backup=false, whose own
+     description is "false deaktiviert das Backup-Modul (z. B. isolierte
+     Testprojekte)". NO Mays-Orders-AWS source was modified.
+
+RIS-SIDE FIXES COMMITTED EARLIER IN THIS SESSION:
+  f00d044 orchestrator installer detection used exists() and selected the
+         `cli` DIRECTORY instead of Mays-Order-AWS-installer. Now is_file().
+  1358b46 ris.py env_extra now also sets TERRAFORM_WORKSPACE=orders_project
+         (2 locations). Required because Orders InstallationContext.from_env()
+         reads TERRAFORM_WORKSPACE and would otherwise fall back to "default".
+  1fac73f terraform_runner.init() selects a non-default workspace before init.
+
+OPEN / NEXT (decisions required, not decided here):
+  D1 Adoption ordering. User chose: deploy the composite component FIRST, then
+     destroy the old mays-orders set. Destroy therefore still BLOCKED on the
+     RIS-side rebinding to mays-ris-composite-a-mays-orders.
+  D2 enable_cognito_backup=false is currently only a CLI var at call time and
+     does NOT persist. Per the G3-COGNITO-CONFIG-PERSISTENCE-01 precedent, a
+     CLI-only var will be lost on the next unpinned run. Should be wired into
+     installer/ris.py _run_orders_component as a composite default.
+  D3 ORDERS_PROJECT_NAME_MAX_LENGTH = 39 in installer/ris.py:98 was sized for
+     the CloudTrail bucket limit, but the cognito_backup naming scheme is the
+     binding constraint. The guard does not model it. Either the guard must
+     encode the real maximum or the name must be shortened.
+  D4 The mays-orders-ci-artifacts-dev bucket remains an open item owned by the
+     other team (their handoff report flags it as unresolved).
+
+SAFETY INVARIANTS HELD:
+  No terraform apply. No terraform destroy. No force-unlock. No state deletion.
+  No -lock=false used for any recorded plan result. No git push. No modification
+  to Mays-Orders-AWS source (the clone stays at pin 5cf50a0; only gitignored
+  build artifacts under lambda/dist/ were produced).
+
+EVIDENCE VERIFIER: self-verified read-only against live AWS after each step
+  (DynamoDB scan, S3 head-object/list-objects, describe-table/get-item,
+  cognito-idp, apigatewayv2, cloudtrail, logs, cloudwatch, iam, sns, scheduler).
