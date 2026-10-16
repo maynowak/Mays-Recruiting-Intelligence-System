@@ -4066,3 +4066,103 @@ SAFETY INVARIANTS HELD:
 EVIDENCE VERIFIER: self-verified read-only against live AWS after each step
   (DynamoDB scan, S3 head-object/list-objects, describe-table/get-item,
   cognito-idp, apigatewayv2, cloudtrail, logs, cloudwatch, iam, sns, scheduler).
+
+[MAYS-RIS-AWS-NAME-LIMITS-FAIL-CLOSED-01]
+Date: 2026-10-16
+Status: GREEN
+BASELINE: 6502260
+AWS MUTATIONS: NONE. TERRAFORM APPLY: NONE. GIT PUSH: NONE.
+
+PROBLEM: the composite project name mays-ris-composite-a-mays-orders (32 chars)
+produced a 71-char S3 bucket during plan and failed:
+  "expected length of bucket to be in the range (0 - 63), got
+   mays-orders-cognito-backup-development-mays-ris-composite-a-mays-orders"
+Terraform reports this only DURING plan, one resource at a time, after the
+backend is initialised. The installer knew nothing beforehand.
+
+ROOT CAUSE OF THE FAILURE (read off the pinned Terraform, not guessed):
+  modules/cognito_backup/main.tf:3
+    bucket_name = lower("{bucket_name_prefix}-{environment}-{project_name}")
+  bucket_name_prefix default "mays-orders-cognito-backup" (27 chars)
+  environment HARDCODED to "Development" at main.tf:210 -> not shortenable
+  via the environment variable. Overhead 40, S3 limit 63 -> max project 23.
+The existing guard ORDERS_PROJECT_NAME_MAX_LENGTH = 39 only modelled the
+CloudTrail bucket. It therefore PASSED a name that then failed 40 resources
+later. The guard checked the wrong constraint.
+
+WHAT WAS BUILT:
+  installer/ris.py:
+    AwsNameRule(resource, limit, overhead, pattern) — declarative table,
+      max_project_name = limit - overhead, violation() renders the real name.
+    ORDERS_AWS_NAME_RULES — 16 always-on rules read off modules/*/main.tf.
+    ORDERS_COGNITO_BACKUP_NAME_RULES — 5 rules, conditional.
+    RIS_AWS_NAME_RULES — 8 rules for RIS' own {project}-{env}-… names.
+    orders_name_limit_violations() / orders_max_project_name() /
+    validate_orders_aws_name_limits() / validate_ris_aws_name_limits()
+      -> fail closed BEFORE any AWS call, reporting EVERY violation, not
+         just the first (fixing one and hitting the next is worse).
+    ORDERS_PROJECT_NAME_MAX_LENGTH and RIS_PROJECT_NAME_MAX_LENGTH are now
+      DERIVED via min() over the tables, never hardcoded twice.
+    Hooked into RisInstallContext.__post_init__ (RIS identity, single entry
+      point) and orders_component_project_name() (component identity).
+    ORDERS_ENABLE_COGNITO_BACKUP = False — persisted and passed on EVERY plan
+      via orders_plan_vars, not left to the caller. This closes D2 from
+      MAYS-RIS-COMPOSITE-ORDERS-A-STATE-RECOVERY-AND-PLAN-01; the CLI-only pin
+      would have been lost on the next unpinned run (same failure mode as
+      G3-COGNITO-CONFIG-PERSISTENCE-01).
+    NO Mays-Orders-AWS source modified; the variable already existed and its
+    own description covers this case.
+
+EFFECTIVE LIMITS:
+  RIS project                        39  (CloudTrail bucket)
+  Orders component, backup disabled  39  (CloudTrail bucket)
+  Orders component, backup enabled   23  (Cognito backup bucket)
+  The component name carries the 12-char "-mays-orders" suffix, so the RIS
+  name part has 27 chars of headroom.
+
+CONTRACT VIOLATION FOUND AND REVERTED (my own earlier work, 1fac73f):
+  I had made init() select a non-default workspace before backend
+  initialisation. That contradicts the documented module contract ("init()
+  runs ONLY terraform init — NEVER workspace ops") and broke two tests:
+    test_init_has_no_workspace_operations
+    test_init_backend_config_has_no_workspace_operations
+  It was also explicitly out of bounds: the checkpoint said not to select a
+  workspace before backend initialisation unless proven safe for a fresh
+  install, and it was NOT proven. Reverted.
+  It was also unnecessary. TERRAFORM_WORKSPACE is set by _terraform_env() for
+  every child process and the Terraform CLI honours it on its own.
+  NEGATIVE CONTROL proving the variable is what matters, not init() ordering:
+    with    TERRAFORM_WORKSPACE -> correct workspace, no interference
+    without TERRAFORM_WORKSPACE -> fell into "mays-orders" and proposed
+      destroying 9 of the adopted resources (35 add / 2 change / 9 destroy)
+  So the mandatory TERRAFORM_WORKSPACE in ris.py is the load-bearing fix.
+
+TEST DEFECT IN MY OWN NEW TEST (caught before commit):
+  test_observed_plan_failure_is_prevented asserted the observed bucket name
+  was 72 chars. The real deployed name is 71 (lowercased by
+  locals.bucket_name). The rule table keeps the capitalised template (72).
+  Both exceed 63; my assertion was wrong, not the rule. Corrected to pin 71
+  and to document why 71 and 72 both occur.
+
+REGRESSION: tests/test_orders_aws_name_limits.py = 40 tests.
+  FULL SUITE: 1469 passed, 0 failed, 9 skipped, 4 warnings.
+  (Baseline before this work: 3 failed — the two init-contract tests above
+  plus test_validate_skips_workspace_without_backend — all caused by 1fac73f
+  and all green again after the revert. Net: 0 failures.)
+
+DOCS:
+  docs/installer/AWS-NAME-LIMITS.md (new) — full derivation, per-rule source
+    references, the init()/TERRAFORM_WORKSPACE decision with its negative
+    control, and the 27-char headroom calculation.
+  docs/installer/RIS-INSTALLER-PARAMETERS.md — corrected. It previously
+    documented --orders-state-mode / --orders-backend-bucket as passed
+    parameters; those flags do not exist in the current orchestrator. Also
+    added the env-var contract and the limit table.
+
+STILL OPEN:
+  D1 adoption ordering unchanged: deploy composite, then destroy old set.
+  D3 now partly addressed: RIS_PROJECT_NAME_MAX_LENGTH = 39 is derived from
+    RIS_AWS_NAME_RULES and the Orders constants are flag-dependent, so the
+    guard models reality. The composite suffix interaction (27 chars of RIS
+    headroom) is documented, not yet asserted in code.
+  D4 mays-orders-ci-artifacts-dev remains the other team's open item.

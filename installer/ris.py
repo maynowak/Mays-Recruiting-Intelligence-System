@@ -93,9 +93,232 @@ PRODUCTION_RESOURCE_PREFIXES = (
 # ---------------------------------------------------------------------------
 ORDERS_COMPONENT_SUFFIX = "-mays-orders"
 ORDERS_QUEUE_SUFFIX = "-orders-queue"
-#: Orders project_name length limit: the CloudTrail bucket
-#: f"{project_name}-cloudtrail-<12-digit-account>" must stay <= 63 chars.
-ORDERS_PROJECT_NAME_MAX_LENGTH = 39
+
+#: Composite installs disable the Cognito backup module: its bucket name is
+#: "<prefix>-Development-<project_name>" and exceeds the 63-char S3 limit for
+#: any composite project name. See docs/installer/AWS-NAME-LIMITS.md.
+ORDERS_ENABLE_COGNITO_BACKUP = False
+
+
+@dataclass(frozen=True)
+class AwsNameRule:
+    """One AWS resource name derived from the Orders project name.
+
+    Attributes:
+        resource: Logical resource, for the error message.
+        limit: Hard AWS-side maximum length of the final resource name.
+        overhead: Characters added around ``project_name`` to build it.
+        pattern: The name template, for reproducing the calculation.
+    """
+
+    resource: str
+    limit: int
+    overhead: int
+    pattern: str
+
+    @property
+    def max_project_name(self) -> int:
+        """Longest project_name this resource tolerates."""
+        return self.limit - self.overhead
+
+    def accepts(self, project_name: str) -> bool:
+        return len(project_name) <= self.max_project_name
+
+    def violation(self, project_name: str) -> str:
+        # `{env}` is a literal in the RIS patterns; substitute only the
+        # project placeholder and leave the rest readable.
+        rendered = self.pattern.replace("{project}", project_name)
+        return (
+            f"{self.resource}: {rendered} "
+            f"is {len(project_name) + self.overhead} chars, AWS limit "
+            f"{self.limit} (max project_name {self.max_project_name}, "
+            f"got {len(project_name)})"
+        )
+
+
+#: Names built by the always-on Orders modules. Read off the pinned
+#: Mays-Orders-AWS Terraform (5cf50a0), not guessed:
+#:   cloudtrail/main.tf:20      dynamodb/main.tf:12     iam/main.tf:67,74
+#:   lambda/main.tf:8           sqs/main.tf:186         sqs-worker/main.tf:2
+#:   sqs-worker/iam.tf:51,59    cognito/main.tf:9,33    api/main.tf:8,30
+#:   monitoring/main.tf:81,94-181
+ORDERS_AWS_NAME_RULES: tuple = (
+    AwsNameRule("cloudtrail_s3_bucket", 63, 24, "{project}-cloudtrail-<account>"),
+    AwsNameRule("iam_role_handler", 64, 13, "{project}-handler-role"),
+    AwsNameRule("iam_role_sqs_worker", 64, 15, "{project}-sqs-worker-role"),
+    AwsNameRule("lambda_handler", 64, 8, "{project}-handler"),
+    AwsNameRule("lambda_sqs_worker", 64, 11, "{project}-sqs-worker"),
+    AwsNameRule("iam_policy_handler", 128, 15, "{project}-handler-policy"),
+    AwsNameRule("iam_policy_sqs_worker", 128, 17, "{project}-sqs-worker-policy"),
+    AwsNameRule("sqs_orders_queue", 80, 13, "{project}-orders-queue"),
+    AwsNameRule("dynamodb_orders_table", 255, 0, "{project}"),
+    AwsNameRule("cognito_user_pool", 128, 6, "{project}-users"),
+    AwsNameRule("cognito_user_pool_client", 128, 8, "{project}-client"),
+    AwsNameRule("cloudtrail_trail", 128, 6, "{project}-trail"),
+    AwsNameRule("apigatewayv2_api", 128, 4, "{project}-api"),
+    AwsNameRule("apigatewayv2_authorizer", 128, 16, "{project}-jwt-authorizer"),
+    AwsNameRule("cloudwatch_alarm", 255, 20, "{project}-dynamodb-throttled"),
+    AwsNameRule("cloudwatch_dashboard", 255, 9, "{project}-overview"),
+)
+
+#: Extra names created only by the optional Cognito backup module
+#: (var.enable_cognito_backup, default true). Its bucket name is the binding
+#: constraint of the whole component: the "Development" segment is HARDCODED at
+#: main.tf:210 and cannot be shortened via the environment variable.
+ORDERS_COGNITO_BACKUP_NAME_RULES: tuple = (
+    AwsNameRule(
+        "cognito_backup_s3_bucket", 63, 40,
+        "mays-orders-cognito-backup-Development-{project}",
+    ),
+    AwsNameRule(
+        "cognito_backup_scheduler_role", 64, 34,
+        "{project}-cognito-backup-scheduler-role",
+    ),
+    AwsNameRule(
+        "cognito_backup_role", 64, 26, "{project}-cognito-backup-role"
+    ),
+    AwsNameRule(
+        "cognito_backup_lambda", 64, 24, "{project}-cognito-backup-lambda"
+    ),
+    AwsNameRule(
+        "cognito_backup_schedule", 64, 25, "{project}-cognito-backup-schedule"
+    ),
+)
+
+#: Orders project_name length limit: the binding AWS constraint of the
+#: always-on modules, i.e. the CloudTrail bucket
+#: f"{project_name}-cloudtrail-<12-digit-account>" <= 63 chars.
+ORDERS_PROJECT_NAME_MAX_LENGTH = min(
+    rule.max_project_name for rule in ORDERS_AWS_NAME_RULES
+)
+
+
+#: RIS' own AWS resource names. Overheads assume the LONGEST valid
+#: environment string ("test"/"prod" = 4 chars), so the guard holds for every
+#: environment. Read off terraform/modules/*/main.tf and terraform/main.tf.
+RIS_AWS_NAME_RULES: tuple = (
+    AwsNameRule(
+        "cloudtrail_s3_bucket", 63, 24, "{project}-cloudtrail-<account>"
+    ),
+    AwsNameRule(
+        "iam_role_health_publisher", 64, 22, "{project}-{env}-health-publisher"
+    ),
+    AwsNameRule(
+        "lambda_health_publisher", 64, 22, "{project}-{env}-health-publisher"
+    ),
+    AwsNameRule(
+        "lambda_health_writer", 64, 19, "{project}-{env}-health-writer"
+    ),
+    AwsNameRule(
+        "s3_bucket_health_public", 63, 19, "{project}-{env}-health-public"
+    ),
+    AwsNameRule(
+        "s3_bucket_health_state", 63, 18, "{project}-{env}-health-state"
+    ),
+    AwsNameRule(
+        "s3_bucket_documents", 63, 15, "{project}-{env}-documents"
+    ),
+    AwsNameRule(
+        "iam_role_lambda", 64, 12, "{project}-lambda-role"
+    ),
+)
+
+#: Binding AWS constraint of RIS itself -> 39 chars (CloudTrail bucket).
+RIS_PROJECT_NAME_MAX_LENGTH = min(
+    rule.max_project_name for rule in RIS_AWS_NAME_RULES
+)
+
+
+def validate_ris_aws_name_limits(project_name: str) -> None:
+    """Fail closed when a RIS resource name would exceed its AWS limit.
+
+    Same rationale as validate_orders_aws_name_limits(): Terraform surfaces the
+    overflow during plan, one resource at a time, after the backend is up.
+    """
+    violations = [
+        rule.violation(project_name)
+        for rule in sorted(RIS_AWS_NAME_RULES, key=lambda r: r.max_project_name)
+        if not rule.accepts(project_name)
+    ]
+    if not violations:
+        return
+    detail = "\n  - ".join(violations)
+    raise ValueError(
+        f"RIS project name {project_name!r} ({len(project_name)} chars) "
+        f"exceeds the AWS name limit of {RIS_PROJECT_NAME_MAX_LENGTH} "
+        f"chars:\n  - {detail}"
+    )
+
+
+def orders_name_limit_violations(
+    orders_project_name: str,
+    *,
+    enable_cognito_backup: bool = ORDERS_ENABLE_COGNITO_BACKUP,
+) -> List[str]:
+    """Every AWS name the Orders component would overflow, as plain strings.
+
+    Empty list means the name fits. Ordered by severity (tightest rule first)
+    so the first entry is the one that actually blocks the install.
+    """
+    rules = list(ORDERS_AWS_NAME_RULES)
+    if enable_cognito_backup:
+        rules += list(ORDERS_COGNITO_BACKUP_NAME_RULES)
+    return [
+        rule.violation(orders_project_name)
+        for rule in sorted(rules, key=lambda r: r.max_project_name)
+        if not rule.accepts(orders_project_name)
+    ]
+
+
+def orders_max_project_name(
+    *, enable_cognito_backup: bool = ORDERS_ENABLE_COGNITO_BACKUP
+) -> int:
+    """Longest Orders project name the component accepts for these flags."""
+    rules = list(ORDERS_AWS_NAME_RULES)
+    if enable_cognito_backup:
+        rules += list(ORDERS_COGNITO_BACKUP_NAME_RULES)
+    return min(rule.max_project_name for rule in rules)
+
+
+def validate_orders_aws_name_limits(
+    orders_project_name: str,
+    *,
+    enable_cognito_backup: bool = ORDERS_ENABLE_COGNITO_BACKUP,
+) -> None:
+    """Fail closed when AWS would reject a derived resource name.
+
+    Terraform only reports the overflow during plan, one resource at a time,
+    after the backend is initialised. This check runs before any AWS call so
+    the operator learns the real limit up front. Raises ValueError listing
+    EVERY violation, not just the first.
+    """
+    violations = orders_name_limit_violations(
+        orders_project_name, enable_cognito_backup=enable_cognito_backup
+    )
+    if not violations:
+        return
+    max_len = orders_max_project_name(
+        enable_cognito_backup=enable_cognito_backup
+    )
+    detail = "\n  - ".join(violations)
+    backup_note = (
+        ""
+        if enable_cognito_backup
+        else (
+            "\n  hint: the Cognito backup module is disabled for composite "
+            "installs; its bucket "
+            "'mays-orders-cognito-backup-Development-<project>' would exceed "
+            f"the 63-char S3 limit above {ORDERS_COGNITO_BACKUP_NAME_RULES[0].max_project_name} "
+            "chars"
+        )
+    )
+    raise ValueError(
+        f"orders component project name {orders_project_name!r} "
+        f"({len(orders_project_name)} chars) exceeds the AWS name limit "
+        f"of {max_len} chars for enable_cognito_backup="
+        f"{str(enable_cognito_backup).lower()}:\n  - {detail}"
+        f"{backup_note}"
+    )
 
 #: Output handoff (GLUE-01): Orders terraform output -> RIS -var.
 #: Only mappings the RIS orders_reader module actually consumes.
@@ -131,6 +354,12 @@ def orders_component_project_name(
             f"orders component project name {name!r} exceeds "
             f"{ORDERS_PROJECT_NAME_MAX_LENGTH} chars (CloudTrail bucket limit)"
         )
+    # Composite installs disable the Cognito backup module, so its much
+    # tighter 23-char limit does not apply here. The enabled flag is
+    # validated by validate_orders_aws_name_limits() at install time.
+    validate_orders_aws_name_limits(
+        name, enable_cognito_backup=ORDERS_ENABLE_COGNITO_BACKUP
+    )
     if name == "mays-orders" or name.startswith("mays-orders-"):
         raise ValueError(
             f"orders component project name {name!r} collides with the "
@@ -367,6 +596,9 @@ class RisInstallContext:
                 f"environment must be one of {VALID_ENVIRONMENTS}, "
                 f"got {self.environment!r}"
             )
+        # Fail closed before any AWS call: every RIS resource name is derived
+        # from project_name and AWS rejects the overflow during plan.
+        validate_ris_aws_name_limits(self.project_name)
 
     @property
     def workspace(self) -> str:
@@ -1013,6 +1245,14 @@ def _run_orders_component(
     successfully installed Orders component (no auto-cleanup; destroy is a
     separate, explicit composite destroy operation).
     """
+    # Fail closed BEFORE any AWS call: the flags below decide which AWS name
+    # limits apply, and Terraform would otherwise surface the overflow one
+    # resource at a time, after the backend is already initialised.
+    validate_orders_aws_name_limits(
+        orders_project,
+        enable_cognito_backup=ORDERS_ENABLE_COGNITO_BACKUP,
+    )
+
     # Global options go first; command word; then command-specific args.
     # Dry-run is the Orders default; live deploy is opt-in via env + --yes.
     allow_aws = "true" if not ctx.dry_run else "false"
@@ -1023,6 +1263,17 @@ def _run_orders_component(
         # Also set TERRAFORM_WORKSPACE for the Orders installer's from_env() logic.
         "TERRAFORM_WORKSPACE": orders_project,
     }
+    # Persisted here, not left to the caller: a CLI-only pin is lost on the
+    # next unpinned run (see G3-COGNITO-CONFIG-PERSISTENCE-01 in AI_AUDITLOG).
+    # The backup bucket cannot be renamed: its "Development" segment is
+    # hardcoded in the pinned Orders main.tf, so disabling the module is the
+    # only way composite names fit the 63-char S3 limit.
+    orders_plan_vars = [
+        f"project_name={orders_project}",
+        f"aws_region={ctx.aws_region}",
+        f"enable_cognito_backup="
+        f"{str(ORDERS_ENABLE_COGNITO_BACKUP).lower()}",
+    ]
 
     # 1. validate -- the pinned Orders installer performs AWS identity,
     #    remote-state lifecycle, lambda artifact, AND collision scan.
@@ -1049,8 +1300,7 @@ def _run_orders_component(
         region=ctx.aws_region,
         environment=ctx.environment,
         project_name_override=orders_project,
-        extra_args=["--var", f"project_name={orders_project}",
-                    "--var", f"aws_region={ctx.aws_region}"],
+        extra_args=[arg for pair in orders_plan_vars for arg in ("--var", pair)],
         extra_env=env_extra,
     )
     if plan.get("status") not in ("SUCCESS", "DRY_RUN"):
