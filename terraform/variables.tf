@@ -259,11 +259,31 @@ variable "health_publisher_zip_path" {
 # (installer/ris.py, composite preflight/install).
 # Fuer Standalone-Modus (-no-composite) muss ein expliziter Binding
 # konfiguriert werden, sonst schlaegt der Planschritt fehl.
+#
+# FAIL-CLOSED LAYERING -- read before "fixing" the condition below.
+# The validation on these four root variables can never be false:
+#   x == ""  -> true  (empty is explicitly tolerated)
+#   x != ""  -> length(x) > 0 is true
+# So it is DECLARATIVE, not a gate. The actual rejection of an unbound
+# install happens one layer down in
+#   terraform/modules/orders_reader/variables.tf
+# where the mirrored condition is `x != "" || can(regex(...))` and an empty
+# value is refused with "Invalid value for variable".
+# Verified with a real plan: no Orders binding -> plan fails at the module.
+#
+# Consequence worth remembering: an unbound install fails at the MODULE,
+# not at the root, so a "clean" root-level validation proves nothing about
+# whether the binding is actually present.
+#
+# Known gap carried over from installer/ris.py:validate_orders_binding --
+# the ARN variables below are checked for FORMAT only (`^arn:`), never
+# against the project name, so a name/ARN pair pointing at two different
+# tables passes both layers.
 variable "orders_table_name" {
   description = "Mays-Orders-Tabelle fuer den Orders-Reader (Composite: Output der Projekt-Orders-Instanz)."
   type        = string
   default     = ""
-  
+
   validation {
     condition     = var.orders_table_name == "" || length(var.orders_table_name) > 0
     error_message = "orders_table_name must be explicitly configured (empty default = fail-closed binding)"
@@ -274,7 +294,7 @@ variable "orders_table_arn" {
   description = "ARN der Mays-Orders-Tabelle fuer den Orders-Reader (Composite: Output-Handoff)."
   type        = string
   default     = ""
-  
+
   validation {
     condition     = var.orders_table_arn == "" || can(regex("^arn:", var.orders_table_arn))
     error_message = "orders_table_arn must be an ARN or explicitly configured"
@@ -285,7 +305,7 @@ variable "orders_queue_url" {
   description = "URL der Mays-Orders-Queue fuer Worker-Anstoss (nur SendMessage; Composite: Naming-Contract-Ableitung)."
   type        = string
   default     = ""
-  
+
   validation {
     condition     = var.orders_queue_url == "" || can(regex("^https://sqs\\..*\\.amazonaws\\.com/", var.orders_queue_url))
     error_message = "orders_queue_url must be a valid SQS URL or explicitly configured"
@@ -296,7 +316,7 @@ variable "orders_queue_arn" {
   description = "ARN der Mays-Orders-Queue (nur SendMessage-Recht; Composite: Naming-Contract-Ableitung)."
   type        = string
   default     = ""
-  
+
   validation {
     condition     = var.orders_queue_arn == "" || can(regex("^arn:aws:sqs:", var.orders_queue_arn))
     error_message = "orders_queue_arn must be an ARN or explicitly configured"

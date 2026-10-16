@@ -4252,3 +4252,74 @@ MAYS-ORDERS-AWS SOURCE: unmodified, clone still at pin 5cf50a0.
 
 OPEN (unchanged): composite deploy + RIS rebinding must now happen before any
   orchestration work is meaningful. D4 (ci-artifacts-dev) belongs to MO.
+
+[MAYS-RIS-BINDING-DOCUMENTATION-01]
+Date: 2026-10-17
+Status: GREEN. DOCUMENTATION ONLY - no behaviour change.
+BASELINE: 141a7ed
+AWS MUTATIONS: NONE. TERRAFORM APPLY: NONE. GIT PUSH: NONE.
+
+PURPOSE: put the findings of this session where the next reader will hit
+them, instead of only in the auditlog. Comments only; no logic touched.
+
+MY OWN CLAIM THAT WAS WRONG, recorded before the corrected version:
+  I asserted "RIS starting terraform without the installer has zero binding
+  protection". Tested and refuted. The binding IS enforced, on two layers:
+    root    terraform/variables.tf
+             x == "" || length(x) > 0   -> can never be false. DECLARATIVE.
+    module  terraform/modules/orders_reader/variables.tf
+             x != "" || can(regex(...)) -> rejects empty
+  Verified with a real plan: an install with no Orders binding fails with
+  "Invalid value for variable" at the MODULE. The root validation's own
+  error_message says it: "empty default = fail-closed binding". Empty is
+  tolerated on purpose; the rejection happens one layer down. Had I asserted
+  this without testing, it would have become a false audit finding.
+
+WHAT IS STILL GENUINELY OPEN (not fixed, documented in place):
+  The ARNs are checked for FORMAT and ACCOUNT only, never for IDENTITY, on
+  both layers. Demonstrated:
+    orders_table_name = mays-ris-composite-a-mays-orders   (correct)
+    orders_table_arn  = ...table/IRGENDEINER              -> ACCEPTED
+    orders_queue_arn  pointing at a different queue       -> ACCEPTED
+  The name rule and the queue URL rule DO compare identity, which is why the
+  binding looked complete from the outside. A name/ARN pair pointing at two
+  different tables passes both the Python guard and the Terraform layers.
+
+COMMENTS ADDED AT:
+  installer/ris.py
+    validate_orders_binding()  - the two-layer fail-closed explanation, and
+                                  the identity gap stated as a known gap so
+                                  it is not mistaken for a design decision
+    _cmd_preflight()           - the collision-scan blind spot with the
+                                  measured numbers (probe "mays-orders" = 9
+                                  hits, probe composite = 0 hits) and the
+                                  note that the duplicate validate is
+                                  overhead, not behaviour
+    _run_orders_component()    - what really controls the backend (boolean,
+                                  not bucket choice), the three measured
+                                  rows of the dry-run matrix, and the note
+                                  that the fresh-clone hypothesis was tested
+                                  and rejected
+    _run_orders_component()    - why TERRAFORM_WORKSPACE is mandatory,
+                                  with the negative control
+    _cmd_install()             - the wrong phase order spelled out, and the
+                                  duplicate STS/validate overhead
+    ORDERS_AWS_NAME_RULES      - why a table is needed at all, and that
+                                  DynamoDB naming is a correctness mechanism
+                                  (table name == project_name, no prefix)
+    ORDERS_COGNITO_BACKUP_...  - the real 71-char failure and the 71/72
+                                  explanation
+  terraform/variables.tf              - layering, and "root validation
+                                         proves nothing about presence"
+  terraform/modules/orders_reader/...  - this is the layer that enforces
+
+SIDE EFFECT I DID NOT INTEND, DISCLOSED:
+  While investigating I ran `terraform fmt` on terraform/variables.tf, which
+  also removed 4 pre-existing whitespace-only lines. That edit ended up in
+  this diff. Consequence: terraform fmt -check -recursive now passes for the
+  whole tree, where BOTH variables.tf files failed before. Verified
+  pre-existing: at HEAD, `terraform fmt -check` already listed both files.
+  terraform validate => Success (warnings pre-existing).
+
+VERIFICATION: py_compile OK; terraform fmt -check -recursive clean;
+  terraform validate Success; full suite 1469 passed / 0 failed / 9 skipped.

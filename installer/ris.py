@@ -142,6 +142,17 @@ class AwsNameRule:
 #:   lambda/main.tf:8           sqs/main.tf:186         sqs-worker/main.tf:2
 #:   sqs-worker/iam.tf:51,59    cognito/main.tf:9,33    api/main.tf:8,30
 #:   monitoring/main.tf:81,94-181
+#:
+#: Why this table exists at all: the previous single constant
+#: ORDERS_PROJECT_NAME_MAX_LENGTH = 39 modelled ONLY the CloudTrail bucket and
+#: happily accepted a name that then failed 40 resources later on a completely
+#: different limit. One constant cannot describe 16 resources, so the limits
+#: are data now and the constants are min() over that data.
+#:
+#: DynamoDB is the reason names differ per project at all: the table name is
+#: var.project_name verbatim (dynamodb/main.tf:12), no prefix. Two installs
+#: sharing a name would collide on the table, so the composite convention
+#: "-mays-orders" is a correctness mechanism, not cosmetics.
 ORDERS_AWS_NAME_RULES: tuple = (
     AwsNameRule("cloudtrail_s3_bucket", 63, 24, "{project}-cloudtrail-<account>"),
     AwsNameRule("iam_role_handler", 64, 13, "{project}-handler-role"),
@@ -165,6 +176,17 @@ ORDERS_AWS_NAME_RULES: tuple = (
 #: (var.enable_cognito_backup, default true). Its bucket name is the binding
 #: constraint of the whole component: the "Development" segment is HARDCODED at
 #: main.tf:210 and cannot be shortened via the environment variable.
+#:
+#: This is what broke the first composite plan:
+#:   Error: expected length of bucket to be in the range (0 - 63), got
+#:          mays-orders-cognito-backup-development-mays-ris-composite-a-mays-orders
+#: 71 chars (lowercased by locals.bucket_name at cognito_backup/main.tf:3)
+#: against a 63-char S3 limit. Only reachable with the backup module ON, and
+#: it drops the usable name length from 39 to 23 -- below any realistic
+#: composite name, which is why composite installs disable the module.
+#:
+#: The 71/72 discrepancy is real and intentional: the deployed name is
+#: lowercased (71), this rule keeps the capitalised template (72). Both fail.
 ORDERS_COGNITO_BACKUP_NAME_RULES: tuple = (
     AwsNameRule(
         "cognito_backup_s3_bucket", 63, 40,
@@ -440,13 +462,43 @@ def validate_orders_binding(
     expected_queue_url: Optional[str] = None,
 ) -> None:
     """Validate that Orders outputs match the expected component binding.
-    
+
     Fail-closed: reject mismatched, empty, or malformed bindings.
-    Raises RuntimeError on any mismatch.
+    Raises RuntimeError on ANY mismatch (all are collected first, so one
+    run tells the operator everything that is wrong).
+
+    WHY THIS IS NOT REDUNDANT WITH THE TERRAFORM CHECKS
+    ---------------------------------------------------
+    The binding is guarded on two layers, and they are deliberately
+    different -- do not "fix" one by copying the other:
+
+      Root  terraform/variables.tf       default = "" and a condition that
+                                           never rejects (x == "" || len(x) > 0).
+                                           It only DECLARES that empty is
+                                           tolerated.
+      Module terraform/modules/orders_reader/variables.tf
+                                           condition x != "" || can(regex(...))
+                                           REJECTS empty.
+
+    So "empty default = fail-closed binding" is literally true, but the
+    rejection happens one layer down, at the module boundary. A plan with
+    no Orders binding fails there with "Invalid value for variable".
+    Verified against a real plan, not assumed.
+
+    KNOWN GAP (documented, deliberately not changed here):
+    the table and queue ARNs are checked for PREFIX and ACCOUNT only
+    (see rules 2 and 4 below). They are NOT compared against
+    orders_project_name, so a name/ARN pair pointing at two DIFFERENT
+    tables is accepted: format right, identity unchecked. The name rule (1)
+    and the URL rule (3) do compare identity. Closing this needs the
+    component name in the ARN, e.g. f":table/{orders_project_name}" in
+    table_arn - tracked, not silently assumed fixed.
     """
     errors = []
-    
-    # 1. Table name must match expected project name
+
+    # 1. Table name must match expected project name.
+    #    IDENTITY check: this is what pins RIS to exactly one Orders
+    #    installation. Derived, never read from AWS.
     table_name = handoff_vars.get("orders_table_name", "")
     if not table_name:
         errors.append("orders_table_name is empty or missing")
@@ -455,8 +507,10 @@ def validate_orders_binding(
             f"orders_table_name mismatch: got {table_name!r}, "
             f"expected {orders_project_name!r} (binding collision detected)"
         )
-    
-    # 2. Table ARN must be in same account
+
+    # 2. Table ARN must be in same account.
+    #    FORMAT + ACCOUNT only -- see KNOWN GAP in the docstring.
+    #    Value comes from the Orders `output` command, i.e. real AWS output.
     table_arn = handoff_vars.get("orders_table_arn", "")
     if not table_arn:
         errors.append("orders_table_arn is empty or missing")
@@ -471,18 +525,24 @@ def validate_orders_binding(
     if not queue_url:
         errors.append("orders_queue_url is empty or missing")
     elif expected_queue_url and queue_url != expected_queue_url:
+        # IDENTITY check. Note the queue URL is DERIVED by
+        # derive_orders_queue_url(), not read from AWS: the Orders component
+        # exports no SQS output. expected_queue_url must be passed by the
+        # caller (install/destroy do) or this check silently does nothing.
         errors.append(
             f"orders_queue_url mismatch: got {queue_url!r}, "
             f"expected {expected_queue_url!r}"
         )
     elif "mays-orders-orders-queue" in queue_url and "-mays-orders" not in orders_project_name:
-        # Detect binding to standalone mays-orders when not standalone project
+        # Belt-and-braces: catch a bind to the standalone namespace even
+        # when expected_queue_url was not supplied.
         errors.append(
             f"orders_queue_url appears to bind to standalone mays-orders "
             f"but project is {orders_project_name!r}"
         )
-    
-    # 4. Queue ARN must be in same account
+
+    # 4. Queue ARN must be in same account.
+    #    FORMAT + ACCOUNT only -- see KNOWN GAP in the docstring.
     queue_arn = handoff_vars.get("orders_queue_arn", "")
     if not queue_arn:
         errors.append("orders_queue_arn is empty or missing")
@@ -766,6 +826,25 @@ def _cmd_preflight(ctx: RisInstallContext) -> int:
             print("warning: no pin file for component (cannot verify revision)")
 
         # AWS collision scan + context validation via Orders validate command.
+        #
+        # KNOWN BLIND SPOT -- read before trusting a clean result here.
+        # The component's collision scan (installer/core/collision_scan.py in
+        # the Orders repo) matches resources by SUBSTRING of the project
+        # name. Measured against live account 240571105849:
+        #
+        #   probe "mays-orders"                      ->  9 hits
+        #   probe "mays-ris-composite-a-mays-orders" ->  0 hits
+        #
+        # So for a COMPOSITE name the scan sees nothing and a second Orders
+        # installation in the shared mays-orders namespace is NOT reported.
+        # That is exactly how a parallel mays-orders installation went
+        # unnoticed. A green preflight does NOT mean "no other Orders
+        # installation exists". Fixing it belongs in RIS (scan the
+        # namespace token as well as the full name), not in the Orders repo.
+        #
+        # This call also duplicates the Orders validate that
+        # _run_orders_component() performs a moment later -- 2x STS calls
+        # and 2x 10-check validates per install. Recorded, not changed.
         try:
             result = orchestrator.run_project_installer(
                 "mays-orders",
@@ -1244,6 +1323,31 @@ def _run_orders_component(
     Preserves the Orders state: a RIS-side failure later does NOT destroy a
     successfully installed Orders component (no auto-cleanup; destroy is a
     separate, explicit composite destroy operation).
+
+    WHAT CONTROLS THE BACKEND -- measured, do not re-derive from the docs
+    --------------------------------------------------------------------
+    The component's own installer decides S3 vs local in
+    installer/cli/main.py: `runner.init(backend=not context.dry_run)`.
+    It is a BOOLEAN, not a bucket choice: the bucket is hardcoded in the
+    pinned terraform/backend.tf and cannot be overridden from here. The
+    component's own audit (docs/reports/MAYS-ORDERS-MODULARITY-01A-
+    INSTALLER-TERRAFORM-BACKEND-AUDIT.md, section 9) records
+    "backend-config: FOUND NO".
+
+    Because DRY_RUN=true implies backend=false, it was worth checking
+    whether a RIS dry-run plan reads the WRONG state. It does NOT, as long
+    as .terraform/ already carries a configured S3 backend:
+
+      DRY_RUN=true  + existing S3 .terraform -> reads env:/<project>/  (correct)
+      DRY_RUN=false + fresh clone           -> reads env:/<project>/  (correct)
+      DRY_RUN=true  + FRESH clone           -> PLAN FAILS, no backend
+
+    Reason: `init -backend=false` means "do not CONFIGURE the backend", not
+    "use a local state". The already-configured S3 backend stays active.
+    A hypothesis that dry-run plans a local state was tested and REJECTED;
+    do not re-open it without new evidence. The real fragility is the third
+    row: correctness depends on leftover local .terraform/ metadata, and a
+    fresh checkout fails rather than silently mis-planning.
     """
     # Fail closed BEFORE any AWS call: the flags below decide which AWS name
     # limits apply, and Terraform would otherwise surface the overflow one
@@ -1259,8 +1363,20 @@ def _run_orders_component(
     env_extra: Dict[str, str] = {
         "ALLOW_AWS_OPERATIONS": allow_aws,
         # Force the component's Terraform workspace to match its project name.
+        # The component's InstallationContext.from_env() reads PROJECT_NAME,
+        # and its __post_init__ falls back to "default" if unset -- which is
+        # how an earlier run ended up planning against the shared DEFAULT
+        # state (and against a stale lock on it).
         "PROJECT_NAME": orders_project,
-        # Also set TERRAFORM_WORKSPACE for the Orders installer's from_env() logic.
+        # MANDATORY, and this is the load-bearing part: the component's
+        # TerraformRunner._terraform_env() sets this for every child process
+        # and the Terraform CLI honours it on its own. Without it, `terraform
+        # init -backend=false` keeps whatever workspace metadata happens to
+        # be in .terraform/. Measured negative control: with the variable the
+        # plan targets the component workspace; without it the plan falls into
+        # an unrelated workspace and proposed destroying 9 adopted resources.
+        # init() itself must NOT select a workspace (documented contract,
+        # two tests pin it) -- the env var is what does the work.
         "TERRAFORM_WORKSPACE": orders_project,
     }
     # Persisted here, not left to the caller: a CLI-only pin is lost on the
@@ -1352,7 +1468,33 @@ def _cmd_install(
 ) -> int:
     """Composite phased installation: preflight -> orders validate/plan/deploy ->
     output handoff -> RIS package/plan/apply. Dry-run (no --yes) stops before
-    any mutation and reports the planned phases."""
+    any mutation and reports the planned phases.
+
+    PHASE ORDER IS CURRENTLY WRONG -- recorded, not yet changed
+    ----------------------------------------------------------
+    Execution order is:
+      A  preflight  (read-only)
+      C  Orders validate -> plan -> DEPLOY -> output     <- mutation here
+         handoff + binding validation
+      B  RIS backend bootstrap                            <- after Orders is live
+      D  RIS lambda packaging                             <- after Orders is live
+      E..G  RIS init/validate/plan/apply
+
+    Two defects fall out of that:
+      1. Orders is APPLIED before the RIS backend and before the RIS lambda
+         artifacts exist. If B or D fails, Orders is already deployed and is
+         NOT rolled back (see the explicit note at the packaging failure).
+      2. The phase letters do not match the execution order (A, C, B, D, E).
+
+    Intended order: package -> bootstrap -> orders validate -> orders plan ->
+    RIS plan -> orders deploy -> RIS apply, i.e. every read-only step first
+    and mutations last, so a late failure leaves nothing behind.
+
+    Also duplicated: validate_aws_context() runs inline above AND again
+    inside _cmd_preflight(), and the Orders validate runs both in
+    preflight and in _run_orders_component(). Two STS calls and two
+    10-check validations per install. Pure overhead, no behaviour.
+    """
     # PHASE A — preflight (read-only identity + component validation).
     try:
         aws_ctx = validate_aws_context(
