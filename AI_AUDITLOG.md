@@ -4040,7 +4040,14 @@ RIS-SIDE FIXES COMMITTED EARLIER IN THIS SESSION:
   1358b46 ris.py env_extra now also sets TERRAFORM_WORKSPACE=orders_project
          (2 locations). Required because Orders InstallationContext.from_env()
          reads TERRAFORM_WORKSPACE and would otherwise fall back to "default".
+         >>> PARTLY SUPERSEDED, see MAYS-RIS-TF-WORKSPACE-CONSOLIDATION-01
+         >>> PART 3. from_env() does read it (core/context.py:122), but the
+         >>> component's CLI overwrites the value with project_name
+         >>> (cli/main.py:386), so on the path RIS uses this variable does NOT
+         >>> select the workspace - --project-name does. Harmless, not load-bearing.
   1fac73f terraform_runner.init() selects a non-default workspace before init.
+         >>> REVERTED in a92f7ed, which is not visible from this line alone.
+         >>> Rationale corrected in MAYS-RIS-TF-WORKSPACE-CONSOLIDATION-01 PART 1.
 
 OPEN / NEXT (decisions required, not decided here):
   D1 Adoption ordering. User chose: deploy the composite component FIRST, then
@@ -4136,6 +4143,23 @@ CONTRACT VIOLATION FOUND AND REVERTED (my own earlier work, 1fac73f):
     without TERRAFORM_WORKSPACE -> fell into "mays-orders" and proposed
       destroying 9 of the adopted resources (35 add / 2 change / 9 destroy)
   So the mandatory TERRAFORM_WORKSPACE in ris.py is the load-bearing fix.
+
+  >>> CORRECTION, added by MAYS-RIS-TF-WORKSPACE-CONSOLIDATION-01. The two
+  >>> sentences above are WRONG and the negative control beside them proves
+  >>> nothing. Terraform has no TERRAFORM_WORKSPACE; the CLI reads
+  >>> TF_WORKSPACE. Re-measured on v1.16.1:
+  >>>   TERRAFORM_WORKSPACE=ws-alpha -> workspace "default"
+  >>>   TF_WORKSPACE=ws-beta        -> workspace "ws-beta"
+  >>> At the time this was written TF_WORKSPACE did not exist yet, so a
+  >>> correct resolution could only have come from the shared
+  >>> .terraform/environment file already holding the requested value - which is
+  >>> precisely the contamination being fought. The measurement was an artefact
+  >>> of the very race it was meant to exclude.
+  >>> The revert of 1fac73f still stands and is still correct, but its stated
+  >>> reason is replaced: the load-bearing variable is TF_WORKSPACE, and
+  >>> TERRAFORM_WORKSPACE does not select the component's workspace on the CLI
+  >>> path at all (installer/cli/main.py:386 overwrites it with project_name).
+  >>> See MAYS-RIS-TF-WORKSPACE-CONSOLIDATION-01, PART 1 and PART 3.
 
 TEST DEFECT IN MY OWN NEW TEST (caught before commit):
   test_observed_plan_failure_is_prevented asserted the observed bucket name
@@ -4324,256 +4348,256 @@ SIDE EFFECT I DID NOT INTEND, DISCLOSED:
 VERIFICATION: py_compile OK; terraform fmt -check -recursive clean;
   terraform validate Success; full suite 1469 passed / 0 failed / 9 skipped.
 
-[MAYS-RIS-PARALLEL-WORKSPACE-CONTAMINATION-01]
+[MAYS-RIS-TF-WORKSPACE-CONSOLIDATION-01]
 Date: 2026-10-18
-Status: YELLOW - ROOT CAUSE CONFIRMED, FIX NOT YET APPLIED
-BASELINE: 3554f0f
+Status: RED. CONSOLIDATION FOUND A LIVE, PROVEN REGRESSION IN THE COMPONENT PATH.
+BASELINE: 7a45fa1
 AWS MUTATIONS: NONE. TERRAFORM APPLY: NONE. GIT PUSH: NONE.
+MAYS-ORDERS-AWS SOURCE: unmodified, pin 5cf50a0. MO's .terraform/environment
+restored to `mays-orders` after every probe below.
 
-TRIGGER: user pointed at the parallel-installation reports and asked whether
-the temp-dir clone test had actually refuted item 4. It had NOT - the two
-questions are different, and the user's correction stands.
+WHY THIS ENTRY EXISTS - consolidation, not a new finding round:
+  The TF_WORKSPACE analysis was spread over three entries whose titles do not
+  hint at it, plus two commits and one silent revert:
+    MAYS-RIS-PARALLEL-WORKSPACE-CONTAMINATION-01   (mechanism, fix proposed)
+    MAYS-RIS-TF-WORKSPACE-ENV-FIX-01              (fix applied)
+    MAYS-RIS-TF-WORKSPACE-SELECT-REGRESSION-01     (self-inflicted regression)
+    1358b46 added TERRAFORM_WORKSPACE; 1fac73f added a workspace select inside
+    init(); a92f7ed removed 1fac73f's change inside a commit titled
+    "fail-closed AWS name-limit validation" - the removal is documented, but
+    under an unrelated title, so nothing at 1fac73f's own line says it was undone.
+  All three are folded in here. Nothing substantive is dropped; what changes is
+  that the whole story is now in one place, and that re-measuring it produced a
+  regression the separate entries could not show.
 
-WHAT THE EXISTING REPORTS ALREADY PROVED:
-  docs/reports/MAYS-RIS-RECOVERY-AND-PARALLEL-INSTALLER-01.md:
-    "Root Cause Analysis - CONFIRMED"
-    "Shared Working Directory: Both production (mays-ris) and test
-     (mays-ris-e2e-test) use terraform/"
-    "No True Isolation: Shared .terraform directory causes
-     cross-contamination"
-    proposed remedy "Option A: Separate working directory per project
-    (copy terraform/ to temp dir)"
-  docs/reports/MAYS-RIS-PARALLEL-INSTALLATION-EXECUTION-01.md:
-    empty test workspace (serial 0, 181 bytes) yet the plan wanted to
-    DESTROY/REPLACE production resources, and the test state emitted
-    PRODUCTION queue URLs (mays-ris-dev-*).
-  So the phenomenon predates this session. What follows is the mechanism.
+===========================================================================
+PART 1 - THE ONE LOAD-BEARING FACT, RE-MEASURED
+===========================================================================
+  Terraform has no TERRAFORM_WORKSPACE. Re-measured today on Terraform v1.16.1
+  in a throwaway directory with a LOCAL backend, so no component directory and
+  no AWS call was involved at all:
 
-MECHANISM - FOUND BY MEASUREMENT, NOT BY READING:
-  1. RIS isolates ITS OWN side. Verified: two projects get two workdirs
-     (/tmp/wdir-test/mays-ris/test/terraform vs .../mays-ris-e2e-test/
-     test/terraform), neither containing a .terraform from the repo.
-     The report's "Option A" is implemented (installer/ris.py
-     _ensure_isolated_workdir).
-  2. The ORDERS component side is NOT isolated. Verified:
-     orchestrator.py:471 runs the component installer with
-     cwd = installer/projects/mays_orders for EVERY RIS project. One
-     directory, one terraform/, one .terraform/environment.
-  3. THE WORKSPACE ENV VAR IS WRONG. Terraform has no
-     TERRAFORM_WORKSPACE. Measured on v1.16.1, same directory:
-       TERRAFORM_WORKSPACE=mays-ris-composite-a-mays-orders
-         -> terraform workspace show = mays-orders        (IGNORED)
-       TF_WORKSPACE=mays-ris-composite-a-mays-orders
-         -> terraform workspace show = mays-ris-composite-a-mays-orders
-     installer/ris.py sets TERRAFORM_WORKSPACE in env_extra and
-     installer/terraform_runner.py sets it again for child processes.
-     Both are dead code with respect to the Terraform CLI.
-  4. NEITHER RUNNER sets TF_WORKSPACE. The component runner (its
-     installer/terraform/runner.py) contains no WORKSPACE env var at all;
-     it uses `terraform workspace select`, which WRITES
-     .terraform/environment. Same for the RIS runner.
+    TERRAFORM_WORKSPACE=ws-alpha                      -> workspace "default"
+    TF_WORKSPACE=ws-beta                             -> workspace "ws-beta"
+    TERRAFORM_WORKSPACE=ws-gamma TF_WORKSPACE=ws-delta -> workspace "ws-delta"
 
-CONSEQUENCE - the race is real:
-  .terraform/environment is one shared mutable file.
-    A: workspace select A   -> file = A
-    B: workspace select B   -> file = B      (parallel or interleaved run)
-    A: plan                 -> reads file -> B's state
-  Demonstrated: with the file set to mays-orders, a process that sets
-  only TERRAFORM_WORKSPACE still resolves to mays-orders. Setting
-  TF_WORKSPACE resolves to the requested workspace AND leaves the file
-  untouched - so the process-local override is the correct lever and it
-  does not require touching the component source.
+  Same result through `terraform output`, not only `workspace show`, so it is
+  not a display artefact:
+    TERRAFORM_WORKSPACE=ws-alpha -> output "probe" = default
+    TF_WORKSPACE=ws-beta        -> output "probe" = ws-beta
 
-WHY THE EARLIER PLAN FAILURE FITS THIS PICTURE:
-  The stale lock was on the DEFAULT state. A clone without a
-  .terraform/environment has no selected workspace, so Terraform falls
-  back to default, and the default state key is the bare key with no
-  workspace_key_prefix. The 19-day-old lock was on exactly that path.
+  CORRECTION OF AN EARLIER AUDITLOG CLAIM. The entry
+  MAYS-RIS-AWS-NAME-LIMITS-FAIL-CLOSED-01 states, at the 1fac73f revert:
+    "TERRAFORM_WORKSPACE is set by _terraform_env() for every child process
+     and the Terraform CLI honours it on its own"
+  That is FALSE, and the negative control printed beneath it was an artefact.
+  At the time it was written, TF_WORKSPACE did not exist yet, so a correct
+  workspace resolution could only have come from the shared
+  .terraform/environment file happening to hold the requested value - which is
+  exactly the contamination the entry was fighting. The measurement therefore
+  proved nothing about the variable. The correct negative control is the one
+  recorded above, and it is the reason TF_WORKSPACE exists at all.
 
-ALSO ANSWERED - the ARN question, and it is NOT a real gap:
-  installer/ris.py:validate_orders_binding() checks table_arn and
-  queue_arn for prefix and account but not for identity, which I reported
-  as an open gap. It is not reachable. Both table outputs come from the
-  same resource:
-    terraform/modules/dynamodb/outputs.tf
-      output "table_name" { value = aws_dynamodb_table.orders.name }
-      output "table_arn"  { value = aws_dynamodb_table.orders.arn  }
-  orders_handoff_vars() takes both from the same `output` dict, so they
-  cannot disagree unless Terraform itself is broken. The name check
-  already covers the realistic failure (a stale or wrong workspace yields
-  a wrong name first). My "known gap" comment is now known to be
-  theoretical; it stays as defence in depth, but it is NOT work to do.
-  Not fixed, and that is the correct call.
+===========================================================================
+PART 2 - WHAT WAS WRONG, AND WHY IT WAS NOT A THEORETICAL RISK
+===========================================================================
+  installer/orchestrator.py runs the component installer with
+  cwd=installer/projects/mays_orders for EVERY RIS project. One directory,
+  one terraform/, one .terraform/environment. The RIS side was already
+  isolated; the component side was not.
 
-THE ONE-LINE FIX AVAILABLE ON THE RIS SIDE (not applied, needs sign-off):
-  add "TF_WORKSPACE": orders_project to env_extra in
-  _run_orders_component() and _cmd_destroy(), alongside the existing
-  TERRAFORM_WORKSPACE which should stay for the component's own
-  InstallationContext.from_env(). Measured to correct the workspace even
-  when the shared .terraform/environment points elsewhere.
-  RIS cannot fix the component's runner without modifying Mays-Orders-AWS.
+  The race, as recorded and then reproduced:
+      A: workspace select A  -> shared file = A
+      B: workspace select B  -> shared file = B
+      A: plan                -> reads the file -> B's state
+  Measured with the shared file deliberately pointed at `mays-order-par`:
+    only TERRAFORM_WORKSPACE -> state serial 8   (WRONG, saw the other project)
+    TF_WORKSPACE             -> state serial 42  (correct)
+  Re-confirmed today: a process with TF_WORKSPACE set resolves its own
+  workspace (ws-beta) even while the shared file names ws-ander.
+  So the process-local override is the correct lever, and it needs no change
+  to Mays-Orders-AWS.
 
-CAVEAT ON THIS EVIDENCE: sequential interleaving was demonstrated, not
-  true concurrency. Two genuinely simultaneous processes could also race
-  on the shared backend lock, which is the second half of the problem and
-  was not tested. Do not treat this as a complete proof.
+===========================================================================
+PART 3 - THE FIX AS APPLIED (RIS side only)
+===========================================================================
+  installer/terraform_runner.py _terraform_env()
+      env["TF_WORKSPACE"] = self.workspace          # the CLI honours this one
+      env["TERRAFORM_WORKSPACE"] = self.workspace  # kept, see PART 5
+  installer/ris.py, both component call sites
+      "TERRAFORM_WORKSPACE": orders_project
+      "TF_WORKSPACE": orders_project
+  No global os.environ mutation; both are child-process env only.
 
-OPEN:
-  1. Apply TF_WORKSPACE in RIS (one line, measured) - awaiting approval.
-  2. True-concurrency test of two simultaneous installs.
-  3. Phase order (item A of the earlier list) is untouched and still wrong.
-  4. Collision-scan blind spot (item 2) is untouched; the user assessed it
-     as "a little reassuring or a little holey" - it remains a warning, not
-     a gate.
+  RE-MEASURED TODAY, on the actual component directory:
+    installer/projects/mays_orders/installer/core/context.py:122
+        terraform_workspace=os.environ.get("TERRAFORM_WORKSPACE", "default")
+    installer/projects/mays_orders/installer/core/aws_context.py:99
+        env = {**os.environ}      # then strips only STATIC_CREDENTIAL_VARS and
+                                 # AWS_DEFAULT_PROFILE
+    So TF_WORKSPACE DOES pass through into the component's terraform calls.
+    That detail is what makes PART 5 possible, and it was not visible before.
 
-[MAYS-RIS-TF-WORKSPACE-ENV-FIX-01]
-Date: 2026-10-18
-Status: GREEN. FIX APPLIED AND VERIFIED BY COUNTEREXAMPLE.
-BASELINE: 763847a
-AWS MUTATIONS: NONE. TERRAFORM APPLY: NONE. GIT PUSH: NONE.
-MAYS-ORDERS-AWS SOURCE: unmodified, pin 5cf50a0.
+  ONE MORE THING THE EARLIER ENTRIES GOT WRONG, and it matters:
+    installer/projects/mays_orders/installer/cli/main.py:386
+        context.terraform_workspace = context.project_name
+    The component's CLI OVERWRITES whatever from_env() read. So
+    TERRAFORM_WORKSPACE does not select the component's workspace on the CLI
+    path - `--project-name`, passed by RIS as project_name_override, does.
+    Measured: with --project-name mays-order-par the runner reported
+    workspace 'mays-order-par'; without it, 'mays-orders', despite
+    TERRAFORM_WORKSPACE being set to the former.
+    Consequence: the in-code justification "TERRAFORM_WORKSPACE stays because
+    the component's InstallationContext.from_env() reads it" is true of the
+    library path but NOT of the path RIS actually uses. The variable is
+    harmless there; it is not what makes the component target the right
+    workspace.
 
-USER INSTRUCTION: fix it, but first check git history and reports for an
-existing project-specific env update, verify with counterexamples, and
-restore if it turns out to be wrong.
+===========================================================================
+PART 4 - THE SELF-INFLICTED REGRESSION, AND THE REPAIR
+===========================================================================
+  Introducing TF_WORKSPACE broke every non-default-workspace command, because
+  Terraform refuses `workspace select` while the override is set. Re-measured:
+    TF_WORKSPACE=ws-beta terraform workspace select ws-beta
+      -> "The selected workspace is currently overridden using the
+          TF_WORKSPACE environment variable"
+    TF_WORKSPACE=ws-neu terraform workspace new ws-neu
+      -> succeeds, AND writes the shared .terraform/environment (measured:
+         the file changed from ws-neu to ws-ander)
+    TF_WORKSPACE=ws-beta terraform plan
+      -> works
 
-HISTORY CHECK FIRST - the user was right that this was already discussed:
-  docs/reports/TERRAFORM-BACKEND-INIT-GATE-01.md          (27.09.)
-    "Workspace: NULL-Referenzen im Code (terraform.workspace/TF_WORKSPACE-
-     Grep leer) - keine Workspace-Strategie belegt (PROVEN absent)"
-  docs/reports/TERRAFORM-BACKEND-CONFIG-OWNER-RESOLUTION-01.md  (28.09.)
-    "backend-config/TF_WORKSPACE/terraform init als Mechanismus: NIE
-     (nur Report-Texte als Treffer). Historical backend mechanism:
-     NOT PROVEN"
-  090094a feat(terraform): add workspace execution isolation  (28.09.)
-    implemented installer/terraform_runner.py with a "TERRAFORM_WORKSPACE-
-    Override + Child-Env"
-CHRONOLOGY: the two "workspace absent / TF_WORKSPACE never" reports are
-HISTORICAL - the implementation landed the same day, after them. So no
-decision forbids TF_WORKSPACE; what exists is a choice of TERRAFORM_WORKSPACE,
-which the Terraform CLI does not read. No architectural conflict.
+  Repair, installer/terraform_runner.py:
+    _run_process() gained workspace_ops=False; when True it pops TF_WORKSPACE
+    from the child env. _ensure_workspace() passes workspace_ops=True for
+    `workspace select` and for `workspace new`.
+  The rule: workspace MANAGEMENT may touch the shared file - that is its whole
+  purpose. Everything that reads or writes STATE keeps the override, which is
+  what makes the isolation correct. Measured consequence: the shared file may
+  be rewritten without affecting any RIS read.
 
-FIX (RIS side only, two places):
-  installer/terraform_runner.py  _terraform_env()
-      env["TF_WORKSPACE"] = self.workspace      (new)
-      env["TERRAFORM_WORKSPACE"] = self.workspace  (kept)
-  installer/ris.py _run_orders_component() env_extra
-      "TF_WORKSPACE": orders_project             (new)
-      "TERRAFORM_WORKSPACE": orders_project      (kept)
-  installer/ris.py _cmd_destroy() env_extra
-      "TF_WORKSPACE": orders_project             (new)
-      "TERRAFORM_WORKSPACE": orders_project      (kept)
-  TERRAFORM_WORKSPACE is KEPT because the component's
-  InstallationContext.from_env() reads that name from os.environ. Different
-  consumer, same process.
+  Not caught by the suite because the RIS tests mock subprocess and never
+  invoke the real CLI. Only a real invocation surfaced it. That lesson stands:
+  a mocked test cannot catch a CLI contract violation.
 
-COUNTEREXAMPLES, MEASURED NOT ASSERTED (all read-only, state pulled only):
-  1. Variable name. Same directory, same request:
-       TERRAFORM_WORKSPACE=X -> terraform workspace show = mays-orders
-       TF_WORKSPACE=X        -> terraform workspace show = X
-  2. State really is per-workspace, not just the label:
-       TF_WORKSPACE=mays-orders    -> state serial 42
-       TF_WORKSPACE=default         -> state serial 0
-       TF_WORKSPACE=mays-order-par  -> state serial 8
-  3. Concurrency, six simultaneous pulls of two projects:
-       every A returned 42, every B returned 8, no interleaving;
-       .terraform/environment was not written by either process.
-  4. THE DECISIVE ONE - the contamination itself, reproduced:
-       shared file deliberately set to mays-order-par, then two processes:
-         A with only TERRAFORM_WORKSPACE -> serial 8   (WRONG, saw B)
-         A with TF_WORKSPACE             -> serial 42  (correct)
-       repeated twice, same result both times.
-  RESTORED after every probe: .terraform/environment is back to mays-orders.
+===========================================================================
+PART 5 - LIVE REGRESSION, PROVEN BY CONTROLLED PAIR: THE COMPONENT PATH IS
+         BROKEN BY TF_WORKSPACE
+===========================================================================
+  This is the finding this consolidation produced. It is in the current code
+  (installer/ris.py lines 1213 and 1659) and it is not theoretical.
 
-TESTS (7 new) in tests/test_terraform_runner.py and
-tests/test_composite_lifecycle.py:
-  child processes receive TF_WORKSPACE; TERRAFORM_WORKSPACE still present;
-  not leaked into os.environ; overrides a stale shared file; two projects
-  get different pins; component call site sets both.
-  NEGATIVE CONTROL: deleting the two new lines makes 6 tests fail
-  (test_tf_workspace_is_set_for_child_processes,
-   test_terraform_workspace_still_set_for_component_context,
-   test_tf_workspace_not_mutated_globally,
-   test_tf_workspace_survives_stale_environment_file,
-   TestWorkspaceEnvIsolation x3). Restored -> 51 pass. The tests are not
-  vacuous.
-  FULL SUITE: 1476 passed / 0 failed / 9 skipped (was 1469 + 7 new).
+  WHY: MO's own runner does workspace management unconditionally and treats a
+  failure as fatal.
+    installer/projects/mays_orders/installer/terraform/runner.py:419
+        subprocess.run([terraform_bin, "workspace", "select", self.workspace],
+                       env=self._get_terraform_env())
+    runner.py:444-446
+        missing_signals = ("doesn't exist", "does not exist", "not found",
+                           "no such workspace")
+        if not any(sig in output for sig in missing_signals):
+            raise TerraformError(...)
+  The override message from PART 4 contains NONE of those four signals, so
+  MO does not classify it as "workspace missing" - it raises.
 
-STILL NOT FIXED (deliberately, see previous entry):
-  - The component's own runner still writes the shared .terraform/environment
-    via `terraform workspace select`. RIS cannot change that without
-    modifying Mays-Orders-AWS. With TF_WORKSPACE set this no longer corrupts
-    RIS's own reads, but two MO-only runs in that one clone would still
-    race. Real fix belongs upstream.
-  - True simultaneous terraform PLAN runs (not just state pull) not tested;
-    the second half of the problem is the shared backend LOCK, untested.
-  - Phase order still wrong, collision scan still blind for composite names,
-    both untouched.
+  CONTROLLED PAIR. Same command, same workspace, only TF_WORKSPACE differs.
+  Run inside the pinned component directory, DRY_RUN=true,
+  ALLOW_AWS_OPERATIONS=false, so plan only, no mutation:
 
-[MAYS-RIS-TF-WORKSPACE-SELECT-REGRESSION-01]
-Date: 2026-10-18
-Status: GREEN. REGRESSION FOUND AND FIXED.
-BASELINE: f06b6d4
-AWS MUTATIONS: NONE. GIT PUSH: NONE.
+    ./Mays-Order-AWS-installer --project-name mays-order-par plan
+      -> "Status: Generated successfully"                     exit 0
 
-USER QUESTION: "haben wir einen state list wie bei MO, der listet alles auf"
-ANSWER: yes, and more. RIS: --state-command
-  {list,show,pull,push,discover,inventory}
-MO:   state {list,show,pull,push}
-So RIS has discover and inventory on top.
+    TF_WORKSPACE=mays-order-par TERRAFORM_WORKSPACE=mays-order-par \
+      ./Mays-Order-AWS-installer --project-name mays-order-par plan
+      -> TerraformError: terraform workspace select failed for
+         'mays-order-par': The selected workspace is currently overridden
+         using the TF_WORKSPACE environment variable   exit 1
 
-ASKING IT BROUGHT UP A SELF-INFLICTED REGRESSION - this entry is the
-admission and the repair.
+  Same input, opposite outcomes, one environment variable apart.
 
-THE REGRESSION:
-  f06b6d4 introduced TF_WORKSPACE. That broke every non-default-workspace
-  command, because Terraform REFUSES `terraform workspace select` while the
-  override is set. Measured, same directory:
-    TF_WORKSPACE=X terraform workspace select X   -> exit 1,
-      "The selected workspace is currently overridden using the TF_WORKSPACE
-       environment variable"
-    TF_WORKSPACE=X terraform workspace new X     -> works
-    TF_WORKSPACE=X terraform plan ...            -> works
-  RIS state list died with:
-    RuntimeError: terraform workspace select failed for 'mays-ris-composite-a'
-  So TF_WORKSPACE fixed cross-project contamination and broke the very
-  commands that use the workspace. Not caught earlier because the RIS suite
-  mocks subprocess and never invokes the real CLI; only a real invocation
-  surfaced it. Lesson: mocked tests cannot catch a CLI contract violation.
+  HONEST LIMITS OF THIS EVIDENCE:
+    - The composite workspace run fails earlier, at the same workspace select,
+      so the failure is not specific to mays-order-par.
+    - The control for mays-ris-composite-a-mays-orders ALSO exits 1, but for a
+      different and already-documented reason: the composite name makes the
+      cognito backup bucket exceed the 63-char S3 limit. That is why the short
+      workspace was used to isolate the variable.
+    - Therefore: the previously verified "successful Orders A plan through the
+      RIS orchestrator, create 37" CANNOT be reproduced today. It predates
+      f06b6d4, which is the commit that added TF_WORKSPACE. It was verified
+      once and then silently invalidated by a later commit, and no re-verification
+      happened. Stated plainly, because it means an earlier GREEN in this log
+      is not evidence of today's behaviour.
 
-FIX (installer/terraform_runner.py):
-  _run_process() gained workspace_ops=False. When True it pops TF_WORKSPACE
-  from the child env.
-  _ensure_workspace() passes workspace_ops=True for `workspace select` and
-  `workspace new`.
-  Rationale: the two workspace-management subcommands must be allowed to touch
-  .terraform/environment, because that is their whole purpose. Everything
-  that reads or writes STATE (plan/apply/state/output/...) keeps the
-  override, which is what makes the isolation correct. The shared file may
-  now be rewritten without affecting any RIS read.
-  The existing "select first, then new on missing" behaviour is preserved, so
-  the two tests pinning it still pass unchanged.
+  THE IN-CODE COMMENT IS NOW KNOWN WRONG and must be corrected together with
+  the fix - installer/ris.py:1650-1658 asserts that TF_WORKSPACE "still
+  resolves to the requested workspace and leaves the file untouched". That is
+  true for RIS's own terraform invocations and false for the component, whose
+  runner dies on exactly that variable. Left in place deliberately, because
+  the fix direction is a decision, not a guess (below).
 
-TESTS (3 new):
-  workspace select runs without TF_WORKSPACE
-  workspace new runs without TF_WORKSPACE
-  real terraform commands (plan) DO keep TF_WORKSPACE
-FULL SUITE: 1479 passed / 0 failed / 9 skipped.
+===========================================================================
+PART 6 - THE DECISION THIS FORCES, NOT TAKEN HERE
+===========================================================================
+  The two properties now in tension:
+    (a) TF_WORKSPACE protects RIS reads from the shared
+        .terraform/environment file - without it, an interleaved install can
+        plan against another project's state, and that was measured.
+    (b) TF_WORKSPACE breaks the component's own workspace select, so the
+        composite plan path cannot run at all.
+  Options, with the trade-off stated:
+    1. Drop TF_WORKSPACE from the two component env_extra sites, keep it in
+       _terraform_env() for RIS's own calls. Restores (b), gives up (a) for the
+       component, and reintroduces the contamination for that path. Cheapest,
+       and honest about what it costs.
+    2. Keep TF_WORKSPACE and make the component not fight it. Needs a change in
+       Mays-Orders-AWS, which is out of bounds and belongs upstream at the MO
+       team.
+    3. Stop sharing the mutable file at all: give each RIS project its own
+       TF_DATA_DIR for the component run, so there is no
+       .terraform/environment to race over. Fixes the root cause without
+       touching MO and without giving up (a). Largest change, and it also
+       needs the missing-workspace question answered - see PART 7.
+  Not decided here. Option 3 subsumes the other two and is the only one that
+  removes the shared mutable state rather than choosing who loses.
 
-SEPARATE PRE-EXISTING FINDING (NOT mine, NOT fixed):
-  `state list` still cannot run even at HEAD, for a different reason:
-    _cmd_state uses ctx.make_runner(), which resolves to the ISOLATED workdir
-    (~/.ris-workdirs/<project>/<env>/terraform). That copy is created by
-    _ensure_isolated_workdir() with ignore_patterns('.terraform', ...), so it
-    has NO backend metadata, and the state subcommands do not init it.
-    Verified: at HEAD (changes stashed) `state list` fails identically with
-    "Backend initialization required"; and the bucket in terraform/main.tf:12
-    is a TEMPLATE, so a bare `terraform init` asks for input and fails with
-    "Error asking for input to configure backend s3: bucket: EOF".
-  So: the command exists and MO parity is there, but it is unusable until
-  _cmd_state initialises the backend of the isolated workdir the same way
-  _cmd_plan/_cmd_apply do (they pass ctx.backend_config()). Recorded as a
-  real gap, deliberately not fixed here.
+===========================================================================
+PART 7 - STILL OPEN, MEASURED, UNTOUCHED
+===========================================================================
+  1. Missing workspace cannot be created with the override set. Measured:
+       TF_WORKSPACE=mays-ris-composite-c-mays-orders terraform init
+         -> Error: Currently selected workspace "mays-ris-composite-c-mays-orders"
+            does not exist
+     Only the four workspaces that already exist in
+     mays-orders-tfstate-central can run:
+       env:/mays-orders/terraform.tfstate
+       env:/mays-order-par/terraform.tfstate
+       env:/mays-orders-privacy-test/terraform.tfstate
+       env:/mays-ris-composite-a-mays-orders/terraform.tfstate
+     This blocks every NEW composite project independently of PART 5.
+  2. Sequential interleaving was demonstrated, not true concurrency. Two
+     genuinely simultaneous processes could also race on the shared backend
+     LOCK. That second half is untested.
+  3. MO-only runs in that one clone still race on .terraform/environment.
+     RIS cannot fix that from the outside. Upstream.
+  4. The 1fac73f episode, for the record: it added a workspace select inside
+     init(), contradicting the documented module contract ("init() runs ONLY
+     terraform init - NEVER workspace ops") and breaking two tests. Reverted in
+     a92f7ed. It was also unnecessary, but NOT for the reason recorded at the
+     time - not because TERRAFORM_WORKSPACE is honoured (PART 1), but because
+     TF_WORKSPACE is. init() today runs with ensure_workspace=False and does
+     not select a workspace; verified by AST across 1fac73f, f06b6d4, 1654a13,
+     7a8ad9a and HEAD.
+
+TESTS: 7 for the env fix + 3 for the workspace_ops repair, in
+  tests/test_terraform_runner.py and tests/test_composite_lifecycle.py.
+  NEGATIVE CONTROL for the env fix: deleting the two new lines makes 6 tests
+  fail. The tests are not vacuous.
+  THEY DO NOT COVER PART 5. Every test mocks subprocess, and the defect lives
+  in the interaction between two real CLIs. A test for it has to shell out,
+  which the suite currently does not do. That is the coverage gap that let a
+  broken composite path stay invisible.
+
 
 [MAYS-RIS-STATE-COMMAND-BACKEND-01]
 Date: 2026-10-18
@@ -4912,3 +4936,89 @@ DISCLOSED, NOT FIXED - NEEDS A DECISION
   A separate defect from the mirror and larger than it: it needs either
   workspace pre-creation or per-project TF_DATA_DIR isolation of the component
   run. Not started, because fixing it means choosing between those two.
+[MAYS-RIS-AUDITLOG-TF-WORKSPACE-CONSOLIDATION-02]
+Date: 2026-10-18
+Status: GREEN for the reworking itself. It REPORTS a RED regression in the
+component path, which is deliberately left unfixed because the fix direction is
+a decision, not a guess.
+BASELINE: 7a45fa1
+AWS MUTATIONS: NONE. TERRAFORM APPLY: NONE. GIT PUSH: NONE.
+MAYS-ORDERS-AWS SOURCE: unmodified, pin 5cf50a0.
+MO's shared .terraform/environment restored to `mays-orders` after every probe.
+
+REQUEST: rework AI_AUDITLOG.md, then consolidate the TF_WORKSPACE analysis from
+this session.
+
+WHAT WAS CONSOLIDATED
+  Three entries whose titles do not hint at the topic, plus two commits and one
+  silent revert, collapsed into one:
+    MAYS-RIS-PARALLEL-WORKSPACE-CONTAMINATION-01   mechanism + proposed fix
+    MAYS-RIS-TF-WORKSPACE-ENV-FIX-01              the fix
+    MAYS-RIS-TF-WORKSPACE-SELECT-REGRESSION-01     the self-inflicted regression
+    1358b46 added TERRAFORM_WORKSPACE; 1fac73f added a workspace select inside
+    init(); a92f7ed removed that change under a commit titled "fail-closed AWS
+    name-limit validation", so nothing at 1fac73f's own line says it was undone.
+  -> MAYS-RIS-TF-WORKSPACE-CONSOLIDATION-01, in their place.
+  Nothing substantive was dropped. 251 lines replaced by 250.
+  Structure re-verified after the splice: 90 entries, headers ascending, the
+  8 exact-duplicate headers are all pre-existing (identical count at HEAD~1),
+  suite 1550 passed / 0 failed / 9 skipped.
+
+TWO FALSE CLAIMS FOUND IN THE EXISTING LOG AND MARKED IN PLACE
+  Not silently rewritten - the old text stays, with a marked correction, so a
+  reader who remembers the old wording can see exactly what changed and why.
+  1. "TERRAFORM_WORKSPACE ... the Terraform CLI honours it on its own", plus the
+     negative control printed beside it, in the 1fac73f revert section of
+     MAYS-RIS-AWS-NAME-LIMITS-FAIL-CLOSED-01. FALSE. Terraform has no
+     TERRAFORM_WORKSPACE. The control was an artefact of the shared
+     .terraform/environment file, i.e. of the very race it claimed to exclude.
+     Re-measured on v1.16.1 with a local backend:
+       TERRAFORM_WORKSPACE=ws-alpha -> workspace "default"
+       TF_WORKSPACE=ws-beta        -> workspace "ws-beta"
+  2. "TERRAFORM_WORKSPACE is mandatory because Orders InstallationContext
+     .from_env() reads it". Half right: from_env does read it
+     (core/context.py:122), but the component's CLI overwrites the value with
+     project_name (cli/main.py:386), so on the path RIS actually uses it does
+     not select the workspace - --project-name does. Harmless, not load-bearing.
+
+THE REGRESSION THE CONSOLIDATION PRODUCED - reported, not fixed
+  RIS puts TF_WORKSPACE into the component's env at installer/ris.py:1213 and
+  :1659. TF_WORKSPACE passes through MO's env builder (aws_context.py:99 keeps
+  os.environ, strips only credential vars). MO's runner then runs
+  `terraform workspace select` unconditionally (terraform/runner.py:419) and
+  Terraform refuses that subcommand while the override is set. MO's
+  missing-workspace signals do not match the override message, so it raises
+  TerraformError instead of creating the workspace.
+  CONTROLLED PAIR, same command, one variable apart, plan only:
+    without TF_WORKSPACE -> "Status: Generated successfully"  exit 0
+    with    TF_WORKSPACE -> TerraformError                   exit 1
+  Consequence stated plainly: the previously recorded "successful Orders A
+  plan through the RIS orchestrator, create 37" cannot be reproduced today. It
+  predates f06b6d4, which added TF_WORKSPACE. It was verified once and then
+  silently invalidated by a later commit with no re-verification. An earlier
+  GREEN in this log is therefore not evidence of today's behaviour.
+
+ALSO RECORDED, MEASURED, UNTOUCHED
+  With TF_WORKSPACE set, Terraform will not CREATE a missing workspace
+  ("Currently selected workspace ... does not exist"). Only the four workspaces
+  already present in mays-orders-tfstate-central can run, so every NEW
+  composite project is blocked independently of the regression above.
+
+WHY NO FIX WAS APPLIED HERE
+  Two properties are in direct tension and the trade-off is the user's call:
+    (a) TF_WORKSPACE protects RIS reads from the shared
+        .terraform/environment file - without it an interleaved install can
+        plan against another project's state, measured;
+    (b) TF_WORKSPACE breaks the component's workspace select, so the composite
+        path cannot run at all, measured.
+  Three options are written out in the consolidated entry, PART 6. Option 3 -
+  give each RIS project its own TF_DATA_DIR for the component run - is the only
+  one that removes the shared mutable state instead of choosing who loses, and
+  it also needs the missing-workspace question answered. Not chosen unilaterally.
+
+CODE COMMENT NOW KNOWN WRONG, LEFT IN PLACE ON PURPOSE
+  installer/ris.py:1650-1658 asserts TF_WORKSPACE "still resolves to the
+  requested workspace and leaves the file untouched". True for RIS's own
+  terraform calls, false for the component, whose runner dies on that variable.
+  It is corrected in the same commit that fixes the behaviour, so the comment
+  and the code cannot disagree again.
