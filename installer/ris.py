@@ -35,6 +35,9 @@ from typing import Any, Dict, List, Optional
 
 import boto3
 
+from pathlib import Path
+
+from installer.state_mirror import MirrorEntry, StateMirror
 from installer.terraform_runner import (
     BackendConfig,
     TerraformResult,
@@ -816,6 +819,23 @@ class RisInstallContext:
             self._ensure_isolated_workdir()
         return self._data_dir
 
+    @property
+    def isolated_mirror_dir(self) -> str:
+        """Where the local state mirror lives for this project.
+
+        Deliberately a SIBLING of the isolated workdir, not a child: only
+        `.../terraform` is deleted and recreated per run, so a mirror placed
+        there would be destroyed on the very next invocation.
+        """
+        from installer.state_mirror import mirror_dir_for
+
+        base = (
+            Path(self._workdir_base)
+            if self._workdir_base
+            else Path.home() / ".ris-workdirs"
+        )
+        return str(mirror_dir_for(base, self.project_name, self.environment))
+
 
 def _cmd_preflight(ctx: RisInstallContext) -> int:
     """PHASE A: read-only AWS identity + composite component validation.
@@ -940,7 +960,7 @@ def _cmd_plan(
         ctx.aws_context = validate_aws_context(profile=ctx.aws_profile, region=ctx.aws_region)
     runner = ctx.make_runner()
     return [
-        runner.init(backend_config=ctx.backend_config()),
+        runner.init(backend_config=ctx.backend_config(), reconfigure=True),
         runner.plan(
             out_file=out_file,
             var=ctx.terraform_vars(),
@@ -956,7 +976,7 @@ def _cmd_apply(ctx: RisInstallContext, out_file: Optional[str] = None) -> List[T
     if ctx.aws_context is None:
         ctx.aws_context = validate_aws_context(profile=ctx.aws_profile, region=ctx.aws_region)
     runner = ctx.make_runner()
-    init_res = runner.init(backend_config=ctx.backend_config())
+    init_res = runner.init(backend_config=ctx.backend_config(), reconfigure=True)
     
     # Generate plan file for safety gate inspection
     plan_file = out_file or f"{ctx.workspace}-apply.tfplan"
@@ -973,8 +993,127 @@ def _cmd_apply(ctx: RisInstallContext, out_file: Optional[str] = None) -> List[T
         print(f"error: {msg}", file=sys.stderr)
         return [init_res, TerraformResult(command=["terraform", "plan"], returncode=1, stderr=msg)]
     
+    # Local mirror of the pre-apply state (S3-outage fallback, mirrors the
+    # component's .backups rotation). Advisory: never blocks apply.
+    mirror_project_state(ctx, runner)
+
     apply_res = runner.run_and_get_result(["apply", plan_file], ensure_workspace=True)
     return [init_res, plan_res, apply_res]
+
+
+def mirror_project_state(
+    ctx: RisInstallContext, runner, purpose: str = "pre-apply"
+) -> Optional[str]:
+    """Pull the remote state into the local mirror before mutating it.
+
+    Called after the safety gate passed and immediately before apply, so the
+    mirror holds the PRE-apply state - the only version worth rolling back
+    to. Mirrors the component's rotation (`.backups` + backup_count) at
+    installer/state_mirror.py.
+
+    ensure_workspace=False on the pull: the plan in this same run already
+    resolved the workspace, and re-selecting it here would take a second
+    state lock in the gap between the safety gate and apply - a new failure
+    point in the one window that must not grow one.
+
+    Never fatal: a state that has not been written yet, or an S3 hiccup, must
+    not block a plan that is otherwise safe. It reports and returns None.
+    """
+    try:
+        pulled = runner.state_pull(ensure_workspace=False)
+    except (RuntimeError, ValueError) as exc:
+        print(f"state mirror: pull skipped ({exc})", file=sys.stderr)
+        return None
+    if pulled.returncode != 0 or not pulled.stdout.strip():
+        print(
+            f"state mirror: no remote state to mirror "
+            f"({pulled.stderr.strip()[:160]})",
+            file=sys.stderr,
+        )
+        return None
+    try:
+        mirror = StateMirror(ctx.isolated_mirror_dir)
+        entry = mirror.snapshot(pulled.stdout, label=ctx.workspace)
+    except (OSError, ValueError) as exc:
+        print(f"state mirror: snapshot failed ({exc})", file=sys.stderr)
+        return None
+    print(f"state mirror: {purpose} snapshot {entry.describe()}")
+    return str(entry.path)
+
+
+def _cmd_state_mirror(ctx: RisInstallContext, capture: bool) -> int:
+    """`state mirror` — list or refresh the local state mirror.
+
+    Deliberately usable with no backend and no AWS credentials: the mirror is
+    the fallback for when the backend is the thing that is broken, so it must
+    not itself depend on the backend.
+
+    capture=False  list what is stored locally, and write the MANIFEST
+    capture=True   additionally refresh it from the current backend
+    """
+    mirror = StateMirror(ctx.isolated_mirror_dir)
+
+    if capture:
+        if not ctx.backend_bucket:
+            print(
+                "error: backend-bucket required for 'state mirror capture' "
+                "(listing works without it)",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            ctx.aws_context = validate_aws_context(
+                profile=ctx.aws_profile, region=ctx.aws_region
+            )
+        except AwsValidationError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        try:
+            runner = ctx.make_runner()
+            # init against the REQUESTED backend first. Without it
+            # `state pull` would silently use whatever backend a previous run
+            # left in the workdir, so --backend-bucket would be ignored and the
+            # mirror would capture the wrong bucket - a silent second source of
+            # truth, which is worse than no mirror at all.
+            # -reconfigure is required, not cosmetic: measured, a run against a
+            # different bucket leaves the workdir pointing at the old one and
+            # every later run fails with "Backend configuration changed".
+            init_res = runner.init(
+                backend_config=ctx.backend_config(), reconfigure=True
+            )
+            if init_res.returncode != 0:
+                print(
+                    f"warning: capture failed, backend init failed: "
+                    f"{init_res.stderr.strip()[:200]}",
+                    file=sys.stderr,
+                )
+                return _list_mirror(mirror)
+            mirror_project_state(ctx, runner, purpose="on-demand")
+        except Exception as exc:  # noqa: BLE001 - listing must still work
+            print(f"warning: capture failed ({exc})", file=sys.stderr)
+
+    entries = mirror.entries()
+    return _list_mirror(mirror, entries)
+
+
+def _list_mirror(mirror: StateMirror, entries: Optional[List[MirrorEntry]] = None) -> int:
+    """Print the mirror. Always succeeds: it is a local, offline listing."""
+    if entries is None:
+        entries = mirror.entries()
+    print(f"Local state mirror: {mirror.mirror_dir}")
+    if not entries:
+        print(
+            "  empty. A snapshot is taken automatically before every apply; "
+            "run 'state mirror capture' to take one now."
+        )
+        return 0
+    print(f"  {len(entries)} snapshot(s), keeping the newest {mirror.keep}:")
+    for entry in entries:
+        print(f"    {entry.path.name}")
+        print(f"      {entry.describe()}")
+    manifest = mirror.write_manifest()
+    print(f"\nManifest written: {manifest}")
+    return 0
 
 
 def _cmd_package(ctx: RisInstallContext, bundle: str = "all") -> int:
@@ -1039,7 +1178,7 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
 
     # --- 1. RIS foundation destroy ---
     runner = ctx.make_runner()
-    init_res = runner.init(backend_config=ctx.backend_config())
+    init_res = runner.init(backend_config=ctx.backend_config(), reconfigure=True)
     print(f"$ {' '.join(init_res.command)} -> exit {init_res.returncode}")
     if init_res.returncode != 0:
         return 1
@@ -1313,7 +1452,7 @@ def _cmd_state(
             print("error: address is required for state show", file=sys.stderr)
             return 2
         try:
-            init_res = runner.init(backend_config=ctx.backend_config())
+            init_res = runner.init(backend_config=ctx.backend_config(), reconfigure=True)
         except (ValueError, RuntimeError) as exc:
             # BackendConfig raises when an explicit value is missing. Pass it
             # on rather than inventing a bucket: no defaults, per the
@@ -1401,6 +1540,11 @@ def _cmd_state(
         # For simplicity, just report discovered keys
         print("Inventory complete. Use 'state list' per workspace for resource details.")
         return 0
+    if state_command == "mirror":
+        # Local and read-only. Needs no backend and no AWS identity, because
+        # the whole point of the mirror is that it stands on its own when S3
+        # does not. `mirror capture` refreshes it, bare `mirror` only lists.
+        return _cmd_state_mirror(ctx, capture=(address or "").lower() == "capture")
     if state_command in ("list", "show", "pull"):
         if state_command == "list":
             result = runner.state_list(state_file)
@@ -1810,8 +1954,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--state-command",
         default=None,
-        choices=["list", "show", "pull", "push", "discover", "inventory"],
-        help="State subcommand (state command).",
+        choices=[
+            "list",
+            "show",
+            "pull",
+            "push",
+            "discover",
+            "inventory",
+            "mirror",
+        ],
+        help=(
+            "State subcommand (state command). 'mirror' lists the local "
+            "state mirror ('--address capture' refreshes it from the "
+            "backend); listing needs no backend."
+        ),
     )
     parser.add_argument(
         "--lock-command",

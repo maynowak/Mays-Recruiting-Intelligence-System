@@ -4784,3 +4784,131 @@ OPEN, VISIBLE IN THE OUTPUT, NOT TOUCHED:
   means it is a migration candidate, not a discovery. Nothing moved.
   Locating the authoritative state (serial 45 on a legacy nested path) is
   still the open decision from the previous entry.
+
+[MAYS-RIS-STATE-MIRROR-01]
+Date: 2026-10-18
+Status: GREEN WITH DISCLOSED DEFECTS FOUND AND FIXED.
+BASELINE: 18abd07
+AWS MUTATIONS: NONE. GIT PUSH: NONE. NO STATE MOVED. NO APPLY/DESTROY RUN.
+
+REQUEST: MO has a mirroring of its states in the folder structures so they
+survive an S3 outage; RIS should do the same.
+
+REFERENCE FOUND (not invented):
+  installer/projects/mays_orders/installer/core/atomic_ops.py
+    AtomicStateManager keeps a `.backups` directory beside the state file and
+    rotates `backup_count` copies (default 3). That is the shape RIS adopts.
+  The one difference: MO state is local, RIS state is remote, so the RIS
+  snapshot comes from `terraform state pull`.
+
+IMPLEMENTED
+  installer/state_mirror.py (new)
+    StateMirror(mirror_dir, keep=3) + mirror_dir_for(base, project, env)
+    snapshot()/entries()/latest()/manifest()/write_manifest()
+    Rotating local mirror, read-only by construction. No subprocess, no
+    boto3, no state_push anywhere in the module - asserted by a test.
+
+  PLACEMENT - the load-bearing decision:
+    <workdir_base>/<project>/<environment>/state-mirror/
+    A SIBLING of the isolated workdir, never a child. _ensure_isolated_workdir()
+    deletes and recreates `.../terraform` on EVERY run; a mirror inside it
+    would vanish on the next invocation, which is exactly the failure this
+    exists to prevent.
+
+  installer/ris.py
+    RisInstallContext.isolated_mirror_dir - the persistent path.
+    mirror_project_state(ctx, runner, purpose) - pull + snapshot. Wired into
+      _cmd_apply AFTER the safety gate and BEFORE the apply, so the mirror
+      holds the PRE-apply state, the only version worth rolling back to.
+      Advisory: never fatal, reports and returns None.
+    state mirror subcommand - lists the mirror; `--address capture` refreshes
+      it. Listing needs no backend and no AWS credentials, because the
+      fallback must not depend on the thing it is a fallback for.
+    TerraformRunner.state_pull(ensure_workspace=True) - narrowed only for the
+      mirror call.
+
+FOUR DEFECTS FOUND BY MEASURING, ALL FIXED
+  1. Path traversal in the snapshot label. ".." was allowed through the
+     sanitiser, so a label like "../../escape" survived into the filename.
+     Now only alphanumerics, dash and underscore, plus an lstrip guard.
+  2. Rotation ordered by FILENAME, not by write time. The timestamp has second
+     resolution and the disambiguating digest is not monotonic, so several
+     snapshots from one second came back in arbitrary order and rotation
+     could discard the newest. Now ordered by st_mtime_ns, filename only as
+     an exact-tie break.
+  3. Capture pulled WITHOUT init. `terraform state pull` then used whatever
+     backend a previous run had left in the workdir, so --backend-bucket was
+     silently ignored and the mirror captured the wrong bucket. A silent
+     second source of truth, which is worse than no mirror at all.
+     My first outage probe FAILED to prove its point because of exactly this:
+     it produced a snapshot from a bucket I had deliberately made unreachable.
+  4. Capture inited WITHOUT -reconfigure. Measured consequence: the workdir
+     kept pointing at the old bucket and every later run failed with
+     "Backend configuration changed". Found by measuring, not anticipated.
+
+PRE-EXISTING DEFECT FOUND AND FIXED (NOT caused by this work)
+  _cmd_plan, _cmd_apply, _cmd_destroy and _cmd_state all called
+  runner.init(backend_config=...) WITHOUT -reconfigure; only _cmd_install had
+  it. Adding workspace_key_prefix (commit 26a83fb) therefore broke every
+  already-initialised workdir.
+  ROOT CAUSE, measured: Terraform caches the backend config in TF_DATA_DIR,
+  which is `.../tfdata/` - a SIBLING of the wiped `.../terraform/` tree. The
+  per-run wipe never cleared it. The cached config still read
+  workspace_key_prefix: None while the code sent "env:".
+  PROVEN PRE-EXISTING: with the changes stashed, `plan` returned the identical
+  exit 1. Not introduced here.
+  This means the earlier "verified successful plan, create 37" only held on a
+  FRESH workdir; it was not reproducible a second time. That is a defect in
+  my earlier verification, stated plainly.
+  FIX: -reconfigure at all four sites. RIS always passes an explicit
+  BackendConfig derived from project/environment and never intends to migrate,
+  so -reconfigure is right: it adopts the given config without copying state
+  (-migrate-state would). Verified: init exit 1 -> exit 0 on the poisoned
+  workdir, and the workdir heals.
+
+VERIFIED WITH THE REAL CLI
+  state mirror          exit 0 with NO backend, NO credentials, empty HOME
+                        config - verified by stripping AWS_* from the env
+  state mirror capture  real snapshot from mays-ris-tf-state-dev,
+                        sha256 d6f72f96... byte-identical to the S3 object
+  capture, dead bucket  init fails -> NO new snapshot, listing still works,
+                        exit 0. The fallback does not fall over with the
+                        thing it protects against.
+  capture, absent ws    warning, no bogus snapshot, listing still works
+  rotation              3 kept, oldest dropped, newest first
+
+FOUR REAL BUGS IN MY OWN MIRROR, ALL CAUGHT BY COUNTEREXAMPLE
+  My first uniqueness fix was the payload digest, and the counterexample did
+  NOT bite - which proved the digest was not the load-bearing mechanism. The
+  while-exists loop was. Measuring the two cases separately showed each covers
+  a case the other does not: the digest separates DIFFERENT state in one
+  second, the loop separates IDENTICAL state in one second (the ordinary
+  no-op-apply case, not an exotic one). Both now have their own biting test.
+  One test was green for the WRONG REASON: it asserted "ensure_workspace=False"
+  by substring, and the docstring also contains that string, so reverting the
+  actual call still passed. Rewritten as an AST check on the call's keywords.
+  Two of my own test bugs: a /base path that tried to write outside tmp, and
+  a min() computed over the surviving serials instead of all of them.
+
+TESTS: 36 new in tests/test_state_mirror.py (34 for the mirror, 2 wiring),
+  4 in TestEveryBackendInitReconfigures, suite 1550 passed / 0 failed /
+  9 skipped. All hermetic - no AWS, no terraform.
+  NEGATIVE CONTROLS, all verified to bite:
+    traversal guard removed        1 failed
+    rotation back to filename sort 1 failed
+    digest removed (loop kept)     0 failed  <- correctly showed digest alone
+                                               is not load-bearing
+    while-loop removed             1 failed
+    reconfigure=False              1 failed
+    init removed from capture      4 failed
+    mirror call removed from apply 2 failed
+
+DISCLOSED, NOT FIXED - NEEDS A DECISION
+  New composite projects still cannot be planned. With TF_WORKSPACE set,
+  Terraform refuses to CREATE a missing workspace ("Currently selected
+  workspace X does not exist"), and the component clone holds ONE shared
+  `.terraform/environment` currently naming `mays-orders`. Only the four
+  workspaces that already exist in mays-orders-tfstate-central can run.
+  A separate defect from the mirror and larger than it: it needs either
+  workspace pre-creation or per-project TF_DATA_DIR isolation of the component
+  run. Not started, because fixing it means choosing between those two.

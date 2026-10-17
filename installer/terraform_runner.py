@@ -314,9 +314,14 @@ class TerraformRunner:
             args.extend(["-state", state_file])
         return self.run_and_get_result(args)
 
-    def state_pull(self) -> TerraformResult:
-        """Pull current state (read-only)."""
-        return self.run_and_get_result(["state", "pull"])
+    def state_pull(self, ensure_workspace: bool = True) -> TerraformResult:
+        """Pull current state (read-only).
+
+        ensure_workspace=False is for call sites that already ran
+        _ensure_workspace() in this working directory - re-running it would
+        add a second lock acquisition for no effect.
+        """
+        return self.run_and_get_result(["state", "pull"], ensure_workspace=ensure_workspace)
 
     def state_push(self, state_file: str) -> TerraformResult:
         """Push state to remote (MUTATING — caller must gate explicitly)."""

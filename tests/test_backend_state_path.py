@@ -261,6 +261,80 @@ class TestCallSitesAgree:
         )
         assert path_via_context == _state_path("mays-ris", "dev")
 
+class TestEveryBackendInitReconfigures:
+    """Every init that names a backend must also reconfigure it.
+
+    Found by measurement: adding workspace_key_prefix changed the backend
+    config, and Terraform caches that config in TF_DATA_DIR - which the
+    per-run workdir wipe does NOT clear, because TF_DATA_DIR is a sibling.
+    Every already-initialised workdir therefore kept the old config and
+    refused to start with "Backend configuration changed". Verified present at
+    HEAD, i.e. it predated the mirror work.
+
+    RIS always passes an explicit BackendConfig derived from project and
+    environment, and never intends to migrate between backends, so
+    -reconfigure is the correct flag: it adopts the given config without
+    copying state (-migrate-state would).
+    """
+
+    def _backend_inits(self):
+        import ast
+        import pathlib
+
+        tree = ast.parse(pathlib.Path("installer/ris.py").read_text())
+        out = []
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "init"
+            ):
+                continue
+            kwargs = {kw.arg for kw in node.keywords}
+            if "backend_config" in kwargs:
+                out.append((node.lineno, kwargs))
+        return out
+
+    def test_there_are_backend_inits_to_check(self):
+        """Guard against the sweep silently finding nothing."""
+        assert len(self._backend_inits()) >= 5, (
+            "expected every backend init in installer/ris.py to be found"
+        )
+
+    def test_every_backend_init_passes_reconfigure(self):
+        import ast
+        import pathlib
+
+        tree = ast.parse(pathlib.Path("installer/ris.py").read_text())
+        offenders = []
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "init"
+            ):
+                continue
+            kwargs = {kw.arg: kw.value for kw in node.keywords}
+            if "backend_config" not in kwargs:
+                continue
+            flag = kwargs.get("reconfigure")
+            if not (isinstance(flag, ast.Constant) and flag.value is True):
+                offenders.append(node.lineno)
+        assert not offenders, (
+            f"init at line(s) {offenders} names a backend but does not "
+            "reconfigure it; a cached TF_DATA_DIR from an earlier backend "
+            "config will make it fail with 'Backend configuration changed'"
+        )
+
+    def test_install_path_keeps_its_reconfigure(self):
+        """The install path already had it; it must not regress silently."""
+        import inspect
+        import textwrap
+        from installer.ris import _cmd_install
+
+        assert "reconfigure=True" in textwrap.dedent(inspect.getsource(_cmd_install))
+
+
 class TestComponentStateConsolidation:
     """Component states share the RIS bucket under a subdirectory.
 
