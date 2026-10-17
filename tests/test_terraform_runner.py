@@ -241,3 +241,46 @@ def test_tf_workspace_survives_stale_environment_file():
     env = run.call_args.kwargs["env"]
     assert env["TF_WORKSPACE"] == "mays-ris-composite-a-mays-orders"
     assert env["TF_WORKSPACE"] != "mays-orders"
+
+
+# --- workspace management must run WITHOUT the TF_WORKSPACE override -------
+# Terraform refuses `workspace select` while TF_WORKSPACE is set (measured exit
+# 1, "The selected workspace is currently overridden using the TF_WORKSPACE
+# environment variable"). Without this, every non-default workspace command
+# (state list, plan, apply) failed after TF_WORKSPACE was introduced.
+
+def test_workspace_select_runs_without_tf_workspace_override():
+    runner = _runner("mays-ris")
+    with patch("subprocess.run") as run:
+        run.return_value = _completed(["terraform"])
+        runner.validate()
+    select_call = run.call_args_list[0]
+    assert select_call.args[0][:3] == ["terraform", "workspace", "select"]
+    assert "TF_WORKSPACE" not in select_call.kwargs["env"]
+
+
+def test_workspace_new_runs_without_tf_workspace_override():
+    runner = _runner("mays-ris")
+    select_fail = _completed(
+        ["terraform", "workspace", "select", "mays-ris"],
+        returncode=1,
+        stderr='Workspace "mays-ris" doesn\'t exist',
+    )
+    with patch("subprocess.run") as run:
+        run.side_effect = [select_fail, _completed(["new"]), _completed(["validate"])]
+        runner.validate()
+    new_call = run.call_args_list[1]
+    assert new_call.args[0][:3] == ["terraform", "workspace", "new"]
+    assert "TF_WORKSPACE" not in new_call.kwargs["env"]
+
+
+def test_real_terraform_commands_keep_tf_workspace():
+    """Only workspace MANAGEMENT drops the override. State reads and writes
+    must keep it, that is the entire point of the fix."""
+    runner = _runner("mays-ris")
+    with patch("subprocess.run") as run:
+        run.return_value = _completed(["terraform"])
+        runner.plan()
+    last = run.call_args_list[-1]
+    assert last.args[0][:2] == ["terraform", "plan"]
+    assert last.kwargs["env"]["TF_WORKSPACE"] == "mays-ris"

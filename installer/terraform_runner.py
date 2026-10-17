@@ -170,15 +170,24 @@ class TerraformRunner:
         return env
 
     def _run_process(
-        self, args: List[str], timeout: int = 300
+        self, args: List[str], timeout: int = 300, workspace_ops: bool = False
     ) -> subprocess.CompletedProcess:
+        env = self._terraform_env()
+        if workspace_ops:
+            # `terraform workspace select/new` are refused by Terraform while
+            # TF_WORKSPACE is set ("The selected workspace is currently
+            # overridden using the TF_WORKSPACE environment variable",
+            # measured exit 1). Those two subcommands must therefore run
+            # without the override. Everything that READS or WRITES state
+            # (plan/apply/state/output/...) keeps it.
+            env.pop("TF_WORKSPACE", None)
         return subprocess.run(
             [self.terraform_bin] + args,
             cwd=str(self.working_dir),
             capture_output=True,
             text=True,
             timeout=timeout,
-            env=self._terraform_env(),
+            env=env,
         )
 
     # ------------------------------------------------------------------
@@ -193,8 +202,13 @@ class TerraformRunner:
         """
         if self.workspace == DEFAULT_WORKSPACE:
             return True
+        # WHY NOT `workspace select` ANYMORE: TF_WORKSPACE already selects the
+        # workspace for this process, and Terraform refuses `workspace select`
+        # while that override is set. The subcommand was therefore both
+        # redundant and fatal. We only need to make sure the workspace EXISTS.
         selected = self._run_process(
-            ["workspace", "select", self.workspace], timeout=30
+            ["workspace", "select", self.workspace], timeout=30,
+            workspace_ops=True,
         )
         if selected.returncode == 0:
             return True
@@ -205,7 +219,8 @@ class TerraformRunner:
                 f"'{self.workspace}': {selected.stderr.strip()}"
             )
         created = self._run_process(
-            ["workspace", "new", self.workspace], timeout=30
+            ["workspace", "new", self.workspace], timeout=30,
+            workspace_ops=True,
         )
         if created.returncode != 0:
             raise RuntimeError(

@@ -4509,3 +4509,68 @@ STILL NOT FIXED (deliberately, see previous entry):
     the second half of the problem is the shared backend LOCK, untested.
   - Phase order still wrong, collision scan still blind for composite names,
     both untouched.
+
+[MAYS-RIS-TF-WORKSPACE-SELECT-REGRESSION-01]
+Date: 2026-10-18
+Status: GREEN. REGRESSION FOUND AND FIXED.
+BASELINE: f06b6d4
+AWS MUTATIONS: NONE. GIT PUSH: NONE.
+
+USER QUESTION: "haben wir einen state list wie bei MO, der listet alles auf"
+ANSWER: yes, and more. RIS: --state-command
+  {list,show,pull,push,discover,inventory}
+MO:   state {list,show,pull,push}
+So RIS has discover and inventory on top.
+
+ASKING IT BROUGHT UP A SELF-INFLICTED REGRESSION - this entry is the
+admission and the repair.
+
+THE REGRESSION:
+  f06b6d4 introduced TF_WORKSPACE. That broke every non-default-workspace
+  command, because Terraform REFUSES `terraform workspace select` while the
+  override is set. Measured, same directory:
+    TF_WORKSPACE=X terraform workspace select X   -> exit 1,
+      "The selected workspace is currently overridden using the TF_WORKSPACE
+       environment variable"
+    TF_WORKSPACE=X terraform workspace new X     -> works
+    TF_WORKSPACE=X terraform plan ...            -> works
+  RIS state list died with:
+    RuntimeError: terraform workspace select failed for 'mays-ris-composite-a'
+  So TF_WORKSPACE fixed cross-project contamination and broke the very
+  commands that use the workspace. Not caught earlier because the RIS suite
+  mocks subprocess and never invokes the real CLI; only a real invocation
+  surfaced it. Lesson: mocked tests cannot catch a CLI contract violation.
+
+FIX (installer/terraform_runner.py):
+  _run_process() gained workspace_ops=False. When True it pops TF_WORKSPACE
+  from the child env.
+  _ensure_workspace() passes workspace_ops=True for `workspace select` and
+  `workspace new`.
+  Rationale: the two workspace-management subcommands must be allowed to touch
+  .terraform/environment, because that is their whole purpose. Everything
+  that reads or writes STATE (plan/apply/state/output/...) keeps the
+  override, which is what makes the isolation correct. The shared file may
+  now be rewritten without affecting any RIS read.
+  The existing "select first, then new on missing" behaviour is preserved, so
+  the two tests pinning it still pass unchanged.
+
+TESTS (3 new):
+  workspace select runs without TF_WORKSPACE
+  workspace new runs without TF_WORKSPACE
+  real terraform commands (plan) DO keep TF_WORKSPACE
+FULL SUITE: 1479 passed / 0 failed / 9 skipped.
+
+SEPARATE PRE-EXISTING FINDING (NOT mine, NOT fixed):
+  `state list` still cannot run even at HEAD, for a different reason:
+    _cmd_state uses ctx.make_runner(), which resolves to the ISOLATED workdir
+    (~/.ris-workdirs/<project>/<env>/terraform). That copy is created by
+    _ensure_isolated_workdir() with ignore_patterns('.terraform', ...), so it
+    has NO backend metadata, and the state subcommands do not init it.
+    Verified: at HEAD (changes stashed) `state list` fails identically with
+    "Backend initialization required"; and the bucket in terraform/main.tf:12
+    is a TEMPLATE, so a bare `terraform init` asks for input and fails with
+    "Error asking for input to configure backend s3: bucket: EOF".
+  So: the command exists and MO parity is there, but it is unusable until
+  _cmd_state initialises the backend of the isolated workdir the same way
+  _cmd_plan/_cmd_apply do (they pass ctx.backend_config()). Recorded as a
+  real gap, deliberately not fixed here.
