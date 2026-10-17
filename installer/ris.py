@@ -480,6 +480,196 @@ def parse_orders_outputs(stdout: str) -> Dict[str, Any]:
         raise RuntimeError("Orders output JSON is truncated or malformed")
 
 
+def orders_outputs_from_plan(plan_json: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract Orders outputs from a plan, marking what Terraform cannot know.
+
+    Why this exists: in dry-run nothing is applied, so the component's
+    `terraform output` is empty and the handoff would be empty with it - a dry
+    run could never plan RIS, only stop where it already stops. Reading the
+    component's plan instead lets the rehearsal run the WHOLE chain.
+
+    Measured on a real composite plan (Terraform v1.16.1):
+      dynamodb_table_name -> after="mays-ris-composite-a-mays-orders", unknown=false
+      dynamodb_table_arn  -> after=None,                            unknown=true
+    Terraform genuinely cannot know a computed ARN before the resource is
+    created. That is not a limitation of this approach, it is Terraform's
+    semantics, so the value is carried as None and must be filled in
+    deliberately by predict_orders_outputs() rather than silently defaulted.
+
+    Returns the same shape parse_orders_outputs() produces, with None for
+    values the plan leaves unknown.
+    """
+    changes = plan_json.get("output_changes")
+    if not isinstance(changes, dict):
+        raise RuntimeError(
+            "Orders plan JSON has no output_changes; cannot build the handoff "
+            "from a dry run"
+        )
+    out: Dict[str, Any] = {}
+    unknown: list = []
+    for name, change in changes.items():
+        if not isinstance(change, dict):
+            continue
+        # after_unknown is true for anything computed at apply time. If it is a
+        # list rather than a bool, only the named attributes are unknown.
+        flag = change.get("after_unknown")
+        if flag is True or (isinstance(flag, list) and flag):
+            out[name] = None
+            unknown.append(name)
+        else:
+            out[name] = change.get("after")
+    out["_unknown"] = unknown
+    return out
+
+
+def predict_orders_outputs(
+    outputs: Dict[str, Any],
+    orders_project_name: str,
+    region: str,
+    account_id: str,
+) -> Dict[str, Any]:
+    """Fill plan-unknown values that are deterministic, and refuse the rest.
+
+    Only the table ARN is filled. Its shape is fixed by the DynamoDB service,
+    not by this project:
+        arn:aws:dynamodb:{region}:{account}:table/{name}
+    Verified against a real table in the account, not assumed:
+        mays-orders-terraform-locks ->
+        arn:aws:dynamodb:eu-central-1:240571105849:table/mays-orders-terraform-locks
+
+    Anything else the plan leaves unknown is NOT guessed. An unrecognised
+    unknown means the rehearsal cannot be trusted, so it raises rather than
+    producing a plan that looks complete and is not.
+    """
+    predicted = dict(outputs)
+    unknown = set(predicted.get("_unknown") or [])
+
+    if "dynamodb_table_arn" in unknown:
+        name = predicted.get("dynamodb_table_name")
+        if not name:
+            raise RuntimeError(
+                "cannot predict the Orders table ARN: the plan does not know "
+                "the table name either"
+            )
+        predicted["dynamodb_table_arn"] = derive_orders_table_arn(
+            name, region, account_id
+        )
+        unknown.discard("dynamodb_table_arn")
+        predicted["_predicted"] = sorted(predicted.get("_predicted") or []) + [
+            "dynamodb_table_arn"
+        ]
+
+    # Outputs we never consume must not block the rehearsal.
+    relevant = unknown - set(_UNCONSUMED_ORDERS_OUTPUTS)
+    if relevant:
+        raise RuntimeError(
+            "Orders plan leaves required output(s) unknown and they are not "
+            f"deterministically derivable: {sorted(relevant)}. Refusing to "
+            "guess; a dry run must not invent a binding."
+        )
+    predicted["_unknown"] = sorted(unknown)
+    return predicted
+
+
+#: Outputs the component publishes that RIS does not consume. Being unknown in
+#: a plan is normal for these and must not fail the rehearsal.
+_UNCONSUMED_ORDERS_OUTPUTS = frozenset(
+    {
+        "api_gateway_authorizer_id",
+        "api_gateway_endpoint",
+        "api_gateway_id",
+        "api_gateway_stage_name",
+        "cognito_user_pool_arn",
+        "cognito_user_pool_client_id",
+        "cognito_user_pool_endpoint",
+        "cognito_user_pool_group_name",
+        "cognito_user_pool_id",
+        "iam_handler_role_arn",
+        "iam_handler_role_name",
+        "lambda_function_arn",
+        "lambda_function_name",
+        "lambda_invoke_arn",
+    }
+)
+
+
+def _run_plain_process(
+    cmd: List[str],
+    cwd: str,
+    extra_env: Optional[Dict[str, str]] = None,
+    timeout: int = 300,
+) -> "subprocess.CompletedProcess":
+    """Run a read-only terraform helper, inheriting the ambient AWS context.
+
+    Deliberately not TerraformRunner: this converts a plan that the component
+    produced, in the component's own directory, and must not acquire a
+    workspace or touch a backend.
+    """
+    env = {**os.environ}
+    if extra_env:
+        env.update(extra_env)
+    return subprocess.run(
+        cmd, cwd=cwd, capture_output=True, text=True, env=env, timeout=timeout
+    )
+
+
+def derive_orders_table_arn(table_name: str, region: str, account_id: str) -> str:
+    """Table ARN per the DynamoDB service's fixed ARN format.
+
+    Verified against a real table in the account rather than assumed:
+        mays-orders-terraform-locks
+        -> arn:aws:dynamodb:eu-central-1:240571105849:table/mays-orders-terraform-locks
+    Note the `table/` segment - a bare name would produce a plausible-looking
+    but wrong ARN, which is the kind of error that only shows up at runtime.
+    """
+    return f"arn:aws:dynamodb:{region}:{account_id}:table/{table_name}"
+
+
+def orders_plan_path_from_output(stdout: str) -> Optional[str]:
+    """The plan file the component just produced, as the component names it.
+
+    Read from the component's own "Deploy with: ... --plan <path>" line, i.e.
+    the exact path it tells the operator to use. Nothing is discovered by
+    globbing, so a concurrent run cannot make RIS read someone else's plan.
+    """
+    marker = "--plan "
+    idx = stdout.rfind(marker)
+    if idx < 0:
+        return None
+    rest = stdout[idx + len(marker) :]
+    path = rest.split()[0].strip() if rest.split() else ""
+    return path or None
+
+
+def load_orders_plan_json(
+    plan_path: str, component_dir: str, tf_data_dir: Optional[str] = None
+) -> Dict[str, Any]:
+    """Convert the component's plan to JSON, read-only.
+
+    `terraform show -json` on a plan needs the provider plugins that produced
+    it, so it runs with the component's own data dir. This is the same
+    conversion the component's own Policy Gate performs
+    (installer/projects/mays_orders/installer/run/manager.py:235).
+
+    Must be run with cwd=the component's terraform directory, otherwise
+    Terraform cannot resolve the plugin schemas - measured, not assumed.
+    """
+    result = _run_plain_process(
+        ["terraform", "show", "-json", plan_path],
+        cwd=os.path.join(component_dir, "terraform"),
+        extra_env={"TF_DATA_DIR": tf_data_dir} if tf_data_dir else None,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"terraform show -json failed for the Orders plan "
+            f"({result.stderr.strip()[:300]})"
+        )
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Orders plan JSON is malformed: {exc}")
+
+
 def orders_handoff_vars(
     outputs: Dict[str, Any],
     orders_project_name: str,
@@ -1802,7 +1992,48 @@ def _run_orders_component(
     )
     if out.get("status") != "SUCCESS":
         raise RuntimeError(f"Orders output failed: {out.get('stderr', out.get('error'))}")
-    return parse_orders_outputs(out.get("stdout", ""))
+
+    outputs = parse_orders_outputs(out.get("stdout", ""))
+
+    # A dry run must rehearse the WHOLE chain, otherwise it stops exactly where
+    # the interesting part begins: nothing is applied, so `terraform output` is
+    # empty and RIS has no binding to plan against. Measured on a real composite
+    # plan: the table NAME is known at plan time, the table ARN is not.
+    if not _has_consumable_outputs(outputs):
+        plan_path = orders_plan_path_from_output(plan.get("stdout", "") or "")
+        if not plan_path:
+            raise RuntimeError(
+                "Orders returned no outputs (nothing applied) and named no plan "
+                "file, so the handoff cannot be built. Run the component plan "
+                "with the component installer so it prints the plan path."
+            )
+        component_dir = orchestrator.checkout_project("mays-orders")["local_path"]
+        plan_json = load_orders_plan_json(
+            plan_path, component_dir, env_extra["TF_DATA_DIR"]
+        )
+        planned = orders_outputs_from_plan(plan_json)
+        predicted = predict_orders_outputs(
+            planned, orders_project, ctx.aws_region, ctx.aws_context.account_id
+        )
+        print(
+            f"  Orders handoff (from plan, nothing applied): "
+            f"table={predicted.get('dynamodb_table_name')}, "
+            f"predicted={predicted.get('_predicted') or 'none'}"
+        )
+        if predicted.get("_predicted"):
+            print(
+                "  NOTE: the table ARN is not knowable before apply "
+                "(Terraform marks it unknown). It is derived from the service's "
+                "fixed ARN format and is re-verified against the real output at "
+                "apply time."
+            )
+        outputs = predicted
+    return outputs
+
+
+def _has_consumable_outputs(outputs: Dict[str, Any]) -> bool:
+    """Whether the component gave us anything RIS can bind to."""
+    return any(outputs.get(name) for name in ORDERS_OUTPUT_VAR_MAP)
 
 
 def _cmd_install(

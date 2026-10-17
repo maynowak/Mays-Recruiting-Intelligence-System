@@ -5169,3 +5169,114 @@ STILL OPEN, UNCHANGED
     component's own concern and upstream's to solve.
   - The cognito backup bucket name still exceeds the 63-char S3 limit for long
     composite names, independently of everything above.
+
+[MAYS-RIS-DRYRUN-FULL-CHAIN-01]
+Date: 2026-10-18
+Status: GREEN for the handoff chain. THE TWO-PHASE STOP IS STILL NOT BUILT.
+BASELINE: 35d718c
+AWS MUTATIONS: NONE. TERRAFORM APPLY: NONE. GIT PUSH: NONE.
+MAYS-ORDERS-AWS SOURCE: unmodified, pin 5cf50a0.
+MO's shared .terraform/environment restored to `mays-orders` after every probe.
+
+USER REQUIREMENT, verbatim in substance:
+  the two-phase stop is NECESSARY. "dry run muss diese dann selber
+  durcharbeiten so das wir die arns ja von der order haben die risA oder
+  Ris B verwendet" - the dry run has to run the whole chain itself, so that we
+  do have the ARNs of the order instance that RIS A or RIS B uses.
+
+THE BLOCKER THIS ENTRY REMOVES
+  In a dry run nothing is applied, so the component's `terraform output` is
+  empty. Measured: the dry-run path returned {} - an empty handoff. With no
+  binding, RIS cannot be planned at all, so a dry run stopped exactly where the
+  interesting part begins. It rehearsed nothing.
+  Terraform cannot solve this by itself: values that are unknown before apply
+  stay unknown in a plan.
+
+WHAT THE PLAN ACTUALLY CONTAINS - measured on a real composite plan
+  terraform show -json on the component's plan file (v1.16.1), output_changes:
+    dynamodb_table_name -> after="mays-ris-composite-a-mays-orders" unknown=false
+    dynamodb_table_arn  -> after=None                              unknown=TRUE
+  16 outputs, 11 of them unknown. The name is deterministic; the ARN is a
+  computed attribute and genuinely unknowable before create. That is Terraform's
+  semantics, not a limitation of this approach, so it is handled explicitly
+  rather than defaulted away.
+
+IMPLEMENTED (installer/ris.py)
+  orders_outputs_from_plan(plan_json)
+    Reads output_changes and carries unknown values as None, listing them in
+    _unknown. Never substitutes a default.
+  derive_orders_table_arn(name, region, account)
+    arn:aws:dynamodb:{region}:{account}:table/{name}
+    VERIFIED against a real table in the account, not assumed:
+      mays-orders-terraform-locks ->
+      arn:aws:dynamodb:eu-central-1:240571105849:table/mays-orders-terraform-locks
+    The `table/` segment matters: a bare name yields a plausible-looking but
+    wrong ARN, the kind of error that only surfaces at runtime.
+  predict_orders_outputs(outputs, project, region, account)
+    Fills exactly one value, the table ARN, and RECORDS that it predicted.
+    Any other output RIS consumes that the plan leaves unknown RAISES instead of
+    being guessed - a dry run must not invent a binding. Outputs RIS never
+    consumes (cognito_user_pool_id, lambda_function_arn, ...) are listed in
+    _UNCONSUMED_ORDERS_OUTPUTS and do not block the rehearsal.
+  orders_plan_path_from_output(stdout)
+    Takes the plan path from the component's own "Deploy with: ... --plan <path>"
+    instruction. Nothing is discovered by globbing, so a concurrent component
+    run cannot make RIS read someone else's plan. Asserted by an AST test.
+  load_orders_plan_json(plan_path, component_dir, tf_data_dir)
+    `terraform show -json`, read-only, run with cwd=the component's terraform
+    directory. Same conversion the component's own Policy Gate performs
+    (installer/projects/mays_orders/installer/run/manager.py:235).
+  _run_orders_component(): if the component returns nothing consumable, it
+    reads the plan, derives what is derivable, and returns that as the handoff,
+    printing what was predicted and why.
+
+  GOTCHA, MEASURED TWICE: `terraform show -json` on a plan fails with "Failed to
+  load plugin schemas" unless cwd is the component's terraform directory. It
+  fails from the clone root even when every provider binary is present. That
+  produced a false "the plan cannot be read" conclusion on the first attempt.
+
+  DERIVATION IS NOT A GUESS, IT IS A NAMING CONTRACT. RIS already derives the
+  queue URL and ARN the same way (derive_orders_queue_url / _arn) from MO's
+  published {project}-orders-queue contract. The table ARN joins that set.
+
+HONEST LIMIT OF WHAT A DRY RUN CAN NOW PROVE
+  The binding is real for the table NAME (taken from MO's own plan) and derived
+  for the table ARN (fixed service format). It is NOT a substitute for the real
+  handoff: after Orders is applied, the genuine outputs are read again, and that
+  is the binding that counts. The derived ARN exists so the rehearsal can
+  produce a complete RIS plan; it must never be what a deployed system runs on.
+  NOT YET WIRED: comparing the predicted values against the real ones at apply
+  time and failing closed on a mismatch. Recommended, not done - it needs the
+  two-phase stop in place first, and I am not building both blind.
+
+TESTS: tests/test_dryrun_handoff.py, 21 new, all hermetic (no AWS, no terraform).
+  Covers: known values carried, unknown never guessed, unknown listed, plan
+  without output_changes rejected, list-valued after_unknown handled, the exact
+  ARN format against a real table, prediction recorded, unconsumed unknowns do
+  not block, non-derivable required unknown raises, prediction does not mutate
+  its input, a dry run yields a complete binding, empty outputs recognised as
+  unbound, plan path read from MO's instruction and last-one-wins, no globbing
+  (AST), plus a fixture that pins our reading against the captured real plan
+  when it is present.
+  FULL SUITE: 1576 passed / 0 failed / 9 skipped.
+
+TWO OF MY OWN COUNTEREXAMPLES DID NOT BITE, and both were my fault
+  - "no globbing" was asserted by substring, so it was satisfied by the
+    docstring's own words. A subprocess call was not even a Call node. Rewritten
+    as an AST check on called attributes; the counterexample only bit after that.
+  - the "unknown required output raises" guard is UNREACHABLE while the ARN is
+    always handled first, so my test passed for the wrong reason. Made reachable
+    by testing the general case (name unknown, ARN known) - which is also the
+    case that protects a future consumed output.
+  Same lesson as twice before: a green test means nothing until the
+  counterexample has been seen to fail.
+
+STILL NOT BUILT - the user's other half
+  The two-phase stop itself. Today --yes governs BOTH applies: without it
+  nothing is deployed, with it both are. There is no run that deploys Orders,
+  plans RIS, and then asks. Consequently there is also no way to distinguish
+    RIS unbound because the operator deliberately stopped  (should WARN)
+    RIS unbound because the binding is broken             (should FAIL CLOSED)
+  which is why validate_orders_binding, which currently raises on every
+  mismatch, would treat a legitimate deliberate stop as a defect. That
+  distinction is the reason the two-phase stop is not cosmetic.
