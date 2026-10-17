@@ -4323,3 +4323,105 @@ SIDE EFFECT I DID NOT INTEND, DISCLOSED:
 
 VERIFICATION: py_compile OK; terraform fmt -check -recursive clean;
   terraform validate Success; full suite 1469 passed / 0 failed / 9 skipped.
+
+[MAYS-RIS-PARALLEL-WORKSPACE-CONTAMINATION-01]
+Date: 2026-10-18
+Status: YELLOW - ROOT CAUSE CONFIRMED, FIX NOT YET APPLIED
+BASELINE: 3554f0f
+AWS MUTATIONS: NONE. TERRAFORM APPLY: NONE. GIT PUSH: NONE.
+
+TRIGGER: user pointed at the parallel-installation reports and asked whether
+the temp-dir clone test had actually refuted item 4. It had NOT - the two
+questions are different, and the user's correction stands.
+
+WHAT THE EXISTING REPORTS ALREADY PROVED:
+  docs/reports/MAYS-RIS-RECOVERY-AND-PARALLEL-INSTALLER-01.md:
+    "Root Cause Analysis - CONFIRMED"
+    "Shared Working Directory: Both production (mays-ris) and test
+     (mays-ris-e2e-test) use terraform/"
+    "No True Isolation: Shared .terraform directory causes
+     cross-contamination"
+    proposed remedy "Option A: Separate working directory per project
+    (copy terraform/ to temp dir)"
+  docs/reports/MAYS-RIS-PARALLEL-INSTALLATION-EXECUTION-01.md:
+    empty test workspace (serial 0, 181 bytes) yet the plan wanted to
+    DESTROY/REPLACE production resources, and the test state emitted
+    PRODUCTION queue URLs (mays-ris-dev-*).
+  So the phenomenon predates this session. What follows is the mechanism.
+
+MECHANISM - FOUND BY MEASUREMENT, NOT BY READING:
+  1. RIS isolates ITS OWN side. Verified: two projects get two workdirs
+     (/tmp/wdir-test/mays-ris/test/terraform vs .../mays-ris-e2e-test/
+     test/terraform), neither containing a .terraform from the repo.
+     The report's "Option A" is implemented (installer/ris.py
+     _ensure_isolated_workdir).
+  2. The ORDERS component side is NOT isolated. Verified:
+     orchestrator.py:471 runs the component installer with
+     cwd = installer/projects/mays_orders for EVERY RIS project. One
+     directory, one terraform/, one .terraform/environment.
+  3. THE WORKSPACE ENV VAR IS WRONG. Terraform has no
+     TERRAFORM_WORKSPACE. Measured on v1.16.1, same directory:
+       TERRAFORM_WORKSPACE=mays-ris-composite-a-mays-orders
+         -> terraform workspace show = mays-orders        (IGNORED)
+       TF_WORKSPACE=mays-ris-composite-a-mays-orders
+         -> terraform workspace show = mays-ris-composite-a-mays-orders
+     installer/ris.py sets TERRAFORM_WORKSPACE in env_extra and
+     installer/terraform_runner.py sets it again for child processes.
+     Both are dead code with respect to the Terraform CLI.
+  4. NEITHER RUNNER sets TF_WORKSPACE. The component runner (its
+     installer/terraform/runner.py) contains no WORKSPACE env var at all;
+     it uses `terraform workspace select`, which WRITES
+     .terraform/environment. Same for the RIS runner.
+
+CONSEQUENCE - the race is real:
+  .terraform/environment is one shared mutable file.
+    A: workspace select A   -> file = A
+    B: workspace select B   -> file = B      (parallel or interleaved run)
+    A: plan                 -> reads file -> B's state
+  Demonstrated: with the file set to mays-orders, a process that sets
+  only TERRAFORM_WORKSPACE still resolves to mays-orders. Setting
+  TF_WORKSPACE resolves to the requested workspace AND leaves the file
+  untouched - so the process-local override is the correct lever and it
+  does not require touching the component source.
+
+WHY THE EARLIER PLAN FAILURE FITS THIS PICTURE:
+  The stale lock was on the DEFAULT state. A clone without a
+  .terraform/environment has no selected workspace, so Terraform falls
+  back to default, and the default state key is the bare key with no
+  workspace_key_prefix. The 19-day-old lock was on exactly that path.
+
+ALSO ANSWERED - the ARN question, and it is NOT a real gap:
+  installer/ris.py:validate_orders_binding() checks table_arn and
+  queue_arn for prefix and account but not for identity, which I reported
+  as an open gap. It is not reachable. Both table outputs come from the
+  same resource:
+    terraform/modules/dynamodb/outputs.tf
+      output "table_name" { value = aws_dynamodb_table.orders.name }
+      output "table_arn"  { value = aws_dynamodb_table.orders.arn  }
+  orders_handoff_vars() takes both from the same `output` dict, so they
+  cannot disagree unless Terraform itself is broken. The name check
+  already covers the realistic failure (a stale or wrong workspace yields
+  a wrong name first). My "known gap" comment is now known to be
+  theoretical; it stays as defence in depth, but it is NOT work to do.
+  Not fixed, and that is the correct call.
+
+THE ONE-LINE FIX AVAILABLE ON THE RIS SIDE (not applied, needs sign-off):
+  add "TF_WORKSPACE": orders_project to env_extra in
+  _run_orders_component() and _cmd_destroy(), alongside the existing
+  TERRAFORM_WORKSPACE which should stay for the component's own
+  InstallationContext.from_env(). Measured to correct the workspace even
+  when the shared .terraform/environment points elsewhere.
+  RIS cannot fix the component's runner without modifying Mays-Orders-AWS.
+
+CAVEAT ON THIS EVIDENCE: sequential interleaving was demonstrated, not
+  true concurrency. Two genuinely simultaneous processes could also race
+  on the shared backend lock, which is the second half of the problem and
+  was not tested. Do not treat this as a complete proof.
+
+OPEN:
+  1. Apply TF_WORKSPACE in RIS (one line, measured) - awaiting approval.
+  2. True-concurrency test of two simultaneous installs.
+  3. Phase order (item A of the earlier list) is untouched and still wrong.
+  4. Collision-scan blind spot (item 2) is untouched; the user assessed it
+     as "a little reassuring or a little holey" - it remains a warning, not
+     a gate.
