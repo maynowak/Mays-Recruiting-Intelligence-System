@@ -1017,6 +1017,7 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
             "ALLOW_AWS_OPERATIONS": "true",
             "PROJECT_NAME": orders_project,
             "TERRAFORM_WORKSPACE": orders_project,
+            "TF_WORKSPACE": orders_project,
         }
         destroy_plan = orchestrator.run_project_installer(
             "mays-orders",
@@ -1378,6 +1379,16 @@ def _run_orders_component(
         # init() itself must NOT select a workspace (documented contract,
         # two tests pin it) -- the env var is what does the work.
         "TERRAFORM_WORKSPACE": orders_project,
+        # TF_WORKSPACE is the one the Terraform CLI actually honours. Without
+        # it the component's workspace comes only from the shared
+        # terraform/.terraform/environment file that every RIS project writes
+        # to (orchestrator runs the component with cwd=installer/projects/
+        # mays_orders), so an interleaved install can plan against another
+        # project's state. Measured: with the file pointing elsewhere,
+        # TF_WORKSPACE still resolves to the requested workspace and leaves
+        # the file untouched. TERRAFORM_WORKSPACE stays because the
+        # component's InstallationContext.from_env() reads it.
+        "TF_WORKSPACE": orders_project,
     }
     # Persisted here, not left to the caller: a CLI-only pin is lost on the
     # next unpinned run (see G3-COGNITO-CONFIG-PERSISTENCE-01 in AI_AUDITLOG).

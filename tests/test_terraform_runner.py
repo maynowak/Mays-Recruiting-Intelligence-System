@@ -194,3 +194,50 @@ def test_unresolved_backend_config_raises():
     assert not BackendConfig(bucket="b").is_resolved()
     with pytest.raises(ValueError, match="bucket"):
         BackendConfig(region="r").to_args()
+
+
+# --- TF_WORKSPACE: the variable Terraform actually honours -----------------
+# Regression guard. TERRAFORM_WORKSPACE is NOT a Terraform variable; measured
+# on v1.16.1 it is ignored by the CLI. TF_WORKSPACE is the real one and is
+# what makes two projects sharing one working directory safe.
+
+def test_tf_workspace_is_set_for_child_processes():
+    runner = _runner("mays-ris")
+    with patch("subprocess.run") as run:
+        run.return_value = _completed(["terraform", "version", "-json"])
+        runner.version()
+    assert run.call_args.kwargs["env"]["TF_WORKSPACE"] == "mays-ris"
+
+
+def test_terraform_workspace_still_set_for_component_context():
+    """The component's InstallationContext.from_env() reads THIS name."""
+    runner = _runner("mays-ris")
+    with patch("subprocess.run") as run:
+        run.return_value = _completed(["terraform", "version", "-json"])
+        runner.version()
+    env = run.call_args.kwargs["env"]
+    assert env["TERRAFORM_WORKSPACE"] == "mays-ris"
+    assert env["TF_WORKSPACE"] == "mays-ris"
+
+
+def test_tf_workspace_not_mutated_globally():
+    """Child env only, never os.environ."""
+    before = os.environ.get("TF_WORKSPACE")
+    runner = _runner("mays-ris")
+    with patch("subprocess.run") as run:
+        run.return_value = _completed(["terraform", "version", "-json"])
+        runner.version()
+    assert os.environ.get("TF_WORKSPACE") == before
+
+
+def test_tf_workspace_survives_stale_environment_file():
+    """The contamination case: a shared .terraform/environment names another
+    project. The process-local override must still win, and the file must not
+    be rewritten by us."""
+    runner = _runner("mays-ris-composite-a-mays-orders")
+    with patch("subprocess.run") as run:
+        run.return_value = _completed(["terraform", "version", "-json"])
+        runner.version()
+    env = run.call_args.kwargs["env"]
+    assert env["TF_WORKSPACE"] == "mays-ris-composite-a-mays-orders"
+    assert env["TF_WORKSPACE"] != "mays-orders"

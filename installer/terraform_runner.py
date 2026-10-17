@@ -152,6 +152,18 @@ class TerraformRunner:
         env = {**os.environ, **self.extra_env}
         if self.aws_context is not None:
             env.update(self.aws_context.to_env())
+        # TF_WORKSPACE is the variable the Terraform CLI actually reads.
+        # Measured on v1.16.1, same working directory:
+        #   TF_WORKSPACE=w        -> terraform workspace show = w
+        #   TERRAFORM_WORKSPACE=w -> terraform workspace show = (ignored)
+        # There is no TERRAFORM_WORKSPACE in Terraform. Keeping it below
+        # is for the component's own InstallationContext.from_env(), which
+        # reads it from os.environ -- a different consumer entirely.
+        #
+        # Why both: TF_WORKSPACE pins the workspace for THIS process
+        # regardless of what a stale .terraform/environment says, which is
+        # what makes two projects sharing one working directory safe.
+        env["TF_WORKSPACE"] = self.workspace
         env["TERRAFORM_WORKSPACE"] = self.workspace
         if self.data_dir is not None:
             env["TF_DATA_DIR"] = str(self.data_dir)

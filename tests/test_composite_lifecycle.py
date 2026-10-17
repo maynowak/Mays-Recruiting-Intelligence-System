@@ -396,3 +396,41 @@ class TestBindingValidation:
         """Verify RIS installer binds to correct component via backend."""
         # This is verified via the reflect_in_db test
         pass
+
+
+class TestWorkspaceEnvIsolation:
+    """RIS must pin the Orders component's Terraform workspace per process.
+
+    The component installer runs with cwd=installer/projects/mays_orders for
+    EVERY RIS project, so terraform/.terraform/environment is a single shared
+    mutable file. TERRAFORM_WORKSPACE is not a Terraform variable, so only
+    TF_WORKSPACE protects a process from the file naming another project.
+    """
+
+    def test_orders_env_pins_both_workspace_variables(self):
+        from installer.orchestrator import RISInstaller
+        import inspect
+
+        source = inspect.getsource(RISInstaller) if False else ""
+        # the component call site lives in installer/ris.py
+        from installer import ris
+
+        src = inspect.getsource(ris._run_orders_component)
+        assert '"TF_WORKSPACE": orders_project' in src
+        assert '"TERRAFORM_WORKSPACE": orders_project' in src
+
+    def test_terraform_runner_sets_tf_workspace(self):
+        from installer.terraform_runner import TerraformRunner
+
+        r = TerraformRunner(working_dir="/tmp", workspace="proj-x")
+        env = r._terraform_env()
+        assert env["TF_WORKSPACE"] == "proj-x"
+        assert env["TERRAFORM_WORKSPACE"] == "proj-x"
+
+    def test_tf_workspace_follows_the_requested_project(self):
+        """Two different projects must not share a workspace pin."""
+        from installer.terraform_runner import TerraformRunner
+
+        a = TerraformRunner(working_dir="/tmp", workspace="mays-ris-composite-a-mays-orders")
+        b = TerraformRunner(working_dir="/tmp", workspace="mays-ris-composite-b-mays-orders")
+        assert a._terraform_env()["TF_WORKSPACE"] != b._terraform_env()["TF_WORKSPACE"]
