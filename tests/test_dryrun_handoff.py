@@ -164,7 +164,154 @@ class TestHandoffFromDryRun:
         assert _has_consumable_outputs(out) is True
 
 
+    def test_names_the_new_code_uses_are_imported_at_module_level(self):
+        """A NameError in a rarely-run branch is invisible to the suite.
+
+        Two real runtime failures shipped past a green suite in this area:
+        checkout_project() subscripted as a dict, and `os` not imported at
+        module level. Both only appear when the dry-run branch actually runs.
+        So the dependency is pinned directly.
+        """
+        import installer.ris as ris
+
+        for name in ("os", "json", "subprocess", "Path"):
+            assert hasattr(ris, name), (
+                f"{name} must be a module-level attribute of installer.ris; "
+                "a function-local import hides the dependency from every other "
+                "call site"
+            )
+
+    def test_no_function_shadows_os_with_a_local_import(self):
+        """A local `import os` alongside a module-level one is dead weight and
+        hides which imports the module actually relies on.
+
+        Only imports INSIDE function bodies count. My first version walked
+        every Import node and therefore flagged the module-level one too,
+        which was itself a bug in the test, not in the code.
+        """
+        import ast
+        import pathlib
+
+        tree = ast.parse(pathlib.Path("installer/ris.py").read_text())
+        local_os = []
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for inner in ast.walk(node):
+                if isinstance(inner, ast.Import):
+                    if any(alias.name == "os" for alias in inner.names):
+                        local_os.append(inner.lineno)
+        assert not local_os, f"redundant local 'import os' at line(s) {local_os}"
+
+
+class TestPlanToJsonConversion:
+    """The plan->JSON step shells out; its wiring must be pinned.
+
+    A real bug lived here and the whole suite missed it: checkout_project()
+    returns a ProjectInfo, not a dict, so `.local_path` was subscripted wrongly
+    and the branch raised TypeError on first real use. Every unit test passed
+    because none of them executed this path.
+    """
+
+    def test_component_dir_uses_the_object_attribute_not_a_key(self):
+        """checkout_project returns ProjectInfo; local_path is an attribute.
+
+        The AST shape is Subscript(value=Call(func=Attribute(...))), so the
+        check has to look at n.value.func.attr - my first version looked at
+        n.value.attr, found nothing, and passed green against the very bug it
+        was written for.
+        """
+        import ast
+        import inspect
+        import textwrap
+
+        from installer import ris
+
+        tree = ast.parse(textwrap.dedent(inspect.getsource(ris._run_orders_component)))
+        offenders = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Subscript):
+                continue
+            inner = node.value
+            if not (isinstance(inner, ast.Call) and isinstance(inner.func, ast.Attribute)):
+                continue
+            if inner.func.attr == "checkout_project":
+                offenders.append(node.lineno)
+        assert not offenders, (
+            f"checkout_project() subscripted at line(s) {offenders}; it "
+            "returns a ProjectInfo object and subscripting it is a TypeError "
+            "at runtime"
+        )
+
+    def test_the_component_dir_is_read_as_an_attribute(self):
+        """Positive counterpart: the attribute access must exist."""
+        import ast
+        import inspect
+        import textwrap
+
+        from installer import ris
+
+        tree = ast.parse(textwrap.dedent(inspect.getsource(ris._run_orders_component)))
+        found = any(
+            isinstance(n, ast.Attribute) and n.attr == "local_path"
+            for n in ast.walk(tree)
+        )
+        assert found, "expected checkout_project(...).local_path to be read"
+
+    def test_conversion_is_called_with_the_component_terraform_dir(self):
+        """cwd must be the component's terraform directory, not the clone root.
+
+        Measured: `terraform show -json` fails with 'Failed to load plugin
+        schemas' from the clone root even though every provider binary is
+        present.
+        """
+        import inspect
+
+        from installer.ris import load_orders_plan_json
+
+        src = inspect.getsource(load_orders_plan_json)
+        assert 'os.path.join(component_dir, "terraform")' in src
+
+    def test_only_a_show_json_command_is_ever_issued(self):
+        """It converts a plan the component made; it must not touch state.
+
+        Asserted on the command list via AST, not on the source text: the
+        docstring of the helper itself contains the word "workspace", so a
+        substring check would fail for the wrong reason - or, worse, pass for
+        the wrong one if the wording changed.
+        """
+        import ast
+        import inspect
+        import textwrap
+
+        from installer.ris import load_orders_plan_json
+
+        tree = ast.parse(textwrap.dedent(inspect.getsource(load_orders_plan_json)))
+        literals = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                if node.func.id != "_run_plain_process":
+                    continue
+                if not node.args or not isinstance(node.args[0], ast.List):
+                    continue
+                parts = [
+                    el.value for el in node.args[0].elts if isinstance(el, ast.Constant)
+                ]
+                literals.append(parts)
+        assert literals, "expected exactly one _run_plain_process call"
+        for cmd in literals:
+            assert cmd[:3] == ["terraform", "show", "-json"], cmd
+            for forbidden in ("apply", "destroy", "init", "state", "workspace", "lock", "push", "import"):
+                assert forbidden not in cmd, f"{forbidden} must never be issued here"
+
+
 class TestPlanPathIsReadNotGuessed:
+    """The plan path must come from the component, not from discovery.
+
+    A concurrent component run writes its plan next to ours; globbing would let
+    RIS read the wrong one.
+    """
+
     def test_path_is_taken_from_the_deploy_instruction(self):
         stdout = (
             "Plan Summary:\n"

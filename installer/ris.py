@@ -29,13 +29,14 @@ Safety rules (hard):
 
 import argparse
 import json
+import os
+import subprocess
 import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import boto3
-
-from pathlib import Path
 
 from installer.state_mirror import MirrorEntry, StateMirror
 from installer.terraform_runner import (
@@ -851,7 +852,6 @@ def is_plan_safe(plan_json: dict, project_name: str, environment: str) -> tuple[
 
 def load_plan_json(plan_file: str) -> dict:
     """Load and parse a Terraform plan file as JSON."""
-    import os
     if not os.path.exists(plan_file):
         # In test environments, the plan file may not exist (mocked)
         # Return an empty plan that passes the safety gate
@@ -927,7 +927,6 @@ class RisInstallContext:
         Extra --var entries ride along, but project identity always wins
         (fail-closed: identity cannot be overridden via --var).
         """
-        import os
         merged = dict(self.extra_vars or {})
         # Provide absolute paths for lambda zips (required for isolated workdirs)
         repo_root = os.path.dirname(os.path.dirname(os.path.abspath(self.terraform_dir)))
@@ -1633,7 +1632,6 @@ def _cmd_state(
     `discover` and `inventory` talk to S3/DynamoDB directly and never touch
     Terraform, so they are exempt and stay cheap.
     """
-    import os
     import subprocess
     runner = ctx.make_runner()
     if state_command in ("list", "show", "pull"):
@@ -2007,7 +2005,7 @@ def _run_orders_component(
                 "file, so the handoff cannot be built. Run the component plan "
                 "with the component installer so it prints the plan path."
             )
-        component_dir = orchestrator.checkout_project("mays-orders")["local_path"]
+        component_dir = orchestrator.checkout_project("mays-orders").local_path
         plan_json = load_orders_plan_json(
             plan_path, component_dir, env_extra["TF_DATA_DIR"]
         )
