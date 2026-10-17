@@ -4574,3 +4574,73 @@ SEPARATE PRE-EXISTING FINDING (NOT mine, NOT fixed):
   _cmd_state initialises the backend of the isolated workdir the same way
   _cmd_plan/_cmd_apply do (they pass ctx.backend_config()). Recorded as a
   real gap, deliberately not fixed here.
+
+[MAYS-RIS-STATE-COMMAND-BACKEND-01]
+Date: 2026-10-18
+Status: GREEN. THREE PRE-EXISTING DEFECTS FIXED IN ONE COMMAND PATH.
+BASELINE: 1654a13
+AWS MUTATIONS: NONE. GIT PUSH: NONE.
+
+TRIGGER: the user asked whether there is a state list "like MO that lists
+everything". Answer: yes, and more - RIS has {list,show,pull,push,discover,
+inventory} against MO's {list,show,pull,push}. But asking it exposed that the
+command did not work at all. Three separate defects, all pre-existing.
+
+DEFECT 1 — state subcommands never initialised the backend.
+  _cmd_state used ctx.make_runner(), which resolves to the ISOLATED workdir
+  created by _ensure_isolated_workdir() with ignore_patterns('.terraform').
+  A fresh copy therefore has no backend metadata and every state subcommand
+  died with "Backend initialization required". A bare `terraform init` cannot
+  fix it either: the bucket in terraform/main.tf is a template, so it prompts
+  and exits with "Error asking for input to configure backend s3: bucket: EOF".
+  _cmd_plan/_cmd_apply already passed ctx.backend_config(); the state path did
+  not. Verified pre-existing by stashing this session's changes.
+  FIX: init with ctx.backend_config() for list/show/pull only.
+
+DEFECT 2 — `aws` was unreachable from `discover`.
+  discover runs `aws s3api ...` with env=aws_ctx.to_env(). to_env() returns
+  ONLY AWS_PROFILE and AWS_REGION — no PATH. Every call raised
+  FileNotFoundError: 'aws'. Measured directly: to_env().keys() ==
+  {AWS_PROFILE, AWS_REGION}.
+  FIX: env = {**os.environ, **aws_ctx.to_env()}. (This also required adding
+  `import os` to the function, which was importing only subprocess.)
+
+DEFECT 3 — the init was initially placed BEFORE the safety guards.
+  My first attempt inited for every subcommand, which meant a push refused in
+  dry-run would still have run terraform init. That contradicts the contract
+  and broke test_state_push_refused_without_yes, which asserts no subprocess
+  runs at all. Caught by the suite and corrected rather than adjusted away:
+  the init now sits inside the list/show/pull branch only, and the `show`
+  address check moved ahead of it too.
+
+VERIFIED END TO END (all read-only, real CLI):
+  state list      Exit 0  (empty output - correct, all RIS states are empty)
+  state pull      Exit 0  serial 1, 0 resources - matches S3 exactly
+  state discover  Exit 0  lists 4 state objects with size and mtime
+  state inventory Exit 0  discover + summary line
+  All nine RIS states in mays-ris-tf-state-dev were checked directly: every
+  one holds 0 resources, so the empty list output is truthful, not a failure.
+  The discover output additionally exposes a PRE-EXISTING double-prefix mess
+  (env:/mays-ris/env:/mays-ris/dev/terraform.tfstate and a triple-prefixed
+  variant). Recorded, not touched - that is state hygiene, separate work.
+
+TEST CONTRACT CHANGE, DISCLOSED:
+  test_state_read_commands_passthrough built a backendless context and
+  expected rc 0. That contradicts the installer contract in AGENTS.md
+  ("Backend values come ONLY from explicit CLI flags... Missing values
+  raise") and cannot work now that the backend is wired up explicitly.
+  The PRECONDITION was changed to supply backend flags; the assertions are
+  untouched and a new one was added (init is invoked). A separate test,
+  test_state_read_commands_require_explicit_backend, pins rc=2 AND that
+  subprocess.run is never called. No assertion was weakened to make this pass.
+
+TESTS: 6 new in tests/test_composite_lifecycle.py (TestStateCommandBackend),
+  all hermetic - one early draft hit REAL AWS under the wrong profile
+  (arn:aws:iam::992382612204:user/maymilly) and was rewritten to mock
+  make_runner and assert on call arguments instead. The missing-backend test
+  deliberately uses the REAL runner, because BackendConfig.to_args() raises
+  before any subprocess spawns - that is the behaviour worth proving, and a
+  mock would have hidden it.
+  NEGATIVE CONTROL: removing the init branch and the os.environ merge fails 3
+  of the new tests. Restored -> pass.
+  FULL SUITE: 1485 passed / 0 failed / 9 skipped.

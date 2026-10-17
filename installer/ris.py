@@ -1225,9 +1225,54 @@ def _cmd_state(
     """State inspection (list/show/pull: read-only) and push (gated).
 
     `state push` is mutating and requires --yes (dry-run refuses).
+
+    WHY THERE IS AN INIT HERE
+    ------------------------
+    ctx.make_runner() resolves to the ISOLATED workdir
+    (~/.ris-workdirs/<project>/<env>/terraform), a copy created by
+    _ensure_isolated_workdir() with ignore_patterns('.terraform', ...). That
+    copy therefore has NO backend metadata on a fresh run, so every state
+    subcommand failed with "Backend initialization required". The bucket in
+    terraform/main.tf is a template, so a bare `terraform init` asks for input
+    and dies with "Error asking for input to configure backend s3: bucket: EOF".
+
+    _cmd_plan/_cmd_apply already pass ctx.backend_config() to init(); the state
+    path did not. Verified against HEAD: `state list` failed identically before
+    any of this session's changes.
+
+    Backend values come ONLY from the explicit CLI flags, same as everywhere
+    else -- nothing is invented here. Without a bucket there is nothing to read
+    from, and the subcommands that need it already error out themselves.
+
+    `discover` and `inventory` talk to S3/DynamoDB directly and never touch
+    Terraform, so they are exempt and stay cheap.
     """
+    import os
     import subprocess
     runner = ctx.make_runner()
+    if state_command in ("list", "show", "pull"):
+        # Backend first, and ONLY here. `push` must keep its guards ahead of
+        # any subprocess (a refused push calls nothing at all), and
+        # discover/inventory talk to S3/DynamoDB directly, so neither needs
+        # terraform at all.
+        if state_command == "show" and not address:
+            print("error: address is required for state show", file=sys.stderr)
+            return 2
+        try:
+            init_res = runner.init(backend_config=ctx.backend_config())
+        except (ValueError, RuntimeError) as exc:
+            # BackendConfig raises when an explicit value is missing. Pass it
+            # on rather than inventing a bucket: no defaults, per the
+            # installer contract.
+            print(f"error: backend init failed: {exc}", file=sys.stderr)
+            return 2
+        if init_res.returncode != 0:
+            print(
+                f"error: terraform init failed: "
+                f"{init_res.stderr.strip()[:300]}",
+                file=sys.stderr,
+            )
+            return 1
     if state_command == "discover":
         if not ctx.backend_bucket:
             print("error: backend-bucket required for state discover", file=sys.stderr)
@@ -1239,7 +1284,7 @@ def _cmd_state(
         except AwsValidationError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
-        env = aws_ctx.to_env()
+        env = {**os.environ, **aws_ctx.to_env()}
         cmd = [
             "aws", "s3api", "list-objects-v2",
             "--bucket", ctx.backend_bucket,
@@ -1278,9 +1323,6 @@ def _cmd_state(
         if state_command == "list":
             result = runner.state_list(state_file)
         elif state_command == "show":
-            if not address:
-                print("error: address is required for state show", file=sys.stderr)
-                return 2
             result = runner.state_show(address, state_file)
         else:
             result = runner.state_pull()

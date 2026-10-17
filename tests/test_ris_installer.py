@@ -396,7 +396,17 @@ def test_state_read_commands_passthrough():
     import installer.ris as ris_mod
 
     with patch.dict(os.environ, _clean_env(), clear=True):
-        ctx = RisInstallContext(project_name="mays-ris")
+        # Backend values are explicit-only, never invented. _cmd_state now
+        # inits the isolated workdir before reading, and BackendConfig raises
+        # without a bucket, so a backendless context is refused with rc=2
+        # (see test_state_read_commands_require_explicit_backend). This test
+        # covers the pass-through itself, so it supplies the backend.
+        ctx = RisInstallContext(
+            project_name="mays-ris",
+            backend_bucket="mays-ris-tf-state-dev",
+            backend_region="eu-central-1",
+            backend_lock_table="mays-ris-tf-lock",
+        )
     with patch("subprocess.run") as run:
         run.return_value = _completed(["terraform"])
         assert ris_mod._cmd_state(ctx, "list") == 0
@@ -408,6 +418,20 @@ def test_state_read_commands_passthrough():
     assert any("terraform state pull" in c for c in called)
     # workspace ensured (non-default) for state commands
     assert any("workspace select mays-ris" in c for c in called)
+    # backend wired up before the state read
+    assert any("terraform init" in c for c in called)
+
+
+# Test: reading state without explicit backend values is refused, not guessed.
+def test_state_read_commands_require_explicit_backend():
+    import installer.ris as ris_mod
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(project_name="mays-ris")  # no backend_*
+    with patch("subprocess.run") as run:
+        assert ris_mod._cmd_state(ctx, "list") == 2
+        # Refused before terraform was invoked at all.
+        run.assert_not_called()
 
 
 # Test: show without address fails cleanly.

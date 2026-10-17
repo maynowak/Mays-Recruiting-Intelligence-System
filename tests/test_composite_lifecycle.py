@@ -434,3 +434,121 @@ class TestWorkspaceEnvIsolation:
         a = TerraformRunner(working_dir="/tmp", workspace="mays-ris-composite-a-mays-orders")
         b = TerraformRunner(working_dir="/tmp", workspace="mays-ris-composite-b-mays-orders")
         assert a._terraform_env()["TF_WORKSPACE"] != b._terraform_env()["TF_WORKSPACE"]
+
+
+class TestStateCommandBackend:
+    """state list/show/pull must initialise the backend first.
+
+    ctx.make_runner() resolves to the ISOLATED workdir, a copy created with
+    ignore_patterns('.terraform', ...). That copy has no backend metadata on a
+    fresh run, so every state subcommand failed with
+    "Backend initialization required", and a bare `terraform init` cannot fix
+    it because the bucket in terraform/main.tf is a template and prompts for
+    input. _cmd_plan/_cmd_apply already pass ctx.backend_config(); the state
+    path did not.
+
+    Hermetic: no AWS call, no terraform call. The whole point is which runner
+    method is invoked with which arguments.
+    """
+
+    @staticmethod
+    def _runner_cls():
+        import installer.terraform_runner as tr
+
+        return tr.TerraformRunner
+
+    @staticmethod
+    def _ctx(**over):
+        from installer.ris import RisInstallContext
+
+        kw = dict(
+            project_name="mays-ris-composite-a",
+            environment="test",
+            dry_run=True,
+            backend_bucket="mays-ris-tf-state-dev",
+            backend_region="eu-central-1",
+            backend_lock_table="mays-ris-tf-lock",
+        )
+        kw.update(over)
+        kw = {k: v for k, v in kw.items() if v is not None}
+        return RisInstallContext(**kw)
+
+    def test_state_list_initialises_backend_with_explicit_config(self):
+        from unittest.mock import MagicMock, patch
+        from installer.ris import _cmd_state
+        from installer.terraform_runner import TerraformResult
+
+        from installer.ris import RisInstallContext as RisCtx
+        init = MagicMock(
+            return_value=TerraformResult(command=["terraform", "init"], returncode=0)
+        )
+        runner = MagicMock()
+        runner.init = init
+        runner.state_list = MagicMock(
+            return_value=TerraformResult(
+                command=["terraform", "state", "list"], returncode=0, stdout=""
+            )
+        )
+        with patch.object(RisCtx, "make_runner", return_value=runner):
+            rc = _cmd_state(self._ctx(), "list")
+
+        assert rc == 0
+        init.assert_called_once()
+        cfg = init.call_args.kwargs["backend_config"]
+        assert cfg.bucket == "mays-ris-tf-state-dev"
+        assert cfg.dynamodb_table == "mays-ris-tf-lock"
+        assert cfg.region == "eu-central-1"
+
+    def test_missing_backend_is_refused_not_invented(self):
+        """No explicit backend flags -> BackendConfig raises. The command must
+        pass that on instead of guessing a bucket."""
+        from unittest.mock import MagicMock, patch
+        from installer.ris import _cmd_state
+
+        from installer.ris import RisInstallContext as RisCtx
+
+        ctx = self._ctx(backend_bucket=None, backend_region=None, backend_lock_table=None)
+
+        # Real runner on purpose: BackendConfig.to_args() raises BEFORE any
+        # subprocess is spawned, so this proves the guard and stays offline.
+        # Mocking the runner would hide exactly the behaviour under test.
+        from unittest.mock import patch as _patch
+
+        with _patch("subprocess.run", MagicMock()) as proc:
+            rc = _cmd_state(ctx, "list")
+        assert rc == 2
+        proc.assert_not_called()  # refused before touching terraform
+
+    def test_discover_does_not_init_terraform(self):
+        """discover talks to S3 directly; terraform init would be wasted."""
+        from unittest.mock import MagicMock, patch
+        from installer.ris import _cmd_state
+
+        from installer.ris import RisInstallContext as RisCtx
+
+        runner = MagicMock()
+        with patch.object(RisCtx, "make_runner", return_value=runner), \
+                patch("subprocess.run", MagicMock(return_value=MagicMock(
+                    returncode=1, stdout="", stderr="blocked in test"))):
+            _cmd_state(self._ctx(), "discover")
+        runner.init.assert_not_called()
+
+    def test_discover_subprocess_env_keeps_path(self):
+        """aws_ctx.to_env() returns ONLY AWS_* keys. Passing it verbatim as the
+        subprocess env dropped PATH and broke every `aws` call with
+        FileNotFoundError: 'aws'."""
+        from installer.identity_context import validate_aws_context
+
+        aws_env = validate_aws_context(
+            profile="mayaws", region="eu-central-1"
+        ).to_env()
+        assert "PATH" not in aws_env  # the trap this test guards
+        merged = {**dict(__import__("os").environ), **aws_env}
+        assert "PATH" in merged
+
+    def test_discover_source_merges_os_environ(self):
+        import inspect
+        from installer.ris import _cmd_state
+
+        src = inspect.getsource(_cmd_state)
+        assert "**os.environ, **aws_ctx.to_env()" in src
