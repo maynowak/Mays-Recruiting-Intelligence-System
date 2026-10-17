@@ -4716,3 +4716,71 @@ WHAT WAS DELIBERATELY NOT DONE:
   the component's backend bucket is hardcoded in its own backend.tf and its
   installer calls init() without a backend_config, so RIS cannot redirect it
   without modifying Mays-Orders-AWS. Recorded for the next step.
+
+[MAYS-RIS-COMPONENT-STATE-CONSOLIDATION-01]
+Date: 2026-10-18
+Status: GREEN. DISCOVER IS COMPONENT-AWARE.
+BASELINE: 26a83fb
+AWS MUTATIONS: NONE. GIT PUSH: NONE. NO STATE MOVED.
+
+USER GUIDANCE, taken as the architectural decision:
+  - the component may be used WITHOUT its S3 states (local state is a
+    supported mode there), but its states always keep the CANONICAL
+    directory shape;
+  - RIS's discover must make the layout unambiguous;
+  - touching Mays-Orders is not wanted - it is consumed as a component and
+    its team has prepared it that way;
+  - one RIS bucket, component states in an additional subdirectory of it.
+
+WHY THAT IS ALSO THE ONLY OPTION AVAILABLE FROM THE RIS SIDE:
+  the component's bucket is hardcoded in its pinned terraform/backend.tf and
+  its installer calls init() without a backend_config, so RIS cannot redirect
+  it without editing Mays-Orders-AWS. TF_CLI_ARGS_init would be a bypass of
+  the component's own gates and was deliberately NOT used. Consolidation
+  therefore happens where RIS does have authority: discovery and reporting.
+
+IMPLEMENTED:
+  installer/ris.py
+    ORDERS_STATE_SUBDIR = "orders"
+    orders_state_prefix(name) -> orders/env:/{name}/
+    state_prefixes_for_project(ris_project, orders_project) -> ordered dict
+      {"RIS": "env:/{ris_project}/", "Orders": "orders/env:/{component}/"}
+      Keys are the labels discover prints, so a bucket listing always names
+      the owner instead of leaving it to the reader.
+    _cmd_state discover rewritten: it now walks every prefix, labels each
+      block [RIS] / [Orders], prints an explicit "no states under ..." when a
+      scope is empty, and closes with a one-line summary of the layout. The
+      Orders scope is derived with orders_component_project_name(); if that
+      name cannot be derived the command warns and continues with RIS only
+      rather than failing a read-only listing.
+    The component keeps its canonical shape
+    (orders/env:/{component}/{env}/terraform.tfstate) - only the owning
+    bucket is shared, nothing about the component's internal layout changes.
+
+  The 26a83fb prefix work already produced env:/{project}/{env}/..., so the
+  two pieces compose: one bucket, two clearly separated namespaces.
+
+VERIFIED WITH THE REAL CLI:
+  discover  prints [RIS] with the project's state and [Orders] empty for
+    mays-ris-composite-a, then states the layout explicitly
+  inventory inherits it
+  a second project (mays-ris) lists its four states and correctly shows
+    [Orders] empty because the name is in the protected standalone namespace
+    and is not offered as a component scope
+
+TESTS: 8 new (TestComponentStateConsolidation), 28 in the file,
+  suite 1513 passed / 0 failed / 9 skipped.
+  Computes prefixes instead of asserting strings: the Orders prefix keeps the
+  canonical shape and contains exactly one prefix marker, RIS and Orders
+  prefixes never overlap, the component prefix is unique per component, and
+  both resolve into ONE bucket (asserted on the real BackendConfig).
+  NEGATIVE CONTROLS: renaming ORDERS_STATE_SUBDIR -> 4 failed; dropping the
+  Orders entry from state_prefixes_for_project -> 3 failed.
+
+OPEN, VISIBLE IN THE OUTPUT, NOT TOUCHED:
+  env:/mays-ris-composite-a-mays-orders/dev/terraform.tfstate sits FLAT in the
+  RIS bucket instead of under orders/ - a state written before this layout
+  existed. discover does not list it, which is correct for the new layout and
+  means it is a migration candidate, not a discovery. Nothing moved.
+  Locating the authoritative state (serial 45 on a legacy nested path) is
+  still the open decision from the previous entry.

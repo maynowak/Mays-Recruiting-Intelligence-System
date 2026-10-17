@@ -68,6 +68,45 @@ VALID_ENVIRONMENTS = ("dev", "test", "prod")
 #: no object in mays-ris-tf-state-dev sits under the un-prefixed path.
 RIS_WORKSPACE_KEY_PREFIX = "env:"
 
+#: Subdirectory of the RIS backend bucket that holds COMPONENT state.
+#:
+#: Why discover needs to know this at all: the component project's backend
+#: bucket is hardcoded in its own pinned terraform/backend.tf and its
+#: installer calls init() without a backend_config, so RIS cannot redirect it
+#: without modifying Mays-Orders-AWS - which is explicitly not wanted. The
+#: component is used as a component, unchanged.
+#:
+#: Consolidation therefore happens at the DISCOVER layer: RIS states live at
+#:   env:/{project}/{environment}/terraform.tfstate
+#: and component states at
+#:   orders/env:/{component}/{environment}/terraform.tfstate
+#: in the same bucket, so one bucket holds both and discover can tell them
+#: apart without guessing. Both stay in the component's canonical directory
+#: shape; only the owning bucket is shared.
+ORDERS_STATE_SUBDIR = "orders"
+
+
+def orders_state_prefix(orders_project_name: str) -> str:
+    """S3 prefix holding the Orders component's states inside the RIS bucket."""
+    return f"{ORDERS_STATE_SUBDIR}/{RIS_WORKSPACE_KEY_PREFIX}/{orders_project_name}/"
+
+
+def state_prefixes_for_project(
+    ris_project_name: str,
+    orders_project_name: Optional[str] = None,
+) -> Dict[str, str]:
+    """Every state prefix belonging to one RIS project, grouped by owner.
+
+    Keys are the labels discover prints, so a bucket listing always says
+    which component a state belongs to instead of leaving it to the reader.
+    """
+    prefixes = {
+        "RIS": f"{RIS_WORKSPACE_KEY_PREFIX}/{ris_project_name}/",
+    }
+    if orders_project_name:
+        prefixes["Orders"] = orders_state_prefix(orders_project_name)
+    return prefixes
+
 # Production resource prefixes that must never be targeted by test deployments
 PRODUCTION_RESOURCE_PREFIXES = (
     "mays-ris-dev-",
@@ -1292,7 +1331,12 @@ def _cmd_state(
         if not ctx.backend_bucket:
             print("error: backend-bucket required for state discover", file=sys.stderr)
             return 2
-        prefix = f"env:/{ctx.project_name}/"
+        try:
+            orders_project = orders_component_project_name(ctx.project_name)
+        except ValueError as exc:
+            print(f"warning: no component project name ({exc})", file=sys.stderr)
+            orders_project = None
+        prefixes = state_prefixes_for_project(ctx.project_name, orders_project)
         try:
             aws_ctx = validate_aws_context(profile=ctx.aws_profile, region=ctx.aws_region)
             ctx.aws_context = aws_ctx
@@ -1300,28 +1344,51 @@ def _cmd_state(
             print(f"error: {exc}", file=sys.stderr)
             return 1
         env = {**os.environ, **aws_ctx.to_env()}
-        cmd = [
-            "aws", "s3api", "list-objects-v2",
-            "--bucket", ctx.backend_bucket,
-            "--prefix", prefix,
-            "--query", "Contents[].{Key:Key,Size:Size,LastModified:LastModified}",
-            "--output", "json"
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
-        if result.returncode != 0:
-            print(f"error: aws s3api failed: {result.stderr.strip()[:300]}", file=sys.stderr)
-            return 1
         import json
-        try:
-            items = json.loads(result.stdout)
-        except Exception:
-            items = []
-        if not items:
-            print(f"No state objects found for project {ctx.project_name} in bucket {ctx.backend_bucket}")
-            return 0
-        print(f"State objects for project {ctx.project_name} in bucket {ctx.backend_bucket}:")
-        for it in items:
-            print(f"  {it.get('Key')}  size={it.get('Size')}  modified={it.get('LastModified')}")
+
+        found_any = False
+        for label, prefix in prefixes.items():
+            cmd = [
+                "aws", "s3api", "list-objects-v2",
+                "--bucket", ctx.backend_bucket,
+                "--prefix", prefix,
+                "--query", "Contents[].{Key:Key,Size:Size,LastModified:LastModified}",
+                "--output", "json"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+            if result.returncode != 0:
+                print(
+                    f"error: aws s3api failed for prefix {prefix!r}: "
+                    f"{result.stderr.strip()[:200]}",
+                    file=sys.stderr,
+                )
+                return 1
+            try:
+                items = json.loads(result.stdout) or []
+            except Exception:
+                items = []
+            if not items:
+                print(f"[{label}] no states under {prefix}")
+                continue
+            found_any = True
+            print(f"[{label}] states under {prefix}")
+            for it in items:
+                print(
+                    f"    {it.get('Key')}  size={it.get('Size')}  "
+                    f"modified={it.get('LastModified')}"
+                )
+        if not found_any:
+            print(
+                f"No state objects for project {ctx.project_name} in "
+                f"bucket {ctx.backend_bucket}"
+            )
+        else:
+            print(
+                f"\nAll states live in bucket {ctx.backend_bucket}. "
+                f"RIS states at '{prefixes['RIS']}', component states under "
+                f"'{ORDERS_STATE_SUBDIR}/'. Layout: "
+                f"{RIS_WORKSPACE_KEY_PREFIX}/<project>/<env>/terraform.tfstate"
+            )
         return 0
     if state_command == "inventory":
         if not ctx.backend_bucket:

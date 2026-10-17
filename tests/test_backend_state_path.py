@@ -260,3 +260,80 @@ class TestCallSitesAgree:
             f"{workspace_for_project('mays-ris')}/{ctx_cfg.key}"
         )
         assert path_via_context == _state_path("mays-ris", "dev")
+
+class TestComponentStateConsolidation:
+    """Component states share the RIS bucket under a subdirectory.
+
+    Rationale: the component's backend bucket is hardcoded in its own pinned
+    terraform/backend.tf and its installer calls init() without a
+    backend_config, so RIS cannot redirect it without modifying
+    Mays-Orders-AWS. Consolidation therefore happens at the discover layer.
+    """
+
+    def test_orders_lives_in_a_subdirectory(self):
+        from installer.ris import ORDERS_STATE_SUBDIR
+
+        assert ORDERS_STATE_SUBDIR == "orders"
+
+    def test_orders_prefix_keeps_the_canonical_shape(self):
+        from installer.ris import orders_state_prefix
+
+        p = orders_state_prefix("mays-ris-composite-a-mays-orders")
+        assert p == "orders/env:/mays-ris-composite-a-mays-orders/"
+
+    def test_orders_prefix_contains_the_canonical_layout(self):
+        """The component keeps its own canonical directory shape; only the
+        owning bucket is shared."""
+        from installer.ris import orders_state_prefix
+
+        p = orders_state_prefix("mays-ris-composite-a-mays-orders")
+        assert p.endswith("/")
+        assert RIS_WORKSPACE_KEY_PREFIX in p
+        assert p.count(RIS_WORKSPACE_KEY_PREFIX) == 1
+
+    def test_prefixes_cover_ris_and_component(self):
+        from installer.ris import state_prefixes_for_project
+
+        p = state_prefixes_for_project(
+            "mays-ris-composite-a", "mays-ris-composite-a-mays-orders"
+        )
+        assert set(p) == {"RIS", "Orders"}
+        assert p["RIS"] == "env:/mays-ris-composite-a/"
+        assert p["Orders"] == "orders/env:/mays-ris-composite-a-mays-orders/"
+
+    def test_prefixes_never_overlap(self):
+        """A component prefix must not be readable as a RIS prefix."""
+        from installer.ris import state_prefixes_for_project
+
+        p = state_prefixes_for_project(
+            "mays-ris-composite-a", "mays-ris-composite-a-mays-orders"
+        )
+        assert not p["Orders"].startswith(p["RIS"])
+        assert not p["RIS"].startswith(p["Orders"])
+
+    def test_component_state_without_component_name(self):
+        """Standalone RIS usage: only the RIS prefix is searched."""
+        from installer.ris import state_prefixes_for_project
+
+        p = state_prefixes_for_project("mays-ris", None)
+        assert set(p) == {"RIS"}
+
+    def test_component_prefix_is_unique_per_component(self):
+        from installer.ris import state_prefixes_for_project
+
+        a = state_prefixes_for_project("mays-ris-composite-a", "x-mays-orders")
+        b = state_prefixes_for_project("mays-ris-composite-b", "y-mays-orders")
+        assert a["Orders"] != b["Orders"]
+
+    def test_both_prefixes_stay_in_one_bucket(self):
+        """Consolidation is about a shared bucket, not a second one."""
+        from installer.ris import state_prefixes_for_project
+
+        p = state_prefixes_for_project(
+            "mays-ris-composite-a", "mays-ris-composite-a-mays-orders"
+        )
+        assert all(v.startswith(("env:/", "orders/")) for v in p.values())
+        # both are prefixes into the SAME bucket the caller passed in
+        cfg = _ctx("mays-ris-composite-a", "test").backend_config()
+        assert cfg.bucket == "mays-ris-tf-state-dev"
+        assert cfg.workspace_key_prefix == RIS_WORKSPACE_KEY_PREFIX
