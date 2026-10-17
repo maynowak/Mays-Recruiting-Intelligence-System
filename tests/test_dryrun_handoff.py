@@ -272,6 +272,34 @@ class TestPlanToJsonConversion:
         src = inspect.getsource(load_orders_plan_json)
         assert 'os.path.join(component_dir, "terraform")' in src
 
+    def test_relative_plan_path_is_resolved_against_the_clone_root(self):
+        """The component prints .mays-installer/runs/... which is relative to
+        the CLONE ROOT, not to terraform/.
+
+        Measured: passing it through unchanged fails with 'Failed to read the
+        given file as a state or plan file' - a different error from the cwd
+        mistake above, and easy to mistake for it.
+        """
+        import inspect
+
+        from installer.ris import load_orders_plan_json
+
+        src = inspect.getsource(load_orders_plan_json)
+        assert "resolve_plan_path(plan_path, component_dir)" in src
+
+    def test_absolute_plan_paths_are_left_alone(self, tmp_path):
+        """Resolution must not double-prefix an already absolute path."""
+        from installer.ris import resolve_plan_path
+
+        absolute = tmp_path / "runs" / "plan.tfplan"
+        assert resolve_plan_path(str(absolute), "/clone") == str(absolute)
+
+    def test_relative_plan_paths_are_anchored_to_the_clone(self):
+        from installer.ris import resolve_plan_path
+
+        got = resolve_plan_path(".mays-installer/runs/x/plans/p.tfplan", "/clone")
+        assert got == "/clone/.mays-installer/runs/x/plans/p.tfplan"
+
     def test_only_a_show_json_command_is_ever_issued(self):
         """It converts a plan the component made; it must not touch state.
 

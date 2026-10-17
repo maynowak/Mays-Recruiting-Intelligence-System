@@ -642,21 +642,38 @@ def orders_plan_path_from_output(stdout: str) -> Optional[str]:
     return path or None
 
 
+def resolve_plan_path(plan_path: str, component_dir: str) -> str:
+    """Anchor the component's plan path to its clone root.
+
+    The component prints `.mays-installer/runs/.../plans/<name>.tfplan`, which
+    is relative to the CLONE ROOT. The conversion runs with cwd=terraform/, so
+    the relative path has to be resolved first. Measured: passing it through
+    unchanged fails with "Failed to read the given file as a state or plan
+    file".
+
+    An already absolute path is left alone, so this is idempotent.
+    """
+    path = Path(plan_path)
+    if path.is_absolute():
+        return str(path)
+    return str(Path(component_dir) / path)
+
+
 def load_orders_plan_json(
     plan_path: str, component_dir: str, tf_data_dir: Optional[str] = None
 ) -> Dict[str, Any]:
     """Convert the component's plan to JSON, read-only.
 
     `terraform show -json` on a plan needs the provider plugins that produced
-    it, so it runs with the component's own data dir. This is the same
-    conversion the component's own Policy Gate performs
-    (installer/projects/mays_orders/installer/run/manager.py:235).
+    it, so it runs with cwd=the component's terraform directory. Measured, not
+    assumed: from the clone root it fails with "Failed to load plugin schemas"
+    even though every provider binary is present.
 
-    Must be run with cwd=the component's terraform directory, otherwise
-    Terraform cannot resolve the plugin schemas - measured, not assumed.
+    Same conversion the component's own Policy Gate performs
+    (installer/projects/mays_orders/installer/run/manager.py:235).
     """
     result = _run_plain_process(
-        ["terraform", "show", "-json", plan_path],
+        ["terraform", "show", "-json", resolve_plan_path(plan_path, component_dir)],
         cwd=os.path.join(component_dir, "terraform"),
         extra_env={"TF_DATA_DIR": tf_data_dir} if tf_data_dir else None,
     )
