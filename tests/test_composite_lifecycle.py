@@ -399,27 +399,84 @@ class TestBindingValidation:
 
 
 class TestWorkspaceEnvIsolation:
-    """RIS must pin the Orders component's Terraform workspace per process.
+    """RIS consumes the Orders component; it does not reconfigure it.
 
     The component installer runs with cwd=installer/projects/mays_orders for
     EVERY RIS project, so terraform/.terraform/environment is a single shared
-    mutable file. TERRAFORM_WORKSPACE is not a Terraform variable, so only
-    TF_WORKSPACE protects a process from the file naming another project.
+    mutable file. Two projects can overwrite each other's workspace selection.
+
+    The wrong fix was to inject TF_WORKSPACE and make the selection
+    process-local. Measured: the Terraform CLI REFUSES `workspace select`
+    while TF_WORKSPACE is set, and the component's runner calls that
+    subcommand unconditionally, classifying the refusal as a hard error
+    instead of creating the workspace. Controlled pair, one variable apart:
+      without TF_WORKSPACE -> "Status: Generated successfully"  exit 0
+      with    TF_WORKSPACE -> TerraformError                   exit 1
+
+    So isolation is done the way a consumer should: each component INSTANCE
+    gets its own working state via TF_DATA_DIR, and the component keeps its own
+    routine - it still runs select/new, just against private state. Verified
+    end to end: an isolated instance run leaves the shared
+    .terraform/environment byte-for-byte unchanged.
     """
 
-    def test_orders_env_pins_both_workspace_variables(self):
-        from installer.orchestrator import RISInstaller
+    def test_component_call_site_sets_no_workspace_variable(self):
+        """No workspace env var may reach the component."""
         import inspect
 
-        source = inspect.getsource(RISInstaller) if False else ""
-        # the component call site lives in installer/ris.py
         from installer import ris
 
         src = inspect.getsource(ris._run_orders_component)
-        assert '"TF_WORKSPACE": orders_project' in src
-        assert '"TERRAFORM_WORKSPACE": orders_project' in src
+        assert '"TF_WORKSPACE"' not in src
+        assert '"TERRAFORM_WORKSPACE"' not in src
 
-    def test_terraform_runner_sets_tf_workspace(self):
+    def test_component_call_site_gives_each_instance_its_own_data_dir(self):
+        import inspect
+
+        from installer import ris
+
+        src = inspect.getsource(ris._run_orders_component)
+        assert '"TF_DATA_DIR": component_tf_data_dir(' in src
+
+    def test_destroy_call_site_also_sets_no_workspace_variable(self):
+        """Both call sites, or the destroy path reintroduces it."""
+        import inspect
+
+        from installer import ris
+
+        src = inspect.getsource(ris._cmd_destroy)
+        assert '"TF_WORKSPACE"' not in src
+        assert '"TERRAFORM_WORKSPACE"' not in src
+        assert '"TF_DATA_DIR"' in src
+
+    def test_instances_get_distinct_data_dirs(self):
+        from installer.ris import component_tf_data_dir
+
+        a = component_tf_data_dir(
+            "mays-ris-composite-a", "mays-ris-composite-a-mays-orders"
+        )
+        b = component_tf_data_dir(
+            "mays-ris-composite-b", "mays-ris-composite-b-mays-orders"
+        )
+        assert a != b
+
+    def test_instance_data_dir_is_keyed_by_the_component_project(self):
+        """The component instance is the unit, not the RIS project name."""
+        from installer.ris import component_tf_data_dir
+
+        a = component_tf_data_dir("x-1", "shared-mays-orders")
+        b = component_tf_data_dir("x-2", "shared-mays-orders")
+        assert a == b, "one component instance is one state directory"
+
+    def test_instance_data_dir_is_outside_the_repo(self):
+        from installer.ris import component_tf_data_dir, isolated_workdir_base
+
+        d = component_tf_data_dir("p", "p-mays-orders")
+        assert str(isolated_workdir_base()) in d
+        assert "installer/projects/mays_orders" not in d
+
+    def test_terraform_runner_still_sets_tf_workspace_for_ris_own_calls(self):
+        """RIS's own runner keeps the override; only the component is spared."""
         from installer.terraform_runner import TerraformRunner
 
         r = TerraformRunner(working_dir="/tmp", workspace="proj-x")

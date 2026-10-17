@@ -783,7 +783,7 @@ class RisInstallContext:
             return  # Already initialized
 
         # Base directory for all isolated workdirs (outside repo to avoid pollution)
-        base = Path(self._workdir_base) if self._workdir_base else Path.home() / ".ris-workdirs"
+        base = Path(self._workdir_base) if self._workdir_base else isolated_workdir_base()
         project_workdir = base / self.project_name / self.environment
 
         # Create terraform source copy (not symlink, to isolate .terraform directory)
@@ -832,7 +832,7 @@ class RisInstallContext:
         base = (
             Path(self._workdir_base)
             if self._workdir_base
-            else Path.home() / ".ris-workdirs"
+            else isolated_workdir_base()
         )
         return str(mirror_dir_for(base, self.project_name, self.environment))
 
@@ -1209,8 +1209,11 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
         env_extra = {
             "ALLOW_AWS_OPERATIONS": "true",
             "PROJECT_NAME": orders_project,
-            "TERRAFORM_WORKSPACE": orders_project,
-            "TF_WORKSPACE": orders_project,
+            # No workspace env var: the component's own routine selects the
+            # workspace from --project-name, and Terraform refuses
+            # `workspace select` while TF_WORKSPACE is set. Same reasoning as
+            # _run_orders_component; see the long comment there.
+            "TF_DATA_DIR": component_tf_data_dir(ctx.project_name, orders_project),
         }
         destroy_plan = orchestrator.run_project_installer(
             "mays-orders",
@@ -1576,6 +1579,56 @@ def _cmd_state(
     return 2
 
 
+def isolated_workdir_base() -> Path:
+    """Root of all per-project isolated working directories.
+
+    Single source of truth: the RIS workdir, the state mirror and the Orders
+    component instances must all live under the same root, or a project would
+    be spread over two directories that nothing knows how to clean up together.
+    """
+    return Path.home() / ".ris-workdirs"
+
+
+def component_tf_data_dir(ris_project_name: str, orders_project: str) -> str:
+    """Working state for one Orders component INSTANCE.
+
+    Why a consumer needs this
+    -------------------------
+    The orchestrator runs the component with cwd=installer/projects/mays_orders
+    for every RIS project, so all of them share ONE .terraform/ directory and
+    therefore ONE .terraform/environment file - a mutable file that records the
+    currently selected workspace. Two RIS projects running the same clone can
+    overwrite each other's selection, and a plan can then resolve against the
+    wrong workspace. Measured, that is what once produced a plan proposing to
+    destroy 9 adopted resources.
+
+    The obvious fix from the outside - inject TF_WORKSPACE so the selection is
+    process-local - is the wrong fix, and measurably so: Terraform refuses
+    `workspace select` while TF_WORKSPACE is set, which breaks the component's
+    own workspace management outright (see the comment at the call site).
+
+    Giving each instance its own TF_DATA_DIR is how a component consumer should
+    do it: the component keeps its routine untouched and still runs
+    `workspace select` / `workspace new`, but against private state, so there
+    is nothing shared to race over. Measured: with a private TF_DATA_DIR the
+    component plan succeeds (exit 0) and the shared .terraform/environment is
+    left byte-for-byte unchanged, while the instance's own file records the
+    composite workspace.
+
+    MO-only runs in the clone keep using the default .terraform, so they are
+    unaffected.
+
+    Cost, stated rather than hidden: a fresh TF_DATA_DIR re-downloads providers,
+    which is why the first isolated run is slow. That is a one-off per composite
+    project, and it buys correctness.
+    """
+    return str(
+        Path(isolated_workdir_base())
+        / "component"
+        / orders_project
+    )
+
+
 def _run_orders_component(
     ctx: RisInstallContext,
     orchestrator: RISInstaller,
@@ -1637,26 +1690,36 @@ def _run_orders_component(
         # how an earlier run ended up planning against the shared DEFAULT
         # state (and against a stale lock on it).
         "PROJECT_NAME": orders_project,
-        # MANDATORY, and this is the load-bearing part: the component's
-        # TerraformRunner._terraform_env() sets this for every child process
-        # and the Terraform CLI honours it on its own. Without it, `terraform
-        # init -backend=false` keeps whatever workspace metadata happens to
-        # be in .terraform/. Measured negative control: with the variable the
-        # plan targets the component workspace; without it the plan falls into
-        # an unrelated workspace and proposed destroying 9 adopted resources.
-        # init() itself must NOT select a workspace (documented contract,
-        # two tests pin it) -- the env var is what does the work.
-        "TERRAFORM_WORKSPACE": orders_project,
-        # TF_WORKSPACE is the one the Terraform CLI actually honours. Without
-        # it the component's workspace comes only from the shared
-        # terraform/.terraform/environment file that every RIS project writes
-        # to (orchestrator runs the component with cwd=installer/projects/
-        # mays_orders), so an interleaved install can plan against another
-        # project's state. Measured: with the file pointing elsewhere,
-        # TF_WORKSPACE still resolves to the requested workspace and leaves
-        # the file untouched. TERRAFORM_WORKSPACE stays because the
-        # component's InstallationContext.from_env() reads it.
-        "TF_WORKSPACE": orders_project,
+        # NO workspace environment variable is injected, deliberately.
+        #
+        # RIS is the CONSUMER here. The component owns its own routine, and
+        # that routine includes workspace management: its runner calls
+        # `terraform workspace select` unconditionally (terraform/runner.py:419)
+        # and creates the workspace if missing. That is its business, and a
+        # consumer does not reach into it.
+        #
+        # Both variables that used to be set here were wrong on the evidence:
+        #   TERRAFORM_WORKSPACE - no-op on this path. The component's CLI
+        #     overwrites the context value with project_name
+        #     (installer/cli/main.py:386), so it never selected anything.
+        #   TF_WORKSPACE - actively hostile. The Terraform CLI REFUSES
+        #     `workspace select` while it is set, and the component's
+        #     missing-workspace signals do not match the override message, so
+        #     the runner raises instead of creating the workspace. Measured
+        #     controlled pair, same command, one variable apart:
+        #       without TF_WORKSPACE -> "Status: Generated successfully"  exit 0
+        #       with    TF_WORKSPACE -> TerraformError                   exit 1
+        #     Removing it also unblocks workspace CREATION for new composites,
+        #     which the override had prevented outright.
+        #
+        # The workspace is selected through the component's own interface:
+        # `--project-name`, passed below as project_name_override.
+        #
+        # The original contamination this was meant to fix is handled the way a
+        # component consumer should handle it - by giving each instance its own
+        # working state, not by fighting the component's routine. See
+        # component_tf_data_dir() and the isolation note there.
+        "TF_DATA_DIR": component_tf_data_dir(ctx.project_name, orders_project),
     }
     # Persisted here, not left to the caller: a CLI-only pin is lost on the
     # next unpinned run (see G3-COGNITO-CONFIG-PERSISTENCE-01 in AI_AUDITLOG).

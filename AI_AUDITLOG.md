@@ -4529,12 +4529,11 @@ PART 5 - LIVE REGRESSION, PROVEN BY CONTROLLED PAIR: THE COMPONENT PATH IS
       happened. Stated plainly, because it means an earlier GREEN in this log
       is not evidence of today's behaviour.
 
-  THE IN-CODE COMMENT IS NOW KNOWN WRONG and must be corrected together with
-  the fix - installer/ris.py:1650-1658 asserts that TF_WORKSPACE "still
+  THE IN-CODE COMMENT WAS NOW KNOWN WRONG and has been corrected together with
+  the fix - installer/ris.py:1650-1658 asserted that TF_WORKSPACE "still
   resolves to the requested workspace and leaves the file untouched". That is
   true for RIS's own terraform invocations and false for the component, whose
-  runner dies on exactly that variable. Left in place deliberately, because
-  the fix direction is a decision, not a guess (below).
+  runner dies on exactly that variable. See MAYS-RIS-COMPONENT-ROUTINE-01.
 
 ===========================================================================
 PART 6 - THE DECISION THIS FORCES, NOT TAKEN HERE
@@ -4560,6 +4559,20 @@ PART 6 - THE DECISION THIS FORCES, NOT TAKEN HERE
        needs the missing-workspace question answered - see PART 7.
   Not decided here. Option 3 subsumes the other two and is the only one that
   removes the shared mutable state rather than choosing who loses.
+
+  >>> RESOLVED, see MAYS-RIS-COMPONENT-ROUTINE-01. The user framed the
+  >>> question correctly and my framing above was wrong: RIS is the CONSUMER
+  >>> and the component has its own routine, so the question is not "which
+  >>> variable protects the read best" but "why is the consumer reaching into
+  >>> the component's routine at all". Options 1 and 2 were both attempts to
+  >>> make the component behave differently from outside. The answer is
+  >>> 1 + 3 together, and it is not a trade-off at all:
+  >>>   - neither workspace variable is injected, so the component's routine
+  >>>     runs intact and creates missing workspaces again (unblocks PART 7);
+  >>>   - each component INSTANCE gets its own TF_DATA_DIR, so the shared
+  >>>     mutable file is no longer shared and property (a) holds anyway.
+  >>> I had presented this as a dilemma because I had optimised for "make it
+  >>> work from outside" before asking who owns the behaviour.
 
 ===========================================================================
 PART 7 - STILL OPEN, MEASURED, UNTOUCHED
@@ -5022,3 +5035,110 @@ CODE COMMENT NOW KNOWN WRONG, LEFT IN PLACE ON PURPOSE
   terraform calls, false for the component, whose runner dies on that variable.
   It is corrected in the same commit that fixes the behaviour, so the comment
   and the code cannot disagree again.
+
+[MAYS-RIS-COMPONENT-ROUTINE-01]
+Date: 2026-10-18
+Status: GREEN. COMPONENT ROUTINE RESTORED. MY FRAMING OF THE PROBLEM WAS WRONG.
+BASELINE: 673449e
+AWS MUTATIONS: NONE. TERRAFORM APPLY: NONE. GIT PUSH: NONE.
+MAYS-ORDERS-AWS SOURCE: unmodified, pin 5cf50a0.
+MO's shared .terraform/environment restored to `mays-orders` after every probe.
+
+USER CORRECTION, taken as the architectural rule:
+  "wer benutzt hier eine komponente? und eine komponente hat seine routine."
+  Who is using a component here? RIS. And a component has its own routine.
+  A consumer does not reach into the routine of a thing it consumes.
+
+WHY MY PREVIOUS ENTRY WAS WRONG - stated plainly because the log should not
+hide it. MAYS-RIS-TF-WORKSPACE-CONSOLIDATION-01 PART 6 presented three options
+as a trade-off: which variable best protects RIS's read. All three were attempts
+to make the component behave differently from the outside - drop the variable
+but accept contamination, keep it and break MO, or inject a data dir. The
+question I should have asked first was who owns the behaviour. I optimised for
+"make it work from outside" and thereby treated the component's routine as
+something I was entitled to override. It is not.
+
+THE CHANGE
+  installer/ris.py
+    NEW isolated_workdir_base()
+      Single source of truth for the per-project working root. The logic was
+      already duplicated in two places; adding a third copy would have made it
+      three. Workdir, state mirror and component instances now share one root.
+    NEW component_tf_data_dir(ris_project, orders_project)
+      Working state for ONE component INSTANCE, keyed by the component project
+      name, under <base>/component/<orders_project>/.
+    _run_orders_component() and _cmd_destroy(): env_extra no longer contains
+      TERRAFORM_WORKSPACE or TF_WORKSPACE. It now carries PROJECT_NAME and
+      TF_DATA_DIR only.
+
+WHY EACH VARIABLE HAD TO GO
+  TERRAFORM_WORKSPACE - no-op on this path. The component's CLI overwrites the
+    context value with project_name (installer/cli/main.py:386), so it never
+    selected anything. Carrying it was a second source of truth that looked
+    load-bearing and was not.
+  TF_WORKSPACE - actively hostile. It was introduced to stop a process from
+    reading the shared .terraform/environment, but it does so by making
+    Terraform refuse `workspace select`, which is precisely the subcommand the
+    component's runner uses to do its own workspace management. The component
+    solves the problem I created for it by raising TerraformError.
+    So: it fixes nothing the component does not already do, and breaks the one
+    thing the component needs. Removing it also unblocks workspace CREATION,
+    which the override had prevented outright:
+      TF_WORKSPACE=mays-ris-composite-c-mays-orders terraform init
+        -> Error: Currently selected workspace ... does not exist
+    With the override gone the component's own select-then-new routine works,
+    which retires that blocker for new composite projects too.
+
+HOW ISOLATION IS DONE INSTEAD
+  The component keeps its routine and gets a private instance directory via
+  TF_DATA_DIR. It still runs `workspace select` / `workspace new`; it just runs
+  them against its own state instead of a file every RIS project shares.
+  MEASURED, plan only, ALLOW_AWS_OPERATIONS=false:
+    ./Mays-Order-AWS-installer --project-name mays-order-par plan
+      -> "Status: Generated successfully"                      exit 0
+    TF_DATA_DIR=<private> ./Mays-Order-AWS-installer \
+        --project-name mays-order-par plan
+      -> "Status: Generated successfully"                      exit 0
+    shared .terraform/environment before: mays-orders
+    shared .terraform/environment after : mays-orders   <- unchanged
+    private instance environment        : mays-order-par
+  So the instance writes only its own file. MO-only runs in the clone keep
+  using the default .terraform and are unaffected.
+
+  RIS's OWN runner keeps TF_WORKSPACE. That is not an inconsistency: RIS's
+  workdir is private per project and its override only has to keep its own reads
+  deterministic. The component is the one that was being overridden.
+
+COST, STATED RATHER THAN HIDDEN
+  A fresh TF_DATA_DIR re-downloads providers, so the first isolated run per
+  composite project is noticeably slower - long enough to exceed a 120 s command
+  timeout, which is how this was noticed. One-off per composite project.
+
+TESTS: TestWorkspaceEnvIsolation in tests/test_composite_lifecycle.py rewritten.
+  It previously asserted the opposite of the truth - it required both workspace
+  variables at the component call site and its docstring repeated the false
+  claim that only TF_WORKSPACE protects the process. Now it pins:
+    no workspace variable at EITHER component call site (substrings, so it
+      cannot be satisfied by a mention in a comment)
+    each instance gets its own data dir, keyed by the component project
+    the instance dir is outside the repo
+    RIS's own runner still sets both variables
+  FULL SUITE: 1555 passed / 0 failed / 9 skipped.
+  NEGATIVE CONTROLS, all verified to bite:
+    TF_WORKSPACE re-added to the component   2 failed
+    TF_DATA_DIR removed                       2 failed
+    instance dir keyed by RIS project instead 1 failed
+
+NOTE ON WHAT WAS NOT DONE
+  Option "change the component so it tolerates the override" was not attempted
+  and is not wanted: it is Mays-Orders-AWS, it is out of bounds, and it would
+  be the consumer dictating to the component anyway. If the component later
+  wants an explicit instance selector of its own, that is the MO team's call.
+
+STILL OPEN, UNCHANGED
+  - True simultaneous terraform PLAN runs are untested; the shared backend LOCK
+    under genuine concurrency remains unproven either way.
+  - MO-only runs in the shared clone still race among themselves. That is the
+    component's own concern and upstream's to solve.
+  - The cognito backup bucket name still exceeds the 63-char S3 limit for long
+    composite names, independently of everything above.
