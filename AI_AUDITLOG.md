@@ -5280,3 +5280,71 @@ STILL NOT BUILT - the user's other half
   which is why validate_orders_binding, which currently raises on every
   mismatch, would treat a legitimate deliberate stop as a defect. That
   distinction is the reason the two-phase stop is not cosmetic.
+
+[MAYS-RIS-COMPOSITE-TODO-01]
+Date: 2026-10-18
+Status: GREEN. A TODO LIST EXISTS NOW, AND TWO OF ITS OWN REFERENCES DID NOT.
+BASELINE: 9892b41
+AWS MUTATIONS: NONE. TERRAFORM APPLY: NONE. GIT PUSH: NONE.
+
+TRIGGER: the user asked for a to-do list after agreeing a plan. Before writing
+one, checked whether it already existed - per the standing rule that this kind of
+thing was probably already built. It was not: no TODO, no backlog, and git shows
+no such file was ever committed. docs/roadmap/ROADMAP.md exists but is
+deliberately a gate list with "keine Termine, keine Priorisierung", and our
+items have real dependencies, so a separate scoped file is the honest place.
+
+docs/installer/COMPOSITE-TODO.md (new)
+
+  Five sections: A the plan just agreed, B account state and renaming, C limits
+  measured as open, D decisions that are not ours, E deliberately not done.
+
+  THE RULE THAT MAKES IT USEFUL: every entry carries an evidence state and its
+  source. The vocabulary is taken from the MO AGENTS.md so both sides stay
+  comparable: VERIFIED / TESTED / IMPLEMENTED / PLANNED / NOT TESTED / BLOCKED.
+  A point without evidence is a guess and is marked as one.
+
+  Section A carries the dependency order explicitly: A1 (phases as first class
+  instead of a boolean) is a precondition for A2, but A1 alone changes behaviour
+  without making the state distinguishable - which is the trade-off I put to the
+  user rather than deciding for them.
+
+  Section E exists so nobody later mistakes a deliberate choice for an oversight:
+  TF_CLI_ARGS_init was not used to bypass the component's gates; the workspace
+  variables were not used for the reasons already measured; the derived ARN is
+  for rehearsal and never for a running system; MO's routine was not modified
+  because that is out of bounds and would be the consumer dictating to the
+  component.
+
+  HOW A POINT CLOSES is written down, because this session produced three tests
+  that were green without ever having been seen to fail:
+    1. a measurement, not the code's appearance;
+    2. revert the fix and SEE the test fall - a green test without a failed
+       counterexample counts as not delivered here;
+    3. append an AI_AUDITLOG entry, local commit;
+    4. strike the entry here and name the evidence state - do not just delete.
+
+VERIFIED IN THIS ENTRY, not assumed
+  Every auditlog ID referenced by the file was checked to exist. TWO DID NOT:
+    MAYS-RIS-PARALLEL-WORKSPACE-CONTAMINATION-01 - I had folded that entry into
+      MAYS-RIS-TF-WORKSPACE-CONSOLIDATION-01 earlier this session, so it no
+      longer has its own header. The TODO pointed at a name that had ceased to
+      exist. Fixed to the consolidated entry.
+    MAYS-ORDERS-ORDERS-A-CLEANUP-COMPLETE-01 - a typo of mine; the real entry is
+      MAYS-RIS-ORDERS-A-CLEANUP-COMPLETE-01.
+  All four commit hashes referenced were checked with git cat-file.
+  A reference list that points at entries which do not exist is worse than no
+  list, so this was checked rather than assumed.
+
+  MEASURED FACT THAT MAKES SECTION A POSSIBLE AT ALL:
+    terraform validate on RIS with NO Orders binding -> "Success!"
+  The fail-closed binding fires at plan (Invalid value for variable at the module
+  layer), not at validate. That is why RIS init and validate may run BEFORE the
+  Orders deploy, and therefore why the user's phase sequence is executable at
+  all. It also means validate is a pure configuration check, which is the
+  property A1 depends on.
+
+STILL NOT BUILT
+  Nothing from section A. This entry creates the list, not the work.
+
+AWS MUTATIONS: NONE. GIT PUSH: NONE.
