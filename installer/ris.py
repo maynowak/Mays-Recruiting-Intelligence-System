@@ -56,6 +56,18 @@ from installer.orchestrator import RISInstaller
 
 VALID_ENVIRONMENTS = ("dev", "test", "prod")
 
+#: Backend workspace prefix, identical mechanism to the Mays-Orders component,
+#: which proves it in production: workspace=project_name + workspace_key_prefix
+#: -> one state path per project. RIS carries the environment in the key, so a
+#: state path is  env:/{project}/{environment}/terraform.tfstate
+#: That is the same string this file's own lock classifier calls canonical
+#: (canonical_lock_suffix), and the format of the states already in the bucket.
+#:
+#: Without it, key alone is {environment}/terraform.tfstate with no prefix, so
+#: EVERY project sharing an environment resolves to the SAME object. Measured:
+#: no object in mays-ris-tf-state-dev sits under the un-prefixed path.
+RIS_WORKSPACE_KEY_PREFIX = "env:"
+
 # Production resource prefixes that must never be targeted by test deployments
 PRODUCTION_RESOURCE_PREFIXES = (
     "mays-ris-dev-",
@@ -672,6 +684,9 @@ class RisInstallContext:
             region=self.backend_region or self.aws_region,
             dynamodb_table=self.backend_lock_table or "mays-ris-tf-lock",
             key=f"{self.environment}/terraform.tfstate",
+            # Prefix, not the environment, is what makes the path unique per
+            # project: {prefix}/{workspace}/{key}. RIS_WORKSPACE_KEY_PREFIX.
+            workspace_key_prefix=RIS_WORKSPACE_KEY_PREFIX,
         )
 
     def terraform_vars(self) -> Dict[str, str]:
@@ -1650,6 +1665,12 @@ def _cmd_install(
         region=names.region,
         dynamodb_table=names.lock_table,
         key=f"{ctx.environment}/terraform.tfstate",
+        # Same prefix as RisInstallContext.backend_config(). This call site
+        # builds its own BackendConfig instead of reusing the method, so it
+        # has to opt in explicitly -- otherwise the main install path would
+        # keep resolving to the un-prefixed, colliding state path while plan
+        # and apply use the prefixed one.
+        workspace_key_prefix=RIS_WORKSPACE_KEY_PREFIX,
     )
     for result in (
         runner.init(backend_config=config, reconfigure=True),

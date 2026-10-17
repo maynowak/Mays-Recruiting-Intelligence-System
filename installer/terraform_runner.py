@@ -80,6 +80,17 @@ class BackendConfig:
     region: Optional[str] = None
     encrypt: bool = True
     dynamodb_table: str = "mays-ris-tf-lock"
+    #: Workspace prefix, same mechanism the component project already
+    #: proves: workspace=project_name + workspace_key_prefix -> one state
+    #: path per project. RIS adds the environment via `key`, giving
+    #:   env:/{project}/{environment}/terraform.tfstate
+    #: which is exactly the format this repo's own lock classifier calls
+    #: canonical (installer/ris.py, canonical_lock_suffix) and exactly the
+    #: format of the states already sitting in the bucket.
+    #: WITHOUT it every project sharing an environment would share one
+    #: state path - measured: no object in the bucket lives under the
+    #: un-prefixed key the previous code produced.
+    workspace_key_prefix: Optional[str] = None
 
     #: Fields that MUST be set; missing ones raise (no silent invention).
     REQUIRED_FIELDS = ("bucket", "region")
@@ -107,6 +118,10 @@ class BackendConfig:
             "encrypt": str(self.encrypt).lower(),
             "dynamodb_table": self.dynamodb_table,
         }
+        # Only emit the prefix when it is set: an empty value would be
+        # rejected by terraform, and the caller decides, not this object.
+        if self.workspace_key_prefix:
+            values["workspace_key_prefix"] = self.workspace_key_prefix
         return [f"-backend-config={k}={values[k]}" for k in sorted(values)]
 
 

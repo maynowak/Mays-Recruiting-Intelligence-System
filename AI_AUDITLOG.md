@@ -4644,3 +4644,75 @@ TESTS: 6 new in tests/test_composite_lifecycle.py (TestStateCommandBackend),
   NEGATIVE CONTROL: removing the init branch and the os.environ merge fails 3
   of the new tests. Restored -> pass.
   FULL SUITE: 1485 passed / 0 failed / 9 skipped.
+
+[MAYS-RIS-STATE-PATH-UNIQUE-01]
+Date: 2026-10-18
+Status: GREEN. STEPS 1+2 OF THE AGREED PLAN.
+BASELINE: 7a8ad9a
+AWS MUTATIONS: NONE. GIT PUSH: NONE. NO STATE TOUCHED.
+
+PLAN AGREED WITH THE USER: adopt the mechanism the component project already
+proves, add the missing piece on the RIS side, and prove it with tests before
+anything is written.
+
+FINDING THAT DROVE IT (measured):
+  RIS derived only `key = f"{environment}/terraform.tfstate"` and terraform/
+  main.tf has NEVER had a workspace_key_prefix - no commit ever added one and
+  it was never passed via -backend-config. Terraform resolves the state path
+  as {workspace_key_prefix}/{workspace}/{key}, so with an empty prefix:
+    mays-ris             /test -> test/terraform.tfstate
+    mays-ris-composite-a /test -> test/terraform.tfstate   <- same object
+  Every RIS project sharing an environment pointed at ONE state. Latent so far:
+  NOT ONE object in mays-ris-tf-state-dev sits under that un-prefixed path, so
+  the shape never materialised - it was waiting for the first apply.
+
+WHY THE COMPONENT'S MECHANISM IS THE RIGHT ONE (consolidation):
+  Its backend.tf uses workspace=project_name + workspace_key_prefix="env:".
+  RIS carries the environment in the key instead, giving
+    env:/{project}/{environment}/terraform.tfstate
+  which is exactly (a) the string this repo's own lock classifier calls
+  canonical, installer/ris.py canonical_lock_suffix, (b) the format of 6 of
+  the 9 objects already in the bucket. Not invented - recovered.
+
+STEP 1 - code:
+  installer/terraform_runner.py BackendConfig gained workspace_key_prefix
+    (Optional, default None). to_args() emits it only when set, so an empty
+    value is never sent to terraform, and the caller decides.
+  installer/ris.py RIS_WORKSPACE_KEY_PREFIX = "env:", used by
+    RisInstallContext.backend_config() AND by the inline BackendConfig in
+    _cmd_install.
+
+STEP 2 - tests (tests/test_backend_state_path.py, 20):
+  Paths are COMPUTED, not asserted: {prefix}/{workspace}/{key}. Two projects
+  never collide, two environments never collide, a 3x3 grid is fully distinct,
+  the prefix appears exactly once, no nested "env:/env:/" survives, and the
+  computed string equals the lock classifier's canonical suffix.
+  A strict sweep asserts EVERY BackendConfig(...) literal in installer/ris.py
+  passes workspace_key_prefix - no `or` escape, it calls pytest.fail.
+
+TWO THINGS THE TESTS CAUGHT THAT I HAD WRITTEN WRONG:
+  1. _cmd_install builds its OWN BackendConfig instead of calling
+     ctx.backend_config(), so the first version of the change left the main
+     install path on the colliding key. Caught by test_install_path_uses_
+     same_layout; fixed by giving that literal the prefix too. Without the
+     test, plan/apply would have used the prefixed path and install the
+     un-prefixed one.
+  2. My own test was hollow. The first counterexample - deleting the prefix -
+     did NOT fail the suite, because the test only grepped the source for the
+     word "backend_config()" and satisfied itself with an `or`. Rewritten to
+     walk real objects and to fail on any un-prefixed call site.
+
+  NEGATIVE CONTROLS, both now bite:
+    prefix removed from backend_config()        -> 8 failed
+    prefix removed from the _cmd_install literal -> 1 failed
+  FULL SUITE: 1505 passed / 0 failed / 9 skipped.
+
+WHAT WAS DELIBERATELY NOT DONE:
+  No state moved, copied or deleted. The bucket still holds 9 objects, one of
+  them with serial 45 on a legacy nested path and 8 with serial 1. Locating
+  the authoritative state is still step 3 and it is a decision, not a guess.
+  The user's proposal - keep RIS's bucket and place the component's states in
+  additional directories of it - is NOT yet implementable from the RIS side:
+  the component's backend bucket is hardcoded in its own backend.tf and its
+  installer calls init() without a backend_config, so RIS cannot redirect it
+  without modifying Mays-Orders-AWS. Recorded for the next step.
