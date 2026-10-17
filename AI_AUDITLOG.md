@@ -5114,6 +5114,33 @@ COST, STATED RATHER THAN HIDDEN
   composite project is noticeably slower - long enough to exceed a 120 s command
   timeout, which is how this was noticed. One-off per composite project.
 
+END-TO-END THROUGH THE RIS ORCHESTRATOR, not by calling the component directly
+  The measurements above were run inside the clone. This is the real path:
+  RisInstallContext(project_name='mays-ris-composite-a', environment='test',
+                    dry_run=True) with RISInstaller(dry_run=False), so
+  ALLOW_AWS_OPERATIONS=false and only validate/plan/output execute:
+
+    $ Orders validate -> SUCCESS
+    $ Orders plan     -> SUCCESS
+    returned {} - CORRECT, not a defect: the component is planned but not
+      applied, its state holds 0 resources, so `terraform output` yields
+      nothing to hand off. No RuntimeError was raised.
+
+  Before the fix the same call raised
+    TerraformError: terraform workspace select failed for
+      'mays-ris-composite-a-mays-orders': The selected workspace is currently
+      overridden using the TF_WORKSPACE environment variable
+
+  Instance state after the run:
+    ~/.ris-workdirs/component/mays-ris-composite-a-mays-orders/
+      environment     = mays-ris-composite-a-mays-orders   <- the instance's own
+      providers/registry.terraform.io/...                  <- private provider cache
+      modules/  terraform.tfstate
+    shared .terraform/environment in the clone = mays-orders  <- unchanged
+
+  So the composite path runs again, through RIS, without RIS having touched a
+  line of Mays-Orders-AWS.
+
 TESTS: TestWorkspaceEnvIsolation in tests/test_composite_lifecycle.py rewritten.
   It previously asserted the opposite of the truth - it required both workspace
   variables at the component call site and its docstring repeated the false
