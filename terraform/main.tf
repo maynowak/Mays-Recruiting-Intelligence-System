@@ -152,12 +152,22 @@ module "orders_reader" {
   aws_region        = var.aws_region
   filename          = var.filename
   tags              = var.tags
-  orders_table_name = var.orders_table_name
-  orders_table_arn  = var.orders_table_arn
-  orders_queue_url  = var.orders_queue_url
-  orders_queue_arn  = var.orders_queue_arn
+  orders_table_name = module.mays_orders.dynamodb_table_name
+  orders_table_arn  = module.mays_orders.dynamodb_table_arn
+  orders_queue_url  = module.mays_orders.sqs_queue_url
+  orders_queue_arn  = module.mays_orders.sqs_queue_arn
 }
 
+
+# Mays-Orders as Terraform-Module (Orders-Service)
+module "mays_orders" {
+  source             = "./modules/mays_orders"
+  project_name       = var.project_name
+  tags               = var.tags
+  monitoring_enabled = var.monitoring_enabled
+  log_retention_days = var.lambda_config.log_retention_days
+  # external_cognito = null  # MANAGED (Default) oder EXTERNAL
+}
 # Observability-Foundation: CloudWatch (Runtime) + CloudTrail (Audit),
 # strikt getrennt (s. Modul-Kommentare). Ersetzt die frueheren Inline-Alarme.
 module "monitoring" {
@@ -182,6 +192,36 @@ module "monitoring" {
   dynamodb_table_name          = module.dynamodb.work_items_table_name
   sqs_queue_name               = module.sqs.work_queue_name
   sqs_dlq_name                 = module.sqs.dlq_name
+}
+
+# Option A (MODULE-WIRING / Ressourcen-Count-Abgleich 2026-10-19): zweite
+# Monitoring-Instanz fuer den Orders-Service. Die Foundation-Instanz oben
+# bleibt am RIS-Kern; hier werden die Orders-Ressourcen (API, Handler-Lambda,
+# Orders-Tabelle, Orders-Queue) ueberwacht. Eigener Dashboard-/Alarmprefix
+# "${var.project_name}-orders", damit keine Namenskollision entsteht.
+# Orders hat keine DLQ -> sqs_dlq_name = "" (Modul gate't Alarm/Widget).
+module "monitoring_orders" {
+  source = "./modules/monitoring"
+
+  project_name                 = "${var.project_name}-orders"
+  tags                         = var.tags
+  monitoring_enabled           = var.monitoring_enabled
+  dashboard_enabled            = var.dashboard_enabled
+  aws_region                   = var.aws_region
+  alarm_period_seconds         = var.alarm_period_seconds
+  alarm_evaluation_periods     = var.alarm_evaluation_periods
+  api_5xx_threshold            = var.api_5xx_threshold
+  api_4xx_threshold            = var.api_4xx_threshold
+  lambda_error_threshold       = var.lambda_error_threshold
+  lambda_duration_threshold_ms = var.lambda_duration_threshold_ms
+  lambda_throttle_threshold    = var.lambda_throttle_threshold
+  dynamodb_throttled_threshold = var.dynamodb_throttled_threshold
+  api_id                       = module.mays_orders.api_gateway_id
+  api_stage_name               = module.mays_orders.api_gateway_stage_name
+  lambda_function_name         = module.mays_orders.lambda_function_name
+  dynamodb_table_name          = module.mays_orders.dynamodb_table_name
+  sqs_queue_name               = module.mays_orders.sqs_queue_name
+  sqs_dlq_name                 = ""
 }
 
 module "cloudtrail" {
@@ -255,5 +295,6 @@ module "health_plane" {
   public_bucket_arn  = module.health_public.bucket_arn
   publisher_zip_path = var.health_publisher_zip_path
   aws_region         = var.aws_region
+  log_retention_days = var.lambda_config.log_retention_days
 }
 

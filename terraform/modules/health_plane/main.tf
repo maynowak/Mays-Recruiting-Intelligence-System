@@ -41,6 +41,15 @@ resource "aws_lambda_function" "health_writer" {
   timeout       = 30
 }
 
+# Verwaltete Log-Groups: ohne diese erzeugt der Lambda-Dienst die Gruppe beim
+# ersten Invoke selbst, und `terraform destroy` kann sie nicht entfernen
+# (Befund PARALLEL-TESTABDECKUNG-ANALYSE-2026-10-19 §4).
+resource "aws_cloudwatch_log_group" "health_writer" {
+  name              = "/aws/lambda/${aws_lambda_function.health_writer.function_name}"
+  retention_in_days = var.log_retention_days
+  tags              = var.tags
+}
+
 resource "aws_cloudwatch_event_rule" "health_alarms" {
   name        = "${var.project_name}-${var.environment}-health-alarms"
   description = "CloudWatch alarm state changes for health plane"
@@ -78,6 +87,13 @@ resource "aws_lambda_function" "health_publisher" {
       HEALTH_ALLOWLIST      = "api,lambda,dynamodb"
     }
   }
+}
+
+# siehe aws_cloudwatch_log_group.health_writer — gleicher Zweck, andere Lambda
+resource "aws_cloudwatch_log_group" "health_publisher" {
+  name              = "/aws/lambda/${aws_lambda_function.health_publisher.function_name}"
+  retention_in_days = var.log_retention_days
+  tags              = var.tags
 }
 
 resource "aws_iam_role" "health_publisher" {
