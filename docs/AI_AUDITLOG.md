@@ -139,6 +139,7 @@ The following tasks have been completed with reports in docs/reports/:
 | 2026-10-18 | [Cleanup & Verify](reports/2026-10-18-AWS-CLEANUP-AND-VERIFY.md) | abgeschlossen | Dev-Ressourcen gelöscht, Quittierungen gesichert (Rekonstruktion aus Root-Twin `AWS_CLEANUP_FINAL.md`) |
 | 2026-10-19 | [Cleanup-Verifikation](reports/2026-10-19-CLEANUP-VERIFICATION.md) | abgeschlossen | Bereinigung verifiziert, Quittierungen gesichert (Rekonstruktion aus Root-Twin `CLEANUP_VERIFICATION.md`) |
 | 2026-10-19 | [AI_AUDITLOG-Struktur-Check](reports/2026-10-19-AI-AUDITLOG-STRUCTUR-CHECK.md) | abgeschlossen | Template-konforme Struktur geprüft, Index nachgetragen, Löschung/Wiederherstellung der datierten Reports dokumentiert; Index anschließend auf vollständigen Report-Bestand ergänzt |
+| 2026-10-20 | [MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01 — Phase 1](reports/01-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-PHASE1.md) | Phase 1 abgeschlossen | RIS `ris-development` (169 Ressourcen) applied und per Smoke-Tests verifiziert; Phase 2–4 offen |
 
 
 ### Vollständiger Report-Bestand (docs/reports/, Stand 2026-10-19)
@@ -5858,3 +5859,76 @@ STILL NOT BUILT
   Nothing from section A. This entry creates the list, not the work.
 
 AWS MUTATIONS: NONE. GIT PUSH: NONE.
+
+==================================================
+[MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-PHASE-1]
+Current status: COMPLETED — Phase 1: RIS-Development-Installation `ris-development` mit 169 Ressourcen applied und verifiziert; Phase 2 (Cognito Custom Domain/OAuth), Phase 3 (Jobsearch-Login), Phase 4 (E2E) offen
+Audit date/time: 2026-10-20 10:05–10:25 UTC
+Current Git branch and HEAD: main, HEAD = 407b6ac
+Audit scope: Phase 1 aus MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01 — AWS-/State-Abgleich, Workspace-Isolation, Terraform-Plan, Apply, Smoke-Tests, read-only Bestand für Phase 2/3
+Completed audit sections:
+   §1 AWS-/State-Bestand gegen Reports vom 2026-10-19 geprüft
+   §2 Workspace `ris-development` angelegt (existierte nicht) und Backend-Isolation geprüft
+   §3 Plan erzeugt und Ownership geprüft (169 add, 0 fremde Präfixe)
+   §4 Apply ausgeführt (169 added, 0 changed, 0 destroyed, rc=0)
+   §5 Post-Apply-Smoke-Tests (State, API 401, CloudFront, Cognito, Lambda/SQS/DynamoDB)
+   §6 Phase-2/3-Bestand read-only erhoben (Cognito-Client, ACM, DNS, Jobsearch-Repo)
+Actual findings (verified facts):
+   - Workspace `ris-development` existierte nicht; `workspace select` wäre still fehlgeschlagen
+     und hätte im Default-Workspace (Root-State, serial 13, 0 Ressourcen) geplant
+   - Plan: 169 to add, 0 to change, 0 to destroy; 0 × `mays-ris-dev`; 78 Namen alle `ris-development*`
+   - Apply: 169 added, Exit 0, keine Errors; State (Nicht-Data) = 169
+   - API `https://klklimekab.execute-api.eu-central-1.amazonaws.com`; /health,/me,/platform,/agents = 401
+   - Cognito RIS-Pool `ris-development-dev-users` (`eu-central-1_7QCp09XEZ`), Prefix-Domain
+     `ris-development-dev`, `custom:tenant_id` vorhanden, 0 Benutzer
+   - App-Client `ris-development-dev-client` public, aber OAuth AUS
+     (`AllowedOAuthFlowsUserPoolClient=false`, keine Callback-/Logout-URLs)
+   - 2 Cognito-Pools: RIS-Pool + eingebetteter Orders-Pool `ris-development-users`
+   - ACM `auth.mays-job-matcher.app` in us-east-1 ISSUED, unbenutzt; kein DNS-Record;
+     NS = ns.checkdomain.de; Apex-A-Record vorhanden; Cognito-Custom-Domain braucht us-east-1-Cert
+   - Jobsearch-Login ist UI-Platzhalter (kein Cognito/fetch/Session)
+Evidence / file references:
+   - docs/reports/01-01-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-EXECUTION_LOG.md
+   - docs/reports/01-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-PHASE1.md
+   - /tmp/ris-development.log, /tmp/ris-development.tfplan, /tmp/ris-development.plan.json
+   - /tmp/apply_ris-development.log (`Apply complete! Resources: 169 added`)
+   - terraform/modules/cognito/main.tf, terraform/main.tf, lambda/handler.py
+   - installer/projects/mays_jobsearch/src/components/LoginForm.tsx
+Classification: GREEN (Phase 1) / YELLOW (Gesamtaufgabe)
+Terraform checks executed and results:
+   - terraform init -reconfigure (S3 mays-ris-tf-state-dev, Lock mays-ris-tf-lock): PASS
+   - terraform workspace select -or-create ris-development: PASS
+   - terraform plan: 169 to add, 0 to change, 0 to destroy
+   - terraform state list (Nicht-Data): 169
+   - terraform output: API/Cognito/DynamoDB/SQS-Outputs vorhanden
+Git status: uncommitted Alt-Änderungen aus früheren Sessions (AGENTS.md, installer/ris.py,
+   terraform/.terraform.lock.hcl, terraform/modules/monitoring/*) + untracked Root-Notizen;
+   diese Session ergänzt nur docs/reports/ und docs/AI_AUDITLOG.md
+Files changed:
+   - docs/reports/01-01-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-EXECUTION_LOG.md (neu)
+   - docs/reports/01-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-PHASE1.md (neu)
+   - docs/AI_AUDITLOG.md (dieser Checkpoint)
+Explicit confirmation when no files were changed: Terraform-Code, Lambda-Code und
+   Jobsearch-Code in Phase 1 nicht verändert — nur Dokumentation
+Open questions:
+   - Verbindliche Callback-/Logout-URLs für Vercel-Preview?
+   - Token-Storage im SPA (sessionStorage vs. Memory + Refresh)?
+   - Managed Login v2 oder klassische Hosted UI?
+   - Testbenutzer selbst registrieren oder per Admin-API mit custom:tenant_id?
+Risks:
+   - terraform/modules/mays_orders/ ist untracked, wird aber von main.tf referenziert
+     → frische Clones können den 169-Plan nicht reproduzieren
+   - DNS für auth.mays-job-matcher.app liegt extern bei checkdomain.de
+   - Zwei Cognito-Pools im Stack; falscher Pool isoliert Benutzer
+   - App-Client ohne OAuth-Code-Flow; Frontend-Redirect scheitert bis Terraform-Fix
+Recommended next actions:
+   1. Phase 2a: Cognito-Modul um OAuth Code+PKCE, Callback-/Logout-URLs und
+      aws_cognito_user_pool_domain.custom (auth.mays-job-matcher.app) erweitern
+   2. Plan vorlegen; Apply erst nach expliziter Freigabe
+   3. Phase 2b: Alias-Target auslesen, CNAME auth bei checkdomain.de setzen (Freigabe)
+   4. Phase 3: PKCE-Login im Jobsearch-Repo implementieren
+   5. Phase 4: E2E Login → Callback → /me → Profil → Logout → ungültiges JWT
+Current resume point: `ris-development` live (169 Ressourcen, API klklimekab);
+   nächster Schritt ist der Phase-2-Plan (Cognito OAuth + Custom Domain), ohne Apply
+AWS MUTATIONS: 169 Ressourcen erstellt (Workspace `ris-development`), 0 geändert,
+   0 gelöscht; keine DNS-Änderung, kein Cognito-Custom-Domain, kein Destroy, kein Push.
