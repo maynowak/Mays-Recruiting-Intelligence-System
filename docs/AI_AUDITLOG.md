@@ -142,6 +142,7 @@ The following tasks have been completed with reports in docs/reports/:
 | 2026-10-20 | [MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01 — Phase 1](reports/01-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-PHASE1.md) | Phase 1 abgeschlossen | RIS `ris-development` (169 Ressourcen) applied und per Smoke-Tests verifiziert; Phase 2–4 offen |
 | 2026-10-20 | [MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01 — Testbericht](reports/01-02-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-TESTREPORT.md) | Tests abgeschlossen | 63/63 Live, 9/9 Static, 1581 pytest; CORS/OAuth-Lücken dokumentiert |
 | 2026-10-20 | [Merge feature/integration](reports/02-01-WRAPPER-MAYS-ORDERS-MODULE-BUILDER-EXECUTION_LOG.md) | Merge lokal abgeschlossen | Commit 42735ce; Tests grün; Naming-Suffix würde Dev-Orders-Stack ersetzen — nicht applied |
+| 2026-10-20 | [Merge feature/integration — Naming zurückgestellt](reports/02-01-WRAPPER-MAYS-ORDERS-MODULE-BUILDER-EXECUTION_LOG.md) | Naming-Fix | `project_name` wieder `var.project_name`; Merge 42735ce bleibt; keine AWS-Mutation |
 
 
 ### Vollständiger Report-Bestand (docs/reports/, Stand 2026-10-19)
@@ -6044,4 +6045,45 @@ Recommended next actions:
    2. Modul-Zip bauen (`python -m installer.build_mays_orders_module --project-name ...` bzw. Lambda-Build) und Plan separat prüfen.
    3. Push nach origin/main nur mit Freigabe.
 Current resume point: Merge lokal abgeschlossen und getestet; Plan/Apply bewusst offen.
+AWS MUTATIONS: NONE
+
+==================================================
+[MERGE-FEATURE-INTEGRATION-NAMING-REVERTED-2026-10-20]
+Current status: COMPLETED (lokal) — Merge 42735ce bleibt bestehen; Naming-Suffix zurückgenommen
+Audit date/time: 2026-10-20 16:10 UTC
+Current Git branch and HEAD: main (vor diesem Commit: d1ae2ec)
+Audit scope: Rücknahme der einzigen destruktiven Merge-Auswirkung auf die laufende Dev-Installation
+Completed audit sections:
+   §1 `terraform/main.tf`: `project_name = "${var.project_name}-mays-orders"` → `var.project_name`
+   §2 fmt/validate/static-Suite erneut geprüft
+Actual findings (verified facts):
+   - Live-State-Namen (`ris-development`, `ris-development-api`, `ris-development-users`) bleiben unverändert gültig
+   - Kein Rename/Replace des Orders-Stacks durch die Konfiguration mehr
+   - `terraform fmt -check -recursive`: PASS
+   - `terraform validate`: Success (nur Deprecation-Warnings)
+   - static-Suite: 9 PASS, 0 FAIL, 1 Baseline-WARN
+   - Modul-Code (Feature-Version) bleibt gemerged; nur der Component-Naming-Aufruf wurde zurückgestellt
+Evidence / file references:
+   - git diff terraform/main.tf
+   - Merge-Commit 42735ce (bleibt)
+Classification: GREEN
+Terraform checks executed and results:
+   - fmt -check -recursive: PASS
+   - validate: Success
+   - plan: NICHT ausgeführt (Modul-Zip fehlt weiterhin)
+Git status: `terraform/main.tf` + dieser Audit-Log-Eintrag werden committed
+Files changed:
+   - terraform/main.tf (project_name zurückgestellt)
+   - docs/AI_AUDITLOG.md (dieser Checkpoint + Index)
+Explicit confirmation when no files were changed: Keine AWS-Ressource, kein State, kein laufendes Deployment verändert.
+Open questions:
+   - Soll der Wrapper (`installer/build_mays_orders_module.py`) das Naming künftig nicht mehr automatisch patchen?
+   - Falls stattdessen der komplette Merge zurückgenommen werden soll: `git revert -m 1 42735ce`.
+Risks:
+   - Ein erneuter Lauf des Wrappers patcht `terraform/main.tf` wieder auf `-mays-orders` (dokumentiert im README).
+Recommended next actions:
+   1. Wrapper-Patch optional abschaltbar machen oder Naming-Entscheidung dokumentieren.
+   2. Vor einem Plan das Modul-Zip bauen.
+   3. Push nach origin/main nur mit Freigabe.
+Current resume point: Merge lokal vorhanden, Naming wieder state-kompatibel; kein Apply.
 AWS MUTATIONS: NONE
