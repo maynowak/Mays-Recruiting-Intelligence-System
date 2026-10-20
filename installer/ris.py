@@ -904,6 +904,7 @@ class RisInstallContext:
     # orchestrate the Mays-Orders-AWS component. Existing standalone RIS
     # tests set composite=False to assert pure-RIS terraform sequencing.
     composite: bool = True
+    stop_through: Optional[str] = None
     # Per-project isolation (computed, not user-configurable)
     _workdir_base: str = field(default="", repr=False)
     _workdir: str = field(default="", repr=False)
@@ -1051,14 +1052,17 @@ def _cmd_preflight(ctx: RisInstallContext) -> int:
     collision scan for the derived component project name. No resource
     mutation and no Terraform apply anywhere in this path.
     """
-    try:
-        aws_ctx = validate_aws_context(
-            profile=ctx.aws_profile, region=ctx.aws_region
-        )
-    except AwsValidationError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
-    ctx.aws_context = aws_ctx
+    if ctx.aws_context is None:
+        try:
+            aws_ctx = validate_aws_context(
+                profile=ctx.aws_profile, region=ctx.aws_region
+            )
+        except AwsValidationError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        ctx.aws_context = aws_ctx
+    else:
+            aws_ctx = ctx.aws_context
     print(f"account: {aws_ctx.account_id}")
     print(f"region: {aws_ctx.region}")
     print(f"identity: {aws_ctx.identity_arn}")
@@ -1150,6 +1154,8 @@ def _cmd_preflight(ctx: RisInstallContext) -> int:
 
 def _cmd_validate(ctx: RisInstallContext) -> List[TerraformResult]:
     # Backend-less validation: init runs with -backend=false, so workspace
+    if ctx.aws_context is None:
+        ctx.aws_context = validate_aws_context(profile=ctx.aws_profile, region=ctx.aws_region)
     # operations are meaningless here (no backend to select in) and would
     # fail. Config validation is workspace-independent.
     runner = ctx.make_runner()
@@ -1834,48 +1840,44 @@ def component_tf_data_dir(ris_project_name: str, orders_project: str) -> str:
     )
 
 
-def _run_orders_component(
-    ctx: RisInstallContext,
-    orchestrator: RISInstaller,
-    orders_project: str,
-) -> Dict[str, Any]:
-    """Execute the Orders component lifecycle via the existing orchestrator.
-
-    Sequence (RIS-ORDERS-INSTALLER-CONTRACT-ALIGNMENT-01):
+def _run_orders_component(ctx: RisInstallContext, orchestrator: RISInstaller, orders_project: str, *, dry_run: Optional[bool] = None, stop_after_plan: bool = False) -> Dict[str, Any]:
+    """
       validate -> plan -> deploy -> output
     - profile/region passed as *global* args (argparse subcommand contract).
     - --project-name = orders_project (isolated component identity).
     - --yes on deploy requires ALLOW_AWS_OPERATIONS=true (env-only, set by caller).
+    - dry_run override: if not None, overrides ctx.dry_run for deciding ALLOW_AWS_OPERATIONS.
+    - stop_after_plan: if True, returns after plan (no deploy/output).
     Returns the orchestrator result dicts for each stage.
     Preserves the Orders state: a RIS-side failure later does NOT destroy a
     successfully installed Orders component (no auto-cleanup; destroy is a
     separate, explicit composite destroy operation).
-
-    WHAT CONTROLS THE BACKEND -- measured, do not re-derive from the docs
-    --------------------------------------------------------------------
-    The component's own installer decides S3 vs local in
-    installer/cli/main.py: `runner.init(backend=not context.dry_run)`.
-    It is a BOOLEAN, not a bucket choice: the bucket is hardcoded in the
-    pinned terraform/backend.tf and cannot be overridden from here. The
-    component's own audit (docs/reports/MAYS-ORDERS-MODULARITY-01A-
-    INSTALLER-TERRAFORM-BACKEND-AUDIT.md, section 9) records
-    "backend-config: FOUND NO".
-
-    Because DRY_RUN=true implies backend=false, it was worth checking
-    whether a RIS dry-run plan reads the WRONG state. It does NOT, as long
-    as .terraform/ already carries a configured S3 backend:
-
-      DRY_RUN=true  + existing S3 .terraform -> reads env:/<project>/  (correct)
-      DRY_RUN=false + fresh clone           -> reads env:/<project>/  (correct)
-      DRY_RUN=true  + FRESH clone           -> PLAN FAILS, no backend
-
-    Reason: `init -backend=false` means "do not CONFIGURE the backend", not
-    "use a local state". The already-configured S3 backend stays active.
-    A hypothesis that dry-run plans a local state was tested and REJECTED;
-    do not re-open it without new evidence. The real fragility is the third
-    row: correctness depends on leftover local .terraform/ metadata, and a
-    fresh checkout fails rather than silently mis-planning.
     """
+#    WHAT CONTROLS THE BACKEND -- measured, do not re-derive from the docs
+#    --------------------------------------------------------------------
+#    The component's own installer decides S3 vs local in
+#    installer/cli/main.py: `runner.init(backend=not context.dry_run)`.
+#    It is a BOOLEAN, not a bucket choice: the bucket is hardcoded in the
+#    pinned terraform/backend.tf and cannot be overridden from here. The
+#    component's own audit (docs/reports/MAYS-ORDERS-MODULARITY-01A-
+#    INSTALLER-TERRAFORM-BACKEND-AUDIT.md, section 9) records
+#    "backend-config: FOUND NO".
+#
+#    Because DRY_RUN=true implies backend=false, it was worth checking
+#    whether a RIS dry-run plan reads the WRONG state. It does NOT, as long
+#    as .terraform/ already carries a configured S3 backend:
+#
+#      DRY_RUN=true  + existing S3 .terraform -> reads env:/<project>/  (correct)
+#      DRY_RUN=false + fresh clone           -> reads env:/<project>/  (correct)
+#      DRY_RUN=true  + FRESH clone           -> PLAN FAILS, no backend
+#
+#    Reason: `init -backend=false` means "do not CONFIGURE the backend", not
+#    "use a local state". The already-configured S3 backend stays active.
+#    A hypothesis that dry-run plans a local state was tested and REJECTED;
+#    do not re-open it without new evidence. The real fragility is the third
+#    row: correctness depends on leftover local .terraform/ metadata, and a
+#    fresh checkout fails rather than silently mis-planning.
+#    """
     # Fail closed BEFORE any AWS call: the flags below decide which AWS name
     # limits apply, and Terraform would otherwise surface the overflow one
     # resource at a time, after the backend is already initialised.
@@ -2052,7 +2054,7 @@ def _has_consumable_outputs(outputs: Dict[str, Any]) -> bool:
 
 
 def _cmd_install(
-    ctx: RisInstallContext, out_file: Optional[str] = None
+    ctx: RisInstallContext, out_file: Optional[str] = None, through: Optional[str] = None
 ) -> int:
     """Composite phased installation: preflight -> orders validate/plan/deploy ->
     output handoff -> RIS package/plan/apply. Dry-run (no --yes) stops before
@@ -2097,6 +2099,10 @@ def _cmd_install(
     )
     orders_project = orders_component_project_name(ctx.project_name)
 
+    # Update context with backend configuration derived from project name
+    ctx.backend_bucket = names.bucket
+    ctx.backend_region = names.region
+    ctx.backend_lock_table = names.lock_table
     if ctx.dry_run:
         print("dry-run composite installation plan (no mutation performed):")
         print(f"  account: {aws_ctx.account_id}")
@@ -2105,9 +2111,8 @@ def _cmd_install(
         print(f"  Orders component: {orders_project}")
         print(f"  backend bucket: {names.bucket}")
         print(f"  lock table: {names.lock_table}")
-        print("  phases: orders validate -> orders plan -> output handoff -> "
-              "RIS package -> RIS plan")
-        return 0
+        print("  phases: orders validate -> orders plan -> output handoff -> ")
+        print("  phases: package -> bootstrap -> orders validate -> orders plan -> RIS plan -> orders deploy -> RIS apply")
 
     # --- Composite preflight + Orders component (fail fast, no mutation) ---
     if ctx.composite:
@@ -2158,6 +2163,7 @@ def _cmd_install(
             extra_vars=merged_extra,
             composite=ctx.composite,
         )
+        ctx.stop_through = through
     else:
         merged_extra = dict(ctx.extra_vars or {})
 
@@ -2316,6 +2322,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Bundle scope for the package command.",
     )
     parser.add_argument(
+        "--through",
+        choices=["orders-deploy", "ris-apply"],
+        help="Stop after the specified phase (for phased apply).",
+    )
+    parser.add_argument(
         "--diagnostic-no-lock",
         action="store_true",
         help="Disable state locking for diagnostic plan only. WARNING: disables Terraform state locking. Use only for debugging stale locks. Never use for deployment planning.",
@@ -2356,14 +2367,43 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     try:
+        # Derive backend names from project name and environment if not explicitly provided
+        backend_bucket = parsed.backend_bucket
+        backend_region = parsed.backend_region
+        backend_lock_table = parsed.backend_lock_table
+        
+        if backend_bucket is None or backend_region is None or backend_lock_table is None:
+            # Create a temporary RisInstallContext to derive the backend names
+            temp_ctx = RisInstallContext(
+                project_name=parsed.project_name,
+                environment=parsed.environment,
+                aws_region=parsed.aws_region,
+                terraform_dir=parsed.terraform_dir,
+                backend_bucket=backend_bucket,  # May be None, but that's OK for derivation
+                backend_region=backend_region,  # May be None, but that's OK for derivation
+                backend_lock_table=backend_lock_table,  # May be None, but that's OK for derivation
+                aws_profile=parsed.profile,
+            )
+            names = BackendNames.for_project(
+                temp_ctx.project_name, 
+                temp_ctx.environment, 
+                region=temp_ctx.aws_region
+            )
+            if backend_bucket is None:
+                backend_bucket = names.bucket
+            if backend_region is None:
+                backend_region = names.region
+            if backend_lock_table is None:
+                backend_lock_table = names.lock_table
+        
         ctx = RisInstallContext(
             project_name=parsed.project_name,
             environment=parsed.environment,
             aws_region=parsed.aws_region,
             terraform_dir=parsed.terraform_dir,
-            backend_bucket=parsed.backend_bucket,
-            backend_region=parsed.backend_region,
-            backend_lock_table=parsed.backend_lock_table,
+            backend_bucket=backend_bucket,
+            backend_region=backend_region,
+            backend_lock_table=backend_lock_table,
             aws_profile=parsed.profile,
             dry_run=not parsed.yes,
             extra_vars=extra_vars,
@@ -2376,7 +2416,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if parsed.command == "preflight":
         return _cmd_preflight(ctx)
     if parsed.command == "install":
-        return _cmd_install(ctx, out_file=parsed.out)
+        return _cmd_install(ctx, out_file=parsed.out, through=parsed.through)
     if parsed.command == "state":
         return _cmd_state(
             ctx,
