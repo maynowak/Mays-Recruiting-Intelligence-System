@@ -140,6 +140,7 @@ The following tasks have been completed with reports in docs/reports/:
 | 2026-10-19 | [Cleanup-Verifikation](reports/2026-10-19-CLEANUP-VERIFICATION.md) | abgeschlossen | Bereinigung verifiziert, Quittierungen gesichert (Rekonstruktion aus Root-Twin `CLEANUP_VERIFICATION.md`) |
 | 2026-10-19 | [AI_AUDITLOG-Struktur-Check](reports/2026-10-19-AI-AUDITLOG-STRUCTUR-CHECK.md) | abgeschlossen | Template-konforme Struktur geprüft, Index nachgetragen, Löschung/Wiederherstellung der datierten Reports dokumentiert; Index anschließend auf vollständigen Report-Bestand ergänzt |
 | 2026-10-20 | [MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01 — Phase 1](reports/01-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-PHASE1.md) | Phase 1 abgeschlossen | RIS `ris-development` (169 Ressourcen) applied und per Smoke-Tests verifiziert; Phase 2–4 offen |
+| 2026-10-20 | [MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01 — Testbericht](reports/01-02-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-TESTREPORT.md) | Tests abgeschlossen | 63/63 Live, 9/9 Static, 1581 pytest; CORS/OAuth-Lücken dokumentiert |
 
 
 ### Vollständiger Report-Bestand (docs/reports/, Stand 2026-10-19)
@@ -5932,3 +5933,61 @@ Current resume point: `ris-development` live (169 Ressourcen, API klklimekab);
    nächster Schritt ist der Phase-2-Plan (Cognito OAuth + Custom Domain), ohne Apply
 AWS MUTATIONS: 169 Ressourcen erstellt (Workspace `ris-development`), 0 geändert,
    0 gelöscht; keine DNS-Änderung, kein Cognito-Custom-Domain, kein Destroy, kein Push.
+
+==================================================
+[MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-PHASE-1-TESTS]
+Current status: COMPLETED — Testlauf der Installation `ris-development`: 63/63 Live-Checks, 9/9 Static, 1581 pytest passed; Auth-Grundfunktionen grün; Phase-2-Lücken lokalisiert
+Audit date/time: 2026-10-20 10:26–10:40 UTC
+Current Git branch and HEAD: main, HEAD = 407b6ac (Doku-Commit 462998e davor)
+Audit scope: Read-only-Verifikation der Phase-1-Installation (State, Ownership, Inventar, API/Auth, Idempotenz, Code-Kontrakte) + Auth-Grenzen (M2M, Human, CORS, OIDC)
+Completed audit sections:
+   §1 Static: fmt, validate, 4 Kontrakt-Suiten, Bundles
+   §2 Vollserie `ris-development`: 63 Checks (State/Ownership, Inventar, Routen/Auth, Verkabelung, pytest)
+   §3 Vollständige pytest-Suite
+   §4 Live-Auth: M2M client_credentials, Audience-Isolation, X-Api-Credential-Pflicht
+   §5 Phase-2-Lücken: OAuth-Callback, OIDC-Discovery, Custom-Domain-DNS, CORS
+Actual findings (verified facts):
+   - `terraform plan -detailed-exitcode` nach Apply = 0 (kein Drift), State = 169
+   - 0 Fremd-Namen im State/Plan; `ris-a` abwesend; e2e-CF/OAC unberührt
+   - 63 PASS / 0 FAIL / 1 WARN (Baseline) in der Vollserie
+   - 9 PASS / 0 FAIL / 1 WARN (Baseline) static
+   - pytest: 1581 passed, 2 failed (dokumentierte Baseline), 11 skipped
+   - M2M-Token: `token_use=access`, `scope=ris-api/m2m:execute`, `iss` = RIS-Pool, `expires_in=3600`
+   - Human-Routen mit M2M-Token = 401; M2M-Route ohne X-Api-Credential = 403; ohne/ungültig = 401
+   - Authorize-Endpoint = 302 `/error?error=redirect_mismatch` (keine Callback-URLs)
+   - OIDC-Discovery Prefix-Domain = 404; Custom Domain = DNS 000
+   - API `CorsConfiguration=null`; OPTIONS `/me` = 404 für Vercel/localhost
+Evidence / file references:
+   - docs/reports/01-02-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-TESTREPORT.md
+   - docs/reports/01-01-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-EXECUTION_LOG.md (Nachtrag Testlauf)
+   - scripts/parallel_tests.sh (Target `ris-development`)
+   - /tmp/ris-development.tfplan, /tmp/plansafe_ris-development.log, /tmp/idem_ris-development.log
+Classification: GREEN (Phase 1 + Tests) / YELLOW (Auth-E2E bis Phase 2/3)
+Terraform checks executed and results:
+   - fmt -check -recursive: PASS
+   - validate: PASS
+   - plan -detailed-exitcode nach Apply: Exit 0 (kein Drift)
+   - state list (Nicht-Data): 169
+Git status: Session-Änderungen an scripts/parallel_tests.sh + docs/reports/01-0x + docs/AI_AUDITLOG.md
+Files changed:
+   - scripts/parallel_tests.sh (+Target `ris-development`, Nutzungstext)
+   - docs/reports/01-02-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-TESTREPORT.md (neu)
+   - docs/reports/01-01-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-EXECUTION_LOG.md (Nachtrag)
+   - docs/AI_AUDITLOG.md (dieser Checkpoint + Index)
+Explicit confirmation when no files were changed: Terraform-, Lambda- und Jobsearch-Code
+   wurden im Testlauf nicht verändert; AWS-Ressourcen nicht mutiert.
+Open questions:
+   - CORS am API Gateway freigeben oder Vercel-Proxy einführen?
+   - Callback-URLs für Preview-Deployments?
+   - Testbenutzer: Selbstregistrierung oder Admin-API?
+Risks:
+   - Ohne OAuth-Callback + Custom Domain ist kein Browser-Login möglich
+   - Ohne CORS/Proxy kann die SPA RIS nicht direkt aufrufen
+   - `terraform/modules/mays_orders/` bleibt untracked → Reproduzierbarkeit
+Recommended next actions:
+   1. Phase-2-Plan: Cognito OAuth Code+PKCE + Custom Domain + CORS-Variante
+   2. Apply erst nach Freigabe; danach DNS-CNAME bei checkdomain.de
+   3. Testbenutzer mit `custom:tenant_id` anlegen (Freigabe)
+   4. Jobsearch-PKCE-Login implementieren und E2E testen
+Current resume point: Alle Phase-1-Tests grün; Phase 2 ist der nächste implementierbare Schritt
+AWS MUTATIONS: NONE (read-only AWS-Calls + M2M-Token-Ausstellung; keine Ressourcen-Änderung)

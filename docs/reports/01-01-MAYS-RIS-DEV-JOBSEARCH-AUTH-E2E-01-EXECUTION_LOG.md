@@ -175,3 +175,34 @@ AWS MUTATIONS (Phase 1): 169 Ressourcen erstellt (Workspace `ris-development`), 
 
 **Freigabe-Gates:** Terraform-Apply (Phase 2), DNS-CNAME (Phase 2b), Testbenutzer-Anlage,
 Jobsearch-Commits/Push. Phase 1 ist abgeschlossen und dokumentiert.
+
+---
+
+## Nachtrag: Testlauf 2026-10-20 10:26–10:40 UTC
+
+- Current status: PHASE 1 COMPLETED + TESTED — 63/63 Live-Checks, 9/9 Static, 1581 pytest passed;
+  Auth-Grundfunktionen grün; Phase-2-Lücken exakt lokalisiert.
+- Terraform checks:
+  - `terraform fmt -check -recursive`: PASS
+  - `terraform validate`: PASS
+  - `terraform plan -detailed-exitcode` nach Apply: **Exit 0** (kein Drift)
+- Live-Vollserie `ris-development`: **63 PASS, 0 FAIL, 1 WARN** (Baseline).
+- Static-Serie: **9 PASS, 0 FAIL, 1 WARN** (Baseline).
+- Vollständige pytest-Suite: **1581 passed, 2 failed (Baseline), 11 skipped**.
+- Auth-Tests:
+  - M2M `client_credentials`: Token ausgestellt, `token_use=access`, `scope=ris-api/m2m:execute`, `iss` = RIS-Pool.
+  - Human-Routen mit M2M-Token: 401 (Audience-Isolation).
+  - M2M-Route ohne `X-Api-Credential`: 403; ohne/ungültigem Token: 401.
+- Neue verifizierte Lücken:
+  - OAuth-Authorize → `302 /error?error=redirect_mismatch` (keine Callback-URLs).
+  - OIDC-Discovery Prefix-Domain → 404 (nur Custom Domain).
+  - `auth.mays-job-matcher.app` → kein DNS-Record (000).
+  - API-CORS `CorsConfiguration=null`; OPTIONS `/me` → 404 für Vercel- und localhost-Origin.
+- Files changed:
+  - `scripts/parallel_tests.sh` (+Target `ris-development`)
+  - `docs/reports/01-02-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-TESTREPORT.md` (neu)
+  - `docs/reports/01-01-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-EXECUTION_LOG.md` (dieser Nachtrag)
+  - `docs/AI_AUDITLOG.md` (Test-Checkpoint)
+- Current resume point: Phase 1 getestet und grün; nächster Schritt ist der Phase-2-Plan
+  (Cognito OAuth Code+PKCE, Custom Domain, CORS-Entscheidung) — Apply/DNS nur mit Freigabe.
+- AWS MUTATIONS (Testlauf): NONE (nur read-only AWS-Calls + Token-Ausstellung; kein Ressourcen-Change).

@@ -6,6 +6,7 @@
 #   ./scripts/parallel_tests.sh ris-b                 # Vollserie fuer B
 #   ./scripts/parallel_tests.sh both                  # Parallel-/Trennungs-Serie
 #   ./scripts/parallel_tests.sh destroy-check ris-a   # vollstaendiger Abbau-Nachweis
+#   ./scripts/parallel_tests.sh ris-development       # Vollserie dauerhafte Dev-Installation
 #   ./scripts/parallel_tests.sh static                # Regression: fmt/validate/Unit-Tests
 #   FULL=1 ./scripts/parallel_tests.sh ris-a          # zusaetzlich komplette pytest-Suite
 set -u
@@ -428,10 +429,11 @@ suite_static() {
 case "$TARGET" in
   ris-a)         suite_single ris-a ris-a ris-b "Installation RIS-B" ;;
   ris-b)         suite_single ris-b ris-b ris-a "Installation RIS-A" ;;
+  ris-development) suite_single ris-development ris-development ris-a "Installation RIS-A (abwesend)" ;;
   both)          suite_both ;;
   destroy-check) [ -n "$P2" ] || { echo "Präfix fehlt: destroy-check <ris-a|ris-b>"; exit 2; }; suite_destroy "$P2" ;;
   static)        suite_static ;;
-  *) echo "Nutzung: $0 <ris-a|ris-b|both|destroy-check <p>|static>"; exit 2 ;;
+  *) echo "Nutzung: $0 <ris-a|ris-b|ris-development|both|destroy-check <p>|static>"; exit 2 ;;
 esac
 
 echo "### ERGEBNIS ($TARGET${P2:+ $P2}): $PASS bestanden, $FAIL fehlgeschlagen, $WARN Warnungen"
