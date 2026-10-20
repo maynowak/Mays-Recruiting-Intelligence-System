@@ -162,7 +162,7 @@ module "orders_reader" {
 # Mays-Orders as Terraform-Module (Orders-Service)
 module "mays_orders" {
   source             = "./modules/mays_orders"
-  project_name       = var.project_name
+  project_name       = "${var.project_name}-mays-orders"
   tags               = var.tags
   monitoring_enabled = var.monitoring_enabled
   log_retention_days = var.lambda_config.log_retention_days
