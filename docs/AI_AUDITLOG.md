@@ -141,6 +141,7 @@ The following tasks have been completed with reports in docs/reports/:
 | 2026-10-19 | [AI_AUDITLOG-Struktur-Check](reports/2026-10-19-AI-AUDITLOG-STRUCTUR-CHECK.md) | abgeschlossen | Template-konforme Struktur geprüft, Index nachgetragen, Löschung/Wiederherstellung der datierten Reports dokumentiert; Index anschließend auf vollständigen Report-Bestand ergänzt |
 | 2026-10-20 | [MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01 — Phase 1](reports/01-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-PHASE1.md) | Phase 1 abgeschlossen | RIS `ris-development` (169 Ressourcen) applied und per Smoke-Tests verifiziert; Phase 2–4 offen |
 | 2026-10-20 | [MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01 — Testbericht](reports/01-02-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-TESTREPORT.md) | Tests abgeschlossen | 63/63 Live, 9/9 Static, 1581 pytest; CORS/OAuth-Lücken dokumentiert |
+| 2026-10-20 | [Merge feature/integration](reports/02-01-WRAPPER-MAYS-ORDERS-MODULE-BUILDER-EXECUTION_LOG.md) | Merge lokal abgeschlossen | Commit 42735ce; Tests grün; Naming-Suffix würde Dev-Orders-Stack ersetzen — nicht applied |
 
 
 ### Vollständiger Report-Bestand (docs/reports/, Stand 2026-10-19)
@@ -5991,3 +5992,56 @@ Recommended next actions:
    4. Jobsearch-PKCE-Login implementieren und E2E testen
 Current resume point: Alle Phase-1-Tests grün; Phase 2 ist der nächste implementierbare Schritt
 AWS MUTATIONS: NONE (read-only AWS-Calls + M2M-Token-Ausstellung; keine Ressourcen-Änderung)
+
+==================================================
+[MERGE-FEATURE-INTEGRATION-2026-10-20]
+Current status: COMPLETED (lokal) — `origin/feature/integration` in `main` gemerged; NICHT gepusht, NICHT applied
+Audit date/time: 2026-10-20 16:01–16:05 UTC
+Current Git branch and HEAD: main, Merge-Commit 42735ce (Eltern: fba25dc + a3bae15)
+Audit scope: Merge des Feature-Branches `feature/integration` (a3bae15) in `main`; Prüfung von Konflikten, Tests, Plan-Auswirkung auf die laufende Dev-Installation
+Completed audit sections:
+   §1 Untracked-Konflikt `terraform/modules/mays_orders/` gesichert und durch Feature-Version ersetzt
+   §2 Merge ohne inhaltliche Konflikte (nur add/add; 7 abweichende lokale Altdateien)
+   §3 Post-Merge-Checks: fmt, py_compile, terraform validate, pytest, static suite
+   §4 Plan-Auswirkung auf `ris-development` bewertet (nicht applied)
+Actual findings (verified facts):
+   - Merge-Commit 42735ce; Feature-Commit a3bae15; keine Konflikte
+   - Feature bringt: `terraform/modules/mays_orders/**`, `installer/build_mays_orders_module.py`, `installer/README_MODULE_BUILDER.md`, `docs/reports/02-01-WRAPPER-...md`
+   - Feature ändert `terraform/main.tf`: `project_name = "${var.project_name}-mays-orders"`
+   - Laufender State nutzt `ris-development` (Tabelle), `ris-development-api`, `ris-development-users`; neuer Config-Wert erzeugt `ris-development-mays-orders*`
+   - `terraform fmt -check -recursive`: PASS
+   - `python3 -m py_compile ...`: PASS
+   - `terraform validate` (TF_DATA_DIR=/tmp/tfris-development): Success (nur Deprecation-Warnings)
+   - pytest: 1581 passed, 2 failed (dokumentierte Baseline), 11 skipped
+   - static-Suite: 9 PASS, 0 FAIL, 1 WARN (Baseline)
+   - `python -m installer.build_mays_orders_module --check`: FAIL bei `terraform validate`, weil im `terraform/`-Kontext kein `.terraform` initialisiert ist; kein Merge-Defekt
+   - Modul-Zip `terraform/modules/mays_orders/lambda/dist/lambda.zip` fehlt (Build-Artefakt) → vor `terraform plan` bauen
+Evidence / file references:
+   - Merge: git log -1 42735ce
+   - Backup der lokalen Altversion: /tmp/opencode/mays_orders_untracked_20261020-160135
+   - docs/reports/02-01-WRAPPER-MAYS-ORDERS-MODULE-BUILDER-EXECUTION_LOG.md
+   - installer/README_MODULE_BUILDER.md
+Classification: GREEN (Merge + Tests) / RED (Plan-Auswirkung auf laufende Dev-Installation, wenn ungeprüft applied)
+Terraform checks executed and results:
+   - fmt -check -recursive: PASS
+   - validate (Root, TF_DATA_DIR=/tmp/tfris-development): Success
+   - plan: NICHT ausgeführt (Modul-Zip fehlt; Plan würde Rename/Replace zeigen)
+Git status: Merge clean; unveränderte fremde Working-Tree-Änderungen (AGENTS.md, installer/ris.py, terraform/.terraform.lock.hcl, monitoring) bleiben bestehen
+Files changed (Merge):
+   - terraform/main.tf (Component-Naming)
+   - terraform/modules/mays_orders/** (34 Dateien, neu)
+   - installer/build_mays_orders_module.py, installer/README_MODULE_BUILDER.md
+   - docs/reports/02-01-WRAPPER-MAYS-ORDERS-MODULE-BUILDER-EXECUTION_LOG.md
+Explicit confirmation when no files were changed: Keine AWS-Ressource, kein State und kein laufendes Deployment wurden durch den Merge verändert.
+Open questions:
+   - Soll die laufende Dev-Installation auf `-mays-orders`-Namen migriert werden (Replace/Rename) oder bleibt `project_name = var.project_name`?
+   - Soll `main` nach origin/main gepusht werden?
+Risks:
+   - Ungeprüftes `terraform apply` nach dem Merge würde die Orders-Tabelle, Queue, API und den Cognito-Pool der laufenden Dev-Installation ersetzen (Datenverlust möglich).
+   - Lokale Altversion des Moduls (vor Merge) weicht in 7 Dateien ab; nur als Backup vorhanden.
+Recommended next actions:
+   1. Entscheidung: Naming-Suffix übernehmen (Migration planen) oder Root-main.tf auf `var.project_name` zurückstellen.
+   2. Modul-Zip bauen (`python -m installer.build_mays_orders_module --project-name ...` bzw. Lambda-Build) und Plan separat prüfen.
+   3. Push nach origin/main nur mit Freigabe.
+Current resume point: Merge lokal abgeschlossen und getestet; Plan/Apply bewusst offen.
+AWS MUTATIONS: NONE
