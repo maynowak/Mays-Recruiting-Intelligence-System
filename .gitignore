@@ -65,3 +65,7 @@ installer/projects/
 lambda/dist/
 lambda.zip
 
+# Generated Mays-Orders Terraform module (built by installer/build_mays_orders_module.py).
+# Only the wrapper, its README and the execution report are versioned.
+terraform/modules/mays_orders/
+

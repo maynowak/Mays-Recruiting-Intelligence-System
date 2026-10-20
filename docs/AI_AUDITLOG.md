@@ -6135,3 +6135,38 @@ Recommended next actions:
    3. Push nach origin/main nur mit Freigabe.
 Current resume point: Feature auf die drei benötigten Artefakte reduziert; Modul ist lokales Build-Artefakt.
 AWS MUTATIONS: NONE
+
+==================================================
+[GITIGNORE-MAYS-ORDERS-MODULE-2026-10-20]
+Current status: COMPLETED (lokal) — generiertes Mays-Orders-Modul ist dauerhaft Build-Artefakt
+Audit date/time: 2026-10-20 16:30 UTC
+Current Git branch and HEAD: main (vor diesem Commit: 509a24b)
+Audit scope: `.gitignore`-Regel für das vom Wrapper erzeugte Terraform-Modul
+Completed audit sections:
+   §1 Regel `terraform/modules/mays_orders/` in `.gitignore` ergänzt
+   §2 `git check-ignore` und `git status` verifiziert
+Actual findings (verified facts):
+   - `.gitignore:70` ignoriert `terraform/modules/mays_orders/`
+   - Das Modul erscheint nicht mehr als untracked
+   - Getrackt bleiben ausschließlich Wrapper, README und Ausführungsreport
+   - `terraform fmt`/`validate` bleiben unberührt (Modul liegt weiter lokal)
+Evidence / file references:
+   - .gitignore (Regel + Kommentar)
+   - git check-ignore -v terraform/modules/mays_orders/main.tf
+Classification: GREEN
+Terraform checks executed and results:
+   - Keine erneute Ausführung nötig; reine Ignore-Regel ohne Konfigurationsänderung
+Git status: `.gitignore` + dieser Audit-Log-Eintrag werden committed
+Files changed:
+   - .gitignore
+   - docs/AI_AUDITLOG.md
+Explicit confirmation when no files were changed: Keine AWS-Ressource, kein State, kein laufendes Deployment verändert.
+Open questions:
+   - Soll das lokale Modul zusätzlich per `--clean` entfernt werden?
+Risks:
+   - Frischer Clone muss das Modul vor `terraform validate/plan` über den Wrapper bauen.
+Recommended next actions:
+   1. Wrapper-Build im Installer-/CI-Ablauf verankern.
+   2. Push nach origin/main nur mit Freigabe.
+Current resume point: Modul ist Build-Artefakt; drei Wrapper-Artefakte bleiben versioniert.
+AWS MUTATIONS: NONE
