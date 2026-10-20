@@ -6308,3 +6308,29 @@ Tests:
    - parallel_tests.sh ris-dev: 63 PASS / 1 FAIL (S1.5 Idempotenz = erwarteter pending-apply-Diff) / 1 WARN (Baseline)
 AWS MUTATIONS: NONE (kein Apply, keine DNS-Aenderung, keine Testnutzer)
 GIT PUSH: ausstehend
+
+==================================================
+[MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-PHASE2D-2026-10-20]
+Current status: GO fuer AWS-Apply (mit Auflagen A1-A3); Apply/DNS/Testnutzer weiterhin gesperrt
+Audit date/time: 2026-10-20 21:00 UTC
+Current Git branch and HEAD: main @ 05c6dcb (gepusht, main == origin/main)
+Audit scope: Final Release Gate fuer den Phase-2-Plan (OAuth/PKCE/CORS + Custom Domain)
+Completed audit sections:
+   §1 Git-Status sauber, Push 7492eb9..05c6dcb
+   §2 ACM auth.mays-job-matcher.app ISSUED (us-east-1, DNS-validiert, gueltig bis 2027-04-25)
+   §3 Callback/Logout-URLs == Phase-1-Vorgabe (localhost:5173 + mays-job-matcher.vercel.app)
+   §4 Plan aktuell + Scope: 1 add/2 change/1 destroy, keine Replacements, 0 Orders
+   §5 Domain-Wechsel auth-neutral (JWT-Issuer = cognito-idp-Endpoint, nicht Domain)
+Actual findings (verified facts):
+   - Issuer live: https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_ojbmoiYGM -> Domain unabhaengig
+   - Prefix-Domain ris-dev-dev nur in Cognito-Namensformel referenziert; Orders-Pool hat keine Domain
+   - ACM RenewalEligibility=INELIGIBLE (Auflage A1); Cognito erlaubt nur EINE Domain -> Prefix entfaellt (A2)
+   - Frontend noch nicht verdrahtet: keine Cognito/Redirect-Werte, keine /auth-Route
+Evidence / file references:
+   - docs/reports/03-04-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-PHASE2D-RELEASE-GATE.md
+   - /tmp/p2d.tfplan, /tmp/p2d-plan.log
+Classification: GREEN — GO fuer Apply (Auflagen A1 ACM-Renewal, A2 Domain-Semantik, A3 DNS extern)
+Terraform checks executed and results:
+   - Plan aus committed HEAD reproduziert: 1 to add, 2 to change, 1 to destroy
+AWS MUTATIONS: NONE (kein Apply, keine DNS-Aenderung, keine Testnutzer)
+GIT PUSH: erfolgt (05c6dcb -> origin/main)
