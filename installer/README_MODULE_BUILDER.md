@@ -31,7 +31,7 @@ weiterentwickelt werden; der Modul-Builder hält die Verkabelung stabil.
 ## Nutzung
 ```bash
 # Bauen / erneuern
-python -m installer.build_mays_orders_module --project-name ris-development --force
+python -m installer.build_mays_orders_module --project-name ris-dev --force
 
 # Nur prüfen ob alles da ist (Modul, sqs_queue_name, Component-Naming, sqs_enabled-Gate, validate)
 python -m installer.build_mays_orders_module --check

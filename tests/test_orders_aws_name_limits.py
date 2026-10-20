@@ -199,6 +199,39 @@ class TestDerivationIntegration:
         assert ORDERS_ENABLE_COGNITO_BACKUP is False
 
 
+class TestActiveDeploymentNames:
+    """Die real deployte Dev-Installation muss die Limits einhalten.
+
+    Live ist der Projekttname ``ris-dev`` -> Komponente ``ris-dev-mays-orders``.
+    Der Name wird aus dem Projektnamen abgeleitet, BEVOR die DynamoDB-Tabelle
+    (Name == project_name verbatim, 255) und der CloudTrail-/Backup-Bucket
+    (63) entstehen -- deshalb muss das Projekt seinen Namen "kennen".
+    """
+
+    ACTIVE_PROJECT = "ris-dev"
+
+    def test_active_component_project_name(self):
+        assert (
+            orders_component_project_name(self.ACTIVE_PROJECT)
+            == "ris-dev-mays-orders"
+        )
+
+    def test_active_name_fits_core_and_backup_limits(self):
+        component = orders_component_project_name(self.ACTIVE_PROJECT)
+        # Kern-Limit (CloudTrail-Bucket) UND das strengere Backup-Limit (23)
+        # muessen fuer die reale Installation gelten.
+        assert orders_name_limit_violations(component, enable_cognito_backup=False) == []
+        assert orders_name_limit_violations(component, enable_cognito_backup=True) == []
+
+    def test_cloudtrail_bucket_of_active_component_fits(self):
+        component = orders_component_project_name(self.ACTIVE_PROJECT)
+        bucket = f"{component}-cloudtrail-240571105849"
+        assert len(bucket) <= 63, bucket
+
+    def test_ris_core_active_name_is_valid(self):
+        validate_ris_aws_name_limits(self.ACTIVE_PROJECT)
+
+
 class TestRealWorldEvidence:
     def test_observed_plan_failure_is_prevented(self):
         """This exact name produced a 71-char S3 bucket in a real plan.

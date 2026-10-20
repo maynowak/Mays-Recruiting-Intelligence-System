@@ -24,6 +24,7 @@ from build_zip import (  # noqa: E402
 )
 
 ACCOUNT = "240571105849"
+LIVE_PROJECT = os.environ.get("RIS_PROJECT", "ris-dev")
 
 
 def _live():
@@ -144,7 +145,7 @@ class TestLiveContract(unittest.TestCase):
                 os.path.join(tmp, "live-check.zip"))["sha256"]
         tf = session.client("lambda", region_name="eu-central-1")
         live_sha = tf.get_function_configuration(
-            FunctionName="mays-ris-dev-agent")["CodeSha256"]
+            FunctionName=f"{LIVE_PROJECT}-dev-agent")["CodeSha256"]
         import base64
         self.assertEqual(base64.b64decode(live_sha).hex(),
                          local,
@@ -157,7 +158,7 @@ class TestLiveContract(unittest.TestCase):
         info = build_reader_bundle(REPO_ROOT)
         tf = session.client("lambda", region_name="eu-central-1")
         live_sha = tf.get_function_configuration(
-            FunctionName="mays-ris-dev-orders-reader")["CodeSha256"]
+            FunctionName=f"{LIVE_PROJECT}-dev-orders-reader")["CodeSha256"]
         import base64
         self.assertEqual(base64.b64decode(live_sha).hex(), info["sha256"])
 

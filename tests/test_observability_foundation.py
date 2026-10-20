@@ -13,7 +13,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-PROJECT = "mays-ris"
+PROJECT = os.environ.get("RIS_PROJECT", "ris-dev")
 REGION = os.environ.get("AWS_REGION", "eu-central-1")
 ACCOUNT = "240571105849"
 
@@ -91,18 +91,22 @@ class TestObservabilityFoundation(unittest.TestCase):
     def test_project_isolation_no_mo_overlap(self):
         cw = _client("cloudwatch")
         names = [a["AlarmName"] for a in cw.describe_alarms()["MetricAlarms"]]
+        # Kein fremdes Legacy-Projekt im eigenen Namensraum.
         self.assertFalse(any(n.startswith("mays-ris") and "mays-orders" in n for n in names))
         dash = [d["DashboardName"] for d in
                 cw.list_dashboards()["DashboardEntries"]]
         self.assertIn(f"{PROJECT}-overview", dash)
-        self.assertNotIn("mays-ris-orders-overview", dash)
+        # Der Orders-Dashboard ist die eigene Komponente, nicht ein Fremdprojekt.
+        self.assertIn(f"{PROJECT}-mays-orders-overview", dash)
+        # Pre-Rename-Name (vor der -mays-orders-Normalisierung) darf nicht mehr existieren.
+        self.assertNotIn(f"{PROJECT}-orders-overview", dash)
 
     def test_log_groups_exist(self):
         logs = _client("logs")
         groups = {g["logGroupName"] for g in
                   logs.describe_log_groups()["logGroups"]}
-        self.assertIn("/aws/lambda/mays-ris-dev-agent", groups)
-        self.assertIn("/aws/lambda/mays-ris-dev-orders-reader", groups)
+        self.assertIn(f"/aws/lambda/{PROJECT}-dev-agent", groups)
+        self.assertIn(f"/aws/lambda/{PROJECT}-dev-orders-reader", groups)
 
 
 if __name__ == "__main__":

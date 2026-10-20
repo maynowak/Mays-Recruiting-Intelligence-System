@@ -25,23 +25,23 @@ Details: `docs/architecture/SYSTEM-ARCHITECTURE.md` (maßgeblich),
   (eigener Pfad, live über den Modul-Builder), ATS/JobSearch/Reference-Auswahl
   (live), Installer-Pinning (mays-orders@9c61237, mays_jobsearch@3cd58b81),
   Tabellen/Queues/Mapping.
-- dauerhafte Dev-Installation: `ris-development` (Workspace `ris-development`,
-  Komponenten `ris-development-mays-orders*`); Verifikation
-  `./scripts/parallel_tests.sh ris-development` = 64 PASS / 0 FAIL.
+- dauerhafte Dev-Installation: `ris-dev` (Workspace `ris-dev`,
+  Komponenten `ris-dev-mays-orders*`); Verifikation
+  `./scripts/parallel_tests.sh ris-dev` = 64 PASS / 0 FAIL.
 - prepared: JobSearch update/delete, ATS-Vertiefung, ats/cv/match-Queues,
   Jobsearch-Login E2E (Phase 2/3 offen: OAuth-Callback/PKCE, DNS
   `auth.mays-job-matcher.app`, CORS).
 - open: POST-Reconciliation, MO-Idempotency-Key, Full-Plan-`lambda.zip`,
   Plattform-OpenAPI, `installer.ris`-Phasen (`--through`), 5 pre-existing
   Test-Defekte.
-- Suite: pytest 1581 passed, 2 failed (dokumentierte Baseline-Defekte), 11 skipped.
+- Suite: pytest 1593 passed, 2 failed (dokumentierte Baseline-Defekte), 3 skipped.
 
 ## Installer / AWS / Security
 
 - `python -m installer.ris --project-name <p> --environment dev --profile mayaws {validate,plan,apply,preflight,install,state}`
 - Profil = Installationskontext (kein fester Account); Workspace = project_name;
   Backend S3 + Lock; Pins je Projekt (s. `installer/*-clone.pinned.json`).
-  Für lokale Läufe gegen `ris-development`: `TF_DATA_DIR=/tmp/tfris-development`.
+  Für lokale Läufe gegen `ris-dev`: `TF_DATA_DIR=/tmp/tfris-dev`.
 - JWT (Cognito — zentraler Identity Provider), Tenant-Isolation im Code,
   Least-Privilege-Rollen, keine Secrets im Repo. E-Mail/Passwort ist der
   Hauptweg; Google Federation ist optional vorbereitet (Standard AUS, kein
@@ -60,7 +60,7 @@ parallel entwickelt werden — der fremde Stack wird pro Build frisch aus
 
 ```bash
 # Modul bauen/erneuern (zieht mays-order-aws, erzeugt terraform/modules/mays_orders)
-python -m installer.build_mays_orders_module --project-name ris-development --force
+python -m installer.build_mays_orders_module --project-name ris-dev --force
 
 # Nur prüfen (Modul da, sqs_queue_name, Component-Naming, plan-bekanntes SQS-Gate, validate)
 python -m installer.build_mays_orders_module --check

@@ -6241,3 +6241,39 @@ Tests:
    - pytest: 1581 passed, 2 failed (dokumentierte Baseline-Defekte), 11 skipped
 AWS MUTATIONS: YES — 7 added / 7 destroyed (Monitoring-Rename, delete+create desselben Objekts)
 GIT PUSH: ausstehend (Freigabe erteilt, folgt in diesem Vorgang)
+
+==================================================
+[RIS-DEV-RENAME-2026-10-20]
+Current status: COMPLETED — `ris-development` → `ris-dev` neu aufgebaut, Alt-Stack abgebaut, Suite grün
+Audit date/time: 2026-10-20 19:00 UTC
+Current Git branch and HEAD: main
+Audit scope: Destruktiver Rename (delete+create) der dauerhaften Dev-Installation auf `ris-dev`
+Completed audit sections:
+   §1 Pre-flight: Alt-Stack praktisch leer (10/11 Tabellen 0 Items; agent-catalog 1 Seed; beide Pools 0 Nutzer)
+   §2 Modul-Builder fuer `ris-dev` gebaut; Lambda-Bundles gebaut
+   §3 Direkter Terraform-Pfad (Installer-Composite leitet eigenes Backend ab -> ungeeignet)
+   §4 Apply 169/0/0; Post-Apply-Plan "No changes"
+   §5 Namensregression TestActiveDeploymentNames (ris-dev-mays-orders, 19 Zeichen, beide Limits)
+   §6 8 veraltete Live-Contract-Tests env-parametrisierbar (RIS_PROJECT, Default ris-dev)
+   §7 Runner: segment-sichere Praefixe, State-Key-Konvention, ris-dev-Target
+   §8 Alt-Stack `ris-development`: Destroy 169 Ressourcen, 2 Buckets manuell geleert, Workspace+State entfernt
+Actual findings (verified facts):
+   - Bindende Limits: CloudTrail-Bucket Projektname max 39; Cognito-Backup max 23; ris-development-mays-orders (27) verletzte 23
+   - ris-dev-mays-orders (19) erfuellt beide Limits
+   - Kernel-API ris-dev-dev-api (g6901and25, /health 401); Orders-API ris-dev-mays-orders-api (zf8tc0k2r2)
+   - Pools: ris-dev-dev-users (eu-central-1_ojbmoiYGM), ris-dev-mays-orders-users (eu-central-1_cmJWXujnb)
+   - API-/Pool-IDs sind pro Installation zufaellig -> nirgends hartkodiert
+   - Nach Abbau: 0 DynamoDB/Lambda/Bucket/Pool/API/Trail/Queue/Dashboard/Alarm/Log-Group unter ris-development*
+   - Fremd-CloudFront E1R3BHTJNMC6XW unberuehrt; abgebaut wurde E1OFBSEH89Z8X2
+Evidence / file references:
+   - docs/reports/03-02-RIS-DEV-RENAME-EXECUTION-LOG.md
+   - tests/test_orders_aws_name_limits.py, tests/test_observability_foundation.py, tests/test_lambda_packaging.py
+   - scripts/parallel_tests.sh, AGENTS.md, README.md, installer/README_MODULE_BUILDER.md
+Classification: GREEN
+Terraform checks executed and results:
+   - init/validate/plan(169 add)/apply(169 added)/post-plan(No changes); destroy-plan 169 deletes, apply 167 ok + 2 BucketNotEmpty manuell
+Tests:
+   - parallel_tests.sh ris-dev: 64 PASS / 0 FAIL (nach Rename und nach Teardown)
+   - pytest: 1593 passed, 2 failed (dokumentierte Baseline-Defekte), 3 skipped
+AWS MUTATIONS: YES — 169 added (ris-dev), 169 destroyed (ris-development), 2 Buckets geleert+geloescht, Workspace+State entfernt
+GIT PUSH: ausstehend (Freigabe erteilt)

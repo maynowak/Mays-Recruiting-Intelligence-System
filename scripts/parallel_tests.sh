@@ -6,7 +6,7 @@
 #   ./scripts/parallel_tests.sh ris-b                 # Vollserie fuer B
 #   ./scripts/parallel_tests.sh both                  # Parallel-/Trennungs-Serie
 #   ./scripts/parallel_tests.sh destroy-check ris-a   # vollstaendiger Abbau-Nachweis
-#   ./scripts/parallel_tests.sh ris-development       # Vollserie dauerhafte Dev-Installation
+#   ./scripts/parallel_tests.sh ris-dev               # Vollserie dauerhafte Dev-Installation (aktuell)
 #   ./scripts/parallel_tests.sh static                # Regression: fmt/validate/Unit-Tests
 #   FULL=1 ./scripts/parallel_tests.sh ris-a          # zusaetzlich komplette pytest-Suite
 set -u
@@ -37,17 +37,20 @@ lines(){ local o="${1:-}"; if [ -z "$o" ] || [ "$o" = "None" ]; then true
          else echo "$o" | tr '\t' '\n' | sed '/^$/d;/^None$/d'; fi; }
 tf() { ( cd "$TERRA" && terraform "$@" ); }
 
-LAMBDAS()  { cnt "$(awst lambda list-functions --region eu-central-1 --query "Functions[?starts_with(FunctionName,\`$1\`)].FunctionName")"; }
-RUNTIMES() { lines "$(awst lambda list-functions --region eu-central-1 --query "Functions[?starts_with(FunctionName,\`$1\`)].Runtime")" | sort -u | tr '\n' ','; }
-TABLES()   { cnt "$(awst dynamodb list-tables --region eu-central-1 --query "TableNames[?starts_with(@,\`$1\`)]")"; }
-APIS()     { cnt "$(awst apigatewayv2 get-apis --region eu-central-1 --query "Items[?starts_with(Name,\`$1\`)].Name")"; }
-QUEUES()   { awst sqs list-queues --region eu-central-1 --query 'QueueUrls' | tr '\t' '\n' | grep -c "$1" || true; }
-BUCKETS()  { cnt "$(awst s3api list-buckets --query "Buckets[?starts_with(Name,\`$1\`)].Name")"; }
-POOLS()    { cnt "$(awst cognito-idp list-user-pools --region eu-central-1 --max-results 60 --query "UserPools[?starts_with(Name,\`$1\`)].Name")"; }
-DASHES()   { cnt "$(awst cloudwatch list-dashboards --region eu-central-1 --query "DashboardEntries[?starts_with(DashboardName,\`$1\`)].DashboardName")"; }
+# Segment-sichere Präfixe: "$1-" statt "$1", damit "ris-dev" NICHT "ris-development-*" matcht.
+# (Ein nachgestellter Bindestrich trennt Namenssegmente; "ris-dev-" ≠ "ris-development-".)
+_seg() { case "$1" in *-) echo "$1" ;; *) echo "$1-" ;; esac; }
+LAMBDAS()  { cnt "$(awst lambda list-functions --region eu-central-1 --query "Functions[?starts_with(FunctionName,\`$(_seg "$1")\`)].FunctionName")"; }
+RUNTIMES() { lines "$(awst lambda list-functions --region eu-central-1 --query "Functions[?starts_with(FunctionName,\`$(_seg "$1")\`)].Runtime")" | sort -u | tr '\n' ','; }
+TABLES()   { cnt "$(awst dynamodb list-tables --region eu-central-1 --query "TableNames[?starts_with(@,\`$(_seg "$1")\`)]")"; }
+APIS()     { cnt "$(awst apigatewayv2 get-apis --region eu-central-1 --query "Items[?starts_with(Name,\`$(_seg "$1")\`)].Name")"; }
+QUEUES()   { awst sqs list-queues --region eu-central-1 --query 'QueueUrls' | tr '\t' '\n' | grep -c "$(_seg "$1")" || true; }
+BUCKETS()  { cnt "$(awst s3api list-buckets --query "Buckets[?starts_with(Name,\`$(_seg "$1")\`)].Name")"; }
+POOLS()    { cnt "$(awst cognito-idp list-user-pools --region eu-central-1 --max-results 60 --query "UserPools[?starts_with(Name,\`$(_seg "$1")\`)].Name")"; }
+DASHES()   { cnt "$(awst cloudwatch list-dashboards --region eu-central-1 --query "DashboardEntries[?starts_with(DashboardName,\`$(_seg "$1")\`)].DashboardName")"; }
 ALARM_CNT(){ awst cloudwatch describe-alarms --region eu-central-1 --alarm-name-prefix "$1" --query 'MetricAlarms|length(@)'; }
 ALARM_BAD(){ awst cloudwatch describe-alarms --region eu-central-1 --alarm-name-prefix "$1" --query "MetricAlarms[?StateValue=='ALARM']|length(@)"; }
-LOGGRPS()  { cnt "$(awst logs describe-log-groups --region eu-central-1 --query "logGroups[?starts_with(logGroupName,'/aws/lambda/$1')].logGroupName")"; }
+LOGGRPS()  { cnt "$(awst logs describe-log-groups --region eu-central-1 --query "logGroups[?starts_with(logGroupName,'/aws/lambda/$(_seg "$1")')].logGroupName")"; }
 LOGRET()   { awst logs describe-log-groups --region eu-central-1 --log-group-name-prefix "/aws/lambda/$1" --query 'logGroups[].retentionInDays'; }
 API_ID()   { awst apigatewayv2 get-apis --region eu-central-1 --query "Items[?Name=='$1'].ApiId"; }
 API_EP()   { awst apigatewayv2 get-apis --region eu-central-1 --query "Items[?Name=='$1'].ApiEndpoint"; }
@@ -68,7 +71,6 @@ TF_VARS=( -var="filename=$TERRA/../lambda/dist/orders-reader.zip"
 suite_single() {
   local P="$1" WS="$2" other="$3" other_label="$4"
   local FOREIGN="mays-ris-dev- $other"
-  local MIGRATED="ris-development-orders-"   # pre-rename component names for this project
   echo "### VOLLSERIE ZIEL=$P (workspace $WS) — getestet: $P besitzt genau $P-* und nichts Fremdes"
 
   # ---- S1 Zustand / Ownership / Sicherheits-Gates
@@ -111,10 +113,10 @@ for b in sorted(bad)[:5]: print("   fremd:",b,file=sys.stderr)
 PY
 )"
   if [ "$OWN_BAD" = "ERR" ]; then bad "state pull nicht lesbar"; else expect "Fremd-Namen im State (erwartet 0)" "0" "$OWN_BAD"; fi
-  if [ "$P" = "ris-development" ]; then
-    expect "Alt-Namen '${MIGRATED}' im State (erwartet 0)" "0" \
-      "$(grep -c "$MIGRATED" "/tmp/state_${P}.json" || true)"
-  fi
+  # Komponenten heißen "<project>-mays-orders[-...]"; ein bareres "<project>-orders"
+  # (ohne "mays-") ist der Altname-Suffix und darf nicht mehr vorkommen.
+  expect "Altname '${P}-orders' im State (erwartet 0)" "0" \
+    "$(grep -o "${P}-orders[-/\"\"]" "/tmp/state_${P}.json" | wc -l || true)"
 
   sec S1.4 "PLAN_SAFETY_GATE: frischer Plan enthält 0 Fremd-Namen"
   tf plan -input=false -lock=false "${TF_VARS[@]}" -var="project_name=$P" \
@@ -146,8 +148,18 @@ PY
   expect "output dynamodb_work_items_table_name" "${P}-dev-work-items" "$OUT"
 
   sec S1.7 "BACKEND: State-Objekt dieses Workspace in S3"
-  local SO; SO="$(awst s3api head-object --bucket "$BACKEND_BUCKET" --key "env:/${WS}/terraform.tfstate" --query 'LastModified')"
-  if [ -n "$SO" ] && [ "$SO" != "None" ]; then ok "env:/$WS/terraform.tfstate vorhanden ($SO)"; else bad "State-Objekt env:/$WS/terraform.tfstate fehlt"; fi
+  # Installer-Konvention: key = "<env>/terraform.tfstate", workspace_key_prefix = "env:"
+  # -> env:/<project>/<env>/terraform.tfstate (siehe installer/ris.py backend_config()).
+  local SKEY="env:/${WS}/dev/terraform.tfstate"
+  local SO; SO="$(awst s3api head-object --bucket "$BACKEND_BUCKET" --key "$SKEY" --query 'LastModified')"
+  if [ -n "$SO" ] && [ "$SO" != "None" ]; then
+    ok "$SKEY vorhanden ($SO)"
+  else
+    # Fallback: ältere Installationen ohne <env>/-Segment (env:/<project>/terraform.tfstate)
+    SKEY="env:/${WS}/terraform.tfstate"
+    SO="$(awst s3api head-object --bucket "$BACKEND_BUCKET" --key "$SKEY" --query 'LastModified')"
+    if [ -n "$SO" ] && [ "$SO" != "None" ]; then ok "$SKEY vorhanden ($SO)"; else bad "State-Objekt env:/$WS/... fehlt"; fi
+  fi
 
   # ---- S2 Inventar
   sec S2.1 "INVENTAR Lambdas $P (6) + Runtime python3.14"
@@ -188,15 +200,15 @@ PY
   expect "Alarme im Zustand ALARM" "0" "$(ALARM_BAD "$P-")"
 
   sec S2.8 "INVENTAR CloudTrail: 1 Trail, multi-region, HomeRegion eu-central-1"
-  expect "Trail-Namen" "1" "$(cnt "$(awst cloudtrail describe-trails --region eu-central-1 --query "trailList[?starts_with(Name,'$P')].Name")")"
-  expect "IsMultiRegionTrail" "True" "$(awst cloudtrail describe-trails --region eu-central-1 --query "trailList[?starts_with(Name,'$P')].IsMultiRegionTrail")"
-  expect "HomeRegion" "eu-central-1" "$(awst cloudtrail describe-trails --region eu-central-1 --query "trailList[?starts_with(Name,'$P')].HomeRegion")"
+  expect "Trail-Namen" "1" "$(cnt "$(awst cloudtrail describe-trails --region eu-central-1 --query "trailList[?starts_with(Name,\`$(_seg "$P")\`)].Name")")"
+  expect "IsMultiRegionTrail" "True" "$(awst cloudtrail describe-trails --region eu-central-1 --query "trailList[?starts_with(Name,\`$(_seg "$P")\`)].IsMultiRegionTrail")"
+  expect "HomeRegion" "eu-central-1" "$(awst cloudtrail describe-trails --region eu-central-1 --query "trailList[?starts_with(Name,\`$(_seg "$P")\`)].HomeRegion")"
 
   sec S2.9 "INVENTAR Log-Groups: alle $P-Lambdas + Retention (Kern 14d, Orders 7d)"
   expect "Log-Groups" "6" "$(LOGGRPS "$P")"
   expect "Retention ${P}-dev-orders-reader" "7" "$(LOGRET "${P}-dev-orders-reader")"
   expect "Retention ${P}-dev-agent" "14" "$(LOGRET "${P}-dev-agent")"
-  local NRET; NRET="$(lines "$(LOGRET "$P")" | grep -c '^None$' || true)"
+  local NRET; NRET="$(lines "$(LOGRET "$(_seg "$P")")" | grep -c '^None$' || true)"
   expect "Log-Groups ohne Retention" "0" "$NRET"
 
   # ---- S3 API/Vertrag/Auth
@@ -439,11 +451,12 @@ suite_static() {
 case "$TARGET" in
   ris-a)         suite_single ris-a ris-a ris-b "Installation RIS-B" ;;
   ris-b)         suite_single ris-b ris-b ris-a "Installation RIS-A" ;;
-  ris-development) suite_single ris-development ris-development ris-a "Installation RIS-A (abwesend)" ;;
+  ris-dev)       suite_single ris-dev ris-dev ris-a "Installation RIS-A (abwesend)" ;;
+  ris-development) echo "FEHLER: 'ris-development' existiert nicht mehr (Destroy 2026-10-20). Nutze 'ris-dev'."; exit 2 ;;
   both)          suite_both ;;
   destroy-check) [ -n "$P2" ] || { echo "Präfix fehlt: destroy-check <ris-a|ris-b>"; exit 2; }; suite_destroy "$P2" ;;
   static)        suite_static ;;
-  *) echo "Nutzung: $0 <ris-a|ris-b|ris-development|both|destroy-check <p>|static>"; exit 2 ;;
+  *) echo "Nutzung: $0 <ris-a|ris-b|ris-dev|both|destroy-check <p>|static>"; exit 2 ;;
 esac
 
 echo "### ERGEBNIS ($TARGET${P2:+ $P2}): $PASS bestanden, $FAIL fehlgeschlagen, $WARN Warnungen"
