@@ -6,6 +6,8 @@ Wrapper: Build Mays-Orders Terraform module for RIS integration.
 - Runs module_builder from that checkout to generate orders-service preset
 - Installs generated module into terraform/modules/mays-order
 - Performs clean post-run: terraform fmt -check / validate
+- Patches the generated IAM module: SQS policy gate is a plan-known boolean,
+  the queue ARN stays the policy resource (see ``patch_iam_sqs_gate``).
 
 Usage:
   python -m installer.build_mays_orders_module --project-name mays-ris --force
@@ -109,6 +111,62 @@ output "sqs_queue_name" {
         else:
             print("Warning: could not patch main.tf for mays_orders project_name")
 
+def patch_iam_sqs_gate():
+    """Use a plan-known boolean for the SQS policy gate.
+
+    The queue ARN is unknown while the queue is being created/replaced, so it
+    cannot key a ``count`` expression. The ARN stays the policy resource; only
+    the gate is switched to a bool that Terraform knows at plan time.
+    """
+    iam_main = TARGET_MODULE_DIR / "modules" / "iam" / "main.tf"
+    iam_vars = TARGET_MODULE_DIR / "modules" / "iam" / "variables.tf"
+    root_main = TARGET_MODULE_DIR / "main.tf"
+    if not all(p.exists() for p in (iam_main, iam_vars, root_main)):
+        print("Warning: IAM files missing; skip sqs_enabled patch")
+        return
+
+    content = iam_main.read_text()
+    content = content.replace(
+        'count = var.sqs_queue_arn != "" ? 1 : 0',
+        "count = var.sqs_enabled ? 1 : 0",
+    )
+    content = content.replace(
+        'count  = var.sqs_queue_arn != "" ? 1 : 0',
+        "count  = var.sqs_enabled ? 1 : 0",
+    )
+    iam_main.write_text(content)
+
+    # A new upstream release may reintroduce an ARN-keyed count (or rename it).
+    # Fail loudly instead of writing a module that Terraform cannot plan.
+    if "count" in content and "sqs_queue_arn" in content:
+        for line in content.splitlines():
+            if "count" in line and "sqs_queue_arn" in line:
+                raise RuntimeError(
+                    "Unpatched ARN-keyed count in IAM module: "
+                    f"{line.strip()} — adjust patch_iam_sqs_gate()"
+                )
+
+    variables = iam_vars.read_text()
+    if 'variable "sqs_enabled"' not in variables:
+        variables += '''
+variable "sqs_enabled" {
+  description = "Erzeugt die SQS-Policy. Muss plan-bekannt sein; die Queue-ARN darf erst nach apply bekannt sein."
+  type        = bool
+  default     = false
+}
+'''
+        iam_vars.write_text(variables)
+
+    root = root_main.read_text()
+    if "sqs_enabled" not in root:
+        root = root.replace(
+            "  sqs_queue_arn      = module.sqs.queue_arn\n",
+            "  sqs_queue_arn      = module.sqs.queue_arn\n  sqs_enabled        = true\n",
+        )
+        root_main.write_text(root)
+
+    print("Patched IAM SQS gate: sqs_enabled is plan-known, ARN stays policy resource")
+
 def post_run_checks():
     terraform_dir = RIS_ROOT / "terraform"
     print("Running post-run Terraform checks...")
@@ -153,6 +211,21 @@ def main():
         else:
             print("FAIL: main.tf Component-Naming fehlt")
             ok = False
+        iam_main = TARGET_MODULE_DIR / "modules" / "iam" / "main.tf"
+        iam_vars = TARGET_MODULE_DIR / "modules" / "iam" / "variables.tf"
+        root_main = TARGET_MODULE_DIR / "main.tf"
+        if (
+            iam_main.exists()
+            and "var.sqs_enabled" in iam_main.read_text()
+            and iam_vars.exists()
+            and 'variable "sqs_enabled"' in iam_vars.read_text()
+            and root_main.exists()
+            and "sqs_enabled" in root_main.read_text()
+        ):
+            print("OK: SQS-Gate plan-bekannt (sqs_enabled)")
+        else:
+            print("FAIL: SQS-Gate fehlt (sqs_enabled)")
+            ok = False
         # simple terraform validate check
         try:
             run(["terraform", "validate"], cwd=str(RIS_ROOT / "terraform"))
@@ -164,6 +237,7 @@ def main():
     
     ensure_repo()
     build_module(args.project_name, args.force)
+    patch_iam_sqs_gate()
     post_run_checks()
     print(f"Module installed at {TARGET_MODULE_DIR}")
 
