@@ -62,9 +62,13 @@ TF_VARS=( -var="filename=$TERRA/../lambda/dist/orders-reader.zip"
           -var="health_publisher_zip_path=$TERRA/../lambda/dist/health-publisher.zip" )
 
 # ============================================================ EINZEL-SERIE
+# Component naming is "<project>-mays-orders[-...]" (see AGENTS.md, "Orders integration").
+# Only the standalone legacy families "mays-ris-dev-*" and "mays-orders-*" are foreign;
+# "<project>-mays-orders-..." belongs to the project itself and must NOT be flagged.
 suite_single() {
   local P="$1" WS="$2" other="$3" other_label="$4"
-  local FOREIGN="mays-ris-dev- mays-orders- $other"
+  local FOREIGN="mays-ris-dev- $other"
+  local MIGRATED="ris-development-orders-"   # pre-rename component names for this project
   echo "### VOLLSERIE ZIEL=$P (workspace $WS) — getestet: $P besitzt genau $P-* und nichts Fremdes"
 
   # ---- S1 Zustand / Ownership / Sicherheits-Gates
@@ -107,6 +111,10 @@ for b in sorted(bad)[:5]: print("   fremd:",b,file=sys.stderr)
 PY
 )"
   if [ "$OWN_BAD" = "ERR" ]; then bad "state pull nicht lesbar"; else expect "Fremd-Namen im State (erwartet 0)" "0" "$OWN_BAD"; fi
+  if [ "$P" = "ris-development" ]; then
+    expect "Alt-Namen '${MIGRATED}' im State (erwartet 0)" "0" \
+      "$(grep -c "$MIGRATED" "/tmp/state_${P}.json" || true)"
+  fi
 
   sec S1.4 "PLAN_SAFETY_GATE: frischer Plan enthält 0 Fremd-Namen"
   tf plan -input=false -lock=false "${TF_VARS[@]}" -var="project_name=$P" \
@@ -146,14 +154,15 @@ PY
   expect_ge "Anzahl Lambdas" 6 "$(LAMBDAS "$P")"
   expect "Runtimes aller $P-Lambdas" "python3.14," "$(RUNTIMES "$P")"
 
-  sec S2.2 "INVENTAR DynamoDB: 10 Kern + Orders-Tabelle == project_name + Backend-Lock"
+  sec S2.2 "INVENTAR DynamoDB: 10 Kern + Orders-Tabelle == <project>-mays-orders + Backend-Lock"
   expect "Kern-Tabellen ${P}-dev-*" "10" "$(TABLES "${P}-dev")"
-  local OSTAT; OSTAT="$(awst dynamodb describe-table --table-name "$P" --region eu-central-1 --query 'Table.TableStatus')"
-  expect "Orders-Tabelle '$P' (Vertrag: Name == project_name)" "ACTIVE" "$OSTAT"
+  local OC; OC="${P}-mays-orders"
+  local OSTAT; OSTAT="$(awst dynamodb describe-table --table-name "$OC" --region eu-central-1 --query 'Table.TableStatus')"
+  expect "Orders-Tabelle '$OC' (Vertrag: Name == <project>-mays-orders)" "ACTIVE" "$OSTAT"
   expect "Backend-Lock" "ACTIVE" "$(awst dynamodb describe-table --table-name "$LOCK_TABLE" --region eu-central-1 --query 'Table.TableStatus')"
 
   sec S2.3 "INVENTAR HTTP-APIs $P (2)"
-  expect "Anzahl APIs (${P}-dev-api + ${P}-api)" "2" "$(APIS "$P")"
+  expect "Anzahl APIs (${P}-dev-api + ${P}-mays-orders-api)" "2" "$(APIS "$P")"
 
   sec S2.4 "INVENTAR SQS: 6 Queues + DLQ-Redrive"
   expect "Anzahl Queues" "6" "$(QUEUES "$P")"
@@ -167,7 +176,7 @@ PY
 
   sec S2.6 "INVENTAR Cognito: 2 Pools + Gruppe 'staff' + email-verification"
   expect "Anzahl Pools" "2" "$(POOLS "$P")"
-  local OPID; OPID="$(POOLID "${P}-users")"
+  local OPID; OPID="$(POOLID "${P}-mays-orders-users")"
   expect "Gruppe 'staff' im Orders-Pool" "1" "$(cnt "$(awst cognito-idp list-groups --region eu-central-1 --user-pool-id "$OPID" --query 'Groups[?GroupName==`staff`].GroupName')")"
   local RPID; RPID="$(POOLID "${P}-dev-users")"
   expect_contains "RIS-Pool ${P}-dev-users AutoVerifiedAttributes" "email" "$(awst cognito-idp describe-user-pool --region eu-central-1 --user-pool-id "$RPID" --query 'UserPool.AutoVerifiedAttributes')"
@@ -175,7 +184,7 @@ PY
   sec S2.7 "INVENTAR Monitoring: 2 Dashboards, 13 Alarme (7 Kern + 6 Orders), 0 im Zustand ALARM"
   expect "Dashboards" "2" "$(DASHES "$P")"
   expect "Alarme gesamt" "13" "$(ALARM_CNT "$P-")"
-  expect "Orders-Alarme Prefix ${P}-orders-" "6" "$(ALARM_CNT "${P}-orders-")"
+  expect "Orders-Alarme Prefix ${P}-mays-orders-" "6" "$(ALARM_CNT "${P}-mays-orders-")"
   expect "Alarme im Zustand ALARM" "0" "$(ALARM_BAD "$P-")"
 
   sec S2.8 "INVENTAR CloudTrail: 1 Trail, multi-region, HomeRegion eu-central-1"
@@ -198,9 +207,9 @@ PY
   expect_contains "Route PATCH /orders/…/status vorhanden" "PATCH /orders/{orderId}/status" "$(ROUTES "$CID")"
 
   sec S3.2 "ROUTEN Orders-API: 4, alle JWT"
-  local OID; OID="$(API_ID "${P}-api")"
-  expect "Routen auf ${P}-api" "4" "$(cnt "$(ROUTES "$OID")")"
-  expect "Routen ohne Authorizer (NONE) auf ${P}-api" "0" "$(ROUTES_NONE "$OID")"
+  local OID; OID="$(API_ID "${P}-mays-orders-api")"
+  expect "Routen auf ${P}-mays-orders-api" "4" "$(cnt "$(ROUTES "$OID")")"
+  expect "Routen ohne Authorizer (NONE) auf ${P}-mays-orders-api" "0" "$(ROUTES_NONE "$OID")"
 
   sec S3.3 "AUTH: keine ungeschützte Route auf der Kern-API, 2 Authorizer"
   expect "Routen mit AuthorizationType NONE" "0" "$(ROUTES_NONE "$CID")"
@@ -214,22 +223,23 @@ PY
     expect "GET /me" "401" "$(HTTP "$EP/me")"
     expect "GET /orders (Facade)" "401" "$(HTTP "$EP/orders")"
   fi
-  local OEP; OEP="$(API_EP "${P}-api")"
-  if [ -z "$OEP" ] || [ "$OEP" = "None" ]; then bad "Endpoint ${P}-api nicht gefunden"; else
+  local OEP; OEP="$(API_EP "${P}-mays-orders-api")"
+  if [ -z "$OEP" ] || [ "$OEP" = "None" ]; then bad "Endpoint ${P}-mays-orders-api nicht gefunden"; else
     expect "GET /orders (Orders-API)" "401" "$(HTTP "$OEP/orders")"
   fi
 
   # ---- S4 Verkabelung (ARN/URL, kein Name-Hardcoding)
-  sec S4.1 "VERKABELUNG Reader: Env zeigt auf $P (kein Cross-Talk)"
+  local OC="${P}-mays-orders" OQ="${P}-mays-orders-orders-queue"
+  sec S4.1 "VERKABELUNG Reader: Env zeigt auf $OC (kein Cross-Talk)"
   local ORD QURL
   ORD="$(awst lambda get-function-configuration --function-name "${P}-dev-orders-reader" --region eu-central-1 --query 'Environment.Variables.ORDERS_TABLE')"
   QURL="$(awst lambda get-function-configuration --function-name "${P}-dev-orders-reader" --region eu-central-1 --query 'Environment.Variables.ORDERS_SQS_QUEUE_URL')"
-  expect "ORDERS_TABLE" "$P" "$ORD"
-  expect_contains "ORDERS_SQS_QUEUE_URL" "${P}-orders-queue" "$QURL"
+  expect "ORDERS_TABLE" "$OC" "$ORD"
+  expect_contains "ORDERS_SQS_QUEUE_URL" "$OQ" "$QURL"
 
   sec S4.2 "VERKABELUNG ESM: orders→worker Enabled/5, work→agent Enabled"
   local E1 E2
-  E1="$(awst lambda list-event-source-mappings --region eu-central-1 --query "EventSourceMappings[?contains(EventSourceArn,\`${P}-orders-queue\`)].[State,BatchSize]" | tr '\t' '/')"
+  E1="$(awst lambda list-event-source-mappings --region eu-central-1 --query "EventSourceMappings[?contains(EventSourceArn,\`$OQ\`)].[State,BatchSize]" | tr '\t' '/')"
   expect_contains "ESM orders-queue" "Enabled/5" "$E1"
   E2="$(awst lambda list-event-source-mappings --region eu-central-1 --query "EventSourceMappings[?contains(EventSourceArn,\`${P}-dev-work-queue\`)].State")"
   expect_contains "ESM work-queue" "Enabled" "$E2"
@@ -241,8 +251,8 @@ PY
   expect_contains "dynamodb:PutItem" "dynamodb:PutItem" "$DOC"
   expect_contains "dynamodb:Query" "dynamodb:Query" "$DOC"
   expect_contains "sqs:SendMessage" "sqs:SendMessage" "$DOC"
-  expect_contains "gebunden auf table/$P" ":table/$P" "$DOC"
-  expect_contains "gebunden auf :$P-orders-queue" ":$P-orders-queue" "$DOC"
+  expect_contains "gebunden auf table/$OC" ":table/$OC" "$DOC"
+  expect_contains "gebunden auf :$OQ" ":$OQ" "$DOC"
 
   # ---- S5 Ownership / Schonung Fremder
   sec S5.1 "OWNERSHIP: $P besitzt keine Alt-Ressourcen (mays-ris-dev-* / mays-orders-*)"

@@ -39,6 +39,6 @@ output "alarm_dynamodb_throttled_arn" {
   value       = var.monitoring_enabled ? aws_cloudwatch_metric_alarm.dynamodb_throttled[0].arn : null
 }
 output "alarm_dlq_messages_arn" {
-  description = "ARN des DLQ Alarms (falls aktiviert)."
-  value       = var.monitoring_enabled ? aws_cloudwatch_metric_alarm.dlq_messages[0].arn : null
+  description = "ARN des DLQ Alarms (falls aktiviert und DLQ vorhanden)."
+  value       = var.monitoring_enabled && var.sqs_dlq_name != "" ? aws_cloudwatch_metric_alarm.dlq_messages[0].arn : null
 }

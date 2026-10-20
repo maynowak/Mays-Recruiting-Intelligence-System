@@ -162,7 +162,7 @@ module "orders_reader" {
 # Mays-Orders as Terraform-Module (Orders-Service)
 module "mays_orders" {
   source             = "./modules/mays_orders"
-  project_name       = var.project_name
+  project_name       = "${var.project_name}-mays-orders"
   tags               = var.tags
   monitoring_enabled = var.monitoring_enabled
   log_retention_days = var.lambda_config.log_retention_days
@@ -198,12 +198,13 @@ module "monitoring" {
 # Monitoring-Instanz fuer den Orders-Service. Die Foundation-Instanz oben
 # bleibt am RIS-Kern; hier werden die Orders-Ressourcen (API, Handler-Lambda,
 # Orders-Tabelle, Orders-Queue) ueberwacht. Eigener Dashboard-/Alarmprefix
-# "${var.project_name}-orders", damit keine Namenskollision entsteht.
+# "${var.project_name}-mays-orders" (identisch zum Komponentennamen in
+# module.mays_orders), damit keine Namenskollision entsteht.
 # Orders hat keine DLQ -> sqs_dlq_name = "" (Modul gate't Alarm/Widget).
 module "monitoring_orders" {
   source = "./modules/monitoring"
 
-  project_name                 = "${var.project_name}-orders"
+  project_name                 = "${var.project_name}-mays-orders"
   tags                         = var.tags
   monitoring_enabled           = var.monitoring_enabled
   dashboard_enabled            = var.dashboard_enabled

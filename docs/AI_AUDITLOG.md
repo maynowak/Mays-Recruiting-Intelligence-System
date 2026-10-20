@@ -6170,3 +6170,74 @@ Recommended next actions:
    2. Push nach origin/main nur mit Freigabe.
 Current resume point: Modul ist Build-Artefakt; drei Wrapper-Artefakte bleiben versioniert.
 AWS MUTATIONS: NONE
+
+==================================================
+[MAYS-ORDERS-BACKEND-NOTE-2026-10-19]
+Current status: INFO
+Audit date/time: 2026-10-19
+Current Git branch and HEAD: main
+Audit scope: Terraform-Backend-Verhalten bei lokalen Plan-/Validate-Läufen (read-only)
+Actual findings (verified facts):
+   - TF liest Backend-Config aus main.tf (s3) und persistiert das gewählte Backend zusätzlich in .terraform/terraform.tfstate
+   - Effekt: Nach `terraform init -backend=false` im selben Verzeichnis kann der gecachte .terraform/terraform.tfstate eine Backend-Reinitialisierung beim plan auslösen; plan versucht weiterhin das Backend zu validieren, sofern nicht sauber getrennt wird
+   - Korrekter nicht-destruktiver lokaler Plan: eigener TF_DATA_DIR und/oder lokalen Backend-Cache leeren, oder Backend nur während init via -backend=false mit isoliertem Data-Dir überschreiben. Backend=false gilt für init, nicht für plan.
+   - Schlussfolgerung: `terraform validate` mit -backend=false init genügt für Struktur-Checks; ein vollständiger Plan gegen das S3-Backend erfordert gültige Credentials (wie beabsichtigt). Verdrahtung verifiziert.
+Evidence / file references:
+   - terraform/main.tf (Backend "s3"), .terraform/terraform.tfstate (lokal, nicht versioniert)
+Classification: GREEN
+Terraform checks executed and results:
+   - init -backend=false / validate: genutzt für Struktur-Checks
+AWS MUTATIONS: NONE (read-only)
+GIT PUSH: NO
+
+==================================================
+[MAYS-ORDERS-TERRAFORM-MODUL-INTEGRATION-PHASE2-2026-10-19]
+Current status: COMPLETED
+Audit date/time: 2026-10-19
+Current Git branch and HEAD: main (BASELINE: 5bdde18 origin/main)
+Audit scope: Phase 2 der Mays-Orders-Modul-Integration (Dependency-Wiring & Root-Orchestrierung)
+Completed audit sections:
+   §1 Dependency-Graph und Verdrahtung in terraform/main.tf verifiziert
+   §2 Kritische Abhängigkeiten bestätigt: DynamoDB→IAM, IAM→Lambda, Lambda→API, Cognito→API, Monitoring-Verdrahtung korrekt
+   §3 SQS/SQS-Worker-Abhängigkeiten validiert (sqs + dynamodb + lambda zip)
+   §4 Root-Outputs als 1:1-Re-Exports der Module bestätigt (19 Outputs)
+   §5 Modul-Sources relativ, Provider nur im Root
+Actual findings (verified facts):
+   - Modularisierte Struktur für RIS-Integration geeignet; keine destruktiven Operationen
+   - terraform fmt-check/validate/init -backend=false: PASS
+Evidence / file references:
+   - installer/projects/mays_orders/docs/reports/MAYS-ORDERS-TERRAFORM-MODUL-INTEGRATION-PHASE2-2026-10-19.md
+Classification: GREEN
+Terraform checks executed and results:
+   - fmt/validate: PASS
+AWS MUTATIONS: NONE (read-only)
+GIT PUSH: NO
+
+==================================================
+[RIS-DEVELOPMENT-COMPONENT-RENAME-2026-10-20]
+Current status: COMPLETED — Rename live, Monitoring konsistent, Suite grün
+Audit date/time: 2026-10-20 18:00 UTC
+Current Git branch and HEAD: main (vor diesem Commit: a27795b)
+Audit scope: Abschluss Komponenten-Rename `ris-development` → Schema `<project>-mays-orders`
+Completed audit sections:
+   §1 Live-Inventar des Renames verifiziert
+   §2 Altnamen-Ursache: module.monitoring_orders mit project_name "${var.project_name}-orders"
+   §3 Korrektur auf "${var.project_name}-mays-orders"
+   §4 Plan 7 add / 7 destroy (reine Replacement), Apply OK
+   §5 Suite ris-development: 64 PASS / 0 FAIL; static PASS; Post-Apply-Plan "No changes"
+   §6 AGENTS.md auf Ist-Zustand gezogen
+Actual findings (verified facts):
+   - Live: Tabelle/Queue/Lambdas/API/Pool/Client unter `<project>-mays-orders*`; 13 Alarme + 2 Dashboards konsistent benannt
+   - Alte `ris-development-orders-*`-Namen vollständig entfernt
+   - Vorherige 10 Suite-FAILs waren ausschließlich veraltete Runner-Erwartungen
+Evidence / file references:
+   - docs/reports/03-01-RIS-DEVELOPMENT-COMPONENT-RENAME-EXECUTION-LOG.md
+   - terraform/main.tf, terraform/modules/monitoring/*, scripts/parallel_tests.sh, AGENTS.md
+Classification: GREEN
+Terraform checks executed and results:
+   - fmt -check -recursive: PASS; validate: Success; plan: 7/0/7; apply: OK; Post-Apply-Plan: No changes
+Tests:
+   - parallel_tests.sh ris-development: 64 PASS / 0 FAIL
+   - pytest: 1581 passed, 2 failed (dokumentierte Baseline-Defekte), 11 skipped
+AWS MUTATIONS: YES — 7 added / 7 destroyed (Monitoring-Rename, delete+create desselben Objekts)
+GIT PUSH: ausstehend (Freigabe erteilt, folgt in diesem Vorgang)

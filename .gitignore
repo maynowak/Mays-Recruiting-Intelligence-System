@@ -69,3 +69,16 @@ lambda.zip
 # Only the wrapper, its README and the execution report are versioned.
 terraform/modules/mays_orders/
 
+# Agent/session scratch in the repo root (kanonische Ablage: docs/reports/ + docs/AI_AUDITLOG.md).
+# Katalog siehe docs/reports/2026-10-20-ROOT-SCRATCH-KATALOG.md
+/AI_AUDITLOG_*.md
+/CLEANUP_*.md
+/STATE_*.md
+/STATE_CHECKS_*.sh
+/DISCOVERY_*.md
+*_SUMMARY.md
+*_SUMMARY.txt
+installer/ris.py.backup
+installer/ris.py.work_in_progress
+/tmp/
+

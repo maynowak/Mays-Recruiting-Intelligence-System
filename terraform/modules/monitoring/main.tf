@@ -39,7 +39,7 @@ locals {
     Custom Metrics). Diese Sektion ist ein Platzhalter, kein Daten-Widget.
   EOT
 
-  monitoring_dashboard_widgets = [
+  monitoring_dashboard_widgets_base = [
     # ---- SYSTEM HEALTH ------------------------------------------------------
     { type = "text", width = 24, height = 1, properties = { markdown = "## System Health" } },
     { type = "metric", width = 8, height = 6, properties = { metrics = [local.m_api_requests], view = "timeSeries", region = var.aws_region, title = "API Requests" } },
@@ -55,7 +55,17 @@ locals {
     { type = "text", width = 24, height = 1, properties = { markdown = "## Queues" } },
     { type = "metric", width = 8, height = 6, properties = { metrics = [local.m_sqs_visible], view = "timeSeries", region = var.aws_region, title = "Work Queue Visible Messages" } },
     { type = "metric", width = 8, height = 6, properties = { metrics = [local.m_sqs_oldest], view = "timeSeries", region = var.aws_region, title = "Work Queue Oldest Message Age" } },
+  ]
+
+  # DLQ-Widget nur wenn eine DLQ existiert (var.sqs_dlq_name != "").
+  # Bestehende DLQ-Installationen behalten die alte Reihenfolge (concat
+  # zwischen Queues- und Extensions-Sektion), Instanzen ohne DLQ (z. B.
+  # Orders) bekommen kein Widget auf eine nicht existierende Queue.
+  monitoring_dashboard_widgets_dlq = var.sqs_dlq_name != "" ? [
     { type = "metric", width = 8, height = 6, properties = { metrics = [local.m_dlq_visible], view = "timeSeries", region = var.aws_region, title = "DLQ Visible Messages" } },
+  ] : []
+
+  monitoring_dashboard_widgets_rest = [
     # ---- EXTENSIONS (Platzhalter, kein Fake) ----------------------------------
     { type = "text", width = 24, height = 1, properties = { markdown = "## RIS Extensions" } },
     { type = "text", width = 24, height = 6, properties = { markdown = local.extensions_markdown } },
@@ -65,6 +75,12 @@ locals {
     { type = "metric", width = 8, height = 6, properties = { metrics = [local.m_lambda_errors], view = "timeSeries", region = var.aws_region, title = "Lambda Errors" } },
     { type = "metric", width = 8, height = 6, properties = { metrics = [local.m_ddb_throttled, local.m_ddb_cond_failed], view = "timeSeries", region = var.aws_region, title = "DynamoDB Throttling" } },
   ]
+
+  monitoring_dashboard_widgets = concat(
+    local.monitoring_dashboard_widgets_base,
+    local.monitoring_dashboard_widgets_dlq,
+    local.monitoring_dashboard_widgets_rest,
+  )
 
   monitoring_dashboard_body = {
     start   = "-PT6H"
@@ -190,7 +206,9 @@ resource "aws_cloudwatch_metric_alarm" "dynamodb_throttled" {
   treat_missing_data  = "notBreaching"
 }
 resource "aws_cloudwatch_metric_alarm" "dlq_messages" {
-  count             = var.monitoring_enabled ? 1 : 0
+  # count-gated auf Existenz der DLQ: ohne var.sqs_dlq_name wird kein Alarm
+  # auf eine nicht existierende Queue erzeugt (Orders-Modul hat keine DLQ).
+  count             = var.monitoring_enabled && var.sqs_dlq_name != "" ? 1 : 0
   alarm_name        = "${var.project_name}-dlq-messages"
   alarm_description = "Messages visible in DLQ (poison/retries exhausted). Threshold: initial value, requires calibration with real AWS metrics."
   namespace         = "AWS/SQS"
