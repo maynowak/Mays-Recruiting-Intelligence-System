@@ -115,6 +115,67 @@ variable "identity_google_logout_urls" {
   default     = []
 }
 
+# ---------------------------------------------------------------------------
+# Browser-Login (OAuth 2.0 Authorization Code + PKCE) fuer die Jobsearch-UI.
+#
+# Der Code-Flow mit PKCE richtet sich an den public App-Client des RIS-Pools
+# und ist bewusst von der Google-Federation entkoppelt (kein externer IdP
+# noetig). Defaults sind rueckwaertskompatibel (AUS); die Development-
+# Installation ris-dev aktiviert den Flow gezielt.
+#
+# Callback-/Logout-URLs sind explizit (kein Wildcard); Domains sind OHNE
+# Pfad-Sternchen erlaubt -- Cognito matcht exakt.
+# ---------------------------------------------------------------------------
+variable "identity_oauth_enabled" {
+  description = "OAuth Authorization Code + PKCE am public RIS-App-Client aktivieren (Default AUS)."
+  type        = bool
+  default     = false
+}
+
+variable "identity_oauth_scopes" {
+  description = "OAuth-Scopes des App-Clients (Default: openid/email/profile)."
+  type        = list(string)
+  default     = ["openid", "email", "profile"]
+}
+
+variable "identity_oauth_callback_urls" {
+  description = "Erlaubte Callback-/Redirect-URIs (explizit, kein Wildcard)."
+  type        = list(string)
+  default     = []
+}
+
+variable "identity_oauth_logout_urls" {
+  description = "Erlaubte Logout-Redirect-URIs (explizit, kein Wildcard)."
+  type        = list(string)
+  default     = []
+}
+
+variable "identity_custom_domain_enabled" {
+  description = "Cognito Custom Domain (z. B. auth.mays-job-matcher.app) aktivieren (Default AUS)."
+  type        = bool
+  default     = false
+}
+
+variable "identity_custom_domain" {
+  description = "Vollqualifizierter Custom-Domain-Name fuer den RIS-Cognito-Pool."
+  type        = string
+  default     = ""
+}
+
+variable "identity_custom_domain_certificate_arn" {
+  description = "ARN des vorhandenen ISSUED ACM-Zertifikats in us-east-1 (keine Neuanforderung)."
+  type        = string
+  default     = ""
+}
+
+# CORS fuer die Browser-Frontends der Jobsearch-UI. Explizite Origins,
+# KEIN Wildcard. Leer = CORS aus (Bestandsverhalten, kein Diff).
+variable "api_cors_origins" {
+  description = "Erlaubte CORS-Origins der RIS-HTTP-API (explizit, kein Wildcard)."
+  type        = list(string)
+  default     = []
+}
+
 variable "queue_config" {
   description = "SQS queue configuration"
   type = object({

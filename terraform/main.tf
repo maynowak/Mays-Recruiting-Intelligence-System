@@ -53,6 +53,14 @@ module "cognito" {
   google_client_secret       = var.identity_google_client_secret
   google_callback_urls       = var.identity_google_callback_urls
   google_logout_urls         = var.identity_google_logout_urls
+
+  oauth_enabled                 = var.identity_oauth_enabled
+  oauth_scopes                  = var.identity_oauth_scopes
+  oauth_callback_urls           = var.identity_oauth_callback_urls
+  oauth_logout_urls             = var.identity_oauth_logout_urls
+  custom_domain_enabled         = var.identity_custom_domain_enabled
+  custom_domain                 = var.identity_custom_domain
+  custom_domain_certificate_arn = var.identity_custom_domain_certificate_arn
 }
 
 module "sqs" {
@@ -98,6 +106,7 @@ module "api" {
   cognito_user_pool_endpoint      = module.cognito.user_pool_endpoint
   lambda_function_name            = "${local.prefix}-agent"
   lambda_invoke_arn               = module.lambda.invoke_arn
+  cors_origins                    = var.api_cors_origins
   tags                            = var.tags
 }
 

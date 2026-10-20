@@ -64,6 +64,24 @@ TF_VARS=( -var="filename=$TERRA/../lambda/dist/orders-reader.zip"
           -var="health_writer_zip_path=$TERRA/../lambda/dist/health-writer.zip"
           -var="health_publisher_zip_path=$TERRA/../lambda/dist/health-publisher.zip" )
 
+# Site-specific overlay vars (OAuth/CORS/custom domain) come from the SAME
+# committed config the installer uses, so verifier and installer cannot drift.
+# Only projects with installer/project-configs/<project>.json get extra flags;
+# others (ris-a/ris-b) stay unchanged.
+project_overlay_vars() {
+  python3 - "$1" <<'PY' 2>/dev/null
+import sys
+sys.path.insert(0, ".")
+try:
+    from installer.ris import load_project_config
+    cfg = load_project_config(sys.argv[1])
+except Exception:
+    cfg = {}
+for k, v in sorted(cfg.items()):
+    print(f'-var={k}={v}')
+PY
+}
+
 # ============================================================ EINZEL-SERIE
 # Component naming is "<project>-mays-orders[-...]" (see AGENTS.md, "Orders integration").
 # Only the standalone legacy families "mays-ris-dev-*" and "mays-orders-*" are foreign;
@@ -119,7 +137,8 @@ PY
     "$(grep -o "${P}-orders[-/\"\"]" "/tmp/state_${P}.json" | wc -l || true)"
 
   sec S1.4 "PLAN_SAFETY_GATE: frischer Plan enthält 0 Fremd-Namen"
-  tf plan -input=false -lock=false "${TF_VARS[@]}" -var="project_name=$P" \
+  local -a OVERLAY=( $(project_overlay_vars "$P") )
+  tf plan -input=false -lock=false "${TF_VARS[@]}" "${OVERLAY[@]}" -var="project_name=$P" \
      -out="/tmp/plansafe_${P}.tfplan" >"/tmp/plansafe_${P}.log" 2>&1
   tf show -json "/tmp/plansafe_${P}.tfplan" > "/tmp/plansafe_${P}.json" 2>/dev/null || true
   local PLANSAFE; PLANSAFE="$(python3 - "$FOREIGN" "/tmp/plansafe_${P}.json" <<'PY'
@@ -138,7 +157,7 @@ PY
   if [ "$PLANSAFE" = "ERR" ]; then bad "plan json nicht lesbar"; else expect "Fremd-Präfix in geplanten Changes" "0" "$PLANSAFE"; fi
 
   sec S1.5 "IDEMPOTENZ: Konfiguration == State"
-  tf plan -detailed-exitcode -input=false -lock=false "${TF_VARS[@]}" -var="project_name=$P" \
+  tf plan -detailed-exitcode -input=false -lock=false "${TF_VARS[@]}" "${OVERLAY[@]}" -var="project_name=$P" \
      >"/tmp/idem_${P}.log" 2>&1
   local PE=$?
   if [ "$PE" = "0" ]; then ok "plan -detailed-exitcode = 0 (kein Drift)"; else bad "plan exit=$PE (0 erwartet)"; fi

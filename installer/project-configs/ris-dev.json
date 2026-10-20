@@ -1,0 +1,22 @@
+{
+  "_comment": "Site-specific Terraform input variables for the permanent dev install 'ris-dev'. Loaded automatically by the installer when project_name == ris-dev (see installer/ris.py load_project_config). No secrets. Explicit values only, no CORS wildcards.",
+  "_schema": {
+    "project_name": "must equal the directory/file name; guards against workspace/config mismatch",
+    "terraform_vars": "key=value map forwarded to terraform as ordinary -var entries"
+  },
+
+  "project_name": "ris-dev",
+
+  "terraform_vars": {
+    "identity_oauth_enabled": "true",
+    "identity_oauth_scopes": "[\"openid\",\"email\",\"profile\"]",
+    "identity_oauth_callback_urls": "[\"http://localhost:5173/auth/callback\",\"https://mays-job-matcher.vercel.app/auth/callback\"]",
+    "identity_oauth_logout_urls": "[\"http://localhost:5173/\",\"https://mays-job-matcher.vercel.app/\"]",
+
+    "identity_custom_domain_enabled": "true",
+    "identity_custom_domain": "auth.mays-job-matcher.app",
+    "identity_custom_domain_certificate_arn": "arn:aws:acm:us-east-1:240571105849:certificate/0bfb2603-a919-4b06-b4b9-da246c4edf75",
+
+    "api_cors_origins": "[\"http://localhost:5173\",\"https://mays-job-matcher.vercel.app\"]"
+  }
+}

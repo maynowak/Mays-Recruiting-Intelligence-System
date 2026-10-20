@@ -445,6 +445,92 @@ def orders_component_project_name(
     return name
 
 
+#: Directory holding per-project Terraform overlays (site-specific values that
+#: must not be baked into reusable module defaults).
+PROJECT_CONFIG_DIR = "project-configs"
+
+#: Terraform variables a project overlay may set. Deliberately narrow: the
+#: overlay is for site-specific identity/browser values, not for re-defining
+#: behaviour switches or anything reproducible from project_name/environment.
+PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
+    "identity_oauth_enabled",
+    "identity_oauth_scopes",
+    "identity_oauth_callback_urls",
+    "identity_oauth_logout_urls",
+    "identity_custom_domain_enabled",
+    "identity_custom_domain",
+    "identity_custom_domain_certificate_arn",
+    "api_cors_origins",
+})
+
+#: Variable names that would carry a secret and therefore must never appear in
+#: a committed overlay.
+PROJECT_CONFIG_FORBIDDEN_KEY_MARKERS = ("secret", "password", "token", "key")
+
+
+def load_project_config(
+    project_name: str, installer_dir: Optional[Path] = None
+) -> Dict[str, str]:
+    """Load and validate the committed Terraform overlay for one project.
+
+    Returns a flat ``{var: value}`` map (values already stringified for the
+    ``-var`` channel) or ``{}`` when no overlay exists. Fail-closed: an overlay
+    whose ``project_name`` does not match the requested project raises, so a
+    config/workspace mismatch cannot silently apply the wrong site values.
+
+    Only ``PROJECT_CONFIG_ALLOWED_KEYS`` may be set, and no key may look like a
+    secret. No AWS call, no side effects.
+    """
+    base = installer_dir or Path(__file__).resolve().parent
+    config_path = base / PROJECT_CONFIG_DIR / f"{project_name}.json"
+    if not config_path.exists():
+        return {}
+
+    try:
+        data = json.loads(config_path.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"project config {config_path} is not valid JSON: {exc}")
+
+    declared = data.get("project_name")
+    if declared != project_name:
+        raise ValueError(
+            f"project config {config_path} declares project_name={declared!r} "
+            f"but was loaded for {project_name!r} (config/workspace mismatch)"
+        )
+
+    raw_vars = data.get("terraform_vars") or {}
+    if not isinstance(raw_vars, dict):
+        raise ValueError(
+            f"project config {config_path}: terraform_vars must be an object"
+        )
+
+    resolved: Dict[str, str] = {}
+    for key, value in raw_vars.items():
+        if key not in PROJECT_CONFIG_ALLOWED_KEYS:
+            raise ValueError(
+                f"project config {config_path}: key {key!r} is not allowed "
+                f"(allowed: {sorted(PROJECT_CONFIG_ALLOWED_KEYS)})"
+            )
+        lowered = key.lower()
+        if any(marker in lowered for marker in PROJECT_CONFIG_FORBIDDEN_KEY_MARKERS):
+            raise ValueError(
+                f"project config {config_path}: key {key!r} looks like a "
+                f"secret and must not be committed"
+            )
+        if not isinstance(value, str):
+            raise ValueError(
+                f"project config {config_path}: value for {key!r} must be a "
+                f"string (got {type(value).__name__})"
+            )
+        if "*" in value and key == "api_cors_origins":
+            raise ValueError(
+                f"project config {config_path}: api_cors_origins must not "
+                f"contain a wildcard origin"
+            )
+        resolved[key] = value
+    return resolved
+
+
 def derive_orders_queue_url(orders_project_name: str, region: str, account_id: str) -> str:
     """Queue URL per published Orders naming contract ({project}-orders-queue)."""
     return (
@@ -942,10 +1028,15 @@ class RisInstallContext:
     def terraform_vars(self) -> Dict[str, str]:
         """Input variables for plan/apply (ordinary vars, never backend).
 
-        Extra --var entries ride along, but project identity always wins
-        (fail-closed: identity cannot be overridden via --var).
+        Precedence (low to high): committed project overlay (site-specific
+        values for this project) -> explicit --var entries -> project identity.
+        Identity always wins (fail-closed: it cannot be overridden via --var).
         """
-        merged = dict(self.extra_vars or {})
+        # Overlay first: site-specific values (OAuth/CORS/custom domain) that
+        # must not live in reusable module defaults. Only applies to the project
+        # the overlay is named for -- load_project_config is fail-closed.
+        merged = dict(load_project_config(self.project_name))
+        merged.update(self.extra_vars or {})
         # Provide absolute paths for lambda zips (required for isolated workdirs)
         repo_root = os.path.dirname(os.path.dirname(os.path.abspath(self.terraform_dir)))
         orders_reader_zip = os.path.join(repo_root, "lambda", "dist", "orders-reader.zip")

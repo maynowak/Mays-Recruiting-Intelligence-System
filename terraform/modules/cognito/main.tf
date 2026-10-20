@@ -1,5 +1,17 @@
 # Cognito Module
 
+locals {
+  # Browser-Login ist aktiv, wenn OAuth explizit freigeschaltet ODER die
+  # Google-Federation konfiguriert ist. Nur dann werden OAuth-Flow, Scopes
+  # und Redirect-Listen gesetzt (sonst null = Argument weglassen = kein Diff).
+  oauth_active = var.oauth_enabled || var.google_client_id != ""
+
+  # Wenn OAuth aktiv ist, gelten die expliziten oauth_*-Listen; die Google-Listen
+  # bleiben als Rueckfall fuer den reinen Federation-Fall erhalten.
+  callback_urls = var.oauth_enabled ? var.oauth_callback_urls : var.google_callback_urls
+  logout_urls   = var.oauth_enabled ? var.oauth_logout_urls : var.google_logout_urls
+}
+
 resource "aws_cognito_user_pool" "users" {
   name = "${var.project_name}-${var.environment}-users"
 
@@ -57,14 +69,19 @@ resource "aws_cognito_user_pool_client" "client" {
     "ALLOW_REFRESH_TOKEN_AUTH",
   ]
 
-  # Gate 13A: OAuth bleibt AUS bis ein Google-Client konfiguriert ist
-  # (null = Argument weglassen = kein Diff, Password-Login unberuehrt).
-  supported_identity_providers         = var.google_client_id != "" ? ["COGNITO", "Google"] : null
-  allowed_oauth_flows_user_pool_client = var.google_client_id != ""
-  allowed_oauth_flows                  = var.google_client_id != "" ? ["code"] : null
-  allowed_oauth_scopes                 = var.google_client_id != "" ? ["openid", "email", "profile"] : null
-  callback_urls                        = var.google_client_id != "" ? var.google_callback_urls : null
-  logout_urls                          = var.google_client_id != "" ? var.google_logout_urls : null
+  # Browser-Login: OAuth 2.0 Authorization Code (+PKCE, public client) gilt,
+  # sobald oauth_enabled ODER Google-Federation aktiv ist. PKCE ist bei
+  # generate_secret=false + `code`-Flow implizit -- kein eigenes Flag.
+  #
+  # Fail-closed: bei aktiviertem OAuth verlangt Cognito nicht-leere
+  # callback_urls; leere Listen lassen den Plan/Apply bewusst fehlschlagen,
+  # statt eine offene/ungueltige Konfiguration zu schreiben.
+  supported_identity_providers         = local.oauth_active ? (var.google_client_id != "" ? ["COGNITO", "Google"] : ["COGNITO"]) : null
+  allowed_oauth_flows_user_pool_client = local.oauth_active
+  allowed_oauth_flows                  = local.oauth_active ? ["code"] : null
+  allowed_oauth_scopes                 = local.oauth_active ? var.oauth_scopes : null
+  callback_urls                        = local.oauth_active ? local.callback_urls : null
+  logout_urls                          = local.oauth_active ? local.logout_urls : null
   # NOTE: aws_cognito_user_pool_client supports no `tags` argument
   # (provider schema) — Project scoping lives on pool/groups.
 }
@@ -130,9 +147,28 @@ resource "aws_cognito_user_group" "standard_user_requier" {
   user_pool_id = aws_cognito_user_pool.users.id
 }
 
+# Cognito erlaubt pro Pool ENTWEDER eine Prefix-Domain ODER eine Custom Domain,
+# nicht beide. Die beiden Ressourcen sind daher wechselseitig exklusiv:
+#   custom_domain_enabled = false (Default) -> Prefix-Domain (Bestandsverhalten)
+#   custom_domain_enabled = true            -> Custom Domain (Prefix wird entfernt)
+# Das Entfernen der Prefix-Domain ist eine Cognito-Vorgabe, kein Versehen; sie
+# wird nirgends sonst referenziert (nur die Pool-/Client-IDs sind relevant).
 resource "aws_cognito_user_pool_domain" "domain" {
+  count = var.custom_domain_enabled ? 0 : 1
+
   domain       = "${var.project_name}-${var.environment}"
   user_pool_id = aws_cognito_user_pool.users.id
+}
+
+# Browser-Login-Domain (reuse des vorhandenen us-east-1-ACM-Zertifikats).
+# Keine Neuanforderung eines Zertifikats; die Domain-Verifikation (DNS-Record)
+# erfolgt separat ausserhalb von Terraform (Phase 2b).
+resource "aws_cognito_user_pool_domain" "custom" {
+  count = var.custom_domain_enabled ? 1 : 0
+
+  domain          = var.custom_domain
+  certificate_arn = var.custom_domain_certificate_arn
+  user_pool_id    = aws_cognito_user_pool.users.id
 }
 
 resource "aws_cognito_resource_server" "ris_api" {
@@ -182,4 +218,9 @@ output "user_pool_m2m_client_secret" {
 output "resource_server_identifier" {
   description = "Cognito resource server identifier"
   value       = aws_cognito_resource_server.ris_api.identifier
+}
+
+output "domain" {
+  description = "Aktive Cognito-Domain des Pools (Custom Domain bei custom_domain_enabled, sonst Prefix-Domain)."
+  value       = var.custom_domain_enabled ? var.custom_domain : "${var.project_name}-${var.environment}"
 }

@@ -7,6 +7,20 @@ resource "aws_apigatewayv2_api" "ris_api" {
   protocol_type = "HTTP"
   description   = "Ground Zero Platform API"
 
+  # CORS nur wenn Origins gesetzt sind (sonst kein Block = kein Diff).
+  # Explizite Origins, kein Wildcard; Methoden/Header bewusst auf die von der
+  # Jobsearch-UI benoetigten Werte beschraenkt (Authorization + Content-Type).
+  dynamic "cors_configuration" {
+    for_each = length(var.cors_origins) > 0 ? [1] : []
+
+    content {
+      allow_origins = var.cors_origins
+      allow_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+      allow_headers = ["Authorization", "Content-Type", "X-Api-Credential", "X-Api-Profile"]
+      max_age       = 3600
+    }
+  }
+
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 

@@ -83,3 +83,61 @@ variable "google_logout_urls" {
   type        = list(string)
   default     = []
 }
+
+# ---------------------------------------------------------------------------
+# Browser-Login (OAuth 2.0 Authorization Code + PKCE) fuer den public App-Client.
+#
+# Bewusst ENTKOPPELT von der Google-Federation: der Authorization-Code-Flow mit
+# Scopes openid/email/profile braucht keinen externen IdP. Cognito unterstuetzt
+# PKCE fuer public Clients (generate_secret=false) automatisch, sobald der
+# `code`-Flow aktiviert ist -- es gibt kein separates PKCE-Flag im Provider-Schema.
+#
+# Default AUS = rueckwaertskompatibel: ein Modul ohne diese Variablen erzeugt
+# exakt das bisherige Verhalten (OAuth nur bei Google-Federation).
+# ---------------------------------------------------------------------------
+variable "oauth_enabled" {
+  description = "Authorization-Code-Flow (+PKCE) am public App-Client aktivieren (Default AUS)."
+  type        = bool
+  default     = false
+}
+
+variable "oauth_scopes" {
+  description = "OAuth-Scopes des App-Clients (nur bei oauth_enabled wirksam)."
+  type        = list(string)
+  default     = ["openid", "email", "profile"]
+}
+
+variable "oauth_callback_urls" {
+  description = "Erlaubte Redirect-URIs (Callback) des App-Clients (nur bei oauth_enabled wirksam; Pflicht, fail-closed)."
+  type        = list(string)
+  default     = []
+}
+
+variable "oauth_logout_urls" {
+  description = "Erlaubte Logout-Redirect-URIs des App-Clients (nur bei oauth_enabled wirksam)."
+  type        = list(string)
+  default     = []
+}
+
+variable "custom_domain_enabled" {
+  description = "Cognito Custom Domain fuer den Pool aktivieren (Default AUS). Erfordert Domain + us-east-1-ACM-Zertifikat."
+  type        = bool
+  default     = false
+}
+
+variable "custom_domain" {
+  description = "Vollqualifizierter Custom-Domain-Name (z. B. auth.mays-job-matcher.app). Nur bei custom_domain_enabled wirksam."
+  type        = string
+  default     = ""
+}
+
+variable "custom_domain_certificate_arn" {
+  description = "ARN des vorhandenen, ISSUED ACM-Zertifikats in us-east-1 (Cognito verlangt us-east-1). Keine Neuanforderung."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.custom_domain_certificate_arn == "" || can(regex(":acm:us-east-1:", var.custom_domain_certificate_arn))
+    error_message = "Cognito Custom Domains verlangen ein ACM-Zertifikat in us-east-1."
+  }
+}

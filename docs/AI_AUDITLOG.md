@@ -6277,3 +6277,34 @@ Tests:
    - pytest: 1593 passed, 2 failed (dokumentierte Baseline-Defekte), 3 skipped
 AWS MUTATIONS: YES — 169 added (ris-dev), 169 destroyed (ris-development), 2 Buckets geleert+geloescht, Workspace+State entfernt
 GIT PUSH: ausstehend (Freigabe erteilt)
+
+==================================================
+[MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-PHASE2-2026-10-20]
+Current status: PLAN ERSTELLT — OAuth/PKCE/CORS + Custom Domain fuer ris-dev im Code; Apply/DNS/Testnutzer gesperrt
+Audit date/time: 2026-10-20 20:30 UTC
+Current Git branch and HEAD: main (Basis 7492eb9)
+Audit scope: Cognito Authorization-Code-Flow (+PKCE), konfigurierbare Callback-/Logout-URLs, Cognito Custom Domain (reuse ACM), API-GW-CORS fuer freigegebene Jobsearch-Origins
+Completed audit sections:
+   §1 Bestandsaufnahme: RIS-Client ohne OAuth; Pool nur Prefix-Domain; API-CORS null; ACM auth.mays-job-matcher.app ISSUED (us-east-1)
+   §2 Cognito-Modul: oauth_enabled + Callback/Logout/Domain-Variablen (Defaults AUS, rueckwaertskompatibel); Code-Flow von Google entkoppelt; PKCE implizit (public client)
+   §3 Domain-Exklusivitaet per count: Prefix ODER Custom (Cognito erlaubt nur eine pro Pool)
+   §4 API-Modul: cors_origins (Default [], Wildcard-Validation, kein *); dynamic cors_configuration nur wenn gesetzt
+   §5 Projekt-Overlay installer/project-configs/ris-dev.json + load_project_config (fail-closed, Whitelist, kein Secret)
+   §6 Verifier teilt denselben Loader (project_overlay_vars) -> kein Drift
+Actual findings (verified facts):
+   - Plan: 1 to add, 2 to change, 1 to destroy; keine Replacements; 0 Orders-/Pool-/M2M-Aenderungen
+   - update api cors_configuration [] -> explizite Origins; update cognito client (code/scopes/URLs); create custom domain; destroy Prefix ris-dev-dev
+   - Overlay wirkt NUR fuer project_name=ris-dev; ris-a/ris-b unveraendert (Module/Root-Defaults AUS)
+Evidence / file references:
+   - docs/reports/03-03-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-PHASE2.md
+   - terraform/modules/cognito/{main,variables}.tf, terraform/modules/api/{main,variables}.tf, terraform/{main,variables}.tf
+   - installer/project-configs/ris-dev.json, installer/ris.py, scripts/parallel_tests.sh
+   - tests/test_project_config_overlay.py (23 Tests)
+Classification: GREEN (Code/Test), PENDING APPROVAL (Apply)
+Terraform checks executed and results:
+   - fmt -check -recursive OK; validate Success; plan 1 add/2 change/1 destroy (gespeichert /tmp/p2-final.tfplan)
+Tests:
+   - pytest: 1616 passed, 2 failed (Baseline), 3 skipped
+   - parallel_tests.sh ris-dev: 63 PASS / 1 FAIL (S1.5 Idempotenz = erwarteter pending-apply-Diff) / 1 WARN (Baseline)
+AWS MUTATIONS: NONE (kein Apply, keine DNS-Aenderung, keine Testnutzer)
+GIT PUSH: ausstehend
