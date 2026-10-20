@@ -143,6 +143,7 @@ The following tasks have been completed with reports in docs/reports/:
 | 2026-10-20 | [MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01 — Testbericht](reports/01-02-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-TESTREPORT.md) | Tests abgeschlossen | 63/63 Live, 9/9 Static, 1581 pytest; CORS/OAuth-Lücken dokumentiert |
 | 2026-10-20 | [Merge feature/integration](reports/02-01-WRAPPER-MAYS-ORDERS-MODULE-BUILDER-EXECUTION_LOG.md) | Merge lokal abgeschlossen | Commit 42735ce; Tests grün; Naming-Suffix würde Dev-Orders-Stack ersetzen — nicht applied |
 | 2026-10-20 | [Merge feature/integration — Naming zurückgestellt](reports/02-01-WRAPPER-MAYS-ORDERS-MODULE-BUILDER-EXECUTION_LOG.md) | Naming-Fix | `project_name` wieder `var.project_name`; Merge 42735ce bleibt; keine AWS-Mutation |
+| 2026-10-20 | [Module-Builder — Scope reduziert](reports/02-01-WRAPPER-MAYS-ORDERS-MODULE-BUILDER-EXECUTION_LOG.md) | Nur Wrapper/README/Report | Modul aus Index entfernt (Arbeitskopie bleibt); 3 Artefakte getrackt |
 
 
 ### Vollständiger Report-Bestand (docs/reports/, Stand 2026-10-19)
@@ -6086,4 +6087,51 @@ Recommended next actions:
    2. Vor einem Plan das Modul-Zip bauen.
    3. Push nach origin/main nur mit Freigabe.
 Current resume point: Merge lokal vorhanden, Naming wieder state-kompatibel; kein Apply.
+AWS MUTATIONS: NONE
+
+==================================================
+[MODULE-BUILDER-SCOPE-REDUCED-2026-10-20]
+Current status: COMPLETED (lokal) — vom Feature nur Wrapper, README und Report behalten; generiertes Modul nicht mehr getrackt
+Audit date/time: 2026-10-20 16:20 UTC
+Current Git branch and HEAD: main (vor diesem Commit: 82c6b50)
+Audit scope: Reduktion des Feature-/Merge-Umfangs auf die tatsächlich benötigten Artefakte
+Completed audit sections:
+   §1 `terraform/modules/mays_orders/**` aus dem Git-Index entfernt (34 Dateien), Arbeitskopie bleibt lokal
+   §2 Wrapper, README und Report als getrackte Artefakte bestätigt
+   §3 `terraform/main.tf` bleibt bei `project_name = var.project_name`
+   §4 fmt/validate/static-Suite geprüft
+Actual findings (verified facts):
+   - Getrackte Modul-Dateien: 0
+   - Lokal vorhandene Modul-Dateien: 42 (Build-Artefakt, untracked)
+   - Getrackt bleiben:
+     * installer/build_mays_orders_module.py (171 Zeilen; clone/build/patch/check/clean)
+     * installer/README_MODULE_BUILDER.md (40 Zeilen)
+     * docs/reports/02-01-WRAPPER-MAYS-ORDERS-MODULE-BUILDER-EXECUTION_LOG.md (47 Zeilen)
+   - `terraform fmt -check -recursive`: PASS
+   - `terraform validate`: Success (nur Deprecation-Warnings)
+   - static-Suite: 9 PASS, 0 FAIL, 1 Baseline-WARN
+Evidence / file references:
+   - git status: D terraform/modules/mays_orders/** (index), Arbeitskopie vorhanden
+   - git ls-files terraform/modules/mays_orders → 0
+Classification: GREEN
+Terraform checks executed and results:
+   - fmt -check -recursive: PASS
+   - validate: Success
+   - plan: NICHT ausgeführt (Modul-Zip fehlt; Modul ist Build-Artefakt)
+Git status: Modul-Löschungen + dieser Audit-Log-Eintrag werden committed; drei Wrapper-Artefakte bleiben unverändert
+Files changed:
+   - terraform/modules/mays_orders/** (aus Index entfernt, Arbeitskopie bleibt)
+   - docs/AI_AUDITLOG.md (Checkpoint + Index)
+Explicit confirmation when no files were changed: Keine AWS-Ressource, kein State, kein laufendes Deployment verändert.
+Open questions:
+   - Soll das generierte Modul auch aus der Arbeitskopie gelöscht werden (dann baut es der Wrapper neu)?
+   - Soll der Wrapper das `-mays-orders`-Naming künftig nicht mehr patchen?
+Risks:
+   - Frischer Clone hat kein `terraform/modules/mays_orders` → `terraform validate/plan` erst nach Wrapper-Build möglich.
+   - Merge-Commit 42735ce enthält die Moduldateien weiterhin in der Historie; aktueller Tree entfernt sie.
+Recommended next actions:
+   1. Wrapper-Build in den Installer-/CI-Ablauf aufnehmen.
+   2. Modul-Verzeichnis in `.gitignore` aufnehmen, falls es dauerhaft Build-Artefakt bleiben soll.
+   3. Push nach origin/main nur mit Freigabe.
+Current resume point: Feature auf die drei benötigten Artefakte reduziert; Modul ist lokales Build-Artefakt.
 AWS MUTATIONS: NONE
