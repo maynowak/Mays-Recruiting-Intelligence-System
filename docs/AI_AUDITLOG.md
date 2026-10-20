@@ -6334,3 +6334,33 @@ Terraform checks executed and results:
    - Plan aus committed HEAD reproduziert: 1 to add, 2 to change, 1 to destroy
 AWS MUTATIONS: NONE (kein Apply, keine DNS-Aenderung, keine Testnutzer)
 GIT PUSH: erfolgt (05c6dcb -> origin/main)
+
+==================================================
+[MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-PHASE2E-2026-10-20]
+Current status: GREEN — OAuth/PKCE/CORS + Custom Domain auf ris-dev ausgerollt und verifiziert
+Audit date/time: 2026-10-20 21:45 UTC
+Current Git branch and HEAD: main (Basis 6886a0a)
+Audit scope: AWS Apply des Phase-2D-Plans + technische Verifikation
+Completed audit sections:
+   §1 Preflight: Git sauber, Account 240571105849, Workspace ris-dev, Backend, Overlay, ACM live
+   §2 Plan: 1 to add, 2 to change, 1 to destroy; alle harten Sicherheitsgates PASS
+   §3 Apply: 1 added, 2 changed, 1 destroyed
+   §4 Post-Apply-Plan: No changes
+   §5 Verifikation Cognito/ACM/API/Security
+Actual findings (verified facts):
+   - RIS-Client: AllowedOAuthFlows=code, Scopes openid/email/profile, Callback+Logout korrekt, ClientSecret=null
+   - Custom Domain auth.mays-job-matcher.app ACTIVE (CloudFront d1xd3gat3vr3ss); Prefix ris-dev-dev entfernt
+   - M2M-Client + Orders-Pool unveraendert; 34 API-Routen unveraendert; /health + /me -> 401 ohne Token
+   - CORS aktiv, nur 2 freigegebene Origins, kein Wildcard; JWT-Authorizer unveraendert
+   - ACM jetzt InUseBy=Cognito-CloudFront und RenewalEligibility=ELIGIBLE (Auflage A1 behoben)
+Evidence / file references:
+   - docs/reports/03-05-MAYS-RIS-DEV-JOBSEARCH-AUTH-E2E-01-PHASE2E-AWS-APPLY.md
+   - /tmp/p2e.tfplan, /tmp/p2e-apply.log, /tmp/p2e-postplan.log, /tmp/p2e-verifier.log
+Classification: GREEN
+Terraform checks executed and results:
+   - plan 1/2/1 -> apply 1 added/2 changed/1 destroyed -> post-plan No changes; fmt OK; validate Success
+Tests:
+   - pytest: 1616 passed, 2 failed (Baseline), 3 skipped
+   - parallel_tests.sh ris-dev: 64 PASS / 0 FAIL / 1 WARN (S1.5-Drift behoben)
+AWS MUTATIONS: YES — 1 add (custom domain), 2 update (client, api CORS), 1 destroy (prefix domain)
+GIT PUSH: ausstehend
