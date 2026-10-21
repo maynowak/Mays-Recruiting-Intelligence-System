@@ -6364,3 +6364,39 @@ Tests:
    - parallel_tests.sh ris-dev: 64 PASS / 0 FAIL / 1 WARN (S1.5-Drift behoben)
 AWS MUTATIONS: YES — 1 add (custom domain), 2 update (client, api CORS), 1 destroy (prefix domain)
 GIT PUSH: ausstehend
+
+==================================================
+[MAYS-RIS-JOBSEARCH-PARTNER-ONBOARDING-01-2026-10-21]
+Current status: GO (Vorbereitung) mit STOP-Voraussetzung Admin-Benutzer; keine Ausfuehrung
+Audit date/time: 2026-10-21
+Current Git branch and HEAD: main (Basis 3102ad9)
+Audit scope: Read-only Vorbereitung der Jobsearch-Partnerregistrierung (kein Profil, kein Credential, kein Grant, kein User, kein Secret)
+Completed audit sections:
+   §1 Preflight: Git clean @3102ad9 == origin/main; Account 240571105849; Region eu-central-1; ris-dev live
+   §2 Admin: Gruppe admins existiert, ABER 0 Benutzer im Pool -> keine admin-only Schritte moeglich (STOP)
+   §3 Partnerregistrierung: kein APIProfile/Credential/Partner-Record vorhanden (keine Doppelung)
+   §4 APIProfile-Lifecycle: Route + Code vorhanden (PENDING -> admin-only ACTIVE)
+   §5 Credential: Route + Code vorhanden (once-only Secret), NICHT ausgestellt
+   §6 Entitlements: Offers=0, Entitlements=0; Catalog nur reference_agent ACTIVE
+   §7 Dual-Auth: POST /v1/partner/agents/{agentId}/execute live (Human-JWT 3hy7kc + X-Api-Credential)
+   §8 Vercel: Jobsearch-Repo hat KEINE RIS-Integration (kein RIS_API_KEY, kein serverseitiger Proxy)
+   §9 Tests: gezielte Suites gruen
+Actual findings (verified facts):
+   - Cognito RIS-Pool eu-central-1_ojbmoiYGM: 0 Benutzer; Gruppen admins/Staff ohne Mitglieder
+   - Tabellen leer: api-profiles=0, credentials=0, entitlements=0, offers=0, partner-applications=0
+   - Agent-Catalog: nur reference_agent (ACTIVE); dummy-a/b DEV-only
+   - Rollenmatrix: create/activate/grant/credential-issue admin-only bzw. owner-self; Staff nie fuer Create/Issue
+   - Tenant serverseitig aus custom:tenant_id (handler.py:311); keine Default-Zuweisung
+   - "L01/L03" im Repo nicht auffindbar; Layer 1/3 nur in docs/ARCHITECTURE.md -> Klaerung offen
+   - Partner-Registry-Mechanik existiert bereits (partner_registry.py + table partner-applications)
+Evidence / file references:
+   - docs/reports/MAYS-RIS-JOBSEARCH-PARTNER-ONBOARDING-01.md
+   - lambda/handler.py (300-324, 1009-1165, 1612), agents/ecosystem/{api_profiles,credentials,offers,partner_registry}.py
+   - docs/architecture/{M2M_CLIENT_APIPROFILE_BINDING_ADR,PARTNER_USER_DUAL_AUTH_ADR,RIS_AUTH_CONTRACT}.md
+   - tests/test_partner_security_boundary.py (T01-T14)
+Classification: GREEN (Audit) / GO mit STOP-Voraussetzung (Ausfuehrung)
+Tests:
+   - pytest test_partner_security_boundary + credential_verification + introspection_capability + entitlement_provisioning: 166 passed, 1 failed (flaky test_secret_opaque_random: Zufalls-Secret enthielt zufaellig "u1"; isoliert 5x passed)
+   - test_partner_security_boundary 3x stabil: 47 passed
+AWS MUTATIONS: NONE (rein read-only)
+GIT PUSH: dieser Commit (Doku)
