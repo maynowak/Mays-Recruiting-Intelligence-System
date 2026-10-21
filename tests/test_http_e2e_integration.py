@@ -789,9 +789,23 @@ class TestHttpE2EIntegration(unittest.TestCase):
         finally:
             self.ris_server.partner_registry.get_partner_application = original_lookup
     
-    # E2E-20: Missing tenant claim -> denied according to canonical contract
+    # E2E-20: Missing tenant claim -> resolved server-side (L03)
     def test_e2e_20_missing_tenant_claim(self):
+        """L03: der Tenant kommt serverseitig (Credential + Registry).
+
+        Ein Self-Signup-User traegt keinen `custom:tenant_id`-Claim. Der
+        fehlende Claim ist deshalb kein Fehler — die Partneranwendung
+        selbst liefert das serverseitig aufgeloeste Tenant-Id des
+        angemeldeten Users. Verweigert wird nur, wenn der Tenant nicht
+        aufloesbar ist (403).
+        """
         jwt = self.ris_server.make_token_missing_tenant()
+        result = self._call_ris(jwt)
+        self.assertEqual(result["status_code"], 202)
+
+    # E2E-20b: Contradicting tenant claim -> denied (cross-tenant attempt)
+    def test_e2e_20b_contradicting_tenant_claim(self):
+        jwt = self.ris_server.make_token_wrong_tenant()
         result = self._call_ris(jwt)
         self.assertEqual(result["status_code"], 403)
 

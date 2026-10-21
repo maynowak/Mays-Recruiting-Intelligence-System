@@ -83,7 +83,8 @@ class TestGoogleFoundationGuards(unittest.TestCase):
     def test_no_token_fields_in_profile(self):
         """Profil kennt keine Token-Felder (Gate-12-Modell intakt)."""
         table = FakeTable()
-        resp = handler._provision_user_profile(table, ctx(), {"nickname": "G"})
+        resp = handler._provision_user_profile(table, ctx(), {"nickname": "G"},
+                                               tenant_id=ctx()["tenantId"])
         body = json.loads(resp["body"])
         forbidden = {"access_token", "refresh_token", "id_token", "token",
                      "google_sub", "google_access", "client_secret"}

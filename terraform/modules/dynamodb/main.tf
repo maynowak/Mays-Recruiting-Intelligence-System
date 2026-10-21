@@ -389,6 +389,20 @@ output "credentials_table_arn" {
 # It is a technical proof agent with no domain logic, so seeding it creates
 # no false expectation of a domain integration. No new agent type invented.
 #
+# Seed agent: `jobsearch-agent` — the JobSearch domain agent. Unlike the
+# reference agent this one carries real domain logic, so the seed follows
+# the runtime definition exactly (agents/jobsearch_agent/agent.py:
+# JOBSEARCH_AGENT_ID / JOBSEARCH_CAPABILITIES / jobsearch_descriptor).
+# Preconditions verified live before seeding (2026-10-21):
+#   - registered in the runtime registry (agents/runtime/pipeline.py:131-132)
+#   - present in the deployed bundle (terraform/lambda.zip: agents/jobsearch_agent/)
+#   - persistence target exists and is wired (JOBSEARCH_TABLE=ris-dev-dev-jobsearches)
+# The agentId MUST equal the runtime ID (`jobsearch-agent`, kebab-case). The
+# catalog is keyed by agentId and the worker dispatches by registry ID, so a
+# snake_case alias here would pass the executable check and still fail at
+# dispatch. The id-style difference to `reference_agent` is pre-existing in
+# the runtime and is NOT normalized here — the seed mirrors the runtime.
+#
 # `expiresAt` is deliberately NOT set: the table TTL is enabled on it, so a
 # populated value would silently expire this entry. Retention is a separate
 # gate; this module does not invent a retention policy.
@@ -404,6 +418,18 @@ locals {
       status             = "ACTIVE"
       description        = "Technischer Nachweis-Agent (Echo, keine Domain-Logik)"
       capabilities       = ["reference.echo"]
+      supported_bodies   = ["1.0.0"]
+      supported_runtimes = ["python3.14"]
+      risk_level         = "low"
+      metadata           = {}
+    }
+    "jobsearch-agent" = {
+      agentId            = "jobsearch-agent"
+      name               = "jobsearch-agent"
+      version            = "1.0.0"
+      status             = "ACTIVE"
+      description        = "Persistenter JobSearch-Domain-Agent (Delegation ans Repository)"
+      capabilities       = ["jobsearch.create", "jobsearch.get", "jobsearch.list"]
       supported_bodies   = ["1.0.0"]
       supported_runtimes = ["python3.14"]
       risk_level         = "low"

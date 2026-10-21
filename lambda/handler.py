@@ -17,7 +17,7 @@ import sys
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -293,6 +293,7 @@ def _extract_user_context(event: Dict[str, Any]) -> Dict[str, Any]:
         'email': None,
         'groups': [],
         'clientId': None,
+        'audience': None,
         'tokenUse': None
     }
     
@@ -314,6 +315,13 @@ def _extract_user_context(event: Dict[str, Any]) -> Dict[str, Any]:
     
     # Cognito client_credentials tokens include client_id claim
     context['clientId'] = jwt_claims.get('client_id')
+
+    # `aud` is the audience the gateway authorizer already validated
+    # against its configured audience list. For an ID token it is the
+    # app client id — that is the only client identity an ID token
+    # carries (no `client_id` claim). It is used as a server-side
+    # tenant lookup key, never as a caller-supplied value.
+    context['audience'] = jwt_claims.get('aud')
     
     context['tokenUse'] = jwt_claims.get('token_use')
     
@@ -322,6 +330,82 @@ def _extract_user_context(event: Dict[str, Any]) -> Dict[str, Any]:
     context['groups'] = _normalize_groups(jwt_claims.get('cognito:groups'))
     
     return context
+
+
+# ------------------------------------------------------------------
+# L03 — Tenant-Aufloesung (serverseitig, niemals vom Browser).
+#
+# Der Tenant ist eine SERVER-Zustandsgroesse. Er wird aus genau einer
+# der folgenden Quellen bestimmt:
+#
+#   1. `custom:tenant_id` im JWT-Claim — autoritativ, wenn vorhanden.
+#      Widerspricht der Claim der serverseitigen Aufloesung, ist das ein
+#      Cross-Tenant-Versuch -> deny.
+#   2. Partner-Registry: JWT `client_id` -> Partner Application ->
+#      tenantId. Die Registry ist die eigene Tabelle des Servers, und
+#      die `client_id` hat der Gateway-Authorizer validiert.
+#      Fuellwert ist der `aud`-Claim: der Human-Authorizer laesst nur
+#      ID-Tokens zu (aud = App-Client-ID), und ein ID-Token fuehrt
+#      keinen `client_id`-Claim. Der Authorizer hat `aud` aber bereits
+#      gegen die konfigurierte Audience geprueft — der Client ist damit
+#      serverseitig festgelegt.
+#
+# Es gibt bewusst KEINEN Fallback auf "default": ein stiller
+# "default"-Tenant wuerde die Profile verschiedener Partner in einen
+# gemeinsamen Bucket legen und die Tenant-Isolation aufheben. Ohne
+# aufloesbaren Tenant wird verweigert, nicht geraten.
+# ------------------------------------------------------------------
+
+
+def _registry_tenant(client_id: Optional[str],
+                     audience: Optional[str] = None) -> Optional[str]:
+    """Tenant des Cognito-Clients laut Partner-Registry (serverseitig).
+
+    Fail closed: ein nicht registrierter, deaktivierter oder nicht
+    auflösbarer Client liefert keinen Tenant.
+    """
+    for candidate in (client_id, audience):
+        if not candidate or not isinstance(candidate, str):
+            continue
+        try:
+            from agents.ecosystem.partner_registry import resolve_partner_application
+
+            registry = resolve_partner_application(candidate)
+        except Exception:
+            logger.warning("partner registry lookup failed during tenant "
+                           "resolution")
+            continue
+        if not registry or registry.get('status') != 'ACTIVE':
+            continue
+        tenant_id = registry.get('tenantId')
+        if isinstance(tenant_id, str) and tenant_id.strip():
+            return tenant_id.strip()
+    return None
+
+
+def _resolve_tenant(user_context: Dict[str, Any],
+                    expected_tenant: Optional[str] = None
+                    ) -> Tuple[Optional[str], bool]:
+    """Effektiven Tenant bestimmen -> (tenantId, conflict).
+
+    `expected_tenant` ist der bereits serverseitig festgelegte Tenant
+    (Credential/Registry in der Partnerroute). Er ist dann allein
+    massgeblich; ein abweichender Claim ist ein Cross-Tenant-Versuch.
+    Ohne `expected_tenant` gilt: der Claim gewinnt, sonst die Registry.
+    """
+    claim = user_context.get('tenantId')
+    if not isinstance(claim, str) or not claim.strip():
+        claim = None
+    if expected_tenant:
+        expected = expected_tenant.strip()
+        if claim and claim != expected:
+            return None, True
+        return (expected or None), False
+    server = _registry_tenant(user_context.get('clientId'),
+                              user_context.get('audience'))
+    if claim and server and claim != server:
+        return None, True
+    return (claim or server), False
 
 
 def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -492,7 +576,18 @@ def _handle_me_profile(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'Unauthenticated'})
         }
     
-    profile = _get_user_profile(user_context['userId'], user_context['tenantId'])
+    # L03: der Tenant wird serverseitig aufgeloest. Ohne aufloesbaren
+    # Tenant laesst sich die Tenant-Isolation des Profils nicht pruefen
+    # -> verweigern statt unklarer Datenfreigabe.
+    tenant_id, tenant_conflict = _resolve_tenant(user_context)
+    if tenant_conflict or not tenant_id:
+        logger.warning("profile read denied: tenant not resolvable")
+        return {
+            'statusCode': 403,
+            'body': json.dumps({'error': 'Tenant not resolvable'})
+        }
+    
+    profile = _get_user_profile(user_context['userId'], tenant_id)
     
     if not profile:
         return {
@@ -507,22 +602,31 @@ def _handle_me_profile(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 
 def _provision_user_profile(table: Any, user_context: Dict[str, Any],
-                            body: Dict[str, Any]) -> Dict[str, Any]:
+                            body: Dict[str, Any],
+                            tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Profil provisionieren — NUR explizit (nie via GET).
 
     Gate 10: Trigger ist die Registrierung/Aktivierung (Client ruft POST
     nach Confirmation), nicht der erste Read. Conditional Write: existiert
     bereits ein Profil -> 409, kein Ueberschreiben.
+
+    L03: `tenant_id` ist der serverseitig aufgeloeste Tenant (L03-
+    Resolver). Es gibt bewusst KEINEN "default"-Fallback: ein stiller
+    Default-Tenant wuerde die Profile verschiedener Partner in einen
+    gemeinsamen Bucket legen. Ohne aufgeloesten Tenant wird nicht
+    geschrieben.
     """
     from datetime import datetime
 
     now = utcnow_naive_iso()
     body = body or {}
+    if not tenant_id:
+        raise ValueError('tenant is required to provision a profile')
     # Gate 12 (Profile v1): NUR diese Felder; userId/tenantId/email aus JWT
     # (Body-Identitaeten werden IGNORIERT — kein Spoofing).
     item = {
         'userId': user_context['userId'],
-        'tenantId': user_context.get('tenantId') or 'default',
+        'tenantId': tenant_id,
         'nickname': body.get('nickname'),
         'firstName': body.get('firstName'),
         'lastName': body.get('lastName'),
@@ -567,9 +671,26 @@ def _handle_me_profile_create(event: Dict[str, Any], context: Any) -> Dict[str, 
             'body': json.dumps({'error': 'Profile store not configured'})
         }
 
+    # L03: Tenant serverseitig aufloesen (Claim autoritativ, sonst
+    # Registry). Ohne aufloesbaren Tenant wird kein Profil geschrieben.
+    tenant_id, tenant_conflict = _resolve_tenant(user_context)
+    if tenant_conflict or not tenant_id:
+        logger.warning("profile create denied: tenant not resolvable")
+        return {
+            'statusCode': 403,
+            'body': json.dumps({'error': 'Tenant not resolvable'})
+        }
+
     try:
         table = _get_dynamodb().Table(table_name)
-        return _provision_user_profile(table, user_context, body)
+        return _provision_user_profile(table, user_context, body,
+                                       tenant_id=tenant_id)
+    except ValueError as e:
+        logger.warning(f"Profile provisioning refused: {e}")
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'Invalid request'})
+        }
     except Exception as e:
         logger.error(f"Error provisioning profile: {e}")
         return {
@@ -638,6 +759,16 @@ def _handle_me_profile_update(event: Dict[str, Any], context: Any) -> Dict[str, 
         return {
             'statusCode': 500,
             'body': json.dumps({'error': 'Profile store not configured'})
+        }
+
+    # L03: Tenant serverseitig aufloesen (Claim autoritativ, sonst
+    # Registry) — gleiche Bedingung wie beim Lesen und Anlegen.
+    tenant_id, tenant_conflict = _resolve_tenant(user_context)
+    if tenant_conflict or not tenant_id:
+        logger.warning("profile update denied: tenant not resolvable")
+        return {
+            'statusCode': 403,
+            'body': json.dumps({'error': 'Tenant not resolvable'})
         }
 
     try:
@@ -1086,11 +1217,24 @@ def _partner_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Di
     if not reg_tenant_id or reg_tenant_id != cred_tenant_id:
         return _machine_deny(403, 'Forbidden')
 
-    # Tenant isolation: JWT tenant must match credential tenant
-    jwt_tenant = cognito_context.get('tenantId')
-    cred_tenant = meta.get('tenantId')
-    if not jwt_tenant or not cred_tenant or jwt_tenant != cred_tenant:
+    # Tenant isolation (L03): the tenant is resolved SERVER-SIDE from the
+    # credential and the partner registry (both are cross-checked above:
+    # registry.apiProfileId == credential.apiProfileId and
+    # registry.tenantId == credential.tenantId).
+    #
+    # The `custom:tenant_id` claim stays authoritative WHEN IT IS PRESENT:
+    # a claim that contradicts the resolved tenant is a cross-tenant
+    # attempt -> deny. A MISSING claim is not a failure: the tenant comes
+    # from the server, never from the browser (a self-signup user has no
+    # tenant claim; refusing them would make the partner route unusable
+    # without weakening anything).
+    resolved_tenant, tenant_conflict = _resolve_tenant(
+        cognito_context, expected_tenant=cred_tenant_id)
+    if tenant_conflict or not resolved_tenant:
+        logger.warning("partner execution denied: tenant mismatch "
+                       "client_id=%s", client_id)
         return _machine_deny(403, 'Forbidden')
+    jwt_tenant = resolved_tenant
 
     # Entitlement check for JWT user, not credential owner
     jwt_user_id = cognito_context.get('userId')

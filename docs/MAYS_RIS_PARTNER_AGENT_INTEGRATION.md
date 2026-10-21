@@ -50,7 +50,16 @@ RIS prüft unter anderem die Gültigkeit des Benutzer-JWT, den aktiven Status de
 
 **Mehrbenutzerbetrieb:** Eine Partneranwendung kann **ein serverseitiges RIS-Credential für mehrere angemeldete Benutzer** verwenden. Die Berechtigung wird für jeden Benutzer einzeln geprüft; der Benutzer muss nicht Eigentümer des Credentials sein.
 
-**Hinweis zur Tenant-Identität:** Die bisherige Implementierung erwartet nach dem vorliegenden Checkpoint-Bericht `custom:tenant_id` im JWT. Ob dieser Claim tatsächlich in produktiven Cognito-Access-Tokens enthalten ist, wurde noch nicht nachgewiesen. Fehlt er, muss RIS vor einer produktiven Anbindung eine verbindliche, serverseitig abgesicherte Tenant-Auflösung bereitstellen. Ein vom Browser gesendeter `tenantId` darf diese Prüfung nicht ersetzen.
+**Hinweis zur Tenant-Identität (umgesetzt):** Der Tenant ist eine
+Server-Zustandsgröße. RIS löst ihn serverseitig auf: `custom:tenant_id` im
+JWT ist autoritativ, **wenn vorhanden**; fehlt der Claim (Self-Signup-User der
+Partneranwendung), wird der Tenant über die Partner-Registry bzw. — in der
+Partnerroute — über das Credential bestimmt. Widerspricht der Claim der
+serverseitigen Auflösung, wird der Request mit **403** abgewiesen. Ein nicht
+auflösbarer Tenant wird ebenfalls mit **403** abgewiesen; es gibt **keinen**
+`default`-Tenant. Ein vom Browser gesendeter `tenantId` ersetzt diese Prüfung
+nicht. Details: `docs/architecture/PARTNER_USER_DUAL_AUTH_ADR.md`
+(Tenant Resolution L03) und `docs/api/API-STANDARD.md` §5.1.
 
 ## 5. API-Aufruf
 
@@ -162,5 +171,22 @@ Diese Tabelle beschreibt die erwartete Integrationssemantik. Tatsächlich implem
 ## 11. Status und bekannte offene Punkte
 
 Die bisherigen Entwicklungsberichte bestätigen eine **lokale Implementierung** der Partnerroute und bestandene Unit-/Security-Tests. Sie belegen **keinen AWS-Deployment- oder echten Partner-E2E-Test**. Noch zu verifizieren sind insbesondere die tatsächliche Ausgabe von `custom:tenant_id`, der operative Credential-Ausstellungsprozess, der endgültige agentenspezifische Payload-Vertrag, der Status-/Ergebnisabruf, das produktive Partner-/Benutzer-Binding und die verbindliche Kontingentdurchsetzung.
+
+**Stand 2026-10-21 (RIS-JOBSEARCH-CONSUMER-OFFER-03):**
+
+- Die serverseitige **Tenant-Auflösung** ist implementiert, live deployed und
+  getestet (L03). Die offene Frage zur Ausgabe von `custom:tenant_id` ist damit
+  geschlossen: der Claim ist autoritativ, wenn vorhanden, sonst wird der Tenant
+  serverseitig aufgelöst.
+- Für die Partneranwendung `mays-jobsearch` sind **APIProfile, Partner
+  Application, Credential, Agent-Katalog, Offer und Grant** live vorhanden
+  (Nachweis: `docs/reports/RIS-JOBSEARCH-CONSUMER-OFFER-03.md`).
+- Der **operative Ausstellungsprozess** für Offers/Grants ist dokumentiert:
+  `ris-admin offer create|grant|list|show` (Trust-Anchor, admin-only in der
+  Domain). Der HTTP-Weg `POST /v1/offers` bleibt admin-only (Cognito-Gruppe
+  `admins`).
+- Offen bleiben: **Kontingentdurchsetzung**, der agentenspezifische
+  Payload-Vertrag je Agent sowie ein echter Browser-E2E (Human-JWT) mit einem
+  Consumer.
 
 **Quellgrundlage:** RIS-Checkpoints `MAYS-RIS-PARTNER-USER-DUAL-AUTH-ADR-01`, `...IMPLEMENT-01`, `...INTEGRATION-GATE-01`, `MAYS-RIS-PARTNER-USER-APPLICATION-AUTHORIZATION-01` und `MAYS-JOB-MATCHER-RIS-VERCEL-INTEGRATION-BASELINE-01`. Vor Veröffentlichung mit den aktuellen RIS-Repository-Dateien und der Zielumgebung abgleichen.

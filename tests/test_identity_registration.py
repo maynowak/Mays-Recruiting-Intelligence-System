@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SPEC = importlib.util.spec_from_file_location(
@@ -72,11 +73,116 @@ def ctx():
             "username": "gate10user", "email": "gate10@example.com", "groups": []}
 
 
+TENANT = "tenant-gate10"
+
+
+class TestTenantResolution(unittest.TestCase):
+    """L03 — der Tenant ist eine Server-Zustandsgroesse.
+
+    Der Claim `custom:tenant_id` bleibt autoritativ, WENN er vorhanden ist.
+    Fehlt er, wird der Tenant serverseitig aus der Partner-Registry (JWT
+    client_id -> Application -> tenantId) aufgeloest. Ein Widerspruch ist
+    ein Cross-Tenant-Versuch -> deny. Es gibt keinen "default"-Fallback.
+    """
+
+    REGISTRY = "agents.ecosystem.partner_registry.resolve_partner_application"
+
+    def _ctx(self, tenant=None, client_id="client-partner"):
+        return {"userId": "user-111", "tenantId": tenant, "clientId": client_id}
+
+    def test_claim_wins_and_registry_is_not_consulted(self):
+        def boom(_client_id):
+            raise AssertionError("registry must not be consulted")
+
+        with patch(self.REGISTRY, side_effect=boom):
+            tenant, conflict = handler._resolve_tenant(self._ctx(tenant=TENANT))
+        self.assertEqual(tenant, TENANT)
+        self.assertFalse(conflict)
+
+    def test_missing_claim_resolves_via_registry(self):
+        with patch(self.REGISTRY, return_value={"applicationId": "app-1",
+                                                "tenantId": TENANT,
+                                                "status": "ACTIVE"}):
+            tenant, conflict = handler._resolve_tenant(self._ctx())
+        self.assertEqual(tenant, TENANT)
+        self.assertFalse(conflict)
+
+    def test_contradicting_claim_is_a_conflict(self):
+        with patch(self.REGISTRY, return_value={"applicationId": "app-1",
+                                                "tenantId": TENANT,
+                                                "status": "ACTIVE"}):
+            tenant, conflict = handler._resolve_tenant(self._ctx(tenant="tenant-fremd"))
+        self.assertIsNone(tenant)
+        self.assertTrue(conflict)
+
+    def test_unresolvable_tenant_is_not_guessed(self):
+        with patch(self.REGISTRY, return_value=None):
+            tenant, conflict = handler._resolve_tenant(self._ctx())
+        self.assertIsNone(tenant)
+        self.assertFalse(conflict)
+
+    def test_inactive_registry_entry_resolves_nothing(self):
+        with patch(self.REGISTRY, return_value={"applicationId": "app-1",
+                                                "tenantId": TENANT,
+                                                "status": "INACTIVE"}):
+            tenant, conflict = handler._resolve_tenant(self._ctx())
+        self.assertIsNone(tenant)
+        self.assertFalse(conflict)
+
+    def test_expected_tenant_is_authoritative_in_the_partner_route(self):
+        """Partnerroute: Tenant kommt aus dem Credential (serverseitig)."""
+        with patch(self.REGISTRY, side_effect=AssertionError("no registry")):
+            tenant, conflict = handler._resolve_tenant(
+                self._ctx(tenant=TENANT), expected_tenant=TENANT)
+            self.assertEqual(tenant, TENANT)
+            self.assertFalse(conflict)
+
+            # Fehlender Claim ist kein Fehler: der Server kennt den Tenant.
+            tenant, conflict = handler._resolve_tenant(
+                self._ctx(), expected_tenant=TENANT)
+            self.assertEqual(tenant, TENANT)
+            self.assertFalse(conflict)
+
+            # Widerspruch -> Cross-Tenant-Versuch.
+            tenant, conflict = handler._resolve_tenant(
+                self._ctx(tenant="tenant-fremd"), expected_tenant=TENANT)
+            self.assertIsNone(tenant)
+            self.assertTrue(conflict)
+
+    def test_handler_has_no_default_tenant_fallback(self):
+        """Es gibt keinen stillen "default"-Tenant mehr."""
+        import ast
+        import inspect
+
+        def code_strings(fn):
+            """String-Konstanten des Codes (ohne Docstring)."""
+            tree = ast.parse(inspect.getsource(fn))
+            fn_node = tree.body[0]
+            body = list(fn_node.body)
+            if (body and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)):
+                body = body[1:]  # Docstring aussortieren
+            found = []
+            for node in body:
+                for sub in ast.walk(node):
+                    if (isinstance(sub, ast.Constant)
+                            and isinstance(sub.value, str)):
+                        found.append(sub.value)
+            return found
+
+        for fn in (handler._provision_user_profile, handler._resolve_tenant,
+                   handler._registry_tenant):
+            self.assertNotIn("default", code_strings(fn),
+                             "%s still contains a default tenant" % fn.__name__)
+
+
 class TestProvision(unittest.TestCase):
     def test_create_returns_201_with_v1_fields(self):
         table = FakeTable()
         resp = handler._provision_user_profile(
-            table, ctx(), {"nickname": "GT", "firstName": "Gate", "lastName": "Ten"})
+            table, ctx(), {"nickname": "GT", "firstName": "Gate", "lastName": "Ten"},
+            tenant_id=TENANT)
         self.assertEqual(resp["statusCode"], 201)
         body = json.loads(resp["body"])
         self.assertEqual(body["userId"], "user-111")
@@ -92,8 +198,10 @@ class TestProvision(unittest.TestCase):
 
     def test_duplicate_returns_409_no_overwrite(self):
         table = FakeTable()
-        handler._provision_user_profile(table, ctx(), {"nickname": "Alt"})
-        resp = handler._provision_user_profile(table, ctx(), {"nickname": "Neu"})
+        handler._provision_user_profile(table, ctx(), {"nickname": "Alt"},
+                                        tenant_id=TENANT)
+        resp = handler._provision_user_profile(table, ctx(), {"nickname": "Neu"},
+                                               tenant_id=TENANT)
         self.assertEqual(resp["statusCode"], 409)
         self.assertEqual(table.items["user-111"].get("nickname"), "Alt")
         self.assertEqual(table.puts, 1)
@@ -103,7 +211,7 @@ class TestProvision(unittest.TestCase):
         table = FakeTable()
         resp = handler._provision_user_profile(
             table, ctx(), {"userId": "user-FREMD", "tenantId": "tenant-FREMD",
-                           "nickname": "X"})
+                           "nickname": "X"}, tenant_id=TENANT)
         body = json.loads(resp["body"])
         self.assertEqual(resp["statusCode"], 201)
         self.assertEqual(body["userId"], "user-111")
@@ -123,14 +231,14 @@ class TestProvision(unittest.TestCase):
         # kein sub -> userId None -> 401 (kein Tabellenkontakt noetig)
         self.assertEqual(resp["statusCode"], 401)
 
-    def test_missing_tenant_falls_back_to_default(self):
-        """GSI tenantId duldet kein NULL (live belegt)."""
+    def test_missing_tenant_is_refused(self):
+        """Kein stiller "default"-Tenant: ohne aufgeloesten Tenant wird
+        nicht geschrieben (GSI tenantId duldet kein NULL, live belegt)."""
         table = FakeTable()
-        no_tenant = dict(ctx())
-        no_tenant["tenantId"] = None
-        resp = handler._provision_user_profile(table, no_tenant, {})
-        self.assertEqual(resp["statusCode"], 201)
-        self.assertEqual(json.loads(resp["body"])["tenantId"], "default")
+        with self.assertRaises(ValueError):
+            handler._provision_user_profile(table, ctx(), {})
+        self.assertEqual(table.puts, 0)
+        self.assertEqual(table.items, {})
 
     def test_dispatch_api_event_without_records(self):
         """Gate-10-Befund: API-Events duerfen nicht mit KeyError crashen."""
@@ -145,7 +253,8 @@ class TestUpdate(unittest.TestCase):
     def _seeded(self):
         table = FakeTable()
         handler._provision_user_profile(
-            table, ctx(), {"nickname": "Alt", "firstName": "A", "lastName": "B"})
+            table, ctx(), {"nickname": "Alt", "firstName": "A", "lastName": "B"},
+            tenant_id=TENANT)
         return table
 
     def test_update_changes_only_v1_fields(self):

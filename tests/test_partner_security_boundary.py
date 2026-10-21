@@ -208,9 +208,24 @@ class TestT01T14(BoundaryHarness):
         code, _ = self.call(bearer=self.issued["secret"], client_id=None)
         self.assertEqual(code, 401)
 
-    def test_t09_missing_tenant_claim_denied(self):
+    def test_t09_missing_tenant_claim_resolved_server_side(self):
+        """L03: ein FEHLENDER Tenant-Claim ist kein Fehler.
+
+        Der Tenant ist eine Server-Zustandsgroesse. In der Partnerroute
+        kommt er aus dem Credential (serverseitig gegen die Registry
+        geprueft). Ein Self-Signup-User hat keinen `custom:tenant_id`-
+        Claim; ihn zu verweigern wuerde die Partnerroute unbrauchbar
+        machen, ohne etwas zu schuetzen.
+        """
         self.issue()
         code, _ = self.call(bearer=self.issued["secret"], tenant=None)
+        self.assertEqual(code, 202)
+
+    def test_t09b_contradicting_tenant_claim_denied(self):
+        """Ein Claim, der der serverseitigen Aufloesung widerspricht,
+        ist ein Cross-Tenant-Versuch -> deny."""
+        self.issue()
+        code, _ = self.call(bearer=self.issued["secret"], tenant="tenant-fremd")
         self.assertEqual(code, 403)
 
     def test_t10_invalid_token_use_denied(self):
@@ -357,9 +372,15 @@ class TestMachineRouteBoundary(TestT01T14):
         code, _ = self.call(bearer=self.issued["secret"])
         self.assertEqual(code, 403)
 
-    def test_t09_missing_tenant_claim_denied(self):
+    def test_t09_missing_tenant_claim_resolved_server_side(self):
         self.issue()
         code, _ = self.call(bearer=self.issued["secret"], tenant=None)
+        self.assertEqual(code, 202)
+
+    def test_t09b_contradicting_tenant_claim_denied(self):
+        """JWT tenant is audit context on this plane, not the tenant gate."""
+        self.issue()
+        code, _ = self.call(bearer=self.issued["secret"], tenant="tenant-fremd")
         self.assertEqual(code, 202)
 
     def test_m2m_matching_allowed(self):

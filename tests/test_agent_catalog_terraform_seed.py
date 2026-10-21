@@ -194,23 +194,54 @@ def _seed_block():
     return text[start:text.index("\n  }", start) + 4]
 
 
-def _declared_seed():
-    """Parse the declared seed agent out of the Terraform local.
+def _declared_seeds():
+    """Parse ALL declared seed agents out of the Terraform local.
 
-    Deliberately a narrow parser: it only understands the flat
-    ``key = "literal"`` / ``key = ["a", "b"]`` shape this config uses, and
-    it FAILS loudly on anything else. A test must not silently pass on a
-    config it did not understand.
+    The seed may hold more than one agent (each entry is one catalog
+    item). Every entry is parsed independently and keyed by its declared
+    agentId. Deliberately a narrow parser: it only understands the flat
+    ``key = "literal"`` / ``key = ["a", "b"]`` shape this config uses,
+    and it FAILS loudly on anything else. A test must not silently pass
+    on a config it did not understand.
     """
     block = _seed_block()
-    out = {}
-    for key, value in re.findall(
-            r"(\w+)\s*=\s*(\[[^\]]*\]|\"[^\"]*\")", block):
-        if value.startswith("["):
-            out[key] = re.findall(r"\"([^\"]*)\"", value)
+    entries = {}
+    header = re.compile(r'^\s{4}("?[\w\-]+"?)\s*=\s*\{$', re.M)
+    headers = list(header.finditer(block))
+    assert headers, "no seed entry found — parser does not understand the "\
+                    "config"
+    for index, match in enumerate(headers):
+        start = match.end()
+        if index + 1 < len(headers):
+            end = headers[index + 1].start()
         else:
-            out[key] = value.strip('"')
-    return out
+            end = len(block)
+        fields = {}
+        for key, value in re.findall(
+                r'(\w+)\s*=\s*(\[[^\]]*\]|"[^"]*")', block[start:end]):
+            if value.startswith("["):
+                fields[key] = re.findall(r"\"([^\"]*)\"", value)
+            else:
+                fields[key] = value.strip('"')
+        agent_id = fields.get("agentId")
+        assert agent_id, f"seed entry without agentId: {match.group(1)!r}"
+        entries[agent_id] = fields
+    return entries
+
+
+def _declared_seed(agent_id=None):
+    """Parse one declared seed agent out of the Terraform local.
+
+    Defaults to the reference agent, the canonical technical proof agent
+    of the runtime.
+    """
+    entries = _declared_seeds()
+    if agent_id is None:
+        from agents.runtime.pipeline import REFERENCE_AGENT_ID
+
+        agent_id = REFERENCE_AGENT_ID
+    assert agent_id in entries, f"seed does not declare {agent_id!r}"
+    return entries[agent_id]
 
 
 class FakeTable:
@@ -289,6 +320,35 @@ class TestTerraformDeclaration(unittest.TestCase):
         self.assertEqual(declared["supported_bodies"], [BODY_VERSION])
         self.assertEqual(declared["supported_runtimes"], [RUNTIME_LAMBDA])
 
+    def test_declared_jobsearch_agent_matches_the_runtime(self):
+        """The second seed entry must mirror the runtime definition.
+
+        The agentId has to be the RUNTIME id (the worker dispatches by
+        registry id), and the capabilities have to be the ones the
+        runtime registers — a seed that drifts from the runtime would
+        make the catalog promise an agent that does not exist.
+        """
+        from agents.jobsearch_agent.agent import (
+            JOBSEARCH_AGENT_ID,
+            JOBSEARCH_CAPABILITIES,
+        )
+
+        declared = _declared_seed(JOBSEARCH_AGENT_ID)
+        self.assertEqual(declared["agentId"], JOBSEARCH_AGENT_ID)
+        self.assertEqual(declared["capabilities"], list(JOBSEARCH_CAPABILITIES))
+        self.assertEqual(declared["status"], "ACTIVE")
+        self.assertTrue(is_executable_status(declared["status"]))
+
+    def test_every_seeded_agent_is_executable_and_unique(self):
+        """Each seed entry is executable, and no agentId is declared twice."""
+        entries = _declared_seeds()
+        self.assertTrue(entries)
+        for agent_id, declared in entries.items():
+            self.assertEqual(declared["agentId"], agent_id)
+            self.assertTrue(is_executable_status(declared["status"]),
+                            f"{agent_id} is not executable")
+            self.assertNotIn("expiresAt", declared)
+
     def test_declared_status_is_known_to_existing_normaliser(self):
         declared = _declared_seed()
         status = normalize_agent_status(declared["status"])
@@ -305,11 +365,13 @@ class TestTerraformDeclaration(unittest.TestCase):
         self.assertNotIn("expiresAt", _seed_block())
 
     def test_no_secret_or_personal_data(self):
-        blob = json.dumps(_declared_seed()).lower()
-        for needle in ("secret", "token", "password", "credential",
-                       "bearer", "apikey", "api_key", "private", "@",
-                       "arn:aws", "userid", "user_id", "tenant", "email"):
-            self.assertNotIn(needle, blob, f"seed declares {needle!r}")
+        for agent_id, declared in _declared_seeds().items():
+            blob = json.dumps(declared).lower()
+            for needle in ("secret", "token", "password", "credential",
+                           "bearer", "apikey", "api_key", "private", "@",
+                           "arn:aws", "userid", "user_id", "tenant", "email"):
+                self.assertNotIn(needle, blob,
+                                 f"seed declares {needle!r} for {agent_id}")
 
     def test_item_uses_dynamodb_attributevalue_json(self):
         """aws_dynamodb_table_item only accepts `item` as AttributeValue JSON;

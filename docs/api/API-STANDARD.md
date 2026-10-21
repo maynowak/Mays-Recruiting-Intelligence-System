@@ -62,9 +62,9 @@ weder entfernt noch durch Cognito ersetzt.
 | `GET /health` | JWT | 200 | 401 (unauthentifiziert) |
 | `GET /platform` | JWT | 200 | — |
 | `GET /me` | JWT | 200 | — |
-| `GET /me/profile` | JWT | 200 | 404 (kein Profil) |
-| `POST /me/profile` | JWT | 201 | 409 (existiert), 400 (kein JSON) |
-| `PUT /me/profile` | JWT | 200 | 400 (kein v1-Feld), 404 (kein Upsert) |
+| `GET /me/profile` | JWT | 200 | 404 (kein Profil), 403 (Tenant nicht auflösbar) |
+| `POST /me/profile` | JWT | 201 | 409 (existiert), 400 (kein JSON), 403 (Tenant nicht auflösbar) |
+| `PUT /me/profile` | JWT | 200 | 400 (kein v1-Feld), 404 (kein Upsert), 403 (Tenant nicht auflösbar) |
 | `DELETE /me/profile` | JWT | 204 | 401 (unauthentifiziert), 404 (kein Profil), 500 (Store) |
 | `POST /me/documents` | JWT | 200 (Presigned PUT) | 400, 500 |
 | `GET /me/documents/{docId}` | JWT | 200 (Presigned GET) | 400, 404, 500 |
@@ -128,6 +128,21 @@ Antwort 202: `{"workId": string, "status": string, "requestId": string}`
 3. `X-Api-Credential` wird gelesen; ohne verwertbaren Wert folgt 401.
 4. `verify_api_credential()` prüft Credential → APIProfile → Status → Ablauf →
    Entitlement → Agent-Status. Erst danach wird enqueued.
+
+**L03 — Tenant-Auflösung (serverseitig).** Der Tenant ist eine
+Server-Zustandsgröße und wird **nie** vom Browser bestimmt:
+
+| Quelle | Rolle |
+|---|---|
+| `custom:tenant_id` (JWT-Claim) | autoritativ, **wenn vorhanden** |
+| Partner-Registry (JWT `client_id` bzw. `aud` → Application → `tenantId`) | serverseitige Auflösung, wenn der Claim fehlt |
+| Credential (`X-Api-Credential` → `tenantId`) | in der Partnerroute der maßgebliche Tenant |
+
+Widerspricht der Claim der serverseitigen Auflösung, ist das ein
+Cross-Tenant-Versuch → **403**. Ein **fehlender** Claim ist kein Fehler: ein
+Self-Signup-User der Partneranwendung trägt keinen Tenant-Claim; der Tenant
+kommt dann vom Credential/Registry. Ein nicht auflösbarer Tenant führt zu
+**403** (`Tenant not resolvable`) — es gibt **keinen** `default`-Tenant.
 
 **Statuscodes der Produkt-Prüfung (nach bestandenem Cognito):**
 - **401** — Credential unbekannt, ungültig, fehlend oder fehlerhaft.
@@ -290,7 +305,7 @@ Statuscode-Konventionen im `agent`-Pfad:
 |---|---|---|
 | 400 | unbekanntes/fehlendes Feld, ungültiges JSON, Header-Konflikt | `_aprof_fail`, `_cred_fail`, `_aprof_body`, `_cred_body` |
 | 401 | kein `userId` im JWT (nur bei JWT-Routen) | `_extract_user_context` |
-| 403 | Rolle/Status/Tenant verbietet die Aktion | `_aprof_fail`, `_cred_fail` |
+| 403 | Rolle/Status/Tenant verbietet die Aktion; Tenant nicht auflösbar (`Tenant not resolvable`) | `_aprof_fail`, `_cred_fail`, `_resolve_tenant` |
 | 404 | fehlend **oder** fremd (neutral, kein Oracle) | `_aprof_fail`, `_cred_fail` |
 | 409 | Konflikt, ungültige Transition, Store-Ausfall als Konflikt | `_aprof_fail`, `_cred_fail` |
 | 503 | Store nicht konfiguriert/nicht erreichbar | `_aprof_store`, `_cred_sources`, `_machine_bearer`-Umfeld |
@@ -316,6 +331,28 @@ der Bestätigungsversand ist AWS-managed (Inbox-Eingabe nicht als PROVEN geführ
 Registrierung: SignUp → Confirm (E-Mail-Code) → Login (USER_PASSWORD_AUTH) →
 JWT → `POST /me/profile` (Conditional Write, 409 bei Duplikat) → `GET /me/profile`.
 **Niemals** Auto-Provisioning durch Reads.
+
+### 5.1 Tenant-Auflösung (L03)
+
+Der Tenant wird **serverseitig** bestimmt und **nie** aus Request-Body,
+-Header oder Query übernommen:
+
+1. `custom:tenant_id` ist vorhanden → **autoritativ**.
+2. Claim fehlt → Auflösung über die **Partner-Registry** (JWT `client_id`, bei
+   ID-Tokens der vom Authorizer geprüfte `aud`-Claim → Application → `tenantId`).
+3. In der Partnerroute (`POST /v1/partner/agents/{agentId}/execute`) ist der
+   Tenant der **Credential**-Tenant; Registry und Credential werden gegeneinander
+   geprüft (APIProfile- **und** Tenant-Bindung).
+
+Widerspruch zwischen Claim und serverseitiger Auflösung → **403**.
+Nicht auflösbarer Tenant → **403** `Tenant not resolvable`.
+Es existiert **kein** `default`-Tenant (vorheriger Fallback entfernt: er hätte
+Profile verschiedener Partner in einen gemeinsamen Bucket gelegt).
+
+Betroffen: `GET`/`POST`/`PUT /me/profile` (403 bei nicht auflösbarem Tenant)
+sowie die Partnerroute (403 bei Widerspruch). `DELETE /me/profile` bleibt
+**ohne** Tenant-Anforderung — das Löschen ist ein Datenschutzrecht und darf
+nicht an einer Tenant-Auflösung hängen.
 
 ## 6. Verbindliche Semantik
 
