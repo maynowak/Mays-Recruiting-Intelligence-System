@@ -6499,3 +6499,42 @@ AWS MUTATIONS: YES — 1 APIProfile, 1 Partner-Application, 1 Credential
    (kein Terraform, kein Cognito, keine neue Infrastruktur, kein fremder Tenant)
 SECRETS: ~/.secrets/mays-jobsearch-ris-api.key (0600), nie ausgegeben/committet
 GIT PUSH: vorzunehmen (Code + Doku)
+
+==================================================
+[RIS-JOBSEARCH-CONSUMER-OFFER-03-2026-10-21]
+Current status: GREEN — Offer/Grant live, L03 Tenant-Auflösung deployed, Tests grün, Terraform idempotent
+Audit date/time: 2026-10-21 13:00–15:10 UTC
+Current Git branch and HEAD: main (HEAD unverändert in Log, aktueller Stand siehe Git)
+Audit scope: Consumer-Angebot für mays-jobsearch (Offer + Grant/Entitlement), Agent-Katalog-Seed jobsearch-agent, L03 Tenant-Resolution im Handler, Deployment package→plan→apply
+Completed audit sections:
+   §1 Offer/Grant/Entitlement Mechanik analysiert
+   §2 Katalog-Seed jobsearch-agent via Terraform
+   §3 CLI-Adapter tools/ris_admin/offers.py + Wiring
+   §4 Offer live off_fa8a120b80fd4dd2 ACTIVE
+   §5 Grant live grt_0ac9893f568a4017 USER-Scope + 2 Entitlements
+   §6a Handler L03 Implementierung (Registry, Audience, Claim autoritativ, kein Default)
+   §6b Tests angepasst + test_tenant_resolution_l03.py neu
+   §7 Deployment Bundle + Terraform fmt/validate/plan/apply Post-Apply-Exit 0
+   §8 Dokumentation aktualisiert
+Actual findings:
+   - Offer off_fa8a120b80fd4dd2 ACTIVE mit agents jobsearch-agent, reference_agent
+   - Grant grt_0ac9893f568a4017 USER-Scope tenant mays-ris-dev, Entitlements ent_962a0e279d0549a6 / ent_8765562679494f3f für User a3e488c2-b071-70fa-6c0b-da4f3bc8a299
+   - Lambda aktualisiert 2026-10-21T13:28:20Z, source_code_hash aktualisiert
+   - L03: Claim autoritativ, Registry/Audience Fallback, Widerspruch → 403, kein default Fallback
+   - Tests 1670 passed, 2 failed Baseline, 11 skipped
+Evidence / file references:
+   - docs/reports/RIS-JOBSEARCH-CONSUMER-OFFER-03.md
+   - docs/reports/RIS-JOBSEARCH-CONSUMER-OFFER-03-EXECUTION_LOG.md
+   - terraform/modules/dynamodb/main.tf (agent_catalog_seed)
+   - lambda/handler.py (_registry_tenant, _resolve_tenant, _partner_execute_agent)
+   - tools/ris_admin/offers.py, tools/ris_admin/cli.py
+   - tests/test_ris_admin_offer_cli.py, tests/test_tenant_resolution_l03.py
+Classification: GREEN
+Terraform checks actually executed and their results:
+   - terraform fmt -check PASS
+   - terraform validate PASS
+   - terraform plan 0 add / 1 change / 0 destroy
+   - terraform apply erfolgreich
+   - post-apply plan exit 0
+AWS MUTATIONS: YES — Lambda-Code aktualisiert (ris-dev-dev-agent)
+GIT PUSH: vorzunehmen (Commit + Push)
