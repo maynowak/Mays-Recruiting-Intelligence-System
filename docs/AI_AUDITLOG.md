@@ -6538,3 +6538,43 @@ Terraform checks actually executed and their results:
    - post-apply plan exit 0
 AWS MUTATIONS: YES — Lambda-Code aktualisiert (ris-dev-dev-agent)
 GIT PUSH: vorzunehmen (Commit + Push)
+
+==================================================
+[RIS-JOBSEARCH-API-KEY-INTERNAL-CONSOLIDATION-2026-10-21]
+Current status: GREEN — Interne ris_… Opaque-Bearer Credentials dokumentiert, APIProfile/Credential für mays-jobsearch live, Konsolidierung abgeschlossen
+Audit date/time: 2026-10-21
+Current Git branch and HEAD: main
+Audit scope: Untersuchung und Dokumentation des internen RIS-API-Keys pro Seite / APIProfile, Credential-Erzeugung, Reports-Konsolidierung, Klarstellung Cognito vs RIS opaque-bearer
+Completed audit sections:
+   §1 Analyse des ris_… Secret-Schemas und Erzeugungsort
+   §2 Live-Stand APIProfile aprof_6dcfd2a3097b460d + Credentials cred_a3bfb5c470ec416f / cred_f23774dee7604501
+   §3 CLI-Erzeugung mit PYTHONPATH Workaround dokumentiert
+   §4 Reports-Konsolidierung RIS-JOBSEARCH-API-KEY-CONSOLIDATION.md erstellt
+   §5 AI_AUDITLOG Template-Eintrag angelegt
+Actual findings:
+   - ris_… Secret wird in agents/ecosystem/credentials.py issue_credential erzeugt, SECRET_PREFIX="ris_", nur Digest in DynamoDB, Secret einmalig ausgegeben
+   - APIProfile aprof_6dcfd2a3097b460d existiert, 2 aktive Credentials, Secrets liegen unter ~/.secrets/mays-jobsearch-ris-api.key / -v2.key
+   - Erzeugung via tools/ris_admin CLI erfordert PYTHONPATH=tools und AWS_PROFILE=mayaws, sonst ModuleNotFoundError / Principal not mapped
+   - POST /v1/apiprofiles mit Cognito User Token führt zu Unauthorized, da Admin-Pfad IAM-basiert ist
+Evidence / file references:
+   - docs/reports/RIS-JOBSEARCH-API-KEY-CONSOLIDATION.md
+   - docs/reports/RIS-JOBSEARCH-APIPROFILE-CREATE-02.md
+   - agents/ecosystem/credentials.py:31,37,239
+   - tools/ris_admin/credentials.py, tools/ris_admin/cli.py
+   - ~/.secrets/mays-jobsearch-ris-api*.key
+Classification: GREEN
+Terraform checks actually executed and their results:
+   - keine Terraform-Änderung in diesem Schritt
+Git status:
+   - docs/reports/RIS-JOBSEARCH-API-KEY-CONSOLIDATION.md committed
+Files changed:
+   - docs/reports/RIS-JOBSEARCH-API-KEY-CONSOLIDATION.md
+Open questions:
+   - keine
+Risks:
+   - Secret-Handling muss strikt serverseitig bleiben, keine VITE_ Vars
+Recommended next actions:
+   - Vercel-Proxy mit RIS_API_KEY aus Secret-Store verdrahten, X-Api-Credential Header setzen
+Current resume point:
+   - Interne ris_… Credentials verstanden und dokumentiert, nächste Aktion Frontend-Handoff
+
