@@ -6426,3 +6426,25 @@ Evidence / file references:
 Classification: YELLOW
 AWS MUTATIONS: NONE (rein read-only)
 GIT PUSH: dieser Commit (Doku)
+
+==================================================
+[RIS-JOBSEARCH-OAUTH-DOMAIN-FIX-01-2026-10-21]
+Current status: GREEN — Konfiguration vorbereitet, kein Apply ausgeführt
+Audit date/time: 2026-10-21
+Current Git branch and HEAD: main
+Audit scope: Implementation + Validation + Plan (NO AWS APPLY)
+Completed:
+   §1 Ausgangszustand bestätigt (auth DNS aufgelöst, ACTIVE)
+   §2 Overlay um www.mays-job-matcher.app erweitert (callbacks/logout/cors)
+   §3 Test test_project_config_overlay.py angepasst
+   §4 terraform fmt/init/validate OK
+   §5 Plan: 0 add, 5 change, 0 destroy (In-Place, nicht destruktiv)
+Actual findings:
+   - ausschliesslich nicht-destruktive Änderungen
+   - Cognito Client + API CORS werden In-Place um www erweitert
+Evidence:
+   - docs/reports/RIS-JOBSEARCH-OAUTH-DOMAIN-FIX-01.md
+   - installer/project-configs/ris-dev.json, tests/test_project_config_overlay.py
+Classification: GREEN
+AWS MUTATIONS: NONE (kein Apply)
+GIT PUSH: vorzunehmen (diese Änderungen)

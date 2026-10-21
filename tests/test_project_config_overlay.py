@@ -96,7 +96,8 @@ class TestOverlaySafety(unittest.TestCase):
         origins = json.loads(cfg["api_cors_origins"])
         self.assertEqual(
             sorted(["http://localhost:5173",
-                    "https://mays-job-matcher.vercel.app"]),
+                    "https://mays-job-matcher.vercel.app",
+                    "https://www.mays-job-matcher.app"]),
             sorted(origins),
         )
 
