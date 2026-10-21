@@ -6448,3 +6448,21 @@ Evidence:
 Classification: GREEN
 AWS MUTATIONS: NONE (kein Apply)
 GIT PUSH: vorzunehmen (diese Änderungen)
+
+==================================================
+[RIS-JOBSEARCH-OAUTH-DOMAIN-APPLY-01-2026-10-21]
+Current status: GREEN — Apply ausgefuehrt und verifiziert
+Audit date/time: 2026-10-21
+Current Git branch and HEAD: main
+Audit scope: Apply reviewed OAuth/CORS domain changes (www)
+Completed:
+   §1 Plan geprüft (0 add, 5 change, 0 destroy, keine Replacements)
+   §2 Lambda filename/last_modified als kosmetisch bewertet (kein Code/Runtime-Update)
+   §3 terraform apply erfolgreich (5 in-place)
+   §4 Live-Verifikation: Cognito + API CORS korrekt
+   §5 Post-Apply Plan: 0 add, 0 change, 0 destroy
+Evidence:
+   - docs/reports/RIS-JOBSEARCH-OAUTH-DOMAIN-APPLY-01.md
+Classification: GREEN
+AWS MUTATIONS: YES — 5 in-place updates (Cognito Client, API Gateway, 3 Lambda metadata)
+GIT PUSH: vorzunehmen (Doku)
