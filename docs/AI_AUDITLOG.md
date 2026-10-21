@@ -6400,3 +6400,36 @@ Tests:
    - test_partner_security_boundary 3x stabil: 47 passed
 AWS MUTATIONS: NONE (rein read-only)
 GIT PUSH: dieser Commit (Doku)
+
+==================================================
+[RIS-ADMIN-BOOTSTRAP-01-2026-10-21]
+Current status: GO (PREPARE) — Bootstrap-Plan vorgelegt, keine Ausfuehrung
+Audit date/time: 2026-10-21
+Current Git branch and HEAD: main (Basis HEAD nach MAYS-RIS-JOBSEARCH-PARTNER-ONBOARDING-01)
+Audit scope: Read-only Vorbereitung des ersten RIS-Administrators fuer ris-dev (kein User, keine Gruppe, keine Tenant-Daten, kein Secret, kein Terraform)
+Completed audit sections:
+   §1 Bestehende Implementierung geprueft (Pool-Schema, custom:tenant_id, Gruppen/Rollen, Admin-Auth, Tenant-Isolation, Registrierung, Claims, Werkzeuge)
+   §2 Admin-Bootstrap-Weg: AWS-Cognito-Admin-API (User -> Passwort -> Gruppe admins -> Tenant-Attribut)
+   §3 Tenant-Vorschlag: mays-ris-dev (kein 'default'-Fallback als Tenant nutzen)
+   §4 Human App Client verifiziert: 7ldhihlpdgsgcl3puvu4oi7ksv (public, code+PKCE); M2M unangetastet
+   §5 Sicherheitspruefungen (Admin aus Claim, Tenant nicht setzbar, kein Self-Reg Admin, keine Secrets, Tenant-Isolation)
+   §6 Tests + §9 konkrete AWS-Kommandos zur Freigabe
+Actual findings (verified facts):
+   - Kein RIS-Bootstrap-Tooling; "Tenant provisioning workflow" ist Open Decision (AUTHENTICATION.md)
+   - Admin-Rolle im JWT-Pfad NUR aus cognito:groups ("admins"); _normalize_groups fuegt nie Gruppen hinzu
+   - Tenant NUR aus custom:tenant_id (handler.py:311-313); Profil-Tenant serverseitig, Body ignoriert (521-525)
+   - Self-Signup erlaubt (AllowAdminCreateUserOnly=false), aber kein Lambda-Trigger -> Self-Reg vergibt keine Gruppe
+   - ris_admin-CLI autorisiert ueber lokale RIS_ADMIN_AUTHORIZATION_FILE (nicht Cognito) -> nicht fuer User-Bootstrap
+   - Empfohlener Tenant: mays-ris-dev (Konsistenz mit Partner-Bindungsregel)
+Evidence / file references:
+   - docs/reports/RIS-ADMIN-BOOTSTRAP-01.md
+   - lambda/handler.py (200-224, 300-324, 510-541), agents/ecosystem/api_profiles.py (38-55,104-142)
+   - tools/ris_admin/credentials.py (64-122), terraform/modules/cognito/main.tf (15-75)
+   - docs/architecture/AUTHENTICATION.md, docs/api/API-STANDARD.md (302-318)
+Classification: GREEN (Audit) / GO mit Freigabevorbehalt (Ausfuehrung)
+Tests:
+   - tests/test_ris_admin_credentials.py + test_partner_security_boundary.py: 96 passed
+   - Authorization/Profile/Credential/Entitlement/Introspection/Machine: 261 passed
+   - volle Suite: 1608 passed, 2 failed (Baseline), 11 skipped
+AWS MUTATIONS: NONE (rein read-only)
+GIT PUSH: dieser Commit (Doku)
