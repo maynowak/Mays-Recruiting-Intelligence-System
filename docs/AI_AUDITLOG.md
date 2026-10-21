@@ -6578,3 +6578,40 @@ Recommended next actions:
 Current resume point:
    - Interne ris_… Credentials verstanden und dokumentiert, nächste Aktion Frontend-Handoff
 
+==================================================
+[RIS-JOBSEARCH-COGNITO-SIGNUP-FIX-01-2026-10-21]
+Current status: YELLOW — Analyse abgeschlossen, Terraform-Client Änderung vorbereitet, Pre Sign-up Lambda noch zu implementieren
+Audit date/time: 2026-10-21
+Current Git branch and HEAD: main
+Audit scope: Cognito Signup Fix für Mays-Job-Matcher, User Pool eu-central-1_ojbmoiYGM, Client 7ldhihlpdgsgcl3puvu4oi7ksv
+Completed audit sections:
+   §1 Analyse Cognito User Pool Schema, AutoVerifiedAttributes, Client ExplicitAuthFlows
+   §2 Terraform Analyse modules/cognito/main.tf
+   §3 Root Cause Identifikation: ALLOW_USER_SIGN_UP fehlt, Email nicht required
+Actual findings:
+   - ExplicitAuthFlows enthält kein ALLOW_USER_SIGN_UP → Hosted UI Sign-Up Error \"An error was encountered with the requested page.\"
+   - Email im Schema nicht Required, AutoVerifiedAttributes=email vorhanden
+   - Terraform erlaubt Sign-Up nicht, Pre Sign-up Lambda nicht konfiguriert
+Evidence / file references:
+   - docs/reports/RIS-JOBSEARCH-COGNITO-SIGNUP-FIX-01.md
+   - terraform/modules/cognito/main.tf:67-70
+   - lambda/pre_sign_up.py angelegt
+Classification: YELLOW
+Terraform checks actually executed and their results:
+   - terraform init -backend=false erfolgreich
+Git status:
+   - docs/reports/RIS-JOBSEARCH-COGNITO-SIGNUP-FIX-01.md bearbeitet
+   - terraform/modules/cognito/main.tf geändert
+Files changed:
+   - terraform/modules/cognito/main.tf
+   - docs/reports/RIS-JOBSEARCH-COGNITO-SIGNUP-FIX-01.md
+Open questions:
+   - Pre Sign-up Lambda Terraform Integration noch offen
+Risks:
+   - Email-Pflicht ohne Lambda nicht durchsetzbar
+Recommended next actions:
+   - Terraform plan/apply für ALLOW_USER_SIGN_UP
+   - Pre Sign-up Lambda in Terraform einbinden und konfigurieren
+Current resume point:
+   - Analyse fertig, Terraform Client Fix vorbereitet
+
