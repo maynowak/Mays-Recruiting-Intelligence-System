@@ -6402,34 +6402,27 @@ AWS MUTATIONS: NONE (rein read-only)
 GIT PUSH: dieser Commit (Doku)
 
 ==================================================
-[RIS-ADMIN-BOOTSTRAP-01-2026-10-21]
-Current status: GO (PREPARE) — Bootstrap-Plan vorgelegt, keine Ausfuehrung
+[RIS-JOBSEARCH-DOMAIN-OAUTH-AUDIT-01-2026-10-21]
+Current status: YELLOW — Domänenanpassung empfohlen, kein Sicherheitsproblem
 Audit date/time: 2026-10-21
-Current Git branch and HEAD: main (Basis HEAD nach MAYS-RIS-JOBSEARCH-PARTNER-ONBOARDING-01)
-Audit scope: Read-only Vorbereitung des ersten RIS-Administrators fuer ris-dev (kein User, keine Gruppe, keine Tenant-Daten, kein Secret, kein Terraform)
+Current Git branch and HEAD: main
+Audit scope: Read-only Domain/Cognito/OAuth/CORS/Frontend Audit (www/apex/auth/vercel)
 Completed audit sections:
-   §1 Bestehende Implementierung geprueft (Pool-Schema, custom:tenant_id, Gruppen/Rollen, Admin-Auth, Tenant-Isolation, Registrierung, Claims, Werkzeuge)
-   §2 Admin-Bootstrap-Weg: AWS-Cognito-Admin-API (User -> Passwort -> Gruppe admins -> Tenant-Attribut)
-   §3 Tenant-Vorschlag: mays-ris-dev (kein 'default'-Fallback als Tenant nutzen)
-   §4 Human App Client verifiziert: 7ldhihlpdgsgcl3puvu4oi7ksv (public, code+PKCE); M2M unangetastet
-   §5 Sicherheitspruefungen (Admin aus Claim, Tenant nicht setzbar, kein Self-Reg Admin, keine Secrets, Tenant-Isolation)
-   §6 Tests + §9 konkrete AWS-Kommandos zur Freigabe
+   §1 Domains/DNS/TLS: www + apex live (apex 308->www), auth.mays-job-matcher.app NXDOMAIN, Vercel live
+   §2 Cognito: Custom Domain ACTIVE (CloudFront d1xd3gat3vr3ss), Client 7ldhihlpdgsgcl3puvu4oi7ksv code+PKCE no secret
+   §3 API CORS: localhost+vercel.app (keine www), Preflight 204
+   §4 Terraform-Abgleich: Live == Overlay (ris-dev.json)
+   §5 Frontend: kein Cognito/OAuth/Callback implementiert (Login-Prototyp)
+   §6 Sicherheit: keine Wildcards, PKCE, HTTPS, Clients unveraendert
 Actual findings (verified facts):
-   - Kein RIS-Bootstrap-Tooling; "Tenant provisioning workflow" ist Open Decision (AUTHENTICATION.md)
-   - Admin-Rolle im JWT-Pfad NUR aus cognito:groups ("admins"); _normalize_groups fuegt nie Gruppen hinzu
-   - Tenant NUR aus custom:tenant_id (handler.py:311-313); Profil-Tenant serverseitig, Body ignoriert (521-525)
-   - Self-Signup erlaubt (AllowAdminCreateUserOnly=false), aber kein Lambda-Trigger -> Self-Reg vergibt keine Gruppe
-   - ris_admin-CLI autorisiert ueber lokale RIS_ADMIN_AUTHORIZATION_FILE (nicht Cognito) -> nicht fuer User-Bootstrap
-   - Empfohlener Tenant: mays-ris-dev (Konsistenz mit Partner-Bindungsregel)
+   - auth.mays-job-matcher.app DNS fehlt (CNAME benoetigt) — Betriebsblocker Custom Domain
+   - OAuth/Callbacks/CORS nutzen vercel.app, aber produktiv ist www.mays-job-matcher.app (Apex redirect)
+   - Jobsearch-Frontend hat keine /auth/callback, kein Cognito/OAuth (Phase 3 offen)
+   - ACM auth cert ISSUED/ELIGIBLE, Validation SUCCESS
 Evidence / file references:
-   - docs/reports/RIS-ADMIN-BOOTSTRAP-01.md
-   - lambda/handler.py (200-224, 300-324, 510-541), agents/ecosystem/api_profiles.py (38-55,104-142)
-   - tools/ris_admin/credentials.py (64-122), terraform/modules/cognito/main.tf (15-75)
-   - docs/architecture/AUTHENTICATION.md, docs/api/API-STANDARD.md (302-318)
-Classification: GREEN (Audit) / GO mit Freigabevorbehalt (Ausfuehrung)
-Tests:
-   - tests/test_ris_admin_credentials.py + test_partner_security_boundary.py: 96 passed
-   - Authorization/Profile/Credential/Entitlement/Introspection/Machine: 261 passed
-   - volle Suite: 1608 passed, 2 failed (Baseline), 11 skipped
+   - docs/reports/RIS-JOBSEARCH-DOMAIN-OAUTH-AUDIT-01.md
+   - installer/project-configs/ris-dev.json, terraform/modules/cognito/main.tf, terraform/modules/api/main.tf
+   - tests/test_project_config_overlay.py
+Classification: YELLOW
 AWS MUTATIONS: NONE (rein read-only)
 GIT PUSH: dieser Commit (Doku)
