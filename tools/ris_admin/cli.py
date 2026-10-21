@@ -64,6 +64,39 @@ def _credential_ops():
     return ops
 
 
+def _apiprofile_ops():
+    import ris_admin.apiprofiles as ops
+    return ops
+
+
+def _apiprofile_error(operation: str, exc: Exception) -> int:
+    """Map a RIS APIProfile refusal onto the CLI without leaking internals."""
+    from agents.ecosystem.api_profiles import (
+        InvalidProfileTransition,
+        ProfileConflict,
+        ProfileNotFound,
+        UnauthorizedProfileAction,
+    )
+    if isinstance(exc, UnauthorizedProfileAction):
+        _deny_message("not authorized to %s APIProfiles" % operation)
+        return 1
+    if isinstance(exc, ProfileNotFound):
+        _deny_message("APIProfile not found")
+        return 1
+    if isinstance(exc, ProfileConflict):
+        _deny_message("APIProfile conflict: %s" % exc)
+        return 1
+    if isinstance(exc, InvalidProfileTransition):
+        _deny_message("APIProfile transition refused: %s" % exc)
+        return 1
+    if isinstance(exc, ValueError):
+        _deny_message(str(exc))
+        return 1
+    _deny_message("APIProfile %s failed (%s)"
+                  % (operation, type(exc).__name__))
+    return 1
+
+
 def _caller_arn(args) -> str:
     """Authenticated AWS principal. Identity only - not authorization.
 
@@ -274,7 +307,7 @@ def build_parser() -> argparse.ArgumentParser:
     deact_p.set_defaults(func=_partner_cmd_deactivate)
     
     ap = sub.add_parser("apiprofile", help="APIProfile management")
-    ap.add_subparsers(dest="apiprofile_cmd", required=True)
+    ap_sub = ap.add_subparsers(dest="apiprofile_cmd", required=True)
 
     cred = sub.add_parser("credential", help="Credential management")
     cred_sub = cred.add_subparsers(dest="credential_cmd", required=True)
@@ -305,6 +338,123 @@ def build_parser() -> argparse.ArgumentParser:
             getattr(args, "authorization_file", None)
             or os.getenv("RIS_ADMIN_AUTHORIZATION_FILE"),
             principal_arn, operation)
+
+    # ------------------------------------------------------------------
+    # APIProfile management (existing domain lifecycle, operator
+    # authorization file - the same trust anchor the credential commands
+    # use). The CLI cannot set a tenant: the tenant always comes from the
+    # authorization mapping, so a profile can never be written into a
+    # tenant the operator is not authorized for.
+    # ------------------------------------------------------------------
+
+    def _aprof_cmd_create(args):
+        ops = _apiprofile_ops()
+        if args.dry_run:
+            _print_json({"dryRun": True, "operation": "apiprofile create",
+                         "name": args.name,
+                         "description": args.description,
+                         "note": "no APIProfile was created"})
+            return 0
+        try:
+            actor = _actor(args, "create an APIProfile")
+        except credops_error() as exc:
+            return _deny(exc)
+        try:
+            item = ops.create(
+                name=args.name,
+                actor=actor,
+                description=args.description,
+                target_owner=args.target_owner,
+                idempotency_key=args.idempotency_key,
+            )
+        except Exception as exc:
+            return _apiprofile_error("create", exc)
+        _print_json(item)
+        return 0
+
+    ap_create = ap_sub.add_parser("create", help="Create an APIProfile")
+    ap_create.add_argument("--name", required=True)
+    ap_create.add_argument("--description", default=None)
+    ap_create.add_argument("--target-owner", default=None,
+                           help="Admin only: create the profile for another "
+                                "owner (defaults to the operator principal)")
+    ap_create.add_argument("--idempotency-key", default=None)
+    ap_create.add_argument("--authorization-file", default=None)
+    ap_create.set_defaults(func=_aprof_cmd_create)
+
+    def _aprof_cmd_activate(args):
+        ops = _apiprofile_ops()
+        if args.dry_run:
+            _print_json({"dryRun": True, "operation": "apiprofile activate",
+                         "apiProfileId": args.apiProfileId,
+                         "note": "no APIProfile was changed"})
+            return 0
+        try:
+            actor = _actor(args, "activate an APIProfile")
+        except credops_error() as exc:
+            return _deny(exc)
+        try:
+            item = ops.activate(api_profile_id=args.apiProfileId,
+                                actor=actor, reason=args.reason)
+        except Exception as exc:
+            return _apiprofile_error("activate", exc)
+        _print_json(item)
+        return 0
+
+    ap_activate = ap_sub.add_parser("activate",
+                                    help="Activate an APIProfile (PENDING -> ACTIVE)")
+    ap_activate.add_argument("--apiProfileId", required=True)
+    ap_activate.add_argument("--reason", default=None)
+    ap_activate.add_argument("--authorization-file", default=None)
+    ap_activate.set_defaults(func=_aprof_cmd_activate)
+
+    def _aprof_cmd_show(args):
+        ops = _apiprofile_ops()
+        if args.dry_run:
+            _print_json({"dryRun": True, "operation": "apiprofile show",
+                         "apiProfileId": args.apiProfileId})
+            return 0
+        try:
+            actor = _actor(args, "show an APIProfile")
+        except credops_error() as exc:
+            return _deny(exc)
+        try:
+            item = ops.show(api_profile_id=args.apiProfileId, actor=actor,
+                            reason=args.reason)
+        except Exception as exc:
+            return _apiprofile_error("show", exc)
+        if item is None:
+            _print_json({"error": "Not found"})
+            return 1
+        _print_json(item)
+        return 0
+
+    ap_show = ap_sub.add_parser("show", help="Show an APIProfile")
+    ap_show.add_argument("--apiProfileId", required=True)
+    ap_show.add_argument("--reason", default=None)
+    ap_show.add_argument("--authorization-file", default=None)
+    ap_show.set_defaults(func=_aprof_cmd_show)
+
+    def _aprof_cmd_list(args):
+        ops = _apiprofile_ops()
+        if args.dry_run:
+            _print_json({"dryRun": True, "operation": "apiprofile list"})
+            return 0
+        try:
+            actor = _actor(args, "list APIProfiles")
+        except credops_error() as exc:
+            return _deny(exc)
+        try:
+            rows = ops.list_all(actor, reason=args.reason)
+        except Exception as exc:
+            return _apiprofile_error("list", exc)
+        _print_json({"items": rows})
+        return 0
+
+    ap_list = ap_sub.add_parser("list", help="List APIProfiles")
+    ap_list.add_argument("--reason", default=None)
+    ap_list.add_argument("--authorization-file", default=None)
+    ap_list.set_defaults(func=_aprof_cmd_list)
 
     def _cred_list(args):
         if args.dry_run:

@@ -6466,3 +6466,36 @@ Evidence:
 Classification: GREEN
 AWS MUTATIONS: YES — 5 in-place updates (Cognito Client, API Gateway, 3 Lambda metadata)
 GIT PUSH: vorzunehmen (Doku)
+
+==================================================
+[RIS-JOBSEARCH-APIPROFILE-CREATE-02-2026-10-21]
+Current status: GREEN — Partner-Provisionierung abgeschlossen
+Audit date/time: 2026-10-21
+Current Git branch and HEAD: main
+Audit scope: APIProfile + Partner Registry + API-Credential fuer Mays-Jobsearch
+Completed:
+   §1 Root-Cause 403/401 analysiert (Cognito ReadAttributes + JWT-Audience)
+   §2 Neues Modul tools/ris_admin/apiprofiles.py (bestehende Domain, kein 2. Lifecycle)
+   §3 CLI erweitert: ris-admin apiprofile create|activate|show|list
+   §4 Trust-Anchor ~/.config/ris/ris-admin-auth.json (0600, eigener IAM-Principal)
+   §5 APIProfile aprof_6dcfd2a3097b460d erstellt + aktiviert (ACTIVE)
+   §6 Partner mays-jobsearch registriert (Client 7ldhihlpdgsgcl3puvu4oi7ksv)
+   §7 Credential cred_a3bfb5c470ec416f ausgestellt (ACTIVE, exp 2027-12-31)
+   §8 Live-Verifikation: 1 Profil / 1 Credential / 1 Application + Client-Guard
+Actual findings:
+   - 403 kam NICHT vom Admin-Status, sondern vom fehlenden Claim custom:tenant_id
+     (Human-Client hat ReadAttributes=null -> Custom-Attribute nicht im IdToken)
+   - 401 kam von API Gateway (JWT-Authorizer: aud passte nicht/leere Variable)
+   - Loesung ohne Terraform/Cognito-Mutation: minimaler CLI-Adapter auf der
+     bestehenden Domain-Lifecycle inkl. Fail-Closed-Authorization
+   - Tenant kommt ausschliesslich aus dem Authorization-File (kein CLI-Flag)
+Evidence:
+   - docs/reports/RIS-JOBSEARCH-APIPROFILE-CREATE-02.md
+   - tools/ris_admin/apiprofiles.py, tools/ris_admin/cli.py
+   - tests/test_ris_admin_apiprofile_cli.py (15 passed)
+   - Regression 173 passed (cli/credentials/apiprofile/partner suites)
+Classification: GREEN
+AWS MUTATIONS: YES — 1 APIProfile, 1 Partner-Application, 1 Credential
+   (kein Terraform, kein Cognito, keine neue Infrastruktur, kein fremder Tenant)
+SECRETS: ~/.secrets/mays-jobsearch-ris-api.key (0600), nie ausgegeben/committet
+GIT PUSH: vorzunehmen (Code + Doku)
