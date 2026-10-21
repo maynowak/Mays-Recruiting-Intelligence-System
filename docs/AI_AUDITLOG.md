@@ -6615,3 +6615,40 @@ Recommended next actions:
 Current resume point:
    - Analyse fertig, Terraform Client Fix vorbereitet
 
+==================================================
+[RIS-JOBSEARCH-COGNITO-SIGNUP-FIX-02-2026-10-21]
+Current status: YELLOW — Analyse abgeschlossen, Frontend UI-only identifiziert, Pre Sign-up Lambda Integration offen
+Audit date/time: 2026-10-21
+Current Git branch and HEAD: main
+Audit scope: Cognito Signup Mandatory Email Verification, Hosted UI Error Root Cause
+Completed audit sections:
+   §1 Terraform Cleanup ALLOW_USER_SIGN_UP entfernt
+   §2 User Pool Inspection AdminCreateUserConfig, Schema, AutoVerifiedAttributes, LambdaConfig
+   §3 Frontend Signup Analyse RegisterForm/LoginForm UI-only
+   §4 Pre Sign-up Lambda Bewertung lambda/pre_sign_up.py
+Actual findings:
+   - Frontend Signup UI-only Placeholder, kein Cognito Wiring
+   - User Pool email optional, kein Pre Sign-up Lambda aktiv
+   - Hosted UI Error durch fehlendes ALLOW_USER_SIGN_UP + fehlende Integration
+Evidence / file references:
+   - docs/reports/RIS-JOBSEARCH-COGNITO-SIGNUP-FIX-02.md
+   - installer/projects/mays_jobsearch/src/components/RegisterForm.tsx
+   - installer/projects/mays_jobsearch/src/components/LoginForm.tsx
+   - lambda/pre_sign_up.py
+Classification: YELLOW
+Terraform checks actually executed and their results:
+   - terraform fmt / validate nicht ausgeführt
+Git status:
+   - docs/reports/RIS-JOBSEARCH-COGNITO-SIGNUP-FIX-02.md erstellt
+Files changed:
+   - docs/reports/RIS-JOBSEARCH-COGNITO-SIGNUP-FIX-02.md
+Open questions:
+   - Frontend Cognito Integration fehlt
+Risks:
+   - Live Verification nicht möglich ohne Frontend Integration
+Recommended next actions:
+   - Pre Sign-up Lambda in Terraform integrieren
+   - Frontend an Cognito verdrahten
+Current resume point:
+   - Analyse abgeschlossen, Warte auf Integration Entscheidung
+
