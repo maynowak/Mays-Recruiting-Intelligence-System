@@ -6918,3 +6918,43 @@ Recommended next actions:
 Current resume point:
    - Analysis complete, awaiting approval
 
+
+==================================================
+[RIS-COGNITO-JOBSEARCH-EMAIL-REQUIRED-02-DEPLOY-2026-10-22]
+Current status: GREEN — Isolated Cognito User Pool for Mays-Jobsearch deployed and verified
+Audit date/time: 2026-10-22 11:45-11:50 UTC
+Current Git branch and HEAD: main
+Audit scope: Deploy isolated Cognito User Pool ris-dev-jobsearch-dev-users with email as username, mandatory email verification, self-registration, OAuth Authorization Code + PKCE, separate domain
+Completed audit sections:
+   §1 User Pool creation with email required, auto-verified, password policy min 8
+   §2 App Client creation public with Authorization Code + PKCE, scopes openid email profile
+   §3 User Pool domain ris-dev-jobsearch-dev creation
+   §4 Verification via AWS CLI describe calls
+   §5 Documentation update
+Actual findings:
+   - User Pool created: eu-central-1_ZURSMpD2O
+   - App Client created: 5hb3f6dj5ialg77jf4blur9g6g
+   - Domain active: ris-dev-jobsearch-dev
+   - JWT Issuer: https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_ZURSMpD2O
+   - Existing RIS pool eu-central-1_ojbmoiYGM and domain auth.mays-job-matcher.app untouched
+Evidence / file references:
+   - docs/reports/RIS-COGNITO-JOBSEARCH-EMAIL-REQUIRED-02-DEPLOY.md
+   - AWS CLI outputs for describe-user-pool, describe-user-pool-client, describe-user-pool-domain
+Classification: GREEN
+Terraform checks actually executed and their results:
+   - N/A (Cognito created via AWS CLI, not Terraform)
+Git status:
+   - Docs updated
+Files changed:
+   - docs/reports/RIS-COGNITO-JOBSEARCH-EMAIL-REQUIRED-02-DEPLOY.md (created)
+   - docs/AI_AUDITLOG.md (appended)
+Open questions:
+   - None
+Risks:
+   - No cost impact beyond free tier
+   - No modification of existing RIS resources confirmed
+Recommended next actions:
+   - Update frontend VITE_COGNITO_* env vars to new Pool ID/Client ID/domain
+   - Coordinate frontend PKCE implementation for Phase 3
+Current resume point:
+   - Deployment complete, documentation updated, ready for frontend integration
