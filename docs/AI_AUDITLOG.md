@@ -7078,3 +7078,69 @@ Recommended next actions:
   - Clarify profile/account and backend values before any plan
 Current resume point:
   - S00 complete, report committed; S01-Vertragsmatrix is next, not started
+
+==================================================
+[MO-RIS-DEV2-S01-CONTRACT-MATRIX-2026]
+Current status: COMPLETE (statische Vertragsmatrix) - keine Implementierung, kein Builder-Lauf, kein Terraform, kein AWS
+Audit date/time: 2026-10-25
+Run ID: 2026-10-25-ris-dev2-02
+Current Git branch and HEAD: feature/mo-module-installer-ris-dev2-2026, HEAD = b194b8096a69cfe2ffc5fe8cbdb83e3d3def634a
+Reference SHA (MO, read-only): 2d5cf2de08a05109452e88964a8b1a4d6940afcf (main)
+Audit scope: S01 only - Input-, Output-, IAM-SQS- und Namensvertrag des Presets orders-service gegen die tatsaechlichen RIS-Consumer; Laufzeitgrenze Agent-OrdersPort-HTTP vs. orders_reader-Direktzugriff. Eingang: docs/reports/MO-RIS-DEV2-S00-BASELINE-2026.md.
+Completed audit sections:
+  1 Ausgangslage (Branches, SHAs, Git-Status, Abweichungen zu S00)
+  2 Input-Vertrag (5 generierte Variablen, MANAGED als erster Fall, EXTERNAL nur beschrieben)
+  3 Output-Vertrag (19 offizielle Outputs vs. RIS-Consumer, Wrapper-Ergaenzung sqs_queue_name)
+  4 IAM-SQS-Gate (Herkunft sqs_queue_arn, beide ARN-count-Ausdruecke, sqs_enabled-Patch, Scope)
+  5 Namens- und Identitaetsvertrag (Wrapper-CLI vs. Builder-Default vs. RIS-Moduluebergabe, Laengen, ARN-Rekonstruktionen)
+  6 RIS-Laufzeitgrenze (Pfad A Agent -> OrdersPort -> HTTP, Pfad B orders_reader -> DynamoDB/SQS)
+  7 Befunde klassifiziert (MATCH/GAP/CONFLICT/NOT VERIFIED)
+  8 Grenzen des statischen Nachweises + Voraussetzungen spaeterer Ausfuehrung
+  9 Priorisierte MO-/RIS-Auftraege, naechster Schritt S02
+Actual findings:
+  - Input-Vertrag: genau 5 Variablen (project_name, tags, monitoring_enabled, log_retention_days, external_cognito); external_cognito ist generierte Vertragsvariable, kein Root-Bestand; MANAGED ist Default und von RIS korrekt als null belegt
+  - Output-Vertrag: 19 offizielle Outputs decken alle RIS-Consumer ausser sqs_queue_name; sqs_queue_name entsteht ausschliesslich durch RIS-Wrapper-Patch (build_mays_orders_module.py:75-96), 0 Treffer in module_builder/*.py
+  - IAM-Gate: beide count-Ausdruecke (modules/iam/main.tf:83,96) haengen am ARN-Wert; Patch auf var.sqs_enabled ist plan-stabil und haelt den Scope [var.sqs_queue_arn]; Fail-closed bei Rueckfall vorhanden
+  - Namensgrenzen: fuer das orders-service-Preset bindet die IAM-Rolle des SQS-Workers (max 49), nicht CloudTrail/Cognito-Backup (39/23) - diese Module sind nicht im Preset; ris-dev2-mays-orders (19 Zeichen) liegt in allen Grenzen
+  - GAP-01 Projektname doppelt gesetzt (Wrapper-CLI vs. terraform/main.tf:174)
+  - GAP-02 sqs_queue_name kein offizieller Output
+  - GAP-03 kein wirksamer Builder-Pin (PIN_FILE unbenutzt, keine SHA-Pruefung im Manifest)
+  - GAP-04 ORDERS_BASE_URL/ORDERS_ID_TOKEN nicht verdrahtet; real.py:34 zeigt auf Alt-Stack aboqolpm0f
+  - GAP-05 keine Namens-/Formatpruefung im Wrapper (validate_orders_aws_name_limits wird nicht aufgerufen)
+  - GAP-06 sqs_enabled=true mit leerem sqs_queue_arn ungeprueft
+  - GAP-07 var.orders_* in RIS deklariert, aber im Module-Pfad nicht mehr verdrahtet
+  - CONFLICT-01 Wrapper-Docstring widerspricht dem Code (behauptet Pin)
+  - CONFLICT-02 MANAGED-Cognito vs. RIS-idToken: Pfad A ist ohne Architekturentscheidung nicht testbar
+  - CONFLICT-03 AWS-NAME-LIMITS.md begruendet 39/23 mit Modulen ausserhalb des Presets
+  - NOT VERIFIED: Terraform-Planverhalten, tatsaechliche 34-Datei-Ausgabe, Builder-Tests, AWS-Konto/Identitaet, kuenftiges MO-main-Verhalten
+Evidence / file references:
+  - docs/reports/MO-RIS-DEV2-S01-CONTRACT-MATRIX-2026.md
+  - mays-order-aws: module_builder/builder.py:649-689,740-756,806-1027; module_builder/spec.py:84-103; terraform/outputs.tf; terraform/variables.tf; terraform/modules/iam/main.tf:77-100
+  - RIS: terraform/main.tf:154-168,172-179,213-235; terraform/variables.tf:343-383; terraform/modules/orders_reader/main.tf:33-58,86-87,113-142
+  - RIS: agents/orders/real.py:34,75,99-103; agents/orders/function.py:52-69; lambda/orders_reader.py:23-36
+  - RIS: installer/build_mays_orders_module.py:25-27,38-53,55-73,75-96,114-168,180-186; installer/ris.py:211-270,542-549,703-712,777
+  - RIS: docs/installer/AWS-NAME-LIMITS.md
+Classification: PASS fuer die statische Vertragsmatrix; S02+ weiterhin BLOCKED durch fehlende Werkzeuge/Konto-/Backendwerte (kein Blocker dieser Matrix)
+Terraform checks actually executed and their results:
+  - None (Terraform nicht installiert; in S01 bewusst nicht ausgefuehrt)
+Git status:
+  - Report neu, AI_AUDITLOG ergaenzt; sonst keine Aenderungen; MO unveraendert (HEAD 2d5cf2de, worktree clean)
+Files changed:
+  - docs/reports/MO-RIS-DEV2-S01-CONTRACT-MATRIX-2026.md
+  - docs/AI_AUDITLOG.md
+Open questions:
+  - Builder-Pin: SHA erzwingen oder "main + Manifest-Gate" bewusst beschliessen (GAP-03)
+  - Token-/Cognito-Architektur fuer Pfad A: EXTERNAL-Cognito, M2M oder Pfad B als E2E-Ziel (CONFLICT-02)
+  - Konto/Profil und Backend-Bucket/Key/Lock/TF_DATA_DIR fuer ris-dev2
+  - Ob MO sqs_queue_name und sqs_enabled-Semantik upstream uebernimmt
+Risks:
+  - Rebuild ohne Pin veraendert den Integrationsstand unbemerkt
+  - Wrapper-Patch auf sqs_queue_name ist rebuild-abhaengig und nicht fail-closed
+  - Pfad A wuerde unverdrahtet gegen einen fremden Alt-Stack testen
+  - Namens-Doppelquelle kann Ressourcen unter falschem Prefix erzeugen
+Recommended next actions:
+  - S02-BUILD-CONTRACT vorbereiten (Befehlsvertrag, Namensableitung, Pin-Entscheid, Soll-Dateiliste)
+  - Herstellerauftraege GAP-02/GAP-06 an MO, Consumerauftraege GAP-01/03/04/05/07 an RIS
+  - Architekturentscheidung CONFLICT-02 vor jedem E2E
+Current resume point:
+  - S01 complete, Report und Auditlog committed; S02 nicht begonnen
