@@ -1,0 +1,48 @@
+﻿Vergleich Modul-Builder-Testsuite: Baseline 2d5cf2de vs. S04 9627eb2f
+Aufruf: python -B -m unittest module_builder.tests.test_module_builder -v (jeweils im Repo-Root)
+
+--- Baseline (2d5cf2de) ---
+----------------------------------------------------------------------
+Ran 87 tests in 2.736s
+
+FAILED (failures=8, errors=4)
+
+--- S04 (9627eb2f) ---
+----------------------------------------------------------------------
+Ran 90 tests in 2.643s
+
+FAILED (failures=8, errors=4)
+
+--- Fehlerliste Baseline ---
+ERROR: test_policy_gate_negative_missing_tag 
+ERROR: test_policy_gate_negative_region 
+ERROR: test_policy_gate_negative_resource_type 
+ERROR: test_policy_gate_positive 
+FAIL: test_cognito_backup_artifact_reproducible_in_target 
+FAIL: test_expected_layout (module_builder.tests.test_module_builder.TestGeneratedProject.test_expected_layout)
+FAIL: test_manifest_content (module_builder.tests.test_module_builder.TestGeneratedProject.test_manifest_content)
+FAIL: test_policy_files_present_in_target 
+FAIL: test_nothing_added_silently 
+FAIL: test_single_module_dynamodb 
+FAIL: test_valid_combination_lambda_chain 
+FAIL: test_module_layout (module_builder.tests.test_module_builder.TestOrdersServiceModule.test_module_layout)
+
+--- Fehlerliste S04 ---
+ERROR: test_policy_gate_negative_missing_tag 
+ERROR: test_policy_gate_negative_region 
+ERROR: test_policy_gate_negative_resource_type 
+ERROR: test_policy_gate_positive 
+FAIL: test_cognito_backup_artifact_reproducible_in_target 
+FAIL: test_expected_layout (module_builder.tests.test_module_builder.TestGeneratedProject.test_expected_layout)
+FAIL: test_manifest_content (module_builder.tests.test_module_builder.TestGeneratedProject.test_manifest_content)
+FAIL: test_policy_files_present_in_target 
+FAIL: test_nothing_added_silently 
+FAIL: test_single_module_dynamodb 
+FAIL: test_valid_combination_lambda_chain 
+FAIL: test_module_layout (module_builder.tests.test_module_builder.TestOrdersServiceModule.test_module_layout)
+
+--- Fazit ---
+Beide Laeufe enden mit exit_code 1 und identischer Fehlermenge (8 failures, 4 errors).
+Baseline 87 Tests / S04 90 Tests = +3 neue Regressionstests, alle bestanden.
+Alle 12 Fehler sind vorbestehend und Windows-spezifisch (Pfadseparatoren, /tmp/opencode, python3-Alias);
+sie treten unveraendert auf dem unveraenderten Baseline-Commit auf.

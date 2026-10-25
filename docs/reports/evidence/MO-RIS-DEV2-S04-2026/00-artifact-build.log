@@ -1,0 +1,13 @@
+# Arbeitsverzeichnis (builder source_root) = Worktree C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\mo-src-9627eb2f @ 9627eb2f
+# Befehl: python -B -m module_builder build --preset orders-service --target <temp>\artifact-9627eb2f --project-name ris-dev2-mays-orders
+# kein --force, kein RIS-Wrapper
+# exit_code=0
+
+Build OK: C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\artifact-9627eb2f
+  Preset:      orders-service (Terraform-Modul)
+  Vertrag:     Orders-Service = API+Handler, Worker, SQS, DynamoDB, IAM, Cognito (fest, nicht abw├ñhlbar)
+  Projekt:     ris-dev2-mays-orders
+
+Nutzung als lokales Modul:
+  module "orders" { source = "C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\artifact-9627eb2f" project_name = "ris-dev2-mays-orders" }
+Apply/Destroy ausschlie├ƒlich nach menschlicher Freigabe.

@@ -1,0 +1,32 @@
+# Vergleich: Builder-Output (artifact-9627eb2f) vs. mit 'terraform fmt -recursive' formatierte KOPIE
+# Das Artefakt selbst wurde nicht formatiert (SHA256-Snapshot vor/nach unveraendert).
+# exit_code des fmt-Laufs auf der Kopie: 0
+
+--- builder-output/main.tf
++++ terraform-fmt/main.tf
+@@ -12,5 +12,5 @@
+   # erzeugt KEINE Cognito-Ressourcen (count=0, splat bleibt leer).
+   # one() macht beide Zweige auswertungssicher (kein Index-Fehler).
+-  cognito_endpoint = var.external_cognito == null ? one(module.cognito[*].user_pool_endpoint) : var.external_cognito.user_pool_endpoint
++  cognito_endpoint  = var.external_cognito == null ? one(module.cognito[*].user_pool_endpoint) : var.external_cognito.user_pool_endpoint
+   cognito_client_id = var.external_cognito == null ? one(module.cognito[*].user_pool_client_id) : var.external_cognito.user_pool_client_id
+ }
+@@ -66,5 +66,5 @@
+ # siehe terraform/README.md ÔÇö Domain nur "falls n├Âtig").
+ module "cognito" {
+-  count = var.external_cognito == null ? 1 : 0
++  count        = var.external_cognito == null ? 1 : 0
+   source       = "./modules/cognito"
+   project_name = var.project_name
+
+--- builder-output/variables.tf
++++ terraform-fmt/variables.tf
+@@ -47,5 +47,5 @@
+   description = "Externe Cognito-Referenzen (EXTERNAL) oder null fuer eigenen Pool (MANAGED, Standard)."
+   type = object({
+-    user_pool_endpoint = string # Pool-Endpoint OHNE Scheme (api-Modul ergaenzt https://)
++    user_pool_endpoint  = string # Pool-Endpoint OHNE Scheme (api-Modul ergaenzt https://)
+     user_pool_client_id = string # App-Client-ID (Audience des JWT-Authorizers)
+   })
+
+# Dateien mit Formatabweichung: 2

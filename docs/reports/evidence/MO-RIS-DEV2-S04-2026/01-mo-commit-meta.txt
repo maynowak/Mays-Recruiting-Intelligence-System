@@ -1,0 +1,18 @@
+﻿MO Repository : C:\Users\DCI-Student\projekte\mays-order-aws
+Branch        : feature/mo-module-contract-ris-dev2-2026
+Commit        : 9627eb2f43087ab07dd7cc98a21febca142cb3b6
+Parent        : 2d5cf2de08a05109452e88964a8b1a4d6940afcf
+Subject       : fix: plan-stabiles IAM-SQS-Gate und sqs_queue_name-Output (GAP-02/06)
+Author        : DCI-Student <dci-student@localhost>
+Date          : 2026-10-25T19:35:26+01:00
+Working tree  : 0 Aenderungen
+
+=== git show --stat ===
+ module_builder/builder.py                   | 20 ++++++-
+ module_builder/tests/test_module_builder.py | 91 ++++++++++++++++++++++++++---
+ terraform/main.tf                           |  3 +
+ terraform/modules/iam/main.tf               | 40 +++++++++----
+ terraform/modules/iam/variables.tf          | 15 ++++-
+ terraform/outputs.tf                        |  5 ++
+ 6 files changed, 152 insertions(+), 22 deletions(-)
+

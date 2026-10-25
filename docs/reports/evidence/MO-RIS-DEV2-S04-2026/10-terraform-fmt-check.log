@@ -1,0 +1,7 @@
+# terraform Terraform v1.17.0
+# Befehl: terraform -chdir=artifact-9627eb2f fmt -check -recursive -no-color
+# exit_code=3
+# Dateien unveraendert danach: True
+
+main.tf
+variables.tf

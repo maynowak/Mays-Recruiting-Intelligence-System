@@ -1,0 +1,30 @@
+{
+  "modules": [
+    "dynamodb",
+    "iam",
+    "lambda",
+    "sqs"
+  ],
+  "modules_ok": true,
+  "outputs": [
+    "dynamodb_table_arn",
+    "dynamodb_table_name",
+    "iam_handler_role_arn",
+    "iam_handler_role_name",
+    "lambda_function_arn",
+    "lambda_function_name",
+    "lambda_invoke_arn",
+    "sqs_queue_arn",
+    "sqs_queue_name",
+    "sqs_queue_url"
+  ],
+  "outputs_equal_expected": true,
+  "missing_outputs": [],
+  "unexpected_outputs": [],
+  "variables_kept_ok": true,
+  "variables_dropped_ok": true,
+  "lambda_zip_present_posix": true,
+  "build_zip_present_posix": true,
+  "cognito_backup_absent_posix": true
+}
+ERGEBNIS: PASS

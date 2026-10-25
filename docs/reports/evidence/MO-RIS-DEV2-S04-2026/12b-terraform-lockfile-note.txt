@@ -1,0 +1,4 @@
+terraform init -backend=false erzeugte .terraform.lock.hcl (Beweismittel, KEIN Builder-Output).
+sha256=b5935e4cecd679d07251420a18df34cd927e9983038a6054628227532dfb05ee
+Nach der Pruefung entfernt, damit der finale Artefaktstand exakt dem Builder-Output entspricht.
+Artefakt danach identisch zum Build-Stand: True

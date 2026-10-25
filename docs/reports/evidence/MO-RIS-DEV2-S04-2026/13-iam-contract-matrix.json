@@ -1,0 +1,57 @@
+﻿[
+    {
+        "case":  "case-a",
+        "fixture":  "fixture-vars",
+        "var_file":  "case-a.tfvars",
+        "init_exit_code":  0,
+        "exit_code":  0,
+        "error_line":  null,
+        "precondition_message":  null,
+        "arn_value_in_error":  null,
+        "log":  "plan-case-a.log"
+    },
+    {
+        "case":  "case-b",
+        "fixture":  "fixture-vars",
+        "var_file":  "case-b.tfvars",
+        "init_exit_code":  0,
+        "exit_code":  0,
+        "error_line":  null,
+        "precondition_message":  null,
+        "arn_value_in_error":  null,
+        "log":  "plan-case-b.log"
+    },
+    {
+        "case":  "case-c",
+        "fixture":  "fixture-vars",
+        "var_file":  "case-c.tfvars",
+        "init_exit_code":  0,
+        "exit_code":  1,
+        "error_line":  "Error: Resource precondition failed",
+        "precondition_message":  "sqs_enabled = true erfordert einen nicht leeren sqs_queue_arn. Ohne",
+        "arn_value_in_error":  "Ôöé var.sqs_queue_arn is \"\"",
+        "log":  "plan-case-c.log"
+    },
+    {
+        "case":  "case-e",
+        "fixture":  "fixture-vars",
+        "var_file":  "case-e.tfvars",
+        "init_exit_code":  0,
+        "exit_code":  1,
+        "error_line":  "Error: Resource precondition failed",
+        "precondition_message":  "sqs_enabled = true erfordert einen nicht leeren sqs_queue_arn. Ohne",
+        "arn_value_in_error":  "Ôöé var.sqs_queue_arn is \"   \"",
+        "log":  "plan-case-e.log"
+    },
+    {
+        "case":  "case-d",
+        "fixture":  "fixture-unknown",
+        "var_file":  null,
+        "init_exit_code":  0,
+        "exit_code":  0,
+        "error_line":  null,
+        "precondition_message":  null,
+        "arn_value_in_error":  null,
+        "log":  "plan-case-d.log"
+    }
+]

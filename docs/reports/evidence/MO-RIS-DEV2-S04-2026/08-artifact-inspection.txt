@@ -1,0 +1,71 @@
+# exit_code=0
+# Artefakt: artifact-9627eb2f
+
+OEFFENTLICHE INPUTS (5): ['external_cognito', 'log_retention_days', 'monitoring_enabled', 'project_name', 'tags']
+OUTPUTS (20):
+    dynamodb_table_name
+    dynamodb_table_arn
+    iam_handler_role_name
+    iam_handler_role_arn
+    lambda_function_name
+    lambda_function_arn
+    lambda_invoke_arn
+    cognito_user_pool_id
+    cognito_user_pool_arn
+    cognito_user_pool_endpoint
+    cognito_user_pool_client_id
+    cognito_user_pool_group_name
+    api_gateway_endpoint
+    api_gateway_id
+    api_gateway_stage_name
+    api_gateway_authorizer_id
+    sqs_queue_url
+    sqs_queue_arn
+    sqs_queue_name
+    sqs_worker_lambda_arn
+sqs_queue_name-Block: description = "Name der Orders-SQS-Queue." | value       = module.sqs.queue_name
+IAM variable sqs_enabled: True | type bool: True | default false: True
+IAM gate counts: ['count = var.sqs_enabled ? 1 : 0', 'count  = var.sqs_enabled ? 1 : 0']
+count-Zeilen mit ARN: []
+ARN als Policy-Resource: True
+Wildcard im SQS-Dokument: False
+Precondition: ['condition     = trimspace(var.sqs_queue_arn) != ""']
+check-Block: False
+IAM-Wiring: ['sqs_queue_arn      = module.sqs.queue_arn', 'sqs_enabled = true']
+Manifest: preset=orders-service project=ris-dev2-mays-orders commit=9627eb2 files=33 artifacts=['lambda/dist/lambda.zip']
+Manifest project_name == ris-dev2-mays-orders: True
+Dateiliste (34):
+    README.md
+    lambda/build_zip.py
+    lambda/dist/lambda.zip
+    lambda/src/errors.py
+    lambda/src/index.py
+    lambda/src/order_service.py
+    lambda/src/order_types.py
+    lambda/src/sqs_handler.py
+    lambda/src/state_machine.py
+    lambda/src/validation.py
+    main.tf
+    module-builder.manifest.json
+    modules/api/main.tf
+    modules/api/outputs.tf
+    modules/api/variables.tf
+    modules/cognito/main.tf
+    modules/cognito/outputs.tf
+    modules/cognito/variables.tf
+    modules/dynamodb/main.tf
+    modules/dynamodb/outputs.tf
+    modules/dynamodb/variables.tf
+    modules/iam/main.tf
+    modules/iam/outputs.tf
+    modules/iam/variables.tf
+    modules/lambda/main.tf
+    modules/lambda/outputs.tf
+    modules/lambda/variables.tf
+    modules/sqs-worker/iam.tf
+    modules/sqs-worker/main.tf
+    modules/sqs-worker/variables.tf
+    modules/sqs/main.tf
+    outputs.tf
+    variables.tf
+    versions.tf

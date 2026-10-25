@@ -1,0 +1,47 @@
+# PHASE: init -backend=false -input=false
+# exit_code=0
+# TF_DATA_DIR ausserhalb des Artefakts: C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\tfdata-artifact
+
+Initializing modules...
+- sqs in modules\sqs
+- iam in modules\iam
+- api in modules\api
+- lambda in modules\lambda
+- cognito in modules\cognito
+- dynamodb in modules\dynamodb
+- sqs_worker in modules\sqs-worker
+
+Initializing provider plugins...
+- Finding hashicorp/aws versions matching ">= 6.0.0"...
+- Finding hashicorp/time versions matching "~> 0.11"...
+- Installing hashicorp/aws v6.70.0...
+- Installed hashicorp/aws v6.70.0 (signed by HashiCorp)
+- Installing hashicorp/time v0.14.2...
+- Installed hashicorp/time v0.14.2 (signed by HashiCorp)
+
+Terraform has created a lock file .terraform.lock.hcl to record the provider
+selections it made above. Include this file in your version control repository
+so that Terraform can guarantee to make the same selections by default when
+you run "terraform init" in the future.
+
+Terraform has been successfully initialized!
+
+# PHASE: validate -no-color
+# exit_code=0
+
+Success! The configuration is valid.
+
+
+# PHASE: version -json
+{
+  "format_version": "1.0",
+  "terraform_version": "1.17.0",
+  "platform": "windows_amd64",
+  "provider_selections": {
+    "registry.terraform.io/hashicorp/aws": "6.70.0",
+    "registry.terraform.io/hashicorp/time": "0.14.2"
+  },
+  "terraform_outdated": false
+}
+
+# Diff Artefakt vor/nach init+validate: added=.terraform.lock.hcl removed= changed=

@@ -1,0 +1,34 @@
+python : test_outputs_contract (module_builder.tests.test_module_builder.TestOrdersServiceModule.test_outputs_contract)
+In Zeile:10 Zeichen:6
++ $o = python -B -m unittest -v module_builder.tests.test_module_builde ...
++      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_outputs_co...tputs_contract):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WP5 + GAP-02: 19 Bestands-Outputs + sqs_queue_name = 20. ... ok
+test_variables_contract (module_builder.tests.test_module_builder.TestOrdersServiceModule.test_variables_contract) ... 
+ok
+test_iam_sqs_gate_contract 
+(module_builder.tests.test_module_builder.TestOrdersServiceModule.test_iam_sqs_gate_contract)
+GAP-06: beide counts h├ñngen NUR am booleschen Gate; der ARN bleibt ... ok
+test_iam_sqs_gate_wired_plan_known 
+(module_builder.tests.test_module_builder.TestOrdersServiceModule.test_iam_sqs_gate_wired_plan_known)
+GAP-06: der Root-Aufrufer setzt das Gate als Literal (plan-bekannt), ... ok
+test_iam_without_sqs_valid (module_builder.tests.test_module_builder.TestModuleSelectionB1.test_iam_without_sqs_valid)
+IAM ohne Queue-ARN: g├╝ltige Auswahl, kein SQS-Wiring, Gate AUS. ... ok
+test_iam_with_sqs_keeps_wiring 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_iam_with_sqs_keeps_wiring)
+Mit sqs in der Auswahl bleiben ARN- und Gate-Wiring erhalten. ... ok
+test_sqs_outputs_dropped_without_sqs_module 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_sqs_outputs_dropped_without_sqs_module)
+GAP-02: sqs_queue_name referenziert module.sqs ÔÇö ohne sqs-Modul darf ... ok
+test_output_names_and_external_safe_values 
+(module_builder.tests.test_module_builder.TestExternalCognitoIntegration.test_output_names_and_external_safe_values)
+12) 20 Output-Namen (19 Bestand + sqs_queue_name/GAP-02) + EXTERNAL-sichere Werte. ... ok
+test_readme_contract_and_example 
+(module_builder.tests.test_module_builder.TestOrdersServiceModule.test_readme_contract_and_example) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.425s
+
+OK

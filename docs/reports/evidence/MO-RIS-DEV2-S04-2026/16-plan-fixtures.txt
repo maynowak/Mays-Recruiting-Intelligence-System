@@ -1,0 +1,108 @@
+﻿==============================================================================
+FIXTURE: fixture-vars\main.tf
+==============================================================================
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.0"
+    }
+  }
+}
+
+# Offline-PrÃ¼faufbau: KEINE echten AWS-Zugriffe. Dummy-Credentials + Skip-Flags
+# verhindern STS-/Metadaten-Aufrufe; es gibt keine AWS-Datenquellen.
+provider "aws" {
+  region                      = "eu-central-1"
+  access_key                  = "offline-dummy"
+  secret_key                  = "offline-dummy"
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_metadata_api_check     = true
+  skip_region_validation      = true
+}
+
+variable "sqs_enabled" {
+  type = bool
+}
+
+variable "sqs_queue_arn" {
+  type = string
+}
+
+module "iam" {
+  source = "C:/Users/DCI-Student/AppData/Local/Temp/opencode/mo-ris-dev2-s04-2026-10-25/artifact-9627eb2f/modules/iam"
+
+  project_name       = "ris-dev2-mays-orders"
+  dynamodb_table_arn = "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders"
+  dynamodb_gsi1_arn  = "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders/index/gsi1"
+  dynamodb_gsi2_arn  = "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders/index/gsi2"
+
+  sqs_queue_arn = var.sqs_queue_arn
+  sqs_enabled   = var.sqs_enabled
+}
+
+==============================================================================
+FIXTURE: fixture-unknown\main.tf
+==============================================================================
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.0"
+    }
+  }
+}
+
+# Offline-PrÃ¼faufbau fÃ¼r den UNBEKANNTEN ARN: die Queue entsteht im selben
+# Plan, module.sqs.queue_arn ist daher (known after apply). Dummy-Credentials
+# + Skip-Flags; keine AWS-API-Aufrufe im Plan.
+provider "aws" {
+  region                      = "eu-central-1"
+  access_key                  = "offline-dummy"
+  secret_key                  = "offline-dummy"
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_metadata_api_check     = true
+  skip_region_validation      = true
+}
+
+module "sqs" {
+  source = "C:/Users/DCI-Student/AppData/Local/Temp/opencode/mo-ris-dev2-s04-2026-10-25/artifact-9627eb2f/modules/sqs"
+
+  project_name = "ris-dev2-mays-orders"
+  queue_name   = "ris-dev2-mays-orders-orders-queue"
+}
+
+module "iam" {
+  source = "C:/Users/DCI-Student/AppData/Local/Temp/opencode/mo-ris-dev2-s04-2026-10-25/artifact-9627eb2f/modules/iam"
+
+  project_name       = "ris-dev2-mays-orders"
+  dynamodb_table_arn = "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders"
+  dynamodb_gsi1_arn  = "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders/index/gsi1"
+  dynamodb_gsi2_arn  = "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders/index/gsi2"
+
+  sqs_queue_arn = module.sqs.queue_arn
+  sqs_enabled   = true
+}
+
+FIXTURE: fixture-vars\case-a.tfvars
+sqs_enabled = true
+sqs_queue_arn = "arn:aws:sqs:eu-central-1:123456789012:ris-dev2-mays-orders-orders-queue"
+
+FIXTURE: fixture-vars\case-b.tfvars
+sqs_enabled = false
+sqs_queue_arn = ""
+
+FIXTURE: fixture-vars\case-c.tfvars
+sqs_enabled = true
+sqs_queue_arn = ""
+
+FIXTURE: fixture-vars\case-e.tfvars
+sqs_enabled = true
+sqs_queue_arn = "   "
+

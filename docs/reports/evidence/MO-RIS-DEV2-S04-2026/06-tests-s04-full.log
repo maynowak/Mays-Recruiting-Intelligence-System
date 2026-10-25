@@ -1,0 +1,549 @@
+python : test_build_complete_via_cli (module_builder.tests.test_module_builder.TestCli.test_build_complete_via_cli) 
+... ok
+In C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\run-suite-comparison.ps1:19 Zeichen:7
++ $o2 = python -B -m unittest module_builder.tests.test_module_builder  ...
++       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_build_comp...via_cli) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test_build_requires_target_and_project_name 
+(module_builder.tests.test_module_builder.TestCli.test_build_requires_target_and_project_name) ... usage: python -m 
+module_builder build [-h] --target TARGET
+                                      --project-name PROJECT_NAME
+                                      [--preset {complete,orders-service}]
+                                      [--modules MODULES] [--with-deps]
+                                      [--source SOURCE] [--force] [--validate]
+python -m module_builder build: error: the following arguments are required: --target, --project-name
+ok
+test_presets_command (module_builder.tests.test_module_builder.TestCli.test_presets_command) ... ok
+test_unknown_preset_via_cli_lists_choices 
+(module_builder.tests.test_module_builder.TestCli.test_unknown_preset_via_cli_lists_choices) ... usage: python -m 
+module_builder build [-h] --target TARGET
+                                      --project-name PROJECT_NAME
+                                      [--preset {complete,orders-service}]
+                                      [--modules MODULES] [--with-deps]
+                                      [--source SOURCE] [--force] [--validate]
+python -m module_builder build: error: argument --preset: invalid choice: 'nope' (choose from 'complete', 
+'orders-service')
+ok
+test_external_creates_no_cognito_resources 
+(module_builder.tests.test_module_builder.TestExternalCognitoIntegration.test_external_creates_no_cognito_resources)
+4/5) EXTERNAL erzeugt keinen Pool und keinen App-Client: ... ok
+test_external_uses_existing_references 
+(module_builder.tests.test_module_builder.TestExternalCognitoIntegration.test_external_uses_existing_references)
+3) EXTERNAL verwendet die Referenzen ├╝ber locals. ... ok
+test_incomplete_external_refs_fail_closed 
+(module_builder.tests.test_module_builder.TestExternalCognitoIntegration.test_incomplete_external_refs_fail_closed)
+7) Unvollst├ñndige externe Referenzen werden verst├ñndlich abgelehnt. ... ok
+test_jwt_authorizer_stays_active 
+(module_builder.tests.test_module_builder.TestExternalCognitoIntegration.test_jwt_authorizer_stays_active)
+6) JWT-Authorizer bleibt in beiden Varianten aktiv ... ok
+test_managed_cognito_module_with_count_gate 
+(module_builder.tests.test_module_builder.TestExternalCognitoIntegration.test_managed_cognito_module_with_count_gate)
+2) MANAGED erzeugt Cognito wie bisher (count=1 bei null). ... ok
+test_managed_is_default 
+(module_builder.tests.test_module_builder.TestExternalCognitoIntegration.test_managed_is_default)
+1) MANAGED bleibt Standard: external_cognito = null. ... ok
+test_manifest_notes_external_cognito 
+(module_builder.tests.test_module_builder.TestExternalCognitoIntegration.test_manifest_notes_external_cognito) ... ok
+test_output_names_and_external_safe_values 
+(module_builder.tests.test_module_builder.TestExternalCognitoIntegration.test_output_names_and_external_safe_values)
+12) 20 Output-Namen (19 Bestand + sqs_queue_name/GAP-02) + EXTERNAL-sichere Werte. ... ok
+test_readme_documents_both_modes 
+(module_builder.tests.test_module_builder.TestExternalCognitoIntegration.test_readme_documents_both_modes) ... ok
+test_tags_preserved (module_builder.tests.test_module_builder.TestExternalCognitoIntegration.test_tags_preserved)
+11) Bestehende Tags bleiben erhalten (local.default_tags). ... ok
+test_worker_sqs_dynamodb_stay_mandatory 
+(module_builder.tests.test_module_builder.TestExternalCognitoIntegration.test_worker_sqs_dynamodb_stay_mandatory)
+8-10) Worker, SQS, eigene Tabelle bleiben enthalten. ... ok
+test_cognito_backup_artifact_reproducible_in_target 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_cognito_backup_artifact_reproducible_in_target)
+F1-Kern: Das generierte Projekt kann das Cognito-Backup-Artefakt ... FAIL
+test_expected_layout (module_builder.tests.test_module_builder.TestGeneratedProject.test_expected_layout) ... FAIL
+test_lambda_artifact_hashes_match_source 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_lambda_artifact_hashes_match_source) ... ok
+test_manifest_content (module_builder.tests.test_module_builder.TestGeneratedProject.test_manifest_content) ... FAIL
+test_no_backend_and_no_state_plan_artifacts 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_no_backend_and_no_state_plan_artifacts) ... ok
+test_no_original_repo_dependency_in_terraform 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_no_original_repo_dependency_in_terraform) ... ok
+test_policy_files_present_in_target 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_policy_files_present_in_target) ... FAIL
+test_policy_gate_negative_missing_tag 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_policy_gate_negative_missing_tag)
+Negativtest: Pflicht-Tag fehlt ÔåÆ Exit 1. ... ERROR
+test_policy_gate_negative_region 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_policy_gate_negative_region)
+Negativtest: verbotene Region ÔåÆ Exit 1 (FAIL, nicht umgangen). ... ERROR
+test_policy_gate_negative_resource_type 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_policy_gate_negative_resource_type)
+Negativtest: nicht erlaubter Ressourcentyp ÔåÆ Exit 1. ... ERROR
+test_policy_gate_positive (module_builder.tests.test_module_builder.TestGeneratedProject.test_policy_gate_positive)
+Positivtest: valider Plan gegen das GENERIERTE Gate ÔåÆ Exit 0. ... ERROR
+test_policy_project_substituted 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_policy_project_substituted) ... ok
+test_project_name_default_substituted 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_project_name_default_substituted) ... ok
+test_readme_mentions_privacy_blocked_and_backend 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_readme_mentions_privacy_blocked_and_backend) ... ok
+test_rebuild_is_deterministic 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_rebuild_is_deterministic) ... ok
+test_versions_tf_contains_terraform_block 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_versions_tf_contains_terraform_block) ... ok
+test_custom_build_deterministic 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_custom_build_deterministic) ... ok
+test_custom_manifest_contains_selection 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_custom_manifest_contains_selection) ... ok
+test_custom_output_free_of_states_and_plans 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_custom_output_free_of_states_and_plans) ... ok
+test_duplicate_module_fail_closed 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_duplicate_module_fail_closed) ... ok
+test_full_custom_selection_equivalent_to_complete 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_full_custom_selection_equivalent_to_complete)
+Alle 11 Module via --modules Ôëê Preset complete (Modul-/Variablen-/Output-Mengen). ... ok
+test_iam_with_sqs_keeps_wiring 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_iam_with_sqs_keeps_wiring)
+Mit sqs in der Auswahl bleiben ARN- und Gate-Wiring erhalten. ... ok
+test_iam_without_sqs_valid (module_builder.tests.test_module_builder.TestModuleSelectionB1.test_iam_without_sqs_valid)
+IAM ohne Queue-ARN: g├╝ltige Auswahl, kein SQS-Wiring, Gate AUS. ... ok
+test_lambda_without_sqs_readme_note 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_lambda_without_sqs_readme_note)
+Generiertes README dokumentiert den synchronen Betrieb ohne SQS. ... ok
+test_lambda_without_sqs_sync_only 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_lambda_without_sqs_sync_only)
+Lambda ohne Queue: g├╝ltig (synchroner Handler), kein queue_url-Wiring. ... ok
+test_missing_dependencies_fail_closed 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_missing_dependencies_fail_closed) ... ok
+test_nothing_added_silently 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_nothing_added_silently)
+Auswahl bleibt exakt die Auswahl ÔÇö keine stillschweigende Erg├ñnzung. ... FAIL
+test_single_module_dynamodb 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_single_module_dynamodb) ... FAIL
+test_sqs_outputs_dropped_without_sqs_module 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_sqs_outputs_dropped_without_sqs_module)
+GAP-02: sqs_queue_name referenziert module.sqs ÔÇö ohne sqs-Modul darf ... ok
+test_sqs_worker_still_requires_sqs 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_sqs_worker_still_requires_sqs)
+Worker-Abh├ñngigkeiten bleiben hart: sqs_worker ohne sqs ÔåÆ fail-closed. ... ok
+test_transitive_dependency_reported 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_transitive_dependency_reported)
+iam ohne dynamodb ÔåÆ fehlend: dynamodb (vollst├ñndige Diagnose je Modul). ... ok
+test_unknown_module_fail_closed 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_unknown_module_fail_closed) ... ok
+test_valid_combination_lambda_chain 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_valid_combination_lambda_chain)
+dynamodb,sqs,iam,lambda ÔÇö g├╝ltige Kette mit Lambda-Artefakt, ohne Backup-Zip. ... FAIL
+test_cli_modules_build (module_builder.tests.test_module_builder.TestModuleSelectionCliB1.test_cli_modules_build) ... 
+ok
+test_cli_preset_and_modules_mutually_exclusive 
+(module_builder.tests.test_module_builder.TestModuleSelectionCliB1.test_cli_preset_and_modules_mutually_exclusive) ... 
+usage: python -m module_builder [-h] [--version] {build,presets} ...
+python -m module_builder: error: --preset und --modules schlie├ƒen sich gegenseitig aus.
+ok
+test_cli_unknown_module_message 
+(module_builder.tests.test_module_builder.TestModuleSelectionCliB1.test_cli_unknown_module_message) ... ok
+test_cli_orders_service_preset 
+(module_builder.tests.test_module_builder.TestOrdersServiceModule.test_cli_orders_service_preset) ... ok
+test_cli_orders_service_rejects_modules 
+(module_builder.tests.test_module_builder.TestOrdersServiceModule.test_cli_orders_service_rejects_modules) ... usage: 
+python -m module_builder [-h] [--version] {build,presets} ...
+python -m module_builder: error: --preset und --modules schlie├ƒen sich gegenseitig aus.
+ok
+test_iam_sqs_gate_contract 
+(module_builder.tests.test_module_builder.TestOrdersServiceModule.test_iam_sqs_gate_contract)
+GAP-06: beide counts h├ñngen NUR am booleschen Gate; der ARN bleibt ... ok
+test_iam_sqs_gate_wired_plan_known 
+(module_builder.tests.test_module_builder.TestOrdersServiceModule.test_iam_sqs_gate_wired_plan_known)
+GAP-06: der Root-Aufrufer setzt das Gate als Literal (plan-bekannt), ... ok
+test_main_composition (module_builder.tests.test_module_builder.TestOrdersServiceModule.test_main_composition) ... ok
+test_manifest_contract (module_builder.tests.test_module_builder.TestOrdersServiceModule.test_manifest_contract) ... ok
+test_module_layout (module_builder.tests.test_module_builder.TestOrdersServiceModule.test_module_layout) ... FAIL
+test_module_mode_deterministic 
+(module_builder.tests.test_module_builder.TestOrdersServiceModule.test_module_mode_deterministic) ... ok
+test_module_mode_fail_closed_missing_artifact 
+(module_builder.tests.test_module_builder.TestOrdersServiceModule.test_module_mode_fail_closed_missing_artifact) ... ok
+test_module_mode_respects_force_protection 
+(module_builder.tests.test_module_builder.TestOrdersServiceModule.test_module_mode_respects_force_protection) ... ok
+test_outputs_contract (module_builder.tests.test_module_builder.TestOrdersServiceModule.test_outputs_contract)
+WP5 + GAP-02: 19 Bestands-Outputs + sqs_queue_name = 20. ... ok
+test_readme_contract_and_example 
+(module_builder.tests.test_module_builder.TestOrdersServiceModule.test_readme_contract_and_example) ... ok
+test_variables_contract (module_builder.tests.test_module_builder.TestOrdersServiceModule.test_variables_contract) ... 
+ok
+test_versions_tf_contains_terraform_block 
+(module_builder.tests.test_module_builder.TestOrdersServiceModule.test_versions_tf_contains_terraform_block) ... ok
+test_force_keeps_foreign_files 
+(module_builder.tests.test_module_builder.TestPreflightFailClosed.test_force_keeps_foreign_files) ... ok
+test_invalid_project_names_rejected 
+(module_builder.tests.test_module_builder.TestPreflightFailClosed.test_invalid_project_names_rejected) ... ok
+test_missing_artifact_fails_closed_without_writing 
+(module_builder.tests.test_module_builder.TestPreflightFailClosed.test_missing_artifact_fails_closed_without_writing)
+Quelle ohne lambda.zip ÔåÆ Fehler, Zielordner bleibt UNANGETASTET. ... ok
+test_nonempty_target_refused_without_force 
+(module_builder.tests.test_module_builder.TestPreflightFailClosed.test_nonempty_target_refused_without_force) ... ok
+test_unknown_preset_fails_closed 
+(module_builder.tests.test_module_builder.TestPreflightFailClosed.test_unknown_preset_fails_closed) ... ok
+test_valid_project_names_accepted 
+(module_builder.tests.test_module_builder.TestPreflightFailClosed.test_valid_project_names_accepted) ... ok
+test_extract_terraform_block 
+(module_builder.tests.test_module_builder.TestTransformations.test_extract_terraform_block) ... ok
+test_extract_unclosed_block_fails 
+(module_builder.tests.test_module_builder.TestTransformations.test_extract_unclosed_block_fails) ... ok
+test_substitute_fails_when_pattern_missing 
+(module_builder.tests.test_module_builder.TestTransformations.test_substitute_fails_when_pattern_missing) ... ok
+test_substitute_project_name 
+(module_builder.tests.test_module_builder.TestTransformations.test_substitute_project_name) ... ok
+test_b1_without_with_deps_still_fail_closed 
+(module_builder.tests.test_module_builder.TestWithDepsB2.test_b1_without_with_deps_still_fail_closed)
+Ohne --with-deps bleibt das B1-Verhalten exakt erhalten. ... ok
+test_cli_with_deps_transparency_output 
+(module_builder.tests.test_module_builder.TestWithDepsB2.test_cli_with_deps_transparency_output)
+WP5: CLI unterscheidet Requested / Added / Final. ... ok
+test_cli_without_with_deps_output_unchanged 
+(module_builder.tests.test_module_builder.TestWithDepsB2.test_cli_without_with_deps_output_unchanged)
+B1-CLI-Ausgabe bleibt unver├ñndert (keine Deps-Bl├Âcke). ... ok
+test_cycle_detected_fail_closed 
+(module_builder.tests.test_module_builder.TestWithDepsB2.test_cycle_detected_fail_closed)
+Zyklus im Katalog ÔåÆ verst├ñndliche Meldung mit Zyklus-Pfad. ... ok
+test_duplicates_rejected_with_deps 
+(module_builder.tests.test_module_builder.TestWithDepsB2.test_duplicates_rejected_with_deps) ... ok
+test_inconsistent_catalog_entry_fail_closed 
+(module_builder.tests.test_module_builder.TestWithDepsB2.test_inconsistent_catalog_entry_fail_closed)
+Katalogeintrag ohne deps-Feld ÔåÆ fail-closed. ... ok
+test_multi_used_dependency_appears_once 
+(module_builder.tests.test_module_builder.TestWithDepsB2.test_multi_used_dependency_appears_once)
+Mehrfach verwendete Abh├ñngigkeit (dynamodb) erscheint genau einmal. ... ok
+test_readme_documents_added_deps 
+(module_builder.tests.test_module_builder.TestWithDepsB2.test_readme_documents_added_deps) ... ok
+test_unknown_module_rejected_with_deps 
+(module_builder.tests.test_module_builder.TestWithDepsB2.test_unknown_module_rejected_with_deps) ... ok
+test_with_deps_deterministic (module_builder.tests.test_module_builder.TestWithDepsB2.test_with_deps_deterministic) 
+... ok
+test_wp3_a_iam_direct_dependency 
+(module_builder.tests.test_module_builder.TestWithDepsB2.test_wp3_a_iam_direct_dependency)
+A) iam --with-deps ÔåÆ dynamodb + iam. ... ok
+test_wp3_b_lambda_transitive_without_sqs 
+(module_builder.tests.test_module_builder.TestWithDepsB2.test_wp3_b_lambda_transitive_without_sqs)
+B) lambda --with-deps ÔåÆ dynamodb, iam, lambda ÔÇö KEIN SQS (optional bleibt optional). ... ok
+test_wp3_c_sqs_worker_full_chain 
+(module_builder.tests.test_module_builder.TestWithDepsB2.test_wp3_c_sqs_worker_full_chain)
+C) sqs_worker --with-deps ÔåÆ dynamodb, sqs, sqs_worker. ... ok
+test_wp3_d_api_all_transitive (module_builder.tests.test_module_builder.TestWithDepsB2.test_wp3_d_api_all_transitive)
+D) api --with-deps ÔåÆ alle transitiven Pflichtabh├ñngigkeiten. ... ok
+test_wp3_e_dynamodb_no_additions 
+(module_builder.tests.test_module_builder.TestWithDepsB2.test_wp3_e_dynamodb_no_additions)
+E) dynamodb --with-deps ÔåÆ keine Erg├ñnzungen. ... ok
+
+======================================================================
+ERROR: test_policy_gate_negative_missing_tag 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_policy_gate_negative_missing_tag)
+Negativtest: Pflicht-Tag fehlt ÔåÆ Exit 1.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 250, in 
+test_policy_gate_negative_missing_tag
+    code, output = self._run_gate(
+                   ~~~~~~~~~~~~~~^
+        self._plan(tags={"Project": "my-orders", "Environment": "Development"})
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 170, in 
+_run_gate
+    with tempfile.NamedTemporaryFile(
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        "w", suffix=".json", delete=False, dir="/tmp/opencode"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ) as fh:
+    ^
+  File "C:\Python315\Lib\tempfile.py", line 657, in NamedTemporaryFile
+    file = _io.open(dir, mode, buffering=buffering,
+                    newline=newline, encoding=encoding, errors=errors,
+                    opener=opener)
+  File "C:\Python315\Lib\tempfile.py", line 654, in opener
+    fd, name = _mkstemp_inner(dir, prefix, suffix, flags, output_type)
+               ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python315\Lib\tempfile.py", line 256, in _mkstemp_inner
+    fd = _os.open(file, flags, 0o600)
+FileNotFoundError: [Errno 2] No such file or directory: 'C:\\tmp\\opencode\\tmp6p5gzg8r.json'
+
+======================================================================
+ERROR: test_policy_gate_negative_region 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_policy_gate_negative_region)
+Negativtest: verbotene Region ÔåÆ Exit 1 (FAIL, nicht umgangen).
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 236, in 
+test_policy_gate_negative_region
+    code, output = self._run_gate(self._plan(region="us-east-1"))
+                   ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 170, in 
+_run_gate
+    with tempfile.NamedTemporaryFile(
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        "w", suffix=".json", delete=False, dir="/tmp/opencode"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ) as fh:
+    ^
+  File "C:\Python315\Lib\tempfile.py", line 657, in NamedTemporaryFile
+    file = _io.open(dir, mode, buffering=buffering,
+                    newline=newline, encoding=encoding, errors=errors,
+                    opener=opener)
+  File "C:\Python315\Lib\tempfile.py", line 654, in opener
+    fd, name = _mkstemp_inner(dir, prefix, suffix, flags, output_type)
+               ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python315\Lib\tempfile.py", line 256, in _mkstemp_inner
+    fd = _os.open(file, flags, 0o600)
+FileNotFoundError: [Errno 2] No such file or directory: 'C:\\tmp\\opencode\\tmp5v8wazkg.json'
+
+======================================================================
+ERROR: test_policy_gate_negative_resource_type 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_policy_gate_negative_resource_type)
+Negativtest: nicht erlaubter Ressourcentyp ÔåÆ Exit 1.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 242, in 
+test_policy_gate_negative_resource_type
+    code, output = self._run_gate(
+                   ~~~~~~~~~~~~~~^
+        self._plan(resource_type="aws_redshift_cluster")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 170, in 
+_run_gate
+    with tempfile.NamedTemporaryFile(
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        "w", suffix=".json", delete=False, dir="/tmp/opencode"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ) as fh:
+    ^
+  File "C:\Python315\Lib\tempfile.py", line 657, in NamedTemporaryFile
+    file = _io.open(dir, mode, buffering=buffering,
+                    newline=newline, encoding=encoding, errors=errors,
+                    opener=opener)
+  File "C:\Python315\Lib\tempfile.py", line 654, in opener
+    fd, name = _mkstemp_inner(dir, prefix, suffix, flags, output_type)
+               ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python315\Lib\tempfile.py", line 256, in _mkstemp_inner
+    fd = _os.open(file, flags, 0o600)
+FileNotFoundError: [Errno 2] No such file or directory: 'C:\\tmp\\opencode\\tmp8wwtpjoa.json'
+
+======================================================================
+ERROR: test_policy_gate_positive 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_policy_gate_positive)
+Positivtest: valider Plan gegen das GENERIERTE Gate ÔåÆ Exit 0.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 231, in 
+test_policy_gate_positive
+    code, output = self._run_gate(self._plan())
+                   ~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 170, in 
+_run_gate
+    with tempfile.NamedTemporaryFile(
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        "w", suffix=".json", delete=False, dir="/tmp/opencode"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ) as fh:
+    ^
+  File "C:\Python315\Lib\tempfile.py", line 657, in NamedTemporaryFile
+    file = _io.open(dir, mode, buffering=buffering,
+                    newline=newline, encoding=encoding, errors=errors,
+                    opener=opener)
+  File "C:\Python315\Lib\tempfile.py", line 654, in opener
+    fd, name = _mkstemp_inner(dir, prefix, suffix, flags, output_type)
+               ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python315\Lib\tempfile.py", line 256, in _mkstemp_inner
+    fd = _os.open(file, flags, 0o600)
+FileNotFoundError: [Errno 2] No such file or directory: 'C:\\tmp\\opencode\\tmp3bazsyr4.json'
+
+======================================================================
+FAIL: test_cognito_backup_artifact_reproducible_in_target 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_cognito_backup_artifact_reproducible_in_target)
+F1-Kern: Das generierte Projekt kann das Cognito-Backup-Artefakt
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 155, in 
+test_cognito_backup_artifact_reproducible_in_target
+    self.assertEqual(result.returncode, 0, result.stderr[-400:])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 9009 != 0 : Python was not found; run without arguments to install from the Microsoft Store, or 
+disable this shortcut from Settings > Apps > Advanced app settings > App execution aliases.
+
+
+======================================================================
+FAIL: test_expected_layout (module_builder.tests.test_module_builder.TestGeneratedProject.test_expected_layout)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 137, in 
+test_expected_layout
+    self.assertIn(expected, tree, f"Fehlt: {expected}")
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'terraform/main.tf' not found in {'terraform\\modules\\lambda\\main.tf', 
+'terraform\\modules\\cloudtrail\\main.tf', 'scripts\\seed_orders.py', 'terraform\\modules\\sqs-worker\\variables.tf', 
+'terraform\\modules\\lambda\\variables.tf', 'terraform\\modules\\cloudtrail\\outputs.tf', 
+'lambda\\dist\\cognito_backup.zip', 'terraform\\variables.tf', 'README.md', 
+'terraform\\modules\\cognito_backup_automation\\main.tf', 'terraform\\main.tf', 'terraform\\modules\\sqs\\main.tf', 
+'terraform\\modules\\iam\\main.tf', 'terraform\\modules\\cognito\\variables.tf', 'lambda\\cognito_backup_handler.py', 
+'terraform\\modules\\api\\variables.tf', 'terraform\\modules\\cognito_backup\\main.tf', 'terraform\\outputs.tf', 
+'terraform\\versions.tf', 'terraform\\modules\\monitoring\\outputs.tf', 'cognito_backup\\storage.py', 
+'database\\seed\\orders_seed_demo_50.json', 'cognito_backup\\exporter.py', 'terraform\\policy\\validate-plan.py', 
+'terraform\\modules\\cognito\\main.tf', 'lambda\\build_zip.py', 'lambda\\src\\index.py', 
+'lambda\\src\\order_service.py', 'lambda\\src\\state_machine.py', 'terraform\\modules\\dynamodb\\outputs.tf', 
+'lambda\\src\\validation.py', 'terraform\\modules\\dynamodb\\main.tf', 'terraform\\modules\\api\\main.tf', 
+'terraform\\modules\\monitoring\\main.tf', 'database\\seed\\orders_seed_1000.jsonl', 'terraform\\README.md', 
+'terraform\\modules\\dynamodb\\variables.tf', 'cognito_backup\\manifest.py', 'terraform\\modules\\sqs-worker\\iam.tf', 
+'lambda\\src\\errors.py', 'cognito_backup\\restore.py', 'cognito_backup\\backup.py', 
+'terraform\\modules\\iam\\variables.tf', 'terraform\\modules\\cloudtrail\\variables.tf', 
+'terraform\\modules\\cognito_backup\\variables.tf', 'terraform\\modules\\iam\\outputs.tf', 
+'cognito_backup\\__init__.py', 'lambda\\dist\\lambda.zip', 'cognito_backup\\cli.py', 
+'terraform\\policy\\resource-policy.json', 'terraform\\modules\\api\\outputs.tf', 
+'terraform\\modules\\cognito\\outputs.tf', 'terraform\\modules\\lambda\\outputs.tf', 
+'lambda\\build_cognito_backup_zip.py', 'lambda\\src\\sqs_handler.py', 'module-builder.manifest.json', 
+'terraform\\modules\\cognito_backup_automation\\variables.tf', 'lambda\\src\\order_types.py', 
+'terraform\\modules\\sqs-worker\\main.tf', 'terraform\\modules\\monitoring\\variables.tf', 
+'terraform\\terraform.tfvars.example'} : Fehlt: terraform/main.tf
+
+======================================================================
+FAIL: test_manifest_content (module_builder.tests.test_module_builder.TestGeneratedProject.test_manifest_content)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 298, in 
+test_manifest_content
+    self.assertIn("terraform/main.tf", manifest["files_written"])
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'terraform/main.tf' not found in ['README.md', 'cognito_backup\\__init__.py', 
+'cognito_backup\\backup.py', 'cognito_backup\\cli.py', 'cognito_backup\\exporter.py', 'cognito_backup\\manifest.py', 
+'cognito_backup\\restore.py', 'cognito_backup\\storage.py', 'database\\seed\\orders_seed_1000.jsonl', 
+'database\\seed\\orders_seed_demo_50.json', 'lambda\\build_cognito_backup_zip.py', 'lambda\\build_zip.py', 
+'lambda\\cognito_backup_handler.py', 'lambda\\dist\\cognito_backup.zip', 'lambda\\dist\\lambda.zip', 
+'lambda\\src\\errors.py', 'lambda\\src\\index.py', 'lambda\\src\\order_service.py', 'lambda\\src\\order_types.py', 
+'lambda\\src\\sqs_handler.py', 'lambda\\src\\state_machine.py', 'lambda\\src\\validation.py', 
+'scripts\\seed_orders.py', 'terraform\\README.md', 'terraform\\main.tf', 'terraform\\modules\\api\\main.tf', 
+'terraform\\modules\\api\\outputs.tf', 'terraform\\modules\\api\\variables.tf', 
+'terraform\\modules\\cloudtrail\\main.tf', 'terraform\\modules\\cloudtrail\\outputs.tf', 
+'terraform\\modules\\cloudtrail\\variables.tf', 'terraform\\modules\\cognito\\main.tf', 
+'terraform\\modules\\cognito\\outputs.tf', 'terraform\\modules\\cognito\\variables.tf', 
+'terraform\\modules\\cognito_backup\\main.tf', 'terraform\\modules\\cognito_backup\\variables.tf', 
+'terraform\\modules\\cognito_backup_automation\\main.tf', 
+'terraform\\modules\\cognito_backup_automation\\variables.tf', 'terraform\\modules\\dynamodb\\main.tf', 
+'terraform\\modules\\dynamodb\\outputs.tf', 'terraform\\modules\\dynamodb\\variables.tf', 
+'terraform\\modules\\iam\\main.tf', 'terraform\\modules\\iam\\outputs.tf', 'terraform\\modules\\iam\\variables.tf', 
+'terraform\\modules\\lambda\\main.tf', 'terraform\\modules\\lambda\\outputs.tf', 
+'terraform\\modules\\lambda\\variables.tf', 'terraform\\modules\\monitoring\\main.tf', 
+'terraform\\modules\\monitoring\\outputs.tf', 'terraform\\modules\\monitoring\\variables.tf', 
+'terraform\\modules\\sqs-worker\\iam.tf', 'terraform\\modules\\sqs-worker\\main.tf', 
+'terraform\\modules\\sqs-worker\\variables.tf', 'terraform\\modules\\sqs\\main.tf', 'terraform\\outputs.tf', 
+'terraform\\policy\\resource-policy.json', 'terraform\\policy\\validate-plan.py', 
+'terraform\\terraform.tfvars.example', 'terraform\\variables.tf', 'terraform\\versions.tf']
+
+======================================================================
+FAIL: test_policy_files_present_in_target 
+(module_builder.tests.test_module_builder.TestGeneratedProject.test_policy_files_present_in_target)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 216, in 
+test_policy_files_present_in_target
+    self.assertIn("terraform/policy/validate-plan.py", tree)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'terraform/policy/validate-plan.py' not found in {'terraform\\modules\\lambda\\main.tf', 
+'terraform\\modules\\cloudtrail\\main.tf', 'scripts\\seed_orders.py', 'terraform\\modules\\sqs-worker\\variables.tf', 
+'terraform\\modules\\lambda\\variables.tf', 'terraform\\modules\\cloudtrail\\outputs.tf', 
+'lambda\\dist\\cognito_backup.zip', 'terraform\\variables.tf', 'README.md', 
+'terraform\\modules\\cognito_backup_automation\\main.tf', 'terraform\\main.tf', 'terraform\\modules\\sqs\\main.tf', 
+'terraform\\modules\\iam\\main.tf', 'terraform\\modules\\cognito\\variables.tf', 'lambda\\cognito_backup_handler.py', 
+'terraform\\modules\\api\\variables.tf', 'terraform\\modules\\cognito_backup\\main.tf', 'terraform\\outputs.tf', 
+'terraform\\versions.tf', 'terraform\\modules\\monitoring\\outputs.tf', 'cognito_backup\\storage.py', 
+'database\\seed\\orders_seed_demo_50.json', 'cognito_backup\\exporter.py', 'terraform\\policy\\validate-plan.py', 
+'terraform\\modules\\cognito\\main.tf', 'lambda\\build_zip.py', 'lambda\\src\\index.py', 
+'lambda\\src\\order_service.py', 'lambda\\src\\state_machine.py', 'terraform\\modules\\dynamodb\\outputs.tf', 
+'lambda\\src\\validation.py', 'terraform\\modules\\dynamodb\\main.tf', 'terraform\\modules\\api\\main.tf', 
+'terraform\\modules\\monitoring\\main.tf', 'database\\seed\\orders_seed_1000.jsonl', 'terraform\\README.md', 
+'terraform\\modules\\dynamodb\\variables.tf', 'cognito_backup\\manifest.py', 'terraform\\modules\\sqs-worker\\iam.tf', 
+'lambda\\src\\errors.py', 'cognito_backup\\restore.py', 'cognito_backup\\backup.py', 
+'terraform\\modules\\iam\\variables.tf', 'terraform\\modules\\cloudtrail\\variables.tf', 
+'terraform\\modules\\cognito_backup\\variables.tf', 'terraform\\modules\\iam\\outputs.tf', 
+'cognito_backup\\__init__.py', 'lambda\\dist\\lambda.zip', 'cognito_backup\\cli.py', 
+'terraform\\policy\\resource-policy.json', 'terraform\\modules\\api\\outputs.tf', 
+'terraform\\modules\\cognito\\outputs.tf', 'terraform\\modules\\lambda\\outputs.tf', 
+'lambda\\build_cognito_backup_zip.py', 'lambda\\src\\sqs_handler.py', 'module-builder.manifest.json', 
+'terraform\\modules\\cognito_backup_automation\\variables.tf', 'lambda\\src\\order_types.py', 
+'terraform\\modules\\sqs-worker\\main.tf', 'terraform\\modules\\monitoring\\variables.tf', 
+'terraform\\terraform.tfvars.example'}
+
+======================================================================
+FAIL: test_nothing_added_silently 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_nothing_added_silently)
+Auswahl bleibt exakt die Auswahl ÔÇö keine stillschweigende Erg├ñnzung.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 577, in 
+test_nothing_added_silently
+    self.assertEqual(mod_dirs, {"cognito", "cloudtrail"})
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Items in the second set but not the first:
+'cloudtrail'
+'cognito'
+
+======================================================================
+FAIL: test_single_module_dynamodb 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_single_module_dynamodb)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 413, in 
+test_single_module_dynamodb
+    self.assertIn("terraform/modules/dynamodb/main.tf", tree)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'terraform/modules/dynamodb/main.tf' not found in {'terraform\\modules\\dynamodb\\main.tf', 
+'terraform\\outputs.tf', 'database\\seed\\orders_seed_1000.jsonl', 'scripts\\seed_orders.py', 'terraform\\README.md', 
+'terraform\\versions.tf', 'terraform\\policy\\resource-policy.json', 'terraform\\modules\\dynamodb\\variables.tf', 
+'terraform\\variables.tf', 'module-builder.manifest.json', 'README.md', 'database\\seed\\orders_seed_demo_50.json', 
+'terraform\\main.tf', 'terraform\\policy\\validate-plan.py', 'terraform\\modules\\dynamodb\\outputs.tf', 
+'terraform\\terraform.tfvars.example'}
+
+======================================================================
+FAIL: test_valid_combination_lambda_chain 
+(module_builder.tests.test_module_builder.TestModuleSelectionB1.test_valid_combination_lambda_chain)
+dynamodb,sqs,iam,lambda ÔÇö g├╝ltige Kette mit Lambda-Artefakt, ohne Backup-Zip.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 439, in 
+test_valid_combination_lambda_chain
+    self.assertIn("lambda/dist/lambda.zip", tree)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'lambda/dist/lambda.zip' not found in {'terraform\\modules\\lambda\\main.tf', 
+'scripts\\seed_orders.py', 'terraform\\modules\\lambda\\variables.tf', 'terraform\\variables.tf', 'README.md', 
+'terraform\\main.tf', 'terraform\\modules\\sqs\\main.tf', 'terraform\\modules\\iam\\main.tf', 'terraform\\outputs.tf', 
+'terraform\\versions.tf', 'database\\seed\\orders_seed_demo_50.json', 'terraform\\policy\\validate-plan.py', 
+'lambda\\build_zip.py', 'lambda\\src\\index.py', 'lambda\\src\\order_service.py', 'lambda\\src\\state_machine.py', 
+'terraform\\modules\\dynamodb\\outputs.tf', 'lambda\\src\\validation.py', 'terraform\\modules\\dynamodb\\main.tf', 
+'database\\seed\\orders_seed_1000.jsonl', 'terraform\\README.md', 'terraform\\modules\\dynamodb\\variables.tf', 
+'lambda\\src\\errors.py', 'terraform\\modules\\iam\\variables.tf', 'terraform\\modules\\iam\\outputs.tf', 
+'lambda\\dist\\lambda.zip', 'terraform\\policy\\resource-policy.json', 'terraform\\modules\\lambda\\outputs.tf', 
+'lambda\\src\\sqs_handler.py', 'module-builder.manifest.json', 'lambda\\src\\order_types.py', 
+'terraform\\terraform.tfvars.example'}
+
+======================================================================
+FAIL: test_module_layout (module_builder.tests.test_module_builder.TestOrdersServiceModule.test_module_layout)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\DCI-Student\projekte\mays-order-aws\module_builder\tests\test_module_builder.py", line 869, in 
+test_module_layout
+    self.assertIn(expected, tree, f"Fehlt: {expected}")
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'modules/dynamodb/main.tf' not found in {'README.md', 'versions.tf', 'modules\\api\\variables.tf', 
+'modules\\iam\\outputs.tf', 'modules\\lambda\\variables.tf', 'modules\\sqs-worker\\main.tf', 
+'modules\\iam\\variables.tf', 'modules\\api\\outputs.tf', 'main.tf', 'modules\\sqs-worker\\iam.tf', 
+'modules\\lambda\\outputs.tf', 'modules\\sqs-worker\\variables.tf', 'modules\\sqs\\main.tf', 'lambda\\build_zip.py', 
+'lambda\\src\\index.py', 'lambda\\src\\order_service.py', 'lambda\\src\\state_machine.py', 
+'lambda\\src\\validation.py', 'modules\\iam\\main.tf', 'modules\\lambda\\main.tf', 'lambda\\src\\errors.py', 
+'modules\\dynamodb\\variables.tf', 'outputs.tf', 'variables.tf', 'modules\\dynamodb\\outputs.tf', 
+'modules\\cognito\\variables.tf', 'lambda\\dist\\lambda.zip', 'modules\\dynamodb\\main.tf', 'modules\\api\\main.tf', 
+'lambda\\src\\sqs_handler.py', 'module-builder.manifest.json', 'lambda\\src\\order_types.py', 
+'modules\\cognito\\outputs.tf', 'modules\\cognito\\main.tf'} : Fehlt: modules/dynamodb/main.tf
+
+----------------------------------------------------------------------
+Ran 90 tests in 2.643s
+
+FAILED (failures=8, errors=4)
