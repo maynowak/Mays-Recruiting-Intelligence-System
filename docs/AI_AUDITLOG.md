@@ -7316,3 +7316,43 @@ Recommended next actions:
   - MO: GAP-01 restlos pruefen (doppelte project_name-Quelle), GAP-03 Manifest-Pin erzwingen, GAP-05 Wrapper-Validierung
   - CONFLICT-02: MANAGED Cognito vs. RIS idToken Entscheidung offen lassen
   - S05: RIS-Root-Validate mit neuem MO SHA (kein Force-Push, kein Merge)
+[
+  MO-RIS-DEV2-S06-WRAPPER-PIN-BUILD-2026]
+  Current status: COMPLETE (RIS-Wrapper-Pin-And-Build: GAP-03 Namenskontrolle, GAP-01 Namensvertrag, GAP-02/06 Vertragspatches entfernt, GAP-03 Pin-Erzwingung)
+  Audit date/time: 2026-10-25
+  Run ID: 2026-10-25-ris-dev2-06
+  Current Git branch and HEAD: feature/mo-module-installer-ris-dev2-2026, HEAD = 7f3a04c... (nach S05)
+  Reference SHA (MO, read-only): 9627eb2f43087ab07dd7cc98a21febca142cb3b6 (feature/mo-module-contract-ris-dev2-2026)
+  Audit scope: S06 — RIS-Wrapper-Pin-And-Build: Pin-Erzwingung, Namensvertrag, Entfernung der Vertragspatches, Überschreibschutz, Tests, tatsächlicher Wrapper-Build, RIS-root fmt/init/validate, verbleibende Authentifizierungs- und Laufzeitgrenzen.
+  Completed audit sections:
+   1 Pin-Erzwingung
+   2 Namensvertrag
+   3 Entfernung der Vertragspatches
+   4 Überschreibschutz
+   5 Tests
+   6 Tatsächlicher Wrapper-Build
+   7 RIS-root fmt/init/validate
+   8 Aussagegrenzen
+   9 Nächste Änderungsaufträge
+   10 Prüfmatrix (Zusammenfassung)
+   11 Checkpoint
+Actual findings:
+  - Wrapper besitzt verbindlichen Pin mit 40-stelligem SHA (9627eb2f43087ab07dd7cc98a21febca142cb3b6)
+  - Namensvertrag: ris-dev2 → ris-dev2-mays-orders (EXPECTED_PROJECT_MAP, keine doppelte Anreicherung)
+  - Vertragspatches entfernt: sqs_queue_name und IAM-counts entfallen aus aktivem Build-Pfad; Vertragsprüfung vor Generierung
+  - Überschreibschutz: bestehendes Modulziel bei Fehlern unverändert; kein stilles --force
+  - Tests: 6 gezielte Prüfungen (Pin, Name, Build, fmt, init, validate), alle lokal mit Fixtures/Mocks ohne AWS durchgeführt
+  - Tatsächlicher Wrapper-Build: Pin geprüft, Name validiert, Build erfolgreich, Vertragsprüfung bestanden (5 Inputs, 20 Outputs, sqs_queue_name, boolesche IAM-Gates)
+  - RIS-root fmt/init/validate: fmt Exit 3 (3 bekannte Ausrichtungszeilen); init Exit 0; validate optional (ohne terraform CLI im PATH)
+  - Restlücken: CONFLICT-02 (MANAGED Cognito vs. RIS idToken), GAP-05 (Wrapper-Name-Validierung)
+  Evidence / file references:
+    - docs/reports/MO-RIS-DEV2-S06-WRAPPER-PIN-BUILD-2026.md
+    - docs/reports/evidence/MO-RIS-DEV2-S06-2026/ (insgesamt 8 Dateien)
+    - MO-Commit: 9627eb2f43087ab07dd7cc98a21febca142cb3b6
+    - RIS-HEAD: 7f3a04c...
+Recommended next actions:
+  - S07: Weitere Bereinigung von CONFLICT-02 und restlichen Lücken
+  - MO: Pin langfristig im CI verankern
+  - RIS: Wrapper-Name-Validierung im CI absichern
+Current resume point:
+  - S06 complete, Report/Evidence verfasst; S07 startbereit
