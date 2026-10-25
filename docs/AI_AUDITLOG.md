@@ -7026,3 +7026,38 @@ Recommended next actions:
    - Complete domain verification, enable SES event publishing, review inbox/spam
 Current resume point:
    - Audit complete, awaiting further evidence
+
+==================================================
+[RIS-DOC-CONSOLIDATION-01-2026-10-25]
+Current status: GREEN — Documentation consolidated
+Audit date/time: 2026-10-25
+Current Git branch and HEAD: main
+Audit scope: Consolidate historical AWS and installation references
+Completed audit sections:
+   §1 Inventory of references
+   §2 Classification CURRENT/HISTORICAL/STALE/CONFLICT
+   §3 Central reference created
+   §4 Report created
+Actual findings:
+   - Current permanent installation ris-dev documented
+   - Historical mays-ris/ris-development preserved as historical
+   - No Terraform or AWS mutations
+Evidence / file references:
+   - docs/architecture/DEPLOYMENT-CONTEXT.md
+   - docs/reports/RIS-DOC-CONSOLIDATION-01.md
+Classification: GREEN
+Terraform checks actually executed and their results:
+   - None
+Git status:
+   - Docs updated
+Files changed:
+   - docs/architecture/DEPLOYMENT-CONTEXT.md
+   - docs/reports/RIS-DOC-CONSOLIDATION-01.md
+Open questions:
+   - Full README update pending approval
+Risks:
+   - None
+Recommended next actions:
+   - Link README to DEPLOYMENT-CONTEXT
+Current resume point:
+   - Consolidation complete
