@@ -7026,3 +7026,55 @@ Recommended next actions:
    - Complete domain verification, enable SES event publishing, review inbox/spam
 Current resume point:
    - Audit complete, awaiting further evidence
+
+==================================================
+[MO-RIS-DEV2-S00-BASELINE-2026]
+Current status: COMPLETE — baseline documented; S01 execution BLOCKED (Terraform, pytest/moto/boto3 missing, source docs missing)
+Audit date/time: 2026-10-25
+Run ID: 2026-10-25-ris-dev2-01
+Current Git branch and HEAD: feature/mo-module-installer-ris-dev2-2026, HEAD = e8a2ed8a5bcb5c795200defb18e1d1e10c1277df (created from clean baseline e8a2ed8a)
+Audit scope: S00 baseline only — git state, toolchain, static mapping of builder/module/pin/consumer paths, evidence classification, test context. No implementation, no deployment, no AWS calls, no builder run, no terraform init/plan/apply.
+Completed audit sections:
+  §1 rules read (RIS AGENTS.md, MO AGENTS.md)
+  §2 git baseline both repositories
+  §3 toolchain matrix
+  §4 static path mapping
+  §5 evidence classification
+  §6 test context / open values
+Actual findings:
+  - RIS HEAD e8a2ed8a5bcb5c795200defb18e1d1e10c1277df matches given baseline; working tree clean
+  - MO HEAD 2d5cf2de08a05109452e88964a8b1a4d6940afcf matches given baseline; main; read-only
+  - Prepared docs missing: docs/installer/MO-RIS-DEV2-INTEGRATION-STEPPLAN-2026.md, docs/installer/MO-MODULE-INTEGRATION-ALPHA-2026.md, docs/reports/MO-MODULE-INSTALLER-RIS-DEV2-2026-EXECUTION_LOG.md; commits 59f7f79 and 8280504 not present
+  - No effective builder pin: PIN_FILE constant unused; wrapper does fetch + checkout main and only warns on dirty worktree
+  - Pin file installer/mays-orders-clone.pinned.json (5cf50a0) belongs to the legacy composite installer path (installer/ris.py:1185)
+  - Expected generated file count of preset orders-service derivable from source: 34
+  - module_builder source has no sqs_queue_name output; IAM has two ARN-keyed count expressions (modules/iam/main.tf:83,96)
+  - Terraform not installed; pytest/moto/boto3 not installed; only Python 3.15 available (requirement: 3.14)
+  - AWS identity NOT VERIFIED in S00 (no AWS calls)
+Evidence / file references:
+  - docs/reports/MO-RIS-DEV2-S00-BASELINE-2026.md
+  - installer/build_mays_orders_module.py, installer/README_MODULE_BUILDER.md
+  - installer/mays-orders-clone.pinned.json
+  - terraform/main.tf:15-19,172-179
+  - mays-order-aws: module_builder/spec.py, module_builder/catalog.py, module_builder/builder.py, terraform/modules/iam/main.tf
+Classification: PASS (inventory complete) / BLOCKED (S01 execution)
+Terraform checks actually executed and their results:
+  - None (terraform not installed; not executed by design)
+Git status:
+  - Report created, AI_AUDITLOG appended
+Files changed:
+  - docs/reports/MO-RIS-DEV2-S00-BASELINE-2026.md
+  - docs/AI_AUDITLOG.md
+Open questions:
+  - Target account/profile for ris-dev2 (documented 240571105849/mayaws vs local default profile with different account)
+  - Backend bucket, state key, lock, TF_DATA_DIR for ris-dev2
+  - Builder pin decision (SHA vs main)
+Risks:
+  - Unpinned builder makes builds non-reproducible
+  - Missing toolchain blocks any plan/validate or test evidence
+Recommended next actions:
+  - Provide missing reference docs or approve a fresh S01 contract matrix
+  - Install Terraform and test dependencies (separate order)
+  - Clarify profile/account and backend values before any plan
+Current resume point:
+  - S00 complete, report committed; S01-Vertragsmatrix is next, not started
