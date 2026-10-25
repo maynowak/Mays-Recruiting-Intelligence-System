@@ -1,0 +1,18 @@
+S04/S05 Summary — 2026-10-25
+
+S04: MO-GAP-02/06-FIX
+- GAP-02: output "sqs_queue_name" added at source; 19→20 outputs; 5 inputs unchanged; filtered without sqs module
+- GAP-06: IAM counts → var.sqs_enabled gate; lifecycle precondition on ARN; sqs_enabled wired root; OPTIONAL_MODULE_FLAGS
+- 9 targeted tests + baseline: all ok; 12 pre-existing Windows failures; no regressions
+- MO commit 9627eb2f43087ab07dd7cc98a21febca142cb3b6 pushed
+
+S05: RIS-Root-Validate
+- Fresh module from MO commit integrated into terraform/modules/mays_orders
+- terraform fmt -check -recursive: Exit 3 (3 known alignment devs in mays_orders)
+- terraform init -backend=false -input=false: Exit 0 (17 modules)
+- terraform validate -no-color: Exit 0 "Success! The configuration is valid."
+- Report: docs/reports/MO-RIS-DEV2-S05-RIS-ROOT-VALIDATE-2026.md
+- Evidence: docs/reports/evidence/MO-RIS-DEV2-S05-2026/ (11 text files)
+- AI_AUDITLOG.md updated
+
+Both branches pushed; no S06 executed.
