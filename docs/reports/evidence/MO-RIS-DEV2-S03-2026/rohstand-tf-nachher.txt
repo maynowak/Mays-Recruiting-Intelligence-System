@@ -1,0 +1,6 @@
+Vergleich der .tf-Dateien vor/nach init+validate (A-rohstand)
+Dateien: 23
+Unterschiede: 0
+
+Neue, von Terraform erzeugte Datei im Modulordner:
+  .terraform.lock.hcl

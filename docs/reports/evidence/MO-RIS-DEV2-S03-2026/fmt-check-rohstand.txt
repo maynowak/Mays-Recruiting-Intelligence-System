@@ -1,0 +1,5 @@
+Befehl: terraform -chdir=<A-rohstand> fmt -check -recursive -no-color
+Exitcode: 3
+
+main.tf
+variables.tf

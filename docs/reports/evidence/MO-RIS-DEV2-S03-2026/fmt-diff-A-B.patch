@@ -1,0 +1,37 @@
+Diff A-rohstand -> B-formatiert (ausschliesslich Formatierung)
+Erzeugt mit difflib.unified_diff, UTF-8, Pfade relativ.
+
+--- a/main.tf
++++ b/main.tf
+@@ -11,7 +11,7 @@
+   # EXTERNAL (external_cognito gesetzt): vorhandener Pool; das Modul
+   # erzeugt KEINE Cognito-Ressourcen (count=0, splat bleibt leer).
+   # one() macht beide Zweige auswertungssicher (kein Index-Fehler).
+-  cognito_endpoint = var.external_cognito == null ? one(module.cognito[*].user_pool_endpoint) : var.external_cognito.user_pool_endpoint
++  cognito_endpoint  = var.external_cognito == null ? one(module.cognito[*].user_pool_endpoint) : var.external_cognito.user_pool_endpoint
+   cognito_client_id = var.external_cognito == null ? one(module.cognito[*].user_pool_client_id) : var.external_cognito.user_pool_client_id
+ }
+ 
+@@ -62,7 +62,7 @@
+ # Kein user_pool_domain: Login via USER_PASSWORD_AUTH (kein Hosted-UI/OAuth-Redirect nötig,
+ # siehe terraform/README.md — Domain nur "falls nötig").
+ module "cognito" {
+-  count = var.external_cognito == null ? 1 : 0
++  count        = var.external_cognito == null ? 1 : 0
+   source       = "./modules/cognito"
+   project_name = var.project_name
+   tags         = local.default_tags
+
+--- a/variables.tf
++++ b/variables.tf
+@@ -46,7 +46,7 @@
+ variable "external_cognito" {
+   description = "Externe Cognito-Referenzen (EXTERNAL) oder null fuer eigenen Pool (MANAGED, Standard)."
+   type = object({
+-    user_pool_endpoint = string # Pool-Endpoint OHNE Scheme (api-Modul ergaenzt https://)
++    user_pool_endpoint  = string # Pool-Endpoint OHNE Scheme (api-Modul ergaenzt https://)
+     user_pool_client_id = string # App-Client-ID (Audience des JWT-Authorizers)
+   })
+   default = null
+
+Geaenderte Dateien: 2
