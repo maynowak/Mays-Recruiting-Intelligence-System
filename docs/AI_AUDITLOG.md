@@ -1,3 +1,41 @@
+[
+  MO-RIS-DEV2-S07-DEPENDENCY-CONSOLIDATION-2026]
+  Current status: COMPLETE (Dependency consolidation: orders-service deps mapped, historical reports consolidated, no AWS, no Plan/Apply)
+  Audit date/time: 2026-10-25
+  Run ID: 2026-10-25-ris-dev2-07
+  Current Git branch and HEAD: feature/mo-module-installer-ris-dev2-2026, HEAD = 8f6357e524ff209df42ed0524d5f1f6229d8a3de
+  Reference SHA (MO, read-only): 9627eb2f43087ab07dd7cc98a21febca142cb3b6 (feature/mo-module-contract-ris-dev2-2026)
+  Audit scope: S07 — MO-RIS-DEV2-S07-DEPENDENCY-CONSOLIDATION-2026: Dependency analysis and historical report consolidation (kein Plan/Apply, keine AWS, keine Backend-Bootstrap, kein State, kein Release-Tag).
+  Completed audit sections:
+   1 Ausgangslage (beide Repos, MO-Commit 9627eb2f43087ab07dd7cc98a21febca142cb3b6)
+   2 Abhängigkeitsmatrix (Produzent → Output → Consumer-Input → tatsächliche Verwendung)
+   4 SQS-Policy (Principal, Actions, Resource, Conditions)
+   5 Tatsächlicher HTTP-/Auth-Pfad (RIS-eigener Pfad vs. direkter MO-API-Pfad)
+   6 Historische Reports einordnen (MAYS-ORDERS-, S01–S06)
+   7 Verbleibende Restabhängigkeiten
+   8 Aussagegrenzen
+   9 Nächste Änderungsaufträge
+   11 Checkpoint
+Actual findings:
+  - MO-Commit 9627eb2f43087ab07dd7cc98a21febca142cb3b6 Grundlage für S04/S05/S06
+  - Dependency-Matrix erstellt für orders-service und alle RIS-Consumer
+  - 3 Arten von Referenzen unterschieden: A (ARN/ID direkt), B (Name direkt), C (unabhängig rekonstruiert)
+  - Worker-Boundary: fester Account-ARN wird durchgereicht, überschreibbar durch Modulvertrag
+  - SQS-Policy: Principal/Actions/Resource/Conditions erfasst, keine Änderung in S07
+  - HTTP/Auth-Pfad: RIS-eigener Pfad (A) für ris-dev2 belegt, direkter MO-API-Pfad (B) nicht belegt
+  - Historische Reports geordnet: MAYS-ORDERS-, S01–S06, einordnung als Kontext/überholt
+  - Restabhängigkeiten: Worker-Boundary, SQS-Policy, HTTP/Auth-Phase
+  Evidence / file references:
+    - docs/reports/MO-RIS-DEV2-S07-DEPENDENCY-CONSOLIDATION-2026.md
+    - docs/reports/evidence/MO-RIS-DEV2-S07-2026/ (in Bearbeitung)
+    - MO-Commit: 9627eb2f43087ab07dd7cc98a21febca142cb3b6
+    - RIS-HEAD: 8f6357e524ff209df42ed0524d5f1f6229d8a3de
+Recommended next actions:
+  - S08: Weitere Architekturentwicklung, falls erforderlich
+  - MO: Keine further Änderungen ohne neuen Auftrag
+  - RIS: Abhängigkeitsmatrix bei neuen Modulen aktualisieren
+Current resume point:
+  - S07 complete, Report/Evidence verfasst; S08 startbereit
 ==================================================
 ==================================================
 EXECUTION LOG / CRASH RECOVERY â€” MANDATORY template
