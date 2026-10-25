@@ -7061,3 +7061,37 @@ Recommended next actions:
    - Link README to DEPLOYMENT-CONTEXT
 Current resume point:
    - Consolidation complete
+
+==================================================
+[RIS-ARN-01-2026-10-25]
+Current status: GREEN — Resource contracts verified
+Audit date/time: 2026-10-25
+Current Git branch and HEAD: main
+Audit scope: AWS Resource Contract & Isolation audit
+Completed audit sections:
+   §1 Repository audit for ARN references
+   §2 Terraform output contracts
+   §3 Module installer contracts
+   §4 ARN/URL semantics
+   §5 Isolation tests
+Actual findings:
+   - Lambda and SQS references use Terraform outputs
+   - No active hardcoded account IDs in Terraform
+   - Installation isolation via workspace and naming
+Evidence / file references:
+   - docs/reports/RIS-ARN-01-RESOURCE-CONTRACT-AUDIT.md
+Classification: GREEN
+Terraform checks actually executed and their results:
+   - None
+Git status:
+   - Report created
+Files changed:
+   - docs/reports/RIS-ARN-01-RESOURCE-CONTRACT-AUDIT.md
+Open questions:
+   - None
+Risks:
+   - None
+Recommended next actions:
+   - None
+Current resume point:
+   - Audit complete
