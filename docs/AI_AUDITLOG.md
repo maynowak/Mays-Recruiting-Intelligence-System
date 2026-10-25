@@ -7095,3 +7095,37 @@ Recommended next actions:
    - None
 Current resume point:
    - Audit complete
+
+==================================================
+[RIS-RC-01-2026-10-25]
+Current status: YELLOW — Release candidate validated locally, live evidence missing
+Audit date/time: 2026-10-25
+Current Git branch and HEAD: main @ 392e27b
+Audit scope: Release Candidate Integration & Verification
+Completed audit sections:
+   §1 Git baseline
+   §2 AWS account boundary
+   §3 Installer and Terraform contracts
+   §4 Lambda packaging
+   §5 SQS/DLQ
+   §6 Agent runtime
+Actual findings:
+   - Repo clean, contracts verified, no mutations
+   - Live E2E evidence missing for full runtime
+Evidence / file references:
+   - docs/reports/RIS-RC-01-RELEASE-CANDIDATE-VALIDATION.md
+Classification: YELLOW
+Terraform checks actually executed and their results:
+   - None
+Git status:
+   - Report created
+Files changed:
+   - docs/reports/RIS-RC-01-RELEASE-CANDIDATE-VALIDATION.md
+Open questions:
+   - Live E2E verification needed
+Risks:
+   - Release readiness not fully proven
+Recommended next actions:
+   - Perform live smoke test
+Current resume point:
+   - Audit complete
