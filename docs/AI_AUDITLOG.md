@@ -7144,3 +7144,67 @@ Recommended next actions:
   - Architekturentscheidung CONFLICT-02 vor jedem E2E
 Current resume point:
   - S01 complete, Report und Auditlog committed; S02 nicht begonnen
+
+==================================================
+[MO-RIS-DEV2-S02-BUILD-CONTRACT-2026]
+Current status: COMPLETE (Build-Vertrag festgelegt, isolierte Modulgenerierung lokal ausgefuehrt, Exit 0) - kein Terraform, kein AWS
+Audit date/time: 2026-10-25
+Run ID: 2026-10-25-ris-dev2-03
+Current Git branch and HEAD: feature/mo-module-installer-ris-dev2-2026, HEAD = 6afdfb2f48419799137600e2fe12b61e84188923
+Reference SHA (MO, read-only): 2d5cf2de08a05109452e88964a8b1a4d6940afcf (main, kurzer SHA im Manifest: 2d5cf2d)
+Audit scope: S02 only - verbindlicher Build-Vertrag (Preset orders-service, project_name ris-dev2-mays-orders, voller MO-SHA), Quellschutzpruefung, isoliertes Ziel, Soll-/Ist-Dateimatrix, Manifest-/ZIP-Provenienz, Ueberschreibschutz-Negativprobe. Kein AWS, keine Terraform-Ausfuehrung, kein Wrapper-Lauf, keine Installation in RIS.
+Completed audit sections:
+  1 Ausgangslage (beide Repos, Toolchain, Abweichungen zu S01)
+  2 Build-Vertrag + dokumentarische Aufloesung GAP-01 (nur Aufrufebene)
+  3 Quellenschutz (HEAD exakt, worktree clean, kein fetch/checkout, Python-Kompatibilitaet getrennt Generator vs. Lambda-Runtime)
+  4 Isoliertes Ziel (neu, leer, ausserhalb aller Deployment-Workdirs, kein --force)
+  5 Soll-Aufstellung (33 files_written + Manifest = 34)
+  6 Generierung + Ist-Pruefung (Dateiliste, Manifest, ZIP-Provenienz, 12 statische Vertragspruefungen)
+  7 Negativprobe (Exit 1, 34 Dateien und alle Hashes unveraendert)
+  8 Getrennte Urteile + verbleibende Gaps
+  9 Naechste Aenderungsauftraege MO/RIS + S03
+Actual findings:
+  - Quellidentitaet: MO HEAD exakt 2d5cf2de08a05109452e88964a8b1a4d6940afcf, Branch main, git status leer; kein Update/Checkout/Reset/Clean
+  - Generator: python -m module_builder build --preset orders-service --project-name ris-dev2-mays-orders, Exit 0, Builder 0.1.0, Python 3.15.0
+  - Generatorfaehigkeit unter Python 3.15 belegt (CLI, presets, build, In-Memory-compile von 8 Dateien, 0 Fehler); Lambda-Zielruntime bleibt python3.14 (terraform/main.tf:89) - getrennt bewertet
+  - Ziel: C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s02-2026-10-25\orders-module (vorher nicht vorhanden)
+  - Ist: 34 Dateien / 11 Verzeichnisse = 19 Modul-.tf + 5 Root + 9 Lambda + Manifest; files_written = 33 (Manifest zaehlt sich nicht mit)
+  - Manifest: preset orders-service, project_name ris-dev2-mays-orders, source.commit 2d5cf2d (kurz, eindeutig; Verknuepfung zum vollen SHA nur extern), manifest sha256 70bb4137c110e59284c664f59e44c00f54555cf3ab46f9402a7d9f36d909bcbc
+  - lambda.zip sha256 b1018a3bd03455ede329ffaa3c66ca8115c6077741c8aad5282ee5f5fbd00e2b; alle 7 ZIP-Mitglieder bytegleich zu HEAD:lambda/src/<name>; ZIP selbst gitignored, Container-Byte-Reproduzierbarkeit NOT VERIFIED
+  - Vertrag: 5 Variablen, 19 Outputs, kein provider-Block, kein backend, versions.tf nur terraform/required_providers (aws >= 6.0, time ~> 0.11)
+  - Luecken bleiben sichtbar: sqs_queue_name fehlt als Output (Wert intern main.tf:102 vorhanden), IAM-counts in modules/iam/main.tf:83,96 weiter ARN-abhaengig, kein sqs_enabled im Build
+  - Negativprobe ohne --force: Exit 1, "Zielordner ist nicht leer", Ablehnung in Phase A vor jedem Schreiben, 34 Dateien und SHA-256-Liste unveraendert
+  - Kein terraform fmt (Terraform fehlt) - Formatierung NOT VERIFIED
+  - MO nach allen Schritten unveraendert (HEAD gleich, git status leer, kein __pycache__ dank PYTHONDONTWRITEBYTECODE/-B)
+Evidence / file references:
+  - docs/reports/MO-RIS-DEV2-S02-BUILD-CONTRACT-2026.md
+  - docs/reports/evidence/MO-RIS-DEV2-S02-2026/build-command.txt
+  - docs/reports/evidence/MO-RIS-DEV2-S02-2026/build-stdout.txt
+  - docs/reports/evidence/MO-RIS-DEV2-S02-2026/negative-probe.txt
+  - docs/reports/evidence/MO-RIS-DEV2-S02-2026/files-sha256.txt
+  - docs/reports/evidence/MO-RIS-DEV2-S02-2026/module-builder.manifest.json
+  - MO: module_builder/builder.py:804-1027, module_builder/spec.py:84-103, module_builder/catalog.py, terraform/main.tf:89
+  - RIS: terraform/main.tf:174,216-233; installer/build_mays_orders_module.py (nicht ausgefuehrt)
+Classification: PASS fuer Quellidentitaet, Generatorausfuehrung, Artefaktvollstaendigkeit, Ueberschreibschutz; PASS mit Grenze fuer Manifest-/ZIP-Provenienz; FAIL fuer RIS-Vertragskompatibilitaet (GAP-02, ARN-counts, GAP-01, CONFLICT-02)
+Terraform checks actually executed and their results:
+  - None (Terraform nicht installiert; in S02 bewusst nicht ausgefuehrt)
+Git status:
+  - Report + AI_AUDITLOG + 5 Evidence-Dateien neu/ergaenzt; MO unveraendert
+Files changed:
+  - docs/reports/MO-RIS-DEV2-S02-BUILD-CONTRACT-2026.md
+  - docs/AI_AUDITLOG.md
+  - docs/reports/evidence/MO-RIS-DEV2-S02-2026/ (5 Dateien)
+Open questions:
+  - Pin-Entscheid: voller SHA im Manifest + erzwungener Checkout (GAP-03) bleibt offen
+  - Token-/Cognito-Architektur fuer Pfad A (CONFLICT-02) bleibt offen
+  - Terraform-Installation als Voraussetzung fuer S03
+Risks:
+  - Ungepatchter Build enthaelt keine sqs_queue_name und kein plan-stabiles IAM-Gate - Installation in RIS wuerde brechen
+  - Manifest-Pin ist nur extern verknuepft, nicht selbstpruefend
+  - ZIP-Container ist nicht byte-reproduzierbar
+Recommended next actions:
+  - MO: sqs_queue_name-Output, plan-stabiles IAM-Gate, voller SHA im Manifest
+  - RIS: Namensableitung + Namenspruefung im Wrapper, Pin erzwingen
+  - S03-MODULE-VALIDATE erst nach Terraform-Installation; ohne Terraform nur statisch
+Current resume point:
+  - S02 complete, Report/Evidence committed; S03 nicht begonnen
