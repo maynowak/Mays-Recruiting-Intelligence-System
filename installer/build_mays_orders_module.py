@@ -9,6 +9,9 @@ Wrapper: Build Mays-Orders Terraform module for RIS integration.
 - Performs clean post-run: terraform fmt -check / init / validate
 - Does NOT post-hoc insert sqs_queue_name or rewrite IAM counts —
   the generated module must already contain them (GAP-02/06 fix).
+- S08-konform: Terraform-Prüfungen sind verpflichtend;
+  fehlt Terraform oder schlagen Prüfungen fehl, bleibt bestehendes Ziel
+  bytegleich erhalten. --force umgeht keine dieser Prüfungen.
 - General name derivation (no hardcoded EXPECTED_PROJECT_MAP).
 - Builder pin from mays-orders-builder.pinned.json (not composite clone pin).
 
@@ -20,10 +23,76 @@ Requires: git, Python 3.14+, module_builder from mays-order-aws
 
 import argparse
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
+
+# TERRAFORM_EXE optional: expliziter Pfad zur Terraform-Executable.
+# Wenn nicht gesetzt, wird im PATH gesucht.
+TERRAFORM_EXE = os.environ.get("TERRAFORM_EXE", "")
+
+
+def _terraform_exe() -> str:
+    """Ermittle den Terraform-Executable-Pfad."""
+    if TERRAFORM_EXE and os.path.isfile(TERRAFORM_EXE):
+        return TERRAFORM_EXE
+    result = subprocess.run(
+        ["where", "terraform"], capture_output=True, text=True
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        return result.stdout.strip().split("\r\n")[0]
+    return "terraform.exe"
+
+
+def _tf_run(args: list, cwd=None) -> subprocess.CompletedProcess:
+    """Führe einen Terraform-Befehl aus mit S08-konformer Fehlerbehandlung.
+
+    S08-Pflicht: Fehlende Executable oder fehlgeschlagene Prüfungen liefern
+    einen non-zero Return Code; der aufrufende Build muss abbrechen und
+    das bestehende Ziel bytegleich unverändert lassen.
+    """
+    exe = _terraform_exe()
+    full_cmd = [exe] + args
+    print("$ {' '.join(full_cmd)} (Working Directory: {cwd})".format(cwd=cwd or '.'))
+    try:
+        result = subprocess.run(full_cmd, capture_output=True, text=True, cwd=cwd)
+        return result
+    except FileNotFoundError:
+        print("Terraform-Executable '{exe}' nicht Auffindbar.".format(exe=exe))
+        class ProcessResult:
+            returncode = 1
+        return ProcessResult()
+
+
+def _check_returncode(result: subprocess.CompletedProcess, label: str) -> bool:
+    """S08-prüfende Logik: Wenn returncode != 0, False zurückgeben
+    und Fehlertext ausgeben. Wenn returncode == 0, True zurückgeben."""
+    if result.returncode != 0:
+        print("{label}: FAIL (Exit {result.returncode})".format(label=label, result=result))
+        return False
+    print("{label}: OK".format(label=label))
+    return True
+
+
+def run(cmd, cwd=None):
+    """Führe einen Git- oder System-Befehl aus."""
+    if cmd[0] in ("git",) or (len(cmd) > 1 and cmd[0] == "git"):
+        cmd = [r"C:\Program Files\Git\bin\git.exe"] + cmd[1:]
+    env = os.environ.copy()
+    env["TF_DATA_DIR"] = str(Path(tempfile.gettempdir()) / "tfris")
+    print(f"$ {' '.join(cmd)} (Working Directory: {cwd or '.'})")
+    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, env=env)
+    print(result.stdout)
+    if result.stderr:
+        print(result.stderr, file=sys.stderr)
+    return result
+
+
+# ---- Pfade und Pin ------------------------------------------------------------
 
 RIS_ROOT = Path(__file__).resolve().parent.parent
 INSTALLER_PROJECTS = RIS_ROOT / "installer" / "projects"
@@ -38,14 +107,57 @@ Generieren ist. Wird in der Builder-Pin-Datei MAYDS-ORDERS-BUILDER-PINNED-COMMIT
 hinterlegt; die Composite-Clone-Pin-Datei bleibt als historische Referenz erhalten."""
 
 
+def load_builder_pin() -> str:
+    """Lade den Builder-Pin aus der dedizierten Pin-Datei.
+
+    Verbindliche Regeln:
+    - Nur aus mays-orders-builder.pinned.json lesen (kein Fallback auf
+      Composite-Clone-Pin oder hart codierten PINNED_COMMIT).
+    - Pin-Datei fehlt → RuntimeError.
+    - Pin-Datei ungültig → RuntimeError.
+    - SHA weicht von PINNED_COMMIT ab → RuntimeError.
+    - Kein stillschweigender Rückfall, kein automatischer Wechsel auf main.
+    """
+    if not BUILDER_PIN_FILE.exists():
+        raise RuntimeError(
+            f"Builder-Pin-Datei fehlt: {BUILDER_PIN_FILE}. "
+            f"Erwarteter Commit: {PINNED_COMMIT}."
+        )
+    try:
+        with open(BUILDER_PIN_FILE, "r", encoding="utf-8") as f:
+            pin_data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        raise RuntimeError(
+            f"Builder-Pin-Datei ungültig: {BUILDER_PIN_FILE} ({e}). "
+            f"Erwarteter Commit: {PINNED_COMMIT}."
+        )
+    commit = pin_data.get("commit", "")
+    if not commit:
+        raise RuntimeError(
+            f"Builder-Pin-Datei enthält keinen Commit: {BUILDER_PIN_FILE}. "
+            f"Erwarteter Commit: {PINNED_COMMIT}."
+        )
+    if commit != PINNED_COMMIT:
+        raise RuntimeError(
+            f"Builder-Pin weicht ab: {commit} != {PINNED_COMMIT}. "
+            f"Erwarteter Commit: {PINNED_COMMIT}."
+        )
+    return commit
+
+
+BUILDER_PIN = load_builder_pin()
+"""Aktiver Builder-Pin aus mays-orders-builder.pinned.json."""
+
+
 # ---- Name contract (GAP-01/05) ------------------------------------------------------
 
 # Generelle Namensableitung für den orders-service Build:
-# RIS-Projekt name → MO-Komponentename
+# RIS-Projekt name → MO-Komponentenname
 #   ris-dev2  →  ris-dev2-mays-orders
 # Es wird NICHT eine hardcoded Mapping-Tabelle (EXPECTED_PROJECT_MAP) verwendet,
 # sondern die Namensableitung ist general (projekt_name + "-mays-orders").
 # Ein bereits angehängtes Suffix wird nicht verdoppelt.
+
 
 def derive_component_name(project_name: str) -> str:
     """Allgemeine Namensableitung: project_name um '-mays-orders' erweitern.
@@ -63,128 +175,111 @@ def derive_component_name(project_name: str) -> str:
     return f"{project_name}-mays-orders"
 
 
-# ---- Pin ------------------------------------------------------------
+def validate_project_name_format(project_name: str) -> None:
+    """Prüft den Projektnamen auf AWS-konforme Namenskonventionen.
 
-def load_builder_pin() -> str:
-    """Lade den Builder-Pin aus der dedizierten Pin-Datei.
-
-    Die Composite-Clone-Pin-Datei (mays-orders-clone.pinned.json) bleibt
-    als historische Referenz unverändert erhalten; der aktive Builder
-    liest aus mays-orders-builder.pinned.json.
+    AWS-Ressourcennamen dürfen nur Kleinbuchstaben, Ziffern und Bindestriche
+    enthalten, müssen mit einem Buchstaben oder Ziffern beginnen und dürfen
+    nicht mit einem Bindestrich enden (identisch zur Terraform-Validierung
+    in mays-order-aws/terraform/variables.tf).
     """
-    if BUILDER_PIN_FILE.exists():
-        with open(BUILDER_PIN_FILE, "r", encoding="utf-8") as f:
-            pin_data = json.load(f)
-        commit = pin_data.get("commit", "")
-        if commit:
-            return commit
-    # Fallback: prüfe, ob der Composite-Pin Datei existiert und lies ihn
-    if CLONE_PIN_FILE.exists():
-        with open(CLONE_PIN_FILE, "r", encoding="utf-8") as f:
-            pin_data = json.load(f)
-        commit = pin_data.get("commit", "")
-        if commit:
-            print(
-                "Hinweis: Builder-Pin nicht in mays-orders-builder.pinned.json gefunden; "
-                "fallback auf Composite-Clone-Pin " + commit
-            )
-        return commit
-    return PINNED_COMMIT
+    if not project_name:
+        raise ValueError("project_name darf nicht leer sein.")
+    if len(project_name) < 3:
+        raise ValueError(
+            f"Unzulässiger project_name '{project_name}': "
+            f"mindestens 3 Zeichen erforderlich."
+        )
+    if not re.match(r"^[a-z0-9][a-z0-9-]*$", project_name):
+        raise ValueError(
+            f"Unzulässiger project_name '{project_name}': "
+            f"nur Kleinbuchstaben, Ziffern und Bindestriche erlaubt, "
+            f"kein führendes/trailendes Sonderzeichen."
+        )
+    if project_name.startswith("-") or project_name.endswith("-"):
+        raise ValueError(
+            f"Unzulässiger project_name '{project_name}': "
+            f"darf nicht mit Bindestrich beginnen oder enden."
+        )
 
 
-BUILDER_PIN = load_builder_pin()
-"""Aktiver Builder-Pin aus mays-orders-builder.pinned.json."""
+def check_name_length(project_name: str, resource_type: str, max_length: int) -> str:
+    """Prüft die Länge eines Ressourcennamens gegen AWS-Limits.
 
-
-def run(cmd, cwd=None):
-    # Prepend git.exe if the command is a git subcommand
-    if cmd[0] in ("git",) or (len(cmd) > 1 and cmd[0] == "git"):
-        cmd = [r"C:\Program Files\Git\bin\git.exe"] + cmd[1:]
-    print(f"$ {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
-    print(result.stdout)
-    if result.stderr:
-        print(result.stderr, file=sys.stderr)
-    if result.returncode != 0:
-        print(f"FEHLER: Befehl {' '.join(cmd)} endete mit Exit-Code {result.returncode}")
-    return result
-
-
-# ---- Helper: ensure repo --------------------------------------------
-
-def ensure_repo():
-    """Sichere dass das Builder-Repository vorhanden ist und auf den
-    Builder-Pin gecheckedout ist. Dirty worktree wird abgelehnt (ohne
-    automatischer Reset)."""
-    INSTALLER_PROJECTS.mkdir(parents=True, exist_ok=True)
-    if not MAYS_ORDERS_BUILDER_DIR.exists():
-        print(f"Cloning mays-order-aws into {MAYS_ORDERS_BUILDER_DIR}")
-        run([r"C:\Program Files\Git\bin\git.exe", "clone",
-             "https://github.com/maynowak/mays-order-aws.git", str(MAYS_ORDERS_BUILDER_DIR)])
-    else:
-        run(r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "fetch", "--quiet")
-
-    # Auf den Builder-Pin checkout (detached HEAD)
-    run(["git", "-C", str(MAYS_ORDERS_BUILDER_DIR), "checkout", BUILDER_PIN])
-
-    # Arbeitsbaum zustand prüfen – Dirty ablehnen ohne Reset/Clean
-    try:
-        status = subprocess.run(
-            [r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "status", "--porcelain"]
-        , capture_output=True, text=True)
-        if status.stdout.strip():
-            print(f"FEHLER: builder worktree has untracked/modified files:\n{status.stdout.strip()}")
-            print("Bitte bereinigen Sie den worktree (git stash/git checkout) vor dem Build.")
-            sys.exit(1)
-    except Exception as e:
-        print(f"Warnung: Git-Status-Check fehlgeschlagen: {e}")
-        # Ist kein Build-breaker, wenn git nicht verfügbar ist.
-
-
-# ---- Build module ---------------------------------------------------
-
-def build_module(project_name: str, force: bool):
-    """Build the orders-service module and validate the contract.
-
-    Es werden keine nachträglichen Patches (sqs_queue_name, IAM-count) mehr ausgeführt.
-    Der Builder darf das Modul nur erzeugen, wenn der Vertrag bereits stimmt;
-    ansonsten wird abgebrochen.
-
-    Ablauf:
-    1. Project name validieren und Komponentennamen ableiten
-    2. Modul generieren (ohne --force Standardverhalten, --force erzwingt Überschreibung)
-    3. Generierten Vertrag prüfen (content-based, keine nachträglichen Patches)
-    4. Post-run Checks (fmt, init, validate) nur nach erfolgreichem Build
-    5. Modulziel übernehmen wenn alle Checks bestehen
+    Gibt zurück: "OK", "WARNING" oder "ERROR".
     """
-    # 1. Project name validieren und Komponentennamen ableiten
-    expected_component = derive_component_name(project_name)
-    print(f"Project name validation: '{project_name}' → expected component '{expected_component}'")
+    if not project_name:
+        return "UNKNOWN"
+    length = len(project_name)
+    pct = length / max_length * 100
+    if length > max_length:
+        return f"ERROR ({length}/{max_length} — Limit überschritten)"
+    if pct >= 80:
+        return f"WARNING ({length}/{max_length} ({pct:.0f}%))"
+    return f"OK ({length}/{max_length})"
 
-    TARGET_MODULE_DIR.parent.mkdir(parents=True, exist_ok=True)
 
-    # 2. Modul generieren
-    cmd = [
-        sys.executable, "-m", "module_builder", "build",
-        "--preset", "orders-service",
-        "--target", str(TARGET_MODULE_DIR),
-        "--project-name", project_name,
+def check_arn_id_contract(generated_dir: Path) -> None:
+    """Prüft die ARN-/ID-Verträge im generierten Modul.
+
+    Unterscheidet RIS-eigene API von MO-API:
+    - module.api.* = RIS-eigene API
+    - module.mays_orders.* = MO-API
+    Diese dürfen nicht vermischt werden.
+
+    Prüft auch die tatsächlichen Consumer-zu-Produzenten-Verkettungen:
+    - orders_table_name = module.mays_orders.dynamodb_table_name
+    - orders_table_arn = module.mays_orders.dynamodb_table_arn
+    - orders_queue_arn = module.mays_orders.sqs_queue_arn
+    - orders_queue_url = module.mays_orders.sqs_queue_url
+    - api_id = module.api.api_id
+    - authorizer_id = module.api.authorizer_id
+    """
+    main_tf = (generated_dir / "main.tf").read_text(encoding="utf-8")
+    outputs_tf = (generated_dir / "outputs.tf").read_text(encoding="utf-8")
+
+    # Prüfe, dass RIS-eigene API-IDs nicht mit MO-API-IDs vermischt werden
+    api_id_refs = re.findall(r'module\.api\.api_id', main_tf)
+    authorizer_id_refs = re.findall(r'module\.api\.authorizer_id', main_tf)
+    mays_api_id_refs = re.findall(r'module\.mays_orders\.api_gateway_id', main_tf)
+    mays_authorizer_refs = re.findall(r'module\.mays_orders\.api_gateway_authorizer_id', main_tf)
+
+    if api_id_refs and mays_api_id_refs:
+        raise RuntimeError(
+            "Vertragsbruch: RIS-eigene API-Gateway-ID (module.api.api_id) "
+            "und MO-API-Gateway-ID (module.mays_orders.api_gateway_id) "
+            "werden im selben Modul vermischt. "
+            "RIS-eigene API und MO-API müssen getrennt bleiben."
+        )
+    if authorizer_id_refs and mays_authorizer_refs:
+        raise RuntimeError(
+            "Vertragsbruch: RIS-eigener Authorizer (module.api.authorizer_id) "
+            "und MO-API-Authorizer (module.mays_orders.api_gateway_authorizer_id) "
+            "werden im selben Modul vermischt. "
+            "RIS-eigene API und MO-API müssen getrennt bleiben."
+        )
+
+    # Prüfe, dass Consumer-Inputs aus den korrekten MO-Modul-Outputs kommen
+    required_bindings = [
+        ("orders_table_name", "module.mays_orders.dynamodb_table_name"),
+        ("orders_table_arn", "module.mays_orders.dynamodb_table_arn"),
+        ("orders_queue_arn", "module.mays_orders.sqs_queue_arn"),
+        ("orders_queue_url", "module.mays_orders.sqs_queue_url"),
+        ("api_id", "module.api.api_id"),
+        ("authorizer_id", "module.api.authorizer_id"),
     ]
-    if force:
-        cmd.append("--force")
-    print(f"Building module via module_builder from {MAYS_ORDERS_BUILDER_DIR}")
-    run(cmd, cwd=str(MAYS_ORDERS_BUILDER_DIR))
 
-    # 3. Vertragsprüfung (CONTENT-BASED, keine nachträglichen Patches)
-    # Wir prüfen, dass das generierte Modul die erwarteten Merkmale
-    # bereits enthält. Abweichung →Abbruch, kein stummer Patch.
-    validate_generated_contract(TARGET_MODULE_DIR)
-
-    # 4. Post-run: fmt + init + validate (erst nach erfolgreichem Build)
-    post_run_checks()
+    for consumer_input, expected_output in required_bindings:
+        pattern = rf'{re.escape(consumer_input)}\s*=\s*{re.escape(expected_output)}'
+        if not re.search(pattern, main_tf):
+            raise RuntimeError(
+                f"Vertragsbruch: Consumer-Input '{consumer_input}' nicht mit "
+                f"erwartetem Output '{expected_output}' verdrahtet. "
+                f"Erwartete Zuweisung: {consumer_input} = {expected_output}"
+            )
 
 
-def validate_generated_contract(target_dir: Path):
+def validate_generated_contract(target_dir: Path) -> None:
     """Prüfe den generierten Modul-Vertrag und breche bei Abweichung ab.
 
     Erwartete Vorkenntnisse (orders-service):
@@ -286,6 +381,9 @@ def validate_generated_contract(target_dir: Path):
             )
     print(f"  IAM SQS-dokument OK: keine Wildcard, resources = [var.sqs_queue_arn]")
 
+    # RIS/MO-Trennung prüfen
+    check_arn_id_contract(target_dir)
+
 
 # ---- Patch IAM SQS gate (entfernt aus aktivem Build-Pfad) ----
 
@@ -297,43 +395,203 @@ def patch_iam_sqs_gate():
     pass
 
 
+# ---- Helper: ensure repo ---------------------------------------------
+
+def ensure_repo():
+    """Sichere dass das Builder-Repository vorhanden ist und auf den
+    Builder-Pin gecheckedout ist. Dirty worktree wird abgelehnt (ohne
+    automatischer Reset)."""
+    INSTALLER_PROJECTS.mkdir(parents=True, exist_ok=True)
+    if not MAYS_ORDERS_BUILDER_DIR.exists():
+        print(f"Cloning mays-order-aws into {MAYS_ORDERS_BUILDER_DIR}")
+        run([r"C:\Program Files\Git\bin\git.exe", "clone",
+             "https://github.com/maynowak/mays-order-aws.git", str(MAYS_ORDERS_BUILDER_DIR)])
+    else:
+        run(r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "fetch", "--quiet")
+
+    # Auf den Builder-Pin checkout (detached HEAD)
+    run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "checkout", BUILDER_PIN])
+
+    # Arbeitsbaum zustand prüfen – Dirty ablehnen ohne Reset/Clean
+    try:
+        status = subprocess.run(
+            [r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "status", "--porcelain"]
+        , capture_output=True, text=True)
+        if status.stdout.strip():
+            print(f"FEHLER: builder worktree has untracked/modified files:\n{status.stdout.strip()}")
+            print("Bitte bereinigen Sie den worktree (git stash/git checkout) vor dem Build.")
+            sys.exit(1)
+    except Exception as e:
+        print("Warnung: Git-Status-Check fehlgeschlagen: {e}".format(e=e))
+        # Ist kein Build-breaker, wenn git nicht verfügbar ist.
+
+
+# ---- Build module ---------------------------------------------------
+
+def build_module(project_name: str, force: bool):
+    """Build the orders-service module and validate the contract.
+
+    Es werden keine nachträglichen Patches (sqs_queue_name, IAM-count) mehr ausgeführt.
+    Der Builder darf das Modul nur erzeugen, wenn der Vertrag bereits stimmt;
+    ansonsten wird abgebrochen.
+
+    Ablauf:
+    1. Project name validieren und Komponentennamen ableiten
+    2. Modul in temporärem Generierungsverzeichnis erzeugen
+    3. Generierten Vertrag prüfen (content-based, keine nachträglichen Patches)
+    4. Post-run Checks (fmt, init, validate) nur nach erfolgreichem Build
+    5. Modulziel übernehmen wenn alle Checks bestehen
+    """
+    # 1. Project name validieren und Komponentennamen ableiten
+    expected_component = derive_component_name(project_name)
+    print(f"Project name validation: '{project_name}' → expected component '{expected_component}'")
+
+    # N-03: Namenslängenprüfung vor dem Build
+    max_name_len_lambda = 64   # AWS Lambda function name max length
+    max_name_len_iam = 64      # AWS IAM role name max length
+    max_name_len_sqs = 80      # AWS SQS queue name max length
+    max_name_len_dynamodb = 255 # AWS DynamoDB table name max length
+
+    # Komponente selbst prüfen
+    component_check = check_name_length(expected_component, "component", max_name_len_lambda)
+    print(f"  Component name check: {component_check}")
+    if component_check.startswith("ERROR"):
+        print(f"FEHLER: Komponentenname '{expected_component}' überschreitet AWS-Limit ({max_name_len_lambda} Zeichen).")
+        print(f"Bestehendes Ziel bleibt unverändert.")
+        sys.exit(1)
+
+    # Tatsächliche Ressourcennamen prüfen, die vom Builder generiert werden
+    resource_names = [
+        f"{expected_component}-handler",      # Lambda function name
+        f"{expected_component}-handler-role",   # IAM role name
+        f"{expected_component}-orders-queue",   # SQS queue name
+        expected_component,                   # DynamoDB table name (= project_name)
+    ]
+
+    for resource_name in resource_names:
+        if "handler-role" in resource_name:
+            resource_type = "iam_role"
+            max_len = max_name_len_iam
+        elif "queue" in resource_name:
+            resource_type = "sqs_queue"
+            max_len = max_name_len_sqs
+        elif "handler" in resource_name:
+            resource_type = "lambda_function"
+            max_len = max_name_len_lambda
+        else:
+            resource_type = "dynamodb_table"
+            max_len = max_name_len_dynamodb
+
+        name_check = check_name_length(resource_name, resource_type, max_len)
+        print(f"  Resource name check ({resource_name}): {name_check}")
+        if name_check.startswith("ERROR"):
+            print(f"FEHLER: Ressourcenname '{resource_name}' überschreitet AWS-Limit ({max_len} Zeichen).")
+            print(f"Bestehendes Ziel bleibt unverändert.")
+            sys.exit(1)
+
+    # 2. Modul in temporärem Verzeichnis generieren
+    TEMP_MODULE_DIR = TARGET_MODULE_DIR.parent / f".mays_orders_tmp_{os.getpid()}"
+    TEMP_MODULE_DIR.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        cmd = [
+            sys.executable, "-m", "module_builder", "build",
+            "--preset", "orders-service",
+            "--target", str(TEMP_MODULE_DIR),
+            "--project-name", expected_component,
+        ]
+        if force:
+            cmd.append("--force")
+        print("Building module via module_builder from {MAYS_ORDERS_BUILDER_DIR}".format(MAYS_ORDERS_BUILDER_DIR=MAYS_ORDERS_BUILDER_DIR))
+        run(cmd, cwd=str(MAYS_ORDERS_BUILDER_DIR))
+
+        # 3. Vertragsprüfung (CONTENT-BASED, keine nachträglichen Patches)
+        validate_generated_contract(TEMP_MODULE_DIR)
+
+        # 4. Post-run: fmt -check / init -backend=false / validate
+        post_run_checks(TEMP_MODULE_DIR)
+
+        # 5. Ziel übernehmen (atomar: Backup vor Löschung, Restore bei Fehler)
+        backup_dir = TARGET_MODULE_DIR.parent / f".mays_orders_backup_{os.getpid()}"
+        try:
+            if TARGET_MODULE_DIR.exists():
+                shutil.copytree(str(TARGET_MODULE_DIR), str(backup_dir))
+                shutil.rmtree(TARGET_MODULE_DIR)
+            shutil.copytree(str(TEMP_MODULE_DIR), str(TARGET_MODULE_DIR))
+            print("Module installed at {TARGET_MODULE_DIR}".format(TARGET_MODULE_DIR=TARGET_MODULE_DIR))
+        except Exception:
+            # Bei Fehler: ursprüngliches Ziel aus Backup wiederherstellen
+            if backup_dir.exists():
+                if TARGET_MODULE_DIR.exists():
+                    shutil.rmtree(TARGET_MODULE_DIR)
+                shutil.copytree(str(backup_dir), str(TARGET_MODULE_DIR))
+            raise
+        finally:
+            # Backup aufräumen
+            if backup_dir.exists():
+                shutil.rmtree(backup_dir, ignore_errors=True)
+
+    finally:
+        # Aufräumen des temporären Verzeichnisses
+        if TEMP_MODULE_DIR.exists():
+            shutil.rmtree(TEMP_MODULE_DIR, ignore_errors=True)
+
+
 # ---- Post-run checks ------------------------------------------------
 
-def post_run_checks():
+def post_run_checks(module_dir: Path) -> None:
     """Führt lokale Validierungschecks durch (fmt, init, validate).
     Fehlende Werkzeuge oder fehlgeschlagene Prüfungen müssen einen
     Fehlerstatus liefern; keine Erfolgsmeldung nach übersprungenen Checks."""
-    terraform_dir = RIS_ROOT / "terraform"
-    terraform_available = True
+    # N-05: Der übergebene Pfad ist bereits das generierte Modulverzeichnis
+    # (z. B. terraform/modules/mays_orders oder ein temporäres Build-Verzeichnis),
+    # nicht ein darunterliegendes "terraform/" Unterverzeichnis.
+    terraform_dir = module_dir
     try:
-        run(["terraform", "fmt", "-check", "-recursive"], cwd=str(terraform_dir))
+        result = run(["terraform", "fmt", "-check", "-recursive"], cwd=str(terraform_dir))
+        if result.returncode != 0:
+            raise RuntimeError(
+                "Terraform fmt -check fehlgeschlagen (Exit {result.returncode}); Build kann nicht fortfahren.".format(result=result)
+            )
         print("fmt -check: OK")
+    except FileNotFoundError:
+        raise RuntimeError(
+            "Terraform-Binary nicht gefunden; Build kann nicht fortfahren."
+        )
+    except RuntimeError:
+        raise
     except Exception as e:
-        terraform_available = False
-        print(f"fmt -check: FEHLER - {e}")
-        # Terraform fmt ist optional, aber wenn vorhanden, muss es bestehen
-        # Wir brechen nicht ab, wenn terraform nicht installiert ist,
-        # aber wenn es installiert ist und fehlschlägt, ist das kritisch.
+        raise RuntimeError(
+            "Terraform fmt -check unerwarteter Fehler: {e}".format(e=e)
+        )
 
-    # init + validate – nur wenn terraform verfügbar
-    if terraform_available:
-        try:
-            run(["terraform", "init", "-backend=false"], cwd=str(terraform_dir))
-            print("init -backend=false: OK")
-        except Exception as e:
-            print(f"init -backend=false: FEHLER - {e}")
-            # Abbruch wenn init fehlschlägt
-            raise RuntimeError("Terraform init fehlgeschlagen; Build kann nicht fortfahren.")
+    try:
+        result = run(["terraform", "init", "-backend=false", "-input=false"], cwd=str(terraform_dir))
+        if result.returncode != 0:
+            raise RuntimeError("Terraform init fehlgeschlagen (Exit {result.returncode}); Build kann nicht fortfahren.".format(result=result))
+        print("init -backend=false -input=false: OK")
+    except FileNotFoundError:
+        raise RuntimeError(
+            "Terraform-Binary nicht gefunden; Build kann nicht fortfahren."
+        )
+    except RuntimeError:
+        raise
+    except Exception as e:
+        raise RuntimeError("Terraform init fehlgeschlagen; Build kann nicht fortfahren.")
 
-        try:
-            run(["terraform", "validate"], cwd=str(terraform_dir))
-            print("validate -no-color: OK")
-        except Exception as e:
-            print(f"validate -no-color: FEHLER - {e}")
-            raise RuntimeError("Terraform validate fehlgeschlagen; Build kann nicht fortfahren.")
-    else:
-        print("init -backend=false: terraform CLI nicht im PATH (optional)")
-        print("validate -no-color: terraform CLI nicht im PATH (optional)")
+    try:
+        result = run(["terraform", "validate", "-no-color"], cwd=str(terraform_dir))
+        if result.returncode != 0:
+            raise RuntimeError("Terraform validate fehlgeschlagen (Exit {result.returncode}); Build kann nicht fortfahren.".format(result=result))
+        print("validate -no-color: OK")
+    except FileNotFoundError:
+        raise RuntimeError(
+            "Terraform-Binary nicht gefunden; Build kann nicht fortfahren."
+        )
+    except RuntimeError:
+        raise
+    except Exception as e:
+        raise RuntimeError("Terraform validate fehlgeschlagen; Build kann nicht fortfahren.")
 
 
 # ---- Main ---------------------------------------------------------
@@ -348,7 +606,6 @@ def main():
 
     if args.clean:
         if TARGET_MODULE_DIR.exists():
-            import shutil
             shutil.rmtree(TARGET_MODULE_DIR)
             print(f"Cleaned {TARGET_MODULE_DIR}")
         return
@@ -373,12 +630,56 @@ def main():
 
     # 2. Project name validieren und erwarteten Komponentennamen bestimmen
     expected_component = derive_component_name(args.project_name)
+    print(f"Project name validation: '{args.project_name}' → expected component '{expected_component}'")
 
-    # 3. Modul bauen (keine nachträglichen Patches)
+    # 3. N-03: Namenslängenprüfung vor dem Build
+    max_name_len_lambda = 64   # AWS Lambda function name max length
+    max_name_len_iam = 64      # AWS IAM role name max length
+    max_name_len_sqs = 80      # AWS SQS queue name max length
+    max_name_len_dynamodb = 255 # AWS DynamoDB table name max length
+
+    # Komponente selbst prüfen
+    component_check = check_name_length(expected_component, "component", max_name_len_lambda)
+    print(f"  Component name check: {component_check}")
+    if component_check.startswith("ERROR"):
+        print(f"FEHLER: Komponentenname '{expected_component}' überschreitet AWS-Limit ({max_name_len_lambda} Zeichen).")
+        print(f"Bestehendes Ziel bleibt unverändert.")
+        sys.exit(1)
+
+    # Tatsächliche Ressourcennamen prüfen, die vom Builder generiert werden
+    resource_names = [
+        f"{expected_component}-handler",      # Lambda function name
+        f"{expected_component}-handler-role",   # IAM role name
+        f"{expected_component}-orders-queue",   # SQS queue name
+        expected_component,                   # DynamoDB table name (= project_name)
+    ]
+
+    for resource_name in resource_names:
+        if "handler-role" in resource_name:
+            resource_type = "iam_role"
+            max_len = max_name_len_iam
+        elif "queue" in resource_name:
+            resource_type = "sqs_queue"
+            max_len = max_name_len_sqs
+        elif "handler" in resource_name:
+            resource_type = "lambda_function"
+            max_len = max_name_len_lambda
+        else:
+            resource_type = "dynamodb_table"
+            max_len = max_name_len_dynamodb
+
+        name_check = check_name_length(resource_name, resource_type, max_len)
+        print(f"  Resource name check ({resource_name}): {name_check}")
+        if name_check.startswith("ERROR"):
+            print(f"FEHLER: Ressourcenname '{resource_name}' überschreitet AWS-Limit ({max_len} Zeichen).")
+            print(f"Bestehendes Ziel bleibt unverändert.")
+            sys.exit(1)
+
+    # 4. Modul bauen (keine nachträglichen Patches)
     build_module(args.project_name, args.force)
 
-    # 4. Post-run Checks (fmt + init + validate)
-    # Wenn alle Checks bestehen, Modul übernehmen
+    # 5. Wenn alle Checks bestehen, Modul übernommen
+    # (Wird innerhalb von build_module erledigt.)
     print(f"Module installed at {TARGET_MODULE_DIR}")
 
 
