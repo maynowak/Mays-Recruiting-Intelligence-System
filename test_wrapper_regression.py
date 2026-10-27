@@ -523,9 +523,18 @@ class TestTerraformGates(unittest.TestCase):
             mod_dir = Path(tmpdir) / "mod"
             mod_dir.mkdir()
             with patch('installer.build_mays_orders_module.subprocess.run') as mock_subprocess:
-                success = MagicMock()
-                success.returncode = 0
-                mock_subprocess.return_value = success
+                def mock_subprocess_run(cmd, **kwargs):
+                    # _terraform_exe() ruft 'where terraform' auf – muss String zurückgeben
+                    if isinstance(cmd, list) and len(cmd) >= 2 and cmd[0] == "where" and cmd[1] == "terraform":
+                        result = MagicMock()
+                        result.returncode = 0
+                        result.stdout = "C:\\path\\to\\terraform.exe\r\n"
+                        return result
+                    # Alle anderen terraform-Aufrufe: Exit 0
+                    result = MagicMock()
+                    result.returncode = 0
+                    return result
+                mock_subprocess.side_effect = mock_subprocess_run
                 post_run_checks(mod_dir)
                 # Verify TF_DATA_DIR is set in the subprocess environment
                 tf_data_dir_found = False
