@@ -82,6 +82,9 @@ def run(cmd, cwd=None):
     """Führe einen Git- oder System-Befehl aus."""
     if cmd[0] in ("git",) or (len(cmd) > 1 and cmd[0] == "git"):
         cmd = [r"C:\Program Files\Git\bin\git.exe"] + cmd[1:]
+    # Terraform-Executable auflösen (über TERRAFORM_EXE oder PATH)
+    if cmd[0] == "terraform":
+        cmd = [_terraform_exe()] + cmd[1:]
     env = os.environ.copy()
     env["TF_DATA_DIR"] = str(Path(tempfile.gettempdir()) / "tfris")
     print(f"$ {' '.join(cmd)} (Working Directory: {cwd or '.'})")
@@ -219,13 +222,13 @@ def check_name_length(project_name: str, resource_type: str, max_length: int) ->
     return f"OK ({length}/{max_length})"
 
 
-def check_arn_id_contract(generated_dir: Path) -> None:
-    """Prüft die ARN-/ID-Verträge im generierten Modul.
+def check_arn_id_contract(terraform_dir: Path) -> None:
+    """Prüft die ARN-/ID-Verträge im Terraform-Root.
 
     Unterscheidet RIS-eigene API von MO-API:
     - module.api.* = RIS-eigene API
     - module.mays_orders.* = MO-API
-    Diese dürfen nicht vermischt werden.
+    Diese dürfen nicht innerhalb desselben module-Blocks vermischt werden.
 
     Prüft auch die tatsächlichen Consumer-zu-Produzenten-Verkettungen:
     - orders_table_name = module.mays_orders.dynamodb_table_name
@@ -235,29 +238,34 @@ def check_arn_id_contract(generated_dir: Path) -> None:
     - api_id = module.api.api_id
     - authorizer_id = module.api.authorizer_id
     """
-    main_tf = (generated_dir / "main.tf").read_text(encoding="utf-8")
-    outputs_tf = (generated_dir / "outputs.tf").read_text(encoding="utf-8")
+    main_tf = (terraform_dir / "main.tf").read_text(encoding="utf-8")
 
-    # Prüfe, dass RIS-eigene API-IDs nicht mit MO-API-IDs vermischt werden
-    api_id_refs = re.findall(r'module\.api\.api_id', main_tf)
-    authorizer_id_refs = re.findall(r'module\.api\.authorizer_id', main_tf)
-    mays_api_id_refs = re.findall(r'module\.mays_orders\.api_gateway_id', main_tf)
-    mays_authorizer_refs = re.findall(r'module\.mays_orders\.api_gateway_authorizer_id', main_tf)
+    # Teile main.tf in module-Blocks auf
+    module_blocks = _split_into_module_blocks(main_tf)
 
-    if api_id_refs and mays_api_id_refs:
-        raise RuntimeError(
-            "Vertragsbruch: RIS-eigene API-Gateway-ID (module.api.api_id) "
-            "und MO-API-Gateway-ID (module.mays_orders.api_gateway_id) "
-            "werden im selben Modul vermischt. "
-            "RIS-eigene API und MO-API müssen getrennt bleiben."
+    # Prüfe jeden module-Block auf Vermischung von RIS- und MO-API-IDs
+    for block_name, block_content in module_blocks:
+        has_api_api_id = "module.api.api_id" in block_content
+        has_mays_api_gateway_id = "module.mays_orders.api_gateway_id" in block_content
+        has_api_authorizer_id = "module.api.authorizer_id" in block_content
+        has_mays_api_gateway_authorizer_id = (
+            "module.mays_orders.api_gateway_authorizer_id" in block_content
         )
-    if authorizer_id_refs and mays_authorizer_refs:
-        raise RuntimeError(
-            "Vertragsbruch: RIS-eigener Authorizer (module.api.authorizer_id) "
-            "und MO-API-Authorizer (module.mays_orders.api_gateway_authorizer_id) "
-            "werden im selben Modul vermischt. "
-            "RIS-eigene API und MO-API müssen getrennt bleiben."
-        )
+
+        if has_api_api_id and has_mays_api_gateway_id:
+            raise RuntimeError(
+                f"Vertragsbruch: RIS-eigene API-Gateway-ID (module.api.api_id) "
+                f"und MO-API-Gateway-ID (module.mays_orders.api_gateway_id) "
+                f"werden im module-Block '{block_name}' vermischt. "
+                f"RIS-eigene API und MO-API müssen getrennt bleiben."
+            )
+        if has_api_authorizer_id and has_mays_api_gateway_authorizer_id:
+            raise RuntimeError(
+                f"Vertragsbruch: RIS-eigener Authorizer (module.api.authorizer_id) "
+                f"und MO-API-Authorizer (module.mays_orders.api_gateway_authorizer_id) "
+                f"werden im module-Block '{block_name}' vermischt. "
+                f"RIS-eigene API und MO-API müssen getrennt bleiben."
+            )
 
     # Prüfe, dass Consumer-Inputs aus den korrekten MO-Modul-Outputs kommen
     required_bindings = [
@@ -270,13 +278,32 @@ def check_arn_id_contract(generated_dir: Path) -> None:
     ]
 
     for consumer_input, expected_output in required_bindings:
-        pattern = rf'{re.escape(consumer_input)}\s*=\s*{re.escape(expected_output)}'
+        pattern = rf"{re.escape(consumer_input)}\s*=\s*{re.escape(expected_output)}"
         if not re.search(pattern, main_tf):
             raise RuntimeError(
                 f"Vertragsbruch: Consumer-Input '{consumer_input}' nicht mit "
                 f"erwartetem Output '{expected_output}' verdrahtet. "
                 f"Erwartete Zuweisung: {consumer_input} = {expected_output}"
             )
+
+
+def _split_into_module_blocks(main_tf: str) -> list:
+    """Teilt eine main.tf in (name, inhalt)-Tupel pro module-Block auf."""
+    import re
+
+    blocks = []
+    for m in re.finditer(r'module\s+"(\w+)"\s*\{', main_tf):
+        block_name = m.group(1)
+        block_start = m.start()
+        # Suche das Ende des Blocks (nächstes 'module "' oder Dateiende)
+        next_mod = main_tf.find('module "', block_start + 1)
+        if next_mod == -1:
+            block_end = len(main_tf)
+        else:
+            block_end = next_mod
+        block_content = main_tf[block_start:block_end]
+        blocks.append((block_name, block_content))
+    return blocks
 
 
 def validate_generated_contract(target_dir: Path) -> None:
@@ -381,9 +408,6 @@ def validate_generated_contract(target_dir: Path) -> None:
             )
     print(f"  IAM SQS-dokument OK: keine Wildcard, resources = [var.sqs_queue_arn]")
 
-    # RIS/MO-Trennung prüfen
-    check_arn_id_contract(target_dir)
-
 
 # ---- Patch IAM SQS gate (entfernt aus aktivem Build-Pfad) ----
 
@@ -407,7 +431,7 @@ def ensure_repo():
         run([r"C:\Program Files\Git\bin\git.exe", "clone",
              "https://github.com/maynowak/mays-order-aws.git", str(MAYS_ORDERS_BUILDER_DIR)])
     else:
-        run(r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "fetch", "--quiet")
+        run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "fetch", "--quiet"])
 
     # Auf den Builder-Pin checkout (detached HEAD)
     run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "checkout", BUILDER_PIN])
@@ -508,6 +532,9 @@ def build_module(project_name: str, force: bool):
         # 3. Vertragsprüfung (CONTENT-BASED, keine nachträglichen Patches)
         validate_generated_contract(TEMP_MODULE_DIR)
 
+        # ARN-/ID-Consumer-Vertrag gegen das RIS-Root prüfen
+        check_arn_id_contract(RIS_ROOT / "terraform")
+
         # 4. Post-run: fmt -check / init -backend=false / validate
         post_run_checks(TEMP_MODULE_DIR)
 
@@ -547,6 +574,25 @@ def post_run_checks(module_dir: Path) -> None:
     # (z. B. terraform/modules/mays_orders oder ein temporäres Build-Verzeichnis),
     # nicht ein darunterliegendes "terraform/" Unterverzeichnis.
     terraform_dir = module_dir
+    # 1. Canonical Terraform-Formatierung im temporären Modul anwenden
+    try:
+        result = run(["terraform", "fmt", "-recursive"], cwd=str(terraform_dir))
+        if result.returncode != 0:
+            raise RuntimeError(
+                "Terraform fmt -recursive fehlgeschlagen (Exit {result.returncode}); Build kann nicht fortfahren.".format(result=result)
+            )
+        print("fmt -recursive: OK")
+    except FileNotFoundError:
+        raise RuntimeError(
+            "Terraform-Binary nicht gefunden; Build kann nicht fortfahren."
+        )
+    except RuntimeError:
+        raise
+    except Exception as e:
+        raise RuntimeError(
+            "Terraform fmt -recursive unerwarteter Fehler: {e}".format(e=e)
+        )
+    # 2. Formatierungsprüfung bestätigen
     try:
         result = run(["terraform", "fmt", "-check", "-recursive"], cwd=str(terraform_dir))
         if result.returncode != 0:
@@ -566,10 +612,10 @@ def post_run_checks(module_dir: Path) -> None:
         )
 
     try:
-        result = run(["terraform", "init", "-backend=false", "-input=false"], cwd=str(terraform_dir))
+        result = run(["terraform", "init", "-backend=false", "-input=false", "-no-color"], cwd=str(terraform_dir))
         if result.returncode != 0:
             raise RuntimeError("Terraform init fehlgeschlagen (Exit {result.returncode}); Build kann nicht fortfahren.".format(result=result))
-        print("init -backend=false -input=false: OK")
+        print("init -backend=false -input=false -no-color: OK")
     except FileNotFoundError:
         raise RuntimeError(
             "Terraform-Binary nicht gefunden; Build kann nicht fortfahren."
@@ -577,7 +623,9 @@ def post_run_checks(module_dir: Path) -> None:
     except RuntimeError:
         raise
     except Exception as e:
-        raise RuntimeError("Terraform init fehlgeschlagen; Build kann nicht fortfahren.")
+        raise RuntimeError(
+            "Terraform init unerwarteter Fehler: {e}".format(e=e)
+        )
 
     try:
         result = run(["terraform", "validate", "-no-color"], cwd=str(terraform_dir))
@@ -591,7 +639,9 @@ def post_run_checks(module_dir: Path) -> None:
     except RuntimeError:
         raise
     except Exception as e:
-        raise RuntimeError("Terraform validate fehlgeschlagen; Build kann nicht fortfahren.")
+        raise RuntimeError(
+            "Terraform validate unerwarteter Fehler: {e}".format(e=e)
+        )
 
 
 # ---- Main ---------------------------------------------------------
