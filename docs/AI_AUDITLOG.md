@@ -7508,3 +7508,54 @@ Recommended next actions:
   - RIS: Wrapper-Name-Validierung im CI absichern
 Current resume point:
   - S06 complete, Report/Evidence verfasst; S07 startbereit
+
+
+[ S08 WRAPPER-REPAIR-2026 — KORRIGIERT ]
+Current status: COMPLETE (Wrapper defects repaired, 49 regression tests all PASS, real MO-Builder integration VERIFIED)
+Audit date/time: 2026-10-27
+Run ID: 2026-10-27-s08-real-builder
+Current Git branch and HEAD: feature/mo-module-installer-ris-dev2-2026, HEAD = 5e8d944 (nach Prompt 06-R)
+Reference SHA (MO, read-only): 9627eb2f43087ab07dd7cc98a21febca142cb3b6 (feature/mo-module-contract-ris-dev2-2026)
+Audit scope: S08 — Wrapper-Repair-and-Verify: builder-Pin, allgemeine Namensableitung, Vertragsprüfung nach Generierung, Terraform-Prüfungen, Fehlerweitergabe, echter Builder-Lauf, lokale Terraform-Gates (kein Plan/Apply, keine AWS, keine Boundary-/SQS-/Auth-Änderungen).
+
+Completed audit sections:
+  1 Wrapper-Python-Syntax behoben
+  2 Builder-Pin aus mays-orders-builder.pinned.json (nicht Composite-Clone-Pin), strenger Vertrag (kein Fallback)
+  3 Tatsächlichen Quell-HEAD gegen vollständigen Builder-SHA geprüft
+  4 Dirty Builder-Quelle ohne Reset/Clean abgelehnt
+  5 Bestehende CLI-Semantik geprüft und dokumentiert
+  6 Für RIS-Projekt ris-dev2 Komponentennamen ris-dev2-mays-orders tatsächlich an Builder übergeben
+  7 Ableitung allgemein implementiert; keine ausschließlich auf ris-dev2 zugeschnittenen Projekttabelle
+  8 Vertragsprüfung NACH Generierung des temporären Artefakts (keine nachträglichen Patches)
+  9 ARN-/ID-Consumer-Vertrag gegen RIS-Root geprüft (6 Bindings, pro module-Block)
+  10 AWS-Namenslimits: Lambda 64, IAM 64, SQS 80, DynamoDB 255
+  11 Terraform-Prüfungen verpflichtend: fmt -recursive → fmt -check → init → validate, alle mit Abbruch bei Fehler
+  12 --force umgeht keine Prüfungen
+  13 Zielübernahme atomar: Backup vor Löschung, Restore bei Fehler, bytegleich bei Fehlschlag
+  14 TF_DATA_DIR isoliert in run()
+  15 49 Regressionstests lokal ausgeführt (alle PASS)
+  16 Echten lokalen Wrapper-Build für ris-dev2 durchgeführt (Exit 0)
+  17 RIS-Root-Validierung mit isoliertem TF_DATA_DIR: fmt Exit 0, init Exit 0, validate Exit 0
+  18 Modul in terraform/modules/mays_orders übernommen (gitignored)
+
+Actual findings:
+  - Builder-Pin 9627eb2f43087ab07dd7cc98a21febca142cb3b6 korrekt geladen aus mays-orders-builder.pinned.json
+  - Generelle Namensableitung: derive_component_name(project_name) → project_name + "-mays-orders"
+  - Keine hardcoded EXPECTED_PROJECT_MAP-Tabelle mehr
+  - Vertragsprüfung NACH Generierung des temporären Artefakts (keine nachträglichen Patches)
+  - Übernahme erst nach bestandenen Terraform-Prüfungen (fmt/init/validate)
+  - 49 Regressionstests: alle bestanden (N-01, N-02, N-03, Terraform-Gates, Zielübernahme, Fehlerfälle)
+  - Echter Builder-Lauf: Exit 0, 5 Inputs, 20 Outputs, sqs_queue_name vorhanden, IAM contract OK
+  - RIS-Root-Validierung: fmt Exit 0, init Exit 0 (18 Module), validate Exit 0
+  - Modul übernommen: terraform/modules/mays_orders (40+ Dateien, gitignored)
+
+Git-Commits:
+  - 0c2bd4b: Prompt 04-FIX: RIS-MO-Wrapper-Defekte beheben (N-01 bis N-03)
+  - ca26b0e: Prompt 06-R: RIS-MO-Format-Gate-Repair und echter Builder-Retest
+  - 5e8d944: Prompt 06-R: Test-Fix für TF_DATA_DIR-Isolation
+
+Current resume point:
+  - S08 complete (Wrapper-Repair), S06 REAL BUILDER VERIFIED, S07 VERIFIED
+  - Alle lokalen Terraform-Gates bestanden
+  - Kein AWS-Deployment, kein Terraform Apply
+  - Nächster Schritt: Prompt 08-A (AWS Plan Readiness) nach Freigabe
