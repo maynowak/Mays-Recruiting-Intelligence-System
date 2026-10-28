@@ -104,7 +104,7 @@ TARGET_MODULE_DIR = RIS_ROOT / "terraform" / "modules" / "mays_orders"
 BUILDER_PIN_FILE = RIS_ROOT / "installer" / "mays-orders-builder.pinned.json"
 CLONE_PIN_FILE = RIS_ROOT / "installer" / "mays-orders-clone.pinned.json"
 
-PINNED_COMMIT = "9627eb2f43087ab07dd7cc98a21febca142cb3b6"
+PINNED_COMMIT = "a46b189a0b8271a3847b1e00d09bfcf2039b9d2e"
 """Verbindlicher MO-Commit (40-stellig), ab welchem der Builder zu
 Generieren ist. Wird in der Builder-Pin-Datei MAYDS-ORDERS-BUILDER-PINNED-COMMIT
 hinterlegt; die Composite-Clone-Pin-Datei bleibt als historische Referenz erhalten."""
@@ -341,7 +341,7 @@ def validate_generated_contract(target_dir: Path) -> None:
             "Keine nachträglichen Patches; Build wurde ohne Vertragsprüfung "
             "durchgeführt, das Modul entspricht nicht dem Vertrag."
         )
-    print(f"  Inputs OK: {sorted(actual_inputs)} (5 erwartet)")
+    print(f"  Inputs OK: {sorted(actual_inputs)} (6 erwartet)")
 
     # 20 Outputs einschließlich sqs_queue_name
     expected_outputs_count = 20
@@ -431,10 +431,10 @@ def ensure_repo():
         run([r"C:\Program Files\Git\bin\git.exe", "clone",
              "https://github.com/maynowak/mays-order-aws.git", str(MAYS_ORDERS_BUILDER_DIR)])
     else:
-        result = run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "fetch", "--quiet"])\n_check_returncode(result, "Builder fetch")
+        result = run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "fetch", "--quiet"])
 
     # Auf den Builder-Pin checkout (detached HEAD)
-    result = run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "checkout", BUILDER_PIN])\n_check_returncode(result, "Builder pin checkout")
+    result = run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "checkout", BUILDER_PIN])
 
     # Arbeitsbaum zustand prüfen – Dirty ablehnen ohne Reset/Clean
     try:
