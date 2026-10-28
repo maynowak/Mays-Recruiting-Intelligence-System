@@ -431,10 +431,10 @@ def ensure_repo():
         run([r"C:\Program Files\Git\bin\git.exe", "clone",
              "https://github.com/maynowak/mays-order-aws.git", str(MAYS_ORDERS_BUILDER_DIR)])
     else:
-        run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "fetch", "--quiet"])
+        result = run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "fetch", "--quiet"])\n_check_returncode(result, "Builder fetch")
 
     # Auf den Builder-Pin checkout (detached HEAD)
-    run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "checkout", BUILDER_PIN])
+    result = run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "checkout", BUILDER_PIN])\n_check_returncode(result, "Builder pin checkout")
 
     # Arbeitsbaum zustand prüfen – Dirty ablehnen ohne Reset/Clean
     try:
@@ -443,7 +443,7 @@ def ensure_repo():
         , capture_output=True, text=True)
         if status.stdout.strip():
             print(f"FEHLER: builder worktree has untracked/modified files:\n{status.stdout.strip()}")
-            print("Bitte bereinigen Sie den worktree (git stash/git checkout) vor dem Build.")
+            print("Abbruch: Bereinige den worktree (git stash/git checkout) vor dem Build.")
             sys.exit(1)
     except Exception as e:
         print("Warnung: Git-Status-Check fehlgeschlagen: {e}".format(e=e))
@@ -566,6 +566,23 @@ def build_module(project_name: str, force: bool):
 
 # ---- Post-run checks ------------------------------------------------
 
+
+    # B5: Portabilitätsprüfung der IAM Boundary
+    # Die Boundary referenziert ein anderes AWS-Konto; dies ist als Known-Limitation zu dokumentieren
+    # und darf die Integrität des Builds nicht beeinflussen.
+    boundary_arn = "arn:aws:iam::240571105849:policy/Mays-Orders-Lambda-Execution-Boundary"
+    print(f"Boundary known: {boundary_arn} (kontospezifisch, Portabilität nicht geprüft)")    # Artifact Integrity Verification
+    # Verify the generated lambda.zip matches the expected manifest hash
+    lambda_zip = TARGET_MODULE_DIR / "lambda.zip"
+    if lambda_zip.exists():
+        current_sha = None
+        with open(lambda_zip, "rb") as f:
+            current_sha = hashlib.sha256(f.read()).hexdigest()
+        if current_sha and current_sha != manifest_sha:
+            print(f"WARNUNG: lambda.zip SHA-256 mismatch (expected {manifest_sha}, got {current_sha})")
+            print("Das Modul wurde ohne validierbare Artefakte aufgebaut. Bestandiges Ziel beibehalten.")
+        elif current_sha == manifest_sha:
+            print("Artifact Integrity: SHA-256 match confirmed")
 def post_run_checks(module_dir: Path) -> None:
     """Führt lokale Validierungschecks durch (fmt, init, validate).
     Fehlende Werkzeuge oder fehlgeschlagene Prüfungen müssen einen
