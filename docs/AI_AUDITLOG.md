@@ -34,6 +34,7 @@ Recommended next actions:
   - S08: Weitere Architekturentwicklung, falls erforderlich
   - MO: Keine further Änderungen ohne neuen Auftrag
   - RIS: Abhängigkeitsmatrix bei neuen Modulen aktualisieren
+
 Current resume point:
   - S07 complete, Report/Evidence verfasst; S08 startbereit
 [
@@ -7556,6 +7557,11 @@ Git-Commits:
 
 Current resume point:
   - S08 complete (Wrapper-Repair), S06 REAL BUILDER VERIFIED, S07 VERIFIED
+  - PROMPT 09 final integration evidence compiled (P01-P09 wrap-up)
+  - REAL TERRAFORM PLAN executed P08-R4: 170 resources add, Exit 0, Backend bootstrap S3+DynamoDB
+  - Reports P08-A, P08-B, P09 created and committed
+  - Known Findings F-01, F-03 documented as OPEN
+  - no AWS Apply or Destroy executed
   - Alle lokalen Terraform-Gates bestanden
   - Kein AWS-Deployment, kein Terraform Apply
   - Nächster Schritt: Prompt 08-A (AWS Plan Readiness) nach Freigabe
