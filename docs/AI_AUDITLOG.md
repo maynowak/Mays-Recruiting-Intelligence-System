@@ -7181,6 +7181,7 @@ Current resume point:
    - Audit complete, awaiting further evidence
 
 ==================================================
+
 [MO-RIS-DEV2-S00-BASELINE-2026]
 Current status: COMPLETE â€” baseline documented; S01 execution BLOCKED (Terraform, pytest/moto/boto3 missing, source docs missing)
 Audit date/time: 2026-10-25
@@ -7232,7 +7233,8 @@ Recommended next actions:
 Current resume point:
   - S00 complete, report committed; S01-Vertragsmatrix is next, not started
 
-==================================================
+
+===========================================
 [MO-RIS-DEV2-S01-CONTRACT-MATRIX-2026]
 Current status: COMPLETE (statische Vertragsmatrix) - keine Implementierung, kein Builder-Lauf, kein Terraform, kein AWS
 Audit date/time: 2026-10-25
@@ -7633,3 +7635,104 @@ Open questions:
   - F-03 SQS-Policy vor jeder Produktionsfreigabe härten
 Current resume point:
   - RIS-MO-Integration abgeschlossen (RC GO); Platz für neue Entwicklungsaufgaben
+[RIS-DOC-CONSOLIDATION-01-2026-10-25]
+Current status: GREEN — Documentation consolidated
+Audit date/time: 2026-10-25
+Current Git branch and HEAD: main
+Audit scope: Consolidate historical AWS and installation references
+Completed audit sections:
+   §1 Inventory of references
+   §2 Classification CURRENT/HISTORICAL/STALE/CONFLICT
+   §3 Central reference created
+   §4 Report created
+Actual findings:
+   - Current permanent installation ris-dev documented
+   - Historical mays-ris/ris-development preserved as historical
+   - No Terraform or AWS mutations
+Evidence / file references:
+   - docs/architecture/DEPLOYMENT-CONTEXT.md
+   - docs/reports/RIS-DOC-CONSOLIDATION-01.md
+Classification: GREEN
+Terraform checks actually executed and their results:
+   - None
+Git status:
+   - Docs updated
+Files changed:
+   - docs/architecture/DEPLOYMENT-CONTEXT.md
+   - docs/reports/RIS-DOC-CONSOLIDATION-01.md
+Open questions:
+   - Full README update pending approval
+Risks:
+   - None
+Recommended next actions:
+   - Link README to DEPLOYMENT-CONTEXT
+Current resume point:
+   - Consolidation complete
+
+==================================================
+[RIS-ARN-01-2026-10-25]
+Current status: GREEN — Resource contracts verified
+Audit date/time: 2026-10-25
+Current Git branch and HEAD: main
+Audit scope: AWS Resource Contract & Isolation audit
+Completed audit sections:
+   §1 Repository audit for ARN references
+   §2 Terraform output contracts
+   §3 Module installer contracts
+   §4 ARN/URL semantics
+   §5 Isolation tests
+Actual findings:
+   - Lambda and SQS references use Terraform outputs
+   - No active hardcoded account IDs in Terraform
+   - Installation isolation via workspace and naming
+Evidence / file references:
+   - docs/reports/RIS-ARN-01-RESOURCE-CONTRACT-AUDIT.md
+Classification: GREEN
+Terraform checks actually executed and their results:
+   - None
+Git status:
+   - Report created
+Files changed:
+   - docs/reports/RIS-ARN-01-RESOURCE-CONTRACT-AUDIT.md
+Open questions:
+   - None
+Risks:
+   - None
+Recommended next actions:
+   - None
+Current resume point:
+   - Audit complete
+
+==================================================
+[RIS-RC-01-2026-10-25]
+Current status: YELLOW — Release candidate validated locally, live evidence missing
+Audit date/time: 2026-10-25
+Current Git branch and HEAD: main @ 392e27b
+Audit scope: Release Candidate Integration & Verification
+Completed audit sections:
+   §1 Git baseline
+   §2 AWS account boundary
+   §3 Installer and Terraform contracts
+   §4 Lambda packaging
+   §5 SQS/DLQ
+   §6 Agent runtime
+Actual findings:
+   - Repo clean, contracts verified, no mutations
+   - Live E2E evidence missing for full runtime
+Evidence / file references:
+   - docs/reports/RIS-RC-01-RELEASE-CANDIDATE-VALIDATION.md
+Classification: YELLOW
+Terraform checks actually executed and their results:
+   - None
+Git status:
+   - Report created
+Files changed:
+   - docs/reports/RIS-RC-01-RELEASE-CANDIDATE-VALIDATION.md
+Open questions:
+   - Live E2E verification needed
+Risks:
+   - Release readiness not fully proven
+Recommended next actions:
+   - Perform live smoke test
+Current resume point:
+   - Audit complete
