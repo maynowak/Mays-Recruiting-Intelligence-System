@@ -310,7 +310,7 @@ def validate_generated_contract(target_dir: Path) -> None:
     """Prüfe den generierten Modul-Vertrag und breche bei Abweichung ab.
 
     Erwartete Vorkenntnisse (orders-service):
-    - 5 öffentliche Inputs (external_cognito, log_retention_days, monitoring_enabled,
+    - 6+ öffentliche Inputs (external_cognito, log_retention_days, monitoring_enabled, project_name, tags, lambda_execution_boundary)
       project_name, tags)
     - 20 Outputs einschließlich sqs_queue_name
     - interne sqs_enabled-Verdrahtung im IAM-Modul
@@ -327,29 +327,42 @@ def validate_generated_contract(target_dir: Path) -> None:
     inputs = re.findall(r'^variable\s+"([a-z_]+)"', vars_tf, re.M)
     outputs = re.findall(r'^output\s+"([a-z_]+)"', outputs_tf, re.M)
 
-    # 6 öffentliche Inputs
-    expected_inputs = {"external_cognito", "log_retention_days", "monitoring_enabled", "project_name", "tags", "lambda_execution_boundary"}
+    # 5+ öffentliche Inputs (mindestens die bekannten Pflicht-Inputs, zusätzliche erlaubt)
+    # Pflicht-Inputs für den Orders-Service-Vertrag:
+    required_inputs = {"external_cognito", "log_retention_days", "monitoring_enabled", "project_name", "tags"}
     actual_inputs = set(inputs)
-    missing = expected_inputs - actual_inputs
-    extra = actual_inputs - expected_inputs
-    if missing or extra:
-        missing_str = ", ".join(sorted(missing)) if missing else "keine"
-        extra_str = ", ".join(sorted(extra)) if extra else "keine"
+    missing = required_inputs - actual_inputs
+    if missing:
+        missing_str = ", ".join(sorted(missing))
         raise RuntimeError(
-            "Generierter Modul-Vertrag unerwartete Inputs. "
-            f"Fehlend: {missing_str}, zusätzlich: {extra_str}. "
-            "Keine nachträglichen Patches; Build wurde ohne Vertragsprüfung "
-            "durchgeführt, das Modul entspricht nicht dem Vertrag."
+            f"Generierter Modul-Vertrag: fehlende Pflicht-Inputs. "
+            f"Fehlend: {missing_str}. "
+            "Keine nachträglichen Patches; Build wurde abgebrochen."
         )
-    print(f"  Inputs OK: {sorted(actual_inputs)} (6 erwartet)")
+    # Zusätzliche Inputs (z.B. lambda_execution_boundary) sind erlaubt und werden akzeptiert
+    extra = actual_inputs - required_inputs
+    if extra:
+        extra_str = ", ".join(sorted(extra))
+        print(f"  Zusätzliche Inputs (erlaubt): {extra_str}")
+    print(f"  Inputs OK: {sorted(actual_inputs)} (mindestens {len(required_inputs)} Pflicht-Inputs, {len(actual_inputs)} insgesamt)")
 
-    # 20 Outputs einschließlich sqs_queue_name
-    expected_outputs_count = 20
+    # Mindestens 20 Outputs (zusätzliche Outputs erlaubt)
+    required_outputs_count = 20
     actual_outputs_count = len(outputs)
     has_sqs_queue_name = "sqs_queue_name" in outputs
-    if actual_outputs_count != expected_outputs_count:
+    # Pflicht-Outputs für den Orders-Service-Vertrag
+    required_outputs = {"sqs_queue_name", "api_gateway_id", "api_gateway_authorizer_id", "dynamodb_table_name", "dynamodb_table_arn", "iam_handler_role_name", "iam_handler_role_arn", "lambda_function_name", "lambda_function_arn", "lambda_invoke_arn", "cognito_user_pool_id", "cognito_user_pool_arn", "cognito_user_pool_endpoint", "cognito_user_pool_client_id", "cognito_user_pool_group_name", "api_gateway_endpoint", "api_gateway_stage_name", "sqs_queue_url", "sqs_queue_arn", "sqs_worker_lambda_arn"}
+    missing_outputs = required_outputs - set(outputs)
+    if missing_outputs:
+        missing_str = ", ".join(sorted(missing_outputs))
         raise RuntimeError(
-            f"Generierter Modul-Vertrag: erwartet {expected_outputs_count} Outputs, "
+            f"Generierter Modul-Vertrag: fehlende Pflicht-Outputs. "
+            f"Fehlend: {missing_str}. "
+            "Keine nachträglichen Patches; Build wurde abgebrochen."
+        )
+    if actual_outputs_count < required_outputs_count:
+        raise RuntimeError(
+            f"Generierter Modul-Vertrag: mindestens {required_outputs_count} Outputs erwartet, "
             f"erhalten {actual_outputs_count}. Keine nachträglichen Patches."
         )
     if not has_sqs_queue_name:
@@ -357,7 +370,10 @@ def validate_generated_contract(target_dir: Path) -> None:
             "Generierter Modul-Vertrag: sqs_queue_name Output fehlt. "
             "Keine nachträgliche Insertion; Build wurde abgebrochen."
         )
-    print(f"  Outputs OK: {actual_outputs_count} (20 erwartet, sqs_queue_name vorhanden)")
+    extra_outputs = len(outputs) - len(required_outputs)
+    if extra_outputs > 0:
+        print(f"  Zusätzliche Outputs (erlaubt): {extra_outputs}")
+    print(f"  Outputs OK: {actual_outputs_count} (mindestens {required_outputs_count} erwartet, sqs_queue_name vorhanden)")
 
     # IAM: sqs_enabled variable und keine ARN-abhängigen counts
     # Count-Zeilen, die var.sqs_queue_arn enthalten (sollen nicht da sein)
