@@ -357,6 +357,7 @@ def validate_generated_contract(target_dir: Path) -> None:
         missing_str = ", ".join(sorted(missing_outputs))
         raise RuntimeError(
             f"Generierter Modul-Vertrag: fehlende Pflicht-Outputs. "
+            f"Erhalten: {actual_outputs_count}/{required_outputs_count} Outputs. "
             f"Fehlend: {missing_str}. "
             "Keine nachträglichen Patches; Build wurde abgebrochen."
         )
