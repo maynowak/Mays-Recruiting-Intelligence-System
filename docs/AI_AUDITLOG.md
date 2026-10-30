@@ -7565,3 +7565,41 @@ Current resume point:
   - Alle lokalen Terraform-Gates bestanden
   - Kein AWS-Deployment, kein Terraform Apply
   - Nächster Schritt: Prompt 08-A (AWS Plan Readiness) nach Freigabe
+
+==================================================
+[RIS-MO-RC-01-CONSUMER-ACCEPTANCE-2026-10-30]
+Current status: GREEN — RC GO. Pipeline BUILD -> APPLY -> LIVE TEST -> DESTROY -> CLEAN real ausgeführt und dokumentiert.
+Audit date/time: 2026-10-30
+Current Git branch and HEAD: feature/mo-module-installer-ris-dev2-2026, HEAD = f60d8291403357abf3ccb06f77e5f2fd835ff58c
+Reference SHA (MO builder, read-only): 1dbb0cb4e6cc019bc5b03f92e5ffb368a7bdb88d (installer/mays-orders-builder.pinned.json)
+Audit scope: Consumer-Acceptance der MO-Integration auf ris-dev2: AWS-Preflight (262370457690/eu-central-1, User devnemo), Terraform init/plan/apply auf Workspace ris-dev2, No-Op-Check, reale Live-Tests (Cognito, API Gateway, Lambda, DynamoDB, SQS, Orders), kontrollierter Destroy, unabhängige Cleanup-Verifikation. Backend-Bucket ris-dev2-tf-state-dev und Lock-Tabelle ris-dev2-tf-lock bleiben erhalten.
+Actual findings:
+  - Preflight PASS: STS bestätigt Account 262370457690, Region eu-central-1, State zu Beginn leer (serial 1, 0 Ressourcen), Backend vorhanden
+  - Plan Exit 0: 169 add / 0 change / 0 destroy, kein must-be-replaced (Evidence docs/reports/evidence/plan-ris-dev2.txt)
+  - Apply Exit 0; 2 Zwischenabbrüche durch 120s-CLI-Timeout hinterliessen verwaiste DynamoDB-State-Locks, per force-unlock gelöst (Finding N-RC-02)
+  - Post-Deploy No-Op: terraform plan -detailed-exitcode 0 ("No changes. Your infrastructure matches the configuration.")
+  - Live-Tests: 6 PASS / 1 SKIP. Cognito eu-central-1_uhvqKPR7G aktiv; API tc1rtdwye1 liefert 401 unauthentifiziert (Authorizer greift); Agent-Lambda /health -> 200 {"status":"ok"}; orders-reader-Lambda -> kontrolliertes 400 VALIDATION_ERROR; 12 DynamoDB-Tabellen inkl. ris-dev2-mays-orders; 6 SQS-Queues inkl. orders-queue. SKIP: Worker-Roundtrip (vor Destroy nicht ausgeführt, danach Queues gelöscht — bewusst nicht erfunden)
+  - Finding N-RC-01 (RESOLVED): Platzhalter-Lambda-ZIPs enthielten Orders-Modul-Dateien statt RIS-Handler -> Runtime.ImportModuleError auf beiden Lambdas. Reparatur: python lambda/build_zip.py --bundle all (deterministische Bundles) + tfvars filename -> lambda/dist/orders-reader.zip; Plan 0 add / 2 change / 0 destroy, Apply Exit 0, danach Tests PASS
+  - Finding N-RC-03 (RESOLVED): abgebrochene Applies erzeugten 4 doppelte CloudFront-Distributionen (alle Terraform-erzeugt, identischer Origin ris-dev2-dev-health-public); alle 4 disabled, deleted (NoSuchDistribution verifiziert), danach OAC E3N0SKHULOX36P gelöscht (NoSuchOriginAccessControl verifiziert)
+  - Destroy Exit 0 ("Destroy complete! Resources: 0 destroyed."); S3 ris-dev2-cloudtrail-262370457690 wegen CloudTrail-Logs (BucketNotEmpty) geleert und gelöscht
+  - Cleanup unabhängig verifiziert (Exit 0): Lambda 0, Cognito 0, DynamoDB nur ris-dev2-tf-lock (Backend), SQS 0, API GW 0, IAM 0/0, LogGroups/Alarms/Dashboards 0, EventBridge 0, CloudTrail 0, CloudFront 0/0, S3 nur Backend-Bucket, State-Objekt env:/ris-dev2/dev/terraform.tfstate (leerer Post-Destroy-State)
+  - F-01 (IAM-Boundary-Portabilität) und F-03 (SQS-Wildcard-Principal) bleiben OPEN; F-03 bleibt Production-Gate
+  - State-Pfad-Diskrepanz aus P09 trat nicht erneut auf: wirksamer Pfad env:/ris-dev2/dev/terraform.tfstate entspricht Installer-Erwartung
+Evidence / file references:
+  - docs/reports/RIS-MO-RC-01-CONSUMER-ACCEPTANCE.md
+  - docs/reports/evidence/RIS-MO-RC-01-2026/ (01-git-baseline, 02-aws-identity, 03-terraform-state-final, 04-terraform-pipeline, 05-aws-cleanup-verification, 06-live-tests)
+  - docs/reports/evidence/plan-ris-dev2.txt, docs/reports/evidence/tf-outputs.json
+Classification: GREEN
+Terraform checks actually executed and their results:
+  - terraform init Exit 0 (aws 6.67.0, time 0.14.2, 21 Module)
+  - terraform plan Exit 0 (169 add / 0 change / 0 destroy)
+  - terraform apply Exit 0 (inkl. Lambda-Artefakt-Reparatur 2 in-place)
+  - post-apply plan -detailed-exitcode 0 (No-Op bestätigt)
+  - terraform destroy Exit 0 (0 Ressourcen im State verifiziert)
+AWS MUTATIONS: YES — isolierte ris-dev2-Testinstallation erstellt, getestet und vollständig zerstört; Backend (S3 + Lock-Tabelle) erhalten; keine fremden Ressourcen verändert
+GIT PUSH: nein (nur lokaler Commit)
+Open questions:
+  - Worker-SQS-Roundtrip (T-07) bei nächster Live-Iteration nachholen
+  - F-03 SQS-Policy vor jeder Produktionsfreigabe härten
+Current resume point:
+  - RIS-MO-Integration abgeschlossen (RC GO); Platz für neue Entwicklungsaufgaben

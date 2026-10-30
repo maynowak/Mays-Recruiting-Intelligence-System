@@ -1,0 +1,51 @@
+﻿Branch: feature/mo-module-installer-ris-dev2-2026
+f60d8291403357abf3ccb06f77e5f2fd835ff58c
+?? add_var.py
+?? apply_b2i.py
+?? apply_b2i2.py
+?? apply_fixes.py
+?? apply_remaining.py
+?? bootstrap_backend.py
+?? build_output.txt
+?? build_output2.txt
+?? check.py
+?? check_inputs.py
+?? check_outputs.py
+?? check_policy.py
+?? check_sqs.py
+?? check_zip.py
+?? create_artifacts.py
+?? create_wrapper_fix.py
+?? docs/reports/evidence/RIS-MO-RC-01-2026/
+?? docs/reports/evidence/plan-ris-dev2.txt
+?? docs/reports/evidence/tf-outputs.json
+?? final_check.py
+?? fix_b1.py
+?? fix_pin.py
+?? fix_syntax2.py
+?? fix_wrapper.py
+?? fix_wrapper2.py
+?? fix_wrapper_inputs.py
+?? git_diff.txt
+?? installer/build_mays_orders_module.orig.py
+?? original_backup.py
+?? publisher.py
+?? rebuild_wrapper.py
+?? temp.txt
+?? temp_wrapper.py
+?? terraform/apply_health.log
+?? terraform/health_publisher_zip_path.zip
+?? terraform/health_writer_zip_path.zip
+?? terraform/plan.out
+?? update_pin.py
+?? update_validator.py
+?? verify.py
+?? verify_auditlog.py
+f60d829 feat: update wrapper validation to accept 6+ inputs and outputs
+d066d54 docs(ris): add P14-A wrapper build evidence report
+d1b7594 feat: fix wrapper validation for 6 inputs and update builder pin
+a6c34d6 rc: update MO builder pin to a46b189 and add lambda_execution_boundary variable
+9018e7b rc: update MO builder pin to a46b189
+125bef5 docs(ris): upgrade MO builder pin and validate inputs
+3d7e9c0 docs(ris): add RIS-MO-Wrapper-Portability-and-Runtime-Completeness-01 report
+06a37a4 docs(ris): finalize MO module integration evidence P01-P09

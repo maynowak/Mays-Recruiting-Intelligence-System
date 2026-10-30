@@ -1,0 +1,17 @@
+﻿=== Lambda functions (ris-dev2*) ===
+=== Cognito pools ===
+=== DynamoDB tables ===
+ris-dev2-tf-lock
+=== SQS queues ===
+None
+=== API Gateways ===
+=== IAM roles ===
+=== Log groups ===
+=== S3 buckets ===
+ris-dev2-tf-state-dev
+=== CloudWatch alarms ===
+=== CW dashboards ===
+=== EventBridge rules ===
+=== CloudTrail ===
+=== Backend state file ===
+2026-10-30 13:56:11       2889 env:/ris-dev2/dev/terraform.tfstate
