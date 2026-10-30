@@ -327,8 +327,8 @@ def validate_generated_contract(target_dir: Path) -> None:
     inputs = re.findall(r'^variable\s+"([a-z_]+)"', vars_tf, re.M)
     outputs = re.findall(r'^output\s+"([a-z_]+)"', outputs_tf, re.M)
 
-    # 5 öffentliche Inputs
-    expected_inputs = {"external_cognito", "log_retention_days", "monitoring_enabled", "project_name", "tags"}
+    # 6 öffentliche Inputs
+    expected_inputs = {"external_cognito", "log_retention_days", "monitoring_enabled", "project_name", "tags", "lambda_execution_boundary"}
     actual_inputs = set(inputs)
     missing = expected_inputs - actual_inputs
     extra = actual_inputs - expected_inputs
