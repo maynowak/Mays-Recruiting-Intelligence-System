@@ -16,8 +16,8 @@
 - `init -backend=false`: OK
 - `validate`: OK
 - `lambda.zip` SHA-256: `b1018a3bd03455ede329ffaa3c66ca8115c6077741c8aad5282ee5f5fbd00e2b` (Match gegen Manifest)
-- F-01: `lambda_execution_boundary` mit `default = null` (behoben)
-- F-03: Kein `Principal = "*` ohne Conditions (behoben)
+- F-01: `lambda_execution_boundary` mit `default = null` (MO-Vertrag korrigiert; Portabilität eines expliziten ARN bleibt separat zu prüfen)
+- F-03: Keine ungeschützte SQS-Resource-Wildcard; Resource ist die konkrete Queue-ARN (MO-Vertrag korrigiert; keine automatische Produktionsfreigabe)
 
 ## Evidence-Pfade
 
@@ -38,6 +38,6 @@
 
 ## Status
 
-**PASS** — Build erfolgreich, 6 Inputs, 20 Outputs, Terraform-Validierung bestanden, F-01 und F-03 behoben.
+**PASS** — Build erfolgreich, 6 Inputs, 20 Outputs, Terraform-Validierung bestanden; F-01/F-03 im MO-Vertrag korrigiert, Produktionsfreigabe separat.
 
 Nach dem tatsächlichen Build und der Validierung: **STOPP**.

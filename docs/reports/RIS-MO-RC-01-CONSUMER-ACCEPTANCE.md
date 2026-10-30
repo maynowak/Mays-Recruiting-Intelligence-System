@@ -130,8 +130,8 @@ bestätigt erneut: keine `ris-dev2`-Laufzeitressourcen, Backend unverändert.
 
 | ID | Beschreibung | Status |
 |---|---|---|
-| F-01 | IAM Worker-Boundary: kontospezifischer ARN-Default, Portabilität über Konten ungeprüft | **OPEN** (vorbestehend, außerhalb Scope) |
-| F-03 | MO-SQS-Policy `Principal="*"` ohne Conditions | **OPEN** — bleibt **Production-Gate** (für isolierte Testinstallation akzeptiert) |
+| F-01 | IAM Worker-Boundary: `lambda_execution_boundary` ist im gepinnten Modul optional (`default = null`); Portabilität eines explizit gesetzten Account-ARNs über Konten ungeprüft | **OPEN** (Portabilitätsfrage, außerhalb Scope) |
+| F-03 | MO-SQS-Policy im Pin `1dbb0cb4` verwendet die konkrete `sqs_queue_arn`; die frühere ungeschützte Wildcard-Resource-Policy ist im MO-Vertragsstand entfernt | **RESOLVED (MO-Vertrag)**; daraus folgt keine automatische Produktionsfreigabe |
 | N-RC-01 | Platzhalter-Lambda-ZIPs ohne RIS-Handler → ImportModuleError; behoben via `build_zip.py --bundle all` + `filename`-Binding auf `lambda/dist/orders-reader.zip` | **RESOLVED** (Binding in lokalem tfvars dokumentiert) |
 | N-RC-02 | 120s-Timeout-Abbrüche hinterlassen verwaiste DynamoDB-State-Locks → `terraform force-unlock` erforderlich | **DOKUMENTIERT** (Prozessverhalten, nicht Infrastrukturdefekt) |
 | N-RC-03 | Abgebrochene Applies erzeugten 4 doppelte CloudFront-Distributionen (alle Terraform-erzeugt, gleicher Origin) | **RESOLVED** (alle 4 + OAC gelöscht, verifiziert) |
@@ -178,8 +178,9 @@ Testinstallation `ris-dev2`:
 - Destroy Exit 0, AWS-Restbestand unabhängig verifiziert = CLEAN
 - Backend (S3 + DynamoDB-Lock) unbeschädigt erhalten
 
-Bedingung: F-03 (SQS-Wildcard-Policy) bleibt blockierend für jede
-Produktions- oder Multi-Tenant-Freigabe.
+Bedingung: Der RC-GO bewertet ausschließlich den isolierten Consumer-Acceptance-
+Lauf. Die MO-Vertragskorrektur von F-03 ist kein automatisches Production-
+oder Multi-Tenant-Go; eine separate Produktionsfreigabe bleibt erforderlich.
 
 ---
 *Ende RIS-MO-RC-01 — Consumer Acceptance. Erstellt 2026-10-30.*

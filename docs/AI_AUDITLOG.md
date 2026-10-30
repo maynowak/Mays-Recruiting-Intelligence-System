@@ -7703,6 +7703,24 @@ Recommended next actions:
 Current resume point:
    - Audit complete
 
+[RIS-MO-M06-DOCUMENTATION-CONSOLIDATION-2026]
+Current status: COMPLETE — aktuelle RIS-MO-Statusaussagen an den gepinnten MO-Vertragsstand angeglichen.
+Audit date/time: 2026-10-30
+Audit scope: Nur Dokumentationskonsolidierung vor dem Main-Merge; historische Reports und originale Evidence unverändert.
+Actual findings:
+  - F-01: `lambda_execution_boundary` im Pin 1dbb0cb4 hat `default = null`; ein expliziter Account-ARN bleibt eine separate Portabilitätsfrage.
+  - F-03: Die frühere ungeschützte SQS-Resource-Wildcard ist im Pin 1dbb0cb4 entfernt; die Resource ist die konkrete `sqs_queue_arn`.
+  - RC-Status bleibt GO für den isolierten `ris-dev2`-Consumer-Acceptance-Lauf; daraus wird keine automatische Produktionsfreigabe abgeleitet.
+Evidence / file references:
+  - docs/reports/RIS-MO-RC-01-CONSUMER-ACCEPTANCE.md
+  - docs/reports/P14-A-WRAPPER-BUILD-NACHWEIS.md
+  - terraform/modules/mays_orders/variables.tf
+  - terraform/modules/mays_orders/modules/iam/main.tf
+Classification: GREEN
+Git status: Dokumentationsänderungen gezielt; keine AWS-/Terraform-Ausführung.
+Current resume point:
+  - M06 abgeschlossen; M07 nicht begonnen.
+
 ==================================================
 [RIS-RC-01-2026-10-25]
 Current status: YELLOW — Release candidate validated locally, live evidence missing
