@@ -7598,6 +7598,36 @@ Terraform checks actually executed and their results:
   - terraform destroy Exit 0 (0 Ressourcen im State verifiziert)
 AWS MUTATIONS: YES — isolierte ris-dev2-Testinstallation erstellt, getestet und vollständig zerstört; Backend (S3 + Lock-Tabelle) erhalten; keine fremden Ressourcen verändert
 GIT PUSH: nein (nur lokaler Commit)
+
+[RIS-MO-RC-01-CONSUMER-ACCEPTANCE-FOLLOW-UP-2026-10-30]
+Current status: COMPLETE — RC GO; T-07 Worker-Roundtrip nachgeholt und Cleanup erneut verifiziert.
+Audit date/time: 2026-10-30
+Current Git branch and HEAD before documentation follow-up commit: feature/mo-module-installer-ris-dev2-2026, HEAD = 7fbe3d5e9faaf9525af497398d25cfdff6e383d4
+Reference SHA (MO builder, read-only): 1dbb0cb4e6cc019bc5b03f92e5ffb368a7bdb88d
+Audit scope: Nachholung des realen SQS→Worker→DynamoDB-Roundtrips sowie erneuter isolierter Apply/No-Op/Destroy/Cleanup-Lauf für ris-dev2.
+Actual findings:
+  - AWS-Identität erneut verifiziert: Account 262370457690, Region eu-central-1.
+  - Backend und Lock-Tabelle vorhanden; Terraform-State vor dem zweiten Lauf leer.
+  - Plan Exit 0: 169 add / 0 change / 0 destroy.
+  - Apply Exit 0: 169 Ressourcen erstellt.
+  - Echter T-07-Roundtrip PASS: SendMessage, Worker-Update PENDING → CONFIRMED, Queue sichtbar/unsichtbar jeweils 0.
+  - Post-Deploy-No-Op Exit 0: keine Änderungen.
+  - Destroy erster Versuch Exit 1 wegen eigener nichtleerer CloudTrail-Logs; eigener Bucket geleert, Retry Exit 0.
+  - Cleanup Exit 0: keine ris-dev2-Laufzeitressourcen; nur S3-Backend und DynamoDB-Lock-Tabelle erhalten.
+Evidence / file references:
+  - docs/reports/evidence/RIS-MO-RC-01-2026/07-roundtrip-pipeline.txt
+  - docs/reports/evidence/RIS-MO-RC-01-2026/08-live-roundtrip.txt
+  - docs/reports/evidence/RIS-MO-RC-01-2026/09-cleanup-roundtrip.txt
+  - docs/reports/RIS-MO-RC-01-CONSUMER-ACCEPTANCE.md
+Classification: GREEN
+Terraform checks actually executed and their results:
+  - plan Exit 0, apply Exit 0, post-apply detailed plan Exit 0, destroy retry Exit 0, state list Exit 0.
+AWS MUTATIONS: YES — ausschließlich isolierte ris-dev2-Testressourcen; Backend erhalten.
+GIT PUSH: nein.
+Open questions:
+  - F-03 SQS-Wildcard-Principal bleibt Production-Gate.
+Current resume point:
+  - RIS-MO-Integration vollständig abgeschlossen; Platz für neue Entwicklungsaufgaben.
 Open questions:
   - Worker-SQS-Roundtrip (T-07) bei nächster Live-Iteration nachholen
   - F-03 SQS-Policy vor jeder Produktionsfreigabe härten

@@ -1,0 +1,9 @@
+RIS-MO-RC-01 T-07 Worker-Roundtrip
+Account/Region/Workspace: 262370457690 / eu-central-1 / ris-dev2
+PutItem exit=0; order=rc01worker; initial status=PENDING
+SendMessage exit=0; message status=CONFIRMED
+Poll 1 status=CONFIRMED
+Worker update PENDING -> CONFIRMED: PASS
+ApproximateNumberOfMessages=0
+ApproximateNumberOfMessagesNotVisible=0
+T-07: PASS

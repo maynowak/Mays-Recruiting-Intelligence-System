@@ -66,12 +66,13 @@ siehe `../tf-outputs.json`).
 | T-04 | Lambda `ris-dev2-dev-orders-reader` Invoke → 200/HTTP 400 VALIDATION_ERROR (erwartetes Fail-Closed für Bare-Event) | **PASS** | `06-live-tests.txt` |
 | T-05 | DynamoDB: 12 Tabellen inkl. `ris-dev2-mays-orders` (ACTIVE) | **PASS** | `06-live-tests.txt` |
 | T-06 | SQS: 6 Queues inkl. `ris-dev2-mays-orders-orders-queue` | **PASS** | `06-live-tests.txt` |
-| T-07 | Worker-Roundtrip (SendMessage → Verarbeitung → Queue leer) | **SKIP** | s. u. |
+| T-07 | Worker-Roundtrip (SendMessage → Verarbeitung → Queue leer) | **PASS** | `08-live-roundtrip.txt` |
 
-**SKIP-Begründung T-07:** Der reale Nachrichten-Roundtrip wurde vor dem
-Destroy nicht ausgeführt; danach waren die Queues kontrolliert gelöscht.
-Belegt stattdessen: Queue-Existenz + Attribute (T-06) und direkter
-Lambda-Invoke (T-03/T-04). Keine Ergebnisse erfunden.
+**T-07-Nachweis:** Ein eigener Testauftrag wurde in die Orders-SQS gestellt.
+Der Worker setzte den DynamoDB-Status `PENDING → CONFIRMED`; anschließend
+waren `ApproximateNumberOfMessages` und
+`ApproximateNumberOfMessagesNotVisible` jeweils `0`. Vollständiger Nachweis:
+`08-live-roundtrip.txt`.
 
 **Wichtiger Vorfall (behoben):** Die Platzhalter-ZIPs enthielten
 Orders-Modul-Dateien statt RIS-Handler → beide Lambdas warfen
@@ -118,6 +119,13 @@ Kontrollierter Rückbau der Restbestände (nur eigene Ressourcen):
 
 → **CLEAN bestätigt.** Backend-Bucket und Lock-Tabelle bleiben erhalten.
 
+**Zweiter Abschlusslauf zur Nachholung von T-07:** Apply Exit 0 (169 add),
+Post-Apply-No-Op Exit 0, Worker-Roundtrip PASS. Der erste Destroy-Aufruf
+endete wegen eigener CloudTrail-Logs mit Exit 1 (`BucketNotEmpty`); der Bucket
+wurde ausschließlich für diese Testinstallation geleert, der Destroy danach
+mit Exit 0 wiederholt. Die unabhängige Prüfung in `09-cleanup-roundtrip.txt`
+bestätigt erneut: keine `ris-dev2`-Laufzeitressourcen, Backend unverändert.
+
 ## 6. Findings
 
 | ID | Beschreibung | Status |
@@ -127,6 +135,7 @@ Kontrollierter Rückbau der Restbestände (nur eigene Ressourcen):
 | N-RC-01 | Platzhalter-Lambda-ZIPs ohne RIS-Handler → ImportModuleError; behoben via `build_zip.py --bundle all` + `filename`-Binding auf `lambda/dist/orders-reader.zip` | **RESOLVED** (Binding in lokalem tfvars dokumentiert) |
 | N-RC-02 | 120s-Timeout-Abbrüche hinterlassen verwaiste DynamoDB-State-Locks → `terraform force-unlock` erforderlich | **DOKUMENTIERT** (Prozessverhalten, nicht Infrastrukturdefekt) |
 | N-RC-03 | Abgebrochene Applies erzeugten 4 doppelte CloudFront-Distributionen (alle Terraform-erzeugt, gleicher Origin) | **RESOLVED** (alle 4 + OAC gelöscht, verifiziert) |
+| N-RC-04 | Zweiter Destroy-Versuch traf auf eigene nichtleere CloudTrail-Bucket-Logs | **RESOLVED** (eigener Bucket geleert, Destroy erneut Exit 0) |
 
 ## 7. Evidence-Index
 
@@ -138,6 +147,9 @@ Kontrollierter Rückbau der Restbestände (nur eigene Ressourcen):
 | `docs/reports/evidence/RIS-MO-RC-01-2026/04-terraform-pipeline.txt` | Init/Plan/Apply/Destroy-Konsole mit Exit-Codes |
 | `docs/reports/evidence/RIS-MO-RC-01-2026/05-aws-cleanup-verification.txt` | Restbestand-Check (frisch) |
 | `docs/reports/evidence/RIS-MO-RC-01-2026/06-live-tests.txt` | Live-Tests T-01…T-07 |
+| `docs/reports/evidence/RIS-MO-RC-01-2026/07-roundtrip-pipeline.txt` | Zweiter Apply/No-Op/Destroy-Lauf mit Exit-Codes |
+| `docs/reports/evidence/RIS-MO-RC-01-2026/08-live-roundtrip.txt` | Echter SQS→Worker→DynamoDB-Roundtrip |
+| `docs/reports/evidence/RIS-MO-RC-01-2026/09-cleanup-roundtrip.txt` | Unabhängige Cleanup-Prüfung nach dem zweiten Lauf |
 | `docs/reports/evidence/plan-ris-dev2.txt` | Vollständiger Plan (169 add) |
 | `docs/reports/evidence/tf-outputs.json` | 28 Terraform-Outputs |
 
@@ -145,7 +157,10 @@ Kontrollierter Rückbau der Restbestände (nur eigene Ressourcen):
 
 | Commit | Inhalt |
 |---|---|
-| *(dieser Commit)* | `docs/reports/RIS-MO-RC-01-CONSUMER-ACCEPTANCE.md` + Evidence-Verzeichnis `docs/reports/evidence/RIS-MO-RC-01-2026/` + `plan-ris-dev2.txt` + `tf-outputs.json` + AI_AUDITLOG-Eintrag |
+| `7fbe3d5e9faaf9525af497398d25cfdff6e383d4` | Acceptance-Report, erster Apply/Live-Test/Destroy/Cleanup-Lauf, Evidence und AI_AUDITLOG |
+| `f60d8291403357abf3ccb06f77e5f2fd835ff58c` | Wrapper-Validierung für den finalen Build erweitert |
+| `d1b7594f1ea8fc624b881be0808264c24de7a4bc` | Wrapper-Defekt behoben und MO-Pin aktualisiert |
+| lokaler Folgecommit | Zweiter vollständiger Lauf mit T-07 PASS, Cleanup-Evidence und aktualisiertem Report/Auditlog |
 
 Nicht committet (bewusst erhalten, untracked): Scratch-Skripte im
 Repository-Root (`apply_*.py`, `fix_*.py`, `check_*.py`, `verify*.py`,
@@ -159,13 +174,12 @@ Repository-Root (`apply_*.py`, `fix_*.py`, `check_*.py`, `verify*.py`,
 Testinstallation `ris-dev2`:
 
 - Plan (169 add) → Apply (Exit 0) → Post-Deploy-No-Op (Exit 0)
-- Live-Tests: 6 PASS, 1 SKIP (Worker-Roundtrip, begründet)
+- Live-Tests: 7 PASS (einschließlich Worker-Roundtrip)
 - Destroy Exit 0, AWS-Restbestand unabhängig verifiziert = CLEAN
 - Backend (S3 + DynamoDB-Lock) unbeschädigt erhalten
 
-Bedingungen: F-03 (SQS-Wildcard-Policy) bleibt blockierend für jede
-Produktions- oder Multi-Tenant-Freigabe; T-07 (Worker-Roundtrip) ist bei
-der nächsten Live-Iteration nachzuholen.
+Bedingung: F-03 (SQS-Wildcard-Policy) bleibt blockierend für jede
+Produktions- oder Multi-Tenant-Freigabe.
 
 ---
 *Ende RIS-MO-RC-01 — Consumer Acceptance. Erstellt 2026-10-30.*
