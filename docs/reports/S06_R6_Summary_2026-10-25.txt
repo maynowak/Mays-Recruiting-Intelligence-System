@@ -1,0 +1,12 @@
+S06/R7 Summary — 2026-10-25 (planned, not yet started)
+
+S06: RIS-Wrapper-Pin-And-Build
+- Pin: full 40-char SHA 9627eb2f43087ab07dd7cc98a21febca142cb3b6
+- Name: ris-dev2 → ris-dev2-mays-orders (no double-suffix)
+- Contract patches removed: validate instead of post-hoc patch
+- Format: fmt after generation, not before build
+- Tests: pin validation, name validation, build success/failure
+- Wrapper run: with pin and name contract
+- RIS-root: fmt/init/validate
+
+S07: Not started per checkpoint.

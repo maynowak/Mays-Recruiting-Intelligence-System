@@ -1,0 +1,645 @@
+﻿
+==============================================================================
+PLAN-LOG case-a
+==============================================================================
+# exit_code=0
+# init_exit_code=0
+# fixture=fixture-vars
+# var_file=case-a.tfvars
+# modul=C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\artifact-9627eb2f
+module.iam.data.aws_iam_policy_document.handler_trust: Reading...
+module.iam.data.aws_iam_policy_document.handler: Reading...
+module.iam.data.aws_iam_policy_document.sqs[0]: Reading...
+module.iam.data.aws_iam_policy_document.handler_trust: Read complete after 0s [id=2690255455]
+module.iam.data.aws_iam_policy_document.sqs[0]: Read complete after 0s [id=3021937482]
+module.iam.data.aws_iam_policy_document.handler: Read complete after 0s [id=4120568533]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # module.iam.aws_iam_role.handler will be created
+  + resource "aws_iam_role" "handler" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "lambda.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "ris-dev2-mays-orders-handler-role"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags                  = {
+          + "Project" = "ris-dev2-mays-orders"
+        }
+      + tags_all              = {
+          + "Project" = "ris-dev2-mays-orders"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # module.iam.aws_iam_role_policy.handler will be created
+  + resource "aws_iam_role_policy" "handler" {
+      + id          = (known after apply)
+      + name        = "ris-dev2-mays-orders-handler-policy"
+      + name_prefix = (known after apply)
+      + policy      = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action   = [
+                          + "dynamodb:UpdateItem",
+                          + "dynamodb:Query",
+                          + "dynamodb:PutItem",
+                          + "dynamodb:GetItem",
+                          + "dynamodb:DeleteItem",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders"
+                      + Sid      = "DynamoDBTable"
+                    },
+                  + {
+                      + Action   = "dynamodb:Query"
+                      + Effect   = "Allow"
+                      + Resource = [
+                          + "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders/index/gsi2",
+                          + "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders/index/gsi1",
+                        ]
+                      + Sid      = "DynamoDBGSI"
+                    },
+                  + {
+                      + Action   = [
+                          + "logs:PutLogEvents",
+                          + "logs:CreateLogStream",
+                          + "logs:CreateLogGroup",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "*"
+                      + Sid      = "Logs"
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + role        = "ris-dev2-mays-orders-handler-role"
+    }
+
+  # module.iam.aws_iam_role_policy.sqs[0] will be created
+  + resource "aws_iam_role_policy" "sqs" {
+      + id          = (known after apply)
+      + name        = "ris-dev2-mays-orders-handler-sqs-policy"
+      + name_prefix = (known after apply)
+      + policy      = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action   = "sqs:SendMessage"
+                      + Effect   = "Allow"
+                      + Resource = "arn:aws:sqs:eu-central-1:123456789012:ris-dev2-mays-orders-orders-queue"
+                      + Sid      = "SQS"
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + role        = "ris-dev2-mays-orders-handler-role"
+    }
+
+Plan: 3 to add, 0 to change, 0 to destroy.
+
+==============================================================================
+PLAN-LOG case-b
+==============================================================================
+# exit_code=0
+# init_exit_code=0
+# fixture=fixture-vars
+# var_file=case-b.tfvars
+# modul=C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\artifact-9627eb2f
+module.iam.data.aws_iam_policy_document.handler: Reading...
+module.iam.data.aws_iam_policy_document.handler_trust: Reading...
+module.iam.data.aws_iam_policy_document.handler_trust: Read complete after 0s [id=2690255455]
+module.iam.data.aws_iam_policy_document.handler: Read complete after 0s [id=4120568533]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # module.iam.aws_iam_role.handler will be created
+  + resource "aws_iam_role" "handler" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "lambda.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "ris-dev2-mays-orders-handler-role"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags                  = {
+          + "Project" = "ris-dev2-mays-orders"
+        }
+      + tags_all              = {
+          + "Project" = "ris-dev2-mays-orders"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # module.iam.aws_iam_role_policy.handler will be created
+  + resource "aws_iam_role_policy" "handler" {
+      + id          = (known after apply)
+      + name        = "ris-dev2-mays-orders-handler-policy"
+      + name_prefix = (known after apply)
+      + policy      = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action   = [
+                          + "dynamodb:UpdateItem",
+                          + "dynamodb:Query",
+                          + "dynamodb:PutItem",
+                          + "dynamodb:GetItem",
+                          + "dynamodb:DeleteItem",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders"
+                      + Sid      = "DynamoDBTable"
+                    },
+                  + {
+                      + Action   = "dynamodb:Query"
+                      + Effect   = "Allow"
+                      + Resource = [
+                          + "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders/index/gsi2",
+                          + "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders/index/gsi1",
+                        ]
+                      + Sid      = "DynamoDBGSI"
+                    },
+                  + {
+                      + Action   = [
+                          + "logs:PutLogEvents",
+                          + "logs:CreateLogStream",
+                          + "logs:CreateLogGroup",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "*"
+                      + Sid      = "Logs"
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + role        = "ris-dev2-mays-orders-handler-role"
+    }
+
+Plan: 2 to add, 0 to change, 0 to destroy.
+
+==============================================================================
+PLAN-LOG case-c
+==============================================================================
+# exit_code=1
+# init_exit_code=0
+# fixture=fixture-vars
+# var_file=case-c.tfvars
+# modul=C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\artifact-9627eb2f
+module.iam.data.aws_iam_policy_document.handler: Reading...
+module.iam.data.aws_iam_policy_document.handler_trust: Reading...
+module.iam.data.aws_iam_policy_document.handler: Read complete after 0s [id=4120568533]
+module.iam.data.aws_iam_policy_document.handler_trust: Read complete after 0s [id=2690255455]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform planned the following actions, but then encountered a problem:
+
+  # module.iam.aws_iam_role.handler will be created
+  + resource "aws_iam_role" "handler" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "lambda.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "ris-dev2-mays-orders-handler-role"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags                  = {
+          + "Project" = "ris-dev2-mays-orders"
+        }
+      + tags_all              = {
+          + "Project" = "ris-dev2-mays-orders"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # module.iam.aws_iam_role_policy.handler will be created
+  + resource "aws_iam_role_policy" "handler" {
+      + id          = (known after apply)
+      + name        = "ris-dev2-mays-orders-handler-policy"
+      + name_prefix = (known after apply)
+      + policy      = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action   = [
+                          + "dynamodb:UpdateItem",
+                          + "dynamodb:Query",
+                          + "dynamodb:PutItem",
+                          + "dynamodb:GetItem",
+                          + "dynamodb:DeleteItem",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders"
+                      + Sid      = "DynamoDBTable"
+                    },
+                  + {
+                      + Action   = "dynamodb:Query"
+                      + Effect   = "Allow"
+                      + Resource = [
+                          + "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders/index/gsi2",
+                          + "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders/index/gsi1",
+                        ]
+                      + Sid      = "DynamoDBGSI"
+                    },
+                  + {
+                      + Action   = [
+                          + "logs:PutLogEvents",
+                          + "logs:CreateLogStream",
+                          + "logs:CreateLogGroup",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "*"
+                      + Sid      = "Logs"
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + role        = "ris-dev2-mays-orders-handler-role"
+    }
+
+Plan: 2 to add, 0 to change, 0 to destroy.
+terraform.exe : 
+In C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\rerun-contract-on-artifact.ps1:35 
+Zeichen:10
++     $o = & $tf -chdir="$base\$Dir" plan -input=false -no-color -var-f ...
++          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error: Resource precondition failed
+
+  on 
+C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\tfdata-fixture-vars\modules\iam\main.tf 
+line 109, in data "aws_iam_policy_document" "sqs":
+ 109:       condition     = trimspace(var.sqs_queue_arn) != ""
+    Ã”Ã¶Â£Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡
+    Ã”Ã¶Ã© var.sqs_queue_arn is ""
+
+sqs_enabled = true erfordert einen nicht leeren sqs_queue_arn. Ohne
+angebundene Queue muss sqs_enabled = false gesetzt sein (dann entsteht keine
+SQS-IAM-Ressource).
+
+==============================================================================
+PLAN-LOG case-d
+==============================================================================
+# exit_code=0
+# init_exit_code=0
+# fixture=fixture-unknown
+# var_file=
+# modul=C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\artifact-9627eb2f
+module.iam.data.aws_iam_policy_document.handler: Reading...
+module.iam.data.aws_iam_policy_document.handler_trust: Reading...
+module.iam.data.aws_iam_policy_document.handler_trust: Read complete after 0s [id=2690255455]
+module.iam.data.aws_iam_policy_document.handler: Read complete after 0s [id=4120568533]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+ <= read (data resources)
+
+Terraform will perform the following actions:
+
+  # module.iam.data.aws_iam_policy_document.sqs[0] will be read during apply
+  # (config refers to values not yet known)
+ <= data "aws_iam_policy_document" "sqs" {
+      + id            = (known after apply)
+      + json          = (known after apply)
+      + minified_json = (known after apply)
+
+      + statement {
+          + actions   = [
+              + "sqs:SendMessage",
+            ]
+          + effect    = "Allow"
+          + resources = [
+              + (known after apply),
+            ]
+          + sid       = "SQS"
+        }
+    }
+
+  # module.iam.aws_iam_role.handler will be created
+  + resource "aws_iam_role" "handler" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "lambda.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "ris-dev2-mays-orders-handler-role"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags                  = {
+          + "Project" = "ris-dev2-mays-orders"
+        }
+      + tags_all              = {
+          + "Project" = "ris-dev2-mays-orders"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # module.iam.aws_iam_role_policy.handler will be created
+  + resource "aws_iam_role_policy" "handler" {
+      + id          = (known after apply)
+      + name        = "ris-dev2-mays-orders-handler-policy"
+      + name_prefix = (known after apply)
+      + policy      = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action   = [
+                          + "dynamodb:UpdateItem",
+                          + "dynamodb:Query",
+                          + "dynamodb:PutItem",
+                          + "dynamodb:GetItem",
+                          + "dynamodb:DeleteItem",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders"
+                      + Sid      = "DynamoDBTable"
+                    },
+                  + {
+                      + Action   = "dynamodb:Query"
+                      + Effect   = "Allow"
+                      + Resource = [
+                          + "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders/index/gsi2",
+                          + "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders/index/gsi1",
+                        ]
+                      + Sid      = "DynamoDBGSI"
+                    },
+                  + {
+                      + Action   = [
+                          + "logs:PutLogEvents",
+                          + "logs:CreateLogStream",
+                          + "logs:CreateLogGroup",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "*"
+                      + Sid      = "Logs"
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + role        = "ris-dev2-mays-orders-handler-role"
+    }
+
+  # module.iam.aws_iam_role_policy.sqs[0] will be created
+  + resource "aws_iam_role_policy" "sqs" {
+      + id          = (known after apply)
+      + name        = "ris-dev2-mays-orders-handler-sqs-policy"
+      + name_prefix = (known after apply)
+      + policy      = (known after apply)
+      + role        = "ris-dev2-mays-orders-handler-role"
+    }
+
+  # module.sqs.aws_sqs_queue.orders will be created
+  + resource "aws_sqs_queue" "orders" {
+      + arn                               = (known after apply)
+      + content_based_deduplication       = false
+      + deduplication_scope               = (known after apply)
+      + delay_seconds                     = 0
+      + fifo_queue                        = false
+      + fifo_throughput_limit             = (known after apply)
+      + id                                = (known after apply)
+      + kms_data_key_reuse_period_seconds = (known after apply)
+      + max_message_size                  = 262144
+      + message_retention_seconds         = 120
+      + name                              = "ris-dev2-mays-orders-orders-queue"
+      + name_prefix                       = (known after apply)
+      + policy                            = (known after apply)
+      + receive_wait_time_seconds         = 0
+      + redrive_allow_policy              = (known after apply)
+      + redrive_policy                    = (known after apply)
+      + region                            = "eu-central-1"
+      + sqs_managed_sse_enabled           = (known after apply)
+      + tags                              = {
+          + "Project" = "ris-dev2-mays-orders"
+        }
+      + tags_all                          = {
+          + "Project" = "ris-dev2-mays-orders"
+        }
+      + url                               = (known after apply)
+      + visibility_timeout_seconds        = 30
+    }
+
+  # module.sqs.aws_sqs_queue_policy.orders will be created
+  + resource "aws_sqs_queue_policy" "orders" {
+      + id        = (known after apply)
+      + policy    = (known after apply)
+      + queue_url = (known after apply)
+      + region    = "eu-central-1"
+    }
+
+Plan: 5 to add, 0 to change, 0 to destroy.
+
+==============================================================================
+PLAN-LOG case-e
+==============================================================================
+# exit_code=1
+# init_exit_code=0
+# fixture=fixture-vars
+# var_file=case-e.tfvars
+# modul=C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\artifact-9627eb2f
+module.iam.data.aws_iam_policy_document.handler: Reading...
+module.iam.data.aws_iam_policy_document.handler_trust: Reading...
+module.iam.data.aws_iam_policy_document.handler_trust: Read complete after 0s [id=2690255455]
+module.iam.data.aws_iam_policy_document.handler: Read complete after 0s [id=4120568533]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform planned the following actions, but then encountered a problem:
+
+  # module.iam.aws_iam_role.handler will be created
+  + resource "aws_iam_role" "handler" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "lambda.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "ris-dev2-mays-orders-handler-role"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags                  = {
+          + "Project" = "ris-dev2-mays-orders"
+        }
+      + tags_all              = {
+          + "Project" = "ris-dev2-mays-orders"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # module.iam.aws_iam_role_policy.handler will be created
+  + resource "aws_iam_role_policy" "handler" {
+      + id          = (known after apply)
+      + name        = "ris-dev2-mays-orders-handler-policy"
+      + name_prefix = (known after apply)
+      + policy      = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action   = [
+                          + "dynamodb:UpdateItem",
+                          + "dynamodb:Query",
+                          + "dynamodb:PutItem",
+                          + "dynamodb:GetItem",
+                          + "dynamodb:DeleteItem",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders"
+                      + Sid      = "DynamoDBTable"
+                    },
+                  + {
+                      + Action   = "dynamodb:Query"
+                      + Effect   = "Allow"
+                      + Resource = [
+                          + "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders/index/gsi2",
+                          + "arn:aws:dynamodb:eu-central-1:123456789012:table/ris-dev2-mays-orders/index/gsi1",
+                        ]
+                      + Sid      = "DynamoDBGSI"
+                    },
+                  + {
+                      + Action   = [
+                          + "logs:PutLogEvents",
+                          + "logs:CreateLogStream",
+                          + "logs:CreateLogGroup",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "*"
+                      + Sid      = "Logs"
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + role        = "ris-dev2-mays-orders-handler-role"
+    }
+
+Plan: 2 to add, 0 to change, 0 to destroy.
+terraform.exe : 
+In C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\rerun-contract-on-artifact.ps1:35 
+Zeichen:10
++     $o = & $tf -chdir="$base\$Dir" plan -input=false -no-color -var-f ...
++          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error: Resource precondition failed
+
+  on 
+C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\tfdata-fixture-vars\modules\iam\main.tf 
+line 109, in data "aws_iam_policy_document" "sqs":
+ 109:       condition     = trimspace(var.sqs_queue_arn) != ""
+    Ã”Ã¶Â£Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡
+    Ã”Ã¶Ã© var.sqs_queue_arn is "   "
+
+sqs_enabled = true erfordert einen nicht leeren sqs_queue_arn. Ohne
+angebundene Queue muss sqs_enabled = false gesetzt sein (dann entsteht keine
+SQS-IAM-Ressource).

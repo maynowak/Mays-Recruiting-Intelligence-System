@@ -46,4 +46,3 @@ Release-Fähigkeit der permanenten Entwicklungsinstallation ris-dev wird auf Bas
 
 ## Nächste Schritte
 Live-Smoke-Test der Runtime, Lambda-Packaging-Rebuild mit Nachweis, SQS DLQ Test.
-

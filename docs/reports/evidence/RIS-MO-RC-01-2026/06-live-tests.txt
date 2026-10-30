@@ -1,0 +1,60 @@
+RIS-MO-RC-01 - Live-Integrationstests (Sitzungsaufzeichnung 2026-10-30)
+Alle Befehle wurden real gegen die deployte Installation in
+262370457690/eu-central-1 (Workspace ris-dev2) ausgefuehrt.
+
+Deployierte Referenzen (Terraform Outputs, 28):
+  api_endpoint        https://tc1rtdwye1.execute-api.eu-central-1.amazonaws.com
+  api_id              tc1rtdwye1 (ris-dev2-dev-api, HTTP, stage $default)
+  cognito_user_pool   eu-central-1_uhvqKPR7G (ris-dev2-dev-users)
+  lambda_function     ris-dev2-dev-agent (python3.14, Active)
+  orders_reader       ris-dev2-dev-orders-reader (python3.14, Active)
+  orders_table        ris-dev2-mays-orders (ACTIVE, nach Apply ItemCount 0)
+  orders_queue        ris-dev2-mays-orders-orders-queue
+  Evidence: ../tf-outputs.json (28 Outputs, vollstaendig)
+
+T-01 Cognito User Pool                          PASS
+  aws cognito-idp describe-user-pool --user-pool-id eu-central-1_uhvqKPR7G
+  -> Id=eu-central-1_uhvqKPR7G, Name=ris-dev2-dev-users (existiert)
+
+T-02 API Gateway / JWT-Authorizer-Enforcement   PASS
+  GET https://tc1rtdwye1.execute-api.eu-central-1.amazonaws.com/health
+  (unauthentifiziert) -> HTTP 401 Unauthorized
+  Beweis: Authorizer ist verdrahtet und greift; API erreichbar.
+
+T-03 Lambda ris-dev2-dev-agent (Handler-Pfad)   PASS
+  aws lambda invoke (GET /health Event, raw-in-base64-out)
+  -> StatusCode 200, Body:
+  {"statusCode": 200, "body": "{\"status\": \"ok\", \"service\": \"Mays RIS\", \"version\": \"1.0.0\", \"environment\": \"dev\"}"}
+
+T-04 Lambda ris-dev2-dev-orders-reader          PASS
+  aws lambda invoke (GET /orders Event)
+  -> StatusCode 200, Body:
+  {"statusCode": 400, "headers": {"Content-Type": "application/json"},
+   "body": "{\"error\": {\"code\": \"VALIDATION_ERROR\", \"message\": \"Unsupported route: \"}}"}
+  Bewertung: 400 VALIDATION_ERROR ist erwartetes Verhalten des Readers fuer
+  ein Bare-Event ohne API-Gateway-Proxy-Struktur; Import + Fehlerpfad
+  (kontrolliertes Fail-Closed statt Crash) funktional.
+
+T-05 DynamoDB (RIS-Kern + MO-Orders)            PASS
+  list-tables (Filter ris-dev2) -> 12 Tabellen:
+  ris-dev2-dev-{agent-catalog, agent-state, api-profiles, credentials,
+  entitlements, jobsearches, offers, partner-applications, user-profile,
+  work-items}, ris-dev2-mays-orders, ris-dev2-tf-lock
+  describe-table ris-dev2-mays-orders -> ACTIVE, ItemCount 0
+
+T-06 SQS (RIS-Queues + MO-Orders-Queue)         PASS
+  list-queues (prefix ris-dev2) -> 6 Queues:
+  ris-dev2-dev-{ats,cv,match,work}-queue, ris-dev2-dev-dlq,
+  ris-dev2-mays-orders-orders-queue
+  get-queue-attributes orders-queue -> ApproximateNumberOfMessages 0
+
+T-07 Worker-Roundtrip (SQS SendMessage ->       SKIP
+     Worker-Verarbeitung -> Queue leer)
+  Grund: Realer Nachrichten-Roundtrip wurde vor dem Destroy nicht
+  ausgefuehrt; danach waren die Queues geloescht (kontrollierter Rueckbau).
+  Belegt sind stattdessen: Queue-Existenz + Attribut-Abfrage (T-06) und
+  direkter Lambda-Invoke (T-03/T-04). Keine erfundenen Ergebnisse.
+
+Befund vor Reparatur (dokumentiert, siehe 04-terraform-pipeline.txt [7]):
+  Beide Lambdas initial Runtime.ImportModuleError wegen Platzhalter-ZIPs.
+  Nach deterministischem Bundle-Build und In-Place-Update: T-03/T-04 PASS.

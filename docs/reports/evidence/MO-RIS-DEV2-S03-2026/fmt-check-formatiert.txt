@@ -1,0 +1,3 @@
+Befehl: terraform -chdir=<B-formatiert> fmt -check -recursive -no-color
+Exitcode: 0
+

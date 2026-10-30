@@ -1,0 +1,7 @@
+Befehl 1: terraform -chdir=<B-formatiert> fmt -recursive -no-color
+Exitcode: 0
+main.tf
+variables.tf
+
+Befehl 2: terraform -chdir=<B-formatiert> fmt -check -recursive -no-color
+Exitcode: 0

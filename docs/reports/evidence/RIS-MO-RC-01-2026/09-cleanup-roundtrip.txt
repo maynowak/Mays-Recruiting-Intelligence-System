@@ -1,0 +1,14 @@
+Terraform state list exit=0: []
+AWS REST-CHECK Account=262370457690 Region=eu-central-1
+Lambda ris-dev2*: []
+Cognito ris-dev2*: []
+DynamoDB ris-dev2*: [ris-dev2-tf-lock] (backend only)
+SQS ris-dev2*: []
+API Gateway ris-dev2*: []
+IAM roles ris-dev2*: []
+CloudWatch log groups ris-dev2*: []
+S3 ris-dev2*: [ris-dev2-tf-state-dev] (backend only)
+CloudTrail ris-dev2*: []
+Backend bucket present exit=0
+Lock table ACTIVE exit=0
+CLEAN: PASS

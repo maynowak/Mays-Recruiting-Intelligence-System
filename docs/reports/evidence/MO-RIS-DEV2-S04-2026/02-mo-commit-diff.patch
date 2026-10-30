@@ -1,0 +1,359 @@
+﻿commit 9627eb2f43087ab07dd7cc98a21febca142cb3b6
+parent 2d5cf2de08a05109452e88964a8b1a4d6940afcf
+subject fix: plan-stabiles IAM-SQS-Gate und sqs_queue_name-Output (GAP-02/06)
+
+
+diff --git a/module_builder/builder.py b/module_builder/builder.py
+index 6935a50..d89364c 100644
+--- a/module_builder/builder.py
++++ b/module_builder/builder.py
+@@ -76,6 +76,12 @@ def _extract_terraform_block(main_tf_text: str) -> tuple:
+ 
+ # ---------- B1: Block-Splitter f├╝r freie Modulauswahl ----------
+ 
++# Verdrahtungs-Flags ohne module.-Referenz, die dennoch nur mit einem
++# bestimmten optionalen Modul sinnvoll sind (GAP-06): `sqs_enabled = true`
++# steuert die SQS-IAM-Policy; ohne sqs-Modul muss das Gate AUS bleiben
++# (Default false) und die Zeile wird entfernt.
++OPTIONAL_MODULE_FLAGS = {"sqs_enabled": "sqs"}
++
+ BLOCK_HEADER_RE = re.compile(
+     r'^(?P<kind>terraform|locals|provider|module|resource|moved|variable|output)\s*'
+     r'(?P<names>(?:"[^"]*"\s*)+)?'
+@@ -155,12 +161,22 @@ def _strip_unselected_module_inputs(block: Dict, selection: set) -> Dict:
+     haben Defaults (""), und das iam-Modul erzeugt ohne ARN keine
+     sqs-Berechtigung. Nur Zuweisungen (`= module.<x>.`) werden entfernt ÔÇö
+     Kommentare und source-Zeilen bleiben unber├╝hrt.
++
++    GAP-06: `sqs_enabled` ist eine Verdrahtungs-Flag OHNE module.-Referenz,
++    die dennoch nur mit dem optionalen sqs-Modul sinnvoll ist. Ohne sqs in der
++    Auswahl wird sie mit entfernt ÔåÆ IAM-Default `false`, keine SQS-Policy
++    (sonst w├╝rde die ARN-Precondition beim Plan fehlschlagen).
+     """
+     from module_builder.catalog import MODULE_REF_RE
+ 
+     lines = block["text"].split("\n")
+     kept_lines = []
+     for line in lines:
++        assignment = re.match(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=", line)
++        if assignment is not None:
++            flag_owner = OPTIONAL_MODULE_FLAGS.get(assignment.group(1))
++            if flag_owner is not None and flag_owner not in selection:
++                continue
+         if re.match(r"^\s*[A-Za-z_][A-Za-z0-9_]*\s*=\s*module\.", line):
+             refs = set(MODULE_REF_RE.findall(line))
+             if refs and not refs.issubset(selection):
+@@ -699,7 +715,7 @@ bereitstellt. Feste Zusammensetzung (nicht abw├ñhlbar):
+ - Orders-SQS-Queue (asynchrone Verarbeitung)
+ - Eigene Orders-DynamoDB-Tabelle (GSI1/GSI2)
+ - Erforderliche Orders-IAM-Rollen/Policies (Least Privilege; SQS-Berechtigung
+-  nur mit angebundener Queue ÔÇö count-gated)
++  nur bei plan-bekanntem `sqs_enabled`-Gate ÔÇö der Queue-ARN bleibt Policy-Resource)
+ - Cognito User Pool/Client/Gruppe `staff` (JWT-Grundlage der Orders-API)
+ 
+ Nicht Bestandteil des Vertrags (Verantwortung des integrierenden Projekts):
+@@ -782,7 +798,7 @@ Konfiguration. Keine automatische Umschaltung/State-Migration durch das Modul.
+ `cognito_user_pool_endpoint`, `cognito_user_pool_client_id`,
+ `cognito_user_pool_group_name`, `api_gateway_endpoint`, `api_gateway_id`,
+ `api_gateway_stage_name`, `api_gateway_authorizer_id`, `sqs_queue_url`,
+-`sqs_queue_arn`, `sqs_worker_lambda_arn`
++`sqs_queue_arn`, `sqs_queue_name`, `sqs_worker_lambda_arn`
+ 
+ ## Betriebs- und Vertragsnotizen
+ 
+diff --git a/module_builder/tests/test_module_builder.py b/module_builder/tests/test_module_builder.py
+index e425c23..358a7ec 100644
+--- a/module_builder/tests/test_module_builder.py
++++ b/module_builder/tests/test_module_builder.py
+@@ -456,7 +456,7 @@ class TestModuleSelectionB1(unittest.TestCase):
+                 "lambda_function_name", "lambda_function_arn", "lambda_invoke_arn",
+                 # Neu seit MODULE-CONTRACT-01: Queue-Outputs referenzieren module.sqs
+                 # (in dieser Auswahl enthalten) und werden mitgefiltert:
+-                "sqs_queue_url", "sqs_queue_arn",
++                "sqs_queue_url", "sqs_queue_arn", "sqs_queue_name",
+             })
+ 
+     def test_missing_dependencies_fail_closed(self):
+@@ -489,18 +489,23 @@ class TestModuleSelectionB1(unittest.TestCase):
+     # ---------- PHASE2: SQS optional f├╝r iam/lambda ----------
+ 
+     def test_iam_without_sqs_valid(self):
+-        """IAM ohne Queue-ARN: g├╝ltige Auswahl, kein SQS-Wiring, count-Gated Modul."""
++        """IAM ohne Queue-ARN: g├╝ltige Auswahl, kein SQS-Wiring, Gate AUS."""
+         with tempfile.TemporaryDirectory() as tmp:
+             target = Path(tmp) / "iam-only"
+             self._build(target, ["dynamodb", "iam"])
+             main_tf = (target / "terraform" / "main.tf").read_text()
+             self.assertNotIn("sqs_queue_arn", main_tf)
+             self.assertNotIn("module.sqs", main_tf)
++            # GAP-06: ohne sqs-Modul wird auch das Gate-Flag entfernt
++            # (IAM-Default false) ÔÇö sonst w├╝rde die ARN-Precondition scheitern.
++            self.assertNotIn("sqs_enabled", main_tf)
+             iam_module = (
+                 target / "terraform" / "modules" / "iam" / "main.tf"
+             ).read_text()
+-            # Count-Gating: ohne Queue-ARN entsteht KEINE sqs-Berechtigung
+-            self.assertIn('count = var.sqs_queue_arn != "" ? 1 : 0', iam_module)
++            # Count-Gating: ausschlie├ƒlich das boolesche Gate steuert die Anzahl
++            self.assertEqual(iam_module.count("count = var.sqs_enabled ? 1 : 0"), 1)
++            self.assertEqual(iam_module.count("count  = var.sqs_enabled ? 1 : 0"), 1)
++            self.assertNotIn("var.sqs_queue_arn != ", iam_module)
+             # Basis-Policy (DDB+Logs) bleibt im handler-Dokument:
+             self.assertIn("DynamoDBTable", iam_module)
+             self.assertIn("Logs", iam_module)
+@@ -517,12 +522,26 @@ class TestModuleSelectionB1(unittest.TestCase):
+             self.assertTrue((target / "lambda" / "dist" / "lambda.zip").is_file())
+ 
+     def test_iam_with_sqs_keeps_wiring(self):
+-        """Mit sqs in der Auswahl bleibt das SQS-Wiring unver├ñndert erhalten."""
++        """Mit sqs in der Auswahl bleiben ARN- und Gate-Wiring erhalten."""
+         with tempfile.TemporaryDirectory() as tmp:
+             target = Path(tmp) / "with-sqs"
+             self._build(target, ["dynamodb", "sqs", "iam"])
+             main_tf = (target / "terraform" / "main.tf").read_text()
+             self.assertIn("sqs_queue_arn      = module.sqs.queue_arn", main_tf)
++            self.assertRegex(main_tf, r"sqs_enabled\s*=\s*true")
++
++    def test_sqs_outputs_dropped_without_sqs_module(self):
++        """GAP-02: sqs_queue_name referenziert module.sqs ÔÇö ohne sqs-Modul darf
++        kein SQS-Output (auch nicht der neue Name) im Output-Vertrag landen."""
++        with tempfile.TemporaryDirectory() as tmp:
++            target = Path(tmp) / "no-sqs-outputs"
++            self._build(target, ["dynamodb", "iam"])
++            outputs_text = (target / "terraform" / "outputs.tf").read_text()
++            self.assertNotIn("sqs_queue_name", outputs_text)
++            self.assertNotIn("module.sqs", outputs_text)
++            names = set(re.findall(r'^output\s+"([a-z_]+)"', outputs_text, re.M))
++            self.assertEqual(names, {"dynamodb_table_name", "dynamodb_table_arn",
++                                     "iam_handler_role_name", "iam_handler_role_arn"})
+ 
+     def test_lambda_without_sqs_readme_note(self):
+         """Generiertes README dokumentiert den synchronen Betrieb ohne SQS."""
+@@ -889,14 +908,14 @@ class TestOrdersServiceModule(unittest.TestCase):
+         self.assertIn('"contract-orders"', text)  # project_name-Default substituiert
+ 
+     def test_outputs_contract(self):
+-        """WP5: alle Integrations-Outputs vorhanden (16 Bestand + 3 Vertrag)."""
++        """WP5 + GAP-02: 19 Bestands-Outputs + sqs_queue_name = 20."""
+         outputs_text = (self.target / "outputs.tf").read_text()
+         outputs = set(re.findall(r'^output\s+"([a-z_]+)"', outputs_text, re.M))
+         for required in [
+             "api_gateway_endpoint", "api_gateway_id", "api_gateway_stage_name",
+             "api_gateway_authorizer_id",
+             "dynamodb_table_name", "dynamodb_table_arn",
+-            "sqs_queue_url", "sqs_queue_arn",
++            "sqs_queue_url", "sqs_queue_arn", "sqs_queue_name",
+             "sqs_worker_lambda_arn",
+             "lambda_function_name", "lambda_function_arn", "lambda_invoke_arn",
+             "iam_handler_role_name", "iam_handler_role_arn",
+@@ -905,11 +924,63 @@ class TestOrdersServiceModule(unittest.TestCase):
+             "cognito_user_pool_group_name",
+         ]:
+             self.assertIn(required, outputs, f"Output fehlt: {required}")
++        self.assertEqual(len(outputs), 20)
++        # GAP-02: der Queue-Name stammt aus dem vorhandenen sqs-Modul-Output
++        # (keine zweite Namenskonstruktion, kein hartcodierter Projektname).
++        block = re.search(
++            r'output "sqs_queue_name" \{(.*?)\n\}', outputs_text, re.S
++        )
++        self.assertIsNotNone(block)
++        self.assertRegex(block.group(1), r"value\s*=\s*module\.sqs\.queue_name")
++        self.assertNotIn("${", block.group(1))
++        self.assertNotIn("project_name", block.group(1))
+         # Alle Referenzen bleiben im Vertragsbestand
+         refs = set(re.findall(r"module\.([a-z_]+)", outputs_text))
+         self.assertTrue(refs.issubset({"api", "cognito", "dynamodb", "iam",
+                                        "lambda", "sqs", "sqs_worker"}))
+ 
++    def test_iam_sqs_gate_contract(self):
++        """GAP-06: beide counts h├ñngen NUR am booleschen Gate; der ARN bleibt
++        Policy-Resource (keine Wildcard) und wird per Precondition gepr├╝ft."""
++        iam_main = (self.target / "modules" / "iam" / "main.tf").read_text()
++        iam_vars = (self.target / "modules" / "iam" / "variables.tf").read_text()
++
++        # Beide ehemals ARN-abh├ñngigen counts sind jetzt gate-abh├ñngig.
++        self.assertEqual(iam_main.count("var.sqs_enabled ? 1 : 0"), 2)
++        self.assertNotRegex(iam_main, r"count[^\n]*var\.sqs_queue_arn")
++        self.assertNotIn('var.sqs_queue_arn != ""', iam_main)
++
++        sqs_doc = iam_main.split('data "aws_iam_policy_document" "sqs" {')[1]
++        sqs_doc = sqs_doc.split('resource "aws_iam_role_policy" "sqs" {')[0]
++        self.assertIn("resources = [var.sqs_queue_arn]", sqs_doc)
++        self.assertNotIn('"*"', sqs_doc)
++        self.assertIn("precondition {", sqs_doc)
++        self.assertIn('trimspace(var.sqs_queue_arn) != ""', sqs_doc)
++
++        # Interner Vertrag: bool, Default false ÔåÆ kein 6. ├Âffentlicher Input.
++        self.assertRegex(
++            iam_vars,
++            r'variable "sqs_enabled" \{[\s\S]*?type\s*=\s*bool[\s\S]*?default\s*=\s*false',
++        )
++        # Kein check-Block (liefert nur Warnungen; GAP-06 verlangt hart).
++        self.assertNotIn('check "', iam_main)
++
++    def test_iam_sqs_gate_wired_plan_known(self):
++        """GAP-06: der Root-Aufrufer setzt das Gate als Literal (plan-bekannt),
++        abgeleitet aus der festen Modulkonfiguration ÔÇö nicht aus ARN/Namen."""
++        main_tf = (self.target / "main.tf").read_text()
++        iam_block = main_tf.split('module "iam" {')[1].split("\n}")[0]
++        self.assertRegex(iam_block, r"(?m)^\s*sqs_enabled\s*=\s*true\s*$")
++        self.assertIn("sqs_queue_arn      = module.sqs.queue_arn", iam_block)
++        self.assertNotIn("sqs_enabled = module.", iam_block)
++        # Genau 5 ├Âffentliche Inputs (kein zus├ñtzlicher Gate-Input):
++        variables = set(re.findall(
++            r'^variable\s+"([a-z_]+)"',
++            (self.target / "variables.tf").read_text(), re.M))
++        self.assertEqual(variables, {"project_name", "tags",
++                                     "monitoring_enabled", "log_retention_days",
++                                     "external_cognito"})
++
+     def test_versions_tf_contains_terraform_block(self):
+         versions = (self.target / "versions.tf").read_text()
+         main_tf = (self.target / "main.tf").read_text()
+@@ -934,6 +1005,7 @@ class TestOrdersServiceModule(unittest.TestCase):
+         self.assertIn("source =", readme)
+         self.assertIn("project_name", readme)
+         self.assertIn("sqs_queue_url", readme)          # Outputs dokumentiert
++        self.assertIn("sqs_queue_name", readme)
+         self.assertIn("sqs_worker_lambda_arn", readme)
+         self.assertIn("BLOCKED", readme)                # Privacy-Hinweis
+         self.assertIn("Orders-Service", readme)         # Vertrag benannt
+@@ -1089,10 +1161,11 @@ class TestExternalCognitoIntegration(unittest.TestCase):
+         self.assertEqual(len(re.findall(r"tags\s*=\s*local\.default_tags", self._main())), 7)
+ 
+     def test_output_names_and_external_safe_values(self):
+-        """12) 19 Output-Namen erhalten + EXTERNAL-sichere Werte."""
++        """12) 20 Output-Namen (19 Bestand + sqs_queue_name/GAP-02) + EXTERNAL-sichere Werte."""
+         outputs = self._outputs()
+         names = set(re.findall(r'^output\s+"([a-z_]+)"', outputs, re.M))
+-        self.assertEqual(len(names), 19)
++        self.assertEqual(len(names), 20)
++        self.assertIn("sqs_queue_name", names)
+         # Modus-sichere Wertformen:
+         self.assertIn("value       = local.cognito_endpoint", outputs)
+         self.assertIn("value       = local.cognito_client_id", outputs)
+diff --git a/terraform/main.tf b/terraform/main.tf
+index f05cc94..c621de8 100644
+--- a/terraform/main.tf
++++ b/terraform/main.tf
+@@ -68,6 +68,9 @@ module "iam" {
+   dynamodb_gsi1_arn  = module.dynamodb.gsi1_arn
+   dynamodb_gsi2_arn  = module.dynamodb.gsi2_arn
+   sqs_queue_arn      = module.sqs.queue_arn
++  # GAP-06: plan-bekanntes Gate (Root erzeugt die Queue immer). Der ARN oben
++  # ist beim Fresh-Plan noch unbekannt und bleibt Policy-Resource.
++  sqs_enabled = true
+ }
+ 
+ # T011-04 ÔÇö Lambda: Order Handler (Zip-Build, Python 3.14)
+diff --git a/terraform/modules/iam/main.tf b/terraform/modules/iam/main.tf
+index e45ef04..bd8b534 100644
+--- a/terraform/modules/iam/main.tf
++++ b/terraform/modules/iam/main.tf
+@@ -2,9 +2,11 @@
+ # Fachquelle: security/iam-design.md ┬º2.1
+ # Bewusst NICHT erlaubt: dynamodb:Scan/BatchWriteItem/CreateTable, s3:*, iam:*.
+ # DeleteItem: beabsichtigt (Erasure-Funktion, MAYS-ORDERS-DSGVO-PRIVACY-ERASURE-01).
+-# SQS:SendMessage ist OPTIONAL und entsteht nur mit angebundener Queue
+-# (MAYS-ORDERS-MODULARIZATION-01-PHASE2): ohne var.sqs_queue_arn wird KEINE
+-# sqs-Berechtigung erzeugt (count-gated), siehe aws_iam_role_policy.sqs unten.
++# SQS:SendMessage ist OPTIONAL und entsteht nur bei aktivem Gate
++# (MAYS-ORDERS-MODULARIZATION-01-PHASE2, GAP-06-FIX): ohne
++# var.sqs_enabled = true wird KEINE sqs-Berechtigung erzeugt (count-gated),
++# siehe aws_iam_role_policy.sqs unten. Das Gate ist plan-bekannt; der
++# Queue-ARN bleibt Policy-Resource.
+ 
+ data "aws_iam_policy_document" "handler_trust" {
+   statement {
+@@ -74,13 +76,24 @@ resource "aws_iam_role_policy" "handler" {
+   policy = data.aws_iam_policy_document.handler.json
+ }
+ 
+-# Optionale SQS-Berechtigung (MAYS-ORDERS-MODULARIZATION-01-PHASE2):
+-# Nur wenn var.sqs_queue_arn gesetzt ist, entsteht eine eigene Inline-Policy
+-# mit sqs:SendMessage auf genau diese Queue. Ohne Queue-ARN wird KEINE
+-# sqs-Berechtigung erzeugt (count = 0) ÔÇö der Handler l├ñuft dann synchron
++# Optionale SQS-Berechtigung (MAYS-ORDERS-MODULARIZATION-01-PHASE2,
++# GAP-06-FIX): Das Gate ist der plan-bekannte boolesche Vertrag
++# var.sqs_enabled. Die Ressourcenanzahl h├ñngt AUSSCHLIESSLICH davon ab ÔÇö
++# nicht vom Inhalt oder der Plan-Bekanntheit des berechneten Queue-ARNs
++# (der ARN ist beim Fresh-Plan der Queue noch unbekannt). Der ARN bleibt
++# Resource der Policy (keine Wildcard). Ohne Gate entsteht KEINE
++# sqs-Berechtigung (count = 0) ÔÇö der Handler l├ñuft dann synchron
+ # (index.py skippt den Enqueue gracefull, siehe lambda/src/index.py).
++#
++# Vertragspr├╝fung (Precondition, ab Terraform 1.2 / deklariert >= 1.5.0):
++#   - Gate an + bekannter leerer/Whitespace-ARN ÔåÆ harter Fehler (Plan/Apply).
++#   - Gate aus + leerer ARN ÔåÆ keine Instanz, keine Pr├╝fung, keine Ressource.
++#   - Gate an + unbekannter ARN (Queue entsteht im selben Plan) ÔåÆ Pr├╝fung
++#     wird auf apply vertagt; der count bleibt plan-bekannt.
++# Bewusst KEIN check-Block (nur Warnung) und keine variable-validation mit
++# Fremdvariablen-Referenz (erst ab Terraform 1.9).
+ data "aws_iam_policy_document" "sqs" {
+-  count = var.sqs_queue_arn != "" ? 1 : 0
++  count = var.sqs_enabled ? 1 : 0
+ 
+   statement {
+     sid    = "SQS"
+@@ -90,11 +103,18 @@ data "aws_iam_policy_document" "sqs" {
+     ]
+     resources = [var.sqs_queue_arn]
+   }
++
++  lifecycle {
++    precondition {
++      condition     = trimspace(var.sqs_queue_arn) != ""
++      error_message = "sqs_enabled = true erfordert einen nicht leeren sqs_queue_arn. Ohne angebundene Queue muss sqs_enabled = false gesetzt sein (dann entsteht keine SQS-IAM-Ressource)."
++    }
++  }
+ }
+ 
+ resource "aws_iam_role_policy" "sqs" {
+-  count  = var.sqs_queue_arn != "" ? 1 : 0
++  count  = var.sqs_enabled ? 1 : 0
+   name   = "${var.project_name}-handler-sqs-policy"
+   role   = aws_iam_role.handler.name
+   policy = data.aws_iam_policy_document.sqs[0].json
+-}
+\ No newline at end of file
++}
+diff --git a/terraform/modules/iam/variables.tf b/terraform/modules/iam/variables.tf
+index ba8fecf..330370a 100644
+--- a/terraform/modules/iam/variables.tf
++++ b/terraform/modules/iam/variables.tf
+@@ -28,4 +28,17 @@ variable "sqs_queue_arn" {
+   description = "ARN der SQS Queue fuer SQS-Berechtigungen in der IAM-Policy."
+   type        = string
+   default     = ""
+-}
+\ No newline at end of file
++}
++
++variable "sqs_enabled" {
++  description = <<-EOT
++    Plan-bekanntes Gate fuer die SQS-IAM-Berechtigung (GAP-06).
++    true  = Handler-Policy mit sqs:SendMessage auf sqs_queue_arn wird erzeugt;
++            ein leerer sqs_queue_arn ist dann ein harter Fehler (Precondition).
++    false = keine SQS-bezogenen IAM-Ressourcen (Standard, z. B. synchroner Betrieb).
++    Der Wert muss vor der Queue-Erstellung bekannt sein; er darf NICHT vom
++    berechneten Queue-ARN abgeleitet werden.
++  EOT
++  type        = bool
++  default     = false
++}
+diff --git a/terraform/outputs.tf b/terraform/outputs.tf
+index e53031d..eb0009a 100644
+--- a/terraform/outputs.tf
++++ b/terraform/outputs.tf
+@@ -111,6 +111,11 @@ output "sqs_queue_arn" {
+   value       = module.sqs.queue_arn
+ }
+ 
++output "sqs_queue_name" {
++  description = "Name der Orders-SQS-Queue."
++  value       = module.sqs.queue_name
++}
++
+ output "sqs_worker_lambda_arn" {
+   description = "ARN der Orders-Worker-Lambda (SQS-Consumer)."
+   value       = module.sqs_worker.function_arn

@@ -1,0 +1,35 @@
+MO-RIS-DEV2-S03-MODULE-VALIDATE-2026 — Toolbereitstellung Terraform
+Datum: 2026-10-25
+Run-ID: 2026-10-25-ris-dev2-04
+
+Ausgangslage: kein Terraform im PATH, keine systemweite Installation vorhanden.
+
+Bezug (offizielles HashiCorp-Artefakt):
+  Version:     1.17.0 (stabil)
+  Quelle:      https://releases.hashicorp.com/terraform/1.17.0/terraform_1.17.0_windows_amd64.zip
+  Pruefsummen: https://releases.hashicorp.com/terraform/1.17.0/terraform_1.17.0_SHA256SUMS
+  Auswahl:     hoechste stabile Version laut
+               https://api.releases.hashicorp.com/v1/releases/terraform (1.17.0, nicht "rc")
+               und erfuellt die Constraint aus versions.tf: required_version = ">= 1.5.0"
+
+Pruefsummenvergleich:
+  erwartet (SHA256SUMS): 2948dd7f77dec0f562ec29000103e0441d915be5e5f1a02c1ce23681951cfb19
+  tatsaechlich (ZIP):    2948dd7f77dec0f562ec29000103e0441d915be5e5f1a02c1ce23681951cfb19
+  Ergebnis:              MATCH
+
+Weitere Hashes:
+  SHA256SUMS-Datei:      8a324f66c91b6d741e88eed20f655bcf4d92dbe34bdcc894d085dfaf3d432abd
+  terraform.exe:         ea648bfb3d3db4a331e66ecb4cddeb2c5c250e9dc3886fc49ba136de56fefa68
+
+Isolation:
+  Zielverzeichnis: <TEMP>\mo-ris-dev2-s03-2026-10-25\tools\terraform-1.17.0\
+  keine systemweite Installation, keine PATH-Aenderung (terraform weiterhin NICHT im PATH)
+  keine vorhandene Version ueberschrieben (es gab keine)
+
+Version:
+  Terraform v1.17.0
+  on windows_amd64
+
+Provider (von init aufgeloest, siehe provider-lock.txt):
+  hashicorp/aws   6.70.0
+  hashicorp/time  0.14.2

@@ -1,0 +1,24 @@
+MO-RIS-DEV2-S02-BUILD-CONTRACT-2026 — Negativprobe (Ueberschreibschutz)
+Datum: 2026-10-25
+Run-ID: 2026-10-25-ris-dev2-03
+
+Ziel: identischer Build-Aufruf OHNE --force auf den bereits belegten Zielordner.
+
+Befehl (exakt):
+  python -m module_builder build --preset orders-service --project-name ris-dev2-mays-orders --target "C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s02-2026-10-25\orders-module"
+
+Exitcode: 1
+
+Meldung (stdout/stderr, bereinigt um PowerShell-Wrapperzeilen):
+  module-builder: FEHLER: Zielordner ist nicht leer:
+  C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s02-2026-10-25\orders-module
+  Bestehende Inhalte werden ohne --force nicht überschrieben.
+
+Wirkung:
+  Dateianzahl vorher: 34
+  Dateianzahl nachher: 34
+  Vergleich der SHA-256-Liste (34 Zeilen) vor/nach: identisch, 0 Unterschiede
+  Quelle der Ablehnung: builder.py:846-850 (Pruefung in Phase A, vor jedem Schreiben)
+
+Quell-Repo danach:
+  MO git status --short -> leer

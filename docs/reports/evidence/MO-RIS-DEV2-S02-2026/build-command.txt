@@ -1,0 +1,29 @@
+MO-RIS-DEV2-S02-BUILD-CONTRACT-2026 — Build-Aufruf (bereinigt)
+Datum: 2026-10-25
+Run-ID: 2026-10-25-ris-dev2-03
+
+Arbeitsverzeichnis:
+  C:\Users\DCI-Student\projekte\mays-order-aws
+
+Quellidentitaet (vor dem Build geprueft, extern):
+  git rev-parse HEAD                 -> 2d5cf2de08a05109452e88964a8b1a4d6940afcf
+  git branch --show-current          -> main
+  git status --short                 -> leer
+  git rev-parse --short HEAD         -> 2d5cf2d
+
+Umgebung:
+  Python 3.15.0 (C:\Python315\python.exe)
+  PYTHONDONTWRITEBYTECODE=1
+  Interpreter-Flag -B  (kein __pycache__ im Quell-Repo)
+  Builder-Version: 0.1.0 (python -m module_builder --version)
+
+Befehl (exakt):
+  python -m module_builder build --preset orders-service --project-name ris-dev2-mays-orders --target "C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s02-2026-10-25\orders-module"
+
+Zielordner vor dem Build:
+  existierte nicht (wurde vom Builder neu angelegt) -> kein Altbestand
+
+Exitcode: 0
+
+Nach dem Build:
+  MO git status --short -> leer (Quell-Repo unveraendert)

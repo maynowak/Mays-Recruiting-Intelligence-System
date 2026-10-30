@@ -1,0 +1,33 @@
+# Konsumenten-Fixture (Kindmodul-Einbindung + Output-Referenzen)
+# init exit_code=0 / validate exit_code=0
+
+=== init ===
+Initializing modules...
+Downloading C:/Users/DCI-Student/AppData/Local/Temp/opencode/mo-ris-dev2-s04-2026-10-25/artifact-9627eb2f for orders...
+- orders in C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\tfdata-consumer\modules\orders
+- orders.dynamodb in C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\artifact-9627eb2f\modules\dynamodb
+- orders.sqs in C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\artifact-9627eb2f\modules\sqs
+- orders.api in C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\artifact-9627eb2f\modules\api
+- orders.iam in C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\artifact-9627eb2f\modules\iam
+- orders.lambda in C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\artifact-9627eb2f\modules\lambda
+- orders.cognito in C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\artifact-9627eb2f\modules\cognito
+- orders.sqs_worker in C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s04-2026-10-25\artifact-9627eb2f\modules\sqs-worker
+
+Initializing provider plugins...
+- Finding hashicorp/aws versions matching ">= 6.0.0"...
+- Finding hashicorp/time versions matching "~> 0.11"...
+- Installing hashicorp/aws v6.70.0...
+- Installed hashicorp/aws v6.70.0 (signed by HashiCorp)
+- Installing hashicorp/time v0.14.2...
+- Installed hashicorp/time v0.14.2 (signed by HashiCorp)
+
+Terraform has created a lock file .terraform.lock.hcl to record the provider
+selections it made above. Include this file in your version control repository
+so that Terraform can guarantee to make the same selections by default when
+you run "terraform init" in the future.
+
+Terraform has been successfully initialized!
+
+=== validate ===
+Success! The configuration is valid.
+

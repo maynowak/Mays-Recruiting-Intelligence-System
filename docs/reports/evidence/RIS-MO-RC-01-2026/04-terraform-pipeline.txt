@@ -1,0 +1,67 @@
+RIS-MO-RC-01 - Terraform-Pipeline-Konsole (Sitzungsaufzeichnung 2026-10-30)
+Hinweis: Diese Datei ist eine Konsolen-Nachbildung der tatsaechlich in der
+Sitzung ausgefuehrten Befehle mit Exit-Codes. Frische Nachweise siehe
+03-terraform-state-final.txt und 05-aws-cleanup-verification.txt.
+
+Account/Region/Workspace: 262370457690 / eu-central-1 / ris-dev2
+Backend: bucket=ris-dev2-tf-state-dev, key=dev/terraform.tfstate,
+         workspace_key_prefix=env:, dynamodb_table=ris-dev2-tf-lock, encrypt=true
+=> wirksamer State-Pfad: env:/ris-dev2/dev/terraform.tfstate
+
+[1] terraform init -backend-config=... : Exit 0
+    "Successfully configured the backend s3", 21 Module,
+    Provider aws 6.67.0 (signed), time 0.14.2.
+    Warnung: dynamodb_table deprecated (use_lockfile) - dokumentiert.
+
+[2] terraform workspace select ris-dev2 : Exit 0 "Switched to workspace ris-dev2"
+
+[3] terraform plan -var-file=ris-dev2.tfvars -out=plan.out : Exit 0
+    Plan: 169 to add, 0 to change, 0 to destroy.
+    Evidence (vollstaendige Show-Ausgabe): docs/reports/evidence/plan-ris-dev2.txt
+    (dort Zeile "Plan: 169 to add, 0 to change, 0 to destroy.")
+    Kein "must be replaced"/"forces replacement" im Plan.
+    Variablen: project_name=ris-dev2, environment=dev, aws_region=eu-central-1,
+    filename/health_writer_zip_path/health_publisher_zip_path (absolute Pfade).
+
+[4] terraform apply -auto-approve "plan.out" : Exit 0 (nach Fortfuehrung)
+    Verlauf: 2 Vordergrund-Aufrufe brachen beim 120s-Tool-Timeout ab
+    (Prozess lief weiter), je 1 verwaister DynamoDB-State-Lock musste per
+    force-unlock gelöst werden (Lock-IDs e5d64144..., ff74a769...).
+    Ergebnis: 183 Ressourcen im State.
+
+[5] terraform apply -target health_public (CloudFront + Bucket-Policy) : Exit 0
+    CloudFront-Distribution und OAC erstellt; S3-Bucket-Policy folgte nach
+    Unlock in separatem Apply. Gesamtstand: vollstaendige Ausgabe incl.
+    Outputs (api_endpoint tc1rtdwye1..., sqs_queues, lambda_function_name...).
+
+[6] Post-Deploy No-Op-Check: terraform plan -detailed-exitcode : Exit 0
+    "No changes. Your infrastructure matches the configuration."
+
+[7] Lambda-Artefakt-Reparatur (vor Live-Tests noetig):
+    Urspruengliche Platzhalter-ZIPs enthielten Orders-Modul-Dateien
+    (index.py, order_service.py, ...) statt RIS-Handler:
+      ris-dev2-dev-agent        -> Runtime.ImportModuleError "No module named 'handler'"
+      ris-dev2-dev-orders-reader-> Runtime.ImportModuleError "No module named 'orders_reader'"
+    Reparatur: python lambda/build_zip.py --bundle all
+      -> terraform/lambda.zip            (61 Dateien, sha256 37c25b54613cb516...)
+      -> lambda/dist/orders-reader.zip   (1 Datei,  sha256 a26c19025eeafa6f...)
+    tfvars filename -> lambda/dist/orders-reader.zip (Reader-Binding).
+    Plan: 0 add, 2 change (in-place, beide Lambda-Funktionen), 0 destroy.
+    terraform apply -auto-approve : Exit 0.
+
+[8] terraform destroy -auto-approve : Exit 0
+    Verlauf: Teil-Destroys mit 2 Zwischenfehlern, beide behoben:
+      a) S3 Bucket ris-dev2-cloudtrail-262370457690: BucketNotEmpty
+         (CloudTrail-Logs) -> Bucket geleert (aws s3 rm --recursive),
+         Destroy fortgesetzt, Bucket geloescht.
+      b) CloudFront OAC E3N0SKHULOX36P: OriginAccessControlInUse.
+         Ursache: 4 Terraform-erzeugte CloudFront-Distributionen
+         (CallerReference terraform-*, alle mit Origin
+         ris-dev2-dev-health-public, entstanden aus den abgebrochenen
+         Apply-Versuchen) referenzierten den OAC.
+         Massnahme: alle 4 Distributionen disabled (Enabled=false),
+         Warten auf Status Deployed, delete-distribution je Distribution
+         (NoSuchDistribution verifiziert), danach OAC geloescht
+         (NoSuchOriginAccessControl verifiziert).
+    Final: "Destroy complete! Resources: 0 destroyed." Exit 0.
+    State: 0 Eintraege (siehe 03-terraform-state-final.txt).

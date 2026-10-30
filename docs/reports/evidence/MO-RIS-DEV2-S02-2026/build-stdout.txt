@@ -1,0 +1,8 @@
+Build OK: C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s02-2026-10-25\orders-module
+  Preset:      orders-service (Terraform-Modul)
+  Vertrag:     Orders-Service = API+Handler, Worker, SQS, DynamoDB, IAM, Cognito (fest, nicht abwählbar)
+  Projekt:     ris-dev2-mays-orders
+
+Nutzung als lokales Modul:
+  module "orders" { source = "C:\Users\DCI-Student\AppData\Local\Temp\opencode\mo-ris-dev2-s02-2026-10-25\orders-module" project_name = "ris-dev2-mays-orders" }
+Apply/Destroy ausschließlich nach menschlicher Freigabe.

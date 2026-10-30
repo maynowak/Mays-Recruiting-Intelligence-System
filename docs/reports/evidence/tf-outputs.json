@@ -1,0 +1,155 @@
+﻿{
+  "api_authorizer_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "02kjjd"
+  },
+  "api_endpoint": {
+    "sensitive": false,
+    "type": "string",
+    "value": "https://tc1rtdwye1.execute-api.eu-central-1.amazonaws.com"
+  },
+  "api_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "tc1rtdwye1"
+  },
+  "api_stage_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "$default"
+  },
+  "cognito_user_pool_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:cognito-idp:eu-central-1:262370457690:userpool/eu-central-1_uhvqKPR7G"
+  },
+  "cognito_user_pool_client_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "k1kj78uo08fa2gbamdp2vhlkr"
+  },
+  "cognito_user_pool_endpoint": {
+    "sensitive": false,
+    "type": "string",
+    "value": "cognito-idp.eu-central-1.amazonaws.com/eu-central-1_uhvqKPR7G"
+  },
+  "cognito_user_pool_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "eu-central-1_uhvqKPR7G"
+  },
+  "dynamodb_agent_catalog_table_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:dynamodb:eu-central-1:262370457690:table/ris-dev2-dev-agent-catalog"
+  },
+  "dynamodb_agent_catalog_table_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "ris-dev2-dev-agent-catalog"
+  },
+  "dynamodb_agent_state_table_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:dynamodb:eu-central-1:262370457690:table/ris-dev2-dev-agent-state"
+  },
+  "dynamodb_agent_state_table_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "ris-dev2-dev-agent-state"
+  },
+  "dynamodb_entitlements_table_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:dynamodb:eu-central-1:262370457690:table/ris-dev2-dev-entitlements"
+  },
+  "dynamodb_entitlements_table_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "ris-dev2-dev-entitlements"
+  },
+  "dynamodb_user_profile_table_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:dynamodb:eu-central-1:262370457690:table/ris-dev2-dev-user-profile"
+  },
+  "dynamodb_user_profile_table_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "ris-dev2-dev-user-profile"
+  },
+  "dynamodb_work_items_table_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:dynamodb:eu-central-1:262370457690:table/ris-dev2-dev-work-items"
+  },
+  "dynamodb_work_items_table_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "ris-dev2-dev-work-items"
+  },
+  "iam_role_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:iam::262370457690:role/ris-dev2-lambda-role"
+  },
+  "iam_role_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "ris-dev2-lambda-role"
+  },
+  "jobsearch_table_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:dynamodb:eu-central-1:262370457690:table/ris-dev2-dev-jobsearches"
+  },
+  "jobsearch_table_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "ris-dev2-dev-jobsearches"
+  },
+  "lambda_function_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:lambda:eu-central-1:262370457690:function:ris-dev2-dev-agent"
+  },
+  "lambda_function_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "ris-dev2-dev-agent"
+  },
+  "lambda_invoke_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:apigateway:eu-central-1:lambda:path/2015-03-31/functions/arn:aws:lambda:eu-central-1:262370457690:function:ris-dev2-dev-agent/invocations"
+  },
+  "orders_reader_function_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:lambda:eu-central-1:262370457690:function:ris-dev2-dev-orders-reader"
+  },
+  "orders_reader_function_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "ris-dev2-dev-orders-reader"
+  },
+  "sqs_queues": {
+    "sensitive": false,
+    "type": [
+      "object",
+      {
+        "ats": "string",
+        "cv": "string",
+        "match": "string",
+        "work": "string"
+      }
+    ],
+    "value": {
+      "ats": "https://sqs.eu-central-1.amazonaws.com/262370457690/ris-dev2-dev-ats-queue",
+      "cv": "https://sqs.eu-central-1.amazonaws.com/262370457690/ris-dev2-dev-cv-queue",
+      "match": "https://sqs.eu-central-1.amazonaws.com/262370457690/ris-dev2-dev-match-queue",
+      "work": "https://sqs.eu-central-1.amazonaws.com/262370457690/ris-dev2-dev-work-queue"
+    }
+  }
+}

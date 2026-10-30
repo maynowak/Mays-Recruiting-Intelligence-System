@@ -1,0 +1,77 @@
+{
+  "case-a": {
+    "json_present": true,
+    "log_present": true,
+    "log_lines": 122,
+    "precondition_failed": false,
+    "log_first_error": null,
+    "resource_changes": 3,
+    "sqs_policy_present": true,
+    "sqs_doc_present": false,
+    "sqs_policy_actions": [
+      "create"
+    ],
+    "policy_known": true,
+    "policy_after_unknown": false,
+    "policy_snippet": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":\"sqs:SendMessage\",\"Effect\":\"Allow\",\"Resource\":\"arn:aws:sqs:eu-central-1:123456789012:ris-dev2-mays-orders-orders-queue\",\"Sid\":\"SQS\"}]}",
+    "wildcard_in_plan": false,
+    "arn_literal_in_plan": true
+  },
+  "case-b": {
+    "json_present": true,
+    "log_present": true,
+    "log_lines": 99,
+    "precondition_failed": false,
+    "log_first_error": null,
+    "resource_changes": 2,
+    "sqs_policy_present": false,
+    "sqs_doc_present": false,
+    "sqs_policy_actions": null,
+    "wildcard_in_plan": false,
+    "arn_literal_in_plan": false
+  },
+  "case-c": {
+    "json_present": true,
+    "log_present": true,
+    "log_lines": 119,
+    "precondition_failed": true,
+    "log_first_error": "Error: Resource precondition failed",
+    "resource_changes": 2,
+    "sqs_policy_present": false,
+    "sqs_doc_present": false,
+    "sqs_policy_actions": null,
+    "wildcard_in_plan": false,
+    "arn_literal_in_plan": false
+  },
+  "case-d": {
+    "json_present": true,
+    "log_present": true,
+    "log_lines": 166,
+    "precondition_failed": false,
+    "log_first_error": null,
+    "resource_changes": 6,
+    "sqs_policy_present": true,
+    "sqs_doc_present": true,
+    "sqs_policy_actions": [
+      "create"
+    ],
+    "policy_known": false,
+    "policy_after_unknown": true,
+    "policy_snippet": null,
+    "wildcard_in_plan": false,
+    "arn_literal_in_plan": false
+  },
+  "case-e": {
+    "json_present": true,
+    "log_present": true,
+    "log_lines": 119,
+    "precondition_failed": true,
+    "log_first_error": "Error: Resource precondition failed",
+    "resource_changes": 2,
+    "sqs_policy_present": false,
+    "sqs_doc_present": false,
+    "sqs_policy_actions": null,
+    "wildcard_in_plan": false,
+    "arn_literal_in_plan": false
+  }
+}

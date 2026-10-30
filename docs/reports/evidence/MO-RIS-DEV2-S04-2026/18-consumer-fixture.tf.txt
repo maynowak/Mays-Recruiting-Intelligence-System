@@ -1,0 +1,43 @@
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.0"
+    }
+  }
+}
+
+# Konsumenten-Fixture: belegt, dass das generierte Modul als Kindmodul
+# eingebunden werden kann und der neue Output `sqs_queue_name` typkorrekt
+# referenzierbar ist. Kein Plan, kein Apply, keine AWS-Aufrufe (validate
+# loest keine Provider-API auf; init laedt nur Provider-Binaries).
+provider "aws" {
+  region                      = "eu-central-1"
+  access_key                  = "offline-dummy"
+  secret_key                  = "offline-dummy"
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_metadata_api_check     = true
+  skip_region_validation      = true
+}
+
+module "orders" {
+  source = "C:/Users/DCI-Student/AppData/Local/Temp/opencode/mo-ris-dev2-s04-2026-10-25/artifact-9627eb2f"
+
+  project_name = "ris-dev2-mays-orders"
+}
+
+output "queue_name_from_module" {
+  description = "Belegt die Referenzierbarkeit von sqs_queue_name (GAP-02)."
+  value       = module.orders.sqs_queue_name
+}
+
+output "queue_arn_from_module" {
+  value = module.orders.sqs_queue_arn
+}
+
+output "queue_url_from_module" {
+  value = module.orders.sqs_queue_url
+}

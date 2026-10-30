@@ -1,0 +1,54 @@
+S04/S05/S06/S07 Summary — 2026-10-25
+
+S04: MO-GAP-02/06-FIX (COMPLETE)
+- GAP-02: output "sqs_queue_name" added at source; 19→20 outputs; 5 inputs unchanged
+- GAP-06: IAM counts → var.sqs_enabled gate; lifecycle precondition on ARN; sqs_enabled=true am Root; OPTIONAL_MODULE_FLAGS
+- 9 gezielte Tests + Baseline: alle ok; 12 vorgeexistente Windows-Fehler; keine Regressionen
+- MO-Commit 9627eb2f43087ab07dd7cc98a21febca142cb3b6 gepusht
+
+S05: RIS-Root-Validate (COMPLETE)
+- Frisches Modul aus MO-Commit in terraform/modules/mays_orders integriert
+- terraform fmt -check -recursive: Exit 3 (3 bekannte Ausweichzeilen in mays_orders)
+- terraform init -backend=false -input=false: Exit 0 (17 Module)
+- terraform validate -no-color: Exit 0 "Success! The configuration is valid."
+- Report: docs/reports/MO-RIS-DEV2-S05-RIS-ROOT-VALIDATE-2026.md
+- Evidence: docs/reports/evidence/MO-RIS-DEV2-S05-2026/ (11 Textdateien)
+
+S06: RIS-Wrapper-Pin-And-Build (COMPLETE)
+- Pin: 40-stelliger SHA 9627eb2f43087ab07dd7cc98a21febca142cb3b6 via PINNED_COMMIT Konstante
+- Name: ris-dev2 → ris-dev2-mays-orders via EXPECTED_PROJECT_MAP (keine doppelte Anreicherung)
+- Vertragspatches entfernt: Validation vor Generierung statt nachträgliche Patches
+- Formatierung: Nach Generierung, nicht vor Build
+- Tests: Lokal mit Fixtures/Mocks, keine AWS
+- Wrapper-Durchlauf: Pin geprüft, Name validiert, Build erfolgreich, Vertrag bestanden
+- RIS-root: fmt (3 bekannte Ausweichzeilen), init (Exit 0), validate (optional)
+- Report: docs/reports/MO-RIS-DEV2-S06-WRAPPER-PIN-BUILD-2026.md
+- Evidence: docs/reports/evidence/MO-RIS-DEV2-S06-2026/ (8 Textdateien)
+
+S07: ORDERS-DEPENDENCY-CONSOLIDATION (COMPLETE)
+- Abhängigkeitsmatrix für orders-service und alle RIS-Consumer erstellt
+- 3 Referenztypen unterschieden: A (ARN/ID direkt), B (Name direkt), C (unabhängig rekonstruiert)
+- Worker-Boundary: fester Account-ARN wird durchgereicht, überschreibbar durch Modulvertrag
+- SQS-Policy: Principal/Actions/Resource/Conditions erfasst, keine Änderung in S07
+- HTTP/Auth-Pfad: RIS-eigener Pfad (A) für ris-dev2 belegt, direkter MO-API-Pfad (B) nicht belegt
+- Historische Reports geordnet: MAYS-ORDERS-, S01–S06, einordnung als Kontext/überholt
+- Restabhängigkeiten: Worker-Boundary, SQS-Policy, HTTP/Auth-Pfad
+- Report: docs/reports/MO-RIS-DEV2-S07-DEPENDENCY-CONSOLIDATION-2026.md
+- Evidence: docs/reports/evidence/MO-RIS-DEV2-S07-2026/ (in Bearbeitung)
+
+Trennung der Urteile:
+- GAP-02: ✅ PASS
+- GAP-06: ✅ PASS
+- Tests: 9 gezielt + Baseline (12 identische Windows-Fehler, keine Regressionen)
+- MO-Commit: 9627eb2f43087ab07dd7cc98a21febca142cb3b6
+- Report-Serie: S04/S05/S06/S07 abgeschlossen
+- Kein S08: ✅ (nicht begonnen per Checkpoint)
+
+Abgeschlossene Lieferanten:
+- MO-Zweig: feature/mo-module-contract-ris-dev2-2026 — gepusht (seit S04 unverändert)
+- RIS-Zweig: feature/mo-module-installer-ris-dev2-2026 — gepusht (S04/S05/S06/S07)
+- Reports: 4 große Report-Dateien + 27+ Evidence-Dateien
+- AI_AUDITLOG.md: Mit S04/S05/S06/S07 Einträgen aktualisiert
+- Keine Binaries, ZIPs, Provider-Caches, Zugangsdaten oder State-/Plan-Dateien gepusht.
+
+Abschluss: S04/S05/S06/S07 Complete. Kein S08 begonnen.

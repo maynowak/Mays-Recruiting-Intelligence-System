@@ -1,0 +1,21 @@
+# Negativkontrolle: Referenz auf NICHT existierenden Output (sqs_queue_name_NICHT_VORHANDEN)
+# Erwartung: validate schlaegt fehl -> der Positivtest ist nicht vakuum-gruen.
+# init exit_code=0 / validate exit_code=1
+
+=== validate ===
+terraform.exe : 
+In Zeile:15 Zeichen:8
++ $val = & $tf -chdir="$neg" validate -no-color 2>&1 | Out-String
++        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error: Unsupported attribute
+
+  on main.tf line 34, in output "queue_name_from_module":
+  34:   value       = module.orders.sqs_queue_name_NICHT_VORHANDEN
+    Ôö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    Ôöé module.orders is object with 20 attributes
+
+This object does not have an attribute named
+"sqs_queue_name_NICHT_VORHANDEN".
