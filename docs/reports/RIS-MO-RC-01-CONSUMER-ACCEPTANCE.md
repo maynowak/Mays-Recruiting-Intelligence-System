@@ -160,7 +160,7 @@ bestätigt erneut: keine `ris-dev2`-Laufzeitressourcen, Backend unverändert.
 | `7fbe3d5e9faaf9525af497398d25cfdff6e383d4` | Acceptance-Report, erster Apply/Live-Test/Destroy/Cleanup-Lauf, Evidence und AI_AUDITLOG |
 | `f60d8291403357abf3ccb06f77e5f2fd835ff58c` | Wrapper-Validierung für den finalen Build erweitert |
 | `d1b7594f1ea8fc624b881be0808264c24de7a4bc` | Wrapper-Defekt behoben und MO-Pin aktualisiert |
-| lokaler Folgecommit | Zweiter vollständiger Lauf mit T-07 PASS, Cleanup-Evidence und aktualisiertem Report/Auditlog |
+| `4b11f43` | Zweiter vollständiger Lauf mit T-07 PASS, Cleanup-Evidence und aktualisiertem Report/Auditlog |
 
 Nicht committet (bewusst erhalten, untracked): Scratch-Skripte im
 Repository-Root (`apply_*.py`, `fix_*.py`, `check_*.py`, `verify*.py`,
