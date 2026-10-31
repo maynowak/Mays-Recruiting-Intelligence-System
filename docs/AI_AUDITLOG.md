@@ -7978,3 +7978,27 @@ Evidence / file references:
 Classification: GREEN
 Current resume point:
   - R05-B abgeschlossen; R06 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R06G0-ATS-CONTRACT-PARENT-GATE]
+Current status: COMPLETE — ATS-v1-Vertrag und Parent-Semantik analysiert; R06-CRUD vorbereitet.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Jobsearch origin/main = 0129559; ATS-Datenshape unveraendert seit c6137b3
+    (nur Session-Kapazitaetsdoku: 2 CV-Profile, 5 ATS, Grandfathering).
+  - P1-3: RIS ATSSearchProfile hat kein criteria, nutzt atsProfileId und
+    emittiert cvId/Legacy-Felder; v1-Fixture wird strikt abgelehnt.
+  - Referenz-Inkonsistenz: contractTypes.ts laesst excludedTerms aus; Data
+    Contract/Schema/Fixtures enthalten es (Data Contract ist massgeblich).
+  - R05-A Parent-Guard, 5er-Zaehler, Idempotenz und Delete-vs-Create sind
+    wiederverwendbar.
+  - Unassigned (searchProfileId=null) ist Session-only; RIS v1 lehnt es ab.
+  - Override: ATS-Skills/Rollen ersetzen Parent; city/radius/workModes/
+    employmentTypes bleiben beim Parent.
+  - Tests: 20 PASS + 9 PLANNED (skipped); Regression 394 PASS, 9 skipped.
+  - Keine Produktionsdatei in R06-G0 geaendert.
+Evidence / file references:
+  - tests/test_partner_profile_ats_contract_gate.py
+  - docs/reports/RIS-PARTNER-PROFILE-R06-G0-ATS-CONTRACT-PARENT-GATE.md
+Classification: YELLOW
+Current resume point:
+  - R06-G0 abgeschlossen; R06-CRUD nicht begonnen (P1-3 ist R06-Blocker).
