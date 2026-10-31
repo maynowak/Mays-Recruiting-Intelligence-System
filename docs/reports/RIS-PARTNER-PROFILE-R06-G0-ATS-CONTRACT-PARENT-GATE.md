@@ -17,11 +17,11 @@
   Fixtures, `cvSearchConfig.ts`, `contractTypes.ts`, `profileValidation.ts`,
   `sessionRepositories.ts`, `cvProfileStore.ts`, JM-ATS-UNASSIGNED-UX-08,
   JM-ATS-OVERLAY-PARITY-08A, JM-GUEST-CV-E2E-09/09A.
-- **Referenz-Inkonsistenz:** `src/lib/profiles/contractTypes.ts` deklariert
-  `ATSCriteriaV1` ohne `excludedTerms`; Data Contract, JSON Schema und
-  Fixtures enthalten `excludedTerms`. Verbindlich für R06 ist der Data
-  Contract + Schema (inkl. `excludedTerms`). Dokumentiert, nicht stillschweigend
-  angeglichen.
+- **Korrektur (R06):** Der frühere Befund, `contractTypes.ts` lasse
+  `excludedTerms` aus, war falsch (abgeschnittene Ausgabe). Am Referenzcommit
+  `0129559` enthält `ATSCriteriaV1` in `contractTypes.ts` **alle drei** Listen
+  inklusive `excludedTerms`. Es besteht **keine** Referenz-Inkonsistenz; keine
+  Jobsearch-Änderung nötig.
 
 ## 3. ATSSearchProfileV1 — Feldmatrix
 
@@ -199,7 +199,7 @@ OpenAPI). Terraform/OpenAPI unverändert.
 |---|---|---|
 | P1-3 | `ATSCriteriaV1`/`criteria` fehlt; `atsSearchProfileId`/`cvId`-API-Mapping fehlt. | **OPEN — R06-Blocker** |
 | P1-1 | CVDocument `filename`/`name`, `sizeBytes`/`size`, Status-Set. | OPEN; **keine direkte ATS-Abhängigkeit** (ATS nutzt `cv_id`, nicht Dateiname/Größe/Status) |
-| Ref-1 | `contractTypes.ts` lässt `excludedTerms` aus, Schema/Contract/Fixtures enthalten es. | Dokumentiert; Data Contract ist maßgeblich |
+| Ref-1 | `contractTypes.ts` enthält `excludedTerms` (R06-Korrektur; früherer Befund war falsch). | **CLOSED — keine Inkonsistenz** |
 
 ## 14. Konkreter R06-Implementierungsumfang
 

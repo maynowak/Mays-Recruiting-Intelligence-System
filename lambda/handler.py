@@ -511,6 +511,9 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     elif path == '/v1/partner/me/cvs' or path.startswith('/v1/partner/me/cvs/'):
         # R04: partner CV metadata + secure document lifecycle.
         return _handle_partner_cv_routes(event, context, method, path)
+    elif path.startswith('/v1/partner/me/search-profiles/'):
+        # R06: partner ATS search profiles (ATSSearchProfileV1 CRUD).
+        return _handle_partner_ats_routes(event, context, method, path)
     elif method == 'GET' and path.startswith('/work'):
         work_id = event.get('pathParameters', {}).get('workId')
         return _get_work(work_id, event)
@@ -4502,6 +4505,323 @@ def _cv_search_profile_delete(event, ctx, cv_id, search_profile_id):
                          cvId=cv_id)
     except Exception:
         logger.error('cv search profile delete failed')
+        return _cv_error(500, 'Internal error')
+    if not deleted:
+        return _cv_error(404, 'Not found')
+    return {'statusCode': 204, 'body': ''}
+
+
+# ---------------------------------------------------------------------------
+# R06: Partner ATS search profiles (ATSSearchProfileV1 CRUD)
+#
+# Flat parent addressing: searchProfileId identifies the CVSearchProfile; the
+# CV is derived via the parent chain and never appears in the v1 DTO.
+# ---------------------------------------------------------------------------
+
+_ATS_PARENT_PREFIX = '/v1/partner/me/search-profiles/'
+
+
+def _serialize_ats_profile(profile):
+    body = profile.to_dict()
+    out = {
+        'schemaVersion': body.get('schemaVersion', 1),
+        'atsSearchProfileId': body.get('atsProfileId'),
+        'searchProfileId': body.get('searchProfileId'),
+        'name': body.get('name'),
+        'targetRoles': body.get('targetRoles', []),
+        'skills': body.get('skills', []),
+        'createdAt': body.get('createdAt'),
+        'updatedAt': body.get('updatedAt'),
+        'version': getattr(profile, 'version', None),
+    }
+    if body.get('criteria') is not None:
+        out['criteria'] = body['criteria']
+    return out
+
+
+def _ats_response(profile, status=200):
+    return {'statusCode': status,
+            'body': json.dumps(_serialize_ats_profile(profile),
+                               ensure_ascii=False)}
+
+
+def _ats_parent(ctx, search_profile_id):
+    from jobsearch.partner_profile_contract import CVSearchProfile, CVDocument
+    repo = _cv_repo()
+    try:
+        parent = repo.get(search_profile_id, **_cv_identity(ctx))
+        if not isinstance(parent, CVSearchProfile):
+            return None, None, None
+        cv = repo.get(parent.cv_id, **_cv_identity(ctx))
+        if not isinstance(cv, CVDocument):
+            return None, None, None
+        return repo, parent, cv
+    except Exception:
+        return None, None, None
+
+
+def _ats_parse(data, *, existing=None):
+    from jobsearch.partner_profile_contract import (
+        ATSCriteria, ProfileContractError, reject_client_identity,
+    )
+
+    def _str_list(value, field):
+        if not isinstance(value, list):
+            raise ProfileContractError('INVALID_FIELD',
+                                       f'{field} must be a list of strings')
+        out = []
+        for item in value:
+            if not isinstance(item, str) or not item.strip():
+                raise ProfileContractError(
+                    'INVALID_FIELD', f'{field} entries must be non-empty strings')
+            out.append(item.strip())
+        return out
+
+    reject_client_identity(data)
+    name = data.get('name')
+    if name is None and existing is not None:
+        name = existing.name
+    if not isinstance(name, str) or not name.strip():
+        raise ProfileContractError('MISSING_FIELD', 'name is required')
+
+    if 'targetRoles' in data:
+        target_roles = _str_list(data.get('targetRoles'), 'targetRoles')
+    elif existing is not None:
+        target_roles = list(existing.target_roles)
+    else:
+        raise ProfileContractError('MISSING_FIELD', 'targetRoles is required')
+
+    if 'skills' in data:
+        skills = _str_list(data.get('skills'), 'skills')
+    elif existing is not None:
+        skills = list(existing.skills)
+    else:
+        raise ProfileContractError('MISSING_FIELD', 'skills is required')
+
+    if 'criteria' in data:
+        raw = data.get('criteria')
+        if raw is None:
+            # Explicit removal of the optional criteria object.
+            criteria = None
+        elif isinstance(raw, dict):
+            parsed_raw = ATSCriteria.from_dict(raw)
+            if existing is not None and existing.criteria is not None:
+                # Merge: an omitted list is preserved; an explicit [] clears it.
+                criteria = ATSCriteria(
+                    required_skills=(parsed_raw.required_skills
+                                     if 'requiredSkills' in raw
+                                     else list(existing.criteria.required_skills)),
+                    preferred_skills=(parsed_raw.preferred_skills
+                                      if 'preferredSkills' in raw
+                                      else list(existing.criteria.preferred_skills)),
+                    excluded_terms=(parsed_raw.excluded_terms
+                                    if 'excludedTerms' in raw
+                                    else list(existing.criteria.excluded_terms)),
+                )
+                criteria.validate()
+            else:
+                criteria = parsed_raw
+        else:
+            raise ProfileContractError('INVALID_FIELD',
+                                       'criteria must be an object or null')
+    else:
+        criteria = existing.criteria if existing is not None else None
+
+    return {'name': name.strip(), 'target_roles': target_roles,
+            'skills': skills, 'criteria': criteria}
+
+
+def _handle_partner_ats_routes(event, context, method, path):
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return error
+    rest = path[len(_ATS_PARENT_PREFIX):].strip('/')
+    parts = [p for p in rest.split('/') if p]
+    if len(parts) < 2 or parts[1] != 'ats-profiles':
+        return _cv_error(404, 'Not found')
+    search_profile_id = parts[0]
+    if len(parts) == 2:
+        return _ats_collection(event, ctx, method, search_profile_id)
+    if len(parts) == 3:
+        return _ats_item(event, ctx, method, search_profile_id, parts[2])
+    return _cv_error(404, 'Not found')
+
+
+def _ats_collection(event, ctx, method, search_profile_id):
+    repo, parent, cv = _ats_parent(ctx, search_profile_id)
+    if parent is None:
+        return _cv_error(404, 'Not found')
+    if method == 'GET':
+        return _ats_list(event, ctx, repo, search_profile_id)
+    if method == 'POST':
+        return _ats_create(event, ctx, repo, parent)
+    return _cv_error(405, 'Method not allowed')
+
+
+def _ats_list(event, ctx, repo, search_profile_id):
+    params = event.get('queryStringParameters') or {}
+    try:
+        limit = int(params.get('limit', 50))
+    except (TypeError, ValueError):
+        limit = 50
+    limit = max(1, min(limit, 50))
+    cursor = _decode_cursor(params.get('cursor'))
+    if cursor == 'invalid':
+        return _cv_error(400, 'Invalid cursor')
+    try:
+        items, next_cursor = repo.list_by_parent(
+            search_profile_id, ctx['userId'], ctx['tenantId'],
+            'ATSSearchProfile',
+            partner_app_id=ctx.get('partnerApplicationId'),
+            issuer=ctx.get('issuer'), limit=limit, cursor=cursor)
+    except Exception:
+        logger.error('ats list failed')
+        return _cv_error(500, 'Internal error')
+    return {'statusCode': 200, 'body': json.dumps({
+        'items': [_serialize_ats_profile(p) for p in items],
+        'nextCursor': _encode_cursor(next_cursor),
+    }, ensure_ascii=False)}
+
+
+def _ats_create(event, ctx, repo, parent):
+    from datetime import datetime, timezone
+    import uuid
+    from jobsearch.partner_profile_contract import (
+        ATSSearchProfile, ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+
+    data = _cv_body(event)
+    if data is None:
+        return _cv_error(400, 'Invalid JSON')
+    try:
+        parsed = _ats_parse(data)
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    now = datetime.now(timezone.utc).isoformat()
+    profile = ATSSearchProfile(
+        ats_profile_id=uuid.uuid4().hex,
+        search_profile_id=parent.search_profile_id,
+        cv_id=parent.cv_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=parsed['name'],
+        target_roles=parsed['target_roles'],
+        skills=parsed['skills'],
+        criteria=parsed['criteria'],
+        created_at=now,
+        updated_at=now,
+    )
+    try:
+        profile.validate()
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    try:
+        rid = repo.create(profile, **_cv_identity(ctx),
+                          idempotency_key=_idempotency_key(event))
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Conflict')
+    except Exception:
+        logger.error('ats create failed')
+        return _cv_error(500, 'Internal error')
+    stored = repo.get(rid, **_cv_identity(ctx))
+    return _ats_response(stored or profile, 201)
+
+
+def _ats_item(event, ctx, method, search_profile_id, ats_id):
+    from jobsearch.partner_profile_contract import ATSSearchProfile
+    repo, parent, cv = _ats_parent(ctx, search_profile_id)
+    if parent is None:
+        return _cv_error(404, 'Not found')
+    try:
+        existing = repo.get(ats_id, **_cv_identity(ctx))
+    except Exception:
+        return _cv_error(500, 'Internal error')
+    if (existing is None or not isinstance(existing, ATSSearchProfile)
+            or existing.search_profile_id != search_profile_id):
+        return _cv_error(404, 'Not found')
+    if method == 'GET':
+        return _ats_response(existing)
+    if method == 'PUT':
+        return _ats_update(event, ctx, repo, search_profile_id, ats_id, existing)
+    if method == 'DELETE':
+        return _ats_delete(event, ctx, repo, search_profile_id, ats_id)
+    return _cv_error(405, 'Method not allowed')
+
+
+def _ats_update(event, ctx, repo, search_profile_id, ats_id, existing):
+    from datetime import datetime, timezone
+    from jobsearch.partner_profile_contract import (
+        ATSSearchProfile, ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+
+    data = _cv_body(event)
+    if data is None:
+        return _cv_error(400, 'Invalid JSON')
+    try:
+        parsed = _ats_parse(data, existing=existing)
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    expected_version = data.get('version')
+    if expected_version is not None:
+        try:
+            expected_version = int(expected_version)
+        except (TypeError, ValueError):
+            return _cv_error(422, 'Invalid version')
+    now = datetime.now(timezone.utc).isoformat()
+    updated = ATSSearchProfile(
+        ats_profile_id=ats_id,
+        search_profile_id=search_profile_id,
+        cv_id=existing.cv_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=parsed['name'],
+        target_roles=parsed['target_roles'],
+        skills=parsed['skills'],
+        criteria=parsed['criteria'],
+        ats_keywords=existing.ats_keywords,
+        requirements=existing.requirements,
+        preferred_criteria=existing.preferred_criteria,
+        exclusions=existing.exclusions,
+        location=existing.location,
+        radius=existing.radius,
+        work_mode=existing.work_mode,
+        metadata=dict(existing.metadata or {}),
+        created_at=existing.created_at,
+        updated_at=now,
+    )
+    try:
+        updated.validate()
+        repo.update(updated, **_cv_identity(ctx),
+                    expected_version=expected_version)
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Version conflict')
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    except Exception:
+        logger.error('ats update failed')
+        return _cv_error(500, 'Internal error')
+    stored = repo.get(ats_id, **_cv_identity(ctx))
+    return _ats_response(stored or updated)
+
+
+def _ats_delete(event, ctx, repo, search_profile_id, ats_id):
+    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    params = event.get('queryStringParameters') or {}
+    expected = params.get('version')
+    if expected is not None:
+        try:
+            expected = int(expected)
+        except (TypeError, ValueError):
+            return _cv_error(422, 'Invalid version')
+    try:
+        deleted = repo.delete(ats_id, **_cv_identity(ctx),
+                              expected_version=expected)
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Version conflict')
+    except Exception:
+        logger.error('ats delete failed')
         return _cv_error(500, 'Internal error')
     if not deleted:
         return _cv_error(404, 'Not found')

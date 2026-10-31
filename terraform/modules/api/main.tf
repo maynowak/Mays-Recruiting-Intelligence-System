@@ -456,6 +456,47 @@ resource "aws_apigatewayv2_route" "partner_cv_search_profiles_delete" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
+# R06: ATS search profile CRUD (flat parent addressing). Explicit routes only.
+resource "aws_apigatewayv2_route" "partner_ats_profiles_list" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "partner_ats_profiles_create" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "partner_ats_profiles_get" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles/{atsSearchProfileId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "partner_ats_profiles_update" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "PUT /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles/{atsSearchProfileId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "partner_ats_profiles_delete" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "DELETE /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles/{atsSearchProfileId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
 # Product Admin: Offer -> Entitlement provisioning (P23-01).
 #
 # All routes are Cognito JWT protected (same authorizer as the other 27) and

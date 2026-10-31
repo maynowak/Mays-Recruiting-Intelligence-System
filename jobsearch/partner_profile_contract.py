@@ -83,10 +83,14 @@ CV_SEARCH_PROFILE_FIELDS = frozenset({
     "profile", "searchConfiguration", "createdAt", "updatedAt", "metadata",
 })
 ATS_SEARCH_PROFILE_FIELDS = frozenset({
-    "resourceType", "schemaVersion", "atsProfileId", "searchProfileId", "cvId",
-    "userId", "tenantId", "name", "targetRoles", "atsKeywords", "skills",
-    "requirements", "preferredCriteria", "exclusions", "location", "radius",
-    "workMode", "createdAt", "updatedAt", "metadata",
+    "resourceType", "schemaVersion", "atsProfileId", "atsSearchProfileId",
+    "searchProfileId", "cvId", "userId", "tenantId", "name", "targetRoles",
+    "atsKeywords", "skills", "criteria", "requirements", "preferredCriteria",
+    "exclusions", "location", "radius", "workMode", "createdAt", "updatedAt",
+    "metadata", "version",
+})
+ATS_CRITERIA_FIELDS = frozenset({
+    "schemaVersion", "requiredSkills", "preferredSkills", "excludedTerms",
 })
 MANUAL_SEARCH_PROFILE_FIELDS = frozenset({
     "resourceType", "schemaVersion", "manualProfileId", "userId", "tenantId",
@@ -796,16 +800,72 @@ class CVSearchProfile:
 
 
 @dataclass
+class ATSCriteria:
+    """Canonical Jobsearch ``ATSCriteriaV1`` (optional, restrictive)."""
+
+    schema_version: int = SCHEMA_VERSION
+    required_skills: List[str] = field(default_factory=list)
+    preferred_skills: List[str] = field(default_factory=list)
+    excluded_terms: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "schemaVersion": self.schema_version,
+            "requiredSkills": list(self.required_skills),
+            "preferredSkills": list(self.preferred_skills),
+            "excludedTerms": list(self.excluded_terms),
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any], *, strict: bool = True) -> "ATSCriteria":
+        if not isinstance(data, dict):
+            raise ProfileContractError("INVALID_FIELD", "criteria must be an object")
+        if strict:
+            _check_unknown_fields(data, ATS_CRITERIA_FIELDS, "ATSCriteria")
+        if "schemaVersion" not in data:
+            raise ProfileContractError("MISSING_FIELD",
+                                       "criteria.schemaVersion is required")
+        sv = data.get("schemaVersion")
+        if isinstance(sv, bool) or sv != SCHEMA_VERSION:
+            raise ProfileContractError(
+                "INVALID_SCHEMA_VERSION",
+                f"criteria.schemaVersion must be {SCHEMA_VERSION}, got {sv!r}")
+        obj = cls(
+            schema_version=SCHEMA_VERSION,
+            required_skills=_str_list(data.get("requiredSkills", []), "requiredSkills"),
+            preferred_skills=_str_list(data.get("preferredSkills", []), "preferredSkills"),
+            excluded_terms=_str_list(data.get("excludedTerms", []), "excludedTerms"),
+        )
+        obj.validate()
+        return obj
+
+    def validate(self) -> None:
+        if isinstance(self.schema_version, bool) or self.schema_version != SCHEMA_VERSION:
+            raise ProfileContractError(
+                "INVALID_SCHEMA_VERSION",
+                f"criteria.schemaVersion must be {SCHEMA_VERSION}")
+        for name in ("required_skills", "preferred_skills", "excluded_terms"):
+            if not isinstance(getattr(self, name), list):
+                raise ProfileContractError("INVALID_FIELD", f"{name} must be a list")
+        self.required_skills = _dedupe_ci(self.required_skills)
+        self.preferred_skills = _dedupe_ci(self.preferred_skills)
+        self.excluded_terms = _dedupe_ci(self.excluded_terms)
+
+
+@dataclass
 class ATSSearchProfile:
     ats_profile_id: str
     search_profile_id: str
-    cv_id: str
     user_id: str
     tenant_id: str
     name: str
+    # cv_id is derived server-side from the parent CVSearchProfile; it is not
+    # part of the canonical v1 DTO and may be empty in a standalone fixture.
+    cv_id: str = ""
     target_roles: List[str] = field(default_factory=list)
     ats_keywords: List[str] = field(default_factory=list)
     skills: List[str] = field(default_factory=list)
+    criteria: Optional[ATSCriteria] = None
     requirements: List[str] = field(default_factory=list)
     preferred_criteria: List[str] = field(default_factory=list)
     exclusions: List[str] = field(default_factory=list)
@@ -817,9 +877,11 @@ class ATSSearchProfile:
     updated_at: Optional[str] = None
 
     resource_type: str = "ATSSearchProfile"
-    schema_version: str = SCHEMA_VERSION
+    schema_version: int = SCHEMA_VERSION
 
     def to_dict(self) -> Dict[str, Any]:
+        # Persistence shape (includes server-only identity and the internal
+        # legacy cv_id). The public v1 serializer strips these.
         result: Dict[str, Any] = {
             "resourceType": self.resource_type,
             "schemaVersion": self.schema_version,
@@ -829,13 +891,13 @@ class ATSSearchProfile:
             "userId": self.user_id,
             "tenantId": self.tenant_id,
             "name": self.name,
+            "targetRoles": list(self.target_roles),
+            "skills": list(self.skills),
         }
-        if self.target_roles:
-            result["targetRoles"] = list(self.target_roles)
+        if self.criteria is not None:
+            result["criteria"] = self.criteria.to_dict()
         if self.ats_keywords:
             result["atsKeywords"] = list(self.ats_keywords)
-        if self.skills:
-            result["skills"] = list(self.skills)
         if self.requirements:
             result["requirements"] = list(self.requirements)
         if self.preferred_criteria:
@@ -864,23 +926,48 @@ class ATSSearchProfile:
             _check_unknown_fields(data, ATS_SEARCH_PROFILE_FIELDS, "ATSSearchProfile")
         rt = _check_resource_type(data.get("resourceType"), "ATSSearchProfile")
         sv = _check_schema_version(data.get("schemaVersion"))
+        ats_id = data.get("atsProfileId") or data.get("atsSearchProfileId")
+        metadata = dict(data.get("metadata") or {})
+        criteria_raw = data.get("criteria")
+        criteria: Optional[ATSCriteria] = None
+        if criteria_raw is not None:
+            if not isinstance(criteria_raw, dict):
+                raise ProfileContractError("INVALID_FIELD",
+                                           "criteria must be an object or null")
+            criteria = ATSCriteria.from_dict(criteria_raw, strict=strict)
+        requirements = _str_list(data.get("requirements", []), "requirements")
+        preferred = _str_list(data.get("preferredCriteria", []), "preferredCriteria")
+        exclusions = _str_list(data.get("exclusions", []), "exclusions")
+        if criteria is None and (requirements or preferred or exclusions):
+            # Legacy R01 criteria lived in separate lists; preserve them both
+            # in the structured criteria and in metadata for lossless migration.
+            criteria = ATSCriteria(required_skills=list(requirements),
+                                   preferred_skills=list(preferred),
+                                   excluded_terms=list(exclusions))
+            metadata.setdefault("legacy", {})["criteria"] = {
+                "requirements": list(requirements),
+                "preferredCriteria": list(preferred),
+                "exclusions": list(exclusions),
+            }
+            metadata["legacyIncomplete"] = True
         obj = cls(
-            ats_profile_id=_require_str(data.get("atsProfileId"), "atsProfileId"),
+            ats_profile_id=_require_str(ats_id, "atsSearchProfileId"),
             search_profile_id=_require_str(data.get("searchProfileId"), "searchProfileId"),
-            cv_id=_require_str(data.get("cvId"), "cvId"),
+            cv_id=str(data.get("cvId", "") or ""),
             user_id=_require_str(data.get("userId"), "userId"),
             tenant_id=_require_str(data.get("tenantId"), "tenantId"),
             name=_require_str(data.get("name"), "name"),
             target_roles=_str_list(data.get("targetRoles", []), "targetRoles"),
             ats_keywords=_str_list(data.get("atsKeywords", []), "atsKeywords"),
             skills=_str_list(data.get("skills", []), "skills"),
-            requirements=_str_list(data.get("requirements", []), "requirements"),
-            preferred_criteria=_str_list(data.get("preferredCriteria", []), "preferredCriteria"),
-            exclusions=_str_list(data.get("exclusions", []), "exclusions"),
+            criteria=criteria,
+            requirements=requirements,
+            preferred_criteria=preferred,
+            exclusions=exclusions,
             location=_optional_str(data.get("location"), "location"),
             radius=_optional_str(data.get("radius"), "radius"),
             work_mode=_optional_str(data.get("workMode"), "workMode"),
-            metadata=data.get("metadata") or {},
+            metadata=metadata,
             created_at=_optional_str(data.get("createdAt"), "createdAt"),
             updated_at=_optional_str(data.get("updatedAt"), "updatedAt"),
             resource_type=rt,
@@ -890,12 +977,24 @@ class ATSSearchProfile:
         return obj
 
     def validate(self) -> None:
-        _require_str(self.ats_profile_id, "atsProfileId")
+        _require_str(self.ats_profile_id, "atsSearchProfileId")
         _require_str(self.search_profile_id, "searchProfileId")
-        _require_str(self.cv_id, "cvId")
         _require_str(self.user_id, "userId")
         _require_str(self.tenant_id, "tenantId")
         _require_str(self.name, "name")
+        if not isinstance(self.cv_id, str):
+            raise ProfileContractError("INVALID_FIELD", "cvId must be a string")
+        if self.criteria is not None:
+            if not isinstance(self.criteria, ATSCriteria):
+                raise ProfileContractError("INVALID_FIELD",
+                                           "criteria must be an ATSCriteria")
+            self.criteria.validate()
+        for name in ("target_roles", "skills", "ats_keywords", "requirements",
+                     "preferred_criteria", "exclusions"):
+            if not isinstance(getattr(self, name), list):
+                raise ProfileContractError("INVALID_FIELD", f"{name} must be a list")
+        self.target_roles = _dedupe_ci(self.target_roles)
+        self.skills = _dedupe_ci(self.skills)
 
 
 @dataclass

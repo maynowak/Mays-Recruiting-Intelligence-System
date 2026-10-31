@@ -1680,6 +1680,251 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }
 
+  /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles:
+    parameters:
+      - name: searchProfileId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Partner]
+      operationId: listPartnerAtsProfiles
+      summary: List the ATS profiles of one owned CV search profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Paginated page of ATS search profiles.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/ATSSearchProfileV1" }
+                  nextCursor: { type: string, nullable: true }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Parent CV search profile not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    post:
+      tags: [Partner]
+      operationId: createPartnerAtsProfile
+      summary: Create an ATS profile for one owned CV search profile
+      description: |
+        At most five ATS profiles per search profile. A 24h Idempotency-Key
+        makes retries return the original identity; the same key with a
+        different payload is a 409. No agent work and no model call.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 200 }
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ATSProfileInput" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ATSSearchProfileV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Parent CV search profile not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Capacity (5/parent), version or idempotency conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+  /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles/{atsSearchProfileId}:
+    parameters:
+      - name: searchProfileId
+        in: path
+        required: true
+        schema: { type: string }
+      - name: atsSearchProfileId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Partner]
+      operationId: getPartnerAtsProfile
+      summary: Get one ATS search profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: The ATS search profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ATSSearchProfileV1" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or wrong parent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    put:
+      tags: [Partner]
+      operationId: updatePartnerAtsProfile
+      summary: Update one ATS search profile
+      description: |
+        ``criteria`` absent preserves the existing criteria; ``criteria: null``
+        removes it; an object merges the provided lists and preserves omitted
+        lists. An explicit empty list clears that list.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ATSProfileInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ATSSearchProfileV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or wrong parent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    delete:
+      tags: [Partner]
+      operationId: deletePartnerAtsProfile
+      summary: Delete one ATS search profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: version
+          in: query
+          required: false
+          schema: { type: integer }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "204":
+          description: Deleted (empty body).
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or wrong parent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Invalid version.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
   /orders:
     post:
       tags: [Orders]
@@ -2219,6 +2464,66 @@ components:
         origin: { type: string, enum: [cv] }
         searchConfig:
           $ref: "#/components/schemas/SearchConfigurationV1"
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+
+    ATSCriteriaV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        requiredSkills:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        preferredSkills:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        excludedTerms:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+
+    ATSProfileInput:
+      type: object
+      additionalProperties: false
+      required: [name, targetRoles, skills]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        targetRoles:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        skills:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        criteria:
+          $ref: "#/components/schemas/ATSCriteriaV1"
+        version: { type: integer, minimum: 1, description: "Optimistic-lock version for updates." }
+
+    ATSSearchProfileV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, atsSearchProfileId, searchProfileId, name, targetRoles, skills, createdAt, updatedAt, version]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        atsSearchProfileId: { type: string }
+        searchProfileId: { type: string }
+        name: { type: string }
+        targetRoles:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        skills:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        criteria:
+          $ref: "#/components/schemas/ATSCriteriaV1"
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         version: { type: integer, minimum: 1 }

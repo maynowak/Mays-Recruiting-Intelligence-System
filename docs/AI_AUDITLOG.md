@@ -8002,3 +8002,30 @@ Evidence / file references:
 Classification: YELLOW
 Current resume point:
   - R06-G0 abgeschlossen; R06-CRUD nicht begonnen (P1-3 ist R06-Blocker).
+
+[RIS-PARTNER-PROFILE-R06-ATS-CRUD]
+Current status: COMPLETE — ATSSearchProfileV1-CRUD inkl. ATSCriteriaV1 implementiert.
+Audit date/time: 2026-10-31
+Actual findings:
+  - ATSCriteriaV1 (schemaVersion 1, drei optionale Listen, strikt, keine
+    Score-/Modellfelder) und criteria in ATSSearchProfile ergaenzt.
+  - Kanonische API: atsSearchProfileId, kein cvId/Legacy; cvId serverseitig
+    aus dem Parent abgeleitet.
+  - 5 Routen /v1/partner/me/search-profiles/{id}/ats-profiles; Parent-Kette
+    ATS -> CVSP -> CV, Dual-Auth, 5er-Kapazitaet, Idempotenz, Versionierung,
+    Delete-Schutz.
+  - R06-G0-Korrektur: excludedTerms ist in contractTypes.ts@0129559 vorhanden.
+  - Tests: 36 neue R06-API + ehemalige 9 PLANNED-Faelle jetzt echt; Regression
+    437 PASS, 0 skipped.
+  - P1-3 resolved; P1-1 (CV-Naming/Status) bleibt OPEN.
+Evidence / file references:
+  - jobsearch/partner_profile_contract.py
+  - lambda/handler.py
+  - terraform/modules/api/main.tf
+  - docs/api/openapi-platform.yaml
+  - tests/test_partner_ats_profiles_api.py
+  - tests/test_partner_profile_ats_contract_gate.py
+  - docs/reports/RIS-PARTNER-PROFILE-R06-ATS-CRUD.md
+Classification: GREEN
+Current resume point:
+  - R06 abgeschlossen; R07 nicht begonnen.
