@@ -503,17 +503,21 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _partner_execute_agent(event, _machine_agent_id(path.replace('/v1/partner/agents/', '/v1/m2m/agents/')))
     elif path == '/v1/partner/me/manual-search-profiles':
         # R03: partner manual search profile CRUD (human JWT + RIS credential).
-        return _handle_manual_profile_collection(event, context, method)
+        return _partner_storage_guard(
+            _handle_manual_profile_collection, event, context, method)
     elif path.startswith('/v1/partner/me/manual-search-profiles/'):
         params = event.get('pathParameters') or {}
         profile_id = params.get('profileId') or path[len('/v1/partner/me/manual-search-profiles/'):].split('?')[0]
-        return _handle_manual_profile_item(event, context, method, profile_id)
+        return _partner_storage_guard(
+            _handle_manual_profile_item, event, context, method, profile_id)
     elif path == '/v1/partner/me/cvs' or path.startswith('/v1/partner/me/cvs/'):
         # R04: partner CV metadata + secure document lifecycle.
-        return _handle_partner_cv_routes(event, context, method, path)
+        return _partner_storage_guard(
+            _handle_partner_cv_routes, event, context, method, path)
     elif path.startswith('/v1/partner/me/search-profiles/'):
         # R06: partner ATS search profiles (ATSSearchProfileV1 CRUD).
-        return _handle_partner_ats_routes(event, context, method, path)
+        return _partner_storage_guard(
+            _handle_partner_ats_routes, event, context, method, path)
     elif method == 'GET' and path.startswith('/work'):
         work_id = event.get('pathParameters', {}).get('workId')
         return _get_work(work_id, event)
@@ -3552,6 +3556,34 @@ def _manual_profile_response(profile, status=200):
                                ensure_ascii=False)}
 
 
+def _storage_error():
+    """Generic 500 for a failed backing-store read/write (no detail leak)."""
+    return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
+
+
+def _post_write_response(stored, response, status=200):
+    """Serialize only a freshly re-read record.
+
+    A successful write followed by an unreadable/missing record must not fall
+    back to an in-memory object: that object has no authoritative ``version``
+    and would emit ``version: null`` or other incomplete fields.
+    """
+    if stored is None:
+        logger.error('post-write read returned no item')
+        return _storage_error()
+    return response(stored, status)
+
+
+def _partner_storage_guard(call, *args):
+    """Map a DynamoDB read failure to 500 instead of 404/409."""
+    from jobsearch.partner_profile_repository import PartnerProfileReadError
+    try:
+        return call(*args)
+    except PartnerProfileReadError:
+        logger.error('partner profile storage read failed')
+        return _storage_error()
+
+
 def _decode_cursor(raw):
     if not raw:
         return None
@@ -3656,7 +3688,7 @@ def _manual_profile_create(event, ctx):
 
     stored = repo.get(rid, ctx['userId'], ctx['tenantId'],
                       ctx.get('partnerApplicationId'), ctx.get('issuer'))
-    return _manual_profile_response(stored or profile, 201)
+    return _post_write_response(stored, _manual_profile_response, 201)
 
 
 def _handle_manual_profile_item(event, context, method, profile_id):
@@ -3752,7 +3784,7 @@ def _manual_profile_update(event, ctx, profile_id):
 
     stored = repo.get(profile_id, ctx['userId'], ctx['tenantId'],
                       ctx.get('partnerApplicationId'), ctx.get('issuer'))
-    return _manual_profile_response(stored or updated)
+    return _post_write_response(stored, _manual_profile_response)
 
 
 def _manual_profile_delete(event, ctx, profile_id):
@@ -3966,7 +3998,7 @@ def _cv_create(event, ctx):
         logger.error('cv create failed')
         return _cv_error(500, 'Internal error')
     stored = repo.get(rid, **_cv_identity(ctx))
-    return _cv_response(stored or cv, 201)
+    return _post_write_response(stored, _cv_response, 201)
 
 
 def _cv_get(ctx, cv_id):
@@ -4035,7 +4067,7 @@ def _cv_update(event, ctx, cv_id):
         logger.error('cv update failed')
         return _cv_error(500, 'Internal error')
     stored = repo.get(cv_id, **_cv_identity(ctx))
-    return _cv_response(stored or updated)
+    return _post_write_response(stored, _cv_response)
 
 
 def _cv_delete(ctx, cv_id):
@@ -4230,7 +4262,7 @@ def _cv_complete(event, ctx, cv_id):
         logger.error('cv complete failed')
         return _cv_error(500, 'Internal error')
     stored = repo.get(cv_id, **_cv_identity(ctx))
-    return _cv_response(stored or updated)
+    return _post_write_response(stored, _cv_response)
 
 
 def _cv_download(ctx, cv_id):
@@ -4414,7 +4446,7 @@ def _cv_search_profile_create(event, ctx, cv_id):
         logger.error('cv search profile create failed')
         return _cv_error(500, 'Internal error')
     stored = repo.get(rid, **_cv_identity(ctx))
-    return _cv_search_profile_response(stored or profile, 201)
+    return _post_write_response(stored, _cv_search_profile_response, 201)
 
 
 def _cv_search_profile_item(event, ctx, method, cv_id, search_profile_id):
@@ -4482,7 +4514,7 @@ def _cv_search_profile_update(event, ctx, cv_id, search_profile_id, existing):
         logger.error('cv search profile update failed')
         return _cv_error(500, 'Internal error')
     stored = repo.get(search_profile_id, **_cv_identity(ctx))
-    return _cv_search_profile_response(stored or updated)
+    return _post_write_response(stored, _cv_search_profile_response)
 
 
 def _cv_search_profile_delete(event, ctx, cv_id, search_profile_id):
@@ -4548,16 +4580,15 @@ def _ats_response(profile, status=200):
 def _ats_parent(ctx, search_profile_id):
     from jobsearch.partner_profile_contract import CVSearchProfile, CVDocument
     repo = _cv_repo()
-    try:
-        parent = repo.get(search_profile_id, **_cv_identity(ctx))
-        if not isinstance(parent, CVSearchProfile):
-            return None, None, None
-        cv = repo.get(parent.cv_id, **_cv_identity(ctx))
-        if not isinstance(cv, CVDocument):
-            return None, None, None
-        return repo, parent, cv
-    except Exception:
+    # Read failures must propagate (-> 500); only genuinely missing/wrong
+    # parents become 404. No broad catch here.
+    parent = repo.get(search_profile_id, **_cv_identity(ctx))
+    if not isinstance(parent, CVSearchProfile):
         return None, None, None
+    cv = repo.get(parent.cv_id, **_cv_identity(ctx))
+    if not isinstance(cv, CVDocument):
+        return None, None, None
+    return repo, parent, cv
 
 
 def _ats_parse(data, *, existing=None):
@@ -4725,7 +4756,7 @@ def _ats_create(event, ctx, repo, parent):
         logger.error('ats create failed')
         return _cv_error(500, 'Internal error')
     stored = repo.get(rid, **_cv_identity(ctx))
-    return _ats_response(stored or profile, 201)
+    return _post_write_response(stored, _ats_response, 201)
 
 
 def _ats_item(event, ctx, method, search_profile_id, ats_id):
@@ -4803,7 +4834,7 @@ def _ats_update(event, ctx, repo, search_profile_id, ats_id, existing):
         logger.error('ats update failed')
         return _cv_error(500, 'Internal error')
     stored = repo.get(ats_id, **_cv_identity(ctx))
-    return _ats_response(stored or updated)
+    return _post_write_response(stored, _ats_response)
 
 
 def _ats_delete(event, ctx, repo, search_profile_id, ats_id):

@@ -119,6 +119,14 @@ class PartnerProfileNotFoundError(Exception):
     pass
 
 
+class PartnerProfileReadError(Exception):
+    """A DynamoDB read failed.
+
+    Raised instead of returning ``None`` so callers cannot turn an outage or a
+    throttled read into a false 404/409.  Carries no backend detail.
+    """
+
+
 class PartnerProfileConflictError(Exception):
     pass
 
@@ -322,10 +330,11 @@ class PartnerProfileRepository:
         atomically inside transactions. It is never deleted.
         """
         try:
-            resp = self.table.get_item(Key={"resourceId": key})
+            resp = self.table.get_item(Key={"resourceId": key},
+                                       ConsistentRead=True)
         except Exception as e:
             logger.error("get_item counter failed: %s", e)
-            return
+            raise PartnerProfileReadError("Counter read failed") from e
         if resp.get("Item"):
             return
         now = self._now()
@@ -493,16 +502,23 @@ class PartnerProfileRepository:
         if self.table is None:
             return None
         try:
-            resp = self.table.get_item(Key={"resourceId": resource_id})
+            resp = self.table.get_item(Key={"resourceId": resource_id},
+                                       ConsistentRead=True)
         except Exception as e:
             logger.error("get_item failed: %s", e)
-            return None
+            raise PartnerProfileReadError("Profile read failed") from e
         item = resp.get("Item")
         if not item:
             return None
         if not self._identity_ok(item, user_id, tenant_id, partner_app_id, issuer):
             return None
-        return self._from_item(item)
+        try:
+            return self._from_item(item)
+        except ProfileContractError as e:
+            # A stored item that cannot be parsed is not "not found" and must
+            # never be emitted as an incomplete resource.
+            logger.error("stored profile is not a valid resource: %s", e)
+            raise PartnerProfileReadError("Stored profile is unreadable") from e
 
     def list_by_user(self, user_id: str, tenant_id: str,
                      resource_type: Optional[str] = None,
@@ -539,8 +555,8 @@ class PartnerProfileRepository:
         try:
             resp = self.table.query(**kwargs)
         except Exception as e:
-            logger.error("query failed: %s", e)
-            return [], None
+            logger.error("gsi-user query failed: %s", e)
+            raise PartnerProfileReadError("Profile list failed") from e
         items = []
         for it in resp.get("Items", []):
             obj = self._from_item(it)
@@ -582,11 +598,11 @@ class PartnerProfileRepository:
         kwargs["FilterExpression"] = " AND ".join(filters)
         try:
             resp = self.table.query(**kwargs)
-        except Exception:
-            # fallback: list by user and filter client-side on parent id
-            items, _ = self.list_by_user(user_id, tenant_id, resource_type, partner_app_id, issuer, limit=1000)
-            filtered = [r for r in items if self._parent_of(r) == parent_id]
-            return filtered, None
+        except Exception as e:
+            # Fail closed: a failed GSI query is not an empty page and must
+            # never be replaced by a differently paginated user-level list.
+            logger.error("gsi-parent query failed: %s", e)
+            raise PartnerProfileReadError("Profile list failed") from e
         items = []
         for it in resp.get("Items", []):
             obj = self._from_item(it)
@@ -594,21 +610,16 @@ class PartnerProfileRepository:
                 items.append(obj)
         return items, resp.get("LastEvaluatedKey")
 
-    def _parent_of(self, resource: Any) -> Optional[str]:
-        if isinstance(resource, CVSearchProfile):
-            return resource.cv_id
-        if isinstance(resource, ATSSearchProfile):
-            return resource.search_profile_id
-        return None
-
     def _get_raw(self, resource_id: str) -> Optional[Dict[str, Any]]:
         if self.table is None:
             return None
         try:
-            resp = self.table.get_item(Key={"resourceId": resource_id})
+            resp = self.table.get_item(Key={"resourceId": resource_id},
+                                       ConsistentRead=True)
             return resp.get("Item")
-        except Exception:
-            return None
+        except Exception as e:
+            logger.error("get_item raw failed: %s", e)
+            raise PartnerProfileReadError("Profile read failed") from e
 
     def update(self, resource: Any, *, user_id: str, tenant_id: str,
                partner_app_id: Optional[str] = None, issuer: Optional[str] = None,

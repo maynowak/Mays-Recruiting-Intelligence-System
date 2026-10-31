@@ -8056,3 +8056,28 @@ Classification: GREEN (harness) / BLOCKED (R07-A execution)
 Current resume point:
   - R07-G0 complete; fix F-1/F-7, install boto3 + DynamoDB Local, then run
     tests/integration/test_partner_profile_dynamodb_local.py. Do not start R07-B.
+
+[RIS-PARTNER-PROFILE-R07-FIX-01-CONSISTENCY-REPAIR]
+Current status: COMPLETE - F-1 and F-7 fixed and verified with fakes/statics.
+Audit date/time: 2026-10-31
+Actual findings:
+  - All authoritative GetItem reads (get, _get_raw, _ensure_counter) now use
+    ConsistentRead=True; GSI queries remain eventually consistent.
+  - Read failures raise PartnerProfileReadError instead of returning None or
+    an empty page; partner dispatchers map it to 500, never 404/409.
+  - list_by_parent no longer falls back to list_by_user(limit=1000); query
+    errors fail closed and keep correct pagination semantics.
+  - Post-write responses are built only from a successful re-read; missing
+    post-write reads return 500 instead of version:null.
+  - Unparseable stored items raise PartnerProfileReadError (no partial DTO).
+  - New tests: 20 PASS. Regression: 493 passed, 23 skipped.
+  - Optimistic locking, idempotency and schema unchanged.
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - lambda/handler.py
+  - tests/test_partner_profile_consistency_repair.py
+  - docs/reports/RIS-PARTNER-PROFILE-R07-FIX-01-CONSISTENCY-REPAIR.md
+Classification: GREEN
+Current resume point:
+  - F-1/F-7 closed; R07-A still blocked by missing boto3/Java/DynamoDB Local.
+  - Remaining OPEN: F-4, F-5, F-6, P1-1.

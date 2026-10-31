@@ -257,9 +257,10 @@ class TestApiRoutes(unittest.TestCase):
         src = _read("lambda", "handler.py")
         self.assertIn("_ATS_PARENT_PREFIX = '/v1/partner/me/search-profiles/'",
                       src)
-        # Exactly one dispatcher: its definition plus the single call site.
-        self.assertEqual(2, src.count("_handle_partner_ats_routes("))
-        self.assertEqual(1, src.count("return _handle_partner_ats_routes("))
+        # Exactly one dispatcher: its definition plus the single guarded call.
+        self.assertEqual(2, src.count("_handle_partner_ats_routes"))
+        self.assertEqual(1, src.count(
+            "_partner_storage_guard(\n            _handle_partner_ats_routes"))
 
 
 class TestRepositoryStatic(unittest.TestCase):

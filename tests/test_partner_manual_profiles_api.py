@@ -143,7 +143,7 @@ class FakeDynamo:
         self.calls = []
 
     # table interface
-    def get_item(self, Key):
+    def get_item(self, Key, ConsistentRead=False):
         it = self.resources.get(Key["resourceId"])
         return {"Item": it} if it else {}
 

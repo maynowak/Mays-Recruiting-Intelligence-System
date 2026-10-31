@@ -221,7 +221,7 @@ class BaseRepo(unittest.TestCase):
         self.repo._client = self.client
 
     # -- fake table backing store (raw python dicts) --------------------- #
-    def _get_item(self, Key):
+    def _get_item(self, Key, ConsistentRead=False):
         rid = Key["resourceId"]
         item = self.client.resources.get(rid)
         return {"Item": item} if item else {}
