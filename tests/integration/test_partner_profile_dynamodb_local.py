@@ -29,6 +29,9 @@ from tests.integration.dynamodb_local_support import (  # noqa: E402
 from jobsearch.partner_profile_contract import (  # noqa: E402
     ATSSearchProfile, CVDocument, CVSearchProfile, SearchConfiguration,
 )
+from jobsearch.partner_profile_cursor import (  # noqa: E402
+    CursorError, cursor_item_key,
+)
 from jobsearch.partner_profile_repository import (  # noqa: E402
     IDEMPOTENCY_TTL_SECONDS,
     MAX_ATS_PROFILES_PER_SEARCH_PROFILE,
@@ -528,6 +531,115 @@ class TestLegacyCounters(DynamoDbLocalBase):
             if not start:
                 break
         return [item["resourceId"] for item in items]
+
+
+class TestSecureCursorPagination(DynamoDbLocalBase):
+    def _setup_page(self, user):
+        cv_id = self._cv(user)
+        sp_id = self._sp(user, cv_id)
+        for i in range(3):
+            self._ats(user, sp_id, cv_id)
+        return cv_id, sp_id
+
+    def _issue(self, key, user, sp_id):
+        return self.repo.issue_cursor(
+            key, user_id=user, tenant_id=TENANT,
+            partner_app_id=PARTNER_APP, issuer=ISSUER,
+            scope="ats-search-profiles", resource_type="ATSSearchProfile",
+            parent_id=sp_id, limit=1)
+
+    def _resolve(self, token, user, sp_id):
+        return self.repo.resolve_cursor(
+            token, user_id=user, tenant_id=TENANT,
+            partner_app_id=PARTNER_APP, issuer=ISSUER,
+            scope="ats-search-profiles", resource_type="ATSSearchProfile",
+            parent_id=sp_id, limit=1)
+
+    def test_real_last_evaluated_key_roundtrip(self):
+        user = _uid("user")
+        cv_id, sp_id = self._setup_page(user)
+        first, key = _poll(lambda: (
+            lambda page: page if page[0] and page[1] else None)(
+                self.repo.list_by_parent(
+                    sp_id, user, TENANT, "ATSSearchProfile",
+                    partner_app_id=PARTNER_APP, issuer=ISSUER, limit=1)))
+        self.assertIsNotNone(key)
+        token = self._issue(key, user, sp_id)
+        restored = self._resolve(token, user, sp_id)
+        second, _ = self.repo.list_by_parent(
+            sp_id, user, TENANT, "ATSSearchProfile",
+            partner_app_id=PARTNER_APP, issuer=ISSUER, limit=1,
+            cursor=restored)
+        self.assertEqual(1, len(second))
+        self.assertNotEqual(first[0].ats_profile_id,
+                            second[0].ats_profile_id)
+        self.assertNotIn("resourceId", token)
+        self.assertNotIn(first[0].ats_profile_id, token)
+        item = self.repo._get_raw(cursor_item_key(token))
+        self.assertEqual("CursorToken", item["resourceType"])
+        self.assertGreater(int(item["expiresAt"]), 0)
+
+    def test_wrong_identity_parent_and_scope_are_rejected(self):
+        user = _uid("user")
+        cv_id, sp_id = self._setup_page(user)
+        other_sp = self._sp(user, cv_id)
+        _, key = self.repo.list_by_parent(
+            sp_id, user, TENANT, "ATSSearchProfile",
+            partner_app_id=PARTNER_APP, issuer=ISSUER, limit=1)
+        token = self._issue(key, user, sp_id)
+        for kwargs in (
+            {"user_id": _uid("other")},
+            {"tenant_id": "other-tenant"},
+            {"partner_app_id": "other-app"},
+            {"issuer": "https://other/pool"},
+            {"scope": "cv-search-profiles"},
+            {"resource_type": "CVSearchProfile"},
+            {"parent_id": other_sp},
+        ):
+            params = dict(user_id=user, tenant_id=TENANT,
+                          partner_app_id=PARTNER_APP, issuer=ISSUER,
+                          scope="ats-search-profiles",
+                          resource_type="ATSSearchProfile",
+                          parent_id=sp_id, limit=1)
+            params.update(kwargs)
+            with self.assertRaises(CursorError):
+                self.repo.resolve_cursor(token, **params)
+
+    def test_tampered_legacy_and_expired_are_rejected(self):
+        user = _uid("user")
+        _, sp_id = self._setup_page(user)
+        _, key = self.repo.list_by_parent(
+            sp_id, user, TENANT, "ATSSearchProfile",
+            partner_app_id=PARTNER_APP, issuer=ISSUER, limit=1)
+        token = self._issue(key, user, sp_id)
+        tampered = token[:-1] + ("A" if token[-1] != "A" else "B")
+        with self.assertRaises(CursorError):
+            self._resolve(tampered, user, sp_id)
+        with self.assertRaises(CursorError):
+            self._resolve("eyJyZXNvdXJjZUlkIjoieCJ9", user, sp_id)
+        item_key = cursor_item_key(token)
+        self.dynamodb.Table(self.table_name).update_item(
+            Key={"resourceId": item_key},
+            UpdateExpression="SET expiresAt = :past",
+            ExpressionAttributeValues={":past": 1})
+        with self.assertRaises(CursorError):
+            self._resolve(token, user, sp_id)
+        self.assertIsNone(self.repo._get_raw(item_key))
+
+    def test_other_users_cursor_does_not_expose_data(self):
+        user = _uid("user")
+        intruder = _uid("user")
+        _, sp_id = self._setup_page(user)
+        _, key = self.repo.list_by_parent(
+            sp_id, user, TENANT, "ATSSearchProfile",
+            partner_app_id=PARTNER_APP, issuer=ISSUER, limit=1)
+        token = self._issue(key, user, sp_id)
+        with self.assertRaises(CursorError):
+            self._resolve(token, intruder, sp_id)
+        items, _ = self.repo.list_by_parent(
+            sp_id, intruder, TENANT, "ATSSearchProfile",
+            partner_app_id=PARTNER_APP, issuer=ISSUER, limit=1)
+        self.assertEqual([], items)
 
 
 class TestGsiPagination(DynamoDbLocalBase):

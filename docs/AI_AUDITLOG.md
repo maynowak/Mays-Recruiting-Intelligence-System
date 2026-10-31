@@ -8168,3 +8168,36 @@ Classification: GREEN with PARTIAL F-5 (counter backfill/reconciliation OPEN)
 Current resume point:
   - F-5 delete path safe; offline counter reconciliation and R07-B remain.
   - F-6, P1-1, R08 unchanged.
+
+[RIS-PARTNER-PROFILE-R07-FIX-04-SECURE-CURSORS]
+Current status: COMPLETE - F-6 secure pagination cursors implemented.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Old cursors were base64(JSON(LastEvaluatedKey)) with no confidentiality,
+    binding or expiry. They are now rejected as invalid.
+  - Chosen design: 256-bit random server-side token (rp1_ prefix), stored as a
+    CursorToken item in the existing partner_profiles table. The raw token is
+    not stored, only its SHA256 key. AES-GCM was rejected because the Lambda
+    bundle builder packages only Python sources (no native wheels) and no
+    cursor key management exists.
+  - Binding: exact userId/tenantId/partnerApplicationId/issuer plus SHA256
+    digest of scope/resourceType/parentId. Page size is intentionally not
+    bound; clients may omit limit on continuation.
+  - TTL 15 minutes, explicit expiresAt check, best-effort delete on expiry;
+    table TTL already enabled. No secret, no new table, no new IAM, no new
+    dependency, no packaging change.
+  - Errors: invalid/expired/mismatch/legacy/oversize -> 400 Invalid cursor;
+    store read/write failure -> 500. Normal authorization is always rechecked.
+  - Tests: 31 cursor security/API tests + 4 DynamoDB Local cursor tests
+    (33 local total). Base: 575 passed, 29 skipped. Venv+local: 608 passed.
+  - F-5 remains PARTIAL (counter reconciliation); P1-1 and R08 unchanged.
+Evidence / file references:
+  - jobsearch/partner_profile_cursor.py
+  - jobsearch/partner_profile_repository.py
+  - lambda/handler.py
+  - tests/test_partner_profile_cursor_security.py
+  - tests/integration/test_partner_profile_dynamodb_local.py
+  - docs/reports/RIS-PARTNER-PROFILE-R07-FIX-04-SECURE-CURSORS.md
+Classification: GREEN
+Current resume point:
+  - F-6 closed. R07-B not started; no AWS mutation.

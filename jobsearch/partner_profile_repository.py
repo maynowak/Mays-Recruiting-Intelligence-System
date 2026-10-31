@@ -111,8 +111,10 @@ COUNTER_PREFIX: Dict[str, str] = {
 # Internal bookkeeping items that must never be returned as profile resources.
 IDEMPOTENCY_RESOURCE_TYPE = "IdempotencyRecord"
 LIFECYCLE_RESOURCE_TYPE = "LifecycleGuard"
+CURSOR_RESOURCE_TYPE = "CursorToken"
 SYSTEM_RESOURCE_TYPES = frozenset({
     CAPACITY_RESOURCE_TYPE, IDEMPOTENCY_RESOURCE_TYPE, LIFECYCLE_RESOURCE_TYPE,
+    CURSOR_RESOURCE_TYPE,
 })
 
 LIFECYCLE_ACTIVE = "active"
@@ -942,6 +944,32 @@ class PartnerProfileRepository:
             if obj is not None:
                 items.append(obj)
         return items, resp.get("LastEvaluatedKey")
+
+    def issue_cursor(self, last_evaluated_key: Dict[str, Any], *,
+                     user_id: str, tenant_id: str,
+                     partner_app_id: Optional[str] = None,
+                     issuer: Optional[str] = None,
+                     scope: str, resource_type: str,
+                     parent_id: Optional[str] = None,
+                     limit: int = 50) -> str:
+        from jobsearch.partner_profile_cursor import CursorStore
+        return CursorStore(self.table, self.table_name).issue(
+            last_evaluated_key, user_id=user_id, tenant_id=tenant_id,
+            partner_app_id=partner_app_id, issuer=issuer, scope=scope,
+            resource_type=resource_type, parent_id=parent_id, limit=limit)
+
+    def resolve_cursor(self, token: str, *,
+                       user_id: str, tenant_id: str,
+                       partner_app_id: Optional[str] = None,
+                       issuer: Optional[str] = None,
+                       scope: str, resource_type: str,
+                       parent_id: Optional[str] = None,
+                       limit: int = 50) -> Dict[str, Any]:
+        from jobsearch.partner_profile_cursor import CursorStore
+        return CursorStore(self.table, self.table_name).resolve(
+            token, user_id=user_id, tenant_id=tenant_id,
+            partner_app_id=partner_app_id, issuer=issuer, scope=scope,
+            resource_type=resource_type, parent_id=parent_id, limit=limit)
 
     def _get_raw(self, resource_id: str) -> Optional[Dict[str, Any]]:
         if self.table is None:

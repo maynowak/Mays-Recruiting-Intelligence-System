@@ -482,20 +482,38 @@ class TestTransactionShape(unittest.TestCase):
         self.assertEqual([], items)
 
 
-class TestCursorEncoding(unittest.TestCase):
-    """R07-G0 characterization of the existing cursor (finding C-1)."""
+class TestLegacyCursorRejected(unittest.TestCase):
+    """R07-FIX-04: old unsigned Base64 cursors are no longer trusted."""
 
-    def test_cursor_roundtrips(self):
-        cursor = {"resourceId": "ats-1", "parentId": "sp-1"}
-        self.assertEqual(cursor, h._decode_cursor(h._encode_cursor(cursor)))
-        self.assertEqual("invalid", h._decode_cursor("not-base64-!!"))
+    def test_legacy_base64_cursor_is_rejected(self):
+        legacy = base64.urlsafe_b64encode(
+            json.dumps({"resourceId": "internal-key"}).encode()).decode()
+        harness = _CursorHarness()
+        self.assertEqual("invalid", h._decode_cursor(
+            legacy, repo=harness.repo, ctx=harness.ctx,
+            scope="ats-search-profiles", resource_type="ATSSearchProfile",
+            parent_id="sp-1", limit=1))
 
-    def test_cursor_is_encoded_but_not_encrypted(self):
-        raw = {"resourceId": "internal-key"}
-        encoded = h._encode_cursor(raw)
-        self.assertNotIn("internal-key", encoded)
-        decoded = json.loads(base64.urlsafe_b64decode(encoded.encode()))
-        self.assertEqual(raw, decoded)
+    def test_new_cursor_does_not_expose_internal_key(self):
+        harness = _CursorHarness()
+        token = harness.repo.issue_cursor(
+            {"resourceId": "internal-key"}, user_id=USER, tenant_id=TENANT,
+            partner_app_id=PARTNER_APP, issuer=ISSUER,
+            scope="ats-search-profiles", resource_type="ATSSearchProfile",
+            parent_id="sp-1", limit=1)
+        self.assertTrue(token.startswith("rp1_"))
+        self.assertNotIn("internal-key", token)
+        self.assertNotIn("resourceId", token)
+
+
+class _CursorHarness:
+    def __init__(self):
+        self.dynamo = FakeDynamo()
+        self.repo = PartnerProfileRepository(table_name="ris-cursor-test")
+        self.repo._table = self.dynamo
+        self.repo._client = self.dynamo
+        self.ctx = {"userId": USER, "tenantId": TENANT,
+                    "partnerApplicationId": PARTNER_APP, "issuer": ISSUER}
 
 
 class TestPollingHelper(unittest.TestCase):

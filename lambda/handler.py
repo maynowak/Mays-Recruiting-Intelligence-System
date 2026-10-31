@@ -3605,21 +3605,30 @@ def _partner_storage_guard(call, *args):
         return _storage_error()
 
 
-def _decode_cursor(raw):
+def _decode_cursor(raw, *, repo, ctx, scope, resource_type,
+                   parent_id=None, limit=50):
     if not raw:
         return None
+    from jobsearch.partner_profile_cursor import CursorError
     try:
-        import base64
-        return json.loads(base64.urlsafe_b64decode(raw.encode()).decode())
-    except Exception:
+        return repo.resolve_cursor(
+            raw, user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+            partner_app_id=ctx.get('partnerApplicationId'),
+            issuer=ctx.get('issuer'), scope=scope,
+            resource_type=resource_type, parent_id=parent_id, limit=limit)
+    except CursorError:
         return 'invalid'
 
 
-def _encode_cursor(cursor):
+def _encode_cursor(cursor, *, repo, ctx, scope, resource_type,
+                   parent_id=None, limit=50):
     if not cursor:
         return None
-    import base64
-    return base64.urlsafe_b64encode(json.dumps(cursor).encode()).decode()
+    return repo.issue_cursor(
+        cursor, user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+        partner_app_id=ctx.get('partnerApplicationId'),
+        issuer=ctx.get('issuer'), scope=scope,
+        resource_type=resource_type, parent_id=parent_id, limit=limit)
 
 
 def _handle_manual_profile_collection(event, context, method):
@@ -3641,23 +3650,30 @@ def _manual_profile_list(event, ctx):
     except (TypeError, ValueError):
         limit = _MANUAL_PROFILE_PAGE_LIMIT
     limit = max(1, min(limit, _MANUAL_PROFILE_PAGE_LIMIT))
-    cursor = _decode_cursor(params.get('cursor'))
-    if cursor == 'invalid':
-        return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid cursor'})}
-
     repo = _manual_profile_repo()
     try:
+        cursor = _decode_cursor(
+            params.get('cursor'), repo=repo, ctx=ctx,
+            scope='manual-search-profiles',
+            resource_type='ManualSearchProfile', limit=limit)
+        if cursor == 'invalid':
+            return {'statusCode': 400,
+                    'body': json.dumps({'error': 'Invalid cursor'})}
         items, next_cursor = repo.list_by_user(
             ctx['userId'], ctx['tenantId'], resource_type='ManualSearchProfile',
             partner_app_id=ctx.get('partnerApplicationId'),
             issuer=ctx.get('issuer'), limit=limit, cursor=cursor)
+        next_token = _encode_cursor(
+            next_cursor, repo=repo, ctx=ctx,
+            scope='manual-search-profiles',
+            resource_type='ManualSearchProfile', limit=limit)
     except Exception:
         logger.error('manual profile list failed')
         return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
 
     return {'statusCode': 200, 'body': json.dumps({
         'items': [_serialize_manual_profile(p) for p in items],
-        'nextCursor': _encode_cursor(next_cursor),
+        'nextCursor': next_token,
     }, ensure_ascii=False)}
 
 
@@ -4466,21 +4482,28 @@ def _cv_search_profile_list(event, ctx, cv_id):
     except (TypeError, ValueError):
         limit = 50
     limit = max(1, min(limit, 50))
-    cursor = _decode_cursor(params.get('cursor'))
-    if cursor == 'invalid':
-        return _cv_error(400, 'Invalid cursor')
     repo = _cv_repo()
     try:
+        cursor = _decode_cursor(
+            params.get('cursor'), repo=repo, ctx=ctx,
+            scope='cv-search-profiles', resource_type='CVSearchProfile',
+            parent_id=cv_id, limit=limit)
+        if cursor == 'invalid':
+            return _cv_error(400, 'Invalid cursor')
         items, next_cursor = repo.list_by_parent(
             cv_id, ctx['userId'], ctx['tenantId'], 'CVSearchProfile',
             partner_app_id=ctx.get('partnerApplicationId'),
             issuer=ctx.get('issuer'), limit=limit, cursor=cursor)
+        next_token = _encode_cursor(
+            next_cursor, repo=repo, ctx=ctx,
+            scope='cv-search-profiles', resource_type='CVSearchProfile',
+            parent_id=cv_id, limit=limit)
     except Exception:
         logger.error('cv search profile list failed')
         return _cv_error(500, 'Internal error')
     return {'statusCode': 200, 'body': json.dumps({
         'items': [_serialize_cv_search_profile(p) for p in items],
-        'nextCursor': _encode_cursor(next_cursor),
+        'nextCursor': next_token,
     }, ensure_ascii=False)}
 
 
@@ -4797,21 +4820,28 @@ def _ats_list(event, ctx, repo, search_profile_id):
     except (TypeError, ValueError):
         limit = 50
     limit = max(1, min(limit, 50))
-    cursor = _decode_cursor(params.get('cursor'))
-    if cursor == 'invalid':
-        return _cv_error(400, 'Invalid cursor')
     try:
+        cursor = _decode_cursor(
+            params.get('cursor'), repo=repo, ctx=ctx,
+            scope='ats-search-profiles', resource_type='ATSSearchProfile',
+            parent_id=search_profile_id, limit=limit)
+        if cursor == 'invalid':
+            return _cv_error(400, 'Invalid cursor')
         items, next_cursor = repo.list_by_parent(
             search_profile_id, ctx['userId'], ctx['tenantId'],
             'ATSSearchProfile',
             partner_app_id=ctx.get('partnerApplicationId'),
             issuer=ctx.get('issuer'), limit=limit, cursor=cursor)
+        next_token = _encode_cursor(
+            next_cursor, repo=repo, ctx=ctx,
+            scope='ats-search-profiles', resource_type='ATSSearchProfile',
+            parent_id=search_profile_id, limit=limit)
     except Exception:
         logger.error('ats list failed')
         return _cv_error(500, 'Internal error')
     return {'statusCode': 200, 'body': json.dumps({
         'items': [_serialize_ats_profile(p) for p in items],
-        'nextCursor': _encode_cursor(next_cursor),
+        'nextCursor': next_token,
     }, ensure_ascii=False)}
 
 
