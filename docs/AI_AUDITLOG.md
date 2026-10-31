@@ -7754,3 +7754,19 @@ Recommended next actions:
    - Perform live smoke test
 Current resume point:
    - Audit complete
+
+[RIS-PARTNER-PROFILE-R01-CONTRACT-FOUNDATION]
+Current status: COMPLETE — persistenzneutrale Contract-/Validierungsschicht v1 implementiert.
+Audit date/time: 2026-10-31
+Audit scope: R01 Contract Foundation, keine AWS-/Terraform-Ausführung, keine API-Routen.
+Actual findings:
+  - Neue Datei jobsearch/partner_profile_contract.py mit 6 Ressourcentypen und v1-Schema.
+  - Tests tests/unit/jobsearch/test_partner_profile_contract.py: 35/35 PASS.
+  - MO-Pin unverändert 1dbb0cb4.
+Evidence / file references:
+  - jobsearch/partner_profile_contract.py
+  - tests/unit/jobsearch/test_partner_profile_contract.py
+  - docs/reports/RIS-PARTNER-PROFILE-R01-CONTRACT-FOUNDATION.md
+Classification: GREEN
+Current resume point:
+  - R01 abgeschlossen; R02 nicht begonnen.
