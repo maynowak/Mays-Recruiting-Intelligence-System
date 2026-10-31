@@ -8201,3 +8201,34 @@ Evidence / file references:
 Classification: GREEN
 Current resume point:
   - F-6 closed. R07-B not started; no AWS mutation.
+
+[RIS-PARTNER-PROFILE-R07-B-G0-AWS-E2E-READINESS]
+Current status: G0 COMPLETE - R07-B BLOCKED by isolation/IAM/test-identity prerequisites.
+Audit date/time: 2026-10-31
+Actual findings:
+  - No AWS calls/mutations; no apply/plan with provider refresh.
+  - Root always deploys module.mays_orders + orders_reader; no RIS-only
+    switch. A fully isolated RIS-only E2E is therefore not supported without
+    an explicit decision or a RIS-only root/flag.
+  - IAM lambda_dynamodb_partner_profiles lacks dynamodb:Scan, but the F-5
+    legacy child scan uses Scan. Legacy delete would fail with AccessDenied in
+    AWS. Fresh resources are unaffected.
+  - Package smoke: agent bundle 64 files, 0.73 MB, cursor/repository modules
+    present, no tests/venv/secrets; import works without boto3. Runtime 3.14.
+  - 24 /v1/partner/* routes (23 profile/CV + 1 agent), 54 routes total, JWT
+    human/m2m; no wildcard proxies.
+  - 608 local tests pass incl. 33 DynamoDB Local; Terraform fmt/validate and
+    OpenAPI pass.
+  - Test account 240571105849 / eu-central-1 is documented but not verified;
+    no synthetic users/partners/credentials exist (and were not created).
+  - F-5 PARTIAL (counter reconciliation + Scan IAM), P1-1 OPEN (CVDocument
+    filename/size/status vs Jobsearch v1), R08 OPEN.
+Evidence / file references:
+  - docs/reports/RIS-PARTNER-PROFILE-R07-B-G0-AWS-E2E-READINESS.md
+  - terraform/main.tf, terraform/modules/lambda/main.tf
+  - lambda/build_zip.py
+Classification: AMBER - prepared, cloud execution blocked
+Current resume point:
+  - Decide Orders scope, fix/waive dynamodb:Scan for legacy path, verify
+    account/region/global names, provision test identities after approval.
+  - Do not start R07-B until gate is unblocked.
