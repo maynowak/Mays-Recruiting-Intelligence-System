@@ -7876,3 +7876,24 @@ Evidence / file references:
 Classification: GREEN
 Current resume point:
   - R04 abgeschlossen; R05 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R05G0-CONTRACT-RECONCILIATION]
+Current status: COMPLETE — Vertragsabgleich R01-R04 vs. Jobsearch v1; R05-CRUD BLOCKED.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Jobsearch origin/main = ad9b5ed (Contracts gelesen, read-only).
+  - P0-1: schemaVersion "v1" (String) vs. Contract 1 (Integer).
+  - P0-2: searchConfig fehlt; skills (String) und radiusKm (nullable) ohne
+    Speicherfeld; city->locations[], targetRoles->roles. Datenverlust.
+  - P1-1..P1-6: CVDocument-Naming/Status, CVSearchProfile-Shape,
+    ATS-criteria, employmentTypes-Superset, fehlender Child-Delete-Guard,
+    fehlende Create-Idempotenz.
+  - Neue Reconciliation-Tests: 28/28 PASS; R01-R04-Regression 312/312 PASS.
+  - R04-CV-Delete erzeugt heute keine Live-Orphans (keine Kind-Routen), ist
+    aber vor R05-Freischaltung mit einem 409-Kind-Guard zu haerten.
+Evidence / file references:
+  - docs/reports/RIS-PARTNER-PROFILE-R05-G0-CONTRACT-RECONCILIATION.md
+  - tests/test_partner_profile_contract_reconciliation.py
+Classification: YELLOW
+Current resume point:
+  - R05-G0 abgeschlossen; R05-CRUD nicht begonnen (BLOCKED durch P0-1/P0-2).
