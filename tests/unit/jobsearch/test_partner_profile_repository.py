@@ -123,6 +123,19 @@ class _FakeTransactClient:
                     cond = put.get("ConditionExpression", "")
                     if "attribute_not_exists(resourceId)" in cond and rid in self.resources:
                         raise self._cancelled("ConditionalCheckFailed: resource exists")
+                if "Update" in action:
+                    upd = action["Update"]
+                    key = upd["Key"]["resourceId"]["S"]
+                    cond = upd.get("ConditionExpression", "")
+                    vals = upd.get("ExpressionAttributeValues", {})
+                    item = self.resources.get(key)
+                    if cond:
+                        if item is None:
+                            raise self._cancelled("ConditionalCheckFailed: item missing")
+                        if "count < :max" in cond and item.get("count", 0) >= int(vals[":max"]["N"]):
+                            raise self._cancelled("ConditionalCheckFailed: count >= max")
+                        if "count > :zero" in cond and item.get("count", 0) <= int(vals[":zero"]["N"]):
+                            raise self._cancelled("ConditionalCheckFailed: count <= 0")
                 if "Delete" in action:
                     dele = action["Delete"]
                     key = dele["Key"]["resourceId"]["S"]
@@ -483,6 +496,79 @@ class TestConflictsAndNegatives(BaseRepo):
     def test_reserved_id_prefix_rejected(self):
         with self.assertRaises(ValueError):
             self.repo.create(_cv(cv_id="capacity#CV#u1"), user_id="u1", tenant_id="t1")
+
+
+# --------------------------------------------------------------------------- #
+# Transaction structure (AWS DynamoDB compatibility)
+# --------------------------------------------------------------------------- #
+
+class TestTransactionStructure(BaseRepo):
+    def _last_transact(self):
+        self.assertTrue(self.client.calls, "no transaction was issued")
+        return self.client.calls[-1]
+
+    def _action_key(self, action):
+        for kind in ("ConditionCheck", "Put", "Update", "Delete"):
+            if kind in action:
+                body = action[kind]
+                key = body.get("Key", {}).get("resourceId", {}).get("S")
+                if key is None and kind == "Put":
+                    key = body.get("Item", {}).get("resourceId", {}).get("S")
+                return kind, key
+        return None, None
+
+    def test_no_two_actions_target_same_item(self):
+        self.repo.create(_cv(), user_id="u1", tenant_id="t1")
+        items = self._last_transact()
+        seen = set()
+        for action in items:
+            kind, key = self._action_key(action)
+            self.assertIsNotNone(key)
+            pair = (key, "item")
+            self.assertNotIn(pair, seen, f"duplicate action on item {key}: {kind}")
+            seen.add(pair)
+
+    def test_capacity_condition_is_on_counter_update(self):
+        self.repo.create(_cv(), user_id="u1", tenant_id="t1")
+        items = self._last_transact()
+        # exactly one Update on the counter and no separate ConditionCheck there
+        updates = [a["Update"] for a in items if "Update" in a]
+        self.assertEqual(len(updates), 1)
+        upd = updates[0]
+        self.assertIn("count < :max", upd["ConditionExpression"])
+        self.assertIn("count = count + :inc", upd["UpdateExpression"])
+        self.assertIn(":max", upd["ExpressionAttributeValues"])
+        # no ConditionCheck action at all for the counter
+        checks = [a for a in items if "ConditionCheck" in a]
+        self.assertEqual(checks, [])
+
+    def test_create_transaction_targets_distinct_items(self):
+        # CV: counter + resource, distinct keys
+        self.repo.create(_cv(cv_id="cv1"), user_id="u1", tenant_id="t1")
+        items = self._last_transact()
+        keys = [self._action_key(a)[1] for a in items]
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_delete_transaction_condition_on_counter_update(self):
+        self.repo.create(_cv(), user_id="u1", tenant_id="t1")
+        self.repo.delete("cv1", "u1", "t1")
+        items = self._last_transact()
+        updates = [a["Update"] for a in items if "Update" in a]
+        self.assertEqual(len(updates), 1)
+        self.assertIn("count > :zero", updates[0]["ConditionExpression"])
+
+    def test_all_actions_have_low_level_types(self):
+        self.repo.create(_cv(), user_id="u1", tenant_id="t1")
+        items = self._last_transact()
+        valid_types = {"S", "N", "B", "SS", "NS", "BS", "M", "L", "NULL", "BOOL"}
+        for action in items:
+            body = action.get("Put") or action.get("Update") or action.get("ConditionCheck") or action.get("Delete")
+            # Check expression values are typed
+            for val in (body.get("ExpressionAttributeValues") or {}).values():
+                self.assertTrue(set(val.keys()) & valid_types, f"untyped value: {val}")
+            if "Put" in action:
+                for val in action["Put"]["Item"].values():
+                    self.assertTrue(set(val.keys()) & valid_types, f"untyped item value: {val}")
 
 
 # --------------------------------------------------------------------------- #

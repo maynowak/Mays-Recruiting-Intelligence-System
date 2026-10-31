@@ -275,22 +275,19 @@ class PartnerProfileRepository:
         if rt in CAPACITY_RULES:
             max_count = CAPACITY_RULES[rt]
             ckey = self._capacity_key(rt, user_id, tenant_id, resource)
-            # Counter must exist before the transaction condition-checks it.
+            # Counter must exist before the transaction conditions it.
             self._ensure_counter(ckey)
-            transact_items.append({
-                "ConditionCheck": {
-                    "TableName": self.table_name,
-                    "Key": {"resourceId": {"S": ckey}},
-                    "ConditionExpression": "count < :max",
-                    "ExpressionAttributeValues": {":max": {"N": str(max_count)}},
-                }
-            })
+            # AWS rule: one action per item per transaction. The capacity
+            # condition is therefore on the counter Update itself (not a
+            # separate ConditionCheck on the same key).
             transact_items.append({
                 "Update": {
                     "TableName": self.table_name,
                     "Key": {"resourceId": {"S": ckey}},
+                    "ConditionExpression": "count < :max",
                     "UpdateExpression": "SET count = count + :inc, updatedAt = :now",
                     "ExpressionAttributeValues": {
+                        ":max": {"N": str(max_count)},
                         ":inc": {"N": "1"},
                         ":now": {"S": self._now()},
                     },

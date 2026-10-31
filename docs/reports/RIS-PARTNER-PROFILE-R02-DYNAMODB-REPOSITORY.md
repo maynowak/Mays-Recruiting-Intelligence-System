@@ -109,3 +109,53 @@ DynamoDB-Transaktionsverhalten (GSI-Eventual-Consistency, echte
 `TransactionCanceledException`-Payloads). Eine Integrationsprüfung gegen eine
 echte DynamoDB-Tabelle ist für R07 vorgemerkt. Dieser Nachweis ist daher
 **kein vollständiger Concurrency-PASS**, sondern ein Logik-/Unit-PASS.
+
+---
+
+## R02-R2 — DynamoDB Transaction Compatibility Check (Nachtrag)
+
+### Befund
+
+Die R02-R-Transaktion enthielt eine `ConditionCheck` **und** eine `Update`
+auf demselben Counter-Item (`capacity#...`). AWS DynamoDB erlaubt innerhalb
+einer `TransactWriteItems`-Anfrage nur **eine Aktion pro Item**; dies hätte
+zur Laufzeit eine `ValidationException` ausgelöst und die atomare
+Kapazitätsgrenze wäre nicht durchsetzbar gewesen.
+
+### Korrektur
+
+- Die separate `ConditionCheck`-Aktion wurde entfernt.
+- Die Kapazitätsbedingung (`count < :max`) ist jetzt Bestandteil der
+  `ConditionExpression` der Counter-`Update`-Aktion.
+- `Put` (Ressource) und `Update` (Counter) adressieren unterschiedliche
+  Item-Keys und bleiben atomar in einer Transaktion.
+- Delete dekrementiert den Counter mit `count > :zero` in der
+  `ConditionExpression` der `Update`-Aktion (keine separate Aktion).
+
+### Transaktionsstruktur (Ist)
+
+Create (kapazitätsbegrenzt):
+1. `Update` auf `capacity#CV|CVSP|ATS#<parent>` mit
+   `ConditionExpression = "count < :max"` und `count = count + :inc`
+2. `Put` auf `resourceId` mit `attribute_not_exists(resourceId)`
+
+Delete:
+1. `Delete` auf `resourceId` mit Identity-/Versionsbedingung
+2. `Update` auf `capacity#...` mit `count > :zero` und `count - 1`
+
+### Tests (Unit)
+
+- Neu: 5 Strukturtests (keine doppelten Item-Keys, Kapazitätsbedingung auf dem
+  Counter-Update, keine `ConditionCheck`-Aktion, Delete-Bedingung,
+  Low-Level-Typen).
+- `test_partner_profile_repository.py`: 33/33 PASS.
+- `test_partner_profile_contract.py`: 35/35 PASS.
+- Bestehende Partner-Regression: 75/75 PASS.
+- Gesamt: 143/143 PASS.
+
+### DynamoDB-Integration
+
+**NOT RUN** — in dieser Umgebung sind weder Java, Docker, DynamoDB Local noch
+boto3 verfügbar. Eine echte Transaktionsprüfung gegen DynamoDB-kompatible
+Laufzeit bleibt für R07 vorgemerkt. Unit-/Logiknachweis und Integrationsnachweis
+sind getrennt zu bewerten.

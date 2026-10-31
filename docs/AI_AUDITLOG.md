@@ -7805,3 +7805,23 @@ Evidence / file references:
 Classification: GREEN
 Current resume point:
   - R02-R abgeschlossen; R03 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R02R2-TRANSACTION-COMPATIBILITY]
+Current status: COMPLETE — DynamoDB-Transaktionsregel korrigiert.
+Audit date/time: 2026-10-31
+Actual findings:
+  - ConditionCheck und Update adressierten dasselbe Counter-Item (AWS verbietet
+    mehrere Aktionen pro Item) -> ValidationException-Risiko.
+  - Behoben: Kapazitätsbedingung in die ConditionExpression der Counter-Update-
+    Aktion integriert; keine ConditionCheck-Aktion mehr.
+  - Create: Update(Counter, count < :max) + Put(Ressource) auf getrennten Keys.
+  - Delete: Delete(Ressource) + Update(Counter, count > :zero) auf getrennten Keys.
+  - Tests: 33 Repository + 35 Contract + 75 Partner = 143 PASS.
+  - DynamoDB-Integration: NOT RUN (kein Java/Docker/DynamoDB Local/boto3).
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - tests/unit/jobsearch/test_partner_profile_repository.py
+  - docs/reports/RIS-PARTNER-PROFILE-R02-DYNAMODB-REPOSITORY.md
+Classification: GREEN
+Current resume point:
+  - R02-R2 abgeschlossen; R03 nicht begonnen.
