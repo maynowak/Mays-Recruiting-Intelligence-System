@@ -268,6 +268,38 @@ resource "aws_dynamodb_table" "partner_profiles" {
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
+resource "aws_dynamodb_table" "privacy_receipts" {
+  name         = "${var.project_name}-${var.environment}-privacy-receipts"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "receiptId"
+
+  attribute {
+    name = "receiptId"
+    type = "S"
+  }
+
+  attribute {
+    name = "scopeKey"
+    type = "S"
+  }
+
+  attribute {
+    name = "scopeSort"
+    type = "S"
+  }
+
+  # One immutable receipt per receiptId; the subject-scoped GSI provides the
+  # only list path. No TTL: retention policy is still REVIEW REQUIRED.
+  global_secondary_index {
+    name            = "gsi-subject"
+    hash_key        = "scopeKey"
+    range_key       = "scopeSort"
+    projection_type = "ALL"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
 output "work_items_table_name" {
   value = aws_dynamodb_table.work_items.name
 }

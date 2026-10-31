@@ -8267,3 +8267,60 @@ Evidence / file references:
 Classification: AMBER - contract ready, legal/erasure gaps open
 Current resume point:
   - R08-A can start; production release remains blocked. No AWS mutation.
+
+[RIS-R08-A1-PRIVACY-RECEIPT-STORAGE]
+Current status: COMPLETE (repository + infrastructure) - production writes fail-closed.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Baseline: branch feature/ris-partner-profile-persistence-v1, HEAD a38c510,
+    clean tracked tree, 39 untracked unchanged. No AWS calls/mutations.
+  - Storage decision: dedicated DynamoDB table
+    ${project}-${env}-privacy-receipts instead of a partner-profiles
+    namespace. PK receiptId, GSI gsi-subject (scopeKey HASH, scopeSort RANGE),
+    PAY_PER_REQUEST, no TTL. Separate IAM, retention and deletion domain; no
+    interaction with the 10/2/5 capacity counters, cursors or idempotency.
+  - scopeKey = SHA256(tenantRef|partnerApplicationRef|issuerRef|subjectRef);
+    scopeSort = recordedAt#receiptId. No raw identity tuple in keys and no
+    hierarchy/parentId.
+  - agents/ecosystem/privacy_receipt_journal.py: append_receipt/get_receipt/
+    list_receipts. Server-set recordedAt, conditional PutItem
+    (attribute_not_exists), contentHash excludes recordedAt, identical replay
+    returns the stored receipt, same ID with different payload raises
+    PrivacyReceiptConflict, no update/delete API, no scan in the normal path.
+  - Exact cross-user/tenant/partner/issuer isolation from verified context;
+    foreign or missing receipts map to NotFound. Pagination uses the R07 secure
+    cursor store (scope privacy-receipts, resource PrivacyReceipt, parent
+    scopeKey); invalid/foreign cursors raise InvalidCursor.
+  - IAM lambda_privacy_receipts allows only PutItem/GetItem/Query. Terraform
+    provisions the table, GSI, table name/ARN and root outputs; Lambda env sets
+    PRIVACY_RECEIPTS_TABLE and PRIVACY_RECEIPT_JOURNAL_ENABLED="false".
+  - Contract: added USER_PROFILE_UPDATED, PRIVACY_NOTICE_ACKNOWLEDGED (requires
+    notice version/digest) and PROFILE_DELETED. CONSENT_* already existed.
+    32 contract tests pass.
+  - Tests: 26 new journal unit/contract tests + 6 new DynamoDB Local tests
+    (39 local total). Full local regression with DynamoDB Local:
+    718 passed, 6 skipped (planned R08-A/B/C), 256 subtests.
+  - Terraform fmt -check on changed files PASS; terraform validate PASS with
+    only pre-existing warnings; git diff --check PASS.
+  - DynamoDB Local stopped, port 18000 closed, no test tables left.
+  - Docs: PRIVACY_RECEIPT_JOURNAL.md, updated PRIVACY_RECEIPT_V1.md event table,
+    R08_ROADMAP, capability contract, data inventory and this auditlog.
+  - Browser boundary: X-Api-Credential is a confidential ris_... bearer secret
+    (32 random bytes, SHA-256 lookup digest) and must never be in browser code,
+    localStorage, VITE_* or public config. Existing dual-auth retained; a
+    Jobsearch BFF/delegation or separate end-user auth gate is the documented
+    later option. No new browser auth implemented.
+Evidence / file references:
+  - agents/ecosystem/privacy_receipt_journal.py
+  - agents/ecosystem/privacy_receipt.py
+  - tests/test_privacy_receipt_journal.py
+  - tests/integration/test_partner_profile_dynamodb_local.py
+  - terraform/modules/dynamodb/main.tf
+  - terraform/modules/lambda/main.tf
+  - docs/privacy/PRIVACY_RECEIPT_JOURNAL.md
+  - docs/reports/RIS-R08-A1-PRIVACY-RECEIPT-STORAGE.md
+Classification: AMBER - storage ready, production writes and R08-A2 blocked
+Current resume point:
+  - Retention/legal policy approval required before enabling the journal.
+  - R08-A2 atomic emission and R08-B/C/D not started; R07-B remains BLOCKED.
+  - No AWS mutation, no deploy/apply/destroy.

@@ -158,6 +158,16 @@ variable "log_level" {
   default     = "INFO"
 }
 
+variable "privacy_receipts_table_name" {
+  description = "DynamoDB table name for the privacy receipt journal (R08-A1)"
+  type        = string
+}
+
+variable "privacy_receipts_table_arn" {
+  description = "DynamoDB table ARN for the privacy receipt journal (R08-A1)"
+  type        = string
+}
+
 variable "tags" {
   description = "Additional tags for resources"
   type        = map(string)

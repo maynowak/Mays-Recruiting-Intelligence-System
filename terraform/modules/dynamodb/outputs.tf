@@ -49,6 +49,18 @@ output "partner_profiles_table_arn" {
   value = aws_dynamodb_table.partner_profiles.arn
 }
 
+output "privacy_receipts_table_name" {
+  value = aws_dynamodb_table.privacy_receipts.name
+}
+
+output "privacy_receipts_table_arn" {
+  value = aws_dynamodb_table.privacy_receipts.arn
+}
+
+output "privacy_receipts_gsi_subject_arn" {
+  value = "${aws_dynamodb_table.privacy_receipts.arn}/index/gsi-subject"
+}
+
 # Partner Application Registry. The runtime Lambda resolves this table on every
 # authorized agent execution (agents/ecosystem/partner_registry.py reads
 # RIS_PARTNER_APPLICATIONS_TABLE); without it the registry lookup returns None

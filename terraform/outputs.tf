@@ -20,6 +20,16 @@ output "dynamodb_work_items_table_name" {
   value       = module.dynamodb.work_items_table_name
 }
 
+output "dynamodb_privacy_receipts_table_name" {
+  description = "Name of the privacy receipt journal table (R08-A1)."
+  value       = module.dynamodb.privacy_receipts_table_name
+}
+
+output "dynamodb_privacy_receipts_table_arn" {
+  description = "ARN of the privacy receipt journal table (R08-A1)."
+  value       = module.dynamodb.privacy_receipts_table_arn
+}
+
 output "dynamodb_work_items_table_arn" {
   description = "ARN of the DynamoDB work items table."
   value       = module.dynamodb.work_items_table_arn

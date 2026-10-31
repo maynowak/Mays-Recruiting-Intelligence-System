@@ -17,6 +17,7 @@ This inventory supersedes the shallow lists in `GDPR_DATA_INVENTORY.md` and
 | Idempotency records | RIS | safe retry | service operation | DynamoDB `partner-profiles` | 24 h | no | R08-C/TTL | server_verified | not in G5 |
 | Capacity counters | RIS | 10/2/5 limits | service operation | DynamoDB `partner-profiles` | until resource/parent gone | no | R08-C derive keys | server_verified | no direct user index |
 | Lifecycle guards | RIS | delete safety | service operation | DynamoDB `partner-profiles` | until operation ends | no | R08-C | server_verified | no direct user index |
+| Privacy receipts (journal) | RIS | operation/decision evidence | REVIEW REQUIRED | DynamoDB `privacy-receipts` | **no TTL; REVIEW REQUIRED** | read model R08-B | R08-C policy extension | server_verified | production writes disabled in R08-A1 |
 | Credentials / APIProfiles | RIS | machine auth | REVIEW REQUIRED | DynamoDB `credentials`, `api_profiles` | expiry/revocation | metadata export | G5 revokes; physical delete later | server_verified | registry remains |
 | Entitlements | RIS | agent access | REVIEW REQUIRED | DynamoDB `entitlements` | TTL `validUntil` | user export | TTL/erasure policy | server_verified | G5 retains |
 | Work items (non-terminal/terminal) | RIS | execution tracking | REVIEW REQUIRED | DynamoDB `work-items` | TTL 90 days (docs) | references only | G5 cancels non-terminal; terminal retained | server_verified | terminal payload retention |
@@ -41,8 +42,10 @@ This inventory supersedes the shallow lists in `GDPR_DATA_INVENTORY.md` and
   deletion.
 - Backups/PITR are not covered by application erasure.
 - Logs/audit retention is time-based, not subject-erasure-based.
-- No deletion ledger currently exists; the receipt journal is specified, not
-  implemented.
+- The receipt journal table has no TTL. Its retention/lösch rule is
+  **REVIEW REQUIRED** and production writes stay fail-closed
+  (`PRIVACY_RECEIPT_JOURNAL_ENABLED=false`) until approved. R08-A1 provides the
+  storage repository; no CRUD emission exists yet.
 
 ## Evidence levels by source
 

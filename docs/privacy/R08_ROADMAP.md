@@ -1,21 +1,35 @@
 # R08 Privacy Roadmap
 
-Status: **SPECIFIED**. R08-G0 implemented only the receipt contract and
-analysis. No privacy API, storage or new erasure code.
+Status: **R08-A1 IMPLEMENTED** (journal repository + infrastructure, writes
+fail-closed). R08-G0 implemented the receipt contract and analysis; R08-A2/B/C/D
+are not started. No public privacy API yet.
 
 ## R08-A — User evidence journal
 
-- Append-only receipt storage in the existing data layer (no new public table
-  without a storage review).
-- Emit server-verified events at the existing write points: profile create/
-  update, CV metadata create, cursor/erasure requests, credential revocation.
-- Identity binding: subject/tenant/partner/issuer; no CV text/prompts/tokens.
-- Read-only `privacy.receipts` and `privacy.request_status` contracts.
-- Contract tests for schema, binding, forbidden content, pagination and
-  tenant/partner isolation.
-- **Blocker to clear before start:** legal notice/consent wording and
-  retention references; storage retention decision. `REVIEW_REQUIRED` may be
-  used as an explicit placeholder, not a legal finding.
+### R08-A1 — Durable journal repository (COMPLETE)
+
+- Dedicated DynamoDB table `privacy-receipts` (PK `receiptId`, GSI
+  `gsi-subject` on `scopeKey`/`scopeSort`, no TTL).
+- `append_receipt` / `get_receipt` / `list_receipts` with validated
+  `PrivacyReceiptV1`, server timestamp, conditional insert, content-hash
+  idempotency, conflict rejection and secure bounded pagination.
+- Exact subject/tenant/partner/issuer isolation; IAM `PutItem`/`GetItem`/`Query`
+  only; no scan path.
+- `PRIVACY_RECEIPT_JOURNAL_ENABLED=false` until retention/legal policy is
+  approved; no CRUD emission and no public API in A1.
+- See `docs/reports/RIS-R08-A1-PRIVACY-RECEIPT-STORAGE.md`.
+
+### R08-A2 — Atomic integration and emission (BLOCKED)
+
+- Emit server-verified events at existing write points: profile create/
+  update/delete, CV storage confirmation, notice acknowledgement, consent.
+- DynamoDB profile mutation + receipt in one `TransactWriteItems` where
+  possible; S3/CV via verified status + durable outbox/reconciliation.
+- Read-only `privacy.receipts` and `privacy.request_status` contracts remain
+  R08-B.
+- **Blockers:** retention/legal policy approval, integration review, and the
+  browser/BFF delegation decision. `REVIEW_REQUIRED` remains an explicit
+  placeholder, not a legal finding.
 
 ## R08-B — Inspect/export and "Mein Datenschutz"
 
@@ -53,9 +67,11 @@ analysis. No privacy API, storage or new erasure code.
 ## Sequencing
 
 ```text
-R08-G0 (contract) -> R08-A (journal) -> R08-B (inspect/export/view)
+R08-G0 (contract) -> R08-A1 (journal repository)
+                  -> R08-A2 (atomic emission) -> R08-B (inspect/export/view)
                   -> R08-C (erasure) -> R08-D (cross-domain/legal)
 ```
 
-R08-A can start on the contract, but a production privacy release is blocked
-until R08-C/R08-D and legal review are complete.
+R08-A1 is complete as an internal, fail-closed repository. A production privacy
+release remains blocked until retention/legal review, R08-A2 integration and
+R08-C/R08-D are complete.

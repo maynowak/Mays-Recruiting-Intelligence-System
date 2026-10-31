@@ -1,8 +1,9 @@
 # RIS Privacy Capability Contract
 
-Status: **SPECIFIED**. No new public API, no new storage and no erasure code
-in R08-G0. The existing `POST /me/erasure` (G5) remains the only implemented
-account-level path.
+Status: **PARTIALLY IMPLEMENTED**. R08-A1 delivers the internal receipt journal
+repository and storage (production writes fail-closed); no public API, no
+inspect/export and no erasure code yet. The existing `POST /me/erasure` (G5)
+remains the only implemented account-level path.
 
 ## Domains and responsibilities
 
@@ -44,8 +45,27 @@ privacy.request_status(operationId, context) -> PrivacyOperationV1
   block the authorized erasure lifecycle; erasure uses an internal guarded
   path, not public cascade deletes.
 - `receipts` is append-only, paginated, identity-bound, and returns only the
-  `PrivacyReceiptV1` read model.
+  `PrivacyReceiptV1` read model. **R08-A1 provides the internal repository
+  only**; the public `privacy.receipts` read model/API is R08-B.
 - `request_status` is bound to the same identity and to the operation ID.
+
+## Receipt journal storage (R08-A1)
+
+- Dedicated DynamoDB table `privacy-receipts`; PK `receiptId`, GSI
+  `gsi-subject` (`scopeKey`/`scopeSort`), no TTL.
+- `append_receipt` is a conditional insert with server timestamp and
+  content-hash idempotency; same ID + different payload is rejected. There is
+  no update/delete method.
+- Exact subject/tenant/partner/issuer isolation from verified context; no
+  client-chosen `subjectRef`.
+- IAM is `PutItem`/`GetItem`/`Query` only; the normal read path uses PK/GSI, no
+  scan. Pagination uses the R07 secure cursor store bound to scope
+  `privacy-receipts`.
+- `PRIVACY_RECEIPT_JOURNAL_ENABLED=false` (default and Terraform env) keeps
+  production writes fail-closed until retention/legal policy and R08-A2
+  integration are approved.
+- See `docs/privacy/PRIVACY_RECEIPT_JOURNAL.md` and
+  `docs/reports/RIS-R08-A1-PRIVACY-RECEIPT-STORAGE.md`.
 
 ## Erasure scope (R08-C)
 

@@ -40,9 +40,11 @@ backup was erased. It records what RIS can evidence at the stated
 | Event | Required status | Evidence restriction |
 |---|---|---|
 | `PRIVACY_NOTICE_PRESENTED` | completed | server-verified presentation |
+| `PRIVACY_NOTICE_ACKNOWLEDGED` | completed | server-verified acknowledgement; notice version/digest required |
 | `CONSENT_GRANTED` / `CONSENT_WITHDRAWN` | completed | server-verified event; legal validity still REVIEW REQUIRED |
-| `CV_STORAGE_CONFIRMED` | completed | server-verified storage |
-| `PROFILE_CREATED` / `PROFILE_UPDATED` | completed | server-verified write |
+| `CV_STORAGE_CONFIRMED` | completed | server-verified storage after verification |
+| `USER_PROFILE_UPDATED` | completed | server-verified write |
+| `PROFILE_CREATED` / `PROFILE_UPDATED` / `PROFILE_DELETED` | completed | server-verified write/delete |
 | `AI_TRANSFER_REQUESTED` | requested | client_reported/requested/server_verified |
 | `AI_TRANSFER_CONFIRMED` | completed | **only** third_party_confirmed or server_verified |
 | `DATA_EXPORT_COMPLETED` | completed | server-verified export |

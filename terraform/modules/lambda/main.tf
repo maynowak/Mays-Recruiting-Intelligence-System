@@ -239,6 +239,29 @@ resource "aws_iam_role_policy" "lambda_dynamodb_partner_profiles" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_privacy_receipts" {
+  name = "${var.project_name}-${var.environment}-lambda-dynamodb-privacy-receipts"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:Query"
+        ]
+        Resource = [
+          var.privacy_receipts_table_arn,
+          "${var.privacy_receipts_table_arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_documents" {
   name = "${var.project_name}-${var.environment}-lambda-documents"
   role = aws_iam_role.lambda_execution.id
@@ -427,7 +450,11 @@ resource "aws_lambda_function" "agent" {
       # every authorized partner/M2M execution. Absent -> registry returns
       # None -> both partner routes fail closed with 403.
       RIS_PARTNER_APPLICATIONS_TABLE = var.partner_applications_table_name
-      LOG_LEVEL                      = var.log_level
+      PRIVACY_RECEIPTS_TABLE         = var.privacy_receipts_table_name
+      # R08-A1: durable journal is provisioned but writes stay fail-closed
+      # until the retention/legal policy and R08-A2 integration are approved.
+      PRIVACY_RECEIPT_JOURNAL_ENABLED = "false"
+      LOG_LEVEL                       = var.log_level
     }
   }
 
@@ -436,6 +463,7 @@ resource "aws_lambda_function" "agent" {
     aws_iam_role_policy.lambda_dynamodb_work,
     aws_iam_role_policy.lambda_dynamodb_jobsearch,
     aws_iam_role_policy.lambda_dynamodb_partner_profiles,
+    aws_iam_role_policy.lambda_privacy_receipts,
     aws_iam_role_policy.lambda_dynamodb_product,
     aws_iam_role_policy.lambda_dynamodb_partner_registry,
     aws_iam_role_policy.lambda_documents,

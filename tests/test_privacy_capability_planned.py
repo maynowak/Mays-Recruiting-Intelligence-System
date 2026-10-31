@@ -9,11 +9,11 @@ import unittest
 
 
 class TestPlannedPrivacyCapability(unittest.TestCase):
-    @unittest.skip("R08-A planned: receipt storage/read model not implemented")
+    @unittest.skip("R08-A1 internal repository exists; public privacy.receipts read model is R08-B")
     def test_receipts_are_identity_isolated(self):
         raise AssertionError("planned")
 
-    @unittest.skip("R08-A planned: append-only journal not implemented")
+    @unittest.skip("R08-A1 internal repository exists; CRUD emission is R08-A2")
     def test_receipt_journal_is_append_only(self):
         raise AssertionError("planned")
 

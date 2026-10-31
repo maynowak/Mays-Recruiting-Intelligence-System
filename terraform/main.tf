@@ -123,6 +123,8 @@ module "lambda" {
   # Partner profile persistence (R02/R03): manual search profile CRUD.
   partner_profiles_table_name = module.dynamodb.partner_profiles_table_name
   partner_profiles_table_arn  = module.dynamodb.partner_profiles_table_arn
+  privacy_receipts_table_name = module.dynamodb.privacy_receipts_table_name
+  privacy_receipts_table_arn  = module.dynamodb.privacy_receipts_table_arn
   user_profile_table_name     = module.dynamodb.user_profile_table_name
   agent_catalog_table_name    = module.dynamodb.agent_catalog_table_name
   entitlements_table_name     = module.dynamodb.entitlements_table_name

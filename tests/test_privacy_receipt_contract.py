@@ -215,6 +215,25 @@ class TestEvidenceRules(unittest.TestCase):
             data_categories=("cv_document", "audit_log"))
         self.assertEqual("partially_completed", item.status)
 
+    def test_new_v1_profile_events_are_supported(self):
+        for event, purpose in (
+            ("USER_PROFILE_UPDATED", "profile_management"),
+            ("PROFILE_DELETED", "privacy_request"),
+        ):
+            item = valid(event_type=event, purpose=purpose)
+            self.assertEqual(event, item.event_type)
+        self.assertEqual("completed",
+                         valid(event_type="PROFILE_DELETED",
+                               purpose="privacy_request").status)
+
+    def test_notice_acknowledgement_requires_notice_version_and_digest(self):
+        with self.assertRaises(PrivacyReceiptError):
+            valid(event_type="PRIVACY_NOTICE_ACKNOWLEDGED")
+        item = valid(event_type="PRIVACY_NOTICE_ACKNOWLEDGED",
+                     privacy_notice_version="v1",
+                     privacy_notice_digest=DIGEST)
+        self.assertEqual("PRIVACY_NOTICE_ACKNOWLEDGED", item.event_type)
+
     def test_event_status_must_match(self):
         with self.assertRaises(PrivacyReceiptError):
             valid(event_type="ERASURE_REQUESTED",

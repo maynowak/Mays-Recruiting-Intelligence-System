@@ -17,6 +17,7 @@ import time
 import unittest
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -31,6 +32,13 @@ from jobsearch.partner_profile_contract import (  # noqa: E402
 )
 from jobsearch.partner_profile_cursor import (  # noqa: E402
     CursorError, cursor_item_key,
+)
+from agents.ecosystem.privacy_receipt import (  # noqa: E402
+    PrivacyContextV1, PrivacyReceiptV1,
+)
+from agents.ecosystem.privacy_receipt_journal import (  # noqa: E402
+    PrivacyReceiptConflict, PrivacyReceiptInvalidCursor,
+    PrivacyReceiptJournal, PrivacyReceiptNotFound, scope_key,
 )
 from jobsearch.partner_profile_repository import (  # noqa: E402
     IDEMPOTENCY_TTL_SECONDS,
@@ -86,8 +94,14 @@ class DynamoDbLocalBase(unittest.TestCase):
                 f"{code}") from exc
         cls.table_name = new_test_table_name()
         cls._create_table()
+        cls.receipts_table_name = require_test_table_name(
+            cls.table_name + "-receipts")
+        cls._create_receipts_table()
         cls.repo = PartnerProfileRepository(
             table_name=cls.table_name, dynamodb=cls.dynamodb)
+        cls.receipt_journal = PrivacyReceiptJournal(
+            table_name=cls.receipts_table_name, dynamodb=cls.dynamodb,
+            enabled=True, cursor_repo=cls.repo)
 
     @classmethod
     def _create_table(cls):
@@ -118,13 +132,38 @@ class DynamoDbLocalBase(unittest.TestCase):
             WaiterConfig={"Delay": 1, "MaxAttempts": 30})
 
     @classmethod
+    def _create_receipts_table(cls):
+        cls.dynamodb.create_table(
+            TableName=cls.receipts_table_name,
+            BillingMode="PAY_PER_REQUEST",
+            AttributeDefinitions=[
+                {"AttributeName": "receiptId", "AttributeType": "S"},
+                {"AttributeName": "scopeKey", "AttributeType": "S"},
+                {"AttributeName": "scopeSort", "AttributeType": "S"},
+            ],
+            KeySchema=[{"AttributeName": "receiptId", "KeyType": "HASH"}],
+            GlobalSecondaryIndexes=[
+                {"IndexName": "gsi-subject",
+                 "KeySchema": [
+                     {"AttributeName": "scopeKey", "KeyType": "HASH"},
+                     {"AttributeName": "scopeSort", "KeyType": "RANGE"}],
+                 "Projection": {"ProjectionType": "ALL"}},
+            ],
+        )
+        cls.client.get_waiter("table_exists").wait(
+            TableName=cls.receipts_table_name,
+            WaiterConfig={"Delay": 1, "MaxAttempts": 30})
+
+    @classmethod
     def tearDownClass(cls):
-        # Guard again: only the dedicated test table may ever be dropped.
+        # Guard again: only the dedicated test tables may ever be dropped.
         require_test_table_name(cls.table_name)
-        try:
-            cls.client.delete_table(TableName=cls.table_name)
-        except Exception:  # pragma: no cover - best effort cleanup
-            pass
+        require_test_table_name(cls.receipts_table_name)
+        for name in (cls.table_name, cls.receipts_table_name):
+            try:
+                cls.client.delete_table(TableName=name)
+            except Exception:  # pragma: no cover - best effort cleanup
+                pass
 
     # helpers ---------------------------------------------------------- #
     def _cv(self, user, cv_id=None):
@@ -640,6 +679,127 @@ class TestSecureCursorPagination(DynamoDbLocalBase):
             sp_id, intruder, TENANT, "ATSSearchProfile",
             partner_app_id=PARTNER_APP, issuer=ISSUER, limit=1)
         self.assertEqual([], items)
+
+
+class TestPrivacyReceiptJournalLocal(DynamoDbLocalBase):
+    def _ctx(self, user):
+        return PrivacyContextV1(
+            user_id=user, tenant_id=TENANT,
+            partner_application_id=PARTNER_APP, issuer=ISSUER)
+
+    def _receipt(self, user, receipt_id=None, **overrides):
+        ctx = self._ctx(user)
+        data = dict(
+            receipt_id=receipt_id or f"rcpt_{uuid.uuid4().hex}",
+            subject_ref=ctx.user_id, tenant_ref=ctx.tenant_id,
+            partner_application_ref=ctx.partner_application_id,
+            issuer_ref=ctx.issuer,
+            event_type="PROFILE_CREATED", purpose="profile_management",
+            legal_basis_ref="REVIEW_REQUIRED",
+            privacy_notice_version=None, privacy_notice_digest=None,
+            data_categories=("cv_metadata",), processing_domain="ris",
+            operation_ref=f"op_{uuid.uuid4().hex}",
+            recorded_at=datetime.now(timezone.utc).isoformat(),
+            status="completed", retention_policy_ref="REVIEW_REQUIRED",
+            evidence_level="server_verified", schema_version=1)
+        data.update(overrides)
+        return PrivacyReceiptV1(**data)
+
+    def test_append_and_get_real_table(self):
+        user = _uid("user")
+        receipt = self.receipt_journal.append_receipt(
+            self._receipt(user), self._ctx(user))
+        stored = self.receipt_journal.get_receipt(
+            receipt.receipt_id, self._ctx(user))
+        self.assertEqual(receipt.receipt_id, stored.receipt_id)
+        item = self.dynamodb.Table(self.receipts_table_name).get_item(
+            Key={"receiptId": receipt.receipt_id},
+            ConsistentRead=True)["Item"]
+        self.assertEqual(scope_key(self._ctx(user)), item["scopeKey"])
+
+    def test_idempotent_replay_and_conflict(self):
+        user = _uid("user")
+        first = self._receipt(user, receipt_id=f"rcpt_{uuid.uuid4().hex}")
+        second = self._receipt(user, receipt_id=first.receipt_id,
+                               operation_ref=first.operation_ref)
+        self.assertEqual(
+            first.receipt_id,
+            self.receipt_journal.append_receipt(
+                first, self._ctx(user)).receipt_id)
+        self.assertEqual(
+            first.receipt_id,
+            self.receipt_journal.append_receipt(
+                second, self._ctx(user)).receipt_id)
+        with self.assertRaises(PrivacyReceiptConflict):
+            self.receipt_journal.append_receipt(
+                self._receipt(user, receipt_id=first.receipt_id,
+                              operation_ref=first.operation_ref,
+                              event_type="PROFILE_UPDATED"),
+                self._ctx(user))
+
+    def test_list_paginates_real_gsi(self):
+        user = _uid("user")
+        ids = []
+        for _ in range(3):
+            ids.append(self.receipt_journal.append_receipt(
+                self._receipt(user), self._ctx(user)).receipt_id)
+
+        def all_visible():
+            items, _ = self.receipt_journal.list_receipts(
+                self._ctx(user), limit=50)
+            return len(items) >= 3
+
+        self.assertTrue(_poll(all_visible), "receipt GSI did not converge")
+        first, cursor = self.receipt_journal.list_receipts(
+            self._ctx(user), limit=2)
+        self.assertEqual(2, len(first))
+        self.assertIsNotNone(cursor)
+        second, cursor2 = self.receipt_journal.list_receipts(
+            self._ctx(user), cursor=cursor, limit=2)
+        self.assertEqual(1, len(second))
+        self.assertIsNone(cursor2)
+        self.assertEqual(set(ids), {r.receipt_id for r in first + second})
+
+    def test_cross_identity_and_wrong_scope_cursor(self):
+        user = _uid("user")
+        other = _uid("user")
+        receipt = self.receipt_journal.append_receipt(
+            self._receipt(user), self._ctx(user))
+        with self.assertRaises(PrivacyReceiptNotFound):
+            self.receipt_journal.get_receipt(receipt.receipt_id,
+                                             self._ctx(other))
+        self.receipt_journal.append_receipt(
+            self._receipt(user), self._ctx(user))
+        _, cursor = self.receipt_journal.list_receipts(
+            self._ctx(user), limit=1)
+        with self.assertRaises(PrivacyReceiptInvalidCursor):
+            self.receipt_journal.list_receipts(self._ctx(other),
+                                               cursor=cursor)
+
+    def test_parallel_same_receipt_has_one_item(self):
+        user = _uid("user")
+        receipt = self._receipt(user, receipt_id=f"rcpt_{uuid.uuid4().hex}")
+        outcome = []
+        barrier = threading.Barrier(2)
+
+        def attempt():
+            barrier.wait()
+            try:
+                outcome.append(self.receipt_journal.append_receipt(
+                    receipt, self._ctx(user)).receipt_id)
+            except Exception as exc:  # noqa: BLE001
+                outcome.append(type(exc).__name__)
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            list(pool.map(lambda _: attempt(), range(2)))
+        self.assertEqual(1, len(set(outcome)), outcome)
+        self.assertEqual(receipt.receipt_id, outcome[0])
+
+    def test_table_has_no_ttl(self):
+        desc = self.client.describe_time_to_live(
+            TableName=self.receipts_table_name)
+        self.assertEqual("DISABLED",
+                         desc["TimeToLiveDescription"]["TimeToLiveStatus"])
 
 
 class TestGsiPagination(DynamoDbLocalBase):
