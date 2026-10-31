@@ -307,16 +307,20 @@ class TestCapacityContract(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------- #
-# P1-5: delete integrity precondition (specified, not implemented)
+# P1-5: delete integrity precondition (implemented in R05-A/R07-FIX-03)
 # --------------------------------------------------------------------------- #
 
-class TestDeleteIntegrityGap(unittest.TestCase):
-    def test_repository_delete_has_no_child_guard_yet(self):
+class TestDeleteIntegrityGuard(unittest.TestCase):
+    def test_repository_delete_enforces_child_guard(self):
         import inspect
         from jobsearch.partner_profile_repository import PartnerProfileRepository
         src = inspect.getsource(PartnerProfileRepository.delete)
-        self.assertNotIn("CVSearchProfile", src)
-        self.assertNotIn("list_by_parent", src)
+        self.assertIn("_CHILD_TYPE", src)
+        self.assertIn("attribute_exists(resourceId) AND #c = :zero", src)
+        self.assertIn("reserve_parent_delete", src)
+        reserve_src = inspect.getsource(
+            PartnerProfileRepository.reserve_parent_delete)
+        self.assertIn("_scan_children", reserve_src)
 
     def test_no_cascade_helper(self):
         import jobsearch.partner_profile_repository as repo

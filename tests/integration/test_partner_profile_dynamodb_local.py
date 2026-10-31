@@ -30,9 +30,11 @@ from jobsearch.partner_profile_contract import (  # noqa: E402
     ATSSearchProfile, CVDocument, CVSearchProfile, SearchConfiguration,
 )
 from jobsearch.partner_profile_repository import (  # noqa: E402
-    IDEMPOTENCY_TTL_SECONDS, MAX_ATS_PROFILES_PER_SEARCH_PROFILE,
+    IDEMPOTENCY_TTL_SECONDS,
+    MAX_ATS_PROFILES_PER_SEARCH_PROFILE,
     MAX_CVS_PER_USER, MAX_SEARCH_PROFILES_PER_CV,
-    PartnerProfileConflictError, PartnerProfileRepository,
+    PartnerProfileConflictError, PartnerProfileIntegrityError,
+    PartnerProfileRepository,
 )
 
 TENANT = "tenant-r07"
@@ -434,6 +436,99 @@ class TestIdempotency(DynamoDbLocalBase):
 # --------------------------------------------------------------------------- #
 # GSI / pagination
 # --------------------------------------------------------------------------- #
+
+class TestLegacyCounters(DynamoDbLocalBase):
+    def _drop(self, *keys):
+        table = self.dynamodb.Table(self.table_name)
+        for key in keys:
+            table.delete_item(Key={"resourceId": key})
+
+    def test_legacy_cv_without_children_recovery(self):
+        user = _uid("user")
+        cv_id = self._cv(user)
+        self._drop(f"capacity#CV#{user}", f"capacity#CVSP#{cv_id}")
+        reservation = self.repo.reserve_parent_delete(
+            cv_id, **_identity(user), child_type="CVSearchProfile")
+        self.assertTrue(reservation["legacy_scan_verified"])
+        self.assertTrue(reservation["own_counter_missing"])
+        self.assertTrue(self.repo.finalize_parent_delete(
+            reservation, **_identity(user)))
+        self.assertIsNone(self.repo.get(cv_id, **_identity(user)))
+        self.assertNotIn(f"lifecycle#CVDocument#{cv_id}",
+                         self._raw_keys())
+
+    def test_legacy_cv_with_child_is_refused(self):
+        user = _uid("user")
+        cv_id = self._cv(user)
+        sp_id = self._sp(user, cv_id)
+        self._drop(f"capacity#CV#{user}", f"capacity#CVSP#{cv_id}")
+        with self.assertRaises(PartnerProfileConflictError):
+            self.repo.reserve_parent_delete(
+                cv_id, **_identity(user), child_type="CVSearchProfile")
+        self.assertIsNotNone(self.repo.get(cv_id, **_identity(user)))
+        self.assertIsNotNone(self.repo.get(sp_id, **_identity(user)))
+        guard = self.repo._get_raw(f"lifecycle#CVDocument#{cv_id}")
+        self.assertEqual("active", guard.get("state"))
+
+    def test_legacy_cvsp_without_children_recovery(self):
+        user = _uid("user")
+        cv_id = self._cv(user)
+        sp_id = self._sp(user, cv_id)
+        self._drop(f"capacity#CVSP#{cv_id}", f"capacity#ATS#{sp_id}")
+        self.assertTrue(self.repo.delete(
+            sp_id, **_identity(user), child_type="ATSSearchProfile"))
+        self.assertIsNone(self.repo.get(sp_id, **_identity(user)))
+
+    def test_legacy_cvsp_with_child_is_refused(self):
+        user = _uid("user")
+        cv_id = self._cv(user)
+        sp_id = self._sp(user, cv_id)
+        ats_id = self._ats(user, sp_id, cv_id)
+        self._drop(f"capacity#CVSP#{cv_id}", f"capacity#ATS#{sp_id}")
+        with self.assertRaises(PartnerProfileConflictError):
+            self.repo.delete(sp_id, **_identity(user),
+                             child_type="ATSSearchProfile")
+        self.assertIsNotNone(self.repo.get(sp_id, **_identity(user)))
+        self.assertIsNotNone(self.repo.get(ats_id, **_identity(user)))
+
+    def test_legacy_ats_without_counter_deletes(self):
+        user = _uid("user")
+        cv_id = self._cv(user)
+        sp_id = self._sp(user, cv_id)
+        ats_id = self._ats(user, sp_id, cv_id)
+        self._drop(f"capacity#ATS#{sp_id}")
+        self.assertTrue(self.repo.delete(ats_id, **_identity(user)))
+        self.assertIsNone(self.repo.get(ats_id, **_identity(user)))
+        self.assertIsNone(self.repo._get_raw(f"capacity#ATS#{sp_id}"))
+
+    def test_non_numeric_counter_fails_closed(self):
+        user = _uid("user")
+        cv_id = self._cv(user)
+        self.dynamodb.Table(self.table_name).update_item(
+            Key={"resourceId": f"capacity#CV#{user}"},
+            UpdateExpression="SET #c = :bad",
+            ExpressionAttributeNames={"#c": "count"},
+            ExpressionAttributeValues={":bad": "oops"})
+        with self.assertRaises(PartnerProfileIntegrityError):
+            self.repo.reserve_parent_delete(
+                cv_id, **_identity(user), child_type="CVSearchProfile")
+        self.assertIsNotNone(self.repo.get(cv_id, **_identity(user)))
+
+    def _raw_keys(self):
+        table = self.dynamodb.Table(self.table_name)
+        items = []
+        start = None
+        while True:
+            kwargs = {"ConsistentRead": True}
+            if start:
+                kwargs["ExclusiveStartKey"] = start
+            resp = table.scan(**kwargs)
+            items.extend(resp.get("Items", []))
+            start = resp.get("LastEvaluatedKey")
+            if not start:
+                break
+        return [item["resourceId"] for item in items]
+
 
 class TestGsiPagination(DynamoDbLocalBase):
     def test_parent_list_is_eventually_consistent_and_paginates(self):

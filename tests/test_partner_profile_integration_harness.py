@@ -272,9 +272,13 @@ class TestApiRoutes(unittest.TestCase):
 
 
 class TestRepositoryStatic(unittest.TestCase):
-    def test_repository_never_scans(self):
+    def test_repository_never_scans_in_normal_crud(self):
         src = _read("jobsearch", "partner_profile_repository.py")
-        self.assertNotIn(".scan(", src)
+        # The only scan is the bounded, guard-held legacy counter recovery.
+        self.assertEqual(1, src.count(".scan("))
+        self.assertIn("def _scan_children(", src)
+        self.assertIn('"ConsistentRead": True', src)
+        self.assertIn("LEGACY_SCAN_MAX_PAGES", src)
 
     def test_repository_uses_both_gsis(self):
         src = _read("jobsearch", "partner_profile_repository.py")
@@ -297,7 +301,7 @@ class TestRepositoryStatic(unittest.TestCase):
         self.assertIn("attribute_not_exists(resourceId) OR #s = :gactive",
                       src)
         self.assertIn(
-            "attribute_not_exists(resourceId) OR #c = :zero", src)
+            "attribute_exists(resourceId) AND #c = :zero", src)
         self.assertIn("#s = :deleting", src)
         self.assertIn('"#c": "count"', src)
         self.assertIn('"#s": "state"', src)
@@ -430,13 +434,15 @@ class TestTransactionShape(unittest.TestCase):
         self.repo.create(_cv(), **IDENTITY)
         self.repo.create(_cvsp(), **IDENTITY)
         self.repo.create(_ats(), **IDENTITY)
-        # Refused reservation (child counter > 0) still has a well-formed body.
+        # A present non-zero child counter is rejected before any transaction
+        # or guard mutation.
         self.fake.calls.clear()
         with self.assertRaises(PartnerProfileConflictError):
             self.repo.reserve_parent_delete(
                 "sp-r07", **IDENTITY, child_type="ATSSearchProfile")
-        keys = [_action_key(a) for a in self.fake.calls[-1]]
-        self.assertEqual(len(keys), len(set(keys)), keys)
+        self.assertEqual([], self.fake.calls)
+        self.assertNotIn("lifecycle#CVSearchProfile#sp-r07",
+                         self.fake.resources)
         # A real reservation + finalize pair.
         self.repo.delete("ats-r07", **IDENTITY)
         self.fake.calls.clear()

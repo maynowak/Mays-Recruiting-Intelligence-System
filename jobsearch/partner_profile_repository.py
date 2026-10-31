@@ -123,6 +123,16 @@ LIFECYCLE_DELETING = "deleting"
 # correctness mechanism.
 IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60
 
+# Legacy resources created before the counter migration have no counter item.
+# They may only be deleted after a bounded, strongly-consistent full scan while
+# the parent lifecycle guard is held. Normal CRUD never scans.
+LEGACY_SCAN_MAX_PAGES = 50
+LEGACY_SCAN_MAX_ITEMS = 5000
+_CHILD_TYPE = {
+    "CVDocument": "CVSearchProfile",
+    "CVSearchProfile": "ATSSearchProfile",
+}
+
 # Bounded retries for *explicit* DynamoDB transaction conflicts. Lambda timeout
 # is 30s; 3 attempts and a ~1s total budget leave ample headroom and cannot
 # accumulate into a long request. Only TransactionConflict/Throttling reasons
@@ -176,6 +186,14 @@ class PartnerProfileReadError(Exception):
 
 class PartnerProfileConflictError(Exception):
     pass
+
+
+class PartnerProfileIntegrityError(PartnerProfileConflictError):
+    """Counter state cannot prove child-freedom or is inconsistent.
+
+    Subclasses ``PartnerProfileConflictError`` so existing 409 mappings remain
+    safe; delete handlers map it to a distinct, generic integrity message.
+    """
 
 
 class PartnerProfileTransientError(Exception):
@@ -408,6 +426,96 @@ class PartnerProfileRepository:
         parent_id = self._parent_id(resource) or user_id
         return self._counter_key(rt, parent_id)
 
+    def _own_counter_key(self, raw: Dict[str, Any]) -> Optional[str]:
+        rt = raw.get("resourceType")
+        if rt not in CAPACITY_RULES:
+            return None
+        parent_id = raw.get("parentId") or raw.get("userId")
+        if not parent_id:
+            return None
+        return self._counter_key(rt, parent_id)
+
+    def _counter_state(self, key: Optional[str]) -> Tuple[str, Optional[int]]:
+        """Return (``ok``|``missing``|``invalid``, value).
+
+        ``missing`` is never interpreted as zero by callers.
+        """
+        if not key:
+            return "missing", None
+        item = self._get_raw(key)
+        if item is None:
+            return "missing", None
+        value = _normalize_numbers(item.get("count"))
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return "invalid", None
+        return "ok", value
+
+    def _counter_covers(self, raw: Dict[str, Any],
+                        key: Optional[str]) -> bool:
+        """Whether a counter was created before this resource.
+
+        This is *not* a child-freedom proof. It only decides whether the
+        counter can be assumed to include the resource (for decrement) or
+        whether a legacy scan is required. Ambiguous timestamps fail closed to
+        the "not covered" branch (skip decrement / scan); skipping a decrement
+        can only over-count, never allow capacity overrun.
+        """
+        if not key:
+            return False
+        item = self._get_raw(key)
+        if item is None:
+            return False
+        resource_created = raw.get("createdAt")
+        counter_created = item.get("createdAt")
+        if not resource_created or not counter_created:
+            return False
+        try:
+            return (datetime.fromisoformat(str(resource_created))
+                    >= datetime.fromisoformat(str(counter_created)))
+        except Exception:
+            return False
+
+    def _scan_children(self, parent_id: str, child_type: str) -> List[Dict[str, Any]]:
+        """Bounded strongly-consistent scan for children of one parent.
+
+        Only used by the legacy (missing-counter) delete path, after the parent
+        guard is set. It is not a table snapshot, but no new child can commit
+        while the guard is ``deleting``, and deletions only reduce the set, so
+        an empty full scan is a stable child-freedom proof. Any error, bound or
+        incomplete pagination fails closed.
+        """
+        pages = 0
+        scanned = 0
+        start = None
+        while True:
+            kwargs: Dict[str, Any] = {
+                "TableName": self.table_name,
+                "ConsistentRead": True,
+                "FilterExpression": "parentId = :p AND resourceType = :rt",
+                "ExpressionAttributeValues": {
+                    ":p": {"S": parent_id},
+                    ":rt": {"S": child_type},
+                },
+            }
+            if start:
+                kwargs["ExclusiveStartKey"] = start
+            try:
+                resp = self.client.scan(**kwargs)
+            except Exception as e:
+                logger.error("legacy child scan failed: %s", e)
+                raise PartnerProfileReadError("Child integrity scan failed") from e
+            items = resp.get("Items") or []
+            if items:
+                return items
+            pages += 1
+            scanned += int(resp.get("ScannedCount", 0) or 0)
+            start = resp.get("LastEvaluatedKey")
+            if not start:
+                return []
+            if pages >= LEGACY_SCAN_MAX_PAGES or scanned >= LEGACY_SCAN_MAX_ITEMS:
+                raise PartnerProfileIntegrityError(
+                    "Child integrity scan exceeded its safety bound")
+
     def _now_epoch(self) -> int:
         return int(time.time())
 
@@ -447,8 +555,9 @@ class PartnerProfileRepository:
             "TableName": self.table_name,
             "Key": {"resourceId": {"S": key}},
             "ConditionExpression": expression,
-            "ExpressionAttributeValues": values,
         }
+        if values:
+            check["ExpressionAttributeValues"] = values
         if names:
             check["ExpressionAttributeNames"] = names
         return {"ConditionCheck": check}
@@ -635,6 +744,12 @@ class PartnerProfileRepository:
             ckey = self._capacity_key(rt, user_id, tenant_id, resource)
             # Counter must exist before the transaction conditions it.
             self._ensure_counter(ckey)
+            # Establish the child counter at parent creation as well, so a
+            # modern parent with zero children has a provable counter instead
+            # of falling into the legacy scan path on delete.
+            child_type = _CHILD_TYPE.get(rt)
+            if child_type:
+                self._ensure_counter(self._counter_key(child_type, rid))
             # AWS rule: one action per item per transaction. The capacity
             # condition is therefore on the counter Update itself.
             capacity_index = len(transact_items)
@@ -884,6 +999,46 @@ class PartnerProfileRepository:
         if expected_version is not None and expected_version != cur_ver:
             raise PartnerProfileConflictError("Version conflict on delete")
         rt = raw.get("resourceType")
+        if child_type is None:
+            # Defence in depth for direct repository callers: a CV or a
+            # CVSearchProfile is a parent even if the caller omitted the type.
+            child_type = _CHILD_TYPE.get(rt)
+
+        own_counter_key = self._own_counter_key(raw)
+        if rt in CAPACITY_RULES and not own_counter_key:
+            raise PartnerProfileIntegrityError(
+                "Capacity counter key cannot be determined")
+        own_state, own_value = self._counter_state(own_counter_key)
+        if own_state == "invalid":
+            raise PartnerProfileIntegrityError(
+                "Capacity counter is not a valid non-negative integer")
+        if own_state == "ok" and own_value == 0:
+            raise PartnerProfileIntegrityError(
+                "Capacity counter is inconsistent with an existing resource")
+        own_covers = own_state == "ok" and self._counter_covers(
+            raw, own_counter_key)
+
+        if child_type:
+            child_counter_key = self._counter_key(child_type, resource_id)
+            child_state, child_value = self._counter_state(child_counter_key)
+            if child_state == "invalid":
+                raise PartnerProfileIntegrityError(
+                    "Child counter is not a valid non-negative integer")
+            if child_state == "ok" and child_value and child_value > 0:
+                raise PartnerProfileConflictError(
+                    "Resource has child profiles; delete refused")
+            child_covers = child_state == "ok" and self._counter_covers(
+                raw, child_counter_key)
+            if child_state == "missing" or not own_covers or not child_covers:
+                # Legacy or non-covering counter: use the guarded scan path.
+                reservation = self.reserve_parent_delete(
+                    resource_id, user_id=user_id, tenant_id=tenant_id,
+                    partner_app_id=partner_app_id, issuer=issuer,
+                    child_type=child_type, expected_version=expected_version)
+                return self.finalize_parent_delete(
+                    reservation, user_id=user_id, tenant_id=tenant_id,
+                    partner_app_id=partner_app_id, issuer=issuer,
+                    expected_version=expected_version)
 
         transact_items: List[Dict[str, Any]] = [{
             "Delete": {
@@ -904,14 +1059,15 @@ class PartnerProfileRepository:
             transact_items[0]["Delete"]["ConditionExpression"] += " AND issuer = :i"
             transact_items[0]["Delete"]["ExpressionAttributeValues"][":i"] = {"S": issuer}
 
-        # Decrement the matching capacity counter atomically alongside the delete.
-        if rt in CAPACITY_RULES:
-            parent_id = raw.get("parentId") or user_id
-            ckey = self._counter_key(rt, parent_id)
+        counter_index: Optional[int] = None
+        counter_missing_index: Optional[int] = None
+        if rt in CAPACITY_RULES and own_covers:
+            # Decrement the matching capacity counter atomically alongside the
+            # delete. This is the normal modern path.
             transact_items.append({
                 "Update": {
                     "TableName": self.table_name,
-                    "Key": {"resourceId": {"S": ckey}},
+                    "Key": {"resourceId": {"S": own_counter_key}},
                     "ConditionExpression": "#c > :zero",
                     "UpdateExpression": "SET #c = #c - :inc, updatedAt = :now",
                     "ExpressionAttributeNames": {"#c": "count"},
@@ -922,31 +1078,43 @@ class PartnerProfileRepository:
                     },
                 }
             })
+            counter_index = len(transact_items) - 1
+        elif (rt in CAPACITY_RULES and own_state == "missing"
+              and own_counter_key):
+            # Leaf legacy resource: never create or decrement a counter. Fail
+            # closed if one appears concurrently (the caller can retry, at
+            # which point the normal covered path applies).
+            transact_items.append(self._condition_check(
+                own_counter_key,
+                "attribute_not_exists(resourceId)",
+                {},
+            ))
+            counter_missing_index = len(transact_items) - 1
 
         child_index: Optional[int] = None
         if child_type:
-            # Atomic child guard: the parent can only be deleted while the
-            # child counter is zero. A concurrent child create increments the
-            # same counter in its own transaction, so exactly one wins.
+            # Modern path: the counter must still exist and be zero.
             child_counter = self._counter_key(child_type, resource_id)
             child_index = len(transact_items)
             transact_items.append(self._condition_check(
                 child_counter,
-                "attribute_not_exists(resourceId) OR #c = :zero",
+                "attribute_exists(resourceId) AND #c = :zero",
                 {":zero": {"N": "0"}},
                 names={"#c": "count"},
             ))
 
-        known_indices = {0}  # resource delete
-        if rt in CAPACITY_RULES:
-            known_indices.add(1)  # counter decrement
-
         def on_business(failed: Dict[int, str]):
+            if 0 in failed:
+                return False
             if child_index is not None and child_index in failed:
                 raise PartnerProfileConflictError(
                     "Resource has child profiles; delete refused")
-            if set(failed) <= known_indices:
-                return False
+            if counter_index is not None and counter_index in failed:
+                raise PartnerProfileIntegrityError(
+                    "Capacity counter is inconsistent with an existing resource")
+            if counter_missing_index is not None and counter_missing_index in failed:
+                raise PartnerProfileIntegrityError(
+                    "Capacity counter appeared concurrently")
             raise PartnerProfileIndeterminateError(
                 "Unmapped delete condition")
 
@@ -965,10 +1133,15 @@ class PartnerProfileRepository:
                               ) -> Dict[str, Any]:
         """Phase A: atomically mark the parent as deleting and verify no children.
 
-        The guard Update and the child-counter ConditionCheck are distinct
-        items, so the AWS one-action-per-item rule holds. Raises
-        ``PartnerProfileConflictError`` for children/version and
-        ``PartnerProfileNotFoundError`` for missing/foreign parents.
+        The guard Update and the parent ConditionCheck are distinct items, so
+        the AWS one-action-per-item rule holds. A present child counter must be
+        zero; a missing counter is never treated as zero. Legacy/missing
+        counters trigger a bounded, strongly-consistent scan *after* the guard
+        is set, so no new child can commit during the proof. Raises
+        ``PartnerProfileConflictError`` for children/version,
+        ``PartnerProfileIntegrityError`` for invalid counters and
+        ``PartnerProfileNotFoundError`` for missing/foreign parents. On scan
+        failure the guard is released back to active.
         """
         raw = self._get_raw(resource_id)
         if not raw:
@@ -980,6 +1153,36 @@ class PartnerProfileRepository:
             raise PartnerProfileConflictError("Version conflict on delete")
         rt = raw.get("resourceType")
         guard_key = self._guard_key(rt, resource_id)
+
+        own_counter_key = self._own_counter_key(raw)
+        if rt in CAPACITY_RULES and not own_counter_key:
+            raise PartnerProfileIntegrityError(
+                "Capacity counter key cannot be determined")
+        own_state, own_value = self._counter_state(own_counter_key)
+        child_counter_key = (
+            self._counter_key(child_type, resource_id) if child_type else None)
+        child_state, child_value = (
+            self._counter_state(child_counter_key) if child_type
+            else ("missing", None))
+
+        if own_state == "invalid" or child_state == "invalid":
+            raise PartnerProfileIntegrityError(
+                "Capacity or child counter is not a valid non-negative integer")
+        if own_state == "ok" and own_value == 0:
+            raise PartnerProfileIntegrityError(
+                "Capacity counter is inconsistent with an existing resource")
+        if child_state == "ok" and child_value and child_value > 0:
+            raise PartnerProfileConflictError(
+                "Resource has child profiles; delete refused")
+        own_covers = own_state == "ok" and self._counter_covers(
+            raw, own_counter_key)
+        child_covers = child_state == "ok" and self._counter_covers(
+            raw, child_counter_key)
+        # A missing counter is never treated as zero. If either the parent's
+        # own counter or the child counter is missing/does not cover this
+        # resource, child-freedom must be proven by a guarded full scan.
+        needs_scan = bool(child_type) and (
+            child_state == "missing" or not own_covers or not child_covers)
 
         parent_expr = "attribute_exists(resourceId) AND userId = :u AND tenantId = :t"
         parent_values = {":u": {"S": user_id}, ":t": {"S": tenant_id}}
@@ -1004,12 +1207,13 @@ class PartnerProfileRepository:
         }, self._condition_check(resource_id, parent_expr, parent_values)]
 
         child_counter_index: Optional[int] = None
-        if child_type:
-            child_counter = self._counter_key(child_type, resource_id)
+        if child_type and child_state == "ok":
+            # Present counters must stay present and zero. Missing counters are
+            # handled by the guarded scan below, never by this ConditionCheck.
             child_counter_index = len(items)
             items.append(self._condition_check(
-                child_counter,
-                "attribute_not_exists(resourceId) OR #c = :zero",
+                child_counter_key,
+                "attribute_exists(resourceId) AND #c = :zero",
                 {":zero": {"N": "0"}},
                 names={"#c": "count"},
             ))
@@ -1027,12 +1231,34 @@ class PartnerProfileRepository:
 
         self._transact(items, on_business=on_business)
 
-        return {
+        reservation = {
             "resource_id": resource_id,
             "guard_key": guard_key,
             "child_type": child_type,
             "counter_key": self._counter_key(rt, raw.get("parentId") or user_id),
+            "own_counter_missing": not own_covers,
+            "child_counter_missing": child_state == "missing",
+            "legacy_scan_verified": needs_scan,
         }
+
+        if needs_scan:
+            try:
+                children = self._scan_children(resource_id, child_type)
+            except Exception:
+                self.release_parent_delete(reservation, user_id=user_id,
+                                           tenant_id=tenant_id,
+                                           partner_app_id=partner_app_id,
+                                           issuer=issuer)
+                raise
+            if children:
+                self.release_parent_delete(reservation, user_id=user_id,
+                                           tenant_id=tenant_id,
+                                           partner_app_id=partner_app_id,
+                                           issuer=issuer)
+                raise PartnerProfileConflictError(
+                    "Resource has child profiles; delete refused")
+
+        return reservation
 
     def release_parent_delete(self, reservation: Dict[str, Any], *,
                               user_id: str, tenant_id: str,
@@ -1074,6 +1300,23 @@ class PartnerProfileRepository:
             raise PartnerProfileConflictError("Version conflict on delete")
         rt = raw.get("resourceType")
 
+        # Fail closed if a counter that was present at reservation time has
+        # disappeared, changed type, or is inconsistent. Legacy reservations
+        # explicitly record that the counter was absent and skip the decrement.
+        if not reservation.get("own_counter_missing"):
+            own_state, own_value = self._counter_state(
+                reservation.get("counter_key"))
+            if own_state != "ok" or own_value is None or own_value <= 0:
+                raise PartnerProfileIntegrityError(
+                    "Capacity counter is missing or inconsistent")
+        if (reservation.get("child_type")
+                and not reservation.get("legacy_scan_verified")):
+            child_state, child_value = self._counter_state(
+                self._counter_key(reservation["child_type"], resource_id))
+            if child_state != "ok" or child_value != 0:
+                raise PartnerProfileIntegrityError(
+                    "Child counter is missing or inconsistent")
+
         items: List[Dict[str, Any]] = [{
             "Delete": {
                 "TableName": self.table_name,
@@ -1093,7 +1336,7 @@ class PartnerProfileRepository:
             items[0]["Delete"]["ConditionExpression"] += " AND issuer = :i"
             items[0]["Delete"]["ExpressionAttributeValues"][":i"] = {"S": issuer}
 
-        if rt in CAPACITY_RULES:
+        if rt in CAPACITY_RULES and not reservation.get("own_counter_missing"):
             items.append({
                 "Update": {
                     "TableName": self.table_name,
@@ -1120,17 +1363,18 @@ class PartnerProfileRepository:
             }
         })
 
-        if reservation.get("child_type"):
+        if (reservation.get("child_type")
+                and not reservation.get("legacy_scan_verified")):
             child_counter = self._counter_key(reservation["child_type"], resource_id)
             items.append(self._condition_check(
                 child_counter,
-                "attribute_not_exists(resourceId) OR #c = :zero",
+                "attribute_exists(resourceId) AND #c = :zero",
                 {":zero": {"N": "0"}},
                 names={"#c": "count"},
             ))
 
         def on_business(failed: Dict[int, str]):
-            raise PartnerProfileConflictError("Delete finalization refused")
+            raise PartnerProfileIntegrityError("Delete finalization refused")
 
         self._transact(items, on_business=on_business)
         return True

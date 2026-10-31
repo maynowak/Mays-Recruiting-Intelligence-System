@@ -8139,3 +8139,32 @@ Classification: GREEN
 Current resume point:
   - F-4 CLOSED. Remaining OPEN: F-5, F-6, P1-1, R08.
   - R07-B not started.
+
+[RIS-PARTNER-PROFILE-R07-FIX-03-LEGACY-COUNTER]
+Current status: PARTIAL - safe legacy delete implemented; counter reconciliation remains offline work.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Legacy resources exist conceptually from e43bf53 (GSI capacity, no
+    counters) before befbb59/2e2a72e introduced atomic counters. No backfill
+    commit exists; no production evidence available without AWS access.
+  - Missing counters are never treated as zero. Modern parents now create
+    their child counter (0) at creation. Missing/non-covering counters use a
+    guard-held, strongly-consistent, fully paginated scan (50 pages / 5000
+    items) before deletion; failures release the guard and fail closed.
+  - Missing/invalid/contradictory counters map to 409 integrity; no counter is
+    auto-created or overwritten; decrement is skipped when not covered (safe
+    over-count, no under-count). Modern fast path remains scan-free.
+  - CV/S3: reserve/scan happens before S3; child/uncertain -> no S3; S3 error
+    releases guard to active and keeps metadata for retry.
+  - Tests: 21 new unit + 6 new DynamoDB Local legacy cases (29 local total).
+    Base: 544 passed, 29 skipped. Venv+local: 573 passed.
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - lambda/handler.py
+  - tests/test_partner_profile_legacy_counter.py
+  - tests/integration/test_partner_profile_dynamodb_local.py
+  - docs/reports/RIS-PARTNER-PROFILE-R07-FIX-03-LEGACY-COUNTER.md
+Classification: GREEN with PARTIAL F-5 (counter backfill/reconciliation OPEN)
+Current resume point:
+  - F-5 delete path safe; offline counter reconciliation and R07-B remain.
+  - F-6, P1-1, R08 unchanged.

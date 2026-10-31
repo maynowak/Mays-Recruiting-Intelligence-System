@@ -148,6 +148,11 @@ class FakeDynamo:
         self.resources = {}
         self.lock = threading.Lock()
         self.calls = []
+        self.scan_page_size = 100
+        self.scan_error = None
+        self.scan_infinite = False
+        self.scan_calls = 0
+        self._scan_cursor = 0
 
     # table interface
     def get_item(self, Key, ConsistentRead=False):
@@ -235,6 +240,34 @@ class FakeDynamo:
         page = results[:limit]
         cursor = {"resourceId": page[-1]["resourceId"]} if len(results) > limit else None
         return {"Items": page, "LastEvaluatedKey": cursor}
+
+    def scan(self, **kwargs):
+        self.scan_calls += 1
+        if self.scan_error:
+            raise self.scan_error
+        if self.scan_infinite:
+            self._scan_cursor += 1
+            return {"Items": [],
+                    "ScannedCount": 1,
+                    "LastEvaluatedKey": {"resourceId": f"cursor-{self._scan_cursor}"}}
+        vals = kwargs.get("ExpressionAttributeValues", {})
+        filt = kwargs.get("FilterExpression", "")
+        names = kwargs.get("ExpressionAttributeNames")
+        results = sorted(self.resources.values(),
+                         key=lambda r: r.get("resourceId", ""))
+        start = kwargs.get("ExclusiveStartKey")
+        if start and start.get("resourceId"):
+            idx = next((i for i, r in enumerate(results)
+                        if r.get("resourceId") == start["resourceId"]), None)
+            if idx is not None:
+                results = results[idx + 1:]
+        page_source = results[:self.scan_page_size]
+        page = [item for item in page_source
+                if _eval_condition(filt, item, vals, names)]
+        cursor = ({"resourceId": page_source[-1]["resourceId"]}
+                  if len(results) > self.scan_page_size else None)
+        return {"Items": page, "ScannedCount": len(page_source),
+                "LastEvaluatedKey": cursor}
 
     # client interface
     def transact_write_items(self, TransactItems):
