@@ -16,11 +16,12 @@ import hashlib
 import json
 import logging
 import os
+import random
 import time
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from jobsearch.partner_profile_contract import (
     SCHEMA_VERSION,
@@ -122,6 +123,35 @@ LIFECYCLE_DELETING = "deleting"
 # correctness mechanism.
 IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60
 
+# Bounded retries for *explicit* DynamoDB transaction conflicts. Lambda timeout
+# is 30s; 3 attempts and a ~1s total budget leave ample headroom and cannot
+# accumulate into a long request. Only TransactionConflict/Throttling reasons
+# are retried; unknown outcomes are never retried.
+TRANSACTION_MAX_ATTEMPTS = 3
+TRANSACTION_RETRY_BUDGET_SECONDS = 1.0
+TRANSACTION_JITTER_BASE_SECONDS = 0.05
+TRANSACTION_JITTER_CAP_SECONDS = 0.30
+
+_TRANSIENT_REASON_CODES = frozenset({
+    "TransactionConflict",
+    "TransactionConflictException",
+    "ProvisionedThroughputExceeded",
+    "ProvisionedThroughputExceededException",
+    "Throttling",
+    "ThrottlingException",
+})
+_INDETERMINATE_EXCEPTION_NAMES = frozenset({
+    "EndpointConnectionError",
+    "ConnectTimeoutError",
+    "ReadTimeoutError",
+    "ConnectionClosedError",
+    "HTTPClientError",
+    "RequestTimeout",
+    "RequestTimeoutException",
+    "ConnectionError",
+    "TimeoutError",
+})
+
 # The resource's own id field, excluded from the idempotency payload hash so a
 # server-generated retry id cannot change the fingerprint.
 OWN_ID_FIELD = {
@@ -146,6 +176,105 @@ class PartnerProfileReadError(Exception):
 
 class PartnerProfileConflictError(Exception):
     pass
+
+
+class PartnerProfileTransientError(Exception):
+    """A retryable DynamoDB transaction conflict exhausted its bounded budget."""
+
+
+class PartnerProfileIndeterminateError(Exception):
+    """The commit outcome of a transaction is unknown; never retried blindly."""
+
+
+def _transaction_error_code(exc: Exception) -> str:
+    response = getattr(exc, "response", None)
+    if isinstance(response, dict):
+        return str((response.get("Error") or {}).get("Code") or "")
+    return ""
+
+
+def _transaction_reasons(exc: Exception) -> List[Any]:
+    response = getattr(exc, "response", None)
+    if not isinstance(response, dict):
+        return []
+    reasons = response.get("CancellationReasons")
+    return reasons if isinstance(reasons, list) else []
+
+
+def classify_transaction_error(exc: Exception) -> Tuple[str, Dict[int, str]]:
+    """Classify a DynamoDB transaction failure.
+
+    Returns ``(kind, failed_indices)`` where kind is one of:
+
+    - ``"business"``: a ConditionalCheckFailed condition (no commit happened)
+    - ``"transient"``: purely TransactionConflict/Throttling (safe to retry)
+    - ``"indeterminate"``: unknown outcome or unknown/mixed reasons (never retry)
+    - ``"fatal"``: a deterministic client/request error (re-raise unchanged)
+    """
+    name = type(exc).__name__
+    code = _transaction_error_code(exc)
+    response = getattr(exc, "response", None)
+    is_cancelled = (
+        name == "TransactionCanceledException"
+        or code == "TransactionCanceledException"
+        or (isinstance(response, dict) and "CancellationReasons" in response)
+    )
+
+    if is_cancelled:
+        reasons = _transaction_reasons(exc)
+        if not reasons:
+            return "indeterminate", {}
+        failed: Dict[int, str] = {}
+        for idx, reason in enumerate(reasons):
+            if not isinstance(reason, dict):
+                return "indeterminate", {}
+            reason_code = reason.get("Code")
+            if reason_code in (None, "None", ""):
+                continue  # this action has no error of its own
+            failed[idx] = str(reason_code)
+        if not failed:
+            return "indeterminate", {}
+        codes = set(failed.values())
+        if "ValidationError" in codes or "ItemCollectionSizeLimitExceeded" in codes:
+            return "fatal", {}
+        business = {idx: c for idx, c in failed.items()
+                    if c == "ConditionalCheckFailed"}
+        transient = {idx: c for idx, c in failed.items()
+                     if c in _TRANSIENT_REASON_CODES}
+        unknown = codes - {"ConditionalCheckFailed"} - _TRANSIENT_REASON_CODES
+        if unknown:
+            # Mixed with an unknown reason: do not guess, do not retry.
+            return "indeterminate", {}
+        if business:
+            # A ConditionalCheckFailed is authoritative: the transaction did
+            # not commit. Mixed transient entries do not change that.
+            return "business", business
+        if transient and len(transient) == len(failed):
+            return "transient", {}
+        return "indeterminate", {}
+
+    if name == "TransactionInProgressException" or code == "TransactionInProgressException":
+        # RIS sends no ClientRequestToken, so this is unexpected and its
+        # outcome cannot be attributed safely. Fail closed without retry.
+        return "indeterminate", {}
+
+    if name in _INDETERMINATE_EXCEPTION_NAMES or code in _INDETERMINATE_EXCEPTION_NAMES:
+        return "indeterminate", {}
+
+    if name == "TransactionConflictException" or code == "TransactionConflictException":
+        return "transient", {}
+
+    if code in _TRANSIENT_REASON_CODES or name in _TRANSIENT_REASON_CODES:
+        return "transient", {}
+
+    return "fatal", {}
+
+
+def _retry_delay(attempt: int) -> float:
+    """Full-jitter exponential backoff, bounded by the cap."""
+    ceiling = min(TRANSACTION_JITTER_CAP_SECONDS,
+                  TRANSACTION_JITTER_BASE_SECONDS * (2 ** (attempt - 1)))
+    return random.uniform(0.0, ceiling)
 
 
 class PartnerProfileRepository:
@@ -354,14 +483,6 @@ class PartnerProfileRepository:
         ))
         return checks
 
-    def _cancelled_indices(self, exc: Exception) -> Dict[int, str]:
-        reasons = getattr(exc, "response", {}).get("CancellationReasons", []) or []
-        out: Dict[int, str] = {}
-        for idx, reason in enumerate(reasons):
-            if reason.get("Code") == "ConditionalCheckFailed":
-                out[idx] = reason.get("Message", "")
-        return out
-
     def _ensure_counter(self, key: str) -> None:
         """Ensure a capacity counter item exists with count 0 (idempotent).
 
@@ -412,6 +533,45 @@ class PartnerProfileRepository:
             if parent is None or not isinstance(parent, CVSearchProfile):
                 raise ProfileContractError("INVALID_HIERARCHY", "Parent search profile not found")
             validate_ats_assignment(resource, parent)
+
+    def _transact(self, transact_items: List[Dict[str, Any]], *,
+                  on_business: Callable[[Dict[int, str]], Any]) -> Any:
+        """Run one transaction with bounded retries for pure conflicts.
+
+        ``on_business`` receives the failed ConditionalCheckFailed indices and
+        must map them to a domain error (or return a recovery value). It is
+        invoked once; business conditions are never retried.
+
+        The same ``transact_items`` list is reused, so IDs, timestamps and
+        payloads do not change between attempts.
+        """
+        started = time.monotonic()
+        for attempt in range(1, TRANSACTION_MAX_ATTEMPTS + 1):
+            try:
+                self.client.transact_write_items(TransactItems=transact_items)
+                return None
+            except Exception as exc:  # classified below
+                kind, failed = classify_transaction_error(exc)
+                if kind == "business":
+                    return on_business(failed)
+                if kind == "transient":
+                    elapsed = time.monotonic() - started
+                    if (attempt >= TRANSACTION_MAX_ATTEMPTS
+                            or elapsed >= TRANSACTION_RETRY_BUDGET_SECONDS):
+                        raise PartnerProfileTransientError(
+                            "Transaction conflict retries exhausted") from exc
+                    delay = _retry_delay(attempt)
+                    if elapsed + delay > TRANSACTION_RETRY_BUDGET_SECONDS:
+                        raise PartnerProfileTransientError(
+                            "Transaction conflict retry budget exhausted") from exc
+                    time.sleep(delay)
+                    continue
+                if kind == "indeterminate":
+                    raise PartnerProfileIndeterminateError(
+                        "Transaction outcome is unknown") from exc
+                raise
+        raise PartnerProfileTransientError(
+            "Transaction conflict retries exhausted")
 
     # ------------------------------------------------------------------ #
     # CRUD
@@ -508,10 +668,7 @@ class PartnerProfileRepository:
             }
         })
 
-        try:
-            self.client.transact_write_items(TransactItems=transact_items)
-        except self.client.exceptions.TransactionCanceledException as e:
-            failed = self._cancelled_indices(e)
+        def on_business(failed: Dict[int, str]):
             if idem_index is not None and idem_index in failed:
                 record = self._get_raw(idem_key) or {}
                 if not record:
@@ -531,11 +688,28 @@ class PartnerProfileRepository:
                     "Parent is being deleted or is not accessible")
             if resource_index in failed:
                 raise PartnerProfileConflictError("Resource already exists")
-            raise PartnerProfileConflictError("Transaction cancelled")
-        except Exception as e:
-            if "ConditionalCheckFailed" in str(e):
-                raise PartnerProfileConflictError(str(e))
+            raise PartnerProfileIndeterminateError(
+                "Unmapped transaction condition")
+
+        try:
+            recovered = self._transact(transact_items, on_business=on_business)
+        except PartnerProfileIndeterminateError:
+            # The transaction may have committed before the connection was
+            # lost. A create with an application idempotency key can recover
+            # the original identity from the strongly-consistent proof; the
+            # transaction itself is never retried blindly.
+            if idem_key:
+                record = self._get_raw(idem_key) or {}
+                if record:
+                    if record.get("payloadHash") != payload_hash:
+                        raise PartnerProfileConflictError(
+                            "Idempotency key reused with a different payload")
+                    target = record.get("targetResourceId")
+                    if target:
+                        return target
             raise
+        if recovered is not None:
+            return recovered
         return rid
 
     def get(self, resource_id: str, user_id: str, tenant_id: str,
@@ -763,19 +937,21 @@ class PartnerProfileRepository:
                 names={"#c": "count"},
             ))
 
-        try:
-            self.client.transact_write_items(TransactItems=transact_items)
-        except self.client.exceptions.TransactionCanceledException as e:
-            failed = self._cancelled_indices(e)
+        known_indices = {0}  # resource delete
+        if rt in CAPACITY_RULES:
+            known_indices.add(1)  # counter decrement
+
+        def on_business(failed: Dict[int, str]):
             if child_index is not None and child_index in failed:
                 raise PartnerProfileConflictError(
                     "Resource has child profiles; delete refused")
-            return False
-        except Exception as e:
-            if "ConditionalCheckFailed" in str(e):
+            if set(failed) <= known_indices:
                 return False
-            raise
-        return True
+            raise PartnerProfileIndeterminateError(
+                "Unmapped delete condition")
+
+        result = self._transact(transact_items, on_business=on_business)
+        return True if result is None else result
 
     # ------------------------------------------------------------------ #
     # Two-phase parent delete (R05-A, used by the CV handler around S3)
@@ -838,10 +1014,7 @@ class PartnerProfileRepository:
                 names={"#c": "count"},
             ))
 
-        try:
-            self.client.transact_write_items(TransactItems=items)
-        except self.client.exceptions.TransactionCanceledException as e:
-            failed = self._cancelled_indices(e)
+        def on_business(failed: Dict[int, str]):
             if child_counter_index is not None and child_counter_index in failed:
                 raise PartnerProfileConflictError(
                     "Resource has child profiles; delete refused")
@@ -849,7 +1022,10 @@ class PartnerProfileRepository:
                 raise PartnerProfileNotFoundError("Parent not found")
             if 0 in failed:
                 raise PartnerProfileConflictError("Delete already in progress")
-            raise PartnerProfileConflictError("Delete reservation refused")
+            raise PartnerProfileIndeterminateError(
+                "Unmapped delete reservation condition")
+
+        self._transact(items, on_business=on_business)
 
         return {
             "resource_id": resource_id,
@@ -953,12 +1129,8 @@ class PartnerProfileRepository:
                 names={"#c": "count"},
             ))
 
-        try:
-            self.client.transact_write_items(TransactItems=items)
-        except self.client.exceptions.TransactionCanceledException as e:
+        def on_business(failed: Dict[int, str]):
             raise PartnerProfileConflictError("Delete finalization refused")
-        except Exception as e:
-            if "ConditionalCheckFailed" in str(e):
-                raise PartnerProfileConflictError("Delete finalization refused")
-            raise
+
+        self._transact(items, on_business=on_business)
         return True

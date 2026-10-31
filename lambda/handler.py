@@ -3561,6 +3561,12 @@ def _storage_error():
     return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
 
 
+def _storage_unavailable():
+    """503 for exhausted transient conflicts or an unknown commit outcome."""
+    return {'statusCode': 503,
+            'body': json.dumps({'error': 'Service unavailable'})}
+
+
 def _post_write_response(stored, response, status=200):
     """Serialize only a freshly re-read record.
 
@@ -3575,10 +3581,16 @@ def _post_write_response(stored, response, status=200):
 
 
 def _partner_storage_guard(call, *args):
-    """Map a DynamoDB read failure to 500 instead of 404/409."""
-    from jobsearch.partner_profile_repository import PartnerProfileReadError
+    """Map storage failures to 500/503 instead of 404/409."""
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileIndeterminateError, PartnerProfileReadError,
+        PartnerProfileTransientError,
+    )
     try:
         return call(*args)
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        logger.error('partner profile transaction outcome unavailable')
+        return _storage_unavailable()
     except PartnerProfileReadError:
         logger.error('partner profile storage read failed')
         return _storage_error()
@@ -3646,7 +3658,10 @@ def _manual_profile_create(event, ctx):
     from jobsearch.partner_profile_contract import (
         ManualSearchProfile, ProfileContractError,
     )
-    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileTransientError,
+    )
 
     data = _manual_profile_body(event)
     if data is None:
@@ -3680,6 +3695,8 @@ def _manual_profile_create(event, ctx):
                           partner_app_id=ctx.get('partnerApplicationId'),
                           issuer=ctx.get('issuer'),
                           idempotency_key=_idempotency_key(event))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return {'statusCode': 409, 'body': json.dumps({'error': 'Conflict'})}
     except Exception:
@@ -3727,7 +3744,10 @@ def _manual_profile_update(event, ctx, profile_id):
     from jobsearch.partner_profile_contract import (
         ManualSearchProfile, ProfileContractError,
     )
-    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileTransientError,
+    )
 
     repo = _manual_profile_repo()
     try:
@@ -3774,6 +3794,8 @@ def _manual_profile_update(event, ctx, profile_id):
                     partner_app_id=ctx.get('partnerApplicationId'),
                     issuer=ctx.get('issuer'),
                     expected_version=expected_version)
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return {'statusCode': 409, 'body': json.dumps({'error': 'Version conflict'})}
     except ProfileContractError as exc:
@@ -3788,7 +3810,10 @@ def _manual_profile_update(event, ctx, profile_id):
 
 
 def _manual_profile_delete(event, ctx, profile_id):
-    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileTransientError,
+    )
 
     params = event.get('queryStringParameters') or {}
     expected = params.get('version')
@@ -3803,6 +3828,8 @@ def _manual_profile_delete(event, ctx, profile_id):
         deleted = repo.delete(profile_id, ctx['userId'], ctx['tenantId'],
                               ctx.get('partnerApplicationId'), ctx.get('issuer'),
                               expected_version=expected)
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return {'statusCode': 409, 'body': json.dumps({'error': 'Version conflict'})}
     except Exception:
@@ -3960,7 +3987,10 @@ def _cv_create(event, ctx):
         CVDocument, CV_STATUS_PENDING, ProfileContractError,
         reject_client_identity,
     )
-    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileTransientError,
+    )
 
     data = _cv_body(event)
     if data is None:
@@ -3992,6 +4022,8 @@ def _cv_create(event, ctx):
     try:
         rid = repo.create(cv, **_cv_identity(ctx),
                           idempotency_key=_idempotency_key(event))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return _cv_error(409, 'Conflict')
     except Exception:
@@ -4012,7 +4044,10 @@ def _cv_update(event, ctx, cv_id):
     from datetime import datetime, timezone
     from documents import ALLOWED_CONTENT_TYPES
     from jobsearch.partner_profile_contract import CVDocument, ProfileContractError
-    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileTransientError,
+    )
 
     repo, existing = _cv_get_owned(ctx, cv_id)
     if existing is None:
@@ -4059,6 +4094,8 @@ def _cv_update(event, ctx, cv_id):
     try:
         updated.validate()
         repo.update(updated, **_cv_identity(ctx), expected_version=expected_version)
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return _cv_error(409, 'Version conflict')
     except ProfileContractError as exc:
@@ -4072,7 +4109,8 @@ def _cv_update(event, ctx, cv_id):
 
 def _cv_delete(ctx, cv_id):
     from jobsearch.partner_profile_repository import (
-        PartnerProfileConflictError, PartnerProfileNotFoundError,
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileNotFoundError, PartnerProfileTransientError,
     )
 
     repo, existing = _cv_get_owned(ctx, cv_id)
@@ -4086,6 +4124,8 @@ def _cv_delete(ctx, cv_id):
         reservation = repo.reserve_parent_delete(
             cv_id, **_cv_identity(ctx), child_type='CVSearchProfile',
             expected_version=getattr(existing, 'version', None))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return _cv_error(409, 'CV has child search profiles; delete refused',
                          cvId=cv_id, s3Touched=False)
@@ -4116,6 +4156,8 @@ def _cv_delete(ctx, cv_id):
         deleted = repo.finalize_parent_delete(
             reservation, **_cv_identity(ctx),
             expected_version=getattr(existing, 'version', None))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return _cv_error(409, 'Delete conflict', cvId=cv_id)
     except Exception:
@@ -4138,7 +4180,10 @@ def _cv_upload_ticket(event, ctx, cv_id):
         CVDocument, CV_STATUS_READY, CV_STATUS_UPLOAD_PENDING,
         ProfileContractError,
     )
-    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileTransientError,
+    )
 
     repo, existing = _cv_get_owned(ctx, cv_id)
     if existing is None:
@@ -4173,6 +4218,8 @@ def _cv_upload_ticket(event, ctx, cv_id):
         updated.validate()
         repo.update(updated, **_cv_identity(ctx),
                     expected_version=getattr(existing, 'version', None))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return _cv_error(409, 'Version conflict')
     except ProfileContractError as exc:
@@ -4206,7 +4253,10 @@ def _cv_complete(event, ctx, cv_id):
     from jobsearch.partner_profile_contract import (
         CVDocument, CV_STATUS_READY, ProfileContractError,
     )
-    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileTransientError,
+    )
 
     repo, existing = _cv_get_owned(ctx, cv_id)
     if existing is None:
@@ -4254,6 +4304,8 @@ def _cv_complete(event, ctx, cv_id):
         updated.validate()
         repo.update(updated, **_cv_identity(ctx),
                     expected_version=getattr(existing, 'version', None))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return _cv_error(409, 'Version conflict')
     except ProfileContractError as exc:
@@ -4410,7 +4462,10 @@ def _cv_search_profile_create(event, ctx, cv_id):
     from jobsearch.partner_profile_contract import (
         CVSearchProfile, ProfileContractError,
     )
-    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileTransientError,
+    )
 
     data = _cv_body(event)
     if data is None:
@@ -4440,6 +4495,8 @@ def _cv_search_profile_create(event, ctx, cv_id):
     try:
         rid = repo.create(profile, **_cv_identity(ctx),
                           idempotency_key=_idempotency_key(event))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return _cv_error(409, 'Conflict')
     except Exception:
@@ -4473,7 +4530,10 @@ def _cv_search_profile_update(event, ctx, cv_id, search_profile_id, existing):
     from jobsearch.partner_profile_contract import (
         CVSearchProfile, ProfileContractError,
     )
-    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileTransientError,
+    )
 
     data = _cv_body(event)
     if data is None:
@@ -4506,6 +4566,8 @@ def _cv_search_profile_update(event, ctx, cv_id, search_profile_id, existing):
     try:
         updated.validate()
         repo.update(updated, **_cv_identity(ctx), expected_version=expected_version)
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return _cv_error(409, 'Version conflict')
     except ProfileContractError as exc:
@@ -4518,7 +4580,10 @@ def _cv_search_profile_update(event, ctx, cv_id, search_profile_id, existing):
 
 
 def _cv_search_profile_delete(event, ctx, cv_id, search_profile_id):
-    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileTransientError,
+    )
 
     params = event.get('queryStringParameters') or {}
     expected = params.get('version')
@@ -4532,6 +4597,8 @@ def _cv_search_profile_delete(event, ctx, cv_id, search_profile_id):
         deleted = repo.delete(search_profile_id, **_cv_identity(ctx),
                               expected_version=expected,
                               child_type='ATSSearchProfile')
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return _cv_error(409, 'Search profile has ATS children or version conflict',
                          cvId=cv_id)
@@ -4720,7 +4787,10 @@ def _ats_create(event, ctx, repo, parent):
     from jobsearch.partner_profile_contract import (
         ATSSearchProfile, ProfileContractError,
     )
-    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileTransientError,
+    )
 
     data = _cv_body(event)
     if data is None:
@@ -4750,6 +4820,8 @@ def _ats_create(event, ctx, repo, parent):
     try:
         rid = repo.create(profile, **_cv_identity(ctx),
                           idempotency_key=_idempotency_key(event))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return _cv_error(409, 'Conflict')
     except Exception:
@@ -4785,7 +4857,10 @@ def _ats_update(event, ctx, repo, search_profile_id, ats_id, existing):
     from jobsearch.partner_profile_contract import (
         ATSSearchProfile, ProfileContractError,
     )
-    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileTransientError,
+    )
 
     data = _cv_body(event)
     if data is None:
@@ -4826,6 +4901,8 @@ def _ats_update(event, ctx, repo, search_profile_id, ats_id, existing):
         updated.validate()
         repo.update(updated, **_cv_identity(ctx),
                     expected_version=expected_version)
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return _cv_error(409, 'Version conflict')
     except ProfileContractError as exc:
@@ -4838,7 +4915,10 @@ def _ats_update(event, ctx, repo, search_profile_id, ats_id, existing):
 
 
 def _ats_delete(event, ctx, repo, search_profile_id, ats_id):
-    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileTransientError,
+    )
     params = event.get('queryStringParameters') or {}
     expected = params.get('version')
     if expected is not None:
@@ -4849,6 +4929,8 @@ def _ats_delete(event, ctx, repo, search_profile_id, ats_id):
     try:
         deleted = repo.delete(ats_id, **_cv_identity(ctx),
                               expected_version=expected)
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
     except PartnerProfileConflictError:
         return _cv_error(409, 'Version conflict')
     except Exception:

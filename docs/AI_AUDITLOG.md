@@ -8109,3 +8109,33 @@ Classification: GREEN
 Current resume point:
   - R07-A GO. Remaining OPEN: F-4, F-5, F-6, P1-1.
   - R07-B not started; no AWS mutation.
+
+[RIS-PARTNER-PROFILE-R07-FIX-02-TRANSACTION-CONFLICT]
+Current status: COMPLETE - F-4 classified and bounded retry implemented.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Central classify_transaction_error separates business, transient,
+    indeterminate and fatal outcomes using CancellationReasons and top-level
+    botocore error codes. None means no error for that action; mixed or
+    unknown reasons fail closed.
+  - Bounded retry: max 3 attempts, 1s total budget, full-jitter backoff
+    (50ms base / 300ms cap). Same transaction items and IDs/timestamps are
+    reused; all conditions are re-evaluated by DynamoDB.
+  - Indeterminate create with Idempotency-Key recovers the original resource
+    via ConsistentRead; without key no retry (503). Delete/reserve/finalize
+    are never blindly retried. ClientRequestToken intentionally not used
+    (10min token vs 24h application idempotency).
+  - HTTP: business conflicts stay 409; exhausted/unclear outcomes 503;
+    unknown fatal errors 500.
+  - New tests: 29 PASS. DynamoDB Local: 23/23 PASS. Full suite: 546 passed
+    with local endpoint, 523 passed + 23 skipped without.
+  - No AWS access or mutation; local DynamoDB stopped afterwards.
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - lambda/handler.py
+  - tests/test_partner_profile_transaction_conflict.py
+  - docs/reports/RIS-PARTNER-PROFILE-R07-FIX-02-TRANSACTION-CONFLICT.md
+Classification: GREEN
+Current resume point:
+  - F-4 CLOSED. Remaining OPEN: F-5, F-6, P1-1, R08.
+  - R07-B not started.
