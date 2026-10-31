@@ -42,6 +42,16 @@ variable "jobsearch_table_arn" {
   type        = string
 }
 
+variable "partner_profiles_table_name" {
+  description = "DynamoDB table name for partner profile persistence (R02). Absent means profile CRUD fails closed."
+  type        = string
+}
+
+variable "partner_profiles_table_arn" {
+  description = "DynamoDB table ARN for partner profile persistence (R02). Grants the runtime role read/write access to profile resources and capacity counters."
+  type        = string
+}
+
 variable "user_profile_table_name" {
   description = "DynamoDB table name for user profiles"
   type        = string

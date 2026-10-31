@@ -112,6 +112,11 @@ Antwort 202: `{"workId": string, "status": string, "requestId": string}`
 | Route | Auth | Erfolg | Weitere Codes |
 |---|---|---|---|
 | `POST /v1/partner/agents/{agentId}/execute` | JWT **+** `X-Api-Credential` | 202 | 401, 403, 500, 503 |
+| `GET /v1/partner/me/manual-search-profiles` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 500, 503 |
+| `POST /v1/partner/me/manual-search-profiles` | JWT **+** `X-Api-Credential` | 201 | 400, 401, 403, 409, 422, 500, 503 |
+| `GET /v1/partner/me/manual-search-profiles/{profileId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 500, 503 |
+| `PUT /v1/partner/me/manual-search-profiles/{profileId}` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 409, 422, 500, 503 |
+| `DELETE /v1/partner/me/manual-search-profiles/{profileId}` | JWT **+** `X-Api-Credential` | 204 | 401, 403, 404, 409, 422, 500, 503 |
 
 Request-Body (alle Felder optional):
 `{"capability": string, "payload": object, "idempotencyKey": string}`

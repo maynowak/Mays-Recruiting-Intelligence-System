@@ -191,7 +191,13 @@ class PartnerProfileRepository:
         # identity is authoritative from the stored item, never from payload
         payload["userId"] = item.get("userId")
         payload["tenantId"] = item.get("tenantId")
-        return parse_resource(payload, strict=False)
+        obj = parse_resource(payload, strict=False)
+        # expose the optimistic-lock version without polluting the contract DTO
+        try:
+            obj.version = item.get("version", 1)
+        except Exception:
+            pass
+        return obj
 
     def _counter_key(self, rt: str, parent_id: str) -> str:
         return f"capacity#{COUNTER_PREFIX[rt]}#{parent_id}"

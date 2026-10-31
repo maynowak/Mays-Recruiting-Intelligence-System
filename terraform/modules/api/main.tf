@@ -306,6 +306,49 @@ resource "aws_apigatewayv2_route" "partner_agent_execute" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
+# R03: partner manual search profile CRUD. Explicit routes only (no wildcard
+# proxy). Same human JWT authorizer and Lambda proxy integration as the
+# existing partner route; the RIS credential is verified in-Lambda.
+resource "aws_apigatewayv2_route" "partner_manual_profiles_list" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/manual-search-profiles"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "partner_manual_profiles_create" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/partner/me/manual-search-profiles"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "partner_manual_profiles_get" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/manual-search-profiles/{profileId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "partner_manual_profiles_update" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "PUT /v1/partner/me/manual-search-profiles/{profileId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "partner_manual_profiles_delete" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "DELETE /v1/partner/me/manual-search-profiles/{profileId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
 # Product Admin: Offer -> Entitlement provisioning (P23-01).
 #
 # All routes are Cognito JWT protected (same authorizer as the other 27) and

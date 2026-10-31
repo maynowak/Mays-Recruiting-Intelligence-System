@@ -113,19 +113,22 @@ module "api" {
 module "lambda" {
   source = "./modules/lambda"
 
-  project_name             = var.project_name
-  environment              = var.environment
-  lambda_config            = var.lambda_config
-  dynamodb_table_name      = module.dynamodb.work_items_table_name
-  dynamodb_table_arn       = module.dynamodb.work_items_table_arn
-  jobsearch_table_name     = module.dynamodb.jobsearches_table_name
-  jobsearch_table_arn      = module.dynamodb.jobsearches_table_arn
-  user_profile_table_name  = module.dynamodb.user_profile_table_name
-  agent_catalog_table_name = module.dynamodb.agent_catalog_table_name
-  entitlements_table_name  = module.dynamodb.entitlements_table_name
-  api_profiles_table_name  = module.dynamodb.api_profiles_table_name
-  offers_table_name        = module.dynamodb.offers_table_name
-  credentials_table_name   = module.dynamodb.credentials_table_name
+  project_name         = var.project_name
+  environment          = var.environment
+  lambda_config        = var.lambda_config
+  dynamodb_table_name  = module.dynamodb.work_items_table_name
+  dynamodb_table_arn   = module.dynamodb.work_items_table_arn
+  jobsearch_table_name = module.dynamodb.jobsearches_table_name
+  jobsearch_table_arn  = module.dynamodb.jobsearches_table_arn
+  # Partner profile persistence (R02/R03): manual search profile CRUD.
+  partner_profiles_table_name = module.dynamodb.partner_profiles_table_name
+  partner_profiles_table_arn  = module.dynamodb.partner_profiles_table_arn
+  user_profile_table_name     = module.dynamodb.user_profile_table_name
+  agent_catalog_table_name    = module.dynamodb.agent_catalog_table_name
+  entitlements_table_name     = module.dynamodb.entitlements_table_name
+  api_profiles_table_name     = module.dynamodb.api_profiles_table_name
+  offers_table_name           = module.dynamodb.offers_table_name
+  credentials_table_name      = module.dynamodb.credentials_table_name
   # Partner Application Registry: resolved on every authorized partner and
   # M2M execution. Without this env var the registry lookup returns None and
   # both routes fail closed with 403.

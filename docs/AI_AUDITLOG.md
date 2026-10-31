@@ -7825,3 +7825,28 @@ Evidence / file references:
 Classification: GREEN
 Current resume point:
   - R02-R2 abgeschlossen; R03 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R03-MANUAL-CRUD-API]
+Current status: COMPLETE — Manual-Search-Profile-CRUD-API implementiert.
+Audit date/time: 2026-10-31
+Actual findings:
+  - 5 Routen: GET/POST /v1/partner/me/manual-search-profiles, GET/PUT/DELETE /{profileId}.
+  - Dual-Auth wiederverwendet (Cognito JWT + X-Api-Credential + Registry + L03).
+  - Handler delegieren an R02-Repository; keine zweite DynamoDB-Schicht.
+  - Contract additiv erweitert (requiredSkills/preferredSkills/excludedTerms,
+    description, origin); manualSearchProfileId als API-Alias.
+  - Terraform: 5 explizite Routen, PARTNER_PROFILE_TABLE + IAM.
+  - Tests: 216/216 R03-relevant PASS (26 API, 35 Contract, 33 Repository,
+    75 Partner, 47 OpenAPI).
+  - NOT RUN: volle Suite (fehlendes boto3, praeexistente Windows/Installer-Fehler).
+Evidence / file references:
+  - lambda/handler.py
+  - jobsearch/partner_profile_contract.py
+  - terraform/modules/api/main.tf
+  - terraform/modules/lambda/main.tf
+  - docs/api/openapi-platform.yaml
+  - tests/test_partner_manual_profiles_api.py
+  - docs/reports/RIS-PARTNER-PROFILE-R03-MANUAL-CRUD-API.md
+Classification: GREEN
+Current resume point:
+  - R03 abgeschlossen; R04 nicht begonnen.

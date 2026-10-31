@@ -72,12 +72,16 @@ ATS_SEARCH_PROFILE_FIELDS = frozenset({
 })
 MANUAL_SEARCH_PROFILE_FIELDS = frozenset({
     "resourceType", "schemaVersion", "manualProfileId", "userId", "tenantId",
-    "name", "matchingPreferences", "createdAt", "updatedAt", "metadata",
+    "name", "description", "origin", "matchingPreferences", "createdAt",
+    "updatedAt", "metadata",
 })
 MATCHING_PREFERENCES_FIELDS = frozenset({
     "resourceType", "schemaVersion", "roles", "workModes", "employmentTypes",
     "locations", "salaryMin", "remoteOnly", "sources", "query",
+    "requiredSkills", "preferredSkills", "excludedTerms",
 })
+
+MANUAL_PROFILE_ORIGIN = "manual"
 
 
 class ProfileContractError(ValueError):
@@ -179,6 +183,9 @@ class MatchingPreferences:
     remote_only: bool = False
     sources: List[str] = field(default_factory=list)
     query: str = ""
+    required_skills: List[str] = field(default_factory=list)
+    preferred_skills: List[str] = field(default_factory=list)
+    excluded_terms: List[str] = field(default_factory=list)
 
     resource_type: str = "MatchingPreferences"
     schema_version: str = SCHEMA_VERSION
@@ -192,6 +199,9 @@ class MatchingPreferences:
             "employmentTypes": list(self.employment_types),
             "locations": list(self.locations),
             "remoteOnly": bool(self.remote_only),
+            "requiredSkills": list(self.required_skills),
+            "preferredSkills": list(self.preferred_skills),
+            "excludedTerms": list(self.excluded_terms),
         }
         if self.salary_min is not None:
             result["salaryMin"] = self.salary_min
@@ -218,6 +228,9 @@ class MatchingPreferences:
             remote_only=bool(data.get("remoteOnly", False)),
             sources=_str_list(data.get("sources", []), "sources"),
             query=str(data.get("query", "") or ""),
+            required_skills=_str_list(data.get("requiredSkills", []), "requiredSkills"),
+            preferred_skills=_str_list(data.get("preferredSkills", []), "preferredSkills"),
+            excluded_terms=_str_list(data.get("excludedTerms", []), "excludedTerms"),
             resource_type=rt,
             schema_version=sv,
         )
@@ -226,7 +239,9 @@ class MatchingPreferences:
 
     def validate(self) -> None:
         # Preserve multi-values: no deduplication, no collapse.
-        for field_name in ("roles", "work_modes", "employment_types", "locations", "sources"):
+        for field_name in ("roles", "work_modes", "employment_types", "locations",
+                           "sources", "required_skills", "preferred_skills",
+                           "excluded_terms"):
             val = getattr(self, field_name)
             if not isinstance(val, list):
                 raise ProfileContractError("INVALID_SEARCH_CONFIG", f"{field_name} must be a list")
@@ -564,6 +579,8 @@ class ManualSearchProfile:
     user_id: str
     tenant_id: str
     name: str
+    description: str = ""
+    origin: str = MANUAL_PROFILE_ORIGIN
     matching_preferences: MatchingPreferences = field(default_factory=MatchingPreferences)
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[str] = None
@@ -580,6 +597,8 @@ class ManualSearchProfile:
             "userId": self.user_id,
             "tenantId": self.tenant_id,
             "name": self.name,
+            "description": self.description,
+            "origin": self.origin,
             "matchingPreferences": self.matching_preferences.to_dict(),
         }
         if self.created_at:
@@ -600,11 +619,19 @@ class ManualSearchProfile:
         sv = _check_schema_version(data.get("schemaVersion"))
         mp_raw = data.get("matchingPreferences", {}) or {}
         mp = MatchingPreferences.from_dict(mp_raw, strict=strict) if isinstance(mp_raw, dict) else mp_raw
+        origin = data.get("origin", MANUAL_PROFILE_ORIGIN)
+        if origin != MANUAL_PROFILE_ORIGIN:
+            raise ProfileContractError(
+                "INVALID_FIELD",
+                f"origin must be '{MANUAL_PROFILE_ORIGIN}', got {origin!r}",
+            )
         obj = cls(
             manual_profile_id=_require_str(data.get("manualProfileId"), "manualProfileId"),
             user_id=_require_str(data.get("userId"), "userId"),
             tenant_id=_require_str(data.get("tenantId"), "tenantId"),
             name=_require_str(data.get("name"), "name"),
+            description=str(data.get("description", "") or ""),
+            origin=origin,
             matching_preferences=mp,
             metadata=data.get("metadata") or {},
             created_at=_optional_str(data.get("createdAt"), "createdAt"),
@@ -620,6 +647,11 @@ class ManualSearchProfile:
         _require_str(self.user_id, "userId")
         _require_str(self.tenant_id, "tenantId")
         _require_str(self.name, "name")
+        if self.origin != MANUAL_PROFILE_ORIGIN:
+            raise ProfileContractError(
+                "INVALID_FIELD",
+                f"origin must be '{MANUAL_PROFILE_ORIGIN}', got {self.origin!r}",
+            )
         if not isinstance(self.matching_preferences, MatchingPreferences):
             raise ProfileContractError("INVALID_FIELD", "matchingPreferences must be a MatchingPreferences")
 

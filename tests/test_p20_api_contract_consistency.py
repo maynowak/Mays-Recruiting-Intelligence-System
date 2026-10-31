@@ -176,20 +176,29 @@ class TestTerraformRouteInventory(unittest.TestCase):
 
         Gate-02 P2C: 32 -> 33 durch genau EINE echte Route
         (`DELETE /me/profile`). Gate-05: 33 -> 34 durch genau EINE weitere
-        (`POST /me/erasure`). Keine Magic-Number-Aktualisierung: die
-        Aufteilung wird per terraform_routes() nachgezaehlt und die jeweils
-        hinzugefuegte Route mitgeprueft, damit eine stille Ruecknahme nicht
-        durchgeht.
+        (`POST /me/erasure`). R03: 35 -> 40 durch die fuenf expliziten
+        Partner-Manual-Search-Profile-Routen. Keine Magic-Number-
+        Aktualisierung: die Aufteilung wird per terraform_routes()
+        nachgezaehlt und die jeweils hinzugefuegten Routen mitgeprueft, damit
+        eine stille Ruecknahme nicht durchgeht.
         """
         routes = terraform_routes()
-        self.assertEqual(35, len(routes))
-        self.assertEqual(31, sum(1 for v in routes.values()
+        self.assertEqual(40, len(routes))
+        self.assertEqual(36, sum(1 for v in routes.values()
                                  if v["target"] == "agent"))
         self.assertEqual(4, sum(1 for v in routes.values()
                                 if v["target"] == "orders"))
         # Die Routen, die den Zaehler verschoben haben, muessen existieren.
         self.assertIn("DELETE /me/profile", routes)
         self.assertIn("POST /me/erasure", routes)
+        for route in (
+            "GET /v1/partner/me/manual-search-profiles",
+            "POST /v1/partner/me/manual-search-profiles",
+            "GET /v1/partner/me/manual-search-profiles/{profileId}",
+            "PUT /v1/partner/me/manual-search-profiles/{profileId}",
+            "DELETE /v1/partner/me/manual-search-profiles/{profileId}",
+        ):
+            self.assertIn(route, routes)
 
     def test_offer_routes_are_documented(self):
         """P23-01: alle sieben offer-Routen stehen im kanonischen Vertrag."""

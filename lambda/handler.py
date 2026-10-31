@@ -501,6 +501,13 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _machine_execute_agent(event, _machine_agent_id(path))
     elif method == 'POST' and path.startswith('/v1/partner/agents/'):
         return _partner_execute_agent(event, _machine_agent_id(path.replace('/v1/partner/agents/', '/v1/m2m/agents/')))
+    elif path == '/v1/partner/me/manual-search-profiles':
+        # R03: partner manual search profile CRUD (human JWT + RIS credential).
+        return _handle_manual_profile_collection(event, context, method)
+    elif path.startswith('/v1/partner/me/manual-search-profiles/'):
+        params = event.get('pathParameters') or {}
+        profile_id = params.get('profileId') or path[len('/v1/partner/me/manual-search-profiles/'):].split('?')[0]
+        return _handle_manual_profile_item(event, context, method, profile_id)
     elif method == 'GET' and path.startswith('/work'):
         work_id = event.get('pathParameters', {}).get('workId')
         return _get_work(work_id, event)
@@ -3308,6 +3315,398 @@ def _handle_jobsearch_delete(event: Dict[str, Any], context: Any, job_search_id:
             'statusCode': 500,
             'body': json.dumps({'error': 'Failed to delete JobSearch'})
         }
+
+
+# ---------------------------------------------------------------------------
+# R03: Partner manual search profile CRUD
+#
+#   GET    /v1/partner/me/manual-search-profiles
+#   POST   /v1/partner/me/manual-search-profiles
+#   GET    /v1/partner/me/manual-search-profiles/{profileId}
+#   PUT    /v1/partner/me/manual-search-profiles/{profileId}
+#   DELETE /v1/partner/me/manual-search-profiles/{profileId}
+#
+# Minimal storage scope: authenticated human user + ACTIVE RIS
+# credential/profile + ACTIVE partner application (registry binding).
+# Agent entitlements are NOT reused as a storage permission. Storing,
+# loading or deleting a profile never enqueues work and never calls a model.
+# ---------------------------------------------------------------------------
+
+_MANUAL_PROFILE_COLLECTION = '/v1/partner/me/manual-search-profiles'
+_MANUAL_PROFILE_PAGE_LIMIT = 50
+
+
+def _partner_profile_context(event: Dict[str, Any]):
+    """Resolve the authenticated partner/user context for profile storage.
+
+    Returns ``(context, None)`` on success or ``(None, error_response)``.
+    Reuses the existing partner dual-auth boundary; nothing new is invented.
+    """
+    from agents.ecosystem.credentials import (
+        CredentialStoreUnavailable,
+        VerifyOutcome,
+        _Denied,
+        resolve_credential_profile,
+    )
+    from agents.ecosystem.partner_registry import resolve_partner_application
+
+    headers = {(k or "").lower(): v for k, v in (event.get("headers") or {}).items()}
+
+    cognito_context, cognito_error = _machine_cognito_context(event)
+    if cognito_error:
+        return None, _machine_deny(401, 'Unauthorized')
+    if cognito_context.get('tokenUse') != 'access':
+        return None, _machine_deny(401, 'Unauthorized')
+
+    bearer, header_error = _machine_bearer(headers)
+    if header_error:
+        return None, _machine_deny(401, 'Unauthorized')
+
+    try:
+        sources = _build_introspection_sources()
+    except Exception:
+        return None, {'statusCode': 503,
+                      'body': json.dumps({'error': 'Service unavailable'})}
+
+    try:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        meta, _profile = resolve_credential_profile(
+            bearer=bearer,
+            credential_store=sources["credential_store"],
+            profile_store=sources["profile_store"],
+            now=now,
+            base={"route": "partner-manual-profile"},
+        )
+    except CredentialStoreUnavailable:
+        return None, {'statusCode': 503,
+                      'body': json.dumps({'error': 'Service unavailable'})}
+    except _Denied as exc:
+        status = 401 if exc.outcome is VerifyOutcome.UNAUTHORIZED else 403
+        return None, _machine_deny(status,
+                                   'Unauthorized' if status == 401 else 'Forbidden')
+
+    client_id = cognito_context.get('clientId')
+    if not client_id:
+        return None, _machine_deny(401, 'Unauthorized')
+    try:
+        registry = resolve_partner_application(client_id)
+    except Exception:
+        return None, _machine_deny(403, 'Forbidden')
+    if not registry or registry.get('status') != 'ACTIVE':
+        return None, _machine_deny(403, 'Forbidden')
+    if registry.get('apiProfileId') != meta.get('apiProfileId'):
+        return None, _machine_deny(403, 'Forbidden')
+    if registry.get('tenantId') != meta.get('tenantId'):
+        return None, _machine_deny(403, 'Forbidden')
+
+    resolved_tenant, tenant_conflict = _resolve_tenant(
+        cognito_context, expected_tenant=meta.get('tenantId'))
+    if tenant_conflict or not resolved_tenant:
+        return None, _machine_deny(403, 'Forbidden')
+
+    jwt_user_id = cognito_context.get('userId')
+    if not jwt_user_id:
+        return None, _machine_deny(401, 'Unauthorized')
+
+    claims = (((event.get('requestContext') or {}).get('authorizer') or {})
+              .get('jwt') or {}).get('claims') or {}
+    issuer = claims.get('iss')
+    if not issuer:
+        return None, _machine_deny(401, 'Unauthorized')
+
+    return {
+        'userId': jwt_user_id,
+        'tenantId': resolved_tenant,
+        'partnerApplicationId': registry.get('applicationId'),
+        'apiProfileId': meta.get('apiProfileId'),
+        'credentialId': meta.get('credentialId'),
+        'issuer': issuer,
+    }, None
+
+
+def _manual_profile_repo():
+    from jobsearch.partner_profile_repository import PartnerProfileRepository
+    return PartnerProfileRepository()
+
+
+def _manual_profile_error(exc):
+    """Map a ProfileContractError to an HTTP response (no internal detail)."""
+    from jobsearch.partner_profile_contract import ProfileContractError
+    if isinstance(exc, ProfileContractError):
+        code = getattr(exc, 'code', 'INVALID_INPUT')
+        status = 400 if code == 'CLIENT_IDENTITY_FORBIDDEN' else 422
+        return {'statusCode': status,
+                'body': json.dumps({'error': 'Invalid profile', 'code': code})}
+    return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid request'})}
+
+
+def _manual_profile_body(event):
+    try:
+        data = json.loads(event.get('body') or '{}')
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _manual_profile_parse(data):
+    """Validate a client payload into the R01 contract pieces."""
+    from jobsearch.partner_profile_contract import (
+        MatchingPreferences, ProfileContractError, reject_client_identity,
+    )
+    reject_client_identity(data)
+    name = data.get('name')
+    if not isinstance(name, str) or not name.strip():
+        raise ProfileContractError('MISSING_FIELD', 'name is required')
+    mp_raw = data.get('matchingPreferences') or {}
+    if not isinstance(mp_raw, dict):
+        raise ProfileContractError('INVALID_FIELD',
+                                   'matchingPreferences must be an object')
+    mp = MatchingPreferences.from_dict(mp_raw)
+    return {
+        'name': name.strip(),
+        'description': str(data.get('description', '') or ''),
+        'matching_preferences': mp,
+    }
+
+
+def _serialize_manual_profile(profile):
+    body = profile.to_dict()
+    # API-level alias kept separate from the R01 persistence key
+    body['manualSearchProfileId'] = body.get('manualProfileId')
+    body['version'] = getattr(profile, 'version', None)
+    return body
+
+
+def _manual_profile_response(profile, status=200):
+    return {'statusCode': status,
+            'body': json.dumps(_serialize_manual_profile(profile),
+                               ensure_ascii=False)}
+
+
+def _decode_cursor(raw):
+    if not raw:
+        return None
+    try:
+        import base64
+        return json.loads(base64.urlsafe_b64decode(raw.encode()).decode())
+    except Exception:
+        return 'invalid'
+
+
+def _encode_cursor(cursor):
+    if not cursor:
+        return None
+    import base64
+    return base64.urlsafe_b64encode(json.dumps(cursor).encode()).decode()
+
+
+def _handle_manual_profile_collection(event, context, method):
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return error
+    if method == 'GET':
+        return _manual_profile_list(event, ctx)
+    if method == 'POST':
+        return _manual_profile_create(event, ctx)
+    return {'statusCode': 405,
+            'body': json.dumps({'error': 'Method not allowed'})}
+
+
+def _manual_profile_list(event, ctx):
+    params = event.get('queryStringParameters') or {}
+    try:
+        limit = int(params.get('limit', _MANUAL_PROFILE_PAGE_LIMIT))
+    except (TypeError, ValueError):
+        limit = _MANUAL_PROFILE_PAGE_LIMIT
+    limit = max(1, min(limit, _MANUAL_PROFILE_PAGE_LIMIT))
+    cursor = _decode_cursor(params.get('cursor'))
+    if cursor == 'invalid':
+        return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid cursor'})}
+
+    repo = _manual_profile_repo()
+    try:
+        items, next_cursor = repo.list_by_user(
+            ctx['userId'], ctx['tenantId'], resource_type='ManualSearchProfile',
+            partner_app_id=ctx.get('partnerApplicationId'),
+            issuer=ctx.get('issuer'), limit=limit, cursor=cursor)
+    except Exception:
+        logger.error('manual profile list failed')
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
+
+    return {'statusCode': 200, 'body': json.dumps({
+        'items': [_serialize_manual_profile(p) for p in items],
+        'nextCursor': _encode_cursor(next_cursor),
+    }, ensure_ascii=False)}
+
+
+def _manual_profile_create(event, ctx):
+    from datetime import datetime, timezone
+    import uuid
+    from jobsearch.partner_profile_contract import (
+        ManualSearchProfile, ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+
+    data = _manual_profile_body(event)
+    if data is None:
+        return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid JSON'})}
+    try:
+        parsed = _manual_profile_parse(data)
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+
+    now = datetime.now(timezone.utc).isoformat()
+    profile = ManualSearchProfile(
+        manual_profile_id=uuid.uuid4().hex,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=parsed['name'],
+        description=parsed['description'],
+        origin='manual',
+        matching_preferences=parsed['matching_preferences'],
+        created_at=now,
+        updated_at=now,
+    )
+    try:
+        profile.validate()
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+
+    repo = _manual_profile_repo()
+    try:
+        rid = repo.create(profile, user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+                          partner_app_id=ctx.get('partnerApplicationId'),
+                          issuer=ctx.get('issuer'))
+    except PartnerProfileConflictError:
+        return {'statusCode': 409, 'body': json.dumps({'error': 'Conflict'})}
+    except Exception:
+        logger.error('manual profile create failed')
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
+
+    stored = repo.get(rid, ctx['userId'], ctx['tenantId'],
+                      ctx.get('partnerApplicationId'), ctx.get('issuer'))
+    return _manual_profile_response(stored or profile, 201)
+
+
+def _handle_manual_profile_item(event, context, method, profile_id):
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return error
+    if not profile_id:
+        return {'statusCode': 400,
+                'body': json.dumps({'error': 'profileId is required'})}
+    if method == 'GET':
+        return _manual_profile_get(ctx, profile_id)
+    if method == 'PUT':
+        return _manual_profile_update(event, ctx, profile_id)
+    if method == 'DELETE':
+        return _manual_profile_delete(event, ctx, profile_id)
+    return {'statusCode': 405,
+            'body': json.dumps({'error': 'Method not allowed'})}
+
+
+def _manual_profile_get(ctx, profile_id):
+    from jobsearch.partner_profile_contract import ManualSearchProfile
+    repo = _manual_profile_repo()
+    try:
+        profile = repo.get(profile_id, ctx['userId'], ctx['tenantId'],
+                           ctx.get('partnerApplicationId'), ctx.get('issuer'))
+    except Exception:
+        logger.error('manual profile get failed')
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
+    if profile is None or not isinstance(profile, ManualSearchProfile):
+        return {'statusCode': 404, 'body': json.dumps({'error': 'Not found'})}
+    return _manual_profile_response(profile)
+
+
+def _manual_profile_update(event, ctx, profile_id):
+    from datetime import datetime, timezone
+    from jobsearch.partner_profile_contract import (
+        ManualSearchProfile, ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+
+    repo = _manual_profile_repo()
+    try:
+        existing = repo.get(profile_id, ctx['userId'], ctx['tenantId'],
+                            ctx.get('partnerApplicationId'), ctx.get('issuer'))
+    except Exception:
+        logger.error('manual profile update lookup failed')
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
+    if existing is None or not isinstance(existing, ManualSearchProfile):
+        return {'statusCode': 404, 'body': json.dumps({'error': 'Not found'})}
+
+    data = _manual_profile_body(event)
+    if data is None:
+        return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid JSON'})}
+    try:
+        parsed = _manual_profile_parse(data)
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+
+    expected_version = data.get('version')
+    if expected_version is not None:
+        try:
+            expected_version = int(expected_version)
+        except (TypeError, ValueError):
+            return {'statusCode': 422, 'body': json.dumps({'error': 'Invalid version'})}
+
+    now = datetime.now(timezone.utc).isoformat()
+    updated = ManualSearchProfile(
+        manual_profile_id=profile_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=parsed['name'],
+        description=parsed['description'],
+        origin='manual',
+        matching_preferences=parsed['matching_preferences'],
+        created_at=existing.created_at,
+        updated_at=now,
+    )
+    try:
+        updated.validate()
+        repo.update(updated, user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+                    partner_app_id=ctx.get('partnerApplicationId'),
+                    issuer=ctx.get('issuer'),
+                    expected_version=expected_version)
+    except PartnerProfileConflictError:
+        return {'statusCode': 409, 'body': json.dumps({'error': 'Version conflict'})}
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    except Exception:
+        logger.error('manual profile update failed')
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
+
+    stored = repo.get(profile_id, ctx['userId'], ctx['tenantId'],
+                      ctx.get('partnerApplicationId'), ctx.get('issuer'))
+    return _manual_profile_response(stored or updated)
+
+
+def _manual_profile_delete(event, ctx, profile_id):
+    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+
+    params = event.get('queryStringParameters') or {}
+    expected = params.get('version')
+    if expected is not None:
+        try:
+            expected = int(expected)
+        except (TypeError, ValueError):
+            return {'statusCode': 422, 'body': json.dumps({'error': 'Invalid version'})}
+
+    repo = _manual_profile_repo()
+    try:
+        deleted = repo.delete(profile_id, ctx['userId'], ctx['tenantId'],
+                              ctx.get('partnerApplicationId'), ctx.get('issuer'),
+                              expected_version=expected)
+    except PartnerProfileConflictError:
+        return {'statusCode': 409, 'body': json.dumps({'error': 'Version conflict'})}
+    except Exception:
+        logger.error('manual profile delete failed')
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
+    if not deleted:
+        return {'statusCode': 404, 'body': json.dumps({'error': 'Not found'})}
+    return {'statusCode': 204, 'body': ''}
 
 
 if __name__ == '__main__':

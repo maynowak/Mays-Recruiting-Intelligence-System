@@ -213,6 +213,30 @@ resource "aws_iam_role_policy" "lambda_dynamodb_jobsearch" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_dynamodb_partner_profiles" {
+  name = "${var.project_name}-${var.environment}-lambda-dynamodb-partner-profiles"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = [
+          var.partner_profiles_table_arn,
+          "${var.partner_profiles_table_arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_documents" {
   name = "${var.project_name}-${var.environment}-lambda-documents"
   role = aws_iam_role.lambda_execution.id
@@ -386,16 +410,17 @@ resource "aws_lambda_function" "agent" {
 
   environment {
     variables = {
-      WORK_ITEMS_TABLE    = var.dynamodb_table_name
-      USER_PROFILE_TABLE  = var.user_profile_table_name
-      AGENT_CATALOG_TABLE = var.agent_catalog_table_name
-      ENTITLEMENTS_TABLE  = var.entitlements_table_name
-      WORK_QUEUE_URL      = var.work_queue_url
-      JOBSEARCH_TABLE     = var.jobsearch_table_name
-      DOCUMENTS_BUCKET    = var.documents_bucket_name
-      API_PROFILES_TABLE  = var.api_profiles_table_name
-      OFFERS_TABLE        = var.offers_table_name
-      CREDENTIALS_TABLE   = var.credentials_table_name
+      WORK_ITEMS_TABLE      = var.dynamodb_table_name
+      USER_PROFILE_TABLE    = var.user_profile_table_name
+      AGENT_CATALOG_TABLE   = var.agent_catalog_table_name
+      ENTITLEMENTS_TABLE    = var.entitlements_table_name
+      WORK_QUEUE_URL        = var.work_queue_url
+      JOBSEARCH_TABLE       = var.jobsearch_table_name
+      PARTNER_PROFILE_TABLE = var.partner_profiles_table_name
+      DOCUMENTS_BUCKET      = var.documents_bucket_name
+      API_PROFILES_TABLE    = var.api_profiles_table_name
+      OFFERS_TABLE          = var.offers_table_name
+      CREDENTIALS_TABLE     = var.credentials_table_name
       # Partner Application Registry. Read by resolve_partner_application on
       # every authorized partner/M2M execution. Absent -> registry returns
       # None -> both partner routes fail closed with 403.
@@ -408,6 +433,7 @@ resource "aws_lambda_function" "agent" {
     aws_iam_role_policy.lambda_dynamodb_platform,
     aws_iam_role_policy.lambda_dynamodb_work,
     aws_iam_role_policy.lambda_dynamodb_jobsearch,
+    aws_iam_role_policy.lambda_dynamodb_partner_profiles,
     aws_iam_role_policy.lambda_dynamodb_product,
     aws_iam_role_policy.lambda_dynamodb_partner_registry,
     aws_iam_role_policy.lambda_documents,

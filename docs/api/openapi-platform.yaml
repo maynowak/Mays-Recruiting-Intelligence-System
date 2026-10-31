@@ -852,6 +852,232 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }
 
+  /v1/partner/me/manual-search-profiles:
+    get:
+      tags: [Partner]
+      operationId: listPartnerManualSearchProfiles
+      summary: List the caller's manual search profiles
+      description: |
+        Returns only profiles owned by the authenticated JWT subject in the
+        server-resolved tenant, partner application and Cognito issuer.
+        Paginated; the cursor is opaque.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Paginated page of manual search profiles.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/ManualSearchProfileV1" }
+                  nextCursor:
+                    type: string
+                    nullable: true
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    post:
+      tags: [Partner]
+      operationId: createPartnerManualSearchProfile
+      summary: Create a manual search profile
+      description: |
+        Creates a profile owned by the JWT subject. The server generates the
+        resource id and derives userId/tenantId/partner/issuer; client-supplied
+        identity fields are rejected. No agent work and no model call.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ManualSearchProfileInput" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ManualSearchProfileV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Resource conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+  /v1/partner/me/manual-search-profiles/{profileId}:
+    parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Partner]
+      operationId: getPartnerManualSearchProfile
+      summary: Get one manual search profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: The profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ManualSearchProfileV1" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    put:
+      tags: [Partner]
+      operationId: updatePartnerManualSearchProfile
+      summary: Update one manual search profile
+      description: |
+        Optimistic locking: send the current `version`. A mismatch returns 409.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ManualSearchProfileInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ManualSearchProfileV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    delete:
+      tags: [Partner]
+      operationId: deletePartnerManualSearchProfile
+      summary: Delete one manual search profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: version
+          in: query
+          required: false
+          schema: { type: integer }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "204":
+          description: Deleted (empty body).
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Invalid version.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
   /orders:
     post:
       tags: [Orders]
@@ -1210,6 +1436,59 @@ components:
         agentId: { type: string }
         validFrom: { type: string }
         validUntil: { type: string }
+
+    MatchingPreferencesV1:
+      type: object
+      description: Manual matching preferences (R01 contract, extended additively).
+      properties:
+        resourceType: { type: string, enum: [MatchingPreferences] }
+        schemaVersion: { type: string, enum: [v1] }
+        roles: { type: array, items: { type: string } }
+        workModes: { type: array, items: { type: string } }
+        employmentTypes: { type: array, items: { type: string } }
+        locations: { type: array, items: { type: string } }
+        salaryMin: { type: integer, nullable: true }
+        remoteOnly: { type: boolean }
+        sources: { type: array, items: { type: string } }
+        query: { type: string }
+        requiredSkills: { type: array, items: { type: string } }
+        preferredSkills: { type: array, items: { type: string } }
+        excludedTerms: { type: array, items: { type: string } }
+
+    ManualSearchProfileInput:
+      type: object
+      description: >-
+        Client-supplied profile fields. Identity (userId, tenantId, partner,
+        issuer) is server-derived and rejected in the body.
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        matchingPreferences:
+          $ref: "#/components/schemas/MatchingPreferencesV1"
+        version: { type: integer, minimum: 1, description: "Optimistic-lock version for updates." }
+
+    ManualSearchProfileV1:
+      type: object
+      required: [schemaVersion, manualSearchProfileId, name, origin, matchingPreferences]
+      properties:
+        schemaVersion: { type: string, enum: [v1] }
+        manualSearchProfileId:
+          type: string
+          description: Canonical API id (same value as manualProfileId).
+        manualProfileId:
+          type: string
+          description: R01 persistence id, kept for contract compatibility.
+        name: { type: string }
+        description: { type: string }
+        origin: { type: string, enum: [manual] }
+        matchingPreferences:
+          $ref: "#/components/schemas/MatchingPreferencesV1"
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+        userId: { type: string }
+        tenantId: { type: string }
 
     WorkAccepted:
       type: object
