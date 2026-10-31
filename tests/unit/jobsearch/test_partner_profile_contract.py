@@ -65,9 +65,13 @@ def _cv(cv_id="cv1"):
 
 
 def _sp(sp_id="sp1", cv_id="cv1"):
-    return CVSearchProfile(search_profile_id=sp_id, cv_id=cv_id, user_id="u1", tenant_id="t1", name="Senior Dev",
-                          profile={"skills": "python", "targetRoles": ["Dev"]},
-                          search_configuration={"targetRoles": ["Dev", "Lead"], "workModes": ["remote", "hybrid"]})
+    return CVSearchProfile(
+        search_profile_id=sp_id, cv_id=cv_id, user_id="u1", tenant_id="t1",
+        name="Senior Dev",
+        search_config=SearchConfiguration(
+            skills="python", target_roles=["Dev", "Lead"], city="Berlin",
+            radius_km=50, work_modes=["remote", "hybrid"],
+            employment_types=["full_time"]))
 
 
 def _ats(ats_id="ats1", sp_id="sp1", cv_id="cv1"):
@@ -98,7 +102,9 @@ class TestValidObjects(unittest.TestCase):
         d = sp.to_dict()
         sp2 = CVSearchProfile.from_dict(d)
         assert sp2.search_profile_id == "sp1"
-        assert sp2.search_configuration["targetRoles"] == ["Dev", "Lead"]
+        assert sp2.origin == "cv"
+        assert sp2.search_config.target_roles == ["Dev", "Lead"]
+        assert sp2.search_config.skills == "python"
 
     def test_ats_roundtrip(self):
         a = _ats()
@@ -183,17 +189,17 @@ class TestMultiValueSearchConfig(unittest.TestCase):
     def test_preserves_multiple_roles_workmodes_employment(self):
         sp = CVSearchProfile(
             search_profile_id="sp", cv_id="cv", user_id="u", tenant_id="t", name="n",
-            search_configuration={
-                "targetRoles": ["Dev", "Lead", "Architect"],
-                "workModes": ["remote", "hybrid", "onsite"],
-                "employmentTypes": ["full_time", "part_time", "contract"],
-            },
+            search_config=SearchConfiguration(
+                target_roles=["Dev", "Lead", "Architect"],
+                work_modes=["remote", "hybrid", "onsite"],
+                employment_types=["full_time", "part_time"],
+            ),
         )
         d = sp.to_dict()
         sp2 = CVSearchProfile.from_dict(d)
-        assert sp2.search_configuration["targetRoles"] == ["Dev", "Lead", "Architect"]
-        assert sp2.search_configuration["workModes"] == ["remote", "hybrid", "onsite"]
-        assert sp2.search_configuration["employmentTypes"] == ["full_time", "part_time", "contract"]
+        assert sp2.search_config.target_roles == ["Dev", "Lead", "Architect"]
+        assert sp2.search_config.work_modes == ["remote", "hybrid", "onsite"]
+        assert sp2.search_config.employment_types == ["full_time", "part_time"]
 
 
 class TestSchemaVersion(unittest.TestCase):

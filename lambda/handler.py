@@ -3867,6 +3867,15 @@ def _handle_partner_cv_routes(event, context, method, path):
     ctx, error = _partner_profile_context(event)
     if error:
         return error
+    rest = path[len(_CV_COLLECTION):].strip('/')
+    parts = [p for p in rest.split('/') if p]
+    if len(parts) >= 2 and parts[1] == 'search-profiles':
+        cv_id = parts[0]
+        if len(parts) == 2:
+            return _cv_search_profile_collection(event, ctx, method, cv_id)
+        if len(parts) == 3:
+            return _cv_search_profile_item(event, ctx, method, cv_id, parts[2])
+        return _cv_error(404, 'Not found')
     cv_id, action = _cv_parse_path(path)
     if action == 'collection':
         if method == 'GET':
@@ -4247,6 +4256,256 @@ def _cv_download(ctx, cv_id):
         'downloadUrl': result['downloadUrl'],
         'expiresIn': result['expiresIn'],
     }, ensure_ascii=False)}
+
+
+# ---------------------------------------------------------------------------
+# R05-B: Partner CV search profiles (CVSearchProfileV1 CRUD)
+#
+#   GET    /v1/partner/me/cvs/{cvId}/search-profiles
+#   POST   /v1/partner/me/cvs/{cvId}/search-profiles
+#   GET    /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}
+#   PUT    /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}
+#   DELETE /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}
+# ---------------------------------------------------------------------------
+
+def _serialize_cv_search_profile(profile):
+    body = profile.to_dict()
+    return {
+        'schemaVersion': body.get('schemaVersion', 1),
+        'searchProfileId': body.get('searchProfileId'),
+        'cvId': body.get('cvId'),
+        'name': body.get('name'),
+        'description': body.get('description', ''),
+        'origin': body.get('origin', 'cv'),
+        'searchConfig': body.get('searchConfig'),
+        'createdAt': body.get('createdAt'),
+        'updatedAt': body.get('updatedAt'),
+        'version': getattr(profile, 'version', None),
+    }
+
+
+def _cv_search_profile_response(profile, status=200):
+    return {'statusCode': status,
+            'body': json.dumps(_serialize_cv_search_profile(profile),
+                               ensure_ascii=False)}
+
+
+def _cv_search_profile_parse(data, *, existing=None):
+    from jobsearch.partner_profile_contract import (
+        ProfileContractError, SearchConfiguration, reject_client_identity,
+    )
+    reject_client_identity(data)
+    name = data.get('name')
+    if name is None and existing is not None:
+        name = existing.name
+    if not isinstance(name, str) or not name.strip():
+        raise ProfileContractError('MISSING_FIELD', 'name is required')
+    description = data.get('description')
+    if description is None:
+        description = existing.description if existing is not None else ""
+    sc_raw = data.get('searchConfig')
+    sc_provided = sc_raw is not None
+    if sc_provided:
+        if not isinstance(sc_raw, dict):
+            raise ProfileContractError('INVALID_FIELD',
+                                       'searchConfig must be an object')
+        sc = SearchConfiguration.from_dict(sc_raw)
+    elif existing is not None:
+        sc = existing.search_config
+    else:
+        raise ProfileContractError('MISSING_FIELD', 'searchConfig is required')
+    if existing is None or sc_provided:
+        if not sc.skills.strip() and not sc.target_roles:
+            raise ProfileContractError(
+                'INVALID_SEARCH_CONFIG',
+                'searchConfig.skills or searchConfig.targetRoles is required')
+        if not sc.employment_types:
+            raise ProfileContractError(
+                'INVALID_SEARCH_CONFIG',
+                'searchConfig.employmentTypes must contain at least one value')
+    return {'name': name.strip(),
+            'description': str(description or ''),
+            'search_config': sc}
+
+
+def _cv_search_profile_collection(event, ctx, method, cv_id):
+    from jobsearch.partner_profile_contract import CVDocument as _CVDocument
+    repo = _cv_repo()
+    try:
+        cv = repo.get(cv_id, **_cv_identity(ctx))
+    except Exception:
+        return _cv_error(500, 'Internal error')
+    if cv is None or not isinstance(cv, _CVDocument):
+        return _cv_error(404, 'Not found')
+    if method == 'GET':
+        return _cv_search_profile_list(event, ctx, cv_id)
+    if method == 'POST':
+        return _cv_search_profile_create(event, ctx, cv_id)
+    return _cv_error(405, 'Method not allowed')
+
+
+def _cv_search_profile_list(event, ctx, cv_id):
+    params = event.get('queryStringParameters') or {}
+    try:
+        limit = int(params.get('limit', 50))
+    except (TypeError, ValueError):
+        limit = 50
+    limit = max(1, min(limit, 50))
+    cursor = _decode_cursor(params.get('cursor'))
+    if cursor == 'invalid':
+        return _cv_error(400, 'Invalid cursor')
+    repo = _cv_repo()
+    try:
+        items, next_cursor = repo.list_by_parent(
+            cv_id, ctx['userId'], ctx['tenantId'], 'CVSearchProfile',
+            partner_app_id=ctx.get('partnerApplicationId'),
+            issuer=ctx.get('issuer'), limit=limit, cursor=cursor)
+    except Exception:
+        logger.error('cv search profile list failed')
+        return _cv_error(500, 'Internal error')
+    return {'statusCode': 200, 'body': json.dumps({
+        'items': [_serialize_cv_search_profile(p) for p in items],
+        'nextCursor': _encode_cursor(next_cursor),
+    }, ensure_ascii=False)}
+
+
+def _cv_search_profile_create(event, ctx, cv_id):
+    from datetime import datetime, timezone
+    import uuid
+    from jobsearch.partner_profile_contract import (
+        CVSearchProfile, ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+
+    data = _cv_body(event)
+    if data is None:
+        return _cv_error(400, 'Invalid JSON')
+    try:
+        parsed = _cv_search_profile_parse(data)
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    now = datetime.now(timezone.utc).isoformat()
+    profile = CVSearchProfile(
+        search_profile_id=uuid.uuid4().hex,
+        cv_id=cv_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=parsed['name'],
+        description=parsed['description'],
+        origin='cv',
+        search_config=parsed['search_config'],
+        created_at=now,
+        updated_at=now,
+    )
+    try:
+        profile.validate()
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    repo = _cv_repo()
+    try:
+        rid = repo.create(profile, **_cv_identity(ctx),
+                          idempotency_key=_idempotency_key(event))
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Conflict')
+    except Exception:
+        logger.error('cv search profile create failed')
+        return _cv_error(500, 'Internal error')
+    stored = repo.get(rid, **_cv_identity(ctx))
+    return _cv_search_profile_response(stored or profile, 201)
+
+
+def _cv_search_profile_item(event, ctx, method, cv_id, search_profile_id):
+    from jobsearch.partner_profile_contract import CVSearchProfile
+    repo = _cv_repo()
+    try:
+        existing = repo.get(search_profile_id, **_cv_identity(ctx))
+    except Exception:
+        return _cv_error(500, 'Internal error')
+    if (existing is None or not isinstance(existing, CVSearchProfile)
+            or existing.cv_id != cv_id):
+        return _cv_error(404, 'Not found')
+    if method == 'GET':
+        return _cv_search_profile_response(existing)
+    if method == 'PUT':
+        return _cv_search_profile_update(event, ctx, cv_id, search_profile_id, existing)
+    if method == 'DELETE':
+        return _cv_search_profile_delete(event, ctx, cv_id, search_profile_id)
+    return _cv_error(405, 'Method not allowed')
+
+
+def _cv_search_profile_update(event, ctx, cv_id, search_profile_id, existing):
+    from datetime import datetime, timezone
+    from jobsearch.partner_profile_contract import (
+        CVSearchProfile, ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+
+    data = _cv_body(event)
+    if data is None:
+        return _cv_error(400, 'Invalid JSON')
+    try:
+        parsed = _cv_search_profile_parse(data, existing=existing)
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    expected_version = data.get('version')
+    if expected_version is not None:
+        try:
+            expected_version = int(expected_version)
+        except (TypeError, ValueError):
+            return _cv_error(422, 'Invalid version')
+    now = datetime.now(timezone.utc).isoformat()
+    updated = CVSearchProfile(
+        search_profile_id=search_profile_id,
+        cv_id=cv_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=parsed['name'],
+        description=parsed['description'],
+        origin='cv',
+        search_config=parsed['search_config'],
+        metadata=dict(existing.metadata or {}),
+        created_at=existing.created_at,
+        updated_at=now,
+    )
+    repo = _cv_repo()
+    try:
+        updated.validate()
+        repo.update(updated, **_cv_identity(ctx), expected_version=expected_version)
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Version conflict')
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    except Exception:
+        logger.error('cv search profile update failed')
+        return _cv_error(500, 'Internal error')
+    stored = repo.get(search_profile_id, **_cv_identity(ctx))
+    return _cv_search_profile_response(stored or updated)
+
+
+def _cv_search_profile_delete(event, ctx, cv_id, search_profile_id):
+    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+
+    params = event.get('queryStringParameters') or {}
+    expected = params.get('version')
+    if expected is not None:
+        try:
+            expected = int(expected)
+        except (TypeError, ValueError):
+            return _cv_error(422, 'Invalid version')
+    repo = _cv_repo()
+    try:
+        deleted = repo.delete(search_profile_id, **_cv_identity(ctx),
+                              expected_version=expected,
+                              child_type='ATSSearchProfile')
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Search profile has ATS children or version conflict',
+                         cvId=cv_id)
+    except Exception:
+        logger.error('cv search profile delete failed')
+        return _cv_error(500, 'Internal error')
+    if not deleted:
+        return _cv_error(404, 'Not found')
+    return {'statusCode': 204, 'body': ''}
 
 
 if __name__ == '__main__':

@@ -79,8 +79,8 @@ CV_ALLOWED_STATUSES = frozenset({
 })
 CV_SEARCH_PROFILE_FIELDS = frozenset({
     "resourceType", "schemaVersion", "searchProfileId", "cvId", "userId",
-    "tenantId", "name", "profile", "searchConfiguration", "createdAt",
-    "updatedAt", "metadata",
+    "tenantId", "name", "description", "origin", "searchConfig",
+    "profile", "searchConfiguration", "createdAt", "updatedAt", "metadata",
 })
 ATS_SEARCH_PROFILE_FIELDS = frozenset({
     "resourceType", "schemaVersion", "atsProfileId", "searchProfileId", "cvId",
@@ -333,6 +333,84 @@ class SearchConfiguration:
             work_modes=list(mp.work_modes),
             employment_types=allowed_emp,
             legacy_incomplete=True,
+            legacy_preserved=preserved,
+        )
+
+    @classmethod
+    def from_legacy_cv(cls, profile: Dict[str, Any],
+                       search_configuration: Dict[str, Any]) -> "SearchConfiguration":
+        """Map the legacy R01 CV dicts into v1 searchConfig without invention."""
+        p = profile or {}
+        sc = search_configuration or {}
+        preserved: Dict[str, Any] = {}
+
+        raw_skills = sc.get("skills", p.get("skills"))
+        if isinstance(raw_skills, str):
+            skills = raw_skills
+        else:
+            skills = ""
+            if raw_skills is not None:
+                preserved["skills"] = raw_skills
+
+        raw_roles = sc.get("targetRoles", p.get("targetRoles")) or []
+        if isinstance(raw_roles, list):
+            target_roles = list(raw_roles)
+        else:
+            target_roles = []
+            preserved["targetRoles"] = raw_roles
+
+        raw_city = sc.get("city", sc.get("location", p.get("city"))) or ""
+        if isinstance(raw_city, str):
+            city = raw_city
+        else:
+            city = ""
+            preserved["city"] = raw_city
+
+        raw_radius = sc.get("radiusKm", sc.get("locationRadius", p.get("radiusKm")))
+        radius_km = None
+        if raw_radius is not None:
+            try:
+                candidate = int(raw_radius)
+            except (TypeError, ValueError):
+                candidate = None
+            if candidate in SEARCH_RADIUS_VALUES:
+                radius_km = candidate
+            else:
+                preserved["radiusKm"] = raw_radius
+
+        raw_work = sc.get("workModes", p.get("workModes")) or []
+        if isinstance(raw_work, list):
+            work_modes = list(raw_work)
+        else:
+            work_modes = []
+            preserved["workModes"] = raw_work
+
+        raw_emp = sc.get("employmentTypes", p.get("employmentTypes")) or []
+        if isinstance(raw_emp, list):
+            allowed_emp = [e for e in raw_emp if e in SEARCH_EMPLOYMENT_TYPES]
+            extra_emp = [e for e in raw_emp if e not in SEARCH_EMPLOYMENT_TYPES]
+        else:
+            allowed_emp = []
+            extra_emp = []
+            preserved["employmentTypes"] = raw_emp
+        if extra_emp:
+            preserved["employmentTypes"] = extra_emp
+
+        known = {"skills", "targetRoles", "city", "location", "radiusKm",
+                 "locationRadius", "workModes", "employmentTypes"}
+        for source in (p, sc):
+            for key, value in source.items():
+                if key not in known:
+                    preserved.setdefault("legacy", {})[key] = value
+
+        return cls(
+            skills=skills,
+            target_roles=target_roles,
+            city=city,
+            radius_km=radius_km,
+            work_modes=work_modes,
+            employment_types=allowed_emp,
+            legacy_incomplete=bool(preserved) or not allowed_emp,
             legacy_preserved=preserved,
         )
 
@@ -612,6 +690,10 @@ class CVSearchProfile:
     user_id: str
     tenant_id: str
     name: str
+    description: str = ""
+    origin: str = CV_PROFILE_ORIGIN
+    search_config: SearchConfiguration = field(default_factory=SearchConfiguration)
+    # Legacy R01 dicts, read-only for migration; never emitted in v1.
     profile: Dict[str, Any] = field(default_factory=dict)
     search_configuration: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -619,7 +701,7 @@ class CVSearchProfile:
     updated_at: Optional[str] = None
 
     resource_type: str = "CVSearchProfile"
-    schema_version: str = SCHEMA_VERSION
+    schema_version: int = SCHEMA_VERSION
 
     def to_dict(self) -> Dict[str, Any]:
         result: Dict[str, Any] = {
@@ -630,11 +712,10 @@ class CVSearchProfile:
             "userId": self.user_id,
             "tenantId": self.tenant_id,
             "name": self.name,
+            "description": self.description,
+            "origin": self.origin,
+            "searchConfig": self.search_config.to_dict(),
         }
-        if self.profile:
-            result["profile"] = dict(self.profile)
-        if self.search_configuration:
-            result["searchConfiguration"] = dict(self.search_configuration)
         if self.created_at:
             result["createdAt"] = self.created_at
         if self.updated_at:
@@ -651,15 +732,43 @@ class CVSearchProfile:
             _check_unknown_fields(data, CV_SEARCH_PROFILE_FIELDS, "CVSearchProfile")
         rt = _check_resource_type(data.get("resourceType"), "CVSearchProfile")
         sv = _check_schema_version(data.get("schemaVersion"))
+        origin = data.get("origin", CV_PROFILE_ORIGIN)
+        if origin != CV_PROFILE_ORIGIN:
+            raise ProfileContractError(
+                "INVALID_FIELD", f"origin must be '{CV_PROFILE_ORIGIN}', got {origin!r}")
+        profile = data.get("profile") or {}
+        search_configuration = data.get("searchConfiguration") or {}
+        metadata = dict(data.get("metadata") or {})
+        sc_raw = data.get("searchConfig")
+        if isinstance(sc_raw, dict):
+            search_config = SearchConfiguration.from_dict(sc_raw, strict=strict)
+        else:
+            search_config = SearchConfiguration.from_legacy_cv(
+                profile if isinstance(profile, dict) else {},
+                search_configuration if isinstance(search_configuration, dict) else {})
+            if search_config.legacy_preserved or profile or search_configuration:
+                metadata.setdefault("legacy", {})
+                if search_config.legacy_preserved:
+                    metadata["legacy"].setdefault(
+                        "searchConfig", dict(search_config.legacy_preserved))
+                if profile:
+                    metadata["legacy"].setdefault("profile", dict(profile))
+                if search_configuration:
+                    metadata["legacy"].setdefault(
+                        "searchConfiguration", dict(search_configuration))
+                metadata["legacyIncomplete"] = True
         obj = cls(
             search_profile_id=_require_str(data.get("searchProfileId"), "searchProfileId"),
             cv_id=_require_str(data.get("cvId"), "cvId"),
             user_id=_require_str(data.get("userId"), "userId"),
             tenant_id=_require_str(data.get("tenantId"), "tenantId"),
             name=_require_str(data.get("name"), "name"),
-            profile=data.get("profile") or {},
-            search_configuration=data.get("searchConfiguration") or {},
-            metadata=data.get("metadata") or {},
+            description=str(data.get("description", "") or ""),
+            origin=origin,
+            search_config=search_config,
+            profile=profile,
+            search_configuration=search_configuration,
+            metadata=metadata,
             created_at=_optional_str(data.get("createdAt"), "createdAt"),
             updated_at=_optional_str(data.get("updatedAt"), "updatedAt"),
             resource_type=rt,
@@ -674,15 +783,16 @@ class CVSearchProfile:
         _require_str(self.user_id, "userId")
         _require_str(self.tenant_id, "tenantId")
         _require_str(self.name, "name")
+        if self.origin != CV_PROFILE_ORIGIN:
+            raise ProfileContractError(
+                "INVALID_FIELD", f"origin must be '{CV_PROFILE_ORIGIN}', got {self.origin!r}")
+        if not isinstance(self.search_config, SearchConfiguration):
+            raise ProfileContractError("INVALID_FIELD", "searchConfig must be a SearchConfiguration")
+        self.search_config.validate()
         if not isinstance(self.profile, dict):
             raise ProfileContractError("INVALID_FIELD", "profile must be an object")
         if not isinstance(self.search_configuration, dict):
             raise ProfileContractError("INVALID_FIELD", "searchConfiguration must be an object")
-        # preserve multi-values: lists must stay lists
-        sc = self.search_configuration
-        for key in ("targetRoles", "workModes", "employmentTypes", "locations", "skills"):
-            if key in sc and not isinstance(sc[key], list):
-                raise ProfileContractError("INVALID_SEARCH_CONFIG", f"searchConfiguration.{key} must be a list")
 
 
 @dataclass

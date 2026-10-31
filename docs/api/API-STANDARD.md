@@ -125,6 +125,11 @@ Antwort 202: `{"workId": string, "status": string, "requestId": string}`
 | `POST /v1/partner/me/cvs/{cvId}/document/upload` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 409, 422, 500, 503 |
 | `POST /v1/partner/me/cvs/{cvId}/document/complete` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 409, 500, 503 |
 | `GET /v1/partner/me/cvs/{cvId}/document` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 409, 500, 503 |
+| `GET /v1/partner/me/cvs/{cvId}/search-profiles` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 500, 503 |
+| `POST /v1/partner/me/cvs/{cvId}/search-profiles` | JWT **+** `X-Api-Credential` | 201 | 400, 401, 403, 404, 409, 422, 500, 503 |
+| `GET /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 500, 503 |
+| `PUT /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 409, 422, 500, 503 |
+| `DELETE /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}` | JWT **+** `X-Api-Credential` | 204 | 401, 403, 404, 409, 422, 500, 503 |
 
 Request-Body (alle Felder optional):
 `{"capability": string, "payload": object, "idempotencyKey": string}`

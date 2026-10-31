@@ -1437,6 +1437,249 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }
 
+  /v1/partner/me/cvs/{cvId}/search-profiles:
+    parameters:
+      - name: cvId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Partner]
+      operationId: listPartnerCvSearchProfiles
+      summary: List the search profiles of one owned CV
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Paginated page of CV search profiles.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/CVSearchProfileV1" }
+                  nextCursor: { type: string, nullable: true }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Parent CV not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    post:
+      tags: [Partner]
+      operationId: createPartnerCvSearchProfile
+      summary: Create a search profile for one owned CV
+      description: |
+        At most two search profiles per CV. A 24h Idempotency-Key makes retries
+        return the original identity; the same key with a different payload is
+        a 409. No agent work and no model call.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 200 }
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CVSearchProfileInput" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CVSearchProfileV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Parent CV not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Capacity (2/CV), version or idempotency conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+  /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}:
+    parameters:
+      - name: cvId
+        in: path
+        required: true
+        schema: { type: string }
+      - name: searchProfileId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Partner]
+      operationId: getPartnerCvSearchProfile
+      summary: Get one CV search profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: The CV search profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CVSearchProfileV1" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or wrong parent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    put:
+      tags: [Partner]
+      operationId: updatePartnerCvSearchProfile
+      summary: Update one CV search profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CVSearchProfileInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CVSearchProfileV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or wrong parent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    delete:
+      tags: [Partner]
+      operationId: deletePartnerCvSearchProfile
+      summary: Delete one CV search profile
+      description: |
+        Refused with 409 while ATS child profiles exist. No cascade deletion.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: version
+          in: query
+          required: false
+          schema: { type: integer }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "204":
+          description: Deleted (empty body).
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or wrong parent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: ATS children present or version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Invalid version.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
   /orders:
     post:
       tags: [Orders]
@@ -1948,6 +2191,37 @@ components:
             deleteMarker: { type: boolean }
             physicalPurge: { type: boolean }
             versionId: { type: string, nullable: true }
+
+    CVSearchProfileInput:
+      type: object
+      description: >-
+        Client-supplied CV search profile fields. IDs, parent cvId, identity,
+        origin, timestamps and schemaVersion are server-owned.
+      additionalProperties: false
+      required: [name, searchConfig]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+        searchConfig:
+          $ref: "#/components/schemas/SearchConfigurationV1"
+        version: { type: integer, minimum: 1, description: "Optimistic-lock version for updates." }
+
+    CVSearchProfileV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, searchProfileId, cvId, name, origin, searchConfig, createdAt, updatedAt, version]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        searchProfileId: { type: string }
+        cvId: { type: string }
+        name: { type: string }
+        description: { type: string }
+        origin: { type: string, enum: [cv] }
+        searchConfig:
+          $ref: "#/components/schemas/SearchConfigurationV1"
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
 
     WorkAccepted:
       type: object

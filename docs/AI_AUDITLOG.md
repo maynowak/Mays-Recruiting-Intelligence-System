@@ -7955,3 +7955,26 @@ Evidence / file references:
 Classification: GREEN
 Current resume point:
   - R05-A abgeschlossen; R05-CRUD nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R05B-CV-SEARCH-CRUD]
+Current status: COMPLETE — CVSearchProfileV1-CRUD-API implementiert.
+Audit date/time: 2026-10-31
+Actual findings:
+  - 5 Routen unter /v1/partner/me/cvs/{cvId}/search-profiles.
+  - CVSearchProfile um description, origin=cv und searchConfig erweitert
+    (P1-2 resolved); Legacy-profile/searchConfiguration werden migriert.
+  - Dual-Auth, Parent-/Owner-Isolation, 2/CV-Kapazitaet, 24h-Idempotenz,
+    Versionierung und ATS-Child-Delete-Guard wiederverwendet.
+  - Jobsearch origin/main erneut abgeglichen: a47a957; docs/contracts
+    unveraendert seit ad9b5ed (nur UI/Session-Aenderungen).
+  - Tests: 27 neue + 347 bestehende = 374 PASS.
+Evidence / file references:
+  - jobsearch/partner_profile_contract.py
+  - lambda/handler.py
+  - terraform/modules/api/main.tf
+  - docs/api/openapi-platform.yaml
+  - tests/test_partner_cv_search_profiles_api.py
+  - docs/reports/RIS-PARTNER-PROFILE-R05-B-CV-SEARCH-CRUD.md
+Classification: GREEN
+Current resume point:
+  - R05-B abgeschlossen; R06 nicht begonnen.

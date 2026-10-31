@@ -274,11 +274,14 @@ class TestRemainingP1Gaps(unittest.TestCase):
         cv.validate()
         self.assertEqual("application/msword", cv.to_dict()["contentType"])
 
-    def test_cv_search_profile_shape_gap(self):
+    def test_cv_search_profile_v1_shape(self):
         d = _sp().to_dict()
-        self.assertNotIn("description", d)
-        self.assertNotIn("origin", d)
-        self.assertNotIn("searchConfig", d)
+        self.assertEqual(1, d["schemaVersion"])
+        self.assertEqual("cv", d["origin"])
+        self.assertIn("description", d)
+        self.assertIn("searchConfig", d)
+        self.assertIn("searchProfileId", d)
+        self.assertIn("cvId", d)
 
     def test_ats_criteria_gap(self):
         self.assertNotIn("criteria", _ats().to_dict())
