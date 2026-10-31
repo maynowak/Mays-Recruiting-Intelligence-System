@@ -1078,6 +1078,352 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }
 
+  /v1/partner/me/cvs:
+    get:
+      tags: [Partner]
+      operationId: listPartnerCvs
+      summary: List the caller's CV metadata
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: The caller's CV metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/PartnerCvV1" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    post:
+      tags: [Partner]
+      operationId: createPartnerCv
+      summary: Create CV metadata (status pending)
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PartnerCvInput" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerCvV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Capacity limit (10 CVs) exceeded.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+  /v1/partner/me/cvs/{cvId}:
+    parameters:
+      - name: cvId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Partner]
+      operationId: getPartnerCv
+      summary: Get one CV metadata record
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: The CV metadata.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerCvV1" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    patch:
+      tags: [Partner]
+      operationId: updatePartnerCv
+      summary: Update CV metadata (does not change lifecycle fields)
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PartnerCvInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerCvV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    delete:
+      tags: [Partner]
+      operationId: deletePartnerCv
+      summary: Delete a CV and its current document version
+      description: |
+        Deletes the current S3 object version (a versioned bucket creates a
+        delete marker) and then the metadata. It never claims physical purge
+        of all object versions.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Deleted; includes the document delete classification.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerCvDeleteResult" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "502":
+          description: Document deletion failed; metadata was retained.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+  /v1/partner/me/cvs/{cvId}/document/upload:
+    post:
+      tags: [Partner]
+      operationId: createPartnerCvUploadTicket
+      summary: Issue a short-lived upload ticket for a CV
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contentType: { type: string }
+      responses:
+        "200":
+          description: Upload ticket.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerCvUploadTicket" }
+        "400":
+          description: Invalid content type / tenant context.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Document already ready; re-upload refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: contentType missing or not allowed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+  /v1/partner/me/cvs/{cvId}/document/complete:
+    post:
+      tags: [Partner]
+      operationId: completePartnerCvUpload
+      summary: Verify the uploaded object and mark the CV ready
+      description: |
+        Calls S3 HeadObject for the server-assigned document key. READY is set
+        only when the object exists and is non-empty.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Verified; processingStatus is ready.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerCvV1" }
+        "400":
+          description: Invalid tenant/document context.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Upload missing/empty or not ready.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+  /v1/partner/me/cvs/{cvId}/document:
+    get:
+      tags: [Partner]
+      operationId: getPartnerCvDocument
+      summary: Get a short-lived download URL for a ready CV
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Download link.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerCvDownload" }
+        "400":
+          description: Invalid tenant/document context.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Document not ready.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
   /orders:
     post:
       tags: [Orders]
@@ -1489,6 +1835,77 @@ components:
         version: { type: integer, minimum: 1 }
         userId: { type: string }
         tenantId: { type: string }
+
+    PartnerCvInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        contentType: { type: string }
+        version: { type: integer, minimum: 1, description: "Optimistic-lock version for PATCH." }
+
+    PartnerCvV1:
+      type: object
+      required: [schemaVersion, cvId, name, processingStatus]
+      properties:
+        schemaVersion: { type: string, enum: [v1] }
+        cvId: { type: string }
+        documentId:
+          type: string
+          nullable: true
+          description: Server-assigned S3 document id (never a presigned URL).
+        name: { type: string }
+        size: { type: integer, minimum: 0 }
+        contentType: { type: string, nullable: true }
+        etag: { type: string, nullable: true }
+        processingStatus:
+          type: string
+          enum: [pending, upload_pending, ready, delete_failed, error]
+        uploadedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+        userId: { type: string }
+        tenantId: { type: string }
+
+    PartnerCvUploadTicket:
+      type: object
+      required: [cvId, documentId, uploadUrl, expiresIn]
+      properties:
+        cvId: { type: string }
+        documentId: { type: string }
+        uploadUrl:
+          type: string
+          description: Short-lived presigned PUT URL; never persisted.
+        expiresIn: { type: integer }
+
+    PartnerCvDownload:
+      type: object
+      required: [cvId, documentId, downloadUrl, expiresIn]
+      properties:
+        cvId: { type: string }
+        documentId: { type: string }
+        downloadUrl:
+          type: string
+          description: Short-lived presigned GET URL; never persisted.
+        expiresIn: { type: integer }
+
+    PartnerCvDeleteResult:
+      type: object
+      properties:
+        cvId: { type: string }
+        deleted: { type: boolean }
+        physicalPurge:
+          type: boolean
+          description: Always false; versioned delete creates a delete marker.
+        document:
+          type: object
+          properties:
+            existed: { type: boolean }
+            deleted: { type: boolean }
+            deleteMarker: { type: boolean }
+            physicalPurge: { type: boolean }
+            versionId: { type: string, nullable: true }
 
     WorkAccepted:
       type: object

@@ -508,6 +508,9 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         params = event.get('pathParameters') or {}
         profile_id = params.get('profileId') or path[len('/v1/partner/me/manual-search-profiles/'):].split('?')[0]
         return _handle_manual_profile_item(event, context, method, profile_id)
+    elif path == '/v1/partner/me/cvs' or path.startswith('/v1/partner/me/cvs/'):
+        # R04: partner CV metadata + secure document lifecycle.
+        return _handle_partner_cv_routes(event, context, method, path)
     elif method == 'GET' and path.startswith('/work'):
         work_id = event.get('pathParameters', {}).get('workId')
         return _get_work(work_id, event)
@@ -3707,6 +3710,451 @@ def _manual_profile_delete(event, ctx, profile_id):
     if not deleted:
         return {'statusCode': 404, 'body': json.dumps({'error': 'Not found'})}
     return {'statusCode': 204, 'body': ''}
+
+
+# ---------------------------------------------------------------------------
+# R04: Partner CV metadata + secure document lifecycle
+#
+#   GET    /v1/partner/me/cvs
+#   POST   /v1/partner/me/cvs
+#   GET    /v1/partner/me/cvs/{cvId}
+#   PATCH  /v1/partner/me/cvs/{cvId}
+#   DELETE /v1/partner/me/cvs/{cvId}
+#   POST   /v1/partner/me/cvs/{cvId}/document/upload
+#   POST   /v1/partner/me/cvs/{cvId}/document/complete
+#   GET    /v1/partner/me/cvs/{cvId}/document
+#
+# Status machine: pending -> upload_pending -> ready. READY is only set after
+# the S3 object is verified via head_object. A delete on a versioned bucket
+# creates a delete marker; it is never reported as a full physical purge.
+# ---------------------------------------------------------------------------
+
+_CV_COLLECTION = '/v1/partner/me/cvs'
+
+
+def _cv_repo():
+    return _manual_profile_repo()
+
+
+def _cv_body(event):
+    try:
+        data = json.loads(event.get('body') or '{}')
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _serialize_cv(cv):
+    body = cv.to_dict()
+    body['version'] = getattr(cv, 'version', None)
+    return body
+
+
+def _cv_response(cv, status=200):
+    return {'statusCode': status,
+            'body': json.dumps(_serialize_cv(cv), ensure_ascii=False)}
+
+
+def _cv_error(status, message, **extra):
+    payload = {'error': message}
+    payload.update(extra)
+    return {'statusCode': status, 'body': json.dumps(payload)}
+
+
+def _cv_parse_path(path):
+    """Return (cvId, action) for a CV path.
+
+    action in: collection, item, upload, complete, document, unknown.
+    """
+    rest = path[len(_CV_COLLECTION):].strip('/')
+    if not rest:
+        return None, 'collection'
+    parts = rest.split('/')
+    cv_id = parts[0]
+    if len(parts) == 1:
+        return cv_id, 'item'
+    if len(parts) == 2 and parts[1] == 'document':
+        return cv_id, 'document'
+    if len(parts) == 3 and parts[1] == 'document':
+        if parts[2] in ('upload', 'complete'):
+            return cv_id, parts[2]
+    return cv_id, 'unknown'
+
+
+def _cv_identity(ctx):
+    return {
+        'user_id': ctx['userId'],
+        'tenant_id': ctx['tenantId'],
+        'partner_app_id': ctx.get('partnerApplicationId'),
+        'issuer': ctx.get('issuer'),
+    }
+
+
+def _cv_get_owned(ctx, cv_id):
+    from jobsearch.partner_profile_contract import CVDocument
+    repo = _cv_repo()
+    cv = repo.get(cv_id, **_cv_identity(ctx))
+    return repo, (cv if isinstance(cv, CVDocument) else None)
+
+
+def _handle_partner_cv_routes(event, context, method, path):
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return error
+    cv_id, action = _cv_parse_path(path)
+    if action == 'collection':
+        if method == 'GET':
+            return _cv_list(ctx)
+        if method == 'POST':
+            return _cv_create(event, ctx)
+        return _cv_error(405, 'Method not allowed')
+    if not cv_id:
+        return _cv_error(400, 'cvId is required')
+    if action == 'item':
+        if method == 'GET':
+            return _cv_get(ctx, cv_id)
+        if method == 'PATCH':
+            return _cv_update(event, ctx, cv_id)
+        if method == 'DELETE':
+            return _cv_delete(ctx, cv_id)
+        return _cv_error(405, 'Method not allowed')
+    if action == 'upload' and method == 'POST':
+        return _cv_upload_ticket(event, ctx, cv_id)
+    if action == 'complete' and method == 'POST':
+        return _cv_complete(event, ctx, cv_id)
+    if action == 'document' and method == 'GET':
+        return _cv_download(ctx, cv_id)
+    return _cv_error(405, 'Method not allowed')
+
+
+def _cv_list(ctx):
+    repo = _cv_repo()
+    try:
+        items, _ = repo.list_by_user(
+            ctx['userId'], ctx['tenantId'], resource_type='CVDocument',
+            partner_app_id=ctx.get('partnerApplicationId'),
+            issuer=ctx.get('issuer'), limit=50)
+    except Exception:
+        logger.error('cv list failed')
+        return _cv_error(500, 'Internal error')
+    return {'statusCode': 200,
+            'body': json.dumps({'items': [_serialize_cv(cv) for cv in items]},
+                               ensure_ascii=False)}
+
+
+def _cv_create(event, ctx):
+    from datetime import datetime, timezone
+    import uuid
+    from documents import ALLOWED_CONTENT_TYPES
+    from jobsearch.partner_profile_contract import (
+        CVDocument, CV_STATUS_PENDING, ProfileContractError,
+        reject_client_identity,
+    )
+    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+
+    data = _cv_body(event)
+    if data is None:
+        return _cv_error(400, 'Invalid JSON')
+    try:
+        reject_client_identity(data)
+        name = data.get('name')
+        if not isinstance(name, str) or not name.strip():
+            raise ProfileContractError('MISSING_FIELD', 'name is required')
+        content_type = data.get('contentType')
+        if content_type is not None and content_type not in ALLOWED_CONTENT_TYPES:
+            raise ProfileContractError('INVALID_FIELD', 'contentType not allowed')
+        now = datetime.now(timezone.utc).isoformat()
+        cv = CVDocument(
+            cv_id=uuid.uuid4().hex,
+            user_id=ctx['userId'],
+            tenant_id=ctx['tenantId'],
+            name=name.strip(),
+            content_type=content_type,
+            processing_status=CV_STATUS_PENDING,
+            created_at=now,
+            updated_at=now,
+        )
+        cv.validate()
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+
+    repo = _cv_repo()
+    try:
+        rid = repo.create(cv, **_cv_identity(ctx))
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Conflict')
+    except Exception:
+        logger.error('cv create failed')
+        return _cv_error(500, 'Internal error')
+    stored = repo.get(rid, **_cv_identity(ctx))
+    return _cv_response(stored or cv, 201)
+
+
+def _cv_get(ctx, cv_id):
+    _, cv = _cv_get_owned(ctx, cv_id)
+    if cv is None:
+        return _cv_error(404, 'Not found')
+    return _cv_response(cv)
+
+
+def _cv_update(event, ctx, cv_id):
+    from datetime import datetime, timezone
+    from documents import ALLOWED_CONTENT_TYPES
+    from jobsearch.partner_profile_contract import CVDocument, ProfileContractError
+    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+
+    repo, existing = _cv_get_owned(ctx, cv_id)
+    if existing is None:
+        return _cv_error(404, 'Not found')
+    data = _cv_body(event)
+    if data is None:
+        return _cv_error(400, 'Invalid JSON')
+    try:
+        from jobsearch.partner_profile_contract import reject_client_identity
+        reject_client_identity(data)
+        name = data.get('name', existing.name)
+        if not isinstance(name, str) or not name.strip():
+            raise ProfileContractError('MISSING_FIELD', 'name is required')
+        content_type = data.get('contentType', existing.content_type)
+        if content_type is not None and content_type not in ALLOWED_CONTENT_TYPES:
+            raise ProfileContractError('INVALID_FIELD', 'contentType not allowed')
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+
+    expected_version = data.get('version')
+    if expected_version is not None:
+        try:
+            expected_version = int(expected_version)
+        except (TypeError, ValueError):
+            return _cv_error(422, 'Invalid version')
+
+    now = datetime.now(timezone.utc).isoformat()
+    updated = CVDocument(
+        cv_id=cv_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=name.strip(),
+        size=existing.size,
+        content_hash=existing.content_hash,
+        content_type=content_type,
+        etag=existing.etag,
+        uploaded_at=existing.uploaded_at,
+        document_id=existing.document_id,
+        processing_status=existing.processing_status,
+        created_at=existing.created_at,
+        updated_at=now,
+        metadata=dict(existing.metadata or {}),
+    )
+    try:
+        updated.validate()
+        repo.update(updated, **_cv_identity(ctx), expected_version=expected_version)
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Version conflict')
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    except Exception:
+        logger.error('cv update failed')
+        return _cv_error(500, 'Internal error')
+    stored = repo.get(cv_id, **_cv_identity(ctx))
+    return _cv_response(stored or updated)
+
+
+def _cv_delete(ctx, cv_id):
+    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+
+    repo, existing = _cv_get_owned(ctx, cv_id)
+    if existing is None:
+        return _cv_error(404, 'Not found')
+
+    document_report = None
+    if existing.document_id:
+        try:
+            from documents import delete_document_report
+            document_report = delete_document_report(
+                tenant_id=ctx['tenantId'], user_id=ctx['userId'],
+                doc_id=existing.document_id, require_tenant=True)
+        except Exception:
+            logger.error('cv document delete failed; metadata retained')
+            return _cv_error(502, 'Document deletion failed',
+                             cvId=cv_id, metadataRetained=True)
+
+    try:
+        deleted = repo.delete(cv_id, **_cv_identity(ctx))
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Version conflict')
+    except Exception:
+        logger.error('cv metadata delete failed')
+        return _cv_error(500, 'Internal error')
+    if not deleted:
+        return _cv_error(404, 'Not found')
+    return {'statusCode': 200, 'body': json.dumps({
+        'cvId': cv_id,
+        'deleted': True,
+        'document': document_report or {'existed': False},
+        'physicalPurge': False,
+    }, ensure_ascii=False)}
+
+
+def _cv_upload_ticket(event, ctx, cv_id):
+    from datetime import datetime, timezone
+    from documents import ALLOWED_CONTENT_TYPES, new_doc_id, presign_upload
+    from jobsearch.partner_profile_contract import (
+        CVDocument, CV_STATUS_READY, CV_STATUS_UPLOAD_PENDING,
+        ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+
+    repo, existing = _cv_get_owned(ctx, cv_id)
+    if existing is None:
+        return _cv_error(404, 'Not found')
+    if existing.processing_status == CV_STATUS_READY:
+        return _cv_error(409, 'Document already uploaded; re-upload not allowed')
+
+    data = _cv_body(event) or {}
+    content_type = data.get('contentType') or existing.content_type
+    if content_type not in ALLOWED_CONTENT_TYPES:
+        return _cv_error(422, 'contentType is required and must be allowed')
+
+    document_id = existing.document_id or new_doc_id()
+    now = datetime.now(timezone.utc).isoformat()
+    updated = CVDocument(
+        cv_id=cv_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=existing.name,
+        size=existing.size,
+        content_hash=existing.content_hash,
+        content_type=content_type,
+        etag=existing.etag,
+        uploaded_at=existing.uploaded_at,
+        document_id=document_id,
+        processing_status=CV_STATUS_UPLOAD_PENDING,
+        created_at=existing.created_at,
+        updated_at=now,
+        metadata=dict(existing.metadata or {}),
+    )
+    try:
+        updated.validate()
+        repo.update(updated, **_cv_identity(ctx),
+                    expected_version=getattr(existing, 'version', None))
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Version conflict')
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    except Exception:
+        logger.error('cv upload reservation failed')
+        return _cv_error(500, 'Internal error')
+
+    try:
+        ticket = presign_upload(
+            tenant_id=ctx['tenantId'], user_id=ctx['userId'],
+            content_type=content_type, doc_id=document_id,
+            require_tenant=True)
+    except ValueError as exc:
+        return _cv_error(400, str(exc))
+    except Exception:
+        logger.error('cv upload presign failed')
+        return _cv_error(500, 'Failed to prepare upload')
+
+    return {'statusCode': 200, 'body': json.dumps({
+        'cvId': cv_id,
+        'documentId': document_id,
+        'uploadUrl': ticket['uploadUrl'],
+        'expiresIn': ticket['expiresIn'],
+    }, ensure_ascii=False)}
+
+
+def _cv_complete(event, ctx, cv_id):
+    from datetime import datetime, timezone
+    from documents import head_document
+    from jobsearch.partner_profile_contract import (
+        CVDocument, CV_STATUS_READY, ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+
+    repo, existing = _cv_get_owned(ctx, cv_id)
+    if existing is None:
+        return _cv_error(404, 'Not found')
+    if not existing.document_id:
+        return _cv_error(409, 'No document assigned')
+
+    try:
+        meta = head_document(
+            tenant_id=ctx['tenantId'], user_id=ctx['userId'],
+            doc_id=existing.document_id, require_tenant=True)
+    except ValueError as exc:
+        return _cv_error(400, str(exc))
+    except Exception:
+        logger.error('cv upload verification failed')
+        return _cv_error(500, 'Failed to verify upload')
+
+    if meta is None:
+        return _cv_error(409, 'Upload not found',
+                         cvId=cv_id, processingStatus=existing.processing_status)
+    if meta.get('size', 0) <= 0:
+        return _cv_error(409, 'Uploaded object is empty', cvId=cv_id)
+
+    if existing.processing_status == CV_STATUS_READY:
+        return _cv_response(existing)
+
+    now = datetime.now(timezone.utc).isoformat()
+    updated = CVDocument(
+        cv_id=cv_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=existing.name,
+        size=meta['size'],
+        content_hash=existing.content_hash,
+        content_type=meta.get('contentType') or existing.content_type,
+        etag=meta.get('etag'),
+        uploaded_at=meta.get('lastModified') or now,
+        document_id=existing.document_id,
+        processing_status=CV_STATUS_READY,
+        created_at=existing.created_at,
+        updated_at=now,
+        metadata=dict(existing.metadata or {}),
+    )
+    try:
+        updated.validate()
+        repo.update(updated, **_cv_identity(ctx),
+                    expected_version=getattr(existing, 'version', None))
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Version conflict')
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    except Exception:
+        logger.error('cv complete failed')
+        return _cv_error(500, 'Internal error')
+    stored = repo.get(cv_id, **_cv_identity(ctx))
+    return _cv_response(stored or updated)
+
+
+def _cv_download(ctx, cv_id):
+    from documents import presign_download
+    from jobsearch.partner_profile_contract import CV_STATUS_READY
+
+    _, existing = _cv_get_owned(ctx, cv_id)
+    if existing is None:
+        return _cv_error(404, 'Not found')
+    if existing.processing_status != CV_STATUS_READY or not existing.document_id:
+        return _cv_error(409, 'Document not ready', cvId=cv_id)
+    try:
+        result = presign_download(
+            tenant_id=ctx['tenantId'], user_id=ctx['userId'],
+            doc_id=existing.document_id, require_tenant=True)
+    except ValueError as exc:
+        return _cv_error(400, str(exc))
+    except Exception:
+        logger.error('cv download presign failed')
+        return _cv_error(500, 'Failed to prepare download')
+    if result is None:
+        return _cv_error(404, 'Document not found')
+    return {'statusCode': 200, 'body': json.dumps({
+        'cvId': cv_id,
+        'documentId': existing.document_id,
+        'downloadUrl': result['downloadUrl'],
+        'expiresIn': result['expiresIn'],
+    }, ensure_ascii=False)}
 
 
 if __name__ == '__main__':

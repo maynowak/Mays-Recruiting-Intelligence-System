@@ -7850,3 +7850,29 @@ Evidence / file references:
 Classification: GREEN
 Current resume point:
   - R03 abgeschlossen; R04 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R04-CV-DOCUMENT-LIFECYCLE]
+Current status: COMPLETE — CV-Metadaten und sicherer Dokument-Lifecycle implementiert.
+Audit date/time: 2026-10-31
+Actual findings:
+  - 8 Routen unter /v1/partner/me/cvs (CRUD + document upload/complete/get).
+  - Statusmaschine pending -> upload_pending -> ready; READY nur nach S3-HeadObject.
+  - Nutzt R02-Repository (atomare 10-CV-Grenze, version, bedingte Deletes).
+  - documents.py additiv erweitert: head_document, delete_document_report,
+    require_tenant, doc_id-Parameter; default-Tenant-Fallback bleibt nur fuer
+    das bestehende /me/documents, Partner-CVs fail-closed.
+  - S3-Delete auf versioniertem Bucket = Delete-Marker; keine physische
+    Vollloeschung behauptet (physicalPurge=false).
+  - Tests: 29 neue R04 + 273 R01-R03/OpenAPI + 11 bestehende Dokumente = 284 PASS.
+  - NOT RUN: echte S3-/DynamoDB-Integration; volle Suite (boto3/Windows).
+Evidence / file references:
+  - lambda/handler.py
+  - lambda/documents.py
+  - jobsearch/partner_profile_contract.py
+  - terraform/modules/api/main.tf
+  - docs/api/openapi-platform.yaml
+  - tests/test_partner_cv_document_api.py
+  - docs/reports/RIS-PARTNER-PROFILE-R04-CV-DOCUMENT-LIFECYCLE.md
+Classification: GREEN
+Current resume point:
+  - R04 abgeschlossen; R05 nicht begonnen.

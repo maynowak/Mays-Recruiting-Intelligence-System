@@ -57,7 +57,22 @@ USER_PROFILE_FIELDS = frozenset({
 })
 CV_DOCUMENT_FIELDS = frozenset({
     "resourceType", "schemaVersion", "cvId", "userId", "tenantId",
-    "name", "size", "contentHash", "createdAt", "updatedAt", "metadata",
+    "name", "size", "contentHash", "contentType", "etag", "uploadedAt",
+    "documentId", "processingStatus", "createdAt", "updatedAt", "metadata",
+})
+
+# CV processing status machine (R04). READY requires a verified S3 object.
+CV_STATUS_PENDING = "pending"
+CV_STATUS_UPLOAD_PENDING = "upload_pending"
+CV_STATUS_READY = "ready"
+CV_STATUS_DELETE_FAILED = "delete_failed"
+CV_STATUS_ERROR = "error"
+CV_ALLOWED_STATUSES = frozenset({
+    CV_STATUS_PENDING,
+    CV_STATUS_UPLOAD_PENDING,
+    CV_STATUS_READY,
+    CV_STATUS_DELETE_FAILED,
+    CV_STATUS_ERROR,
 })
 CV_SEARCH_PROFILE_FIELDS = frozenset({
     "resourceType", "schemaVersion", "searchProfileId", "cvId", "userId",
@@ -325,6 +340,11 @@ class CVDocument:
     name: str
     size: int = 0
     content_hash: Optional[str] = None
+    content_type: Optional[str] = None
+    etag: Optional[str] = None
+    uploaded_at: Optional[str] = None
+    document_id: Optional[str] = None
+    processing_status: str = CV_STATUS_PENDING
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
@@ -341,9 +361,18 @@ class CVDocument:
             "tenantId": self.tenant_id,
             "name": self.name,
             "size": int(self.size or 0),
+            "processingStatus": self.processing_status,
         }
         if self.content_hash:
             result["contentHash"] = self.content_hash
+        if self.content_type:
+            result["contentType"] = self.content_type
+        if self.etag:
+            result["etag"] = self.etag
+        if self.uploaded_at:
+            result["uploadedAt"] = self.uploaded_at
+        if self.document_id:
+            result["documentId"] = self.document_id
         if self.created_at:
             result["createdAt"] = self.created_at
         if self.updated_at:
@@ -367,6 +396,11 @@ class CVDocument:
             name=_require_str(data.get("name"), "name"),
             size=data.get("size", 0),
             content_hash=_optional_str(data.get("contentHash"), "contentHash"),
+            content_type=_optional_str(data.get("contentType"), "contentType"),
+            etag=_optional_str(data.get("etag"), "etag"),
+            uploaded_at=_optional_str(data.get("uploadedAt"), "uploadedAt"),
+            document_id=_optional_str(data.get("documentId"), "documentId"),
+            processing_status=str(data.get("processingStatus", CV_STATUS_PENDING) or CV_STATUS_PENDING),
             metadata=data.get("metadata") or {},
             created_at=_optional_str(data.get("createdAt"), "createdAt"),
             updated_at=_optional_str(data.get("updatedAt"), "updatedAt"),
@@ -383,6 +417,11 @@ class CVDocument:
         _require_str(self.name, "name")
         if not isinstance(self.size, int) or isinstance(self.size, bool) or self.size < 0:
             raise ProfileContractError("INVALID_FIELD", "size must be a non-negative integer")
+        if self.processing_status not in CV_ALLOWED_STATUSES:
+            raise ProfileContractError(
+                "INVALID_FIELD",
+                f"processingStatus must be one of {sorted(CV_ALLOWED_STATUSES)}, got {self.processing_status!r}",
+            )
         # No Browser File objects or original CV text may be stored.
         if "file" in (self.metadata or {}):
             raise ProfileContractError("FORBIDDEN_CONTENT", "Browser File objects must not be stored in profile JSON")

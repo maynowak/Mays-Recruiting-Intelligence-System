@@ -177,14 +177,15 @@ class TestTerraformRouteInventory(unittest.TestCase):
         Gate-02 P2C: 32 -> 33 durch genau EINE echte Route
         (`DELETE /me/profile`). Gate-05: 33 -> 34 durch genau EINE weitere
         (`POST /me/erasure`). R03: 35 -> 40 durch die fuenf expliziten
-        Partner-Manual-Search-Profile-Routen. Keine Magic-Number-
+        Partner-Manual-Search-Profile-Routen. R04: 40 -> 48 durch die acht
+        expliziten Partner-CV-/Dokument-Routen. Keine Magic-Number-
         Aktualisierung: die Aufteilung wird per terraform_routes()
         nachgezaehlt und die jeweils hinzugefuegten Routen mitgeprueft, damit
         eine stille Ruecknahme nicht durchgeht.
         """
         routes = terraform_routes()
-        self.assertEqual(40, len(routes))
-        self.assertEqual(36, sum(1 for v in routes.values()
+        self.assertEqual(48, len(routes))
+        self.assertEqual(44, sum(1 for v in routes.values()
                                  if v["target"] == "agent"))
         self.assertEqual(4, sum(1 for v in routes.values()
                                 if v["target"] == "orders"))
@@ -197,6 +198,14 @@ class TestTerraformRouteInventory(unittest.TestCase):
             "GET /v1/partner/me/manual-search-profiles/{profileId}",
             "PUT /v1/partner/me/manual-search-profiles/{profileId}",
             "DELETE /v1/partner/me/manual-search-profiles/{profileId}",
+            "GET /v1/partner/me/cvs",
+            "POST /v1/partner/me/cvs",
+            "GET /v1/partner/me/cvs/{cvId}",
+            "PATCH /v1/partner/me/cvs/{cvId}",
+            "DELETE /v1/partner/me/cvs/{cvId}",
+            "POST /v1/partner/me/cvs/{cvId}/document/upload",
+            "POST /v1/partner/me/cvs/{cvId}/document/complete",
+            "GET /v1/partner/me/cvs/{cvId}/document",
         ):
             self.assertIn(route, routes)
 
