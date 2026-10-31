@@ -8029,3 +8029,30 @@ Evidence / file references:
 Classification: GREEN
 Current resume point:
   - R06 abgeschlossen; R07 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R07-G0-INTEGRATION-READINESS]
+Current status: COMPLETE (harness prep) - R07-A execution BLOCKED by missing toolchain.
+Audit date/time: 2026-10-31
+Actual findings:
+  - New local-only harness: endpoint guard (loopback only, explicit port, no
+    default), isolated ris-r07g0-* table namespace, dummy static credentials.
+  - 36 readiness tests PASS: Terraform PK/GSIs/TTL/IAM, 5 explicit ATS routes,
+    no scan, GSI usage, one-action-per-item transactions, idempotency replay
+    and expiry, pagination, S3 versioning/delete-marker statics.
+  - 23 DynamoDB Local integration tests written but SKIPPED: boto3/botocore,
+    Java, DynamoDB Local, Docker and AWS CLI are not installed.
+  - Regression: 473 passed, 23 skipped; Terraform validate PASS, targeted fmt PASS.
+  - Findings: F-1 GetItem eventual consistency (create-response version null,
+    idempotency replay 409), F-4 TransactionConflict not retried, F-5 delete
+    needs existing counter, F-6 reversible cursor, F-7 list fallback truncation.
+  - P1-1 (CVDocument naming/status) unchanged and non-blocking.
+  - R07-B AWS plan documented only; no AWS mutation, no apply/deploy.
+Evidence / file references:
+  - tests/test_partner_profile_integration_harness.py
+  - tests/integration/dynamodb_local_support.py
+  - tests/integration/test_partner_profile_dynamodb_local.py
+  - docs/reports/RIS-PARTNER-PROFILE-R07-G0-INTEGRATION-READINESS.md
+Classification: GREEN (harness) / BLOCKED (R07-A execution)
+Current resume point:
+  - R07-G0 complete; fix F-1/F-7, install boto3 + DynamoDB Local, then run
+    tests/integration/test_partner_profile_dynamodb_local.py. Do not start R07-B.
