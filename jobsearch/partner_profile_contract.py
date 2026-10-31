@@ -27,7 +27,10 @@ from typing import Any, Dict, List, Optional, Set
 from jobsearch.domain_models import WorkMode, EmploymentType
 
 
-SCHEMA_VERSION = "v1"
+# Canonical Jobsearch Profile Data Contract v1 uses the INTEGER 1.
+SCHEMA_VERSION = 1
+# Accepted only when reading resources persisted before the R05-P0 repair.
+LEGACY_SCHEMA_VERSION = "v1"
 
 RESOURCE_TYPES = frozenset({
     "UserProfile",
@@ -87,16 +90,33 @@ ATS_SEARCH_PROFILE_FIELDS = frozenset({
 })
 MANUAL_SEARCH_PROFILE_FIELDS = frozenset({
     "resourceType", "schemaVersion", "manualProfileId", "userId", "tenantId",
-    "name", "description", "origin", "matchingPreferences", "createdAt",
-    "updatedAt", "metadata",
-})
-MATCHING_PREFERENCES_FIELDS = frozenset({
-    "resourceType", "schemaVersion", "roles", "workModes", "employmentTypes",
-    "locations", "salaryMin", "remoteOnly", "sources", "query",
-    "requiredSkills", "preferredSkills", "excludedTerms",
+    "name", "description", "origin", "searchConfig", "matchingPreferences",
+    "createdAt", "updatedAt", "metadata",
 })
 
+# Canonical v1 SearchConfigurationV1 (nested object, exactly six fields).
+SEARCH_CONFIGURATION_FIELDS = frozenset({
+    "skills", "targetRoles", "city", "radiusKm", "workModes",
+    "employmentTypes",
+})
+SEARCH_RADIUS_VALUES = frozenset({10, 25, 50, 100})
+SEARCH_EMPLOYMENT_TYPES = frozenset({"full_time", "part_time"})
+
+# Canonical v1 MatchingPreferencesV1 (three phrase lists only).
+MATCHING_PREFERENCES_FIELDS = frozenset({
+    "requiredSkills", "preferredSkills", "excludedTerms",
+})
+# Legacy R03 fields that are read for migration but never emitted in v1.
+MATCHING_PREFERENCES_LEGACY_FIELDS = frozenset({
+    "resourceType", "schemaVersion", "roles", "workModes",
+    "employmentTypes", "locations", "salaryMin", "remoteOnly", "sources",
+    "query",
+})
+MATCHING_PREFERENCES_KNOWN_FIELDS = (
+    MATCHING_PREFERENCES_FIELDS | MATCHING_PREFERENCES_LEGACY_FIELDS)
+
 MANUAL_PROFILE_ORIGIN = "manual"
+CV_PROFILE_ORIGIN = "cv"
 
 
 class ProfileContractError(ValueError):
@@ -156,15 +176,25 @@ def _check_unknown_fields(payload: Dict[str, Any], allowed: Set[str], resource_t
         )
 
 
-def _check_schema_version(value: Any) -> str:
-    if value is None:
-        return SCHEMA_VERSION
-    if not isinstance(value, str) or value != SCHEMA_VERSION:
+def _check_schema_version(value: Any) -> int:
+    """Accept canonical integer 1 and legacy "v1"; reject everything else.
+
+    Legacy ``"v1"`` is normalised to the canonical integer ``1`` on read so
+    persisted R01-R04 records stay readable. New writes always emit ``1``.
+    """
+    if isinstance(value, bool):
         raise ProfileContractError(
             "INVALID_SCHEMA_VERSION",
-            f"schemaVersion must be '{SCHEMA_VERSION}', got {value!r}",
+            f"schemaVersion must be {SCHEMA_VERSION}, got {value!r}",
         )
-    return value
+    if value is None or value == SCHEMA_VERSION:
+        return SCHEMA_VERSION
+    if value == LEGACY_SCHEMA_VERSION:
+        return SCHEMA_VERSION
+    raise ProfileContractError(
+        "INVALID_SCHEMA_VERSION",
+        f"schemaVersion must be {SCHEMA_VERSION} (legacy {LEGACY_SCHEMA_VERSION!r} accepted on read), got {value!r}",
+    )
 
 
 def _check_resource_type(value: Any, expected: str) -> str:
@@ -188,8 +218,165 @@ def reject_client_identity(payload: Dict[str, Any]) -> None:
         )
 
 
+def _dedupe_ci(values: List[str]) -> List[str]:
+    """Deduplicate case-insensitively while preserving first-seen order."""
+    seen = set()
+    out = []
+    for value in values:
+        key = value.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(value)
+    return out
+
+
+@dataclass
+class SearchConfiguration:
+    """Canonical Jobsearch ``SearchConfigurationV1`` (six fields).
+
+    This is a nested contract object, not a standalone persisted resource.
+    ``to_dict`` emits exactly the six v1 fields (no ``resourceType`` /
+    ``schemaVersion``), matching ``additionalProperties: false``.
+    """
+
+    skills: str = ""
+    target_roles: List[str] = field(default_factory=list)
+    city: str = ""
+    radius_km: Optional[int] = None
+    work_modes: List[str] = field(default_factory=list)
+    employment_types: List[str] = field(default_factory=list)
+
+    # Migration diagnostics only; never serialized.
+    legacy_incomplete: bool = False
+    legacy_preserved: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "skills": self.skills,
+            "targetRoles": list(self.target_roles),
+            "city": self.city,
+            "radiusKm": self.radius_km,
+            "workModes": list(self.work_modes),
+            "employmentTypes": list(self.employment_types),
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any], *, strict: bool = True) -> "SearchConfiguration":
+        if not isinstance(data, dict):
+            raise ProfileContractError("INVALID_FIELD", "searchConfig must be an object")
+        if strict:
+            _check_unknown_fields(data, SEARCH_CONFIGURATION_FIELDS, "SearchConfiguration")
+        skills = data.get("skills", "")
+        if not isinstance(skills, str):
+            raise ProfileContractError("INVALID_FIELD", "searchConfig.skills must be a string")
+        city = data.get("city", "")
+        if not isinstance(city, str):
+            raise ProfileContractError("INVALID_FIELD", "searchConfig.city must be a string")
+        radius = data.get("radiusKm")
+        if radius is not None:
+            if isinstance(radius, bool) or not isinstance(radius, int) or radius not in SEARCH_RADIUS_VALUES:
+                raise ProfileContractError(
+                    "INVALID_SEARCH_CONFIG",
+                    f"searchConfig.radiusKm must be one of {sorted(SEARCH_RADIUS_VALUES)} or null",
+                )
+        obj = cls(
+            skills=skills,
+            target_roles=_str_list(data.get("targetRoles", []), "targetRoles"),
+            city=city,
+            radius_km=radius,
+            work_modes=_str_list(data.get("workModes", []), "workModes"),
+            employment_types=_str_list(data.get("employmentTypes", []), "employmentTypes"),
+        )
+        obj.validate()
+        return obj
+
+    @classmethod
+    def from_legacy_matching_preferences(cls, mp: "MatchingPreferences") -> "SearchConfiguration":
+        """Map legacy R03 fields into v1 searchConfig without inventing data.
+
+        Lossless parts: targetRoles <- roles, workModes <- workModes,
+        employmentTypes <- allowed subset. Everything that has no v1 slot
+        (skills string, radiusKm, extra locations/employment types, query,
+        salaryMin, remoteOnly, sources) is preserved in ``legacy_preserved``
+        and the object is flagged ``legacy_incomplete``.
+        """
+        preserved: Dict[str, Any] = {}
+        locations = list(mp.locations)
+        if len(locations) == 1:
+            city = locations[0]
+        else:
+            city = ""
+            if locations:
+                preserved["locations"] = locations
+        allowed_emp = [e for e in mp.employment_types if e in SEARCH_EMPLOYMENT_TYPES]
+        extra_emp = [e for e in mp.employment_types if e not in SEARCH_EMPLOYMENT_TYPES]
+        if extra_emp:
+            preserved["employmentTypes"] = extra_emp
+        if mp.query:
+            preserved["query"] = mp.query
+        if mp.salary_min is not None:
+            preserved["salaryMin"] = mp.salary_min
+        if mp.remote_only:
+            preserved["remoteOnly"] = True
+        if mp.sources:
+            preserved["sources"] = list(mp.sources)
+        # A legacy record never carried a phrase-string skills value or radius.
+        # Leaving them empty/null is the honest representation, not invented data.
+        preserved["skillsMissing"] = True
+        preserved["radiusMissing"] = True
+        return cls(
+            skills="",
+            target_roles=list(mp.roles),
+            city=city,
+            radius_km=None,
+            work_modes=list(mp.work_modes),
+            employment_types=allowed_emp,
+            legacy_incomplete=True,
+            legacy_preserved=preserved,
+        )
+
+    def validate(self) -> None:
+        if not isinstance(self.skills, str):
+            raise ProfileContractError("INVALID_SEARCH_CONFIG", "skills must be a string")
+        if not isinstance(self.city, str):
+            raise ProfileContractError("INVALID_SEARCH_CONFIG", "city must be a string")
+        for name in ("target_roles", "work_modes", "employment_types"):
+            if not isinstance(getattr(self, name), list):
+                raise ProfileContractError("INVALID_SEARCH_CONFIG", f"{name} must be a list")
+        if self.radius_km is not None:
+            if isinstance(self.radius_km, bool) or not isinstance(self.radius_km, int) \
+                    or self.radius_km not in SEARCH_RADIUS_VALUES:
+                raise ProfileContractError(
+                    "INVALID_SEARCH_CONFIG",
+                    f"radiusKm must be one of {sorted(SEARCH_RADIUS_VALUES)} or null",
+                )
+        for wm in self.work_modes:
+            if wm not in {e.value for e in WorkMode}:
+                raise ProfileContractError("INVALID_SEARCH_CONFIG", f"Unknown workMode: {wm}")
+        for et in self.employment_types:
+            if et not in SEARCH_EMPLOYMENT_TYPES:
+                raise ProfileContractError(
+                    "INVALID_SEARCH_CONFIG", f"Unknown employmentType: {et}")
+        self.target_roles = _dedupe_ci(self.target_roles)
+        self.work_modes = _dedupe_ci(self.work_modes)
+        self.employment_types = _dedupe_ci(self.employment_types)
+
+
 @dataclass
 class MatchingPreferences:
+    """v1 MatchingPreferencesV1 (three phrase lists).
+
+    The R03-era fields (roles/workModes/employmentTypes/locations/...) are
+    kept read-only for migration. ``to_dict`` emits only the three v1 lists,
+    matching ``additionalProperties: false``.
+    """
+
+    required_skills: List[str] = field(default_factory=list)
+    preferred_skills: List[str] = field(default_factory=list)
+    excluded_terms: List[str] = field(default_factory=list)
+
+    # Legacy R03 fields, read-only for migration; never emitted in v1.
     roles: List[str] = field(default_factory=list)
     work_modes: List[str] = field(default_factory=list)
     employment_types: List[str] = field(default_factory=list)
@@ -198,43 +385,37 @@ class MatchingPreferences:
     remote_only: bool = False
     sources: List[str] = field(default_factory=list)
     query: str = ""
-    required_skills: List[str] = field(default_factory=list)
-    preferred_skills: List[str] = field(default_factory=list)
-    excluded_terms: List[str] = field(default_factory=list)
 
     resource_type: str = "MatchingPreferences"
-    schema_version: str = SCHEMA_VERSION
+    schema_version: int = SCHEMA_VERSION
 
     def to_dict(self) -> Dict[str, Any]:
-        result: Dict[str, Any] = {
-            "resourceType": self.resource_type,
-            "schemaVersion": self.schema_version,
-            "roles": list(self.roles),
-            "workModes": list(self.work_modes),
-            "employmentTypes": list(self.employment_types),
-            "locations": list(self.locations),
-            "remoteOnly": bool(self.remote_only),
+        return {
             "requiredSkills": list(self.required_skills),
             "preferredSkills": list(self.preferred_skills),
             "excludedTerms": list(self.excluded_terms),
         }
-        if self.salary_min is not None:
-            result["salaryMin"] = self.salary_min
-        if self.sources:
-            result["sources"] = list(self.sources)
-        if self.query:
-            result["query"] = self.query
-        return result
+
+    def has_legacy_fields(self) -> bool:
+        return bool(
+            self.roles or self.work_modes or self.employment_types
+            or self.locations or self.salary_min is not None
+            or self.remote_only or self.sources or self.query
+        )
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any], *, strict: bool = True) -> "MatchingPreferences":
         if not isinstance(data, dict):
             raise ProfileContractError("INVALID_FIELD", "MatchingPreferences must be an object")
         if strict:
-            _check_unknown_fields(data, MATCHING_PREFERENCES_FIELDS, "MatchingPreferences")
-        rt = _check_resource_type(data.get("resourceType"), "MatchingPreferences")
-        sv = _check_schema_version(data.get("schemaVersion"))
+            _check_unknown_fields(data, MATCHING_PREFERENCES_KNOWN_FIELDS,
+                                  "MatchingPreferences")
+        _check_resource_type(data.get("resourceType"), "MatchingPreferences")
+        _check_schema_version(data.get("schemaVersion"))
         prefs = cls(
+            required_skills=_str_list(data.get("requiredSkills", []), "requiredSkills"),
+            preferred_skills=_str_list(data.get("preferredSkills", []), "preferredSkills"),
+            excluded_terms=_str_list(data.get("excludedTerms", []), "excludedTerms"),
             roles=_str_list(data.get("roles", []), "roles"),
             work_modes=_str_list(data.get("workModes", []), "workModes"),
             employment_types=_str_list(data.get("employmentTypes", []), "employmentTypes"),
@@ -243,30 +424,25 @@ class MatchingPreferences:
             remote_only=bool(data.get("remoteOnly", False)),
             sources=_str_list(data.get("sources", []), "sources"),
             query=str(data.get("query", "") or ""),
-            required_skills=_str_list(data.get("requiredSkills", []), "requiredSkills"),
-            preferred_skills=_str_list(data.get("preferredSkills", []), "preferredSkills"),
-            excluded_terms=_str_list(data.get("excludedTerms", []), "excludedTerms"),
-            resource_type=rt,
-            schema_version=sv,
         )
         prefs.validate()
         return prefs
 
     def validate(self) -> None:
-        # Preserve multi-values: no deduplication, no collapse.
-        for field_name in ("roles", "work_modes", "employment_types", "locations",
-                           "sources", "required_skills", "preferred_skills",
-                           "excluded_terms"):
-            val = getattr(self, field_name)
-            if not isinstance(val, list):
+        for field_name in ("required_skills", "preferred_skills", "excluded_terms",
+                           "roles", "work_modes", "employment_types", "locations",
+                           "sources"):
+            if not isinstance(getattr(self, field_name), list):
                 raise ProfileContractError("INVALID_SEARCH_CONFIG", f"{field_name} must be a list")
-        # work modes validated against known enum when provided
         for wm in self.work_modes:
             if wm not in {e.value for e in WorkMode}:
                 raise ProfileContractError("INVALID_SEARCH_CONFIG", f"Unknown workMode: {wm}")
         for et in self.employment_types:
             if et not in {e.value for e in EmploymentType}:
                 raise ProfileContractError("INVALID_SEARCH_CONFIG", f"Unknown employmentType: {et}")
+        self.required_skills = _dedupe_ci(self.required_skills)
+        self.preferred_skills = _dedupe_ci(self.preferred_skills)
+        self.excluded_terms = _dedupe_ci(self.excluded_terms)
 
 
 @dataclass
@@ -620,13 +796,14 @@ class ManualSearchProfile:
     name: str
     description: str = ""
     origin: str = MANUAL_PROFILE_ORIGIN
+    search_config: SearchConfiguration = field(default_factory=SearchConfiguration)
     matching_preferences: MatchingPreferences = field(default_factory=MatchingPreferences)
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
     resource_type: str = "ManualSearchProfile"
-    schema_version: str = SCHEMA_VERSION
+    schema_version: int = SCHEMA_VERSION
 
     def to_dict(self) -> Dict[str, Any]:
         result: Dict[str, Any] = {
@@ -638,6 +815,7 @@ class ManualSearchProfile:
             "name": self.name,
             "description": self.description,
             "origin": self.origin,
+            "searchConfig": self.search_config.to_dict(),
             "matchingPreferences": self.matching_preferences.to_dict(),
         }
         if self.created_at:
@@ -658,6 +836,23 @@ class ManualSearchProfile:
         sv = _check_schema_version(data.get("schemaVersion"))
         mp_raw = data.get("matchingPreferences", {}) or {}
         mp = MatchingPreferences.from_dict(mp_raw, strict=strict) if isinstance(mp_raw, dict) else mp_raw
+        sc_raw = data.get("searchConfig")
+        metadata = dict(data.get("metadata") or {})
+        if isinstance(sc_raw, dict):
+            search_config = SearchConfiguration.from_dict(sc_raw, strict=strict)
+        else:
+            # Legacy R03 record: derive v1 searchConfig from the old fields and
+            # preserve anything without a v1 slot instead of dropping it.
+            search_config = SearchConfiguration.from_legacy_matching_preferences(mp)
+            metadata.setdefault("legacy", {})
+            metadata["legacy"].setdefault(
+                "matchingPreferences", {k: v for k, v in (mp_raw or {}).items()
+                                        if k in MATCHING_PREFERENCES_LEGACY_FIELDS})
+            if search_config.legacy_preserved:
+                metadata["legacy"].setdefault(
+                    "searchConfig", dict(search_config.legacy_preserved))
+            metadata["legacyIncomplete"] = bool(
+                search_config.legacy_incomplete or mp.has_legacy_fields())
         origin = data.get("origin", MANUAL_PROFILE_ORIGIN)
         if origin != MANUAL_PROFILE_ORIGIN:
             raise ProfileContractError(
@@ -671,8 +866,9 @@ class ManualSearchProfile:
             name=_require_str(data.get("name"), "name"),
             description=str(data.get("description", "") or ""),
             origin=origin,
+            search_config=search_config,
             matching_preferences=mp,
-            metadata=data.get("metadata") or {},
+            metadata=metadata,
             created_at=_optional_str(data.get("createdAt"), "createdAt"),
             updated_at=_optional_str(data.get("updatedAt"), "updatedAt"),
             resource_type=rt,
@@ -691,8 +887,12 @@ class ManualSearchProfile:
                 "INVALID_FIELD",
                 f"origin must be '{MANUAL_PROFILE_ORIGIN}', got {self.origin!r}",
             )
+        if not isinstance(self.search_config, SearchConfiguration):
+            raise ProfileContractError("INVALID_FIELD", "searchConfig must be a SearchConfiguration")
+        self.search_config.validate()
         if not isinstance(self.matching_preferences, MatchingPreferences):
             raise ProfileContractError("INVALID_FIELD", "matchingPreferences must be a MatchingPreferences")
+        self.matching_preferences.validate()
 
 
 # ---------------------------------------------------------------------------

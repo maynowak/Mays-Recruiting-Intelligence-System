@@ -1,15 +1,16 @@
-"""R05-G0: Jobsearch v1 <-> RIS R01-R04 contract reconciliation tests.
+"""R05-G0/R05-P0: Jobsearch v1 <-> RIS contract reconciliation.
 
-These tests do NOT claim v1 compliance. They:
+After R05-P0 the two P0 blockers are repaired:
 
-- prove the current gaps as P0/P1 findings (schemaVersion type, missing
-  ``searchConfig``/``skills``/``radiusKm``, CVDocument naming/status drift,
-  missing CVSearchProfile ``description``/``origin``/``searchConfig``,
-  ATS ``criteria`` drift), and
-- guard the existing R01-R04 roundtrips that are already lossless.
+- canonical ``schemaVersion`` is the integer ``1`` (legacy ``"v1"`` is
+  accepted on read and normalised to ``1``);
+- ``searchConfig`` (six fields, phrase-preserving ``skills``, nullable
+  ``radiusKm``) is a distinct object, separate from ``matchingPreferences``.
 
-Synthetic fixtures are copied from
-``mays-jobsearch`` ``origin/main@ad9b5ed``
+Remaining P1 gaps (CVDocument naming/status, CVSearchProfile shape, ATS
+``criteria``) are still asserted here as explicit findings.
+
+Synthetic fixtures are copied from ``mays-jobsearch`` ``origin/main@ad9b5ed``
 ``docs/contracts/fixtures/profile-v1/``. No real user or CV data is used.
 """
 
@@ -17,7 +18,6 @@ import json
 import os
 import sys
 import unittest
-from dataclasses import fields
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -32,6 +32,7 @@ from jobsearch.partner_profile_contract import (  # noqa: E402
     MatchingPreferences,
     ManualSearchProfile,
     SCHEMA_VERSION,
+    SearchConfiguration,
 )
 from jobsearch.partner_profile_repository import CAPACITY_RULES  # noqa: E402
 
@@ -115,138 +116,172 @@ def _ats():
 
 
 # --------------------------------------------------------------------------- #
-# P0-1: schemaVersion type/value
+# P0-1 (repaired): integer schemaVersion + legacy read
 # --------------------------------------------------------------------------- #
 
-class TestSchemaVersionGap(unittest.TestCase):
-    def test_ris_uses_string_v1(self):
-        self.assertEqual("v1", SCHEMA_VERSION)
+class TestSchemaVersionRepair(unittest.TestCase):
+    def test_ris_uses_integer_one(self):
+        self.assertEqual(1, SCHEMA_VERSION)
 
     def test_contract_uses_integer_one(self):
         self.assertEqual(1, V1_CV_SEARCH_PROFILE["schemaVersion"])
         self.assertEqual(1, V1_MANUAL_PROFILE["schemaVersion"])
 
-    def test_gap_is_currently_incompatible(self):
-        # A strict JSON-Schema consumer rejects "v1" against const 1.
-        self.assertNotEqual(V1_CV_SEARCH_PROFILE["schemaVersion"], SCHEMA_VERSION)
+    def test_canonical_responses_emit_integer_one(self):
         for obj in (_cv(), _sp(), _ats(), _manual()):
-            self.assertEqual("v1", obj.to_dict()["schemaVersion"])
+            self.assertEqual(1, obj.to_dict()["schemaVersion"])
+            self.assertIsInstance(obj.to_dict()["schemaVersion"], int)
 
-
-# --------------------------------------------------------------------------- #
-# P0-2: searchConfig / skills / radiusKm
-# --------------------------------------------------------------------------- #
-
-class TestSearchConfigGap(unittest.TestCase):
-    def test_manual_profile_has_no_search_config(self):
-        self.assertNotIn("searchConfig", _manual().to_dict())
-
-    def test_matching_preferences_has_no_skills_string(self):
-        self.assertNotIn("skills", MatchingPreferences().to_dict())
-
-    def test_matching_preferences_has_no_radius_km(self):
-        self.assertNotIn("radiusKm", MatchingPreferences().to_dict())
-
-    def test_partial_mapping_roles_locations_workmodes_employment(self):
-        sc = V1_CV_SEARCH_PROFILE["searchConfig"]
-        mp = MatchingPreferences(
-            roles=list(sc["targetRoles"]),
-            locations=[sc["city"]] if sc["city"] else [],
-            work_modes=list(sc["workModes"]),
-            employment_types=list(sc["employmentTypes"]),
-        ).to_dict()
-        self.assertEqual(sc["targetRoles"], mp["roles"])
-        self.assertEqual(sc["workModes"], mp["workModes"])
-        self.assertEqual(sc["employmentTypes"], mp["employmentTypes"])
-        self.assertEqual([sc["city"]], mp["locations"])
-
-    def test_skills_and_radius_are_lost(self):
-        # There is no destination field: this is the P0 data-loss proof.
-        d = MatchingPreferences().to_dict()
-        self.assertNotIn(V1_CV_SEARCH_PROFILE["searchConfig"]["skills"], json.dumps(d))
-        self.assertNotIn("radiusKm", d)
-        self.assertNotIn("radius", d)
-
-    def test_matching_preferences_survives_losslessly(self):
-        mp = MatchingPreferences.from_dict({
-            "requiredSkills": ["AWS"],
-            "preferredSkills": ["Cloud Architecture"],
-            "excludedTerms": ["Schichtarbeit"],
+    def test_legacy_string_is_accepted_and_normalised(self):
+        legacy = ManualSearchProfile.from_dict({
+            "resourceType": "ManualSearchProfile",
+            "schemaVersion": "v1",
+            "manualProfileId": "m1", "userId": "u1", "tenantId": "t1",
+            "name": "legacy", "origin": "manual",
+            "matchingPreferences": {"requiredSkills": ["AWS"]},
         })
+        self.assertEqual(1, legacy.schema_version)
+        self.assertEqual(1, legacy.to_dict()["schemaVersion"])
+
+    def test_unknown_version_rejected(self):
+        from jobsearch.partner_profile_contract import ProfileContractError
+        with self.assertRaises(ProfileContractError):
+            ManualSearchProfile.from_dict({
+                "resourceType": "ManualSearchProfile", "schemaVersion": 2,
+                "manualProfileId": "m1", "userId": "u1", "tenantId": "t1",
+                "name": "x", "origin": "manual",
+                "matchingPreferences": {},
+            })
+
+    def test_bool_is_not_an_integer_version(self):
+        from jobsearch.partner_profile_contract import ProfileContractError
+        with self.assertRaises(ProfileContractError):
+            ManualSearchProfile.from_dict({
+                "resourceType": "ManualSearchProfile", "schemaVersion": True,
+                "manualProfileId": "m1", "userId": "u1", "tenantId": "t1",
+                "name": "x", "origin": "manual",
+                "matchingPreferences": {},
+            })
+
+
+# --------------------------------------------------------------------------- #
+# P0-2 (repaired): searchConfig roundtrip
+# --------------------------------------------------------------------------- #
+
+class TestSearchConfigRepair(unittest.TestCase):
+    def test_manual_profile_has_search_config(self):
+        self.assertIn("searchConfig", _manual().to_dict())
+
+    def test_all_six_fields_roundtrip(self):
+        sc = SearchConfiguration.from_dict(V1_ROUNDTRIP)
+        out = sc.to_dict()
+        self.assertEqual(V1_ROUNDTRIP["skills"], out["skills"])
+        self.assertEqual(V1_ROUNDTRIP["targetRoles"], out["targetRoles"])
+        self.assertEqual(V1_ROUNDTRIP["city"], out["city"])
+        self.assertIsNone(out["radiusKm"])
+        self.assertEqual(V1_ROUNDTRIP["workModes"], out["workModes"])
+        self.assertEqual(V1_ROUNDTRIP["employmentTypes"], out["employmentTypes"])
+
+    def test_quoted_phrases_preserved(self):
+        sc = SearchConfiguration.from_dict(V1_CV_SEARCH_PROFILE["searchConfig"])
+        self.assertEqual('AWS, Terraform, "Cloud Architecture"', sc.skills)
+        self.assertIn('"Cloud Architecture"', sc.to_dict()["skills"])
+
+    def test_radius_null_stays_null(self):
+        sc = SearchConfiguration.from_dict(V1_ROUNDTRIP)
+        self.assertIsNone(sc.radius_km)
+        self.assertIsNone(sc.to_dict()["radiusKm"])
+
+    def test_radius_values_restricted(self):
+        from jobsearch.partner_profile_contract import ProfileContractError
+        for value in (10, 25, 50, 100):
+            self.assertEqual(value, SearchConfiguration(radius_km=value).to_dict()["radiusKm"])
+        with self.assertRaises(ProfileContractError):
+            SearchConfiguration(radius_km=7).validate()
+
+    def test_multiple_work_modes_and_employment_types(self):
+        sc = SearchConfiguration.from_dict(V1_ROUNDTRIP)
+        self.assertEqual(["remote", "hybrid"], sc.work_modes)
+        self.assertEqual(["full_time", "part_time"], sc.employment_types)
+
+    def test_matching_preferences_is_separate_and_lossless(self):
+        mp = MatchingPreferences.from_dict(V1_MANUAL_PROFILE["matchingPreferences"])
         out = mp.to_dict()
         self.assertEqual(["AWS"], out["requiredSkills"])
         self.assertEqual(["Cloud Architecture"], out["preferredSkills"])
         self.assertEqual(["Schichtarbeit"], out["excludedTerms"])
+        self.assertNotIn("roles", out)
+        self.assertNotIn("workModes", out)
+
+    def test_manual_profile_roundtrip_with_both_objects(self):
+        sc = SearchConfiguration.from_dict(V1_MANUAL_PROFILE["searchConfig"])
+        mp = MatchingPreferences.from_dict(V1_MANUAL_PROFILE["matchingPreferences"])
+        man = ManualSearchProfile(
+            manual_profile_id="m1", user_id="u1", tenant_id="t1",
+            name="Independent", description="Ümlaut ✓",
+            search_config=sc, matching_preferences=mp)
+        back = ManualSearchProfile.from_dict(man.to_dict())
+        self.assertEqual(1, back.to_dict()["schemaVersion"])
+        self.assertEqual(sc.to_dict(), back.search_config.to_dict())
+        self.assertEqual(mp.to_dict(), back.matching_preferences.to_dict())
+
+    def test_legacy_matching_preferences_are_migrated_not_dropped(self):
+        legacy = ManualSearchProfile.from_dict({
+            "resourceType": "ManualSearchProfile", "schemaVersion": "v1",
+            "manualProfileId": "m1", "userId": "u1", "tenantId": "t1",
+            "name": "legacy", "origin": "manual",
+            "matchingPreferences": {
+                "requiredSkills": ["AWS"],
+                "roles": ["Cloud Engineer"],
+                "workModes": ["remote"],
+                "employmentTypes": ["full_time"],
+                "locations": ["Darmstadt"],
+                "query": "python",
+            },
+        })
+        self.assertEqual(["Cloud Engineer"], legacy.search_config.target_roles)
+        self.assertEqual("Darmstadt", legacy.search_config.city)
+        self.assertEqual(["remote"], legacy.search_config.work_modes)
+        self.assertEqual(["full_time"], legacy.search_config.employment_types)
+        self.assertEqual(["AWS"], legacy.matching_preferences.required_skills)
+        # no silent loss: the query has no v1 slot and is preserved in metadata
+        self.assertIn("legacy", legacy.metadata)
+        self.assertEqual("python",
+                         legacy.metadata["legacy"]["matchingPreferences"]["query"])
+        self.assertTrue(legacy.metadata.get("legacyIncomplete"))
 
 
 # --------------------------------------------------------------------------- #
-# P1-1: CVDocument naming / status drift
+# Remaining P1 gaps (documented, not repaired in R05-P0)
 # --------------------------------------------------------------------------- #
 
-class TestCvDocumentGap(unittest.TestCase):
-    def test_filename_vs_name(self):
+class TestRemainingP1Gaps(unittest.TestCase):
+    def test_cvdocument_naming_drift(self):
         d = _cv().to_dict()
         self.assertIn("name", d)
         self.assertNotIn("filename", d)
-
-    def test_sizebytes_vs_size(self):
-        d = _cv().to_dict()
         self.assertIn("size", d)
         self.assertNotIn("sizeBytes", d)
 
-    def test_processing_status_value_set_drift(self):
+    def test_cvdocument_status_set_drift(self):
         contract = {"pending", "ready", "failed", "deleted"}
         self.assertFalse(CV_ALLOWED_STATUSES <= contract)
         self.assertIn("upload_pending", CV_ALLOWED_STATUSES)
-        self.assertNotIn("failed", CV_ALLOWED_STATUSES)
 
     def test_content_type_contract_is_pdf_only(self):
         cv = CVDocument(cv_id="c", user_id="u", tenant_id="t", name="n",
                         content_type="application/msword")
-        # RIS accepts more than the contract's application/pdf const.
         cv.validate()
         self.assertEqual("application/msword", cv.to_dict()["contentType"])
 
-    def test_document_id_is_distinct_from_cv_id(self):
-        cv = CVDocument(cv_id="c1", user_id="u", tenant_id="t", name="n",
-                        document_id="d1")
-        d = cv.to_dict()
-        self.assertEqual("c1", d["cvId"])
-        self.assertEqual("d1", d["documentId"])
-        self.assertNotEqual(d["cvId"], d["documentId"])
-
-
-# --------------------------------------------------------------------------- #
-# P1-2/P1-3: CVSearchProfile and ATS shape
-# --------------------------------------------------------------------------- #
-
-class TestCvSearchProfileGap(unittest.TestCase):
-    def test_missing_description_origin_search_config(self):
+    def test_cv_search_profile_shape_gap(self):
         d = _sp().to_dict()
         self.assertNotIn("description", d)
         self.assertNotIn("origin", d)
         self.assertNotIn("searchConfig", d)
 
-    def test_has_dict_search_configuration(self):
-        sp = CVSearchProfile(
-            search_profile_id="sp1", cv_id="c1", user_id="u1", tenant_id="t1",
-            name="sp", search_configuration={"targetRoles": ["X"]})
-        self.assertEqual(["X"], sp.to_dict()["searchConfiguration"]["targetRoles"])
-
-
-class TestAtsGap(unittest.TestCase):
-    def test_missing_criteria(self):
+    def test_ats_criteria_gap(self):
         self.assertNotIn("criteria", _ats().to_dict())
-
-    def test_has_non_contract_requirement_fields(self):
-        ats = ATSSearchProfile(
-            ats_profile_id="a1", search_profile_id="sp1", cv_id="c1",
-            user_id="u1", tenant_id="t1", name="a",
-            requirements=["r"], preferred_criteria=["p"], exclusions=["e"])
-        d = ats.to_dict()
-        self.assertEqual(["r"], d["requirements"])
-        self.assertEqual(["p"], d["preferredCriteria"])
-        self.assertEqual(["e"], d["exclusions"])
 
 
 # --------------------------------------------------------------------------- #
@@ -283,45 +318,6 @@ class TestDeleteIntegrityGap(unittest.TestCase):
     def test_no_cascade_helper(self):
         import jobsearch.partner_profile_repository as repo
         self.assertFalse(hasattr(repo, "cascade_delete"))
-
-
-# --------------------------------------------------------------------------- #
-# Existing roundtrips (lossless today)
-# --------------------------------------------------------------------------- #
-
-class TestExistingRoundtrip(unittest.TestCase):
-    def test_manual_profile_roundtrip_utf8_and_multi_values(self):
-        mp = MatchingPreferences(
-            roles=["Cloud Engineer", "Lösungsarchitekt"],
-            work_modes=["remote", "hybrid"],
-            employment_types=["full_time", "part_time"],
-            locations=["Darmstadt", "Köln"],
-            required_skills=['AWS, "Cloud Architecture"'],
-        )
-        man = ManualSearchProfile(
-            manual_profile_id="m1", user_id="u1", tenant_id="t1",
-            name="Independent", description="Ümlaut ✓",
-            matching_preferences=mp)
-        out = ManualSearchProfile.from_dict(man.to_dict())
-        self.assertEqual("Ümlaut ✓", out.description)
-        self.assertEqual(["Cloud Engineer", "Lösungsarchitekt"],
-                         out.matching_preferences.roles)
-        self.assertEqual(["Darmstadt", "Köln"],
-                         out.matching_preferences.locations)
-        self.assertEqual(['AWS, "Cloud Architecture"'],
-                         out.matching_preferences.required_skills)
-
-    def test_radius_null_is_not_coerced_because_field_is_absent(self):
-        # The contract requires radiusKm=null preservation; RIS has no field.
-        # This guards the finding: null must not silently become 0.
-        d = MatchingPreferences().to_dict()
-        self.assertNotIn("radiusKm", d)
-
-    def test_quoted_phrase_is_not_split(self):
-        phrase = 'AWS, "Cloud Architecture"'
-        mp = MatchingPreferences(required_skills=[phrase])
-        back = MatchingPreferences.from_dict(mp.to_dict())
-        self.assertEqual([phrase], back.required_skills)
 
 
 # --------------------------------------------------------------------------- #

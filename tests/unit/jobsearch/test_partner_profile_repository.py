@@ -26,6 +26,7 @@ from jobsearch.partner_profile_contract import (
     ATSSearchProfile,
     ManualSearchProfile,
     MatchingPreferences,
+    SearchConfiguration,
     MAX_CVS_PER_USER,
     MAX_SEARCH_PROFILES_PER_CV,
     MAX_ATS_PROFILES_PER_SEARCH_PROFILE,
@@ -577,19 +578,29 @@ class TestTransactionStructure(BaseRepo):
 
 class TestRoundTrip(BaseRepo):
     def test_full_roundtrip_no_field_loss(self):
-        mp = MatchingPreferences(roles=["Dev", "Lead"], work_modes=["remote", "hybrid"],
-                                 employment_types=["full_time"], locations=["Berlin"],
-                                 salary_min=50000, remote_only=True, sources=["a"], query="python")
+        sc = SearchConfiguration(
+            skills='AWS, "Cloud Architecture"',
+            target_roles=["Dev", "Lead"],
+            city="Berlin",
+            radius_km=50,
+            work_modes=["remote", "hybrid"],
+            employment_types=["full_time"],
+        )
+        mp = MatchingPreferences(required_skills=["AWS"], preferred_skills=["Terraform"],
+                                 excluded_terms=["Schichtarbeit"])
         m = _manual(mp_id="m1")
+        m.search_config = sc
         m.matching_preferences = mp
         self.repo.create(m, user_id="u1", tenant_id="t1")
         got = self.repo.get("m1", "u1", "t1")
         self.assertIsInstance(got, ManualSearchProfile)
-        self.assertEqual(got.matching_preferences.roles, ["Dev", "Lead"])
-        self.assertEqual(got.matching_preferences.work_modes, ["remote", "hybrid"])
-        self.assertEqual(got.matching_preferences.locations, ["Berlin"])
-        self.assertEqual(got.matching_preferences.salary_min, 50000)
-        self.assertTrue(got.matching_preferences.remote_only)
+        self.assertEqual(got.search_config.skills, 'AWS, "Cloud Architecture"')
+        self.assertEqual(got.search_config.target_roles, ["Dev", "Lead"])
+        self.assertEqual(got.search_config.city, "Berlin")
+        self.assertEqual(got.search_config.radius_km, 50)
+        self.assertEqual(got.search_config.work_modes, ["remote", "hybrid"])
+        self.assertEqual(got.matching_preferences.required_skills, ["AWS"])
+        self.assertEqual(got.matching_preferences.excluded_terms, ["Schichtarbeit"])
 
 
 if __name__ == "__main__":

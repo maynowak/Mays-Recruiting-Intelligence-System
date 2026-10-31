@@ -45,6 +45,7 @@ from jobsearch.partner_profile_contract import (
     ATSSearchProfile,
     ManualSearchProfile,
     MatchingPreferences,
+    SearchConfiguration,
     reject_client_identity,
     parse_resource,
     build_from_client_payload,
@@ -107,16 +108,19 @@ class TestValidObjects(unittest.TestCase):
         assert a2.target_roles == ["Dev"]
 
     def test_manual_profile_roundtrip(self):
-        mp = MatchingPreferences(roles=["Dev"], work_modes=["remote"], employment_types=["full_time"],
-                                 locations=["Berlin"], salary_min=50000, remote_only=True, sources=["arbeitsagentur"],
-                                 query="python")
+        sc = SearchConfiguration(
+            skills='AWS, "Cloud Architecture"', target_roles=["Dev"],
+            city="Berlin", radius_km=50, work_modes=["remote"],
+            employment_types=["full_time"])
+        mp = MatchingPreferences(required_skills=["AWS"])
         m = ManualSearchProfile(manual_profile_id="m1", user_id="u1", tenant_id="t1", name="Manual1",
-                                matching_preferences=mp)
+                                search_config=sc, matching_preferences=mp)
         d = m.to_dict()
         m2 = ManualSearchProfile.from_dict(d)
         assert m2.manual_profile_id == "m1"
-        assert m2.matching_preferences.roles == ["Dev"]
-        assert m2.matching_preferences.salary_min == 50000
+        assert m2.search_config.target_roles == ["Dev"]
+        assert m2.search_config.city == "Berlin"
+        assert m2.matching_preferences.required_skills == ["AWS"]
 
 
 class TestInvalidFields(unittest.TestCase):
@@ -287,14 +291,17 @@ class TestResourceTypes(unittest.TestCase):
         assert isinstance(u, UserProfile)
 
     def test_matching_preferences_multi_values_preserved(self):
-        mp = MatchingPreferences(roles=["Dev", "Lead"], work_modes=["remote", "hybrid"],
-                                 employment_types=["full_time", "part_time"], locations=["Berlin", "Munich"])
-        d = mp.to_dict()
-        mp2 = MatchingPreferences.from_dict(d)
-        assert mp2.roles == ["Dev", "Lead"]
-        assert mp2.work_modes == ["remote", "hybrid"]
-        assert mp2.employment_types == ["full_time", "part_time"]
-        assert mp2.locations == ["Berlin", "Munich"]
+        sc = SearchConfiguration(
+            target_roles=["Dev", "Lead"], work_modes=["remote", "hybrid"],
+            employment_types=["full_time", "part_time"], city="Berlin")
+        d = sc.to_dict()
+        sc2 = SearchConfiguration.from_dict(d)
+        assert sc2.target_roles == ["Dev", "Lead"]
+        assert sc2.work_modes == ["remote", "hybrid"]
+        assert sc2.employment_types == ["full_time", "part_time"]
+        assert sc2.city == "Berlin"
+        mp = MatchingPreferences(required_skills=["AWS"])
+        assert MatchingPreferences.from_dict(mp.to_dict()).required_skills == ["AWS"]
 
     def test_ats_criteria_separate_from_matching_preferences(self):
         ats = _ats()

@@ -1783,58 +1783,87 @@ components:
         validFrom: { type: string }
         validUntil: { type: string }
 
+    SearchConfigurationV1:
+      type: object
+      description: >-
+        Canonical Jobsearch SearchConfigurationV1. `skills` is a phrase-
+        preserving string (quoted phrases must not be split); `radiusKm` is
+        nullable and restricted to the product values.
+      additionalProperties: false
+      required: [skills, targetRoles, city, radiusKm, workModes, employmentTypes]
+      properties:
+        skills: { type: string, maxLength: 4000 }
+        targetRoles:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        city: { type: string, maxLength: 200 }
+        radiusKm:
+          type: integer
+          nullable: true
+          enum: [10, 25, 50, 100]
+        workModes:
+          type: array
+          uniqueItems: true
+          items: { type: string, enum: [remote, hybrid, onsite] }
+        employmentTypes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, enum: [full_time, part_time] }
+
     MatchingPreferencesV1:
       type: object
-      description: Manual matching preferences (R01 contract, extended additively).
+      description: Canonical Jobsearch MatchingPreferencesV1 (three phrase lists).
+      additionalProperties: false
+      required: [requiredSkills, preferredSkills, excludedTerms]
       properties:
-        resourceType: { type: string, enum: [MatchingPreferences] }
-        schemaVersion: { type: string, enum: [v1] }
-        roles: { type: array, items: { type: string } }
-        workModes: { type: array, items: { type: string } }
-        employmentTypes: { type: array, items: { type: string } }
-        locations: { type: array, items: { type: string } }
-        salaryMin: { type: integer, nullable: true }
-        remoteOnly: { type: boolean }
-        sources: { type: array, items: { type: string } }
-        query: { type: string }
-        requiredSkills: { type: array, items: { type: string } }
-        preferredSkills: { type: array, items: { type: string } }
-        excludedTerms: { type: array, items: { type: string } }
+        requiredSkills:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        preferredSkills:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        excludedTerms:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
 
     ManualSearchProfileInput:
       type: object
       description: >-
-        Client-supplied profile fields. Identity (userId, tenantId, partner,
-        issuer) is server-derived and rejected in the body.
+        Client-supplied v1 fields. Identity (userId, tenantId, partner, issuer)
+        and schemaVersion/version are server-owned and rejected in the body.
+        On update a missing searchConfig or matchingPreferences is preserved.
       required: [name]
       properties:
         name: { type: string }
         description: { type: string }
+        searchConfig:
+          $ref: "#/components/schemas/SearchConfigurationV1"
         matchingPreferences:
           $ref: "#/components/schemas/MatchingPreferencesV1"
         version: { type: integer, minimum: 1, description: "Optimistic-lock version for updates." }
 
     ManualSearchProfileV1:
       type: object
-      required: [schemaVersion, manualSearchProfileId, name, origin, matchingPreferences]
+      additionalProperties: false
+      required: [schemaVersion, manualSearchProfileId, name, origin, searchConfig, matchingPreferences, createdAt, updatedAt, version]
       properties:
-        schemaVersion: { type: string, enum: [v1] }
-        manualSearchProfileId:
-          type: string
-          description: Canonical API id (same value as manualProfileId).
-        manualProfileId:
-          type: string
-          description: R01 persistence id, kept for contract compatibility.
+        schemaVersion: { type: integer, enum: [1] }
+        manualSearchProfileId: { type: string }
         name: { type: string }
         description: { type: string }
         origin: { type: string, enum: [manual] }
+        searchConfig:
+          $ref: "#/components/schemas/SearchConfigurationV1"
         matchingPreferences:
           $ref: "#/components/schemas/MatchingPreferencesV1"
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         version: { type: integer, minimum: 1 }
-        userId: { type: string }
-        tenantId: { type: string }
 
     PartnerCvInput:
       type: object
@@ -1848,7 +1877,7 @@ components:
       type: object
       required: [schemaVersion, cvId, name, processingStatus]
       properties:
-        schemaVersion: { type: string, enum: [v1] }
+        schemaVersion: { type: integer, enum: [1] }
         cvId: { type: string }
         documentId:
           type: string

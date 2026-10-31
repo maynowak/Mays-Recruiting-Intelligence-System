@@ -509,28 +509,37 @@ class TestContract(Harness):
         payload = {
             "name": "Roundtrip",
             "description": "desc",
+            "searchConfig": {
+                "skills": '"Cloud Architecture" Terraform',
+                "targetRoles": ["r1", "r2"],
+                "city": "Darmstadt",
+                "radiusKm": None,
+                "workModes": ["remote", "onsite"],
+                "employmentTypes": ["full_time", "part_time"],
+            },
             "matchingPreferences": {
                 "requiredSkills": ["a", "b"],
                 "preferredSkills": ["c"],
                 "excludedTerms": ["d"],
-                "roles": ["r1", "r2"],
-                "workModes": ["remote", "onsite"],
-                "employmentTypes": ["full_time", "part_time"],
-                "locations": ["Berlin", "Munich"],
             },
         }
         created = self.body(self.create(**payload))
+        self.assertEqual(created["schemaVersion"], 1)
         pid = created["manualSearchProfileId"]
         got = self.body(self.call("GET", f"{COLLECTION}/{pid}"))
         self.assertEqual(got["name"], "Roundtrip")
         self.assertEqual(got["description"], "desc")
+        sc = got["searchConfig"]
+        self.assertEqual(sc["skills"], '"Cloud Architecture" Terraform')
+        self.assertEqual(sc["targetRoles"], ["r1", "r2"])
+        self.assertEqual(sc["city"], "Darmstadt")
+        self.assertIsNone(sc["radiusKm"])
+        self.assertEqual(sc["workModes"], ["remote", "onsite"])
+        self.assertEqual(sc["employmentTypes"], ["full_time", "part_time"])
         mp = got["matchingPreferences"]
         self.assertEqual(mp["requiredSkills"], ["a", "b"])
         self.assertEqual(mp["preferredSkills"], ["c"])
         self.assertEqual(mp["excludedTerms"], ["d"])
-        self.assertEqual(mp["workModes"], ["remote", "onsite"])
-        self.assertEqual(mp["employmentTypes"], ["full_time", "part_time"])
-        self.assertEqual(mp["locations"], ["Berlin", "Munich"])
 
     def test_no_agent_or_model_call(self):
         resp = self.create()

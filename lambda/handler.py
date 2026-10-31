@@ -3452,33 +3452,80 @@ def _manual_profile_body(event):
     return data if isinstance(data, dict) else None
 
 
-def _manual_profile_parse(data):
-    """Validate a client payload into the R01 contract pieces."""
+def _manual_profile_parse(data, *, existing=None):
+    """Validate a client payload into the canonical v1 contract pieces.
+
+    ``searchConfig`` and ``matchingPreferences`` are parsed independently. On
+    update (``existing`` supplied) a missing object is preserved, so changing
+    one never mutates the other. A legacy create body without ``searchConfig``
+    is mapped from the old R03 fields (never silently dropped).
+    """
     from jobsearch.partner_profile_contract import (
-        MatchingPreferences, ProfileContractError, reject_client_identity,
+        MatchingPreferences, ProfileContractError, SearchConfiguration,
+        reject_client_identity,
     )
     reject_client_identity(data)
-    name = data.get('name')
+    name = data.get('name', None)
+    if name is None and existing is not None:
+        name = existing.name
     if not isinstance(name, str) or not name.strip():
         raise ProfileContractError('MISSING_FIELD', 'name is required')
-    mp_raw = data.get('matchingPreferences') or {}
-    if not isinstance(mp_raw, dict):
+    description = data.get('description')
+    if description is None:
+        description = existing.description if existing is not None else ""
+
+    mp_raw = data.get('matchingPreferences')
+    if mp_raw is not None and not isinstance(mp_raw, dict):
         raise ProfileContractError('INVALID_FIELD',
                                    'matchingPreferences must be an object')
-    mp = MatchingPreferences.from_dict(mp_raw)
+    if mp_raw is None and existing is not None:
+        mp = existing.matching_preferences
+    else:
+        mp = MatchingPreferences.from_dict(mp_raw or {})
+
+    sc_raw = data.get('searchConfig')
+    if sc_raw is not None:
+        if not isinstance(sc_raw, dict):
+            raise ProfileContractError('INVALID_FIELD',
+                                       'searchConfig must be an object')
+        sc = SearchConfiguration.from_dict(sc_raw)
+    elif existing is not None:
+        sc = existing.search_config
+    else:
+        sc = SearchConfiguration.from_legacy_matching_preferences(mp)
+
+    # v1 write rules (persistence-neutral executability is not decided here).
+    if not sc.skills.strip() and not sc.target_roles:
+        raise ProfileContractError(
+            'INVALID_SEARCH_CONFIG',
+            'searchConfig.skills or searchConfig.targetRoles is required')
+    if not sc.employment_types:
+        raise ProfileContractError(
+            'INVALID_SEARCH_CONFIG',
+            'searchConfig.employmentTypes must contain at least one value')
     return {
         'name': name.strip(),
-        'description': str(data.get('description', '') or ''),
+        'description': str(description or ''),
+        'search_config': sc,
         'matching_preferences': mp,
     }
 
 
 def _serialize_manual_profile(profile):
+    """Emit the canonical Jobsearch v1 ManualSearchProfileV1 shape."""
     body = profile.to_dict()
-    # API-level alias kept separate from the R01 persistence key
-    body['manualSearchProfileId'] = body.get('manualProfileId')
-    body['version'] = getattr(profile, 'version', None)
-    return body
+    return {
+        'schemaVersion': body.get('schemaVersion', 1),
+        'manualSearchProfileId': body.get('manualProfileId'),
+        'name': body.get('name'),
+        'description': body.get('description', ''),
+        'origin': body.get('origin', 'manual'),
+        'searchConfig': body.get('searchConfig'),
+        'matchingPreferences': body.get('matchingPreferences'),
+        'createdAt': body.get('createdAt'),
+        'updatedAt': body.get('updatedAt'),
+        'version': getattr(profile, 'version', None),
+    }
 
 
 def _manual_profile_response(profile, status=200):
@@ -3567,6 +3614,7 @@ def _manual_profile_create(event, ctx):
         name=parsed['name'],
         description=parsed['description'],
         origin='manual',
+        search_config=parsed['search_config'],
         matching_preferences=parsed['matching_preferences'],
         created_at=now,
         updated_at=now,
@@ -3644,7 +3692,7 @@ def _manual_profile_update(event, ctx, profile_id):
     if data is None:
         return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid JSON'})}
     try:
-        parsed = _manual_profile_parse(data)
+        parsed = _manual_profile_parse(data, existing=existing)
     except ProfileContractError as exc:
         return _manual_profile_error(exc)
 
@@ -3663,7 +3711,9 @@ def _manual_profile_update(event, ctx, profile_id):
         name=parsed['name'],
         description=parsed['description'],
         origin='manual',
+        search_config=parsed['search_config'],
         matching_preferences=parsed['matching_preferences'],
+        metadata=dict(existing.metadata or {}),
         created_at=existing.created_at,
         updated_at=now,
     )

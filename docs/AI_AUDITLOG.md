@@ -7897,3 +7897,32 @@ Evidence / file references:
 Classification: YELLOW
 Current resume point:
   - R05-G0 abgeschlossen; R05-CRUD nicht begonnen (BLOCKED durch P0-1/P0-2).
+
+[RIS-PARTNER-PROFILE-R05P0-CONTRACT-REPAIR]
+Current status: COMPLETE — P0-1 (schemaVersion) und P0-2 (searchConfig) behoben.
+Audit date/time: 2026-10-31
+Actual findings:
+  - P0-1: SCHEMA_VERSION jetzt Integer 1; Legacy "v1" wird lesend auf 1
+    normalisiert; unbekannte Versionen/bool abgelehnt.
+  - P0-2: SearchConfiguration (skills string, targetRoles[], city,
+    radiusKm nullable, workModes[], employmentTypes[]) eingefuehrt;
+    ManualSearchProfile.searchConfig getrennt von matchingPreferences.
+  - R03-Handler parst/speichert beide Objekte unabhaengig; partielle Updates
+    erhalten das jeweils andere Objekt.
+  - Legacy-Records bleiben lesbar; nicht abbildbare Felder werden in
+    metadata.legacy konserviert (legacyIncomplete=true), keine AWS-Migration.
+  - OpenAPI: schemaVersion integer 1, SearchConfigurationV1, v1-
+    MatchingPreferencesV1.
+  - Tests: 20 neue R05-P0 + 27 Reconciliation + 284 R01-R04 = 331 PASS.
+  - Offen: P1-1 (CVDocument-Naming/Status), P1-2 (CVSearchProfile), P1-3
+    (ATS criteria), P1-5 (Delete-Guard), P1-6 (Idempotenz); P1-4 teilweise.
+Evidence / file references:
+  - jobsearch/partner_profile_contract.py
+  - lambda/handler.py
+  - docs/api/openapi-platform.yaml
+  - tests/test_partner_profile_v1_repair.py
+  - tests/test_partner_profile_contract_reconciliation.py
+  - docs/reports/RIS-PARTNER-PROFILE-R05-P0-CONTRACT-REPAIR.md
+Classification: GREEN
+Current resume point:
+  - R05-P0 abgeschlossen; R05-CRUD nicht begonnen.
