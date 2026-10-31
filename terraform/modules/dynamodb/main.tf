@@ -235,11 +235,6 @@ resource "aws_dynamodb_table" "partner_profiles" {
   }
 
   attribute {
-    name = "tenantId"
-    type = "S"
-  }
-
-  attribute {
     name = "resourceType"
     type = "S"
   }

@@ -102,7 +102,7 @@ class TestEndpointGuard(unittest.TestCase):
 
     def test_rejects_unset_endpoint(self):
         with self.assertRaises(UnsafeTestConfiguration):
-            require_local_endpoint(None)
+            require_local_endpoint("")
         old = os.environ.pop(ENDPOINT_ENV, None)
         try:
             with self.assertRaises(UnsafeTestConfiguration):
@@ -218,6 +218,14 @@ class TestTerraformSchema(unittest.TestCase):
         self.assertIn('attribute_name = "expiresAt"', block)
         self.assertIn("enabled        = true", block)
 
+    def test_every_attribute_definition_is_used_by_a_key(self):
+        # DynamoDB rejects AttributeDefinitions that no key schema uses.
+        block = _table_block()
+        attrs = set(re.findall(r'attribute \{\s*name = "([^"]+)"', block))
+        keys = set(re.findall(r'(?:hash_key|range_key)\s*=\s*"([^"]+)"',
+                              block))
+        self.assertEqual(keys, attrs)
+
     def test_iam_covers_every_repository_action(self):
         src = _read("terraform", "modules", "lambda", "main.tf")
         policy = src.split(
@@ -286,10 +294,13 @@ class TestRepositoryStatic(unittest.TestCase):
 
     def test_lifecycle_guard_and_child_counter_conditions_exist(self):
         src = _read("jobsearch", "partner_profile_repository.py")
-        self.assertIn("attribute_not_exists(resourceId) OR state = :gactive",
+        self.assertIn("attribute_not_exists(resourceId) OR #s = :gactive",
                       src)
-        self.assertIn("attribute_not_exists(resourceId) OR count = :zero", src)
-        self.assertIn("state = :deleting", src)
+        self.assertIn(
+            "attribute_not_exists(resourceId) OR #c = :zero", src)
+        self.assertIn("#s = :deleting", src)
+        self.assertIn('"#c": "count"', src)
+        self.assertIn('"#s": "state"', src)
 
     def test_s3_versioning_and_delete_marker_report(self):
         tf = _read("terraform", "modules", "documents", "main.tf")
@@ -335,9 +346,11 @@ class TestTransactionShape(unittest.TestCase):
         self.assertIn("lifecycle#CVSearchProfile#sp-r07", keys)
         self.assertIn("ats-r07", keys)
         counter = next(a["Update"] for a in self.fake.calls[-1]
-                       if "Update" in a and "count" in a["Update"].get(
+                       if "Update" in a and "#c" in a["Update"].get(
                            "UpdateExpression", ""))
-        self.assertEqual("count < :max", counter["ConditionExpression"])
+        self.assertEqual("#c < :max", counter["ConditionExpression"])
+        self.assertEqual({"#c": "count"},
+                         counter["ExpressionAttributeNames"])
         self.assertEqual("5", counter["ExpressionAttributeValues"][":max"]["N"])
 
     def test_idempotency_item_carries_epoch_ttl(self):

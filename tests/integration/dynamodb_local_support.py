@@ -126,8 +126,11 @@ def build_local_dynamodb(endpoint: Optional[str] = None):
         "dynamodb",
         endpoint_url=url,
         region_name="us-west-2",
-        aws_access_key_id="ris-r07g0-local",
-        aws_secret_access_key="ris-r07g0-local",
+        # DynamoDB Local validates the *shape* of the access key, so this is a
+        # clearly non-AWS, uppercase test key rather than a random string.
+        # Static values also keep the real credential chain out of play.
+        aws_access_key_id="RISR07G0LOCALTEST0",
+        aws_secret_access_key="r07g0localtestsecret000000000000",
         config=Config(retries={"max_attempts": 2, "mode": "standard"}),
     )
 

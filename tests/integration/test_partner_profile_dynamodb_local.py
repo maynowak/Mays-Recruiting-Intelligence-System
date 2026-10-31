@@ -74,8 +74,11 @@ class DynamoDbLocalBase(unittest.TestCase):
         try:
             cls.client.list_tables(Limit=1)
         except Exception as exc:  # pragma: no cover - environment dependent
+            code = (getattr(exc, "response", {}) or {}).get(
+                "Error", {}).get("Code", type(exc).__name__)
             raise unittest.SkipTest(
-                f"DynamoDB Local not reachable: {type(exc).__name__}") from exc
+                f"DynamoDB Local not reachable at {cls.client.meta.endpoint_url}: "
+                f"{code}") from exc
         cls.table_name = new_test_table_name()
         cls._create_table()
         cls.repo = PartnerProfileRepository(
@@ -89,7 +92,6 @@ class DynamoDbLocalBase(unittest.TestCase):
             AttributeDefinitions=[
                 {"AttributeName": "resourceId", "AttributeType": "S"},
                 {"AttributeName": "userId", "AttributeType": "S"},
-                {"AttributeName": "tenantId", "AttributeType": "S"},
                 {"AttributeName": "resourceType", "AttributeType": "S"},
                 {"AttributeName": "parentId", "AttributeType": "S"},
             ],
@@ -145,8 +147,7 @@ class DynamoDbLocalBase(unittest.TestCase):
             ats_profile_id=ats_id, search_profile_id=sp_id, cv_id=cv_id,
             user_id=user, tenant_id=TENANT, name="ats",
             target_roles=["DevOps Engineer"], skills=["Terraform"])
-        self.repo.create(obj, **_identity(user), idempotency_key=key)
-        return ats_id
+        return self.repo.create(obj, **_identity(user), idempotency_key=key)
 
     def _counter(self, resource_type, parent_id):
         resp = self.dynamodb.Table(self.table_name).get_item(
@@ -481,11 +482,13 @@ class TestGsiPagination(DynamoDbLocalBase):
 
 def _poll(predicate, timeout=10.0, interval=0.05):
     deadline = time.monotonic() + timeout
+    last = None
     while time.monotonic() < deadline:
-        if predicate():
-            return True
+        last = predicate()
+        if last:
+            return last
         time.sleep(interval)
-    return False
+    return last
 
 
 if __name__ == "__main__":

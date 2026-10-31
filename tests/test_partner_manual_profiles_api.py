@@ -77,8 +77,11 @@ def _unwrap(v):
 SYSTEM_TYPES = {"CapacityCounter", "IdempotencyRecord", "LifecycleGuard"}
 
 
-def _eval_term(term, item, vals):
+def _eval_term(term, item, vals, names=None):
     term = term.strip()
+    if names:
+        for alias, real in names.items():
+            term = term.replace(alias, real)
     if term == "attribute_not_exists(resourceId)":
         return item is None or "resourceId" not in item
     if term == "attribute_exists(resourceId)":
@@ -105,22 +108,26 @@ def _eval_term(term, item, vals):
     return False
 
 
-def _eval_and(expr, item, vals):
+def _eval_and(expr, item, vals, names=None):
     for part in expr.split(" AND "):
         if not part.strip():
             continue
-        if not _eval_term(part, item, vals):
+        if not _eval_term(part, item, vals, names):
             return False
     return True
 
 
-def _eval_condition(expr, item, vals):
+def _eval_condition(expr, item, vals, names=None):
     if not expr:
         return True
-    return any(_eval_and(part, item, vals) for part in expr.split(" OR "))
+    return any(_eval_and(part, item, vals, names)
+               for part in expr.split(" OR "))
 
 
-def _apply_update(item, expr, vals):
+def _apply_update(item, expr, vals, names=None):
+    if names:
+        for alias, real in names.items():
+            expr = expr.replace(alias, real)
     if "count = count + :inc" in expr:
         item["count"] = item.get("count", 0) + 1
     elif "count = count - :inc" in expr:
@@ -151,7 +158,9 @@ class FakeDynamo:
         rid = Item.get("resourceId")
         cond = kwargs.get("ConditionExpression")
         vals = kwargs.get("ExpressionAttributeValues", {})
-        if cond and not _eval_condition(cond, self.resources.get(rid), vals):
+        names = kwargs.get("ExpressionAttributeNames")
+        if cond and not _eval_condition(cond, self.resources.get(rid), vals,
+                                        names):
             raise Exception("ConditionalCheckFailedException")
         self.resources[rid] = Item
 
@@ -159,28 +168,36 @@ class FakeDynamo:
         self.resources.pop(Key["resourceId"], None)
 
     def update_item(self, Key, UpdateExpression, ConditionExpression=None,
-                    ExpressionAttributeValues=None):
+                    ExpressionAttributeValues=None,
+                    ExpressionAttributeNames=None):
         rid = Key["resourceId"]
         vals = ExpressionAttributeValues or {}
         item = self.resources.get(rid)
-        if ConditionExpression and not _eval_condition(ConditionExpression, item, vals):
+        if ConditionExpression and not _eval_condition(
+                ConditionExpression, item, vals, ExpressionAttributeNames):
             raise Exception("ConditionalCheckFailedException")
         if item is None:
             item = {"resourceId": rid}
             self.resources[rid] = item
-        _apply_update(item, UpdateExpression, vals)
+        _apply_update(item, UpdateExpression, vals, ExpressionAttributeNames)
 
     def query(self, **kwargs):
         index = kwargs.get("IndexName")
         vals = kwargs.get("ExpressionAttributeValues", {})
         filt = kwargs.get("FilterExpression", "")
+
+        def native(value):
+            return value.get("S") if isinstance(value, dict) and "S" in value else value
+
         results = []
         for item in self.resources.values():
             if item.get("resourceType") in SYSTEM_TYPES:
                 continue
-            if index == "gsi-user" and item.get("userId") == vals.get(":u", {}).get("S"):
+            if index == "gsi-user" and item.get("userId") == native(vals.get(":u")):
+                if ":rt" in vals and item.get("resourceType") != native(vals.get(":rt")):
+                    continue
                 results.append(item)
-            elif index == "gsi-parent" and item.get("parentId") == vals.get(":p", {}).get("S"):
+            elif index == "gsi-parent" and item.get("parentId") == native(vals.get(":p")):
                 results.append(item)
 
         def matches(item):
@@ -188,13 +205,21 @@ class FakeDynamo:
                 part = part.strip()
                 if not part:
                     continue
-                if " = " in part:
+                if part.startswith("attribute_exists("):
+                    attr = part[len("attribute_exists("):].rstrip(")")
+                    if item is None or attr not in item:
+                        return False
+                elif part.startswith("attribute_not_exists("):
+                    attr = part[len("attribute_not_exists("):].rstrip(")")
+                    if item is not None and attr in item:
+                        return False
+                elif " = " in part:
                     attr, _, lit = part.partition(" = ")
-                    if item.get(attr.strip()) != vals.get(lit.strip(), {}).get("S"):
+                    if item.get(attr.strip()) != native(vals.get(lit.strip())):
                         return False
                 elif " <> " in part:
                     attr, _, lit = part.partition(" <> ")
-                    if item.get(attr.strip()) == vals.get(lit.strip(), {}).get("S"):
+                    if item.get(attr.strip()) == native(vals.get(lit.strip())):
                         return False
             return True
 
@@ -221,14 +246,16 @@ class FakeDynamo:
                     key = cc["Key"]["resourceId"]["S"]
                     if not _eval_condition(cc["ConditionExpression"],
                                            self.resources.get(key),
-                                           cc.get("ExpressionAttributeValues", {})):
+                                           cc.get("ExpressionAttributeValues", {}),
+                                           cc.get("ExpressionAttributeNames")):
                         raise _Cancelled(self._reasons(TransactItems, idx, "check"))
                 if "Put" in action:
                     raw = {k: _unwrap(v) for k, v in action["Put"]["Item"].items()}
                     cond = action["Put"].get("ConditionExpression", "")
                     if cond and not _eval_condition(
                             cond, self.resources.get(raw["resourceId"]),
-                            action["Put"].get("ExpressionAttributeValues", {})):
+                            action["Put"].get("ExpressionAttributeValues", {}),
+                            action["Put"].get("ExpressionAttributeNames")):
                         raise _Cancelled(self._reasons(TransactItems, idx, "put"))
                 if "Update" in action:
                     upd = action["Update"]
@@ -236,7 +263,8 @@ class FakeDynamo:
                     cond = upd.get("ConditionExpression", "")
                     if cond and not _eval_condition(
                             cond, self.resources.get(key),
-                            upd.get("ExpressionAttributeValues", {})):
+                            upd.get("ExpressionAttributeValues", {}),
+                            upd.get("ExpressionAttributeNames")):
                         raise _Cancelled(self._reasons(TransactItems, idx, "update"))
                 if "Delete" in action:
                     dele = action["Delete"]
@@ -244,7 +272,8 @@ class FakeDynamo:
                     cond = dele.get("ConditionExpression", "")
                     if cond and not _eval_condition(
                             cond, self.resources.get(key),
-                            dele.get("ExpressionAttributeValues", {})):
+                            dele.get("ExpressionAttributeValues", {}),
+                            dele.get("ExpressionAttributeNames")):
                         raise _Cancelled(self._reasons(TransactItems, idx, "delete"))
             for action in TransactItems:
                 if "Put" in action:
@@ -255,7 +284,8 @@ class FakeDynamo:
                     key = upd["Key"]["resourceId"]["S"]
                     item = self.resources.setdefault(key, {"resourceId": key})
                     _apply_update(item, upd["UpdateExpression"],
-                                  upd.get("ExpressionAttributeValues", {}))
+                                  upd.get("ExpressionAttributeValues", {}),
+                                  upd.get("ExpressionAttributeNames"))
                 if "Delete" in action:
                     self.resources.pop(action["Delete"]["Key"]["resourceId"]["S"], None)
         return {}

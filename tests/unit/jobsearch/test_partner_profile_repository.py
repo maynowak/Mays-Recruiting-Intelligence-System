@@ -88,8 +88,11 @@ def _unwrap_item(item):
 # fake client: simulates transact_write_items serially with a lock
 # --------------------------------------------------------------------------- #
 
-def _eval_term(term, item, vals):
+def _eval_term(term, item, vals, names=None):
     term = term.strip()
+    if names:
+        for alias, real in names.items():
+            term = term.replace(alias, real)
     if term == "attribute_not_exists(resourceId)":
         return item is None or "resourceId" not in item
     if term == "attribute_exists(resourceId)":
@@ -115,20 +118,24 @@ def _eval_term(term, item, vals):
     return False
 
 
-def _eval_and(expr, item, vals):
+def _eval_and(expr, item, vals, names=None):
     for part in expr.split(" AND "):
-        if part.strip() and not _eval_term(part, item, vals):
+        if part.strip() and not _eval_term(part, item, vals, names):
             return False
     return True
 
 
-def _eval_condition(expr, item, vals):
+def _eval_condition(expr, item, vals, names=None):
     if not expr:
         return True
-    return any(_eval_and(part, item, vals) for part in expr.split(" OR "))
+    return any(_eval_and(part, item, vals, names)
+               for part in expr.split(" OR "))
 
 
-def _apply_update(item, expr, vals):
+def _apply_update(item, expr, vals, names=None):
+    if names:
+        for alias, real in names.items():
+            expr = expr.replace(alias, real)
     if "count = count + :inc" in expr:
         item["count"] = item.get("count", 0) + 1
     elif "count = count - :inc" in expr:
@@ -159,28 +166,32 @@ class _FakeTransactClient:
                     cc = action["ConditionCheck"]
                     if not _eval_condition(cc["ConditionExpression"],
                                            self.resources.get(cc["Key"]["resourceId"]["S"]),
-                                           cc.get("ExpressionAttributeValues", {})):
+                                           cc.get("ExpressionAttributeValues", {}),
+                                           cc.get("ExpressionAttributeNames")):
                         raise self._cancelled(TransactItems, idx, "check")
                 if "Put" in action:
                     raw = _unwrap_item(action["Put"]["Item"])
                     cond = action["Put"].get("ConditionExpression", "")
                     if cond and not _eval_condition(
                             cond, self.resources.get(raw["resourceId"]),
-                            action["Put"].get("ExpressionAttributeValues", {})):
+                            action["Put"].get("ExpressionAttributeValues", {}),
+                            action["Put"].get("ExpressionAttributeNames")):
                         raise self._cancelled(TransactItems, idx, "put")
                 if "Update" in action:
                     upd = action["Update"]
                     cond = upd.get("ConditionExpression", "")
                     if cond and not _eval_condition(
                             cond, self.resources.get(upd["Key"]["resourceId"]["S"]),
-                            upd.get("ExpressionAttributeValues", {})):
+                            upd.get("ExpressionAttributeValues", {}),
+                            upd.get("ExpressionAttributeNames")):
                         raise self._cancelled(TransactItems, idx, "update")
                 if "Delete" in action:
                     dele = action["Delete"]
                     cond = dele.get("ConditionExpression", "")
                     if cond and not _eval_condition(
                             cond, self.resources.get(dele["Key"]["resourceId"]["S"]),
-                            dele.get("ExpressionAttributeValues", {})):
+                            dele.get("ExpressionAttributeValues", {}),
+                            dele.get("ExpressionAttributeNames")):
                         raise self._cancelled(TransactItems, idx, "delete")
             for action in TransactItems:
                 if "Put" in action:
@@ -191,7 +202,8 @@ class _FakeTransactClient:
                     key = upd["Key"]["resourceId"]["S"]
                     item = self.resources.setdefault(key, {"resourceId": key})
                     _apply_update(item, upd["UpdateExpression"],
-                                  upd.get("ExpressionAttributeValues", {}))
+                                  upd.get("ExpressionAttributeValues", {}),
+                                  upd.get("ExpressionAttributeNames"))
                 if "Delete" in action:
                     self.resources.pop(action["Delete"]["Key"]["resourceId"]["S"], None)
         return {}
@@ -230,13 +242,19 @@ class BaseRepo(unittest.TestCase):
         index = kwargs.get("IndexName")
         vals = kwargs.get("ExpressionAttributeValues", {})
         filt = kwargs.get("FilterExpression", "")
+
+        def native(value):
+            return value.get("S") if isinstance(value, dict) and "S" in value else value
+
         results = []
         for item in self.client.resources.values():
             if item.get("resourceType") == "CapacityCounter":
                 continue
-            if index == "gsi-user" and item.get("userId") == vals.get(":u", {}).get("S"):
+            if index == "gsi-user" and item.get("userId") == native(vals.get(":u")):
+                if ":rt" in vals and item.get("resourceType") != native(vals.get(":rt")):
+                    continue
                 results.append(item)
-            elif index == "gsi-parent" and item.get("parentId") == vals.get(":p", {}).get("S"):
+            elif index == "gsi-parent" and item.get("parentId") == native(vals.get(":p")):
                 results.append(item)
 
         def matches(item):
@@ -244,15 +262,21 @@ class BaseRepo(unittest.TestCase):
                 part = part.strip()
                 if not part:
                     continue
-                if " = " in part:
+                if part.startswith("attribute_exists("):
+                    attr = part[len("attribute_exists("):].rstrip(")")
+                    if item is None or attr not in item:
+                        return False
+                elif part.startswith("attribute_not_exists("):
+                    attr = part[len("attribute_not_exists("):].rstrip(")")
+                    if item is not None and attr in item:
+                        return False
+                elif " = " in part:
                     attr, _, lit = part.partition(" = ")
-                    expected = vals.get(lit.strip(), {}).get("S")
-                    if item.get(attr.strip()) != expected:
+                    if item.get(attr.strip()) != native(vals.get(lit.strip())):
                         return False
                 elif " <> " in part:
                     attr, _, lit = part.partition(" <> ")
-                    expected = vals.get(lit.strip(), {}).get("S")
-                    if item.get(attr.strip()) == expected:
+                    if item.get(attr.strip()) == native(vals.get(lit.strip())):
                         return False
             return True
 
@@ -564,8 +588,9 @@ class TestTransactionStructure(BaseRepo):
         updates = [a["Update"] for a in items if "Update" in a]
         self.assertEqual(len(updates), 1)
         upd = updates[0]
-        self.assertIn("count < :max", upd["ConditionExpression"])
-        self.assertIn("count = count + :inc", upd["UpdateExpression"])
+        self.assertIn("#c < :max", upd["ConditionExpression"])
+        self.assertIn("#c = #c + :inc", upd["UpdateExpression"])
+        self.assertEqual({"#c": "count"}, upd["ExpressionAttributeNames"])
         self.assertIn(":max", upd["ExpressionAttributeValues"])
         # no ConditionCheck action at all for the counter
         checks = [a for a in items if "ConditionCheck" in a]
@@ -584,7 +609,9 @@ class TestTransactionStructure(BaseRepo):
         items = self._last_transact()
         updates = [a["Update"] for a in items if "Update" in a]
         self.assertEqual(len(updates), 1)
-        self.assertIn("count > :zero", updates[0]["ConditionExpression"])
+        self.assertIn("#c > :zero", updates[0]["ConditionExpression"])
+        self.assertEqual({"#c": "count"},
+                         updates[0]["ExpressionAttributeNames"])
 
     def test_all_actions_have_low_level_types(self):
         self.repo.create(_cv(), user_id="u1", tenant_id="t1")

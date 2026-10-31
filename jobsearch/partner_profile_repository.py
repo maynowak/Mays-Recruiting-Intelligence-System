@@ -19,6 +19,7 @@ import os
 import time
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
 from jobsearch.partner_profile_contract import (
@@ -65,6 +66,22 @@ except Exception:  # pragma: no cover - test fallback
 
 def serializer(value):
     return _serialize_value(value)
+
+
+def _normalize_numbers(value):
+    """Convert DynamoDB ``Decimal`` values to native int/float.
+
+    boto3 Table resources deserialize every DynamoDB number to ``Decimal``.
+    The contract validators expect real ints (e.g. CVDocument.size), so the
+    read path normalises before parsing instead of weakening validation.
+    """
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, list):
+        return [_normalize_numbers(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _normalize_numbers(item) for key, item in value.items()}
+    return value
 
 PERSISTED_RESOURCE_TYPES = frozenset({
     "CVDocument",
@@ -153,7 +170,28 @@ class PartnerProfileRepository:
             if self._dynamodb is None:
                 import boto3
                 self._dynamodb = boto3.resource("dynamodb")
-            self._client = self._dynamodb.meta.client
+            # A boto3 *resource* client carries the DynamoDB resource
+            # transformation, which would double-serialize the low-level
+            # transaction items built below. Always use a plain client for
+            # TransactWriteItems, derived from the same endpoint/credentials.
+            base_client = getattr(getattr(self._dynamodb, "meta", None),
+                                  "client", None)
+            if base_client is None:
+                self._client = self._dynamodb
+            else:
+                import boto3
+                creds = getattr(
+                    getattr(base_client, "_request_signer", None),
+                    "_credentials", None)
+                self._client = boto3.client(
+                    "dynamodb",
+                    endpoint_url=base_client.meta.endpoint_url,
+                    region_name=base_client.meta.region_name,
+                    aws_access_key_id=getattr(creds, "access_key", None),
+                    aws_secret_access_key=getattr(creds, "secret_key", None),
+                    aws_session_token=getattr(creds, "token", None),
+                    config=base_client.meta.config,
+                )
         return self._client
 
     # ------------------------------------------------------------------ #
@@ -164,9 +202,6 @@ class PartnerProfileRepository:
 
     def _serialize(self, item: Dict[str, Any]) -> Dict[str, Any]:
         return {k: serializer(v) for k, v in item.items() if v is not None}
-
-    def _sv(self, value: str) -> Dict[str, str]:
-        return {"S": value}
 
     def _identity_ok(self, item: Dict[str, Any], user_id: str, tenant_id: str,
                      partner_app_id: Optional[str], issuer: Optional[str]) -> bool:
@@ -222,14 +257,14 @@ class PartnerProfileRepository:
     def _from_item(self, item: Dict[str, Any]) -> Any:
         if item.get("resourceType") in SYSTEM_RESOURCE_TYPES:
             return None
-        payload = dict(item.get("payload") or {})
+        payload = _normalize_numbers(dict(item.get("payload") or {}))
         # identity is authoritative from the stored item, never from payload
         payload["userId"] = item.get("userId")
         payload["tenantId"] = item.get("tenantId")
         obj = parse_resource(payload, strict=False)
         # expose the optimistic-lock version without polluting the contract DTO
         try:
-            obj.version = item.get("version", 1)
+            obj.version = _normalize_numbers(item.get("version", 1))
         except Exception:
             pass
         return obj
@@ -276,15 +311,18 @@ class PartnerProfileRepository:
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     def _condition_check(self, key: str, expression: str,
-                         values: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            "ConditionCheck": {
-                "TableName": self.table_name,
-                "Key": {"resourceId": {"S": key}},
-                "ConditionExpression": expression,
-                "ExpressionAttributeValues": values,
-            }
+                         values: Dict[str, Any],
+                         names: Optional[Dict[str, str]] = None
+                         ) -> Dict[str, Any]:
+        check = {
+            "TableName": self.table_name,
+            "Key": {"resourceId": {"S": key}},
+            "ConditionExpression": expression,
+            "ExpressionAttributeValues": values,
         }
+        if names:
+            check["ExpressionAttributeNames"] = names
+        return {"ConditionCheck": check}
 
     def _parent_checks(self, resource: Any, user_id: str, tenant_id: str
                        ) -> List[Dict[str, Any]]:
@@ -310,8 +348,9 @@ class PartnerProfileRepository:
         ))
         checks.append(self._condition_check(
             self._guard_key(parent_type, parent_id),
-            "attribute_not_exists(resourceId) OR state = :gactive",
+            "attribute_not_exists(resourceId) OR #s = :gactive",
             {":gactive": {"S": LIFECYCLE_ACTIVE}},
+            names={"#s": "state"},
         ))
         return checks
 
@@ -345,7 +384,8 @@ class PartnerProfileRepository:
             "count": 0,
             "userId": parts[1] if len(parts) > 1 else "",
             "tenantId": "",
-            "parentId": "",
+            # No parentId: an empty string is an invalid GSI key value in
+            # DynamoDB. Omitting it keeps counter items out of gsi-parent.
             "createdAt": now,
             "updatedAt": now,
         }
@@ -442,8 +482,9 @@ class PartnerProfileRepository:
                 "Update": {
                     "TableName": self.table_name,
                     "Key": {"resourceId": {"S": ckey}},
-                    "ConditionExpression": "count < :max",
-                    "UpdateExpression": "SET count = count + :inc, updatedAt = :now",
+                    "ConditionExpression": "#c < :max",
+                    "UpdateExpression": "SET #c = #c + :inc, updatedAt = :now",
+                    "ExpressionAttributeNames": {"#c": "count"},
                     "ExpressionAttributeValues": {
                         ":max": {"N": str(max_count)},
                         ":inc": {"N": "1"},
@@ -531,26 +572,29 @@ class PartnerProfileRepository:
         kwargs: Dict[str, Any] = {
             "IndexName": "gsi-user",
             "KeyConditionExpression": "userId = :u",
-            "ExpressionAttributeValues": {":u": self._sv(user_id)},
+            # Native values: self.table is a boto3 resource Table, which
+            # serialises them exactly once.
+            "ExpressionAttributeValues": {":u": user_id},
             "Limit": limit,
         }
         if cursor:
             kwargs["ExclusiveStartKey"] = cursor
-        kwargs["ExpressionAttributeValues"][":t"] = self._sv(tenant_id)
-        kwargs["ExpressionAttributeValues"][":cc"] = self._sv(CAPACITY_RESOURCE_TYPE)
-        kwargs["ExpressionAttributeValues"][":sys-idem"] = self._sv(IDEMPOTENCY_RESOURCE_TYPE)
-        kwargs["ExpressionAttributeValues"][":sys-guard"] = self._sv(LIFECYCLE_RESOURCE_TYPE)
-        filters = ["tenantId = :t", "resourceType <> :cc",
-                   "resourceType <> :sys-idem", "resourceType <> :sys-guard"]
         if resource_type:
-            filters.append("resourceType = :rt")
-            kwargs["ExpressionAttributeValues"][":rt"] = self._sv(resource_type)
+            # resourceType is the gsi-user range key, so it belongs in the
+            # KeyConditionExpression, never in a FilterExpression.
+            kwargs["KeyConditionExpression"] += " AND resourceType = :rt"
+            kwargs["ExpressionAttributeValues"][":rt"] = resource_type
+        kwargs["ExpressionAttributeValues"][":t"] = tenant_id
+        # Only real profile resources carry a payload. Capacity counters,
+        # idempotency records and lifecycle guards do not, so this non-key
+        # filter keeps them out without touching the index keys.
+        filters = ["tenantId = :t", "attribute_exists(payload)"]
         if partner_app_id is not None:
             filters.append("partnerApplicationId = :p")
-            kwargs["ExpressionAttributeValues"][":p"] = self._sv(partner_app_id)
+            kwargs["ExpressionAttributeValues"][":p"] = partner_app_id
         if issuer is not None:
             filters.append("issuer = :i")
-            kwargs["ExpressionAttributeValues"][":i"] = self._sv(issuer)
+            kwargs["ExpressionAttributeValues"][":i"] = issuer
         kwargs["FilterExpression"] = " AND ".join(filters)
         try:
             resp = self.table.query(**kwargs)
@@ -576,25 +620,25 @@ class PartnerProfileRepository:
             "IndexName": "gsi-parent",
             "KeyConditionExpression": "parentId = :p",
             "ExpressionAttributeValues": {
-                ":p": self._sv(parent_id),
-                ":u": self._sv(user_id),
-                ":t": self._sv(tenant_id),
-                ":cc": self._sv(CAPACITY_RESOURCE_TYPE),
+                ":p": parent_id,
+                ":u": user_id,
+                ":t": tenant_id,
             },
             "Limit": limit,
         }
         if cursor:
             kwargs["ExclusiveStartKey"] = cursor
-        filters = ["userId = :u", "tenantId = :t", "resourceType <> :cc"]
+        filters = ["userId = :u", "tenantId = :t",
+                   "attribute_exists(payload)"]
         if resource_type:
             filters.append("resourceType = :rt")
-            kwargs["ExpressionAttributeValues"][":rt"] = self._sv(resource_type)
+            kwargs["ExpressionAttributeValues"][":rt"] = resource_type
         if partner_app_id is not None:
             filters.append("partnerApplicationId = :pa")
-            kwargs["ExpressionAttributeValues"][":pa"] = self._sv(partner_app_id)
+            kwargs["ExpressionAttributeValues"][":pa"] = partner_app_id
         if issuer is not None:
             filters.append("issuer = :i")
-            kwargs["ExpressionAttributeValues"][":i"] = self._sv(issuer)
+            kwargs["ExpressionAttributeValues"][":i"] = issuer
         kwargs["FilterExpression"] = " AND ".join(filters)
         try:
             resp = self.table.query(**kwargs)
@@ -632,7 +676,7 @@ class PartnerProfileRepository:
             return False
         if not self._identity_ok(raw, user_id, tenant_id, partner_app_id, issuer):
             return False
-        cur_ver = raw.get("version", 1)
+        cur_ver = _normalize_numbers(raw.get("version", 1))
         if expected_version is not None and expected_version != cur_ver:
             raise PartnerProfileConflictError(f"Version conflict: expected {expected_version}, got {cur_ver}")
         item = self._to_item(resource, user_id=user_id, tenant_id=tenant_id,
@@ -662,7 +706,7 @@ class PartnerProfileRepository:
             return False
         if not self._identity_ok(raw, user_id, tenant_id, partner_app_id, issuer):
             return False
-        cur_ver = raw.get("version", 1)
+        cur_ver = _normalize_numbers(raw.get("version", 1))
         if expected_version is not None and expected_version != cur_ver:
             raise PartnerProfileConflictError("Version conflict on delete")
         rt = raw.get("resourceType")
@@ -694,8 +738,9 @@ class PartnerProfileRepository:
                 "Update": {
                     "TableName": self.table_name,
                     "Key": {"resourceId": {"S": ckey}},
-                    "ConditionExpression": "count > :zero",
-                    "UpdateExpression": "SET count = count - :inc, updatedAt = :now",
+                    "ConditionExpression": "#c > :zero",
+                    "UpdateExpression": "SET #c = #c - :inc, updatedAt = :now",
+                    "ExpressionAttributeNames": {"#c": "count"},
                     "ExpressionAttributeValues": {
                         ":inc": {"N": "1"},
                         ":zero": {"N": "0"},
@@ -713,8 +758,9 @@ class PartnerProfileRepository:
             child_index = len(transact_items)
             transact_items.append(self._condition_check(
                 child_counter,
-                "attribute_not_exists(resourceId) OR count = :zero",
+                "attribute_not_exists(resourceId) OR #c = :zero",
                 {":zero": {"N": "0"}},
+                names={"#c": "count"},
             ))
 
         try:
@@ -753,7 +799,7 @@ class PartnerProfileRepository:
             raise PartnerProfileNotFoundError("Parent not found")
         if not self._identity_ok(raw, user_id, tenant_id, partner_app_id, issuer):
             raise PartnerProfileNotFoundError("Parent not found")
-        cur_ver = raw.get("version", 1)
+        cur_ver = _normalize_numbers(raw.get("version", 1))
         if expected_version is not None and expected_version != cur_ver:
             raise PartnerProfileConflictError("Version conflict on delete")
         rt = raw.get("resourceType")
@@ -770,8 +816,9 @@ class PartnerProfileRepository:
                 "TableName": self.table_name,
                 "Key": {"resourceId": {"S": guard_key}},
                 "ConditionExpression":
-                    "attribute_not_exists(resourceId) OR state IN (:active, :deleting)",
-                "UpdateExpression": "SET state = :deleting, updatedAt = :now",
+                    "attribute_not_exists(resourceId) OR #s IN (:active, :deleting)",
+                "UpdateExpression": "SET #s = :deleting, updatedAt = :now",
+                "ExpressionAttributeNames": {"#s": "state"},
                 "ExpressionAttributeValues": {
                     ":active": {"S": LIFECYCLE_ACTIVE},
                     ":deleting": {"S": LIFECYCLE_DELETING},
@@ -786,8 +833,9 @@ class PartnerProfileRepository:
             child_counter_index = len(items)
             items.append(self._condition_check(
                 child_counter,
-                "attribute_not_exists(resourceId) OR count = :zero",
+                "attribute_not_exists(resourceId) OR #c = :zero",
                 {":zero": {"N": "0"}},
+                names={"#c": "count"},
             ))
 
         try:
@@ -818,8 +866,9 @@ class PartnerProfileRepository:
         try:
             self.table.update_item(
                 Key={"resourceId": reservation["guard_key"]},
-                UpdateExpression="SET state = :active, updatedAt = :now",
-                ConditionExpression="state = :deleting",
+                UpdateExpression="SET #s = :active, updatedAt = :now",
+                ConditionExpression="#s = :deleting",
+                ExpressionAttributeNames={"#s": "state"},
                 ExpressionAttributeValues={
                     ":active": LIFECYCLE_ACTIVE,
                     ":deleting": LIFECYCLE_DELETING,
@@ -844,7 +893,7 @@ class PartnerProfileRepository:
             return False
         if not self._identity_ok(raw, user_id, tenant_id, partner_app_id, issuer):
             return False
-        cur_ver = raw.get("version", 1)
+        cur_ver = _normalize_numbers(raw.get("version", 1))
         if expected_version is not None and expected_version != cur_ver:
             raise PartnerProfileConflictError("Version conflict on delete")
         rt = raw.get("resourceType")
@@ -873,8 +922,9 @@ class PartnerProfileRepository:
                 "Update": {
                     "TableName": self.table_name,
                     "Key": {"resourceId": {"S": reservation["counter_key"]}},
-                    "ConditionExpression": "count > :zero",
-                    "UpdateExpression": "SET count = count - :inc, updatedAt = :now",
+                    "ConditionExpression": "#c > :zero",
+                    "UpdateExpression": "SET #c = #c - :inc, updatedAt = :now",
+                    "ExpressionAttributeNames": {"#c": "count"},
                     "ExpressionAttributeValues": {
                         ":inc": {"N": "1"}, ":zero": {"N": "0"},
                         ":now": {"S": self._now()},
@@ -886,7 +936,8 @@ class PartnerProfileRepository:
             "Delete": {
                 "TableName": self.table_name,
                 "Key": {"resourceId": {"S": reservation["guard_key"]}},
-                "ConditionExpression": "state = :deleting",
+                "ConditionExpression": "#s = :deleting",
+                "ExpressionAttributeNames": {"#s": "state"},
                 "ExpressionAttributeValues": {
                     ":deleting": {"S": LIFECYCLE_DELETING},
                 },
@@ -897,8 +948,9 @@ class PartnerProfileRepository:
             child_counter = self._counter_key(reservation["child_type"], resource_id)
             items.append(self._condition_check(
                 child_counter,
-                "attribute_not_exists(resourceId) OR count = :zero",
+                "attribute_not_exists(resourceId) OR #c = :zero",
                 {":zero": {"N": "0"}},
+                names={"#c": "count"},
             ))
 
         try:

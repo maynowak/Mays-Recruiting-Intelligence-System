@@ -8081,3 +8081,31 @@ Classification: GREEN
 Current resume point:
   - F-1/F-7 closed; R07-A still blocked by missing boto3/Java/DynamoDB Local.
   - Remaining OPEN: F-4, F-5, F-6, P1-1.
+
+[RIS-PARTNER-PROFILE-R07-A-DYNAMODB-LOCAL]
+Current status: COMPLETE - 23/23 real DynamoDB Local integration tests PASS.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Isolated venv (Python 3.15.0, boto3/botocore 1.43.123, pytest 9.2.0,
+    PyYAML 6.0.3) and Temurin JRE 21.0.13+9 outside the repo.
+  - DynamoDB Local 3.3.2 from the official AWS URL, SHA256 verified; bound to
+    127.0.0.1:18000 via a small launcher (no -bindAddress in 3.3.2; LAN
+    connection refused after hardening).
+  - Found and fixed seven real DynamoDB incompatibilities invisible to fakes:
+    resource-client double serialization, reserved keywords count/state,
+    invalid :sys-* placeholders, empty parentId GSI key on counters, Decimal
+    deserialization, GSI range key in FilterExpression, unused Terraform
+    tenantId attribute.
+  - Integration: 23 passed. Full suite with venv+endpoint: 517 passed.
+    System Python without boto3: 494 passed, 23 skipped.
+  - No AWS credentials/endpoint used; no AWS mutation.
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - terraform/modules/dynamodb/main.tf
+  - tests/integration/dynamodb_local_support.py
+  - tests/integration/test_partner_profile_dynamodb_local.py
+  - docs/reports/RIS-PARTNER-PROFILE-R07-A-DYNAMODB-LOCAL.md
+Classification: GREEN
+Current resume point:
+  - R07-A GO. Remaining OPEN: F-4, F-5, F-6, P1-1.
+  - R07-B not started; no AWS mutation.
