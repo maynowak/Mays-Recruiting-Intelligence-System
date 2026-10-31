@@ -7770,3 +7770,20 @@ Evidence / file references:
 Classification: GREEN
 Current resume point:
   - R01 abgeschlossen; R02 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R02-DYNAMODB-REPOSITORY]
+Current status: COMPLETE — Partner-Profile-Repository und DynamoDB-Tabelle implementiert.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Neue Datei jobsearch/partner_profile_repository.py.
+  - Terraform-Tabelle partner-profiles mit GSI gsi-user/gsi-parent.
+  - Tests: 20 Repository-Tests PASS, 35 Contract-Tests PASS.
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - terraform/modules/dynamodb/main.tf
+  - terraform/modules/dynamodb/outputs.tf
+  - tests/unit/jobsearch/test_partner_profile_repository.py
+  - docs/reports/RIS-PARTNER-PROFILE-R02-DYNAMODB-REPOSITORY.md
+Classification: GREEN
+Current resume point:
+  - R02 abgeschlossen; R03 nicht begonnen.

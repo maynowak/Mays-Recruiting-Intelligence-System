@@ -218,6 +218,53 @@ resource "aws_dynamodb_table" "jobsearches" {
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
+# Partner profile persistence table (R02) - stores v1 profile resources.
+resource "aws_dynamodb_table" "partner_profiles" {
+  name         = "${var.project_name}-${var.environment}-partner-profiles"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "resourceId"
+
+  attribute {
+    name = "resourceId"
+    type = "S"
+  }
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  attribute {
+    name = "tenantId"
+    type = "S"
+  }
+
+  attribute {
+    name = "resourceType"
+    type = "S"
+  }
+
+  attribute {
+    name = "parentId"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "gsi-user"
+    hash_key        = "userId"
+    range_key       = "resourceType"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "gsi-parent"
+    hash_key        = "parentId"
+    projection_type = "ALL"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
 output "work_items_table_name" {
   value = aws_dynamodb_table.work_items.name
 }

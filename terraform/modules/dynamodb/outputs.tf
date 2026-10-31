@@ -41,6 +41,14 @@ output "jobsearches_table_arn" {
   value = aws_dynamodb_table.jobsearches.arn
 }
 
+output "partner_profiles_table_name" {
+  value = aws_dynamodb_table.partner_profiles.name
+}
+
+output "partner_profiles_table_arn" {
+  value = aws_dynamodb_table.partner_profiles.arn
+}
+
 # Partner Application Registry. The runtime Lambda resolves this table on every
 # authorized agent execution (agents/ecosystem/partner_registry.py reads
 # RIS_PARTNER_APPLICATIONS_TABLE); without it the registry lookup returns None
