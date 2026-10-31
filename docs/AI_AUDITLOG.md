@@ -8232,3 +8232,38 @@ Current resume point:
   - Decide Orders scope, fix/waive dynamodb:Scan for legacy path, verify
     account/region/global names, provision test identities after approval.
   - Do not start R07-B until gate is unblocked.
+
+
+[RIS-R08-G0-PRIVACY-CAPABILITY-AND-EVIDENCE]
+Current status: COMPLETE (contract only) - R08-A technical GO, production privacy release blocked.
+Audit date/time: 2026-10-31
+Actual findings:
+  - MO privacy at 086a8be: internal inspect/export/erase, GSI2, project
+    context + permissions + internal secret, PREVIEW/EXECUTE, partial status.
+    inspect has no pagination; no receipts/operation persistence; no backup/S3
+    purge. Historical destroy evidence is contradictory; no running privacy
+    instance is assumed.
+  - RIS G5 erasure covers credentials/API profiles/non-terminal work/current
+    S3 objects/UserProfile only. Partner profiles, S3 versions, cursor/
+    idempotency/capacity/lifecycle records, Cognito, jobsearches, terminal
+    work and backups are not covered.
+  - New contract module agents/ecosystem/privacy_receipt.py: versioned
+    PrivacyReceiptV1, strict identity/event/evidence/status validation,
+    forbidden-content rejection, 8KiB bound. No API/storage/erasure.
+  - 30 new receipt contract tests; 46 existing privacy tests and 684 total
+    local tests pass (6 planned R08-A/B/C skips). 33 DynamoDB Local included.
+  - Docs: data inventory, legal/transparency matrix, receipt contract,
+    capability contract, user view spec, R08 roadmap.
+  - R08-A GO technical with legal/retention/storage conditions; production
+    privacy release BLOCKED by legal review, R08-C erasure and R08-D.
+Evidence / file references:
+  - agents/ecosystem/privacy_receipt.py
+  - tests/test_privacy_receipt_contract.py
+  - docs/privacy/PRIVACY_RECEIPT_V1.md
+  - docs/privacy/RIS_PRIVACY_CAPABILITY_CONTRACT.md
+  - docs/privacy/RIS_PRIVACY_DATA_INVENTORY_V1.md
+  - docs/privacy/LEGAL_TRANSPARENCY_MATRIX.md
+  - docs/reports/RIS-R08-G0-PRIVACY-CAPABILITY-AND-EVIDENCE.md
+Classification: AMBER - contract ready, legal/erasure gaps open
+Current resume point:
+  - R08-A can start; production release remains blocked. No AWS mutation.

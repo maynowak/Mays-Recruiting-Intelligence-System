@@ -1,4 +1,7 @@
-# GDPR Data Inventory – Mays-RIS
+# GDPR Data Inventory — Mays-RIS
+
+> R08-G0: This file is historical. The complete R07/R08 inventory, retention
+> gaps and evidence levels are in `RIS_PRIVACY_DATA_INVENTORY_V1.md`.
 
 ## Scope
 Mays-RIS platform, DEV environment, AWS eu-central-1.

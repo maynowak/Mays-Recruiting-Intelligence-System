@@ -1,5 +1,10 @@
 # User and Partner Deletion Lifecycle
 
+> R08-G0: This is the historical G5 lifecycle. The R07 partner profiles,
+> S3 versions, cursors/idempotency records and Cognito identity are **not**
+> covered by the current `POST /me/erasure`. See `R08_ROADMAP.md` and
+> `RIS_PRIVACY_CAPABILITY_CONTRACT.md` for the planned R08-C scope.
+
 ## States
 ACTIVE → SUSPENDED → DELETION_REQUESTED → DELETION_IN_PROGRESS → DELETED
 DELETION_BLOCKED_LEGAL_RETENTION
