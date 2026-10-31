@@ -47,10 +47,11 @@ def _future():
 # --------------------------------------------------------------------------- #
 
 class _Cancelled(Exception):
-    def __init__(self, msg):
-        super().__init__(msg)
-        self.response = {"CancellationReasons": [
-            {"Code": "ConditionalCheckFailed", "Message": msg}]}
+    def __init__(self, reasons):
+        if isinstance(reasons, str):
+            reasons = [{"Code": "ConditionalCheckFailed", "Message": reasons}]
+        super().__init__("transaction cancelled")
+        self.response = {"CancellationReasons": reasons}
 
 
 def _unwrap(v):
@@ -73,6 +74,65 @@ def _unwrap(v):
     return v
 
 
+SYSTEM_TYPES = {"CapacityCounter", "IdempotencyRecord", "LifecycleGuard"}
+
+
+def _eval_term(term, item, vals):
+    term = term.strip()
+    if term == "attribute_not_exists(resourceId)":
+        return item is None or "resourceId" not in item
+    if term == "attribute_exists(resourceId)":
+        return item is not None and "resourceId" in item
+    if " IN " in term:
+        attr, _, rhs = term.partition(" IN ")
+        choices = rhs.strip().strip("()").split(",")
+        expected = [_unwrap(vals[c.strip()]) for c in choices]
+        return item is not None and item.get(attr.strip()) in expected
+    if " < " in term:
+        attr, _, lit = term.partition(" < ")
+        exp = _unwrap(vals[lit.strip()])
+        cur = item.get(attr.strip()) if item else None
+        return cur is not None and exp is not None and cur < exp
+    if " > " in term:
+        attr, _, lit = term.partition(" > ")
+        exp = _unwrap(vals[lit.strip()])
+        cur = item.get(attr.strip()) if item else None
+        return cur is not None and exp is not None and cur > exp
+    if " = " in term:
+        attr, _, lit = term.partition(" = ")
+        exp = _unwrap(vals[lit.strip()])
+        return item is not None and item.get(attr.strip()) == exp
+    return False
+
+
+def _eval_and(expr, item, vals):
+    for part in expr.split(" AND "):
+        if not part.strip():
+            continue
+        if not _eval_term(part, item, vals):
+            return False
+    return True
+
+
+def _eval_condition(expr, item, vals):
+    if not expr:
+        return True
+    return any(_eval_and(part, item, vals) for part in expr.split(" OR "))
+
+
+def _apply_update(item, expr, vals):
+    if "count = count + :inc" in expr:
+        item["count"] = item.get("count", 0) + 1
+    elif "count = count - :inc" in expr:
+        item["count"] = item.get("count", 0) - 1
+    if "SET state = :active" in expr:
+        item["state"] = _unwrap(vals[":active"])
+    elif "SET state = :deleting" in expr:
+        item["state"] = _unwrap(vals[":deleting"])
+    if ":now" in vals:
+        item["updatedAt"] = _unwrap(vals[":now"])
+
+
 class FakeDynamo:
     class exceptions:
         TransactionCanceledException = _Cancelled
@@ -80,6 +140,7 @@ class FakeDynamo:
     def __init__(self):
         self.resources = {}
         self.lock = threading.Lock()
+        self.calls = []
 
     # table interface
     def get_item(self, Key):
@@ -89,17 +150,25 @@ class FakeDynamo:
     def put_item(self, Item, **kwargs):
         rid = Item.get("resourceId")
         cond = kwargs.get("ConditionExpression")
-        if cond == "attribute_not_exists(resourceId)" and rid in self.resources:
+        vals = kwargs.get("ExpressionAttributeValues", {})
+        if cond and not _eval_condition(cond, self.resources.get(rid), vals):
             raise Exception("ConditionalCheckFailedException")
-        if cond == "version = :v":
-            expected = kwargs["ExpressionAttributeValues"][":v"]
-            current = self.resources.get(rid, {}).get("version")
-            if current != expected:
-                raise Exception("ConditionalCheckFailedException")
         self.resources[rid] = Item
 
     def delete_item(self, Key, **kwargs):
         self.resources.pop(Key["resourceId"], None)
+
+    def update_item(self, Key, UpdateExpression, ConditionExpression=None,
+                    ExpressionAttributeValues=None):
+        rid = Key["resourceId"]
+        vals = ExpressionAttributeValues or {}
+        item = self.resources.get(rid)
+        if ConditionExpression and not _eval_condition(ConditionExpression, item, vals):
+            raise Exception("ConditionalCheckFailedException")
+        if item is None:
+            item = {"resourceId": rid}
+            self.resources[rid] = item
+        _apply_update(item, UpdateExpression, vals)
 
     def query(self, **kwargs):
         index = kwargs.get("IndexName")
@@ -107,7 +176,7 @@ class FakeDynamo:
         filt = kwargs.get("FilterExpression", "")
         results = []
         for item in self.resources.values():
-            if item.get("resourceType") == "CapacityCounter":
+            if item.get("resourceType") in SYSTEM_TYPES:
                 continue
             if index == "gsi-user" and item.get("userId") == vals.get(":u", {}).get("S"):
                 results.append(item)
@@ -144,29 +213,39 @@ class FakeDynamo:
 
     # client interface
     def transact_write_items(self, TransactItems):
+        self.calls.append(list(TransactItems))
         with self.lock:
-            for action in TransactItems:
+            for idx, action in enumerate(TransactItems):
+                if "ConditionCheck" in action:
+                    cc = action["ConditionCheck"]
+                    key = cc["Key"]["resourceId"]["S"]
+                    if not _eval_condition(cc["ConditionExpression"],
+                                           self.resources.get(key),
+                                           cc.get("ExpressionAttributeValues", {})):
+                        raise _Cancelled(self._reasons(TransactItems, idx, "check"))
+                if "Put" in action:
+                    raw = {k: _unwrap(v) for k, v in action["Put"]["Item"].items()}
+                    cond = action["Put"].get("ConditionExpression", "")
+                    if cond and not _eval_condition(
+                            cond, self.resources.get(raw["resourceId"]),
+                            action["Put"].get("ExpressionAttributeValues", {})):
+                        raise _Cancelled(self._reasons(TransactItems, idx, "put"))
                 if "Update" in action:
                     upd = action["Update"]
                     key = upd["Key"]["resourceId"]["S"]
-                    vals = upd.get("ExpressionAttributeValues", {})
-                    item = self.resources.get(key)
                     cond = upd.get("ConditionExpression", "")
-                    if cond:
-                        if item is None:
-                            raise _Cancelled("ConditionalCheckFailed: missing")
-                        if "count < :max" in cond and item.get("count", 0) >= int(vals[":max"]["N"]):
-                            raise _Cancelled("ConditionalCheckFailed: count >= max")
-                        if "count > :zero" in cond and item.get("count", 0) <= int(vals[":zero"]["N"]):
-                            raise _Cancelled("ConditionalCheckFailed: count <= 0")
-                if "Put" in action:
-                    raw = {k: _unwrap(v) for k, v in action["Put"]["Item"].items()}
-                    if ("attribute_not_exists(resourceId)" in action["Put"].get("ConditionExpression", "")
-                            and raw["resourceId"] in self.resources):
-                        raise _Cancelled("ConditionalCheckFailed: exists")
+                    if cond and not _eval_condition(
+                            cond, self.resources.get(key),
+                            upd.get("ExpressionAttributeValues", {})):
+                        raise _Cancelled(self._reasons(TransactItems, idx, "update"))
                 if "Delete" in action:
-                    if action["Delete"]["Key"]["resourceId"]["S"] not in self.resources:
-                        raise _Cancelled("ConditionalCheckFailed: missing")
+                    dele = action["Delete"]
+                    key = dele["Key"]["resourceId"]["S"]
+                    cond = dele.get("ConditionExpression", "")
+                    if cond and not _eval_condition(
+                            cond, self.resources.get(key),
+                            dele.get("ExpressionAttributeValues", {})):
+                        raise _Cancelled(self._reasons(TransactItems, idx, "delete"))
             for action in TransactItems:
                 if "Put" in action:
                     raw = {k: _unwrap(v) for k, v in action["Put"]["Item"].items()}
@@ -174,14 +253,19 @@ class FakeDynamo:
                 if "Update" in action:
                     upd = action["Update"]
                     key = upd["Key"]["resourceId"]["S"]
-                    item = self.resources.setdefault(key, {"count": 0})
-                    if "count = count + :inc" in upd["UpdateExpression"]:
-                        item["count"] = item.get("count", 0) + 1
-                    elif "count = count - :inc" in upd["UpdateExpression"]:
-                        item["count"] = item.get("count", 0) - 1
+                    item = self.resources.setdefault(key, {"resourceId": key})
+                    _apply_update(item, upd["UpdateExpression"],
+                                  upd.get("ExpressionAttributeValues", {}))
                 if "Delete" in action:
                     self.resources.pop(action["Delete"]["Key"]["resourceId"]["S"], None)
         return {}
+
+    @staticmethod
+    def _reasons(items, failing_index, kind):
+        reasons = [{"Code": "None"} for _ in items]
+        reasons[failing_index] = {"Code": "ConditionalCheckFailed",
+                                  "Message": f"{kind} condition failed"}
+        return reasons
 
 
 # --------------------------------------------------------------------------- #
@@ -277,10 +361,12 @@ class Harness(unittest.TestCase):
 
     def event(self, method, path, *, sub=USER, client=CLIENT, tenant=TENANT,
               issuer=ISSUER, body=None, credential=BEARER, query=None,
-              path_params=None):
+              path_params=None, extra_headers=None):
         headers = {}
         if credential is not None:
             headers["X-Api-Credential"] = credential
+        if extra_headers:
+            headers.update(extra_headers)
         return {
             "httpMethod": method,
             "path": path,

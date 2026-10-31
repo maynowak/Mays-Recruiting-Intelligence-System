@@ -262,6 +262,14 @@ resource "aws_dynamodb_table" "partner_profiles" {
     projection_type = "ALL"
   }
 
+  # Idempotency records carry an epoch ``expiresAt``. TTL is a cleanup
+  # optimisation only; correctness is enforced by the conditional Put
+  # (attribute_not_exists OR expiresAt < now).
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 

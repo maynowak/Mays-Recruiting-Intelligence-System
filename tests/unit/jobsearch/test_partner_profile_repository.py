@@ -88,6 +88,59 @@ def _unwrap_item(item):
 # fake client: simulates transact_write_items serially with a lock
 # --------------------------------------------------------------------------- #
 
+def _eval_term(term, item, vals):
+    term = term.strip()
+    if term == "attribute_not_exists(resourceId)":
+        return item is None or "resourceId" not in item
+    if term == "attribute_exists(resourceId)":
+        return item is not None and "resourceId" in item
+    if " IN " in term:
+        attr, _, rhs = term.partition(" IN ")
+        expected = [_unwrap_value(vals[c.strip()]) for c in rhs.strip().strip("()").split(",")]
+        return item is not None and item.get(attr.strip()) in expected
+    if " < " in term:
+        attr, _, lit = term.partition(" < ")
+        exp = _unwrap_value(vals[lit.strip()])
+        cur = item.get(attr.strip()) if item else None
+        return cur is not None and exp is not None and cur < exp
+    if " > " in term:
+        attr, _, lit = term.partition(" > ")
+        exp = _unwrap_value(vals[lit.strip()])
+        cur = item.get(attr.strip()) if item else None
+        return cur is not None and exp is not None and cur > exp
+    if " = " in term:
+        attr, _, lit = term.partition(" = ")
+        exp = _unwrap_value(vals[lit.strip()])
+        return item is not None and item.get(attr.strip()) == exp
+    return False
+
+
+def _eval_and(expr, item, vals):
+    for part in expr.split(" AND "):
+        if part.strip() and not _eval_term(part, item, vals):
+            return False
+    return True
+
+
+def _eval_condition(expr, item, vals):
+    if not expr:
+        return True
+    return any(_eval_and(part, item, vals) for part in expr.split(" OR "))
+
+
+def _apply_update(item, expr, vals):
+    if "count = count + :inc" in expr:
+        item["count"] = item.get("count", 0) + 1
+    elif "count = count - :inc" in expr:
+        item["count"] = item.get("count", 0) - 1
+    if "SET state = :active" in expr:
+        item["state"] = _unwrap_value(vals[":active"])
+    elif "SET state = :deleting" in expr:
+        item["state"] = _unwrap_value(vals[":deleting"])
+    if ":now" in vals:
+        item["updatedAt"] = _unwrap_value(vals[":now"])
+
+
 class _FakeTransactClient:
     class exceptions:
         class TransactionCanceledException(Exception):
@@ -101,57 +154,34 @@ class _FakeTransactClient:
     def transact_write_items(self, TransactItems):
         self.calls.append(list(TransactItems))
         with self.lock:
-            # Phase 1: validate all conditions before any mutation (atomic).
-            for action in TransactItems:
+            for idx, action in enumerate(TransactItems):
                 if "ConditionCheck" in action:
                     cc = action["ConditionCheck"]
-                    key = cc["Key"]["resourceId"]["S"]
-                    expr = cc["ConditionExpression"]
-                    vals = cc["ExpressionAttributeValues"]
-                    item = self.resources.get(key)
-                    if item is None:
-                        raise self._cancelled("ConditionalCheckFailed: item missing")
-                    if expr == "count < :max":
-                        if item.get("count", 0) >= int(vals[":max"]["N"]):
-                            raise self._cancelled("ConditionalCheckFailed: count >= max")
-                    if expr == "count > :zero":
-                        if item.get("count", 0) <= int(vals[":zero"]["N"]):
-                            raise self._cancelled("ConditionalCheckFailed: count <= 0")
+                    if not _eval_condition(cc["ConditionExpression"],
+                                           self.resources.get(cc["Key"]["resourceId"]["S"]),
+                                           cc.get("ExpressionAttributeValues", {})):
+                        raise self._cancelled(TransactItems, idx, "check")
                 if "Put" in action:
-                    put = action["Put"]
-                    raw = _unwrap_item(put["Item"])
-                    rid = raw["resourceId"]
-                    cond = put.get("ConditionExpression", "")
-                    if "attribute_not_exists(resourceId)" in cond and rid in self.resources:
-                        raise self._cancelled("ConditionalCheckFailed: resource exists")
+                    raw = _unwrap_item(action["Put"]["Item"])
+                    cond = action["Put"].get("ConditionExpression", "")
+                    if cond and not _eval_condition(
+                            cond, self.resources.get(raw["resourceId"]),
+                            action["Put"].get("ExpressionAttributeValues", {})):
+                        raise self._cancelled(TransactItems, idx, "put")
                 if "Update" in action:
                     upd = action["Update"]
-                    key = upd["Key"]["resourceId"]["S"]
                     cond = upd.get("ConditionExpression", "")
-                    vals = upd.get("ExpressionAttributeValues", {})
-                    item = self.resources.get(key)
-                    if cond:
-                        if item is None:
-                            raise self._cancelled("ConditionalCheckFailed: item missing")
-                        if "count < :max" in cond and item.get("count", 0) >= int(vals[":max"]["N"]):
-                            raise self._cancelled("ConditionalCheckFailed: count >= max")
-                        if "count > :zero" in cond and item.get("count", 0) <= int(vals[":zero"]["N"]):
-                            raise self._cancelled("ConditionalCheckFailed: count <= 0")
+                    if cond and not _eval_condition(
+                            cond, self.resources.get(upd["Key"]["resourceId"]["S"]),
+                            upd.get("ExpressionAttributeValues", {})):
+                        raise self._cancelled(TransactItems, idx, "update")
                 if "Delete" in action:
                     dele = action["Delete"]
-                    key = dele["Key"]["resourceId"]["S"]
-                    if key not in self.resources:
-                        raise self._cancelled("ConditionalCheckFailed: resource missing")
-                    # Validate identity/version conditions against stored item.
-                    item = self.resources[key]
-                    vals = dele.get("ExpressionAttributeValues", {})
-                    if ":u" in vals and item.get("userId") != vals[":u"].get("S"):
-                        raise self._cancelled("ConditionalCheckFailed: userId mismatch")
-                    if ":t" in vals and item.get("tenantId") != vals[":t"].get("S"):
-                        raise self._cancelled("ConditionalCheckFailed: tenantId mismatch")
-                    if ":v" in vals and item.get("version") != int(vals[":v"].get("N")):
-                        raise self._cancelled("ConditionalCheckFailed: version mismatch")
-            # Phase 2: apply mutations.
+                    cond = dele.get("ConditionExpression", "")
+                    if cond and not _eval_condition(
+                            cond, self.resources.get(dele["Key"]["resourceId"]["S"]),
+                            dele.get("ExpressionAttributeValues", {})):
+                        raise self._cancelled(TransactItems, idx, "delete")
             for action in TransactItems:
                 if "Put" in action:
                     raw = _unwrap_item(action["Put"]["Item"])
@@ -159,20 +189,18 @@ class _FakeTransactClient:
                 if "Update" in action:
                     upd = action["Update"]
                     key = upd["Key"]["resourceId"]["S"]
-                    expr = upd["UpdateExpression"]
-                    item = self.resources.setdefault(key, {"count": 0})
-                    if "count = count + :inc" in expr:
-                        item["count"] = item.get("count", 0) + 1
-                    elif "count = count - :inc" in expr:
-                        item["count"] = item.get("count", 0) - 1
-                    item["updatedAt"] = upd["ExpressionAttributeValues"][":now"]["S"]
+                    item = self.resources.setdefault(key, {"resourceId": key})
+                    _apply_update(item, upd["UpdateExpression"],
+                                  upd.get("ExpressionAttributeValues", {}))
                 if "Delete" in action:
                     self.resources.pop(action["Delete"]["Key"]["resourceId"]["S"], None)
         return {}
 
-    def _cancelled(self, msg):
-        exc = self.exceptions.TransactionCanceledException(msg)
-        exc.response = {"CancellationReasons": [{"Code": "ConditionalCheckFailed", "Message": msg}]}
+    def _cancelled(self, items, idx, kind):
+        reasons = [{"Code": "None"} for _ in items]
+        reasons[idx] = {"Code": "ConditionalCheckFailed", "Message": f"{kind} failed"}
+        exc = self.exceptions.TransactionCanceledException("transaction cancelled")
+        exc.response = {"CancellationReasons": reasons}
         return exc
 
 

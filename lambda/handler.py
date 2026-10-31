@@ -3428,6 +3428,17 @@ def _partner_profile_context(event: Dict[str, Any]):
     }, None
 
 
+def _idempotency_key(event: Dict[str, Any]):
+    """Optional Idempotency-Key header (1..200 chars). Never logged."""
+    headers = {(k or "").lower(): v for k, v in (event.get("headers") or {}).items()}
+    key = headers.get("idempotency-key") or headers.get("x-idempotency-key")
+    if isinstance(key, str):
+        key = key.strip()
+        if 1 <= len(key) <= 200:
+            return key
+    return None
+
+
 def _manual_profile_repo():
     from jobsearch.partner_profile_repository import PartnerProfileRepository
     return PartnerProfileRepository()
@@ -3484,7 +3495,8 @@ def _manual_profile_parse(data, *, existing=None):
         mp = MatchingPreferences.from_dict(mp_raw or {})
 
     sc_raw = data.get('searchConfig')
-    if sc_raw is not None:
+    sc_provided = sc_raw is not None
+    if sc_provided:
         if not isinstance(sc_raw, dict):
             raise ProfileContractError('INVALID_FIELD',
                                        'searchConfig must be an object')
@@ -3494,15 +3506,18 @@ def _manual_profile_parse(data, *, existing=None):
     else:
         sc = SearchConfiguration.from_legacy_matching_preferences(mp)
 
-    # v1 write rules (persistence-neutral executability is not decided here).
-    if not sc.skills.strip() and not sc.target_roles:
-        raise ProfileContractError(
-            'INVALID_SEARCH_CONFIG',
-            'searchConfig.skills or searchConfig.targetRoles is required')
-    if not sc.employment_types:
-        raise ProfileContractError(
-            'INVALID_SEARCH_CONFIG',
-            'searchConfig.employmentTypes must contain at least one value')
+    # v1 write rules apply to new writes and explicitly supplied searchConfig.
+    # A preserved legacy searchConfig may be incomplete; it is not silently
+    # upgraded into a "complete" v1 object.
+    if existing is None or sc_provided:
+        if not sc.skills.strip() and not sc.target_roles:
+            raise ProfileContractError(
+                'INVALID_SEARCH_CONFIG',
+                'searchConfig.skills or searchConfig.targetRoles is required')
+        if not sc.employment_types:
+            raise ProfileContractError(
+                'INVALID_SEARCH_CONFIG',
+                'searchConfig.employmentTypes must contain at least one value')
     return {
         'name': name.strip(),
         'description': str(description or ''),
@@ -3628,7 +3643,8 @@ def _manual_profile_create(event, ctx):
     try:
         rid = repo.create(profile, user_id=ctx['userId'], tenant_id=ctx['tenantId'],
                           partner_app_id=ctx.get('partnerApplicationId'),
-                          issuer=ctx.get('issuer'))
+                          issuer=ctx.get('issuer'),
+                          idempotency_key=_idempotency_key(event))
     except PartnerProfileConflictError:
         return {'statusCode': 409, 'body': json.dumps({'error': 'Conflict'})}
     except Exception:
@@ -3930,7 +3946,8 @@ def _cv_create(event, ctx):
 
     repo = _cv_repo()
     try:
-        rid = repo.create(cv, **_cv_identity(ctx))
+        rid = repo.create(cv, **_cv_identity(ctx),
+                          idempotency_key=_idempotency_key(event))
     except PartnerProfileConflictError:
         return _cv_error(409, 'Conflict')
     except Exception:
@@ -4010,12 +4027,32 @@ def _cv_update(event, ctx, cv_id):
 
 
 def _cv_delete(ctx, cv_id):
-    from jobsearch.partner_profile_repository import PartnerProfileConflictError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileNotFoundError,
+    )
 
     repo, existing = _cv_get_owned(ctx, cv_id)
     if existing is None:
         return _cv_error(404, 'Not found')
 
+    # Phase A: atomically reserve deletion and verify there are no child
+    # CVSearchProfiles. This happens BEFORE S3 is touched, so a child conflict
+    # can never delete the document.
+    try:
+        reservation = repo.reserve_parent_delete(
+            cv_id, **_cv_identity(ctx), child_type='CVSearchProfile',
+            expected_version=getattr(existing, 'version', None))
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'CV has child search profiles; delete refused',
+                         cvId=cv_id, s3Touched=False)
+    except PartnerProfileNotFoundError:
+        return _cv_error(404, 'Not found')
+    except Exception:
+        logger.error('cv delete reservation failed')
+        return _cv_error(500, 'Internal error')
+
+    # Phase B: delete the current S3 object version only after the child guard
+    # succeeded. On failure the guard is released and metadata is retained.
     document_report = None
     if existing.document_id:
         try:
@@ -4024,14 +4061,19 @@ def _cv_delete(ctx, cv_id):
                 tenant_id=ctx['tenantId'], user_id=ctx['userId'],
                 doc_id=existing.document_id, require_tenant=True)
         except Exception:
+            repo.release_parent_delete(reservation, **_cv_identity(ctx))
             logger.error('cv document delete failed; metadata retained')
             return _cv_error(502, 'Document deletion failed',
-                             cvId=cv_id, metadataRetained=True)
+                             cvId=cv_id, metadataRetained=True,
+                             physicalPurge=False)
 
+    # Phase C: delete metadata + counter + guard atomically.
     try:
-        deleted = repo.delete(cv_id, **_cv_identity(ctx))
+        deleted = repo.finalize_parent_delete(
+            reservation, **_cv_identity(ctx),
+            expected_version=getattr(existing, 'version', None))
     except PartnerProfileConflictError:
-        return _cv_error(409, 'Version conflict')
+        return _cv_error(409, 'Delete conflict', cvId=cv_id)
     except Exception:
         logger.error('cv metadata delete failed')
         return _cv_error(500, 'Internal error')

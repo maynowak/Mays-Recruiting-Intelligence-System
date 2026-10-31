@@ -907,8 +907,14 @@ paths:
         Creates a profile owned by the JWT subject. The server generates the
         resource id and derives userId/tenantId/partner/issuer; client-supplied
         identity fields are rejected. No agent work and no model call.
+        An optional ``Idempotency-Key`` makes retries return the original
+        resource identity; reusing the key with a different payload is a 409.
       parameters:
         - $ref: "#/components/parameters/ApiCredential"
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 200 }
       x-infrastructure-governance: terraform-managed
       requestBody:
         required: true
@@ -1113,8 +1119,15 @@ paths:
       tags: [Partner]
       operationId: createPartnerCv
       summary: Create CV metadata (status pending)
+      description: |
+        An optional ``Idempotency-Key`` makes retries return the original
+        resource identity; reusing the key with a different payload is a 409.
       parameters:
         - $ref: "#/components/parameters/ApiCredential"
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 200 }
       x-infrastructure-governance: terraform-managed
       requestBody:
         required: true

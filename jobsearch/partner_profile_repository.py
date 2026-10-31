@@ -12,8 +12,11 @@ leaves no partial state, so capacity can never be over-allocated.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -85,6 +88,30 @@ COUNTER_PREFIX: Dict[str, str] = {
     "CVDocument": "CV",
     "CVSearchProfile": "CVSP",
     "ATSSearchProfile": "ATS",
+}
+
+# Internal bookkeeping items that must never be returned as profile resources.
+IDEMPOTENCY_RESOURCE_TYPE = "IdempotencyRecord"
+LIFECYCLE_RESOURCE_TYPE = "LifecycleGuard"
+SYSTEM_RESOURCE_TYPES = frozenset({
+    CAPACITY_RESOURCE_TYPE, IDEMPOTENCY_RESOURCE_TYPE, LIFECYCLE_RESOURCE_TYPE,
+})
+
+LIFECYCLE_ACTIVE = "active"
+LIFECYCLE_DELETING = "deleting"
+
+# Defined idempotency lifetime (24h); the condition allows an expired key to be
+# reused. DynamoDB TTL on ``expiresAt`` is a cleanup optimisation, not the
+# correctness mechanism.
+IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60
+
+# The resource's own id field, excluded from the idempotency payload hash so a
+# server-generated retry id cannot change the fingerprint.
+OWN_ID_FIELD = {
+    "CVDocument": "cvId",
+    "CVSearchProfile": "searchProfileId",
+    "ATSSearchProfile": "atsProfileId",
+    "ManualSearchProfile": "manualProfileId",
 }
 
 
@@ -185,7 +212,7 @@ class PartnerProfileRepository:
         }
 
     def _from_item(self, item: Dict[str, Any]) -> Any:
-        if item.get("resourceType") == CAPACITY_RESOURCE_TYPE:
+        if item.get("resourceType") in SYSTEM_RESOURCE_TYPES:
             return None
         payload = dict(item.get("payload") or {})
         # identity is authoritative from the stored item, never from payload
@@ -208,6 +235,85 @@ class PartnerProfileRepository:
             return None
         parent_id = self._parent_id(resource) or user_id
         return self._counter_key(rt, parent_id)
+
+    def _now_epoch(self) -> int:
+        return int(time.time())
+
+    def _guard_key(self, rt: str, resource_id: str) -> str:
+        return f"lifecycle#{rt}#{resource_id}"
+
+    def _idem_key(self, rt: str, user_id: str, tenant_id: str,
+                  partner_app_id: Optional[str], issuer: Optional[str],
+                  idempotency_key: str) -> str:
+        # Identity is part of the digest, so two users/tenants/partners/issuers
+        # can never collide on the same client-supplied key. The raw key is
+        # never stored.
+        material = "\x1f".join([
+            rt or "", user_id or "", tenant_id or "",
+            partner_app_id or "", issuer or "", idempotency_key or "",
+        ])
+        digest = hashlib.sha256(material.encode("utf-8")).hexdigest()
+        return f"idem#{rt}#{digest}"
+
+    def _payload_hash(self, resource: Any) -> str:
+        rt = getattr(resource, "resource_type", "")
+        data = resource.to_dict()
+        data.pop(OWN_ID_FIELD.get(rt, ""), None)
+        data.pop("createdAt", None)
+        data.pop("updatedAt", None)
+        data.pop("schemaVersion", None)
+        # resourceType is implied by the idempotency key; keeping it is harmless.
+        canonical = json.dumps(data, sort_keys=True, ensure_ascii=False,
+                               separators=(",", ":"))
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def _condition_check(self, key: str, expression: str,
+                         values: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "ConditionCheck": {
+                "TableName": self.table_name,
+                "Key": {"resourceId": {"S": key}},
+                "ConditionExpression": expression,
+                "ExpressionAttributeValues": values,
+            }
+        }
+
+    def _parent_checks(self, resource: Any, user_id: str, tenant_id: str
+                       ) -> List[Dict[str, Any]]:
+        """Atomic parent-existence + parent-not-deleting guards (R05-A).
+
+        These are ConditionChecks on the parent resource and its lifecycle
+        guard, i.e. distinct items from the child Put and the child counter.
+        """
+        rt = getattr(resource, "resource_type", "")
+        checks: List[Dict[str, Any]] = []
+        if isinstance(resource, CVSearchProfile):
+            parent_id = resource.cv_id
+            parent_type = "CVDocument"
+        elif isinstance(resource, ATSSearchProfile):
+            parent_id = resource.search_profile_id
+            parent_type = "CVSearchProfile"
+        else:
+            return checks
+        checks.append(self._condition_check(
+            parent_id,
+            "attribute_exists(resourceId) AND userId = :pu AND tenantId = :pt",
+            {":pu": {"S": user_id}, ":pt": {"S": tenant_id}},
+        ))
+        checks.append(self._condition_check(
+            self._guard_key(parent_type, parent_id),
+            "attribute_not_exists(resourceId) OR state = :gactive",
+            {":gactive": {"S": LIFECYCLE_ACTIVE}},
+        ))
+        return checks
+
+    def _cancelled_indices(self, exc: Exception) -> Dict[int, str]:
+        reasons = getattr(exc, "response", {}).get("CancellationReasons", []) or []
+        out: Dict[int, str] = {}
+        for idx, reason in enumerate(reasons):
+            if reason.get("Code") == "ConditionalCheckFailed":
+                out[idx] = reason.get("Message", "")
+        return out
 
     def _ensure_counter(self, key: str) -> None:
         """Ensure a capacity counter item exists with count 0 (idempotent).
@@ -262,30 +368,67 @@ class PartnerProfileRepository:
     # CRUD
     # ------------------------------------------------------------------ #
     def create(self, resource: Any, *, user_id: str, tenant_id: str,
-               partner_app_id: Optional[str] = None, issuer: Optional[str] = None) -> str:
+               partner_app_id: Optional[str] = None, issuer: Optional[str] = None,
+               idempotency_key: Optional[str] = None) -> str:
         if self.table is None:
             raise RuntimeError("DynamoDB table not configured")
         rt = getattr(resource, "resource_type", None)
         if rt not in PERSISTED_RESOURCE_TYPES:
             raise ValueError(f"Unsupported resource type: {rt}")
         rid = self._resource_id(resource)
-        if rid.startswith(CAPACITY_PREFIX):
-            raise ValueError("Reserved ID prefix: capacity#")
+        if (rid.startswith(CAPACITY_PREFIX) or rid.startswith("lifecycle#")
+                or rid.startswith("idem#")):
+            raise ValueError("Reserved ID prefix")
 
-        # Parent existence / hierarchy validation (non-transactional read).
+        # Fast, non-authoritative hierarchy read. The transaction below is the
+        # authoritative guard for create-vs-parent-delete races.
         self._check_parent_exists(resource, user_id, tenant_id, partner_app_id, issuer)
 
         transact_items: List[Dict[str, Any]] = []
-        ckey: Optional[str] = None
-        max_count: Optional[int] = None
+        idem_index: Optional[int] = None
+        capacity_index: Optional[int] = None
+        parent_indices: List[int] = []
+        now_iso = self._now()
+        now_epoch = self._now_epoch()
+        idem_key: Optional[str] = None
+        payload_hash: Optional[str] = None
+
+        if idempotency_key:
+            idem_key = self._idem_key(rt, user_id, tenant_id, partner_app_id,
+                                      issuer, idempotency_key)
+            payload_hash = self._payload_hash(resource)
+            idem_item = {
+                "resourceId": idem_key,
+                "resourceType": IDEMPOTENCY_RESOURCE_TYPE,
+                "targetResourceId": rid,
+                "payloadHash": payload_hash,
+                "userId": user_id,
+                "tenantId": tenant_id,
+                "partnerApplicationId": partner_app_id,
+                "issuer": issuer,
+                "createdAt": now_iso,
+                "updatedAt": now_iso,
+                "expiresAt": now_epoch + IDEMPOTENCY_TTL_SECONDS,
+            }
+            idem_index = len(transact_items)
+            transact_items.append({
+                "Put": {
+                    "TableName": self.table_name,
+                    "Item": self._serialize(idem_item),
+                    "ConditionExpression":
+                        "attribute_not_exists(resourceId) OR expiresAt < :now",
+                    "ExpressionAttributeValues": {":now": {"N": str(now_epoch)}},
+                }
+            })
+
         if rt in CAPACITY_RULES:
             max_count = CAPACITY_RULES[rt]
             ckey = self._capacity_key(rt, user_id, tenant_id, resource)
             # Counter must exist before the transaction conditions it.
             self._ensure_counter(ckey)
             # AWS rule: one action per item per transaction. The capacity
-            # condition is therefore on the counter Update itself (not a
-            # separate ConditionCheck on the same key).
+            # condition is therefore on the counter Update itself.
+            capacity_index = len(transact_items)
             transact_items.append({
                 "Update": {
                     "TableName": self.table_name,
@@ -295,13 +438,18 @@ class PartnerProfileRepository:
                     "ExpressionAttributeValues": {
                         ":max": {"N": str(max_count)},
                         ":inc": {"N": "1"},
-                        ":now": {"S": self._now()},
+                        ":now": {"S": now_iso},
                     },
                 }
             })
 
+        for check in self._parent_checks(resource, user_id, tenant_id):
+            parent_indices.append(len(transact_items))
+            transact_items.append(check)
+
         item = self._to_item(resource, user_id=user_id, tenant_id=tenant_id,
                             partner_app_id=partner_app_id, issuer=issuer, version=1)
+        resource_index = len(transact_items)
         transact_items.append({
             "Put": {
                 "TableName": self.table_name,
@@ -313,13 +461,27 @@ class PartnerProfileRepository:
         try:
             self.client.transact_write_items(TransactItems=transact_items)
         except self.client.exceptions.TransactionCanceledException as e:
-            messages = []
-            for reason in e.response.get("CancellationReasons", []):
-                if reason.get("Code") == "ConditionalCheckFailed":
-                    messages.append(reason.get("Message", "conditional check failed"))
-            if messages:
-                raise PartnerProfileConflictError("; ".join(messages))
-            raise PartnerProfileConflictError("transaction cancelled")
+            failed = self._cancelled_indices(e)
+            if idem_index is not None and idem_index in failed:
+                record = self._get_raw(idem_key) or {}
+                if not record:
+                    raise PartnerProfileConflictError("Idempotency conflict")
+                if record.get("payloadHash") != payload_hash:
+                    raise PartnerProfileConflictError(
+                        "Idempotency key reused with a different payload")
+                target = record.get("targetResourceId")
+                if not target:
+                    raise PartnerProfileConflictError(
+                        "Idempotency record is incomplete")
+                return target
+            if capacity_index is not None and capacity_index in failed:
+                raise PartnerProfileConflictError("Capacity exceeded")
+            if any(idx in failed for idx in parent_indices):
+                raise PartnerProfileConflictError(
+                    "Parent is being deleted or is not accessible")
+            if resource_index in failed:
+                raise PartnerProfileConflictError("Resource already exists")
+            raise PartnerProfileConflictError("Transaction cancelled")
         except Exception as e:
             if "ConditionalCheckFailed" in str(e):
                 raise PartnerProfileConflictError(str(e))
@@ -360,7 +522,10 @@ class PartnerProfileRepository:
             kwargs["ExclusiveStartKey"] = cursor
         kwargs["ExpressionAttributeValues"][":t"] = self._sv(tenant_id)
         kwargs["ExpressionAttributeValues"][":cc"] = self._sv(CAPACITY_RESOURCE_TYPE)
-        filters = ["tenantId = :t", "resourceType <> :cc"]
+        kwargs["ExpressionAttributeValues"][":sys-idem"] = self._sv(IDEMPOTENCY_RESOURCE_TYPE)
+        kwargs["ExpressionAttributeValues"][":sys-guard"] = self._sv(LIFECYCLE_RESOURCE_TYPE)
+        filters = ["tenantId = :t", "resourceType <> :cc",
+                   "resourceType <> :sys-idem", "resourceType <> :sys-guard"]
         if resource_type:
             filters.append("resourceType = :rt")
             kwargs["ExpressionAttributeValues"][":rt"] = self._sv(resource_type)
@@ -477,7 +642,8 @@ class PartnerProfileRepository:
 
     def delete(self, resource_id: str, user_id: str, tenant_id: str,
                partner_app_id: Optional[str] = None, issuer: Optional[str] = None,
-               expected_version: Optional[int] = None) -> bool:
+               expected_version: Optional[int] = None,
+               child_type: Optional[str] = None) -> bool:
         if self.table is None:
             return False
         raw = self._get_raw(resource_id)
@@ -527,12 +693,209 @@ class PartnerProfileRepository:
                 }
             })
 
+        child_index: Optional[int] = None
+        if child_type:
+            # Atomic child guard: the parent can only be deleted while the
+            # child counter is zero. A concurrent child create increments the
+            # same counter in its own transaction, so exactly one wins.
+            child_counter = self._counter_key(child_type, resource_id)
+            child_index = len(transact_items)
+            transact_items.append(self._condition_check(
+                child_counter,
+                "attribute_not_exists(resourceId) OR count = :zero",
+                {":zero": {"N": "0"}},
+            ))
+
         try:
             self.client.transact_write_items(TransactItems=transact_items)
-        except self.client.exceptions.TransactionCanceledException:
+        except self.client.exceptions.TransactionCanceledException as e:
+            failed = self._cancelled_indices(e)
+            if child_index is not None and child_index in failed:
+                raise PartnerProfileConflictError(
+                    "Resource has child profiles; delete refused")
             return False
         except Exception as e:
             if "ConditionalCheckFailed" in str(e):
                 return False
+            raise
+        return True
+
+    # ------------------------------------------------------------------ #
+    # Two-phase parent delete (R05-A, used by the CV handler around S3)
+    # ------------------------------------------------------------------ #
+    def reserve_parent_delete(self, resource_id: str, *, user_id: str,
+                              tenant_id: str,
+                              partner_app_id: Optional[str] = None,
+                              issuer: Optional[str] = None,
+                              child_type: Optional[str] = None,
+                              expected_version: Optional[int] = None
+                              ) -> Dict[str, Any]:
+        """Phase A: atomically mark the parent as deleting and verify no children.
+
+        The guard Update and the child-counter ConditionCheck are distinct
+        items, so the AWS one-action-per-item rule holds. Raises
+        ``PartnerProfileConflictError`` for children/version and
+        ``PartnerProfileNotFoundError`` for missing/foreign parents.
+        """
+        raw = self._get_raw(resource_id)
+        if not raw:
+            raise PartnerProfileNotFoundError("Parent not found")
+        if not self._identity_ok(raw, user_id, tenant_id, partner_app_id, issuer):
+            raise PartnerProfileNotFoundError("Parent not found")
+        cur_ver = raw.get("version", 1)
+        if expected_version is not None and expected_version != cur_ver:
+            raise PartnerProfileConflictError("Version conflict on delete")
+        rt = raw.get("resourceType")
+        guard_key = self._guard_key(rt, resource_id)
+
+        parent_expr = "attribute_exists(resourceId) AND userId = :u AND tenantId = :t"
+        parent_values = {":u": {"S": user_id}, ":t": {"S": tenant_id}}
+        if expected_version is not None:
+            parent_expr += " AND version = :v"
+            parent_values[":v"] = {"N": str(expected_version)}
+
+        items: List[Dict[str, Any]] = [{
+            "Update": {
+                "TableName": self.table_name,
+                "Key": {"resourceId": {"S": guard_key}},
+                "ConditionExpression":
+                    "attribute_not_exists(resourceId) OR state IN (:active, :deleting)",
+                "UpdateExpression": "SET state = :deleting, updatedAt = :now",
+                "ExpressionAttributeValues": {
+                    ":active": {"S": LIFECYCLE_ACTIVE},
+                    ":deleting": {"S": LIFECYCLE_DELETING},
+                    ":now": {"S": self._now()},
+                },
+            }
+        }, self._condition_check(resource_id, parent_expr, parent_values)]
+
+        child_counter_index: Optional[int] = None
+        if child_type:
+            child_counter = self._counter_key(child_type, resource_id)
+            child_counter_index = len(items)
+            items.append(self._condition_check(
+                child_counter,
+                "attribute_not_exists(resourceId) OR count = :zero",
+                {":zero": {"N": "0"}},
+            ))
+
+        try:
+            self.client.transact_write_items(TransactItems=items)
+        except self.client.exceptions.TransactionCanceledException as e:
+            failed = self._cancelled_indices(e)
+            if child_counter_index is not None and child_counter_index in failed:
+                raise PartnerProfileConflictError(
+                    "Resource has child profiles; delete refused")
+            if 1 in failed:
+                raise PartnerProfileNotFoundError("Parent not found")
+            if 0 in failed:
+                raise PartnerProfileConflictError("Delete already in progress")
+            raise PartnerProfileConflictError("Delete reservation refused")
+
+        return {
+            "resource_id": resource_id,
+            "guard_key": guard_key,
+            "child_type": child_type,
+            "counter_key": self._counter_key(rt, raw.get("parentId") or user_id),
+        }
+
+    def release_parent_delete(self, reservation: Dict[str, Any], *,
+                              user_id: str, tenant_id: str,
+                              partner_app_id: Optional[str] = None,
+                              issuer: Optional[str] = None) -> bool:
+        """Rollback Phase A after an S3 failure; metadata stays intact."""
+        try:
+            self.table.update_item(
+                Key={"resourceId": reservation["guard_key"]},
+                UpdateExpression="SET state = :active, updatedAt = :now",
+                ConditionExpression="state = :deleting",
+                ExpressionAttributeValues={
+                    ":active": LIFECYCLE_ACTIVE,
+                    ":deleting": LIFECYCLE_DELETING,
+                    ":now": self._now(),
+                },
+            )
+        except Exception:
+            logger.warning("delete reservation release failed")
+            return False
+        return True
+
+    def finalize_parent_delete(self, reservation: Dict[str, Any], *,
+                               user_id: str, tenant_id: str,
+                               partner_app_id: Optional[str] = None,
+                               issuer: Optional[str] = None,
+                               expected_version: Optional[int] = None
+                               ) -> bool:
+        """Phase C: delete the resource + counter + guard atomically."""
+        resource_id = reservation["resource_id"]
+        raw = self._get_raw(resource_id)
+        if not raw:
+            return False
+        if not self._identity_ok(raw, user_id, tenant_id, partner_app_id, issuer):
+            return False
+        cur_ver = raw.get("version", 1)
+        if expected_version is not None and expected_version != cur_ver:
+            raise PartnerProfileConflictError("Version conflict on delete")
+        rt = raw.get("resourceType")
+
+        items: List[Dict[str, Any]] = [{
+            "Delete": {
+                "TableName": self.table_name,
+                "Key": {"resourceId": {"S": resource_id}},
+                "ConditionExpression":
+                    "userId = :u AND tenantId = :t AND version = :v",
+                "ExpressionAttributeValues": {
+                    ":u": {"S": user_id}, ":t": {"S": tenant_id},
+                    ":v": {"N": str(cur_ver)},
+                },
+            }
+        }]
+        if partner_app_id is not None:
+            items[0]["Delete"]["ConditionExpression"] += " AND partnerApplicationId = :p"
+            items[0]["Delete"]["ExpressionAttributeValues"][":p"] = {"S": partner_app_id}
+        if issuer is not None:
+            items[0]["Delete"]["ConditionExpression"] += " AND issuer = :i"
+            items[0]["Delete"]["ExpressionAttributeValues"][":i"] = {"S": issuer}
+
+        if rt in CAPACITY_RULES:
+            items.append({
+                "Update": {
+                    "TableName": self.table_name,
+                    "Key": {"resourceId": {"S": reservation["counter_key"]}},
+                    "ConditionExpression": "count > :zero",
+                    "UpdateExpression": "SET count = count - :inc, updatedAt = :now",
+                    "ExpressionAttributeValues": {
+                        ":inc": {"N": "1"}, ":zero": {"N": "0"},
+                        ":now": {"S": self._now()},
+                    },
+                }
+            })
+
+        items.append({
+            "Delete": {
+                "TableName": self.table_name,
+                "Key": {"resourceId": {"S": reservation["guard_key"]}},
+                "ConditionExpression": "state = :deleting",
+                "ExpressionAttributeValues": {
+                    ":deleting": {"S": LIFECYCLE_DELETING},
+                },
+            }
+        })
+
+        if reservation.get("child_type"):
+            child_counter = self._counter_key(reservation["child_type"], resource_id)
+            items.append(self._condition_check(
+                child_counter,
+                "attribute_not_exists(resourceId) OR count = :zero",
+                {":zero": {"N": "0"}},
+            ))
+
+        try:
+            self.client.transact_write_items(TransactItems=items)
+        except self.client.exceptions.TransactionCanceledException as e:
+            raise PartnerProfileConflictError("Delete finalization refused")
+        except Exception as e:
+            if "ConditionalCheckFailed" in str(e):
+                raise PartnerProfileConflictError("Delete finalization refused")
             raise
         return True

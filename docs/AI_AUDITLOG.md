@@ -7926,3 +7926,32 @@ Evidence / file references:
 Classification: GREEN
 Current resume point:
   - R05-P0 abgeschlossen; R05-CRUD nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R05A-INTEGRITY-IDEMPOTENCY]
+Current status: COMPLETE — Parent-Integritaet und Create-Idempotenz implementiert.
+Audit date/time: 2026-10-31
+Actual findings:
+  - P1-5: Child-Guard ueber bestehende Kapazitaetszaehler; Kind-Create
+    ConditionCheck auf Elternressource + Lifecycle-Guard; Parent-Delete mit
+    Child-Zaehler == 0. CV-Delete zweiphasig (reserve -> S3 -> finalize), S3
+    erst nach Kind-Sperre; Guard bei S3-Fehler auf active zurueckgesetzt.
+  - Delete-vs-Create-Race: genau eine Transaktion gewinnt, kein Orphan.
+  - P1-6: optionaler Idempotency-Key, identitaetsgebundener Digest,
+    Payload-Hash, 24h-Lebensdauer, atomare Kopplung von Idem-Put, Kapazitaet
+    und Ressource; Replay -> Original-ID, anderer Payload -> 409.
+  - LegacyIncomplete/metadata.legacy bleiben bei Updates erhalten; keine
+    v1-Write-Regeln fuer unvollstaendige Legacy-Configs.
+  - Terraform: TTL expiresAt + IAM UpdateItem/TransactWriteItems.
+  - OpenAPI: optionaler Idempotency-Key-Header an den bestehenden POSTs.
+  - Tests: 16 neue + 331 bestehende = 347 PASS.
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - lambda/handler.py
+  - terraform/modules/dynamodb/main.tf
+  - terraform/modules/lambda/main.tf
+  - docs/api/openapi-platform.yaml
+  - tests/test_partner_profile_integrity_idempotency.py
+  - docs/reports/RIS-PARTNER-PROFILE-R05-A-INTEGRITY-IDEMPOTENCY.md
+Classification: GREEN
+Current resume point:
+  - R05-A abgeschlossen; R05-CRUD nicht begonnen.

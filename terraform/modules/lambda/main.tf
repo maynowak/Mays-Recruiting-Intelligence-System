@@ -226,7 +226,9 @@ resource "aws_iam_role_policy" "lambda_dynamodb_partner_profiles" {
           "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:Query",
-          "dynamodb:DeleteItem"
+          "dynamodb:DeleteItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:TransactWriteItems"
         ]
         Resource = [
           var.partner_profiles_table_arn,
