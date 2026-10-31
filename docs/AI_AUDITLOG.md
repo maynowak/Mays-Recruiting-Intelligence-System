@@ -7787,3 +7787,21 @@ Evidence / file references:
 Classification: GREEN
 Current resume point:
   - R02 abgeschlossen; R03 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R02R-CONCURRENCY-ISOLATION]
+Current status: COMPLETE — atomare Kapazitätsgrenzen und Isolations-/Pagination-Härtung.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Behoben: TOCTOU-Race in Create (Count+Put) durch TransactWriteItems ersetzt.
+  - Behoben: fehlende DynamoDB-Serialisierung der ExpressionAttributeValues.
+  - Atomare Zähler capacity#CV/CVSP/ATS mit ConditionCheck + Put + Update.
+  - Delete dekrementiert denselben Zähler atomar (count > 0).
+  - Tests: 28 Repository + 35 Contract + 75 Partner-Regression PASS.
+  - Offen für R07: echte DynamoDB-Integrationsprüfung der Transaktionen.
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - tests/unit/jobsearch/test_partner_profile_repository.py
+  - docs/reports/RIS-PARTNER-PROFILE-R02-DYNAMODB-REPOSITORY.md
+Classification: GREEN
+Current resume point:
+  - R02-R abgeschlossen; R03 nicht begonnen.
