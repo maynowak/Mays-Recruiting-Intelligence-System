@@ -976,6 +976,45 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }
 
+  /v1/partner/me/privacy/export:
+    get:
+      tags: [Partner, Privacy]
+      operationId: exportPartnerUserData
+      summary: Export the caller's scoped RIS privacy data
+      description: |
+        Read-only, versioned JSON export of all available RIS metadata for the
+        authenticated subject. The handler exhausts each category using
+        identity-bound secure cursors. Metadata completeness and file
+        completeness are reported separately. CV file contents are not embedded
+        and no S3 key or presigned URL is persisted in the export; ready files
+        are referenced only through the existing ownership-checked endpoint
+        that issues a short-lived download ticket. Missing stores produce
+        PARTIAL/UNAVAILABLE, never an empty successful category.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Complete or partial machine-readable export.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrivacyExportV1" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Export limit is invalid.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
   /v1/partner/me/manual-search-profiles:
     get:
       tags: [Partner]
@@ -2579,6 +2618,70 @@ components:
         items: { type: array, items: {} }
         nextCursor: { type: string, nullable: true }
         code: { type: string, enum: [unavailable] }
+
+    PrivacyExportV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, exportType, status, metadataExport,
+                 fileExport, userId, generatedAt]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        exportType: { type: string, enum: [RIS_USER_PRIVACY_EXPORT] }
+        status: { type: string, enum: [COMPLETE, PARTIAL] }
+        userId: { type: string }
+        generatedAt: { type: string, format: date-time }
+        metadataExport:
+          $ref: "#/components/schemas/PrivacyMetadataExportV1"
+        fileExport:
+          $ref: "#/components/schemas/PrivacyFileExportV1"
+
+    PrivacyMetadataExportV1:
+      type: object
+      additionalProperties: false
+      required: [status, categories]
+      properties:
+        status: { type: string, enum: [COMPLETE, PARTIAL] }
+        categories:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/PrivacyExportCategoryV1"
+
+    PrivacyExportCategoryV1:
+      type: object
+      additionalProperties: false
+      required: [status, dataCategory, processingPurpose, storageStatus,
+                 retentionPolicyRef, items]
+      properties:
+        status: { type: string, enum: [COMPLETE, UNAVAILABLE] }
+        dataCategory: { type: string }
+        processingPurpose: { type: string }
+        storageStatus: { type: string, enum: [stored, no_data, unavailable] }
+        retentionPolicyRef: { type: string }
+        items: { type: array, items: {} }
+        code: { type: string, enum: [unavailable] }
+
+    PrivacyFileExportV1:
+      type: object
+      additionalProperties: false
+      required: [status, complete, items, reason]
+      properties:
+        status: { type: string, enum: [NOT_INCLUDED, UNAVAILABLE] }
+        complete: { type: boolean }
+        reason: { type: string }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrivacyFileReferenceV1"
+
+    PrivacyFileReferenceV1:
+      type: object
+      additionalProperties: false
+      required: [cvId, documentId, downloadEndpoint, access]
+      properties:
+        cvId: { type: string }
+        documentId: { type: string }
+        downloadEndpoint: { type: string }
+        access: { type: string, enum: [short-lived-secure-download-ticket] }
 
     PartnerCvV1:
       type: object

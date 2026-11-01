@@ -444,6 +444,8 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_me_profile_delete(event, context)
     elif method == 'GET' and path == '/v1/partner/me/privacy/inspect':
         return _handle_privacy_inspect(event, context)
+    elif method == 'GET' and path == '/v1/partner/me/privacy/export':
+        return _handle_privacy_export(event, context)
     elif method == 'POST' and path == '/me/erasure':
         return _handle_me_erasure(event, context)
     elif method == 'POST' and path == '/me/documents':
@@ -3743,6 +3745,185 @@ def _handle_privacy_inspect(event, context):
         'userId': ctx['userId'],
         'generatedAt': datetime.now(timezone.utc).isoformat(),
         'categories': categories,
+    }
+    return {'statusCode': 200, 'body': json.dumps(payload, ensure_ascii=False)}
+
+
+def _privacy_export_collect(event, *, repo, ctx, resource_type, serializer,
+                            query_name, limit):
+    """Collect every page for one profile category using scoped cursors."""
+    items = []
+    cursor = None
+    seen = set()
+    while True:
+        if cursor in seen:
+            raise _PrivacyInspectionUnavailable('Cursor did not advance')
+        if cursor:
+            seen.add(cursor)
+        page_event = {'queryStringParameters': {
+            query_name: cursor} if cursor else {}}
+        page = _privacy_inspection_page(
+            page_event, repo=repo, ctx=ctx, resource_type=resource_type,
+            serializer=serializer, query_name=query_name, limit=limit)
+        items.extend(page['items'])
+        cursor = page['nextCursor']
+        if cursor is None:
+            return items
+
+
+def _privacy_export_category(*, name, purpose, storage_status,
+                             retention_ref, items=None, status='COMPLETE',
+                             code=None):
+    result = {
+        'status': status,
+        'dataCategory': name,
+        'processingPurpose': purpose,
+        'storageStatus': storage_status,
+        'retentionPolicyRef': retention_ref,
+        'items': items or [],
+    }
+    if code:
+        result['code'] = code
+    return result
+
+
+def _privacy_file_export(cv_items):
+    """Describe secure, on-demand file retrieval without exporting URLs."""
+    files = []
+    for cv in cv_items:
+        if cv.get('processingStatus') != 'ready' or not cv.get('documentId'):
+            continue
+        cv_id = cv.get('cvId')
+        files.append({
+            'cvId': cv_id,
+            'documentId': cv['documentId'],
+            'downloadEndpoint': '/v1/partner/me/cvs/%s/document' % cv_id,
+            'access': 'short-lived-secure-download-ticket',
+        })
+    return {
+        'status': 'NOT_INCLUDED',
+        'complete': False,
+        'items': files,
+        'reason': 'File contents are not embedded; request an authorized '
+                  'short-lived download ticket per document.',
+    }
+
+
+def _privacy_export_receipts(event, ctx, limit):
+    """Collect all authorized receipt pages, if the journal is available."""
+    items = []
+    cursor = None
+    seen = set()
+    while True:
+        if cursor in seen:
+            raise _PrivacyInspectionUnavailable('Receipt cursor did not advance')
+        if cursor:
+            seen.add(cursor)
+        page_event = {'queryStringParameters': {
+            'receiptsCursor': cursor} if cursor else {}}
+        page = _privacy_receipt_page(page_event, ctx, limit)
+        items.extend(page['items'])
+        cursor = page['nextCursor']
+        if cursor is None:
+            return items
+
+
+def _handle_privacy_export(event, context):
+    """Return a complete, machine-readable, self-scoped metadata export."""
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return error
+    params = event.get('queryStringParameters') or {}
+    try:
+        limit = int(params.get('limit', _PRIVACY_INSPECT_LIMIT))
+    except (TypeError, ValueError):
+        return _cv_error(422, 'Invalid export limit')
+    if limit < 1 or limit > _PRIVACY_INSPECT_LIMIT:
+        return _cv_error(422, 'Invalid export limit')
+
+    categories = {}
+    partial = False
+    cv_items = []
+    try:
+        profile = _privacy_read_user_profile(ctx)
+        categories['userProfile'] = _privacy_export_category(
+            name='user_profile', purpose='account/profile management',
+            storage_status='stored' if profile else 'no_data',
+            retention_ref='RIS-JOBSEARCH-RETENTION-POLICY-V1#user-profile',
+            items=[profile] if profile else [])
+    except _PrivacyInspectionUnavailable:
+        partial = True
+        categories['userProfile'] = _privacy_export_category(
+            name='user_profile', purpose='account/profile management',
+            storage_status='unavailable',
+            retention_ref='RIS-JOBSEARCH-RETENTION-POLICY-V1#user-profile',
+            status='UNAVAILABLE', code='unavailable')
+
+    repo = _manual_profile_repo()
+    profile_pages = (
+        ('cvDocuments', 'CVDocument', _serialize_cv, 'cvDocuments',
+         'cv document metadata', 'RIS-JOBSEARCH-RETENTION-POLICY-V1#cv-metadata'),
+        ('manualSearchProfiles', 'ManualSearchProfile', _serialize_manual_profile,
+         'manualSearchProfiles', 'manual search configuration',
+         'RIS-JOBSEARCH-RETENTION-POLICY-V1#manual-search-profile'),
+        ('cvSearchProfiles', 'CVSearchProfile', _serialize_cv_search_profile,
+         'cvSearchProfiles', 'CV-derived search configuration',
+         'RIS-JOBSEARCH-RETENTION-POLICY-V1#cv-search-profile'),
+        ('atsSearchProfiles', 'ATSSearchProfile', _serialize_ats_profile,
+         'atsSearchProfiles', 'ATS search configuration',
+         'RIS-JOBSEARCH-RETENTION-POLICY-V1#ats-search-profile'),
+    )
+    for key, resource_type, serializer, query_name, purpose, retention_ref in profile_pages:
+        try:
+            collected = _privacy_export_collect(
+                event, repo=repo, ctx=ctx, resource_type=resource_type,
+                serializer=serializer, query_name=query_name, limit=limit)
+            categories[key] = _privacy_export_category(
+                name=resource_type, purpose=purpose,
+                storage_status='stored' if collected else 'no_data',
+                retention_ref=retention_ref, items=collected)
+            if key == 'cvDocuments':
+                cv_items = collected
+        except _PrivacyInspectionUnavailable:
+            partial = True
+            categories[key] = _privacy_export_category(
+                name=resource_type, purpose=purpose,
+                storage_status='unavailable', retention_ref=retention_ref,
+                status='UNAVAILABLE', code='unavailable')
+        except Exception:
+            logger.error('privacy export profile domain unavailable')
+            partial = True
+            categories[key] = _privacy_export_category(
+                name=resource_type, purpose=purpose,
+                storage_status='unavailable', retention_ref=retention_ref,
+                status='UNAVAILABLE', code='unavailable')
+
+    try:
+        receipts = _privacy_export_receipts(event, ctx, limit)
+        categories['privacyReceipts'] = _privacy_export_category(
+            name='privacy_receipt', purpose='privacy evidence retrieval',
+            storage_status='stored',
+            retention_ref='RIS-PRIVACY-RECEIPT-RETENTION-DECISION#REVIEW_REQUIRED',
+            items=receipts)
+    except _PrivacyInspectionUnavailable:
+        partial = True
+        categories['privacyReceipts'] = _privacy_export_category(
+            name='privacy_receipt', purpose='privacy evidence retrieval',
+            storage_status='unavailable',
+            retention_ref='RIS-PRIVACY-RECEIPT-RETENTION-DECISION#REVIEW_REQUIRED',
+            status='UNAVAILABLE', code='unavailable')
+
+    payload = {
+        'schemaVersion': 1,
+        'exportType': 'RIS_USER_PRIVACY_EXPORT',
+        'status': 'PARTIAL' if partial else 'COMPLETE',
+        'metadataExport': {
+            'status': 'PARTIAL' if partial else 'COMPLETE',
+            'categories': categories,
+        },
+        'fileExport': _privacy_file_export(cv_items),
+        'userId': ctx['userId'],
+        'generatedAt': datetime.now(timezone.utc).isoformat(),
     }
     return {'statusCode': 200, 'body': json.dumps(payload, ensure_ascii=False)}
 

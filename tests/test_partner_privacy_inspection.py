@@ -167,3 +167,71 @@ def test_inspection_propagates_missing_auth_and_excludes_secrets():
         payload = json.dumps(handler._handle_api_event(_event(), None))
     for secret in ("Authorization", "X-Api-Credential", "presigned", "s3://", "secret-key"):
         assert secret.lower() not in payload.lower()
+
+
+def test_export_exhausts_all_profile_pages_and_separates_file_status():
+    repo = FakeRepo()
+    ready = _cv(3)
+    ready.processing_status = "ready"
+    ready.document_id = "doc-ready"
+    repo.items["CVDocument"].append(ready)
+    with patch("handler._partner_profile_context", return_value=(CTX, None)), \
+            patch("handler._manual_profile_repo", return_value=repo), \
+            patch("handler._privacy_read_user_profile", return_value={"userId": CTX["userId"]}):
+        result = _body(handler._handle_api_event({
+            "httpMethod": "GET",
+            "path": "/v1/partner/me/privacy/export",
+            "queryStringParameters": {"limit": "1"},
+        }, None))
+    assert result["exportType"] == "RIS_USER_PRIVACY_EXPORT"
+    assert result["status"] == "PARTIAL"  # disabled receipt journal
+    assert result["metadataExport"]["categories"]["cvDocuments"]["status"] == "COMPLETE"
+    assert len(result["metadataExport"]["categories"]["cvDocuments"]["items"]) == 3
+    assert result["fileExport"]["status"] == "NOT_INCLUDED"
+    assert result["fileExport"]["complete"] is False
+    assert result["fileExport"]["items"][0]["downloadEndpoint"].endswith(
+        "/v1/partner/me/cvs/cv-3/document")
+    encoded = json.dumps(result).lower()
+    assert "s3://" not in encoded
+    assert "presigned" not in encoded
+    assert "downloadurl" not in encoded
+
+
+def test_export_reports_empty_authorized_categories_as_no_data():
+    repo = FakeRepo(empty=True)
+    with patch("handler._partner_profile_context", return_value=(CTX, None)), \
+            patch("handler._manual_profile_repo", return_value=repo), \
+            patch("handler._privacy_read_user_profile", return_value=None):
+        result = _body(handler._handle_api_event({
+            "httpMethod": "GET",
+            "path": "/v1/partner/me/privacy/export",
+            "queryStringParameters": {},
+        }, None))
+    assert result["metadataExport"]["categories"]["userProfile"]["storageStatus"] == "no_data"
+    assert result["metadataExport"]["categories"]["manualSearchProfiles"]["storageStatus"] == "no_data"
+    assert result["metadataExport"]["categories"]["manualSearchProfiles"]["items"] == []
+
+
+def test_export_marks_unreachable_categories_unavailable():
+    with patch("handler._partner_profile_context", return_value=(CTX, None)), \
+            patch("handler._manual_profile_repo", return_value=FakeRepo(fail=True)), \
+            patch("handler._privacy_read_user_profile", return_value={"userId": CTX["userId"]}):
+        result = _body(handler._handle_api_event({
+            "httpMethod": "GET",
+            "path": "/v1/partner/me/privacy/export",
+            "queryStringParameters": {},
+        }, None))
+    category = result["metadataExport"]["categories"]["cvDocuments"]
+    assert result["status"] == "PARTIAL"
+    assert category["status"] == "UNAVAILABLE"
+    assert category["storageStatus"] == "unavailable"
+    assert category["code"] == "unavailable"
+
+
+def test_export_requires_verified_context():
+    response = handler._handle_api_event({
+        "httpMethod": "GET",
+        "path": "/v1/partner/me/privacy/export",
+        "queryStringParameters": {},
+    }, None)
+    assert response["statusCode"] == 401
