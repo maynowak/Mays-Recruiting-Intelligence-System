@@ -73,14 +73,16 @@ class S3Fake(FencedS3Adapter):
                                 and ref.version_id == object_ref.version_id)]
 
 
-def make_integration(objects, *, fail=False, with_document=True):
+def make_integration(objects, *, fail=False, with_document=True,
+                     scope="USER", cv_id=None, extra_items=None):
     profile_items = {
         "cv1": item("cv1", "CVDocument", cvId="cv1", documentId="doc-1"),
     }
     if not with_document:
         profile_items["cv1"].pop("documentId")
+    profile_items.update(extra_items or {})
     profiles = Profiles(profile_items)
-    operation, context = make("USER")
+    operation, context = make(scope, cv_id)
     store = OperationFake(operation)
     profile_executor = ProfileOnlyErasureExecutor(
         profile_repository=profiles, operation_repository=store,
@@ -92,6 +94,17 @@ def make_integration(objects, *, fail=False, with_document=True):
         profile_executor=profile_executor, profile_repository=profiles,
         operation_repository=store, s3_orchestrator=s3, phases=phases,
         adapter=adapter)
+    return integration, store, profiles, adapter, context
+
+
+def make_local_integration(objects, **kwargs):
+    integration, store, profiles, adapter, context = make_integration(objects, **kwargs)
+    local_categories = {"atsSearchProfiles", "cvSearchProfiles",
+                        "manualSearchProfiles", "userProfile", "cvDocuments"}
+    store.operation = replace(
+        store.operation,
+        progress={key: value for key, value in store.operation.progress.items()
+                  if key in local_categories})
     return integration, store, profiles, adapter, context
 
 
@@ -160,3 +173,83 @@ def test_quiescence_block_is_partial_and_prevents_s3_call():
     assert result.status == "PARTIAL"
     assert result.progress["cvDocuments"].error_code == "S3_QUIESCENCE_BLOCKED"
     assert adapter.calls == 0
+
+
+def test_explicit_local_scope_can_complete_only_after_metadata_release():
+    refs = [S3VersionRef("tenant/t1/users/u1/documents/doc-1", "v1")]
+    integration, store, profiles, adapter, context = make_local_integration(refs)
+    result = integration.run(store.operation, context)
+    assert result.status == "COMPLETED"
+    assert result.completed_at
+    assert all(progress.status in (PROGRESS_COMPLETED, "SKIPPED")
+               for progress in result.progress.values())
+    assert "cv1" not in profiles.items
+
+
+def test_standard_operation_stays_partial_when_nonlocal_g5_categories_are_open():
+    refs = [S3VersionRef("tenant/t1/users/u1/documents/doc-1", "v1")]
+    integration, store, profiles, adapter, context = make_integration(refs)
+    result = integration.run(store.operation, context)
+    assert result.status == "PARTIAL"
+    assert result.progress["cvDocuments"].status == PROGRESS_COMPLETED
+
+
+def test_cv_scope_completes_selected_document_only_and_preserves_foreign_cv():
+    refs = [S3VersionRef("tenant/t1/users/u1/documents/doc-1", "v1")]
+    foreign = item("cv2", "CVDocument", cvId="cv2", documentId="doc-2")
+    integration, store, profiles, adapter, context = make_local_integration(
+        refs, scope="CV", cv_id="cv1", extra_items={"cv2": foreign})
+    result = integration.run(store.operation, context)
+    assert result.status == "COMPLETED"
+    assert "cv1" not in profiles.items
+    assert "cv2" in profiles.items
+    assert [ref.version_id for ref in adapter.deleted] == ["v1"]
+
+
+def test_complete_user_fixture_removes_hierarchy_and_multiple_document_versions():
+    refs = [S3VersionRef("tenant/t1/users/u1/documents/doc-1", "v1"),
+            S3VersionRef("tenant/t1/users/u1/documents/doc-1", "dm1", True),
+            S3VersionRef("tenant/t1/users/u1/documents/doc-2", "v2")]
+    extra = {
+        "sp1": item("sp1", "CVSearchProfile", searchProfileId="sp1",
+                     cvId="cv1", parentId="cv1"),
+        "ats1": item("ats1", "ATSSearchProfile", atsProfileId="ats1",
+                      searchProfileId="sp1", parentId="sp1"),
+        "man1": item("man1", "ManualSearchProfile", manualProfileId="man1"),
+        "cv2": item("cv2", "CVDocument", cvId="cv2", documentId="doc-2"),
+    }
+    integration, store, profiles, adapter, context = make_local_integration(
+        refs, extra_items=extra)
+    result = integration.run(store.operation, context)
+    assert result.status == "COMPLETED"
+    assert profiles.items == {}
+    assert len(adapter.deleted) == 3
+
+
+def test_foreign_execution_context_is_rejected_without_mutation():
+    refs = [S3VersionRef("tenant/t1/users/u1/documents/doc-1", "v1")]
+    integration, store, profiles, adapter, context = make_local_integration(refs)
+    foreign_context = replace(context, user_id="u2")
+    with pytest.raises(Exception):
+        integration.run(store.operation, foreign_context)
+    assert "cv1" in profiles.items
+    assert adapter.calls == 0
+
+
+def test_post_erasure_inspect_and_export_inventory_is_empty():
+    refs = [S3VersionRef("tenant/t1/users/u1/documents/doc-1", "v1")]
+    integration, store, profiles, adapter, context = make_local_integration(refs)
+    result = integration.run(store.operation, context)
+    assert result.status == "COMPLETED"
+    inspection = []
+    export = []
+    for resource_type in ("ATSSearchProfile", "CVSearchProfile",
+                          "ManualSearchProfile", "CVDocument"):
+        items, cursor = profiles.list_by_user(
+            "u1", "t1", resource_type=resource_type,
+            partner_app_id="p1", issuer="issuer", limit=50, cursor=None)
+        inspection.extend(items)
+        export.extend(items)
+        assert cursor is None
+    assert inspection == []
+    assert export == []

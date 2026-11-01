@@ -144,6 +144,13 @@ class DocumentErasureIntegration:
         return all(operation.progress.get(name, ErasureProgressV1()).status
                    in (PROGRESS_COMPLETED, PROGRESS_SKIPPED) for name in required)
 
+    @staticmethod
+    def _local_operation_complete(operation: ErasureOperationV1) -> bool:
+        """Only complete an explicitly local operation with no open category."""
+        return bool(operation.progress) and all(
+            progress.status in (PROGRESS_COMPLETED, PROGRESS_SKIPPED)
+            for progress in operation.progress.values())
+
     def _save(self, operation: ErasureOperationV1,
               progress: ErasureProgressV1) -> ErasureOperationV1:
         return self.operations.save_checkpoint(
@@ -309,10 +316,19 @@ class DocumentErasureIntegration:
             self.s3.adapter = previous_adapter
 
         if operation.status == STATUS_RUNNING:
-            # Other G5 phases are intentionally outside C1B.  Do not claim a
-            # complete operation merely because profile+document work passed.
-            operation = self._mark_partial(operation, error_code=OTHER_PHASES_PENDING,
-                                           update_document=False)
+            if self._local_operation_complete(operation):
+                completed = operation.transition(
+                    STATUS_COMPLETED,
+                    now=operation.updated_at or operation.created_at)
+                operation = self.operations.update(
+                    completed, expected_version=operation.version,
+                    context=self._scope_context(operation))
+            else:
+                # Other G5 phases are intentionally outside C1B.  Do not claim
+                # complete merely because profile+document work passed.
+                operation = self._mark_partial(
+                    operation, error_code=OTHER_PHASES_PENDING,
+                    update_document=False)
         return operation
 
 

@@ -374,6 +374,11 @@ class ProfileOnlyErasureExecutor:
             if operation.scope == OPERATION_SCOPE_CV:
                 operation = self._delete_cv_hierarchy(operation, context)
                 context = self._context_for(context, operation)
+                operation = self._progress(
+                    operation, "manualSearchProfiles", status="SKIPPED", affected=0,
+                    checkpoint=ErasureCheckpointV1(
+                        phase="manualSearchProfiles", state=CHECKPOINT_COMPLETED))
+                context = self._context_for(context, operation)
             else:
                 operation = self._delete_user_category(operation, "atsSearchProfiles", "ATSSearchProfile", context)
                 context = self._context_for(context, operation)
