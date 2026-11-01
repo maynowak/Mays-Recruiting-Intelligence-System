@@ -68,7 +68,8 @@ class Profiles:
             "ats_profile_id": x.get("atsProfileId"),
             "search_profile_id": x.get("searchProfileId"),
             "manual_profile_id": x.get("manualProfileId"),
-            "cv_id": x.get("cvId"), "user_id": x.get("userId"),
+            "cv_id": x.get("cvId"), "document_id": x.get("documentId"),
+            "user_id": x.get("userId"),
             "version": x.get("version", 1)})() for x in page], nxt
 
     def delete(self, resource_id, **kwargs):

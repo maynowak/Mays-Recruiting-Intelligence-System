@@ -323,6 +323,56 @@ class S3ErasurePhaseRepository:
                 raise S3ErasureConflict("S3 phase fencing conflict") from exc
             raise S3ErasureUnavailable("S3 phase transaction failed") from exc
 
+    def get(self, ctx: ErasureExecutionContextV1) -> Optional[S3ErasurePhaseV1]:
+        """Read the durable phase for restart/resume without exposing secrets."""
+        self._ensure()
+        if not hasattr(self.client, "get_item"):
+            raise S3ErasureUnavailable("S3 phase read client unavailable")
+        try:
+            response = self.client.get_item(
+                TableName=self.phase_table_name,
+                Key={"resourceId": {"S": f"s3-erasure#{ctx.operation_id}"}},
+                ConsistentRead=True)
+        except Exception as exc:
+            raise S3ErasureUnavailable("S3 phase read failed") from exc
+        item = response.get("Item")
+        if not item:
+            return None
+
+        def native(value: Any) -> Any:
+            if not isinstance(value, dict) or not value:
+                return value
+            if "S" in value:
+                return value["S"]
+            if "N" in value:
+                try:
+                    return int(value["N"])
+                except (TypeError, ValueError):
+                    return value["N"]
+            if "BOOL" in value:
+                return bool(value["BOOL"])
+            if "NULL" in value:
+                return None
+            return value
+
+        parsed = {key: native(value) for key, value in item.items()}
+        if (parsed.get("operationId") != ctx.operation_id
+                or parsed.get("scope") != ctx.scope
+                or parsed.get("freezeVersion") != ctx.freeze_version):
+            raise S3ErasureConflict("S3 phase scope or authorization conflict")
+        return S3ErasurePhaseV1(
+            operation_id=parsed["operationId"], scope=parsed["scope"],
+            operation_version=parsed["operationVersion"],
+            freeze_version=parsed["freezeVersion"],
+            attempt_id=parsed["attemptId"], phase=parsed["phase"],
+            version=parsed.get("version", 1),
+            cursor_ref=parsed.get("cursorRef"),
+            remaining=parsed.get("remaining"),
+            last_action=parsed.get("lastAction"),
+            last_outcome=parsed.get("lastOutcome"),
+            error_code=parsed.get("errorCode"),
+            updated_at=parsed.get("updatedAt", ""))
+
     def begin(self, ctx: ErasureExecutionContextV1, *, expected_version: int,
               attempt_id: Optional[str] = None) -> S3ErasurePhaseV1:
         """Atomically claim a new attempt or resume a RETRY phase."""
@@ -349,14 +399,18 @@ class S3ErasurePhaseRepository:
                 "TableName": self.phase_table_name,
                 "Key": {"resourceId": {"S": f"s3-erasure#{ctx.operation_id}"}},
                 "UpdateExpression": (
-                    "SET attemptId = :a, phase = :p, #v = :newv, updatedAt = :now"),
-                "ConditionExpression": "#v = :oldv AND phase = :retry",
+                    "SET attemptId = :a, phase = :p, #v = :newv, "
+                    "operationVersion = :ov, freezeVersion = :fv, updatedAt = :now"),
+                "ConditionExpression": "#v = :oldv AND phase IN (:retry, :started)",
                 "ExpressionAttributeNames": {"#v": "version"},
                 "ExpressionAttributeValues": {
                     ":a": {"S": attempt}, ":p": {"S": PHASE_INVENTORY},
                     ":newv": {"N": str(expected_version + 1)},
                     ":oldv": {"N": str(expected_version)},
-                    ":retry": {"S": PHASE_RETRY}, ":now": {"S": _now()},
+                    ":retry": {"S": PHASE_RETRY}, ":started": {"S": PHASE_ACTION_STARTED},
+                    ":ov": {"N": str(ctx.operation_version)},
+                    ":fv": {"N": str(ctx.freeze_version)},
+                    ":now": {"S": _now()},
                 },
             }}
         self._write(ctx, action)
