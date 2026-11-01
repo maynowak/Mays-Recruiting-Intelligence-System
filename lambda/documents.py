@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import re
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 UPLOAD_EXPIRY_SECONDS = 900
@@ -35,9 +36,9 @@ def new_doc_id() -> str:
 
 def build_key(tenant_id: Optional[str], user_id: str, doc_id: str) -> str:
     """Server-seitiger Key (wirft bei ungueltiger docId)."""
-    if not user_id or not _DOC_ID_RE.match(doc_id or ""):
+    if not user_id or not (tenant_id or "").strip() or not _DOC_ID_RE.match(doc_id or ""):
         raise ValueError("Ungueltige Dokument-ID")
-    tenant = (tenant_id or "default").strip() or "default"
+    tenant = tenant_id.strip()
     if not _DOC_ID_RE.match(tenant):
         raise ValueError("Ungueltiger Tenant-Kontext")
     return f"tenant/{tenant}/users/{user_id}/documents/{doc_id}"
@@ -60,21 +61,28 @@ def _bucket() -> str:
 
 
 def _require_tenant(tenant_id: str, require_tenant: bool) -> None:
-    """Fail closed when a caller requires a server-resolved tenant.
+    """Fail closed for every public document operation.
 
-    The legacy ``/me/documents`` path keeps its historical ``default``
-    fallback; partner CVs pass ``require_tenant=True`` so an unresolvable
-    tenant can never silently land in the shared ``default`` bucket.
+    ``require_tenant`` remains as a compatibility argument for internal
+    callers, but no path may fall back to a shared ``default`` tenant.
     """
-    if require_tenant and not (tenant_id or "").strip():
+    if not (tenant_id or "").strip():
         raise ValueError("Tenant context required")
+
+
+def _expires_at() -> str:
+    return (datetime.now(timezone.utc) + timedelta(seconds=UPLOAD_EXPIRY_SECONDS)).isoformat()
 
 
 def presign_upload(s3: Any = None, tenant_id: str = "", user_id: str = "",
                    content_type: Optional[str] = None,
                    doc_id: Optional[str] = None,
                    require_tenant: bool = False) -> Dict[str, Any]:
-    """Presigned PUT (kurzlebig) fuer ein NEUES Dokument. Gibt Key + docId mit."""
+    """Presigned PUT for one server-owned document id.
+
+    The S3 key is deliberately kept inside this module and is never returned
+    as a public DTO. ``requiredHeaders`` must match the signed request.
+    """
     _require_tenant(tenant_id, require_tenant)
     if content_type not in ALLOWED_CONTENT_TYPES:
         raise ValueError("Content-Type nicht zugelassen")
@@ -88,8 +96,9 @@ def presign_upload(s3: Any = None, tenant_id: str = "", user_id: str = "",
         Params={"Bucket": _bucket(), "Key": key, "ContentType": content_type},
         ExpiresIn=UPLOAD_EXPIRY_SECONDS,
     )
-    return {"docId": doc_id, "key": key, "uploadUrl": url,
-            "expiresIn": UPLOAD_EXPIRY_SECONDS}
+    return {"documentId": doc_id, "uploadUrl": url,
+            "expiresAt": _expires_at(),
+            "requiredHeaders": {"Content-Type": content_type}}
 
 
 def head_document(s3: Any = None, tenant_id: str = "", user_id: str = "",
@@ -138,8 +147,8 @@ def presign_download(s3: Any = None, tenant_id: str = "",
         "get_object", Params={"Bucket": _bucket(), "Key": key},
         ExpiresIn=UPLOAD_EXPIRY_SECONDS,
     )
-    return {"docId": doc_id, "key": key, "downloadUrl": url,
-            "expiresIn": UPLOAD_EXPIRY_SECONDS}
+    return {"documentId": doc_id, "downloadUrl": url,
+            "expiresAt": _expires_at()}
 
 
 def delete_document_report(s3: Any = None, tenant_id: str = "",
@@ -159,13 +168,13 @@ def delete_document_report(s3: Any = None, tenant_id: str = "",
     except Exception as exc:
         code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
         if code in ("404", "NoSuchKey", "NotFound"):
-            return {"docId": doc_id, "key": key, "existed": False,
+            return {"documentId": doc_id, "existed": False,
                     "deleted": True, "deleteMarker": False,
                     "versionId": None, "physicalPurge": False}
         raise
     resp = client.delete_object(Bucket=_bucket(), Key=key) or {}
     version_id = resp.get("VersionId")
-    return {"docId": doc_id, "key": key, "existed": True, "deleted": True,
+    return {"documentId": doc_id, "existed": True, "deleted": True,
             "deleteMarker": bool(version_id), "versionId": version_id,
             "physicalPurge": False}
 

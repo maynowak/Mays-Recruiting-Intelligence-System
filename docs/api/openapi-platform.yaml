@@ -353,12 +353,12 @@ paths:
           description: Deletion acknowledgement.
           content:
             application/json:
-              schema:
-                type: object
-                required: [deleted, docId]
-                properties:
-                  deleted: { type: boolean }
-                  docId: { type: string }
+               schema:
+                 type: object
+                 required: [deleted, documentId]
+                 properties:
+                   deleted: { type: boolean }
+                   documentId: { type: string }
         "400": { $ref: "#/components/responses/BadRequestString" }
         "401": { $ref: "#/components/responses/UnauthorizedString" }
         "404": { $ref: "#/components/responses/NotFoundString" }
@@ -2198,10 +2198,12 @@ components:
     DocumentUploadTicket:
       type: object
       description: Short-lived pre-signed upload authorisation.
+      additionalProperties: false
+      required: [documentId, uploadUrl, expiresAt, requiredHeaders]
       properties:
         uploadUrl: { type: string }
         documentId: { type: string }
-        expiresAt: { type: string }
+        expiresAt: { type: string, format: date-time }
         requiredHeaders:
           type: object
           additionalProperties: { type: string }
@@ -2209,10 +2211,12 @@ components:
     DocumentDownloadTicket:
       type: object
       description: Short-lived pre-signed download authorisation.
+      additionalProperties: false
+      required: [documentId, downloadUrl, expiresAt]
       properties:
         downloadUrl: { type: string }
         documentId: { type: string }
-        expiresAt: { type: string }
+        expiresAt: { type: string, format: date-time }
 
     Agent:
       type: object
@@ -2422,14 +2426,14 @@ components:
 
     PartnerCvDownload:
       type: object
-      required: [cvId, documentId, downloadUrl, expiresIn]
+      required: [cvId, documentId, downloadUrl, expiresAt]
       properties:
         cvId: { type: string }
         documentId: { type: string }
         downloadUrl:
           type: string
           description: Short-lived presigned GET URL; never persisted.
-        expiresIn: { type: integer }
+        expiresAt: { type: string, format: date-time }
 
     PartnerCvDeleteResult:
       type: object

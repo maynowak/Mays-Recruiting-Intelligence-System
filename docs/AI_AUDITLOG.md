@@ -8442,3 +8442,23 @@ Date: 2026-11-01
 - No handler, AWS, deployment, Jobsearch, Orders or receipt-journal changes.
 Resume: P0-2 GO for local document-API implementation; BLOCKED for AWS-E2E/
 product release until runtime projection, ownership and no-S3-key tests pass.
+
+[RIS-R08-P1-1 / P0-2 DOCUMENT API SECURITY]
+Status: COMPLETE for document response security; product/AWS release remains blocked.
+Date: 2026-11-01
+- Baseline: feature/ris-partner-profile-persistence-v1 @ 95fe85aa; 39 existing
+  untracked files preserved.
+- Closed F-JM-13: legacy and partner document upload/download DTOs no longer
+  expose S3 keys, bucket paths or expiresIn. Public tickets use documentId,
+  upload/download URL, absolute expiresAt and requiredHeaders for uploads.
+- Removed tenant/default fallback. Legacy /me/documents now requires a tenant
+  resolved from verified JWT/registry context and denies missing/conflicting
+  context; user/tenant are not taken from request bodies.
+- Presigned URLs remain short-lived transport. Partner application, issuer,
+  tenant, parent-chain and ownership checks remain in the partner routes.
+- Added authorization, no-key, ticket-shape and OpenAPI/runtime regression
+  coverage. No AWS, Jobsearch, Orders or receipt-journal changes.
+- Tests: targeted 114 passed, 250 subtests; full RIS selection 695 passed,
+  45 skipped, 256 subtests. No runtime logs contain URLs, keys, JWTs or creds.
+Next: P0-3 GO for local implementation; AWS-E2E/product release remains blocked
+by subsequent profile/CV lifecycle and erasure gates.

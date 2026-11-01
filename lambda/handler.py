@@ -937,10 +937,21 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 
 def _documents_context(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Authentifizierter Dokumenten-Kontext (None wenn unauthentifiziert)."""
+    """Authenticated, server-resolved document ownership context.
+
+    Legacy document routes used to pass a missing tenant through to the
+    storage helper, which then selected ``tenant/default``. Resolve the
+    tenant from verified JWT/registry context before any S3 operation and
+    fail closed when it cannot be resolved.
+    """
     user_context = _extract_user_context(event)
     if not user_context.get('userId'):
         return None
+    tenant_id, conflict = _resolve_tenant(user_context)
+    if conflict or not tenant_id:
+        user_context['_documentContextError'] = 'Tenant not resolvable'
+        return user_context
+    user_context['tenantId'] = tenant_id
     return user_context
 
 
@@ -951,6 +962,8 @@ def _handle_documents_create(event: Dict[str, Any], context: Any) -> Dict[str, A
     user_context = _documents_context(event)
     if user_context is None:
         return {'statusCode': 401, 'body': json.dumps({'error': 'Unauthenticated'})}
+    if user_context.get('_documentContextError'):
+        return {'statusCode': 403, 'body': json.dumps({'error': 'Tenant not resolvable'})}
     try:
         body = json.loads(event.get('body') or '{}')
     except (ValueError, TypeError):
@@ -961,6 +974,7 @@ def _handle_documents_create(event: Dict[str, Any], context: Any) -> Dict[str, A
             tenant_id=user_context.get('tenantId'),
             user_id=user_context['userId'],
             content_type=(body or {}).get('contentType'),
+            require_tenant=True,
         )
     except ValueError as e:
         return {'statusCode': 400, 'body': json.dumps({'error': str(e)})}
@@ -978,11 +992,14 @@ def _handle_documents_get(event: Dict[str, Any], context: Any,
     user_context = _documents_context(event)
     if user_context is None:
         return {'statusCode': 401, 'body': json.dumps({'error': 'Unauthenticated'})}
+    if user_context.get('_documentContextError'):
+        return {'statusCode': 403, 'body': json.dumps({'error': 'Tenant not resolvable'})}
     try:
         result = presign_download(
             tenant_id=user_context.get('tenantId'),
             user_id=user_context['userId'],
             doc_id=doc_id,
+            require_tenant=True,
         )
     except ValueError:
         return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid document ID'})}
@@ -1002,11 +1019,14 @@ def _handle_documents_delete(event: Dict[str, Any], context: Any,
     user_context = _documents_context(event)
     if user_context is None:
         return {'statusCode': 401, 'body': json.dumps({'error': 'Unauthenticated'})}
+    if user_context.get('_documentContextError'):
+        return {'statusCode': 403, 'body': json.dumps({'error': 'Tenant not resolvable'})}
     try:
         deleted = delete_document(
             tenant_id=user_context.get('tenantId'),
             user_id=user_context['userId'],
             doc_id=doc_id,
+            require_tenant=True,
         )
     except ValueError:
         return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid document ID'})}
@@ -1015,7 +1035,7 @@ def _handle_documents_delete(event: Dict[str, Any], context: Any,
         return {'statusCode': 500, 'body': json.dumps({'error': 'Failed to delete document'})}
     if not deleted:
         return {'statusCode': 404, 'body': json.dumps({'error': 'Document not found'})}
-    return {'statusCode': 200, 'body': json.dumps({'deleted': True, 'docId': doc_id})}
+    return {'statusCode': 200, 'body': json.dumps({'deleted': True, 'documentId': doc_id})}
 
 
 def _handle_agents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -4285,7 +4305,8 @@ def _cv_upload_ticket(event, ctx, cv_id):
         'cvId': cv_id,
         'documentId': document_id,
         'uploadUrl': ticket['uploadUrl'],
-        'expiresIn': ticket['expiresIn'],
+        'expiresAt': ticket['expiresAt'],
+        'requiredHeaders': ticket['requiredHeaders'],
     }, ensure_ascii=False)}
 
 
@@ -4385,7 +4406,7 @@ def _cv_download(ctx, cv_id):
         'cvId': cv_id,
         'documentId': existing.document_id,
         'downloadUrl': result['downloadUrl'],
-        'expiresIn': result['expiresIn'],
+        'expiresAt': result['expiresAt'],
     }, ensure_ascii=False)}
 
 
