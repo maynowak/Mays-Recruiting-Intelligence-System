@@ -8324,3 +8324,51 @@ Current resume point:
   - Retention/legal policy approval required before enabling the journal.
   - R08-A2 atomic emission and R08-B/C/D not started; R07-B remains BLOCKED.
   - No AWS mutation, no deploy/apply/destroy.
+
+[RIS-R08-JM-G0-JOBSEARCH-V1-CONTRACT-MATRIX]
+Current status: COMPLETE (analysis only) - contract differences specified, no implementation.
+Audit date/time: 2026-11-01
+Actual findings:
+  - Baseline: RIS feature/ris-partner-profile-persistence-v1 @ 7d89e9e, clean
+    tracked tree, 39 untracked unchanged. Jobsearch remote main c787feaf
+    verified via git ls-remote; local origin/main was 0129559 and the checkout
+    feature/arbeit @ c7f8eb6. GitHub compare 0129559...c787feaf lists 78 files,
+    none under docs/contracts, so the read contract artifacts match the
+    reported main. No Jobsearch writes, no AWS calls/mutations.
+  - Endpoint inventory: partner profile CRUD exists under
+    /v1/partner/me/{manual-search-profiles,cvs,search-profiles/...}; UserProfile
+    exists under /me/profile. No privacy.inspect/export/receipts/request_status
+    API exists yet.
+  - Compatible: ManualSearchProfileV1, CVSearchProfileV1, ATSSearchProfileV1
+    (including serializer ID normalization and version), SearchConfigurationV1
+    and MatchingPreferencesV1. Fixture probes show exact roundtrip for skills
+    phrases, nullable radiusKm, multi work modes and employment types; unknown
+    fields and ATS scores/prompts are rejected.
+  - P0 gaps: UserProfile lacks schemaVersion/version, uses status ACTIVE instead
+    of active, PUT without expected version, and is JWT-only rather than
+    partner-credential-scoped. CVDocument uses name/size instead of
+    filename/sizeBytes, does not guarantee contentType/documentId/size>=1, has
+    incompatible status values (upload_pending/error/delete_failed vs
+    pending/ready/failed/deleted), and creates metadata before the upload
+    instead of accepting documentId at create.
+  - P0 security finding: POST /me/documents returns a document key (S3 object
+    key) plus docId/expiresIn while OpenAPI declares documentId/expiresAt and
+    no key. The Jobsearch contract forbids S3 keys in profile metadata.
+  - P1 gaps: error envelope and capacity_exceeded are not distinguishable;
+    success envelope {data,meta} is absent; CV list omits nextCursor; version
+    transport is body/query version vs expectedVersion/If-Match; route base
+    /api/v1/me vs /v1/partner/me needs an adapter/facade decision.
+  - No backend or Jobsearch change; findings are assigned to G03/G04/G06/G11.
+Evidence / file references:
+  - docs/reports/RIS-JOBSEARCH-V1-CONTRACT-MATRIX.md
+  - lambda/handler.py
+  - jobsearch/partner_profile_contract.py
+  - docs/API/openapi-platform.yaml
+  - Jobsearch docs/contracts/JOBMATCHER-PROFILE-DATA-CONTRACT-V1.md
+  - Jobsearch docs/contracts/JOBMATCHER-PROFILE-REPOSITORY-CONTRACT-V1.md
+  - Jobsearch docs/contracts/MAYS-RIS-PROFILE-PERSISTENCE-01-HANDOFF.md
+Classification: AMBER - contract specified, P0 compatibility work open
+Current resume point:
+  - R08-POLICY-01 (retention/legal) and R08-P1-1 (UserProfile/CVDocument) are
+    the next gates. R08-A2/B/C/D, R07-B and Jobsearch handoff not started.
+  - No AWS mutation, no deploy/apply/destroy.
