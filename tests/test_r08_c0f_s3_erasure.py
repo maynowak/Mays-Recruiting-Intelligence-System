@@ -7,7 +7,8 @@ import pytest
 from agents.ecosystem.privacy_erasure_contract import (
     ErasureExecutionContextV1)
 from agents.ecosystem.privacy_s3_erasure import (
-    FencedS3Adapter, FencedS3ErasureOrchestrator, S3ErasureConflict,
+    FencedS3Adapter, FencedS3ErasureOrchestrator, FencedS3VersionedAdapter,
+    S3ErasureConflict,
     S3ErasurePhaseRepository, S3ErasureUnavailable, S3ErasureUnknownResult,
     S3VersionRef)
 
@@ -132,3 +133,71 @@ def test_public_checkpoint_has_no_s3_key_or_url():
     assert "internal-key" not in rendered
     assert "presigned" not in rendered
     assert "version_id" not in rendered
+
+
+class VersionedFakeS3:
+    def __init__(self):
+        self.objects = [
+            {"Key": "tenant/t1/users/u1/documents/a", "VersionId": "v1"},
+            {"Key": "tenant/t1/users/u1/documents/a", "VersionId": "dm1",
+             "DeleteMarker": True},
+        ]
+        self.list_calls = []
+        self.delete_calls = []
+
+    def list_object_versions(self, **kwargs):
+        self.list_calls.append(kwargs)
+        if kwargs.get("KeyMarker"):
+            page = list(self.objects[1:])
+            return {"Versions": [item for item in page
+                                  if not item.get("DeleteMarker")],
+                    "DeleteMarkers": [item for item in page
+                                       if item.get("DeleteMarker")]}
+        if len(self.objects) > 1:
+            item = self.objects[0]
+            return {"Versions": [item], "DeleteMarkers": [],
+                    "IsTruncated": True, "NextKeyMarker": item["Key"],
+                    "NextVersionIdMarker": item["VersionId"]}
+        return {"Versions": list(self.objects), "DeleteMarkers": []}
+
+    def delete_object(self, **kwargs):
+        self.delete_calls.append(kwargs)
+        self.objects = [item for item in self.objects
+                        if not (item["Key"] == kwargs["Key"]
+                                and item["VersionId"] == kwargs["VersionId"])]
+        return {"VersionId": kwargs["VersionId"]}
+
+
+def test_local_versioned_adapter_deletes_only_explicit_versions_and_fences_each_call():
+    fake = VersionedFakeS3()
+    checks = []
+    adapter = FencedS3VersionedAdapter(
+        client=fake, bucket="documents",
+        prefix="tenant/t1/users/u1/documents",
+        before_action=lambda attempt, action: checks.append((attempt, action)))
+    page, cursor = adapter.inventory(attempt_id="attempt-1")
+    assert len(page) == 1
+    next_page, _ = adapter.inventory(attempt_id="attempt-1", cursor_ref=cursor)
+    assert next_page[0].delete_marker is True
+    for ref in page + next_page:
+        adapter.delete_version(attempt_id="attempt-1", object_ref=ref)
+    assert len(fake.delete_calls) == 2
+    assert all("VersionId" in call for call in fake.delete_calls)
+    assert len(checks) == 4
+
+
+def test_local_adapter_stale_worker_is_rejected_before_s3_call():
+    fake = VersionedFakeS3()
+    active = {"attempt-1"}
+
+    def fence(attempt, _action):
+        if attempt not in active:
+            raise S3ErasureConflict("stale attempt")
+
+    adapter = FencedS3VersionedAdapter(
+        client=fake, bucket="documents", prefix="tenant/t1/users/u1/documents",
+        before_action=fence)
+    active.clear()
+    with pytest.raises(S3ErasureConflict):
+        adapter.inventory(attempt_id="attempt-1")
+    assert fake.list_calls == []

@@ -10,6 +10,8 @@ worker by itself.
 from __future__ import annotations
 
 import os
+import base64
+import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -283,6 +285,88 @@ class FencedS3Adapter:
         raise NotImplementedError
 
 
+class FencedS3VersionedAdapter(FencedS3Adapter):
+    """Local/test adapter for versioned S3-shaped clients.
+
+    The client is injected and must expose ``list_object_versions`` and
+    ``delete_object``.  No boto3 client is constructed here.  A trusted
+    ``before_action`` callback revalidates the attempt before every S3 call;
+    the callback must fail closed when the operation/freeze/attempt is stale.
+    """
+
+    local_only = True
+
+    def __init__(self, *, client: Any, bucket: str, prefix: str,
+                 before_action: Any):
+        if not client or not bucket or not prefix or not callable(before_action):
+            raise ValueError("client, bucket, prefix and fencing callback are required")
+        self.client = client
+        self.bucket = bucket
+        self.prefix = prefix if prefix.endswith("/") else prefix + "/"
+        self.before_action = before_action
+        self.supports_fencing = True
+
+    @staticmethod
+    def _cursor(value: Dict[str, str]) -> str:
+        raw = json.dumps(value, sort_keys=True, separators=(",", ":"))
+        return base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
+
+    @staticmethod
+    def _decode_cursor(cursor: Optional[str]) -> Dict[str, str]:
+        if not cursor:
+            return {}
+        if "://" in cursor:
+            raise S3ErasureConflict("invalid S3 pagination cursor")
+        padded = cursor + "=" * (-len(cursor) % 4)
+        try:
+            value = json.loads(base64.urlsafe_b64decode(padded).decode())
+        except Exception as exc:
+            raise S3ErasureConflict("invalid S3 pagination cursor") from exc
+        if not isinstance(value, dict):
+            raise S3ErasureConflict("invalid S3 pagination cursor")
+        return {str(key): str(item) for key, item in value.items()}
+
+    def inventory(self, *, attempt_id: str,
+                  cursor_ref: Optional[str] = None):
+        self.before_action(attempt_id, "inventory")
+        kwargs: Dict[str, Any] = {"Bucket": self.bucket, "Prefix": self.prefix}
+        marker = self._decode_cursor(cursor_ref)
+        if marker.get("key"):
+            kwargs["KeyMarker"] = marker["key"]
+        if marker.get("version"):
+            kwargs["VersionIdMarker"] = marker["version"]
+        response = self.client.list_object_versions(**kwargs)
+        refs = []
+        for item in response.get("Versions", []) or []:
+            key = item.get("Key")
+            version_id = item.get("VersionId")
+            if key and version_id and key.startswith(self.prefix):
+                refs.append(S3VersionRef(key, version_id, False))
+        for item in response.get("DeleteMarkers", []) or []:
+            key = item.get("Key")
+            version_id = item.get("VersionId")
+            if key and version_id and key.startswith(self.prefix):
+                refs.append(S3VersionRef(key, version_id, True))
+        if response.get("IsTruncated"):
+            next_key = response.get("NextKeyMarker")
+            next_version = response.get("NextVersionIdMarker")
+            if not next_key or not next_version:
+                raise S3ErasureUnknownResult("truncated S3 page has no marker")
+            return refs, self._cursor({"key": next_key, "version": next_version})
+        return refs, None
+
+    def delete_version(self, *, attempt_id: str,
+                       object_ref: S3VersionRef):
+        self.before_action(attempt_id, "delete")
+        if not object_ref.key.startswith(self.prefix) or not object_ref.version_id:
+            raise S3ErasureConflict("S3 object is outside the authorized prefix")
+        # VersionId is mandatory: an unversioned delete would create a new
+        # delete marker and cannot prove removal of the intended version.
+        return self.client.delete_object(
+            Bucket=self.bucket, Key=object_ref.key,
+            VersionId=object_ref.version_id)
+
+
 class FencedS3ErasureOrchestrator:
     """Inventory/delete/re-inventory orchestration without an S3 client."""
 
@@ -372,6 +456,7 @@ __all__ = [
     "PHASE_INVENTORY", "PHASE_DELETE", "PHASE_VERIFY", "PHASE_RETRY",
     "PHASE_COMPLETED", "S3VersionRef", "S3ErasurePhaseV1",
     "S3ErasurePhaseRepository", "FencedS3Adapter",
+    "FencedS3VersionedAdapter",
     "FencedS3ErasureOrchestrator", "S3ErasureError", "S3ErasureUnavailable",
     "S3ErasureConflict", "S3ErasureUnknownResult",
 ]
