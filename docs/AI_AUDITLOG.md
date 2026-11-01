@@ -8372,3 +8372,51 @@ Current resume point:
   - R08-POLICY-01 (retention/legal) and R08-P1-1 (UserProfile/CVDocument) are
     the next gates. R08-A2/B/C/D, R07-B and Jobsearch handoff not started.
   - No AWS mutation, no deploy/apply/destroy.
+
+[RIS-R08-POLICY-01-PRIVACY-DECISION-GATE]
+Current status: COMPLETE (analysis/documentation) - policy approval and production storage BLOCKED.
+Audit date/time: 2026-11-01
+Actual findings:
+  - Baseline: RIS feature/ris-partner-profile-persistence-v1 @ d087cc7, clean
+    tracked tree, 39 untracked preserved. Jobsearch main c787feaf was read-only;
+    no Jobsearch/Vercel/Orders/AWS changes.
+  - Processing purposes P-01 through P-10 are specified separately. Durable
+    RIS storage is distinct from browser CV extraction, session state and
+    optional /api/profile AI processing. “In meinem Konto speichern” is an
+    explicit product action, not automatically an Art. 7 consent record.
+  - No blanket Art. 6 basis was assigned. Art. 6(1)(b), (a), (f) and (c)
+    remain per-purpose candidates subject to factual/legal review. CVs may
+    contain Art. 9 special-category data; no general production approval is
+    possible without a separate Art. 9 assessment.
+  - Retention matrix covers UserProfile, CV metadata/PDF/current versions,
+    S3 versions/delete markers, Manual/CV/ATS profiles, receipts, idempotency,
+    cursors, counters/guards, logs, CloudTrail and backups. Observed technical
+    facts: cursor 15 minutes, idempotency 24 hours, no general profile/counter
+    TTL, no receipt TTL, S3 versioning enabled without lifecycle rule observed.
+  - PrivacyReceiptV1 retention is separate from CV retention and has no final
+    duration. No indefinite retention by convenience; no receipt TTL and no
+    production journal writes. Journal flag remains false.
+  - P0 F-JM-13 remains open: POST /me/documents returns an internal S3 key and
+    docId/expiresIn while OpenAPI says documentId/expiresAt. No fix in this
+    documentation gate; R08-P1-1 remains responsible.
+  - G5 erasure gaps remain: partner profile descendants, S3 versions/markers,
+    technical records, Cognito, complete paginated work cancellation,
+    receipt treatment, backups/PITR and F-5 legacy reconciliation.
+  - Added four privacy/policy specifications, the R08-POLICY-01 report and
+    documentation guard tests. No production or backend implementation change.
+  - Tests: targeted policy/privacy/contract set 137 passed, 250 subtests.
+    Full RIS regression: 684 passed, 45 skipped, 256 subtests. Skips include
+    planned R08 capabilities and unavailable local integration prerequisites.
+  - git diff --check PASS. No AWS access, apply, destroy or deployment.
+Evidence / file references:
+  - docs/privacy/RIS-JOBSEARCH-PROCESSING-PURPOSES-V1.md
+  - docs/privacy/RIS-JOBSEARCH-RETENTION-POLICY-V1.md
+  - docs/privacy/RIS-JOBSEARCH-PRIVACY-NOTICE-DRAFT-V1.md
+  - docs/privacy/RIS-PRIVACY-RECEIPT-RETENTION-DECISION.md
+  - docs/reports/RIS-R08-POLICY-01-PRIVACY-DECISION-GATE.md
+  - tests/test_r08_policy_decision_gate.py
+Classification: AMBER - technically documented, legal/retention and P1-1 gaps open
+Current resume point:
+  - R08-P1-1 is BLOCKED by contract/security gaps. R08-A2 policy enablement is
+    BLOCKED / REVIEW_REQUIRED. R08-B/C/D and R07-B remain not started.
+  - No production journal activation, no deploy/apply/destroy.
