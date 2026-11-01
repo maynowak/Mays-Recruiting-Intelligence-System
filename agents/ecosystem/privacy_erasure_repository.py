@@ -316,6 +316,83 @@ class WriteFreezeRepository:
             version=item.get("version", 1), updated_at=item.get("updatedAt", ""))
 
 
+class AtomicG5MutationExecutor:
+    """Execute one G5 DynamoDB mutation with its authorization conditions."""
+
+    def __init__(self, *, execution_context: ErasureExecutionContextV1,
+                 guard_table: Any, guard_table_name: str,
+                 operation_table_name: str):
+        self.context = execution_context
+        self.guard_table = guard_table
+        self.guard_table_name = guard_table_name
+        self.operation_table_name = operation_table_name
+
+    def _client(self):
+        client = getattr(getattr(self.guard_table, "meta", None), "client", None)
+        if client is None or not hasattr(client, "transact_write_items"):
+            raise ErasureRepositoryUnavailable(
+                "transactional G5 mutation writer unavailable")
+        return client
+
+    def _checks(self):
+        ctx = self.context
+        guard_key = freeze_resource_id(
+            user_id=ctx.user_id, tenant_id=ctx.tenant_id,
+            partner_application_id=ctx.partner_application_id,
+            issuer=ctx.issuer, scope=ctx.scope, cv_id=ctx.cv_id)
+        return [
+            {"ConditionCheck": {
+                "TableName": self.guard_table_name,
+                "Key": {"resourceId": {"S": guard_key}},
+                "ConditionExpression": (
+                    "#rt = :fr AND #s = :active AND operationId = :op "
+                    "AND version = :fv AND userId = :u AND tenantId = :t "
+                    "AND partnerApplicationId = :p AND issuer = :i"),
+                "ExpressionAttributeNames": {"#rt": "resourceType", "#s": "state"},
+                "ExpressionAttributeValues": {
+                    ":fr": {"S": "ErasureWriteFreeze"},
+                    ":active": {"S": FREEZE_ACTIVE},
+                    ":op": {"S": ctx.operation_id},
+                    ":fv": {"N": str(ctx.freeze_version)},
+                    ":u": {"S": ctx.user_id}, ":t": {"S": ctx.tenant_id},
+                    ":p": {"S": ctx.partner_application_id},
+                    ":i": {"S": ctx.issuer},
+                },
+            }},
+            {"ConditionCheck": {
+                "TableName": self.operation_table_name,
+                "Key": {"resourceId": {"S": ctx.operation_id}},
+                "ConditionExpression": (
+                    "#rt = :rt AND #s = :running AND version = :ov "
+                    "AND userId = :u AND tenantId = :t "
+                    "AND partnerApplicationId = :p AND issuer = :i"),
+                "ExpressionAttributeNames": {"#rt": "resourceType", "#s": "status"},
+                "ExpressionAttributeValues": {
+                    ":rt": {"S": OPERATION_RESOURCE_TYPE},
+                    ":running": {"S": STATUS_RUNNING},
+                    ":ov": {"N": str(ctx.operation_version)},
+                    ":u": {"S": ctx.user_id}, ":t": {"S": ctx.tenant_id},
+                    ":p": {"S": ctx.partner_application_id},
+                    ":i": {"S": ctx.issuer},
+                },
+            }},
+        ]
+
+    def transact(self, mutation: Dict[str, Any]) -> None:
+        actions = [key for key in ("Put", "Update", "Delete") if key in mutation]
+        if len(actions) != 1:
+            raise ErasureRepositoryError("one DynamoDB mutation is required")
+        try:
+            self._client().transact_write_items(
+                TransactItems=self._checks() + [mutation])
+        except Exception as exc:
+            if _conditional_failure(exc):
+                raise ErasureOperationConflict(
+                    "G5 mutation authorization conflict") from exc
+            raise ErasureRepositoryUnavailable(
+                "G5 mutation transaction failed") from exc
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -503,4 +580,5 @@ __all__ = [
     "ErasureRepositoryUnavailable", "ErasureOperationNotFound",
     "ErasureOperationConflict", "ErasureOperationVersionConflict",
     "ErasureScope", "ErasureOperationRepository", "WriteFreezeRepository",
+    "AtomicG5MutationExecutor",
 ]

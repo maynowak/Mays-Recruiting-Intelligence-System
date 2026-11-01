@@ -239,9 +239,38 @@ class DynamoDBApiProfileStore:
         return [dict(i) for i in response.get("Items", [])]
 
     def update_profile(self, api_profile_id: str,
-                       item: Dict[str, Any]) -> None:
-        self._table_obj().put_item(
-            Item={k: v for k, v in dict(item).items() if v is not None})
+                       item: Dict[str, Any], *,
+                       execution_context: Any = None,
+                       mutation_executor: Any = None,
+                       expected_updated_at: Any = None) -> None:
+        clean = {k: v for k, v in dict(item).items() if v is not None}
+        if execution_context is not None:
+            if mutation_executor is None:
+                raise RuntimeError(
+                    "atomic erasure mutation executor is required")
+            from jobsearch.partner_profile_repository import serializer
+            table_name = self._table_name or getattr(self._table_obj(), "name", None)
+            if not table_name:
+                raise RuntimeError("api-profile table name is required")
+            values = {
+                ":u": {"S": execution_context.user_id},
+                ":t": {"S": execution_context.tenant_id},
+            }
+            condition = (
+                "attribute_exists(apiProfileId) AND ownerUserId = :u "
+                "AND tenantId = :t")
+            if expected_updated_at is not None:
+                condition += " AND updatedAt = :oldUpdatedAt"
+                values[":oldUpdatedAt"] = serializer(expected_updated_at)
+            mutation_executor.transact({"Put": {
+                "TableName": table_name,
+                "Item": {key: serializer(value)
+                         for key, value in clean.items()},
+                "ConditionExpression": condition,
+                "ExpressionAttributeValues": values,
+            }})
+            return
+        self._table_obj().put_item(Item=clean)
 
 
 # ------------------------------------------------------------------
