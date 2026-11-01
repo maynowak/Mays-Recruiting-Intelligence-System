@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "cvId": "cv-synthetic-pending-001",
+  "documentId": "doc-synthetic-pending-001",
+  "filename": "resume-pending.pdf",
+  "contentType": "application/pdf",
+  "processingStatus": "pending",
+  "createdAt": "2026-11-01T12:00:00Z",
+  "updatedAt": "2026-11-01T12:00:00Z",
+  "version": 1
+}

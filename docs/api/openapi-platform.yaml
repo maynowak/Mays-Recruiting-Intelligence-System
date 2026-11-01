@@ -2489,7 +2489,17 @@ components:
 
     PartnerCvV1:
       type: object
-      description: Canonical Jobsearch CVDocumentV1. Legacy RIS names are not emitted.
+      description: |
+        Canonical Jobsearch CVDocumentV1. Pending documents omit sizeBytes
+        until S3 HeadObject verification. Ready documents require a positive
+        verified sizeBytes. Failed and deleted documents do not invent a size.
+      oneOf:
+        - $ref: "#/components/schemas/PartnerCvPendingV1"
+        - $ref: "#/components/schemas/PartnerCvReadyV1"
+        - $ref: "#/components/schemas/PartnerCvTerminalV1"
+
+    PartnerCvBaseV1:
+      type: object
       additionalProperties: false
       required: [schemaVersion, cvId, filename, processingStatus, createdAt, updatedAt, version]
       properties:
@@ -2498,7 +2508,10 @@ components:
         documentId: { type: string, description: Server-assigned document id; never an S3 key. }
         filename: { type: string }
         contentType: { type: string, enum: [application/pdf] }
-        sizeBytes: { type: integer, minimum: 1, description: Present only after verified HeadObject. }
+        sizeBytes:
+          type: integer
+          minimum: 1
+          description: Required only for ready; populated only from verified HeadObject.
         processingStatus:
           type: string
           enum: [pending, ready, failed, deleted]
@@ -2511,6 +2524,28 @@ components:
           properties:
             pageCount: { type: integer, minimum: 1 }
             language: { type: string }
+
+    PartnerCvPendingV1:
+      allOf:
+        - $ref: "#/components/schemas/PartnerCvBaseV1"
+        - type: object
+          properties:
+            processingStatus: { type: string, enum: [pending] }
+
+    PartnerCvReadyV1:
+      allOf:
+        - $ref: "#/components/schemas/PartnerCvBaseV1"
+        - type: object
+          required: [sizeBytes]
+          properties:
+            processingStatus: { type: string, enum: [ready] }
+
+    PartnerCvTerminalV1:
+      allOf:
+        - $ref: "#/components/schemas/PartnerCvBaseV1"
+        - type: object
+          properties:
+            processingStatus: { type: string, enum: [failed, deleted] }
 
     PartnerCvUploadTicket:
       type: object

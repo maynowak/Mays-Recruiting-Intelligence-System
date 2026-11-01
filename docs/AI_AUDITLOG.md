@@ -8507,3 +8507,32 @@ Date: 2026-11-01
 - Pending CV responses omit unverified sizeBytes; ready responses expose sizeBytes only after HeadObject verification. OpenAPI/API standard synchronized.
 - Tests: focused 117 passed, 252 subtests; RIS regression 741 passed, 45 skipped, 258 subtests. DynamoDB Local unavailable; local cursor/conditional/capacity harness gap documented.
 Next: P1-7 GO for local implementation; AWS-equivalent verification and release remain blocked.
+
+[RIS-R08-P1-1 / P1-7 JOBSEARCH V1 LOCAL INTEGRATION ACCEPTANCE]
+Status: BLOCKED for formal acceptance; local implementation gate is GO.
+Date: 2026-11-01.
+- Baseline verified: feature/ris-partner-profile-persistence-v1 @ 0fb50467ecf9f5112d40c0843886d783b71f890e; 39 pre-existing untracked files preserved.
+- Reviewed P0-1 through P1-6 reports and Jobsearch-v1 fixtures. UserProfile, CV lifecycle, ManualSearchProfile, CVSearchProfile, ATSSearchProfile, pagination, isolation, capacity (10/2/5), conflicts, idempotency, negative security, OpenAPI parity, and sensitive-data absence passed through RIS local harnesses.
+- Regression: 741 passed, 45 skipped, 258 subtests; py_compile and git diff --check passed.
+- Skip grouping: 39 DynamoDB Local tests skipped because RIS_TEST_DYNAMODB_ENDPOINT is unset; 6 planned privacy/receipt capability tests skipped by explicit out-of-scope markers. DynamoDB Local is a separate unverified infrastructure gap, not a PASS.
+- Known upstream contract gap remains: Jobsearch-v1 currently requires pending CV sizeBytes, while RIS omits it until verified ready state. No fabricated size emitted; Jobsearch handoff BLOCKED pending adapter/schema fix gate.
+- Decisions: R08-PROFILES-01 BLOCKED for formal acceptance; RIS local implementation GO. No Jobsearch/Orders changes, AWS/deployment, erasure, or receipt-journal activation.
+Report: docs/reports/RIS-R08-P1-1-P1-7-LOCAL-INTEGRATION-ACCEPTANCE.md
+
+[RIS-R08-P1-7A DYNAMODB LOCAL VERIFICATION]
+Status: BLOCKED — no local DynamoDB test environment available.
+Date: 2026-11-01.
+- Git HEAD remained 0fb50467; existing uncommitted P1-7 report retained; original 39 untracked files preserved.
+- Existing harness reviewed: it requires explicit loopback RIS_TEST_DYNAMODB_ENDPOINT, rejects AWS/non-loopback endpoints, uses isolated ris-r07g0-* tables and static local-only credentials.
+- Host checks: Docker not found, Java not found, endpoint unset, and no DynamoDB Local runner/JAR exists in the repository. No external download/install performed.
+- Actual integration command: pytest tests/integration/test_partner_profile_dynamodb_local.py -q -rs -> 39 skipped, all due to RIS_TEST_DYNAMODB_ENDPOINT being unset. No PASS claimed and no temporary test resources created.
+- P1-7A STOPP: rerun only when an approved existing loopback DynamoDB Local endpoint is available. Pending sizeBytes contract remains unchanged.
+
+[RIS-R08-P1-7B CVDOCUMENT SIZE CONTRACT RECONCILIATION]
+Status: RIS-side contract reconciled; Jobsearch handoff remains BLOCKED pending upstream schema change.
+Date: 2026-11-01.
+- CVDocument contract now treats sizeBytes by status: pending optional/omitted, ready required positive and S3-verified, failed/deleted omitted without fabricated values.
+- RIS runtime S3 verification was not weakened or changed; only the local RIS contract projection, fixture, tests, and OpenAPI status branches were updated.
+- Target Jobsearch-v1 change: replace unconditional sizeBytes requirement with pending/ready/terminal status branches; ready retains integer minimum 1. Jobsearch source was not modified.
+- Tests: focused 125 passed; full available RIS regression 745 passed, 45 skipped, 258 subtests. The 39 DynamoDB Local tests remain BLOCKED/skipped because RIS_TEST_DYNAMODB_ENDPOINT is unset.
+- py_compile and git diff --check passed.

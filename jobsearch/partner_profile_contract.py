@@ -757,7 +757,9 @@ class CVDocument:
 
         Legacy names/statuses remain readable and are intentionally kept in
         ``to_dict`` until the handler/repository migration. ``documentId`` is
-        distinct from ``cvId`` and is never an S3 key.
+        distinct from ``cvId`` and is never an S3 key. ``sizeBytes`` is
+        authoritative only for ``ready`` documents; pending and terminal
+        states omit it rather than exposing an estimate or fabricated value.
         """
         self.validate()
         status = CV_LEGACY_STATUS_TO_CANONICAL.get(
@@ -768,15 +770,14 @@ class CVDocument:
             raise ProfileContractError("MISSING_FIELD", "documentId is required by CVDocumentV1")
         if self.content_type != "application/pdf":
             raise ProfileContractError("INVALID_FIELD", "CVDocumentV1 contentType must be application/pdf")
-        if self.size < 1:
-            raise ProfileContractError("INVALID_FIELD", "sizeBytes must be at least 1")
+        if status == CV_STATUS_READY and self.size < 1:
+            raise ProfileContractError("INVALID_FIELD", "ready CVDocument requires positive sizeBytes")
         result: Dict[str, Any] = {
             "schemaVersion": SCHEMA_VERSION,
             "cvId": self.cv_id,
             "documentId": self.document_id,
             "filename": self.name,
             "contentType": "application/pdf",
-            "sizeBytes": self.size,
             "processingStatus": status,
             "createdAt": self.created_at,
             "updatedAt": self.updated_at,
@@ -786,6 +787,11 @@ class CVDocument:
                             if k in self.metadata}
         if allowed_metadata:
             result["metadata"] = allowed_metadata
+        # A size is public only after the S3 object was verified and the
+        # document reached READY. Pending/failed/deleted rows may carry an
+        # internal or historical value, but never expose it as authoritative.
+        if status == CV_STATUS_READY:
+            result["sizeBytes"] = self.size
         return result
 
 

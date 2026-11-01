@@ -67,6 +67,37 @@ def test_cv_document_v1_maps_legacy_names_and_statuses():
     assert parsed.canonical_dict()["processingStatus"] == "pending"
 
 
+def test_cv_document_v1_pending_omits_unverified_size():
+    raw = fixture("cv-document-pending-v1.json")
+    raw.update({"userId": "user-synthetic-001", "tenantId": "tenant-synthetic-001"})
+    cv = CVDocument.from_dict(raw)
+    result = cv.canonical_dict()
+    for field in ("userId", "tenantId"):
+        raw.pop(field)
+    assert result == raw
+    assert "sizeBytes" not in cv.canonical_dict()
+
+
+@pytest.mark.parametrize("status", ["failed", "deleted"])
+def test_cv_document_v1_terminal_states_do_not_fabricate_size(status):
+    raw = fixture("cv-document-pending-v1.json")
+    raw.update({"userId": "user-synthetic-001", "tenantId": "tenant-synthetic-001",
+                "processingStatus": status, "sizeBytes": 0})
+    cv = CVDocument.from_dict(raw)
+    result = cv.canonical_dict()
+    assert result["processingStatus"] == status
+    assert "sizeBytes" not in result
+
+
+def test_cv_document_v1_ready_requires_verified_positive_size():
+    raw = fixture("cv-document-pending-v1.json")
+    raw.update({"userId": "user-synthetic-001", "tenantId": "tenant-synthetic-001",
+                "processingStatus": "ready", "sizeBytes": 0})
+    cv = CVDocument.from_dict(raw)
+    with pytest.raises(ProfileContractError, match="positive sizeBytes"):
+        cv.canonical_dict()
+
+
 @pytest.mark.parametrize("field,value", [
     ("contentType", "text/plain"),
     ("sizeBytes", 0),
