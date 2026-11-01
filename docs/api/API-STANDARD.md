@@ -64,7 +64,8 @@ weder entfernt noch durch Cognito ersetzt.
 | `GET /me` | JWT | 200 | — |
 | `GET /me/profile` | JWT | 200 | 404 (kein Profil), 403 (Tenant nicht auflösbar) |
 | `POST /me/profile` | JWT | 201 | 409 (existiert), 400 (kein JSON), 403 (Tenant nicht auflösbar) |
-| `PUT /me/profile` | JWT | 200 | 400 (kein v1-Feld), 404 (kein Upsert), 403 (Tenant nicht auflösbar) |
+| `PATCH /me/profile` | JWT | 200 | 400 (ungültige Payload/Version), 409 (stale version), 428 (Version fehlt), 403 (Tenant nicht auflösbar) |
+| `PUT /me/profile` | JWT | 200 | Legacy-Alias mit derselben Versionierung; 400/409/428/403 wie PATCH |
 | `DELETE /me/profile` | JWT | 204 | 401 (unauthentifiziert), 404 (kein Profil), 500 (Store) |
 | `POST /me/documents` | JWT | 200 (Presigned PUT) | 400, 500 |
 | `GET /me/documents/{docId}` | JWT | 200 (Presigned GET) | 400, 404, 500 |

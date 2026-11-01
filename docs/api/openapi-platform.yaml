@@ -171,10 +171,55 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }
         "500": { $ref: "#/components/responses/ServerErrorString" }
+    patch:
+      tags: [Profile]
+      operationId: patchProfile
+      summary: Patch the caller's profile with optimistic concurrency
+      x-infrastructure-governance: imperative-open-3
+      x-infrastructure-note: Live handler route; not declared in Terraform (OPEN-3).
+      description: >-
+        Partial update of nickname, firstName and lastName. Supply
+        expectedVersion in the body or the exact version in If-Match. A stale
+        version returns 409; identity, tenant, email, status and roles are
+        server-owned.
+      parameters:
+        - name: If-Match
+          in: header
+          required: false
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserProfilePatchV1" }
+      responses:
+        "200":
+          description: Updated canonical UserProfileV1.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserProfile" }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Tenant context is missing or conflicts with the caller.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+        "409":
+          description: The supplied profile version is stale.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "428":
+          description: Optimistic-lock token required.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
     put:
       tags: [Profile]
       operationId: updateProfile
-      summary: Update the caller's profile
+      summary: Update the caller's profile (legacy method alias)
       description: |
         v1 fields only. `userId`, `tenantId` and `createdAt` are immutable.
         No upsert: a missing profile yields 404.
@@ -196,7 +241,22 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }
         "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Tenant context is missing or conflicts with the caller.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
         "404": { $ref: "#/components/responses/NotFoundString" }
+        "409":
+          description: The supplied profile version is stale.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "428":
+          description: Optimistic-lock token required.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
         "500": { $ref: "#/components/responses/ServerErrorString" }
     delete:
       tags: [Profile]

@@ -436,6 +436,8 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_me_profile(event, context)
     elif method == 'POST' and path == '/me/profile':
         return _handle_me_profile_create(event, context)
+    elif method == 'PATCH' and path == '/me/profile':
+        return _handle_me_profile_update(event, context)
     elif method == 'PUT' and path == '/me/profile':
         return _handle_me_profile_update(event, context)
     elif method == 'DELETE' and path == '/me/profile':
@@ -612,10 +614,46 @@ def _handle_me_profile(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'Profile not found'})
         }
     
+    try:
+        profile = _canonical_user_profile(profile)
+    except ValueError:
+        logger.error("profile read returned invalid status")
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Invalid profile state'})}
+
     return {
         'statusCode': 200,
         'body': json.dumps(profile)
     }
+
+
+def _canonical_user_profile(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Project a stored profile into the canonical UserProfileV1 response.
+
+    Legacy rows may not have ``schemaVersion``/``version`` and may contain
+    uppercase status values. This is a read projection only; migration is
+    performed atomically by the versioned PATCH path.
+    """
+    if not isinstance(item, dict):
+        raise ValueError('profile must be an object')
+    status = str(item.get('status', 'pending') or 'pending').lower()
+    if status not in {'active', 'disabled', 'pending'}:
+        raise ValueError('invalid profile status')
+    version = item.get('version', 1)
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise ValueError('invalid profile version')
+    result = {
+        'schemaVersion': 1,
+        'userId': item.get('userId'),
+        'tenantId': item.get('tenantId'),
+        'status': status,
+        'createdAt': item.get('createdAt'),
+        'updatedAt': item.get('updatedAt'),
+        'version': version,
+    }
+    for key in ('nickname', 'firstName', 'lastName', 'email'):
+        if key in item:
+            result[key] = item.get(key)
+    return result
 
 
 def _provision_user_profile(table: Any, user_context: Dict[str, Any],
@@ -648,9 +686,11 @@ def _provision_user_profile(table: Any, user_context: Dict[str, Any],
         'firstName': body.get('firstName'),
         'lastName': body.get('lastName'),
         'email': user_context.get('email'),
-        'status': 'ACTIVE',
+        'schemaVersion': 1,
+        'status': 'active',
         'createdAt': now,
         'updatedAt': now,
+        'version': 1,
     }
     try:
         table.put_item(Item=item, ConditionExpression='attribute_not_exists(userId)')
@@ -659,7 +699,7 @@ def _provision_user_profile(table: Any, user_context: Dict[str, Any],
                 'ConditionalCheckFailedException':
             return {'statusCode': 409, 'body': json.dumps({'error': 'Profile already exists'})}
         raise
-    return {'statusCode': 201, 'body': json.dumps(item)}
+    return {'statusCode': 201, 'body': json.dumps(_canonical_user_profile(item))}
 
 
 def _handle_me_profile_create(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -717,29 +757,49 @@ def _handle_me_profile_create(event: Dict[str, Any], context: Any) -> Dict[str, 
 
 
 def _update_user_profile(table: Any, user_context: Dict[str, Any],
-                         body: Dict[str, Any]) -> Dict[str, Any]:
-    """Profil aktualisieren — nur v1-Felder; userId/tenantId/createdAt unveränderlich.
+                         body: Dict[str, Any], expected_version: int,
+                         tenant_id: str) -> Dict[str, Any]:
+    """Atomically PATCH UserProfileV1 with an optimistic-lock condition.
 
-    Gate 12: Body-userId/tenantId/createdAt werden IGNORIERT (Identitaet aus
-    JWT); updatedAt serverseitig. Fehlt das Profil -> 404 (kein Upsert).
+    A missing legacy ``version`` is treated as version 1 only inside the
+    conditional update. The same write sets version 2, so no unprotected
+    read-then-write migration exists. A successful update increments exactly
+    once; a stale token cannot overwrite a newer row.
     """
-    from datetime import datetime
-
     body = body or {}
-    updates = {k: body.get(k) for k in ('nickname', 'firstName', 'lastName')
-               if body.get(k) is not None}
+    allowed = {'nickname', 'firstName', 'lastName', 'expectedVersion'}
+    unknown = set(body) - allowed
+    if unknown:
+        return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid profile fields'})}
+
+    updates = {}
+    for key in ('nickname', 'firstName', 'lastName'):
+        if key in body:
+            value = body[key]
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid profile fields'})}
+            updates[key] = value.strip() if isinstance(value, str) else None
     if not updates:
         return {'statusCode': 400,
                 'body': json.dumps({'error': 'No updatable v1 fields provided'})}
+
     updates['updatedAt'] = utcnow_naive_iso()
+    updates['version'] = expected_version + 1
     expr = "SET " + ", ".join(f"#{k} = :{k}" for k in updates)
     names = {f"#{k}": k for k in updates}
+    names.update({'#userId': 'userId', '#tenantId': 'tenantId'})
     values = {f":{k}": v for k, v in updates.items()}
+    values.update({':tenantId': tenant_id, ':expectedVersion': expected_version})
+    condition = (
+        'attribute_exists(#userId) AND #tenantId = :tenantId AND '
+        '(attribute_not_exists(#version) OR #version = :expectedVersion)'
+    )
+    names['#version'] = 'version'
     try:
         result = table.update_item(
             Key={'userId': user_context['userId']},
             UpdateExpression=expr,
-            ConditionExpression='attribute_exists(userId)',
+            ConditionExpression=condition,
             ExpressionAttributeNames=names,
             ExpressionAttributeValues=values,
             ReturnValues='ALL_NEW',
@@ -747,13 +807,19 @@ def _update_user_profile(table: Any, user_context: Dict[str, Any],
     except Exception as e:
         if hasattr(e, 'response') and e.response.get('Error', {}).get('Code') == \
                 'ConditionalCheckFailedException':
-            return {'statusCode': 404, 'body': json.dumps({'error': 'Profile not found'})}
+            # Classification read is only after the failed conditional write;
+            # it is never used to authorize or perform a migration.
+            current = table.get_item(Key={'userId': user_context['userId']}).get('Item')
+            if not current or current.get('tenantId') != tenant_id:
+                return {'statusCode': 404, 'body': json.dumps({'error': 'Profile not found'})}
+            return {'statusCode': 409, 'body': json.dumps({'error': 'Version conflict'})}
         raise
-    return {'statusCode': 200, 'body': json.dumps(result.get('Attributes', {}))}
+    return {'statusCode': 200,
+            'body': json.dumps(_canonical_user_profile(result.get('Attributes', {})))}
 
 
 def _handle_me_profile_update(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Handle PUT /me/profile - eigenes Profil aktualisieren."""
+    """Handle PATCH (and legacy PUT) /me/profile with optimistic locking."""
     user_context = _extract_user_context(event)
 
     if not user_context['userId']:
@@ -769,6 +835,35 @@ def _handle_me_profile_update(event: Dict[str, Any], context: Any) -> Dict[str, 
             'statusCode': 400,
             'body': json.dumps({'error': 'Request body must be valid JSON'})
         }
+    if not isinstance(body, dict):
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'Request body must be an object'})
+        }
+
+    # Resolve authorization context before interpreting optimistic-lock
+    # tokens, so an unauthorizable caller cannot learn route semantics.
+    tenant_id, tenant_conflict = _resolve_tenant(user_context)
+    if tenant_conflict or not tenant_id:
+        logger.warning("profile update denied: tenant not resolvable")
+        return {
+            'statusCode': 403,
+            'body': json.dumps({'error': 'Tenant not resolvable'})
+        }
+
+    headers = event.get('headers') or {}
+    if_match = next((value for key, value in headers.items()
+                     if str(key).lower() == 'if-match'), None)
+    try:
+        from jobsearch.partner_profile_contract import (
+            ProfileContractError, parse_expected_version)
+        expected_version = parse_expected_version(body, if_match)
+    except ProfileContractError as exc:
+        status = 428 if exc.code == 'MISSING_FIELD' else 400
+        return {
+            'statusCode': status,
+            'body': json.dumps({'error': str(exc)})
+        }
 
     table_name = os.environ.get('USER_PROFILE_TABLE')
     if not table_name:
@@ -778,19 +873,11 @@ def _handle_me_profile_update(event: Dict[str, Any], context: Any) -> Dict[str, 
             'body': json.dumps({'error': 'Profile store not configured'})
         }
 
-    # L03: Tenant serverseitig aufloesen (Claim autoritativ, sonst
-    # Registry) — gleiche Bedingung wie beim Lesen und Anlegen.
-    tenant_id, tenant_conflict = _resolve_tenant(user_context)
-    if tenant_conflict or not tenant_id:
-        logger.warning("profile update denied: tenant not resolvable")
-        return {
-            'statusCode': 403,
-            'body': json.dumps({'error': 'Tenant not resolvable'})
-        }
-
     try:
         table = _get_dynamodb().Table(table_name)
-        return _update_user_profile(table, user_context, body)
+        return _update_user_profile(table, user_context, body,
+                                    expected_version=expected_version,
+                                    tenant_id=tenant_id)
     except Exception as e:
         logger.error(f"Error updating profile: {e}")
         return {

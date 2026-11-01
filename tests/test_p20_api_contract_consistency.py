@@ -96,6 +96,7 @@ IMPERATIVE_ONLY_ROUTES = {
     "POST /me/documents",
     "GET /me/documents/{docId}",
     "DELETE /me/documents/{docId}",
+    "PATCH /me/profile",
 }
 
 
@@ -461,9 +462,9 @@ class TestDocumentedRoutesReachHandlerCode(unittest.TestCase):
             return (method, path.rstrip("/") or "/") in exposed
 
         self.assertTrue(_exposed("GET", "/me/profile"))
-        # PATCH existiert auf keinem /me/profile-Pfad: eine GET-Route
-        # darf das nicht decken.
-        self.assertFalse(_exposed("PATCH", "/me/profile"))
+        # PATCH is an explicit imperative profile route; a GET route alone
+        # would not cover it.
+        self.assertTrue(_exposed("PATCH", "/me/profile"))
         self.assertFalse(_exposed("TRACE", "/me"))
         # Gegenprobe: die imperative documents-Route IST methoden-spezifisch
         # erkannt, obwohl sie in keiner .tf steht.

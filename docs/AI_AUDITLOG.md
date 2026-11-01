@@ -8462,3 +8462,15 @@ Date: 2026-11-01
   45 skipped, 256 subtests. No runtime logs contain URLs, keys, JWTs or creds.
 Next: P0-3 GO for local implementation; AWS-E2E/product release remains blocked
 by subsequent profile/CV lifecycle and erasure gates.
+
+[RIS-R08-P1-1 / P0-3 USERPROFILE PATCH & VERSIONING]
+Status: COMPLETE for local runtime/contract gate; release remains blocked.
+Date: 2026-11-01
+- Baseline: feature/ris-partner-profile-persistence-v1 @ 9802b67cbfd1d04cca9fdd2eadb4453cfdc9fbbb; 39 existing untracked files preserved.
+- Added canonical UserProfileV1 GET/create projection with schemaVersion 1, version, normalized status, server-authoritative identity/email and timestamps.
+- Added PATCH /me/profile. Only nickname, firstName and lastName are mutable. expectedVersion/If-Match is required (428 missing, 400 malformed/conflicting, 409 stale).
+- DynamoDB update is atomic and conditional on user, resolved tenant and version; legacy versionless rows read as version 1 and migrate to version 2 in the same conditional write.
+- Forged identity, tenant, email, status, roles and unknown fields cannot mutate profiles. PUT remains a versioned compatibility alias.
+- OpenAPI/API standard, route inventory and focused concurrency/legacy/security tests synchronized. No AWS, deployment, Orders, CV lifecycle or receipt-journal changes.
+- Tests: focused 83 passed, 252 subtests; RIS regression 731 passed, 45 skipped, 258 subtests.
+Next: P0-4 GO for local implementation; CVDocument lifecycle and release gates remain blocked.
