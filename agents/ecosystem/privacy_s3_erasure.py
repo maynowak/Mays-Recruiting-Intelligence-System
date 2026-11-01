@@ -140,6 +140,7 @@ class S3QuiescenceCoordinator:
                inventory_complete: bool,
                inventory_empty: bool,
                unregistered_tickets_unknown: bool = False,
+               cutover_proven: bool = True,
                object_lock_blocked: bool = False,
                object_lock_unknown: bool = False) -> S3QuiescenceAssessment:
         reasons: List[str] = []
@@ -149,6 +150,8 @@ class S3QuiescenceCoordinator:
             reasons.append("UPLOAD_TICKETS_NOT_BLOCKED")
         if unregistered_tickets_unknown:
             reasons.append("UNREGISTERED_TICKETS_UNKNOWN")
+        if not cutover_proven:
+            reasons.append("UPLOAD_TICKET_CUTOVER_UNPROVEN")
         now = self.clock()
         for ticket in tickets:
             if not ticket.ticket_ref or not ticket.expires_at:

@@ -1196,6 +1196,15 @@ def _handle_documents_create(event: Dict[str, Any], context: Any) -> Dict[str, A
     """Handle POST /me/documents - kurzlebige Upload-Berechtigung (Gate 14)."""
     from documents import presign_upload
 
+    # This legacy issuer has no CV reference or partner issuer context and is
+    # therefore not representable in UploadTicketLedgerV1.  Once cutover or
+    # ledger enforcement is enabled, fail closed rather than minting an
+    # untracked presigned upload ticket.
+    if (os.environ.get('ERASURE_UPLOAD_TICKET_LEDGER_ENABLED', 'false').strip().lower() == 'true'
+            or os.environ.get('ERASURE_UPLOAD_CUTOVER_ENABLED', 'false').strip().lower() == 'true'):
+        return {'statusCode': 503,
+                'body': json.dumps({'error': 'Upload ticket ledger unavailable'})}
+
     user_context = _documents_context(event)
     if user_context is None:
         return {'statusCode': 401, 'body': json.dumps({'error': 'Unauthenticated'})}
