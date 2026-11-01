@@ -22,6 +22,7 @@ from agents.ecosystem.privacy_erasure_contract import (
     ErasureProgressV1,
     ErasureCheckpointV1,
     ErasureWriteFreezeV1,
+    ErasureExecutionContextV1,
     OPERATION_RESOURCE_TYPE,
     STATUS_COMPLETED,
     STATUS_FAILED,
@@ -214,6 +215,92 @@ class WriteFreezeRepository:
                 raise ErasureOperationConflict("write freeze release conflict") from exc
             raise ErasureRepositoryUnavailable("write freeze release failed") from exc
         return self._parse_freeze(response.get("Attributes") or {}, operation)
+
+    def authorize_execution(self, operation: ErasureOperationV1, *,
+                            expected_operation_version: int,
+                            expected_freeze_version: int,
+                            context: Mapping[str, Any],
+                            operation_table: Any = None,
+                            operation_table_name: Optional[str] = None
+                            ) -> ErasureExecutionContextV1:
+        """Atomically authorize an internal G5 execution context.
+
+        This performs no mutation and accepts no HTTP-controlled override. The
+        operation must already be RUNNING and the matching ACTIVE USER/CV
+        freeze must have the expected versions. Callers must still couple each
+        supported erasure mutation to this context; this method is not a
+        general-purpose bypass.
+        """
+        self._ensure_available()
+        scope = self._scope(context)
+        if not scope.matches(operation) or operation.status != STATUS_RUNNING:
+            raise ErasureOperationConflict("operation is not authorized to execute")
+        if (isinstance(expected_operation_version, bool)
+                or not isinstance(expected_operation_version, int)
+                or isinstance(expected_freeze_version, bool)
+                or not isinstance(expected_freeze_version, int)
+                or operation.version != expected_operation_version
+                or expected_operation_version < 1
+                or expected_freeze_version < 1):
+            raise ErasureOperationVersionConflict("stale execution authorization")
+        if operation_table is None or not operation_table_name:
+            raise ErasureRepositoryUnavailable("operation store is unavailable")
+
+        guard_key = self._key(scope, operation)
+        client = getattr(getattr(self.table, "meta", None), "client", None)
+        if client is None or not hasattr(client, "transact_write_items"):
+            raise ErasureRepositoryUnavailable("transactional execution authorizer unavailable")
+        items = [
+            {"ConditionCheck": {
+                "TableName": self.table_name,
+                "Key": {"resourceId": {"S": guard_key}},
+                "ConditionExpression": (
+                    "#rt = :fr AND #s = :active AND operationId = :op "
+                    "AND version = :fv AND userId = :u AND tenantId = :t "
+                    "AND partnerApplicationId = :p AND issuer = :i"),
+                "ExpressionAttributeNames": {"#rt": "resourceType", "#s": "state"},
+                "ExpressionAttributeValues": {
+                    ":fr": {"S": "ErasureWriteFreeze"},
+                    ":active": {"S": FREEZE_ACTIVE},
+                    ":op": {"S": operation.operation_id},
+                    ":fv": {"N": str(expected_freeze_version)},
+                    ":u": {"S": scope.user_id}, ":t": {"S": scope.tenant_id},
+                    ":p": {"S": scope.partner_application_id},
+                    ":i": {"S": scope.issuer},
+                },
+            }},
+            {"ConditionCheck": {
+                "TableName": operation_table_name,
+                "Key": {"resourceId": {"S": operation.operation_id}},
+                "ConditionExpression": (
+                    "#rt = :rt AND #s = :running AND version = :ov "
+                    "AND userId = :u AND tenantId = :t "
+                    "AND partnerApplicationId = :p AND issuer = :i"),
+                "ExpressionAttributeNames": {"#rt": "resourceType", "#s": "status"},
+                "ExpressionAttributeValues": {
+                    ":rt": {"S": OPERATION_RESOURCE_TYPE},
+                    ":running": {"S": STATUS_RUNNING},
+                    ":ov": {"N": str(expected_operation_version)},
+                    ":u": {"S": scope.user_id}, ":t": {"S": scope.tenant_id},
+                    ":p": {"S": scope.partner_application_id},
+                    ":i": {"S": scope.issuer},
+                },
+            }},
+        ]
+        try:
+            client.transact_write_items(TransactItems=items)
+        except Exception as exc:
+            if _conditional_failure(exc):
+                raise ErasureOperationConflict("execution authorization conflict") from exc
+            raise ErasureRepositoryUnavailable("execution authorization failed") from exc
+        return ErasureExecutionContextV1(
+            operation_id=operation.operation_id, user_id=scope.user_id,
+            tenant_id=scope.tenant_id,
+            partner_application_id=scope.partner_application_id,
+            issuer=scope.issuer, scope=operation.scope,
+            cv_id=operation.cv_id,
+            operation_version=expected_operation_version,
+            freeze_version=expected_freeze_version)
 
     @staticmethod
     def _parse_freeze(item: Mapping[str, Any], operation: ErasureOperationV1) -> ErasureWriteFreezeV1:

@@ -1105,7 +1105,8 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
 
     try:
-        from agents.ecosystem.privacy_erasure import PrivacyErasure
+        from agents.ecosystem.privacy_erasure import (
+            PrivacyErasure, ErasureExecutionUnavailable)
         from agents.ecosystem.credentials import DynamoDBCredentialStore
         from agents.ecosystem.api_profiles import DynamoDBApiProfileStore
     except Exception as e:
@@ -1153,6 +1154,11 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     try:
         result = erasure.erase(user_context['userId'],
                                tenant_id=user_context.get('tenantId'))
+    except ErasureExecutionUnavailable:
+        return {
+            'statusCode': 503,
+            'body': json.dumps({'error': 'Erasure execution unavailable'})
+        }
     except Exception as e:
         logger.error(f"Erasure failed: {e}")
         return {

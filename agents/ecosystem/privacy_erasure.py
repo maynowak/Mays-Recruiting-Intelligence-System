@@ -45,6 +45,7 @@ their data is gone while a live credential still exists.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
@@ -65,6 +66,10 @@ REVOKED_CREDENTIAL_STATUS = "REVOKED"
 REVOKED_PROFILE_STATUS = "REVOKED"
 
 ERASURE_REASON = "privacy-erasure"
+
+
+class ErasureExecutionUnavailable(RuntimeError):
+    """G5 cannot safely run while write-freeze enforcement is enabled."""
 
 
 def _utcnow() -> datetime:
@@ -165,6 +170,14 @@ class PrivacyErasure:
         """
         if not user_id:
             raise ValueError("user_id is required")
+        # The legacy G5 collaborators perform independent writes across
+        # credentials, API profiles, work items, S3 and UserProfile.  Until
+        # every one of those mutations accepts the internal execution context
+        # in its own atomic transaction, allowing G5 during an active freeze
+        # would be an unsafe general bypass.  Fail before the first mutation.
+        if os.environ.get("ERASURE_WRITE_FREEZE_ENABLED", "false").strip().lower() == "true":
+            raise ErasureExecutionUnavailable(
+                "G5 atomic execution context is not available")
         result = ErasureResult(user_id=user_id, tenant_id=tenant_id,
                                complete=False)
         stamp = self._clock().isoformat()

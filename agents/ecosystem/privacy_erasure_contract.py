@@ -242,6 +242,45 @@ class ErasureWriteFreezeV1:
 
 
 @dataclass(frozen=True)
+class ErasureExecutionContextV1:
+    """Internal-only authorization material for a G5 mutation.
+
+    This is deliberately not accepted from an HTTP payload and is not part of
+    the public operation serialization.  It is issued only after the
+    operation and its active freeze have been checked atomically.
+    """
+
+    operation_id: str
+    user_id: str
+    tenant_id: str
+    partner_application_id: str
+    issuer: str
+    scope: str
+    operation_version: int
+    freeze_version: int
+    cv_id: Optional[str] = None
+
+    def __post_init__(self):
+        for value, name in (
+            (self.operation_id, "operationId"), (self.user_id, "userId"),
+            (self.tenant_id, "tenantId"),
+            (self.partner_application_id, "partnerApplicationId"),
+            (self.issuer, "issuer"),
+        ):
+            _required_ref(value, name, opaque=True)
+        if self.scope not in OPERATION_SCOPES:
+            raise ErasureContractError("INVALID_SCOPE", "scope must be USER or CV")
+        if self.scope == OPERATION_SCOPE_CV:
+            _required_ref(self.cv_id, "cvId", opaque=True)
+        elif self.cv_id is not None:
+            raise ErasureContractError("INVALID_SCOPE", "USER context cannot carry cvId")
+        for value, name in ((self.operation_version, "operationVersion"),
+                            (self.freeze_version, "freezeVersion")):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise ErasureContractError("INVALID_VERSION", "%s must be positive" % name)
+
+
+@dataclass(frozen=True)
 class ErasureOperationV1:
     """Versioned durable operation contract; execution remains G5-owned."""
 
@@ -463,6 +502,7 @@ __all__ = [
     "PROGRESS_FAILED", "PROGRESS_COMPLETED", "PROGRESS_SKIPPED",
     "CHECKPOINT_NOT_STARTED", "CHECKPOINT_IN_PROGRESS", "CHECKPOINT_COMPLETED",
     "ERASURE_CATEGORIES", "ErasureContractError", "ErasureCheckpointV1",
-    "ErasureProgressV1", "ErasureWriteFreezeV1", "ErasureOperationV1",
+    "ErasureProgressV1", "ErasureWriteFreezeV1", "ErasureExecutionContextV1",
+    "ErasureOperationV1",
     "operation_fingerprint", "freeze_resource_id", "new_operation",
 ]
