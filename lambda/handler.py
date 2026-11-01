@@ -660,6 +660,23 @@ def _canonical_user_profile(item: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
+class _WriteFreezeUnavailable(Exception):
+    """Enabled freeze cannot safely authorize a legacy UserProfile mutation."""
+
+
+def _enforce_user_profile_write_freeze_boundary(user_context: Dict[str, Any]) -> None:
+    """Fail closed until UserProfile shares the atomic guard transaction.
+
+    The legacy JWT-only UserProfile routes lack the verified partner scope used
+    by the C0B guard. A read-before-write check would be race-unsafe, so C0C
+    blocks these mutations while the freeze mechanism is enabled. C1 must
+    replace this conservative boundary with a cross-table transaction.
+    """
+    if os.environ.get("ERASURE_WRITE_FREEZE_ENABLED", "false").strip().lower() == "true":
+        raise _WriteFreezeUnavailable(
+            "UserProfile write freeze transaction is not available")
+
+
 def _provision_user_profile(table: Any, user_context: Dict[str, Any],
                             body: Dict[str, Any],
                             tenant_id: Optional[str] = None) -> Dict[str, Any]:
@@ -681,6 +698,7 @@ def _provision_user_profile(table: Any, user_context: Dict[str, Any],
     body = body or {}
     if not tenant_id:
         raise ValueError('tenant is required to provision a profile')
+    _enforce_user_profile_write_freeze_boundary(user_context)
     # Gate 12 (Profile v1): NUR diese Felder; userId/tenantId/email aus JWT
     # (Body-Identitaeten werden IGNORIERT — kein Spoofing).
     item = {
@@ -752,6 +770,11 @@ def _handle_me_profile_create(event: Dict[str, Any], context: Any) -> Dict[str, 
             'statusCode': 400,
             'body': json.dumps({'error': 'Invalid request'})
         }
+    except _WriteFreezeUnavailable:
+        return {
+            'statusCode': 503,
+            'body': json.dumps({'error': 'Write freeze unavailable'})
+        }
     except Exception as e:
         logger.error(f"Error provisioning profile: {e}")
         return {
@@ -771,6 +794,7 @@ def _update_user_profile(table: Any, user_context: Dict[str, Any],
     once; a stale token cannot overwrite a newer row.
     """
     body = body or {}
+    _enforce_user_profile_write_freeze_boundary(user_context)
     allowed = {'nickname', 'firstName', 'lastName', 'expectedVersion'}
     unknown = set(body) - allowed
     if unknown:
@@ -878,10 +902,16 @@ def _handle_me_profile_update(event: Dict[str, Any], context: Any) -> Dict[str, 
         }
 
     try:
+        _enforce_user_profile_write_freeze_boundary(user_context)
         table = _get_dynamodb().Table(table_name)
         return _update_user_profile(table, user_context, body,
                                     expected_version=expected_version,
                                     tenant_id=tenant_id)
+    except _WriteFreezeUnavailable:
+        return {
+            'statusCode': 503,
+            'body': json.dumps({'error': 'Write freeze unavailable'})
+        }
     except Exception as e:
         logger.error(f"Error updating profile: {e}")
         return {
@@ -909,6 +939,7 @@ def _handle_me_profile_delete(event: Dict[str, Any], context: Any) -> Dict[str, 
         }
 
     try:
+        _enforce_user_profile_write_freeze_boundary(user_context)
         table = _get_dynamodb().Table(table_name)
         # Delete with conditional check to ensure profile exists
         try:
@@ -927,6 +958,11 @@ def _handle_me_profile_delete(event: Dict[str, Any], context: Any) -> Dict[str, 
                     'body': json.dumps({'error': 'Profile not found'})
                 }
             raise
+    except _WriteFreezeUnavailable:
+        return {
+            'statusCode': 503,
+            'body': json.dumps({'error': 'Write freeze unavailable'})
+        }
     except Exception as e:
         logger.error(f"Error deleting profile: {e}")
         return {

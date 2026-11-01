@@ -21,12 +21,16 @@ from agents.ecosystem.privacy_erasure_contract import (
     ErasureOperationV1,
     ErasureProgressV1,
     ErasureCheckpointV1,
+    ErasureWriteFreezeV1,
     OPERATION_RESOURCE_TYPE,
     STATUS_COMPLETED,
     STATUS_FAILED,
     STATUS_PARTIAL,
     STATUS_PENDING,
     STATUS_RUNNING,
+    FREEZE_ACTIVE,
+    FREEZE_RELEASED,
+    freeze_resource_id,
     operation_fingerprint,
 )
 
@@ -100,6 +104,129 @@ class ErasureScope:
         return "%s#%s#%s#%s" % (
             self.tenant_id, self.user_id, self.partner_application_id,
             self.issuer)
+
+
+class WriteFreezeRepository:
+    """Atomic subject/CV write guard used by profile transactions."""
+
+    def __init__(self, *, table: Any = None, table_name: Optional[str] = None,
+                 enabled: Optional[bool] = None):
+        self.table = table
+        self.table_name = table_name or os.environ.get("PARTNER_PROFILE_TABLE")
+        if enabled is None:
+            enabled = os.environ.get("ERASURE_WRITE_FREEZE_ENABLED", "false").strip().lower() == "true"
+        self.enabled = bool(enabled)
+
+    def _ensure_available(self):
+        if not self.enabled:
+            raise ErasureRepositoryDisabled("write freeze is disabled")
+        if self.table is None or not self.table_name:
+            raise ErasureRepositoryUnavailable("write freeze store is unavailable")
+
+    @staticmethod
+    def _scope(context: Mapping[str, Any]) -> ErasureScope:
+        return ErasureScope.from_context(context)
+
+    @staticmethod
+    def _key(scope: ErasureScope, operation: ErasureOperationV1) -> str:
+        return freeze_resource_id(
+            user_id=scope.user_id, tenant_id=scope.tenant_id,
+            partner_application_id=scope.partner_application_id,
+            issuer=scope.issuer, scope=operation.scope, cv_id=operation.cv_id)
+
+    def acquire(self, operation: ErasureOperationV1,
+                context: Mapping[str, Any]) -> ErasureWriteFreezeV1:
+        self._ensure_available()
+        scope = self._scope(context)
+        if not scope.matches(operation):
+            raise ErasureOperationNotFound("operation not found")
+        key = self._key(scope, operation)
+        now = _now()
+        try:
+            response = self.table.update_item(
+                Key={"resourceId": key},
+                UpdateExpression=(
+                    "SET #rt = :rt, #s = :active, operationId = :op, "
+                    "userId = :u, tenantId = :t, partnerApplicationId = :p, "
+                    "issuer = :i, scope = :scope, updatedAt = :now "
+                    "ADD #v :one"),
+                ConditionExpression=(
+                    "attribute_not_exists(resourceId) OR #s = :released"),
+                ExpressionAttributeNames={"#rt": "resourceType", "#s": "state", "#v": "version"},
+                ExpressionAttributeValues={
+                    ":rt": "ErasureWriteFreeze", ":active": FREEZE_ACTIVE,
+                    ":released": FREEZE_RELEASED, ":op": operation.operation_id,
+                    ":u": scope.user_id, ":t": scope.tenant_id,
+                    ":p": scope.partner_application_id, ":i": scope.issuer,
+                    ":scope": operation.scope, ":now": now, ":one": 1,
+                }, ReturnValues="ALL_NEW")
+        except Exception as exc:
+            if _conditional_failure(exc):
+                raise ErasureOperationConflict("an active freeze already exists") from exc
+            raise ErasureRepositoryUnavailable("write freeze acquire failed") from exc
+        return self._parse_freeze(response.get("Attributes") or {
+            "resourceId": key, "resourceType": "ErasureWriteFreeze",
+            "state": FREEZE_ACTIVE, "operationId": operation.operation_id,
+            "userId": scope.user_id, "tenantId": scope.tenant_id,
+            "partnerApplicationId": scope.partner_application_id,
+            "issuer": scope.issuer, "scope": operation.scope,
+            "version": 1, "updatedAt": now,
+        }, operation)
+
+    def get(self, operation: ErasureOperationV1,
+            context: Mapping[str, Any]) -> ErasureWriteFreezeV1:
+        self._ensure_available()
+        scope = self._scope(context)
+        if not scope.matches(operation):
+            raise ErasureOperationNotFound("operation not found")
+        try:
+            response = self.table.get_item(
+                Key={"resourceId": self._key(scope, operation)}, ConsistentRead=True)
+        except Exception as exc:
+            raise ErasureRepositoryUnavailable("write freeze read failed") from exc
+        if not response.get("Item"):
+            raise ErasureOperationNotFound("write freeze not found")
+        return self._parse_freeze(response["Item"], operation)
+
+    def release(self, operation: ErasureOperationV1, *, expected_version: int,
+                context: Mapping[str, Any]) -> ErasureWriteFreezeV1:
+        self._ensure_available()
+        scope = self._scope(context)
+        if not scope.matches(operation):
+            raise ErasureOperationNotFound("operation not found")
+        try:
+            response = self.table.update_item(
+                Key={"resourceId": self._key(scope, operation)},
+                UpdateExpression="SET #s = :released, updatedAt = :now ADD #v :one",
+                ConditionExpression=(
+                    "#s = :active AND operationId = :op AND version = :v "
+                    "AND userId = :u AND tenantId = :t AND partnerApplicationId = :p AND issuer = :i"),
+                ExpressionAttributeNames={"#s": "state", "#v": "version"},
+                ExpressionAttributeValues={
+                    ":active": FREEZE_ACTIVE, ":released": FREEZE_RELEASED,
+                    ":now": _now(), ":one": 1, ":op": operation.operation_id,
+                    ":v": expected_version, ":u": scope.user_id,
+                    ":t": scope.tenant_id, ":p": scope.partner_application_id,
+                    ":i": scope.issuer,
+                }, ReturnValues="ALL_NEW")
+        except Exception as exc:
+            if _conditional_failure(exc):
+                raise ErasureOperationConflict("write freeze release conflict") from exc
+            raise ErasureRepositoryUnavailable("write freeze release failed") from exc
+        return self._parse_freeze(response.get("Attributes") or {}, operation)
+
+    @staticmethod
+    def _parse_freeze(item: Mapping[str, Any], operation: ErasureOperationV1) -> ErasureWriteFreezeV1:
+        if (item.get("resourceType") != "ErasureWriteFreeze"
+                or item.get("operationId") != operation.operation_id
+                or item.get("scope") != operation.scope):
+            raise ErasureOperationConflict("write freeze scope conflict")
+        return ErasureWriteFreezeV1(
+            operation_id=item.get("operationId"), user_id=item.get("userId"),
+            tenant_id=item.get("tenantId"),
+            partner_application_id=item.get("partnerApplicationId"),
+            issuer=item.get("issuer"), state=item.get("state"),
+            version=item.get("version", 1), updated_at=item.get("updatedAt", ""))
 
 
 def _now() -> str:
@@ -288,5 +415,5 @@ __all__ = [
     "ENABLED_ENV", "ErasureRepositoryError", "ErasureRepositoryDisabled",
     "ErasureRepositoryUnavailable", "ErasureOperationNotFound",
     "ErasureOperationConflict", "ErasureOperationVersionConflict",
-    "ErasureScope", "ErasureOperationRepository",
+    "ErasureScope", "ErasureOperationRepository", "WriteFreezeRepository",
 ]

@@ -36,6 +36,7 @@ from jobsearch.partner_profile_contract import (
     MAX_SEARCH_PROFILES_PER_CV,
     MAX_ATS_PROFILES_PER_SEARCH_PROFILE,
 )
+from agents.ecosystem.privacy_erasure_contract import freeze_resource_id
 
 logger = logging.getLogger(__name__)
 
@@ -594,6 +595,64 @@ class PartnerProfileRepository:
         ))
         return checks
 
+    def _freeze_enabled(self) -> bool:
+        return os.environ.get(
+            "ERASURE_WRITE_FREEZE_ENABLED", "false").strip().lower() == "true"
+
+    def _freeze_checks(self, *, user_id: str, tenant_id: str,
+                       partner_app_id: Optional[str], issuer: Optional[str],
+                       resource: Any = None,
+                       raw: Optional[Dict[str, Any]] = None
+                       ) -> List[Dict[str, Any]]:
+        """Build transaction checks for USER and CV freeze guards.
+
+        The checks are part of the same DynamoDB transaction as the profile
+        mutation.  An absent guard or a RELEASED guard permits normal writes;
+        ACTIVE guards fail the transaction.  When enabled, incomplete scope or
+        an unreadable CV parent fails closed rather than falling back to a
+        read-before-write authorization check.
+        """
+        if not self._freeze_enabled():
+            return []
+        if not partner_app_id or not issuer:
+            raise PartnerProfileReadError("Write freeze scope unavailable")
+        rt = (getattr(resource, "resource_type", None) if resource is not None
+              else (raw or {}).get("resourceType"))
+        cv_id = None
+        if isinstance(resource, CVDocument):
+            cv_id = resource.cv_id
+        elif isinstance(resource, CVSearchProfile):
+            cv_id = resource.cv_id
+        elif isinstance(resource, ATSSearchProfile):
+            parent_id = resource.search_profile_id
+            parent = self._get_raw(parent_id)
+            cv_id = (parent or {}).get("parentId")
+        elif raw:
+            if rt == "CVDocument":
+                cv_id = raw.get("resourceId")
+            elif rt == "CVSearchProfile":
+                cv_id = raw.get("parentId")
+            elif rt == "ATSSearchProfile":
+                parent = self._get_raw(raw.get("parentId"))
+                cv_id = (parent or {}).get("parentId")
+
+        checks = []
+        scopes = [("USER", None)]
+        if cv_id:
+            scopes.append(("CV", cv_id))
+        for scope, scoped_cv_id in scopes:
+            key = freeze_resource_id(
+                user_id=user_id, tenant_id=tenant_id,
+                partner_application_id=partner_app_id, issuer=issuer,
+                scope=scope, cv_id=scoped_cv_id)
+            checks.append(self._condition_check(
+                key,
+                "attribute_not_exists(resourceId) OR #s = :released",
+                {":released": {"S": "RELEASED"}},
+                names={"#s": "state"},
+            ))
+        return checks
+
     def _ensure_counter(self, key: str) -> None:
         """Ensure a capacity counter item exists with count 0 (idempotent).
 
@@ -708,6 +767,7 @@ class PartnerProfileRepository:
         idem_index: Optional[int] = None
         capacity_index: Optional[int] = None
         parent_indices: List[int] = []
+        freeze_indices: List[int] = []
         now_iso = self._now()
         now_epoch = self._now_epoch()
         idem_key: Optional[str] = None
@@ -774,6 +834,13 @@ class PartnerProfileRepository:
             parent_indices.append(len(transact_items))
             transact_items.append(check)
 
+        for check in self._freeze_checks(
+                user_id=user_id, tenant_id=tenant_id,
+                partner_app_id=partner_app_id, issuer=issuer,
+                resource=resource):
+            freeze_indices.append(len(transact_items))
+            transact_items.append(check)
+
         item = self._to_item(resource, user_id=user_id, tenant_id=tenant_id,
                             partner_app_id=partner_app_id, issuer=issuer, version=1)
         resource_index = len(transact_items)
@@ -803,6 +870,8 @@ class PartnerProfileRepository:
             if any(idx in failed for idx in parent_indices):
                 raise PartnerProfileConflictError(
                     "Parent is being deleted or is not accessible")
+            if any(idx in failed for idx in freeze_indices):
+                raise PartnerProfileConflictError("Erasure write freeze is active")
             if resource_index in failed:
                 raise PartnerProfileConflictError("Resource already exists")
             raise PartnerProfileIndeterminateError(
@@ -1000,6 +1069,35 @@ class PartnerProfileRepository:
                             partner_app_id=partner_app_id, issuer=issuer, version=cur_ver + 1)
         item["resourceId"] = rid
         item["createdAt"] = raw.get("createdAt") or item["createdAt"]
+        if self._freeze_enabled():
+            freeze_indices: List[int] = []
+            transact_items = [{
+                "Put": {
+                    "TableName": self.table_name,
+                    "Item": self._serialize(item),
+                    "ConditionExpression": (
+                        "version = :v AND userId = :u AND tenantId = :t "
+                        "AND partnerApplicationId = :p AND issuer = :i"),
+                    "ExpressionAttributeValues": {
+                        ":v": {"N": str(cur_ver)}, ":u": {"S": user_id},
+                        ":t": {"S": tenant_id}, ":p": {"S": partner_app_id},
+                        ":i": {"S": issuer},
+                    },
+                }
+            }]
+            for check in self._freeze_checks(
+                    user_id=user_id, tenant_id=tenant_id,
+                    partner_app_id=partner_app_id, issuer=issuer, raw=raw):
+                freeze_indices.append(len(transact_items))
+                transact_items.append(check)
+
+            def on_business(failed: Dict[int, str]):
+                if any(idx in failed for idx in freeze_indices):
+                    raise PartnerProfileConflictError("Erasure write freeze is active")
+                raise PartnerProfileConflictError("Concurrent update conflict")
+
+            self._transact(transact_items, on_business=on_business)
+            return True
         try:
             self.table.put_item(
                 Item=item,
@@ -1080,6 +1178,12 @@ class PartnerProfileRepository:
                 },
             }
         }]
+        freeze_indices: List[int] = []
+        for check in self._freeze_checks(
+                user_id=user_id, tenant_id=tenant_id,
+                partner_app_id=partner_app_id, issuer=issuer, raw=raw):
+            freeze_indices.append(len(transact_items))
+            transact_items.append(check)
         if partner_app_id is not None:
             transact_items[0]["Delete"]["ConditionExpression"] += " AND partnerApplicationId = :p"
             transact_items[0]["Delete"]["ExpressionAttributeValues"][":p"] = {"S": partner_app_id}
@@ -1134,6 +1238,8 @@ class PartnerProfileRepository:
         def on_business(failed: Dict[int, str]):
             if 0 in failed:
                 return False
+            if any(idx in failed for idx in freeze_indices):
+                raise PartnerProfileConflictError("Erasure write freeze is active")
             if child_index is not None and child_index in failed:
                 raise PartnerProfileConflictError(
                     "Resource has child profiles; delete refused")
@@ -1233,6 +1339,12 @@ class PartnerProfileRepository:
                 },
             }
         }, self._condition_check(resource_id, parent_expr, parent_values)]
+        freeze_indices: List[int] = []
+        for check in self._freeze_checks(
+                user_id=user_id, tenant_id=tenant_id,
+                partner_app_id=partner_app_id, issuer=issuer, raw=raw):
+            freeze_indices.append(len(items))
+            items.append(check)
 
         child_counter_index: Optional[int] = None
         if child_type and child_state == "ok":
@@ -1247,6 +1359,8 @@ class PartnerProfileRepository:
             ))
 
         def on_business(failed: Dict[int, str]):
+            if any(idx in failed for idx in freeze_indices):
+                raise PartnerProfileConflictError("Erasure write freeze is active")
             if child_counter_index is not None and child_counter_index in failed:
                 raise PartnerProfileConflictError(
                     "Resource has child profiles; delete refused")
@@ -1401,7 +1515,16 @@ class PartnerProfileRepository:
                 names={"#c": "count"},
             ))
 
+        freeze_indices: List[int] = []
+        for check in self._freeze_checks(
+                user_id=user_id, tenant_id=tenant_id,
+                partner_app_id=partner_app_id, issuer=issuer, raw=raw):
+            freeze_indices.append(len(items))
+            items.append(check)
+
         def on_business(failed: Dict[int, str]):
+            if any(idx in failed for idx in freeze_indices):
+                raise PartnerProfileConflictError("Erasure write freeze is active")
             raise PartnerProfileIntegrityError("Delete finalization refused")
 
         self._transact(items, on_business=on_business)

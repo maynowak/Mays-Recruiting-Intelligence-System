@@ -17,6 +17,7 @@ from agents.ecosystem.privacy_erasure_repository import (
     ErasureOperationRepository,
     ErasureOperationVersionConflict,
     ErasureRepositoryDisabled,
+    WriteFreezeRepository,
 )
 
 
@@ -58,6 +59,46 @@ class ConditionalFakeTable:
             if token and current.get(key) != ExpressionAttributeValues[token]:
                 raise Exception("ConditionalCheckFailedException")
         self.items[Item["resourceId"]] = deepcopy(Item)
+
+
+class FreezeFakeTable:
+    def __init__(self):
+        self.items = {}
+
+    def get_item(self, *, Key, ConsistentRead=False):
+        item = self.items.get(Key["resourceId"])
+        return {"Item": deepcopy(item)} if item else {}
+
+    def update_item(self, *, Key, UpdateExpression, ConditionExpression,
+                    ExpressionAttributeValues, ReturnValues,
+                    ExpressionAttributeNames):
+        rid = Key["resourceId"]
+        current = self.items.get(rid)
+        if "attribute_not_exists" in ConditionExpression:
+            if current and current.get("state") != "RELEASED":
+                raise Exception("ConditionalCheckFailedException")
+            version = (current or {}).get("version", 0) + 1
+            item = {
+                "resourceId": rid, "resourceType": "ErasureWriteFreeze",
+                "state": "ACTIVE", "operationId": ExpressionAttributeValues[":op"],
+                "userId": ExpressionAttributeValues[":u"],
+                "tenantId": ExpressionAttributeValues[":t"],
+                "partnerApplicationId": ExpressionAttributeValues[":p"],
+                "issuer": ExpressionAttributeValues[":i"],
+                "scope": ExpressionAttributeValues[":scope"],
+                "version": version, "updatedAt": ExpressionAttributeValues[":now"],
+            }
+        else:
+            if (not current or current.get("state") != "ACTIVE"
+                    or current.get("operationId") != ExpressionAttributeValues[":op"]
+                    or current.get("version") != ExpressionAttributeValues[":v"]):
+                raise Exception("ConditionalCheckFailedException")
+            item = deepcopy(current)
+            item["state"] = "RELEASED"
+            item["version"] += 1
+            item["updatedAt"] = ExpressionAttributeValues[":now"]
+        self.items[rid] = item
+        return {"Attributes": deepcopy(item)}
 
 
 def operation(**overrides):
@@ -156,3 +197,21 @@ def test_foreign_partner_and_issuer_are_not_revealed_and_no_scan_is_used():
     assert "s3://" not in rendered
     assert "s3key" not in rendered
     assert "objectkey" not in rendered
+
+
+def test_write_freeze_is_atomic_scoped_and_release_is_authorized():
+    table = FreezeFakeTable()
+    freezes = WriteFreezeRepository(table=table, table_name="profiles", enabled=True)
+    first = freezes.acquire(operation(), CTX)
+    assert first.state == "ACTIVE"
+    with pytest.raises(ErasureOperationConflict):
+        freezes.acquire(operation(operation_id="op-2"), CTX)
+    with pytest.raises(ErasureOperationNotFound):
+        freezes.release(operation(), expected_version=first.version,
+                        context={**CTX, "issuer": "https://foreign.example"})
+    released = freezes.release(operation(), expected_version=first.version,
+                               context=CTX)
+    assert released.state == "RELEASED"
+    second = freezes.acquire(operation(operation_id="op-2"), CTX)
+    assert second.operation_id == "op-2"
+    assert second.version == released.version + 1

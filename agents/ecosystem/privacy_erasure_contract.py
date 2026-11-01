@@ -422,6 +422,22 @@ def operation_fingerprint(operation: ErasureOperationV1) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+def freeze_resource_id(*, user_id: str, tenant_id: str,
+                       partner_application_id: str, issuer: str,
+                       scope: str, cv_id: Optional[str] = None) -> str:
+    """Stable guard key; identity and CV scope are never stored in a client key."""
+    if scope not in OPERATION_SCOPES:
+        raise ErasureContractError("INVALID_SCOPE", "invalid freeze scope")
+    if scope == OPERATION_SCOPE_CV and not cv_id:
+        raise ErasureContractError("INVALID_SCOPE", "CV freeze needs cvId")
+    material = json.dumps({
+        "userId": user_id, "tenantId": tenant_id,
+        "partnerApplicationId": partner_application_id, "issuer": issuer,
+        "scope": scope, "cvId": cv_id or "",
+    }, sort_keys=True, separators=(",", ":"))
+    return "erasure-freeze#" + hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
 def new_operation(*, operation_id: str, idempotency_key: str, user_id: str,
                   tenant_id: str, partner_application_id: str, issuer: str,
                   scope: str, now: Optional[str] = None,
@@ -448,5 +464,5 @@ __all__ = [
     "CHECKPOINT_NOT_STARTED", "CHECKPOINT_IN_PROGRESS", "CHECKPOINT_COMPLETED",
     "ERASURE_CATEGORIES", "ErasureContractError", "ErasureCheckpointV1",
     "ErasureProgressV1", "ErasureWriteFreezeV1", "ErasureOperationV1",
-    "operation_fingerprint", "new_operation",
+    "operation_fingerprint", "freeze_resource_id", "new_operation",
 ]
