@@ -4383,6 +4383,10 @@ def _cv_delete(ctx, cv_id):
     except PartnerProfileIntegrityError:
         return _integrity_conflict()
     except PartnerProfileConflictError:
+        # A concurrent complete/update may have advanced the parent version
+        # after Phase A. Release the delete reservation before returning the
+        # conflict so the failed delete cannot strand a deleting guard.
+        repo.release_parent_delete(reservation, **_cv_identity(ctx))
         return _cv_error(409, 'Delete conflict', cvId=cv_id)
     except Exception:
         logger.error('cv metadata delete failed')
@@ -4491,6 +4495,15 @@ def _cv_complete(event, ctx, cv_id):
     if not existing.document_id:
         return _cv_error(409, 'No document assigned')
 
+    data = _cv_body(event)
+    if data is None:
+        return _cv_error(400, 'Invalid JSON')
+    if set(data) - {'documentId'}:
+        return _cv_error(400, 'Unsupported completion fields')
+    requested_document_id = data.get('documentId')
+    if requested_document_id is not None and requested_document_id != existing.document_id:
+        return _cv_error(409, 'Document ticket does not match CV', cvId=cv_id)
+
     try:
         meta = head_document(
             tenant_id=ctx['tenantId'], user_id=ctx['userId'],
@@ -4504,6 +4517,10 @@ def _cv_complete(event, ctx, cv_id):
     if meta is None:
         return _cv_error(409, 'Upload not found',
                          cvId=cv_id, processingStatus=existing.processing_status)
+    if meta.get('docId') != existing.document_id:
+        return _cv_error(409, 'Uploaded document does not match CV', cvId=cv_id)
+    if meta.get('contentType') != 'application/pdf':
+        return _cv_error(409, 'Uploaded object content type is not PDF', cvId=cv_id)
     if meta.get('size', 0) <= 0:
         return _cv_error(409, 'Uploaded object is empty', cvId=cv_id)
 

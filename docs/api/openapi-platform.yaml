@@ -1418,9 +1418,16 @@ paths:
       summary: Verify the uploaded object and mark the CV ready
       description: |
         Calls S3 HeadObject for the server-assigned document key. READY is set
-        only when the object exists and is non-empty.
+        only when the object exists, is a non-empty PDF, and matches the
+        stored cvId/documentId/user/tenant/partner/issuer ownership context.
+        Repeating completion is idempotent.
       parameters:
         - $ref: "#/components/parameters/ApiCredential"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PartnerCvCompletionRequest" }
       x-infrastructure-governance: terraform-managed
       responses:
         "200":
@@ -2504,6 +2511,14 @@ components:
           type: string
           description: Short-lived presigned GET URL; never persisted.
         expiresAt: { type: string, format: date-time }
+
+    PartnerCvCompletionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        documentId:
+          type: string
+          description: Optional echo of the server-assigned document id; mismatches are rejected.
 
     PartnerCvDeleteResult:
       type: object

@@ -8485,3 +8485,14 @@ Date: 2026-11-01
 - No S3 keys/URLs or internal repository fields are exposed. No P0-5 lifecycle, AWS, Orders, CV persistence rewrite or receipt-journal changes.
 - Tests: focused 115 passed, 252 subtests; RIS regression 735 passed, 45 skipped, 258 subtests. DynamoDB Local unavailable; local atomic/capacity harness evidence recorded in report.
 Next: P0-5 GO for local implementation; DynamoDB Local/E2E and release remain blocked until available and approved.
+
+[RIS-R08-P1-1 / P0-5 CV UPLOAD COMPLETION & OWNERSHIP]
+Status: COMPLETE for local completion-verification gate; release remains blocked.
+Date: 2026-11-01
+- Baseline: feature/ris-partner-profile-persistence-v1 @ 9079863; 39 existing untracked files preserved.
+- Existing Create -> server-derived presign -> S3 PUT -> Complete flow retained. Complete now validates stored document binding, optional documentId echo, HeadObject existence, positive size and application/pdf before ready/sizeBytes.
+- User/tenant/partner/issuer ownership remains repository-bound; client ids never build S3 keys. Repeated Complete is idempotent; concurrent delete conflict releases its temporary reservation.
+- Missing, empty, wrong-content-type and mismatched objects remain non-ready. Public responses/logs contain no S3 keys or secrets. Existing delete report retains versionId/delete-marker classification; receipt journal remains disabled.
+- OpenAPI resolves pending-vs-ready sizeBytes semantics. No AWS, deployment, Orders, Jobsearch or general erasure changes.
+- Tests: focused 83 passed, 252 subtests; RIS regression 738 passed, 45 skipped, 258 subtests. DynamoDB Local unavailable; local conditional/ownership harness gap documented.
+Next: P1-6 GO for local implementation; release remains blocked pending privacy/erasure decisions and AWS-equivalent verification.

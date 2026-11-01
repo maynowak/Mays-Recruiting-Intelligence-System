@@ -261,6 +261,35 @@ class TestDocumentLifecycle(CvHarness):
         self.assertNotIn("size", b)
         self.assertEqual(b["documentId"], doc_id)
 
+    def test_complete_is_idempotent_without_a_second_version_increment(self):
+        cv_id = self.body(self.create_cv())["cvId"]
+        doc_id = self.body(self.ticket(cv_id))["documentId"]
+        self.simulate_put(cv_id, doc_id)
+        first = self.body(self.complete(cv_id))
+        second = self.body(self.complete(cv_id))
+        self.assertEqual(first["processingStatus"], "ready")
+        self.assertEqual(second["processingStatus"], "ready")
+        self.assertEqual(first["version"], 3)
+        self.assertEqual(second["version"], 3)
+
+    def test_complete_rejects_wrong_ticket_document_id(self):
+        cv_id = self.body(self.create_cv())["cvId"]
+        self.ticket(cv_id)
+        response = self.call("POST", f"{CVS}/{cv_id}/document/complete",
+                             body={"documentId": "forged-document"})
+        self.assertEqual(response["statusCode"], 409)
+        self.assertEqual(self.body(self.call("GET", f"{CVS}/{cv_id}"))[
+            "processingStatus"], "pending")
+
+    def test_complete_rejects_non_pdf_object(self):
+        cv_id = self.body(self.create_cv())["cvId"]
+        doc_id = self.body(self.ticket(cv_id))["documentId"]
+        self.simulate_put(cv_id, doc_id, content_type="text/plain")
+        response = self.complete(cv_id)
+        self.assertEqual(response["statusCode"], 409)
+        self.assertEqual(self.body(self.call("GET", f"{CVS}/{cv_id}"))[
+            "processingStatus"], "pending")
+
     def test_complete_without_object_409_not_ready(self):
         cv_id = self.body(self.create_cv())["cvId"]
         self.ticket(cv_id)
