@@ -1261,6 +1261,14 @@ def _machine_deny(status_code, error):
             'body': json.dumps({'error': error})}
 
 
+def _partner_boundary_error(status_code, error):
+    """Flat dual-auth error with a stable adapter-facing category."""
+    code = {401: 'unauthorized', 403: 'forbidden', 503: 'unavailable'}.get(
+        status_code, 'internal_error')
+    return {'statusCode': status_code,
+            'body': json.dumps({'error': error, 'code': code})}
+
+
 def _partner_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Dict[str, Any]:
     """Partner user dual-auth execution.
 
@@ -3471,19 +3479,20 @@ def _partner_profile_context(event: Dict[str, Any]):
 
     cognito_context, cognito_error = _machine_cognito_context(event)
     if cognito_error:
-        return None, _machine_deny(401, 'Unauthorized')
+        return None, _partner_boundary_error(401, 'Unauthorized')
     if cognito_context.get('tokenUse') != 'access':
-        return None, _machine_deny(401, 'Unauthorized')
+        return None, _partner_boundary_error(401, 'Unauthorized')
 
     bearer, header_error = _machine_bearer(headers)
     if header_error:
-        return None, _machine_deny(401, 'Unauthorized')
+        return None, _partner_boundary_error(401, 'Unauthorized')
 
     try:
         sources = _build_introspection_sources()
     except Exception:
         return None, {'statusCode': 503,
-                      'body': json.dumps({'error': 'Service unavailable'})}
+                      'body': json.dumps({'error': 'Service unavailable',
+                                          'code': 'unavailable'})}
 
     try:
         from datetime import datetime, timezone
@@ -3497,40 +3506,41 @@ def _partner_profile_context(event: Dict[str, Any]):
         )
     except CredentialStoreUnavailable:
         return None, {'statusCode': 503,
-                      'body': json.dumps({'error': 'Service unavailable'})}
+                      'body': json.dumps({'error': 'Service unavailable',
+                                          'code': 'unavailable'})}
     except _Denied as exc:
         status = 401 if exc.outcome is VerifyOutcome.UNAUTHORIZED else 403
-        return None, _machine_deny(status,
-                                   'Unauthorized' if status == 401 else 'Forbidden')
+        return None, _partner_boundary_error(
+            status, 'Unauthorized' if status == 401 else 'Forbidden')
 
     client_id = cognito_context.get('clientId')
     if not client_id:
-        return None, _machine_deny(401, 'Unauthorized')
+        return None, _partner_boundary_error(401, 'Unauthorized')
     try:
         registry = resolve_partner_application(client_id)
     except Exception:
-        return None, _machine_deny(403, 'Forbidden')
+        return None, _partner_boundary_error(403, 'Forbidden')
     if not registry or registry.get('status') != 'ACTIVE':
-        return None, _machine_deny(403, 'Forbidden')
+        return None, _partner_boundary_error(403, 'Forbidden')
     if registry.get('apiProfileId') != meta.get('apiProfileId'):
-        return None, _machine_deny(403, 'Forbidden')
+        return None, _partner_boundary_error(403, 'Forbidden')
     if registry.get('tenantId') != meta.get('tenantId'):
-        return None, _machine_deny(403, 'Forbidden')
+        return None, _partner_boundary_error(403, 'Forbidden')
 
     resolved_tenant, tenant_conflict = _resolve_tenant(
         cognito_context, expected_tenant=meta.get('tenantId'))
     if tenant_conflict or not resolved_tenant:
-        return None, _machine_deny(403, 'Forbidden')
+        return None, _partner_boundary_error(403, 'Forbidden')
 
     jwt_user_id = cognito_context.get('userId')
     if not jwt_user_id:
-        return None, _machine_deny(401, 'Unauthorized')
+        return None, _partner_boundary_error(401, 'Unauthorized')
 
     claims = (((event.get('requestContext') or {}).get('authorizer') or {})
               .get('jwt') or {}).get('claims') or {}
     issuer = claims.get('iss')
     if not issuer:
-        return None, _machine_deny(401, 'Unauthorized')
+        return None, _partner_boundary_error(401, 'Unauthorized')
 
     return {
         'userId': jwt_user_id,
@@ -3831,8 +3841,8 @@ def _manual_profile_create(event, ctx):
         return _storage_unavailable()
     except PartnerProfileIntegrityError:
         return _integrity_conflict()
-    except PartnerProfileConflictError:
-        return {'statusCode': 409, 'body': json.dumps({'error': 'Conflict'})}
+    except PartnerProfileConflictError as exc:
+        return _partner_conflict_response(exc)
     except Exception:
         logger.error('manual profile create failed')
         return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
@@ -4090,8 +4100,23 @@ def _cv_response(cv, status=200):
 
 def _cv_error(status, message, **extra):
     payload = {'error': message}
+    code = extra.pop('code', None)
+    if code is None:
+        code = {
+            400: 'validation', 401: 'unauthorized', 403: 'forbidden',
+            404: 'not_found', 409: 'conflict', 422: 'validation',
+            503: 'unavailable',
+        }.get(status, 'internal_error')
+    payload['code'] = code
     payload.update(extra)
     return {'statusCode': status, 'body': json.dumps(payload)}
+
+
+def _partner_conflict_response(exc, message='Conflict'):
+    """Keep the flat error envelope while exposing a stable error code."""
+    code = 'capacity_exceeded' if 'capacity exceeded' in str(exc).lower() else 'conflict'
+    return {'statusCode': 409,
+            'body': json.dumps({'error': message, 'code': code})}
 
 
 def _cv_parse_path(path):
@@ -4146,7 +4171,7 @@ def _handle_partner_cv_routes(event, context, method, path):
     cv_id, action = _cv_parse_path(path)
     if action == 'collection':
         if method == 'GET':
-            return _cv_list(ctx)
+            return _cv_list(event, ctx)
         if method == 'POST':
             return _cv_create(event, ctx)
         return _cv_error(405, 'Method not allowed')
@@ -4169,19 +4194,38 @@ def _handle_partner_cv_routes(event, context, method, path):
     return _cv_error(405, 'Method not allowed')
 
 
-def _cv_list(ctx):
+def _cv_list(event, ctx):
+    # The repository performs a scoped GSI query; this is deliberately not a
+    # table scan. The secure cursor is bound to this exact identity/scope.
+    params = event.get('queryStringParameters') or {}
     repo = _cv_repo()
     try:
-        items, _ = repo.list_by_user(
+        try:
+            limit = int(params.get('limit', _MANUAL_PROFILE_PAGE_LIMIT))
+        except (TypeError, ValueError):
+            return _cv_error(422, 'Invalid limit')
+        if limit < 1 or limit > _MANUAL_PROFILE_PAGE_LIMIT:
+            return _cv_error(422, 'Invalid limit')
+        cursor = _decode_cursor(
+            params.get('cursor'), repo=repo, ctx=ctx,
+            scope='cv-documents', resource_type='CVDocument', limit=limit)
+        if cursor == 'invalid':
+            return _cv_error(400, 'Invalid cursor')
+        items, next_cursor = repo.list_by_user(
             ctx['userId'], ctx['tenantId'], resource_type='CVDocument',
             partner_app_id=ctx.get('partnerApplicationId'),
-            issuer=ctx.get('issuer'), limit=50)
+            issuer=ctx.get('issuer'), limit=limit, cursor=cursor)
+        next_token = _encode_cursor(
+            next_cursor, repo=repo, ctx=ctx, scope='cv-documents',
+            resource_type='CVDocument', limit=limit)
+    except (TypeError, ValueError):
+        return _cv_error(422, 'Invalid pagination')
     except Exception:
         logger.error('cv list failed')
-        return _cv_error(500, 'Internal error')
+        return _cv_error(503, 'Service unavailable', code='unavailable')
     return {'statusCode': 200,
-            'body': json.dumps({'items': [_serialize_cv(cv) for cv in items]},
-                               ensure_ascii=False)}
+            'body': json.dumps({'items': [_serialize_cv(cv) for cv in items],
+                                'nextCursor': next_token}, ensure_ascii=False)}
 
 
 def _cv_create(event, ctx):
@@ -4235,8 +4279,10 @@ def _cv_create(event, ctx):
         return _storage_unavailable()
     except PartnerProfileIntegrityError:
         return _integrity_conflict()
-    except PartnerProfileConflictError:
-        return _cv_error(409, 'Conflict')
+    except PartnerProfileConflictError as exc:
+        return _cv_error(409, 'Conflict', code=(
+            'capacity_exceeded' if 'capacity exceeded' in str(exc).lower()
+            else 'conflict'))
     except Exception:
         logger.error('cv create failed')
         return _cv_error(500, 'Internal error')
@@ -4269,7 +4315,8 @@ def _cv_update(event, ctx, cv_id):
     try:
         from jobsearch.partner_profile_contract import reject_client_identity
         reject_client_identity(data)
-        if set(data) - {'name', 'filename', 'contentType', 'metadata', 'version'}:
+        if set(data) - {'name', 'filename', 'contentType', 'metadata',
+                        'version', 'expectedVersion'}:
             raise ProfileContractError('INVALID_FIELD', 'unsupported CV fields')
         name = data.get('filename', data.get('name', existing.name))
         if not isinstance(name, str) or not name.strip():
@@ -4284,12 +4331,30 @@ def _cv_update(event, ctx, cv_id):
     except ProfileContractError as exc:
         return _manual_profile_error(exc)
 
-    expected_version = data.get('version')
-    if expected_version is not None:
-        if (isinstance(expected_version, bool)
-                or not isinstance(expected_version, int)
-                or expected_version < 1):
-            return _cv_error(422, 'Invalid version')
+    expected_version = data.get('expectedVersion')
+    legacy_version = data.get('version')
+    if expected_version is not None and legacy_version is not None \
+            and expected_version != legacy_version:
+        return _cv_error(422, 'Conflicting version tokens')
+    if expected_version is None:
+        expected_version = legacy_version
+    headers = {(key or '').lower(): value
+               for key, value in (event.get('headers') or {}).items()}
+    if_match = headers.get('if-match')
+    if if_match is not None:
+        from jobsearch.partner_profile_contract import parse_expected_version
+        try:
+            header_version = parse_expected_version({}, if_match)
+        except ProfileContractError:
+            return _cv_error(422, 'Invalid If-Match')
+        if expected_version is not None and expected_version != header_version:
+            return _cv_error(422, 'Conflicting version tokens')
+        expected_version = header_version
+    if expected_version is not None and (
+            isinstance(expected_version, bool)
+            or not isinstance(expected_version, int)
+            or expected_version < 1):
+        return _cv_error(422, 'Invalid version')
 
     now = datetime.now(timezone.utc).isoformat()
     updated = CVDocument(
@@ -4752,8 +4817,10 @@ def _cv_search_profile_create(event, ctx, cv_id):
         return _storage_unavailable()
     except PartnerProfileIntegrityError:
         return _integrity_conflict()
-    except PartnerProfileConflictError:
-        return _cv_error(409, 'Conflict')
+    except PartnerProfileConflictError as exc:
+        return _cv_error(409, 'Conflict', code=(
+            'capacity_exceeded' if 'capacity exceeded' in str(exc).lower()
+            else 'conflict'))
     except Exception:
         logger.error('cv search profile create failed')
         return _cv_error(500, 'Internal error')
@@ -5090,8 +5157,10 @@ def _ats_create(event, ctx, repo, parent):
         return _storage_unavailable()
     except PartnerProfileIntegrityError:
         return _integrity_conflict()
-    except PartnerProfileConflictError:
-        return _cv_error(409, 'Conflict')
+    except PartnerProfileConflictError as exc:
+        return _cv_error(409, 'Conflict', code=(
+            'capacity_exceeded' if 'capacity exceeded' in str(exc).lower()
+            else 'conflict'))
     except Exception:
         logger.error('ats create failed')
         return _cv_error(500, 'Internal error')

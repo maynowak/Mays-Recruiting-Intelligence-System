@@ -165,6 +165,31 @@ class TestCvCrud(CvHarness):
         listed = self.body(self.call("GET", CVS))
         self.assertEqual(len(listed["items"]), 1)
         self.assertEqual(listed["items"][0]["cvId"], cv_id)
+        self.assertIsNone(listed["nextCursor"])
+
+    def test_list_paginates_with_scoped_next_cursor(self):
+        created = [self.body(self.create_cv(name=f"cv{i}.pdf"))["cvId"]
+                   for i in range(3)]
+        first = self.body(self.call("GET", CVS, query={"limit": "2"}))
+        self.assertEqual(len(first["items"]), 2)
+        self.assertIsNotNone(first["nextCursor"])
+        second = self.body(self.call(
+            "GET", CVS, query={"limit": "2", "cursor": first["nextCursor"]}))
+        self.assertEqual(len(second["items"]), 1)
+        self.assertIsNone(second["nextCursor"])
+        self.assertEqual(
+            set(created), {item["cvId"] for item in first["items"] + second["items"]})
+
+    def test_list_rejects_invalid_and_foreign_cursors(self):
+        self.create_cv()
+        invalid = self.call("GET", CVS, query={"cursor": "not-a-cursor"})
+        self.assertEqual(invalid["statusCode"], 400)
+
+        self.create_cv(name="second.pdf")
+        first = self.body(self.call("GET", CVS, query={"limit": "1"}))
+        foreign = self.call("GET", CVS, sub="user-2",
+                            query={"cursor": first["nextCursor"]})
+        self.assertEqual(foreign["statusCode"], 400)
 
     def test_patch_updates_name_and_keeps_lifecycle_fields(self):
         created = self.body(self.create_cv())
@@ -203,6 +228,7 @@ class TestCvCrud(CvHarness):
             self.assertEqual(self.create_cv(name=f"cv{i}.pdf")["statusCode"], 201)
         resp = self.create_cv(name="cv11.pdf")
         self.assertEqual(resp["statusCode"], 409)
+        self.assertEqual(self.body(resp)["code"], "capacity_exceeded")
 
     def test_concurrent_creates_cap_at_10(self):
         results = []
@@ -227,6 +253,16 @@ class TestCvCrud(CvHarness):
         resp = self.call("PATCH", f"{CVS}/{cv_id}",
                          body={"name": "x.pdf", "version": 99})
         self.assertEqual(resp["statusCode"], 409)
+        self.assertEqual(self.body(resp)["code"], "conflict")
+
+    def test_patch_accepts_if_match_version(self):
+        created = self.body(self.create_cv())
+        response = self.call(
+            "PATCH", f"{CVS}/{created['cvId']}",
+            body={"filename": "if-match.pdf"},
+            extra_headers={"If-Match": '"1"'})
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(self.body(response)["version"], 2)
 
     def test_forged_identity_rejected(self):
         resp = self.create_cv(userId="victim", tenantId="other")

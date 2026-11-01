@@ -8496,3 +8496,14 @@ Date: 2026-11-01
 - OpenAPI resolves pending-vs-ready sizeBytes semantics. No AWS, deployment, Orders, Jobsearch or general erasure changes.
 - Tests: focused 83 passed, 252 subtests; RIS regression 738 passed, 45 skipped, 258 subtests. DynamoDB Local unavailable; local conditional/ownership harness gap documented.
 Next: P1-6 GO for local implementation; release remains blocked pending privacy/erasure decisions and AWS-equivalent verification.
+
+[RIS-R08-P1-1 / P1-6 PAGINATION & API ERROR CONTRACT]
+Status: COMPLETE for local adapter-compatibility gate; release remains blocked.
+Date: 2026-11-01
+- Baseline: feature/ris-partner-profile-persistence-v1 @ f241852; 39 existing untracked files preserved.
+- GET /v1/partner/me/cvs now returns {items,nextCursor}, uses the existing scoped server-side cursor and repository GSI query, validates limit 1..50, and rejects invalid/foreign/expired cursors without scans.
+- Flat {error} envelopes remain for client compatibility; stable codes distinguish unauthorized, forbidden, not_found, validation, conflict, capacity_exceeded and unavailable. No data/meta wrapper added and no internal details exposed.
+- CV PATCH accepts expectedVersion and If-Match while retaining legacy version; stale writes remain 409. P0-2 through P0-5 security/lifecycle behavior retained.
+- Pending CV responses omit unverified sizeBytes; ready responses expose sizeBytes only after HeadObject verification. OpenAPI/API standard synchronized.
+- Tests: focused 117 passed, 252 subtests; RIS regression 741 passed, 45 skipped, 258 subtests. DynamoDB Local unavailable; local cursor/conditional/capacity harness gap documented.
+Next: P1-7 GO for local implementation; AWS-equivalent verification and release remain blocked.

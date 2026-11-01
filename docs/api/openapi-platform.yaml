@@ -1151,6 +1151,14 @@ paths:
       summary: List the caller's CV metadata
       parameters:
         - $ref: "#/components/parameters/ApiCredential"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
       x-infrastructure-governance: terraform-managed
       responses:
         "200":
@@ -1159,13 +1167,21 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [items, nextCursor]
                 properties:
                   items:
                     type: array
                     items: { $ref: "#/components/schemas/PartnerCvV1" }
+                  nextCursor: { type: string, nullable: true }
+        "400": { $ref: "#/components/responses/BadRequestString" }
         "401": { $ref: "#/components/responses/UnauthorizedString" }
         "403":
           description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Pagination limit is invalid.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }
@@ -1269,6 +1285,10 @@ paths:
       summary: Update CV metadata (does not change lifecycle fields)
       parameters:
         - $ref: "#/components/parameters/ApiCredential"
+        - name: If-Match
+          in: header
+          required: false
+          schema: { type: string }
       x-infrastructure-governance: terraform-managed
       requestBody:
         required: true
@@ -2174,6 +2194,10 @@ components:
       required: [error]
       properties:
         error: { type: string }
+        code:
+          type: string
+          description: Stable machine-readable error category when available.
+          enum: [unauthorized, forbidden, not_found, validation, conflict, capacity_exceeded, unavailable, internal_error]
 
     ErrorObject:
       type: object
@@ -2455,6 +2479,7 @@ components:
         filename: { type: string, description: Canonical alias for legacy name. }
         contentType: { type: string }
         version: { type: integer, minimum: 1, description: "Optimistic-lock version for PATCH." }
+        expectedVersion: { type: integer, minimum: 1, description: "Canonical optimistic-lock version for PATCH." }
         metadata:
           type: object
           additionalProperties: false
