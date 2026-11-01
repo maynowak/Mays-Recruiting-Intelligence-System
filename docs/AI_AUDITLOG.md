@@ -8474,3 +8474,14 @@ Date: 2026-11-01
 - OpenAPI/API standard, route inventory and focused concurrency/legacy/security tests synchronized. No AWS, deployment, Orders, CV lifecycle or receipt-journal changes.
 - Tests: focused 83 passed, 252 subtests; RIS regression 731 passed, 45 skipped, 258 subtests.
 Next: P0-4 GO for local implementation; CVDocument lifecycle and release gates remain blocked.
+
+[RIS-R08-P1-1 / P0-4 CVDOCUMENT V1 NORMALIZATION]
+Status: COMPLETE for local response/validation gate; release remains blocked.
+Date: 2026-11-01
+- Baseline: feature/ris-partner-profile-persistence-v1 @ b8d48e9; 39 existing untracked files preserved.
+- Partner CV create/get/list/update responses now project schemaVersion 1, cvId, distinct documentId, filename, PDF contentType, canonical status, timestamps and version. Legacy name remains input-compatible but is never emitted.
+- upload_pending -> pending and error/delete_failed -> failed; no unverified row becomes ready. sizeBytes is emitted only for ready rows after the existing HeadObject verification path.
+- Metadata allowlist is pageCount/language; unknown metadata and unsupported CV payload fields are rejected. Existing repository, capacity guard, ownership and partner/issuer isolation remain unchanged.
+- No S3 keys/URLs or internal repository fields are exposed. No P0-5 lifecycle, AWS, Orders, CV persistence rewrite or receipt-journal changes.
+- Tests: focused 115 passed, 252 subtests; RIS regression 735 passed, 45 skipped, 258 subtests. DynamoDB Local unavailable; local atomic/capacity harness evidence recorded in report.
+Next: P0-5 GO for local implementation; DynamoDB Local/E2E and release remain blocked until available and approved.

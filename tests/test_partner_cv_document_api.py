@@ -11,6 +11,7 @@ import sys
 import threading
 import unittest
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -25,6 +26,40 @@ from tests.test_partner_manual_profiles_api import (  # noqa: E402
 
 CVS = "/v1/partner/me/cvs"
 BUCKET = "test-documents"
+
+
+class TestCvDocumentCanonicalProjection(unittest.TestCase):
+    def _cv(self, status="upload_pending", size=0, document_id=None,
+            metadata=None):
+        return SimpleNamespace(
+            cv_id="cv-1", name="resume.pdf", content_type="application/pdf",
+            processing_status=status, size=size, document_id=document_id,
+            created_at="2026-11-01T00:00:00+00:00",
+            updated_at="2026-11-01T00:00:00+00:00", version=3,
+            metadata=metadata or {})
+
+    def test_pending_legacy_status_is_canonical_and_unverified_size_is_hidden(self):
+        body = json.loads(h._cv_response(self._cv(size=4096, document_id="doc-1"))["body"])
+        self.assertEqual(body["processingStatus"], "pending")
+        self.assertEqual(body["documentId"], "doc-1")
+        self.assertNotIn("sizeBytes", body)
+        self.assertNotIn("name", body)
+        self.assertNotIn("size", body)
+
+    def test_failed_and_deleted_statuses_are_preserved_as_canonical_states(self):
+        self.assertEqual(json.loads(h._cv_response(self._cv("error"))["body"])
+                         ["processingStatus"], "failed")
+        self.assertEqual(json.loads(h._cv_response(self._cv("deleted"))["body"])
+                         ["processingStatus"], "deleted")
+
+    def test_only_verified_ready_size_is_emitted_and_metadata_is_allowlisted(self):
+        body = json.loads(h._cv_response(self._cv(
+            status="ready", size=2048, document_id="doc-1",
+            metadata={"pageCount": 2, "language": "en", "internal": "no"}))[
+                "body"])
+        self.assertEqual(body["sizeBytes"], 2048)
+        self.assertEqual(body["metadata"], {"pageCount": 2, "language": "en"})
+        self.assertNotIn("internal", body["metadata"])
 
 
 class _S3NotFound(Exception):
@@ -114,8 +149,13 @@ class TestCvCrud(CvHarness):
         self.assertEqual(resp["statusCode"], 201)
         b = self.body(resp)
         self.assertTrue(b["cvId"])
+        self.assertEqual(b["schemaVersion"], 1)
+        self.assertEqual(b["filename"], "cv.pdf")
+        self.assertEqual(b["contentType"], "application/pdf")
         self.assertEqual(b["processingStatus"], "pending")
         self.assertIsNone(b.get("documentId"))
+        self.assertNotIn("name", b)
+        self.assertNotIn("sizeBytes", b)
         self.assertEqual(b["version"], 1)
 
     def test_get_and_list(self):
@@ -130,10 +170,11 @@ class TestCvCrud(CvHarness):
         created = self.body(self.create_cv())
         cv_id = created["cvId"]
         resp = self.call("PATCH", f"{CVS}/{cv_id}",
-                         body={"name": "renamed.pdf", "version": 1})
+                         body={"filename": "renamed.pdf", "version": 1})
         self.assertEqual(resp["statusCode"], 200)
         b = self.body(resp)
-        self.assertEqual(b["name"], "renamed.pdf")
+        self.assertEqual(b["filename"], "renamed.pdf")
+        self.assertNotIn("name", b)
         self.assertEqual(b["processingStatus"], "pending")
         self.assertEqual(b["version"], 2)
 
@@ -151,6 +192,10 @@ class TestCvCrud(CvHarness):
 
     def test_invalid_content_type_422(self):
         resp = self.create_cv(content_type="application/x-msdownload")
+        self.assertEqual(resp["statusCode"], 422)
+
+    def test_unknown_metadata_is_rejected(self):
+        resp = self.create_cv(metadata={"cvText": "secret"})
         self.assertEqual(resp["statusCode"], 422)
 
     def test_capacity_limit_10(self):
@@ -212,8 +257,8 @@ class TestDocumentLifecycle(CvHarness):
         self.assertEqual(resp["statusCode"], 200)
         b = self.body(resp)
         self.assertEqual(b["processingStatus"], "ready")
-        self.assertEqual(b["size"], 4096)
-        self.assertEqual(b["etag"], "abc")
+        self.assertEqual(b["sizeBytes"], 4096)
+        self.assertNotIn("size", b)
         self.assertEqual(b["documentId"], doc_id)
 
     def test_complete_without_object_409_not_ready(self):
@@ -222,7 +267,7 @@ class TestDocumentLifecycle(CvHarness):
         resp = self.complete(cv_id)
         self.assertEqual(resp["statusCode"], 409)
         self.assertEqual(self.body(self.call("GET", f"{CVS}/{cv_id}"))["processingStatus"],
-                         "upload_pending")
+                         "pending")
 
     def test_complete_empty_object_409(self):
         cv_id = self.body(self.create_cv())["cvId"]
@@ -274,7 +319,7 @@ class TestDocumentLifecycle(CvHarness):
         self.assertEqual(resp["statusCode"], 500)
         # metadata reserved but not ready
         b = self.body(self.call("GET", f"{CVS}/{cv_id}"))
-        self.assertEqual(b["processingStatus"], "upload_pending")
+        self.assertEqual(b["processingStatus"], "pending")
 
     def test_delete_document_failure_keeps_metadata(self):
         cv_id = self.body(self.create_cv())["cvId"]

@@ -2439,24 +2439,34 @@ components:
 
     PartnerCvInput:
       type: object
-      required: [name]
+      additionalProperties: false
+      oneOf:
+        - required: [name]
+        - required: [filename]
       properties:
         name: { type: string }
+        filename: { type: string, description: Canonical alias for legacy name. }
         contentType: { type: string }
         version: { type: integer, minimum: 1, description: "Optimistic-lock version for PATCH." }
+        metadata:
+          type: object
+          additionalProperties: false
+          properties:
+            pageCount: { type: integer, minimum: 1 }
+            language: { type: string }
 
     PartnerCvV1:
       type: object
       description: Canonical Jobsearch CVDocumentV1. Legacy RIS names are not emitted.
       additionalProperties: false
-      required: [schemaVersion, cvId, documentId, filename, contentType, sizeBytes, processingStatus, createdAt, updatedAt, version]
+      required: [schemaVersion, cvId, filename, processingStatus, createdAt, updatedAt, version]
       properties:
         schemaVersion: { type: integer, enum: [1] }
         cvId: { type: string }
         documentId: { type: string, description: Server-assigned document id; never an S3 key. }
         filename: { type: string }
         contentType: { type: string, enum: [application/pdf] }
-        sizeBytes: { type: integer, minimum: 1 }
+        sizeBytes: { type: integer, minimum: 1, description: Present only after verified HeadObject. }
         processingStatus:
           type: string
           enum: [pending, ready, failed, deleted]

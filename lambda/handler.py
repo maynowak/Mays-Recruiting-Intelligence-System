@@ -4011,9 +4011,76 @@ def _cv_body(event):
 
 
 def _serialize_cv(cv):
-    body = cv.to_dict()
-    body['version'] = getattr(cv, 'version', None)
+    """Project a stored CVDocument into the public CVDocumentV1 shape.
+
+    Pending/upload-pending rows deliberately omit ``sizeBytes`` because no
+    verified object size exists yet. A positive size is public only for the
+    verified ``ready`` state. Legacy names and lifecycle values are normalized
+    without exposing repository or S3 internals.
+    """
+    status = str(getattr(cv, 'processing_status', 'pending') or 'pending').lower()
+    status = {
+        'upload_pending': 'pending',
+        'error': 'failed',
+        'delete_failed': 'failed',
+    }.get(status, status)
+    if status not in {'pending', 'ready', 'failed', 'deleted'}:
+        raise ValueError('invalid CV processing status')
+    content_type = getattr(cv, 'content_type', None)
+    if content_type is not None and content_type != 'application/pdf':
+        raise ValueError('invalid CV content type')
+    version = getattr(cv, 'version', 1)
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise ValueError('invalid CV version')
+    body = {
+        'schemaVersion': 1,
+        'cvId': cv.cv_id,
+        'filename': cv.name,
+        'processingStatus': status,
+        'createdAt': cv.created_at,
+        'updatedAt': cv.updated_at,
+        'version': version,
+    }
+    if content_type is not None:
+        body['contentType'] = 'application/pdf'
+    if getattr(cv, 'document_id', None):
+        body['documentId'] = cv.document_id
+    # ``size`` is trusted for the public DTO only after _cv_complete has
+    # verified the object with HeadObject and moved the row to READY.
+    size = getattr(cv, 'size', 0)
+    if status == 'ready' and isinstance(size, int) and not isinstance(size, bool) and size >= 1:
+        body['sizeBytes'] = size
+    metadata = getattr(cv, 'metadata', None) or {}
+    if not isinstance(metadata, dict):
+        raise ValueError('invalid CV metadata')
+    body['metadata'] = {
+        key: metadata[key] for key in ('pageCount', 'language')
+        if key in metadata
+    }
+    if not body['metadata']:
+        body.pop('metadata')
     return body
+
+
+def _validate_cv_metadata(metadata):
+    """Validate the allow-listed public CV metadata fields."""
+    from jobsearch.partner_profile_contract import ProfileContractError
+    if metadata is None:
+        return {}
+    if not isinstance(metadata, dict):
+        raise ProfileContractError('INVALID_FIELD', 'metadata must be an object')
+    unknown = set(metadata) - {'pageCount', 'language'}
+    if unknown:
+        raise ProfileContractError('INVALID_FIELD', 'metadata contains unsupported fields')
+    if 'pageCount' in metadata:
+        page_count = metadata['pageCount']
+        if (isinstance(page_count, bool) or not isinstance(page_count, int)
+                or page_count < 1):
+            raise ProfileContractError('INVALID_FIELD', 'metadata.pageCount must be a positive integer')
+    if 'language' in metadata and (
+            not isinstance(metadata['language'], str) or not metadata['language'].strip()):
+        raise ProfileContractError('INVALID_FIELD', 'metadata.language must be a non-empty string')
+    return dict(metadata)
 
 
 def _cv_response(cv, status=200):
@@ -4135,12 +4202,15 @@ def _cv_create(event, ctx):
         return _cv_error(400, 'Invalid JSON')
     try:
         reject_client_identity(data)
-        name = data.get('name')
+        if set(data) - {'name', 'filename', 'contentType', 'metadata'}:
+            raise ProfileContractError('INVALID_FIELD', 'unsupported CV fields')
+        name = data.get('filename', data.get('name'))
         if not isinstance(name, str) or not name.strip():
-            raise ProfileContractError('MISSING_FIELD', 'name is required')
-        content_type = data.get('contentType')
-        if content_type is not None and content_type not in ALLOWED_CONTENT_TYPES:
+            raise ProfileContractError('MISSING_FIELD', 'filename is required')
+        content_type = data.get('contentType') or 'application/pdf'
+        if content_type not in ALLOWED_CONTENT_TYPES or content_type != 'application/pdf':
             raise ProfileContractError('INVALID_FIELD', 'contentType not allowed')
+        metadata = _validate_cv_metadata(data.get('metadata'))
         now = datetime.now(timezone.utc).isoformat()
         cv = CVDocument(
             cv_id=uuid.uuid4().hex,
@@ -4149,6 +4219,7 @@ def _cv_create(event, ctx):
             name=name.strip(),
             content_type=content_type,
             processing_status=CV_STATUS_PENDING,
+            metadata=metadata,
             created_at=now,
             updated_at=now,
         )
@@ -4198,20 +4269,26 @@ def _cv_update(event, ctx, cv_id):
     try:
         from jobsearch.partner_profile_contract import reject_client_identity
         reject_client_identity(data)
-        name = data.get('name', existing.name)
+        if set(data) - {'name', 'filename', 'contentType', 'metadata', 'version'}:
+            raise ProfileContractError('INVALID_FIELD', 'unsupported CV fields')
+        name = data.get('filename', data.get('name', existing.name))
         if not isinstance(name, str) or not name.strip():
-            raise ProfileContractError('MISSING_FIELD', 'name is required')
+            raise ProfileContractError('MISSING_FIELD', 'filename is required')
         content_type = data.get('contentType', existing.content_type)
-        if content_type is not None and content_type not in ALLOWED_CONTENT_TYPES:
+        if content_type is None:
+            content_type = 'application/pdf'
+        if content_type not in ALLOWED_CONTENT_TYPES or content_type != 'application/pdf':
             raise ProfileContractError('INVALID_FIELD', 'contentType not allowed')
+        metadata = (_validate_cv_metadata(data.get('metadata'))
+                    if 'metadata' in data else dict(existing.metadata or {}))
     except ProfileContractError as exc:
         return _manual_profile_error(exc)
 
     expected_version = data.get('version')
     if expected_version is not None:
-        try:
-            expected_version = int(expected_version)
-        except (TypeError, ValueError):
+        if (isinstance(expected_version, bool)
+                or not isinstance(expected_version, int)
+                or expected_version < 1):
             return _cv_error(422, 'Invalid version')
 
     now = datetime.now(timezone.utc).isoformat()
@@ -4229,7 +4306,7 @@ def _cv_update(event, ctx, cv_id):
         processing_status=existing.processing_status,
         created_at=existing.created_at,
         updated_at=now,
-        metadata=dict(existing.metadata or {}),
+        metadata=metadata,
     )
     try:
         updated.validate()
