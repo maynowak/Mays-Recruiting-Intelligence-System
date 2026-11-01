@@ -3,7 +3,8 @@
 **Date:** 2026-11-01  
 **RIS branch:** `feature/ris-partner-profile-persistence-v1`  
 **Expected/verified HEAD:** `0fb50467ecf9f5112d40c0843886d783b71f890e`  
-**Decision:** **R08-PROFILES-01 BLOCKED** for formal acceptance; local implementation is GO.
+**Decision:** Contract acceptance **GO**; **R08-PROFILES-01 BLOCKED** only for
+the separate DynamoDB Local integration gate.
 
 ## 1. Scope and baseline
 
@@ -99,7 +100,9 @@ objects. Collection responses use `items` and `nextCursor`.
 
 ## 4. Contract reconciliation: pending `sizeBytes`
 
-The reconciled target contract is status-dependent:
+The Jobsearch contract at `feature/arbeit@0c978278` and its
+`JM-RIS-CONTRACT-01-EXECUTION_LOG.md` now match the RIS contract. The target
+is status-dependent:
 
 | `processingStatus` | `sizeBytes` | Rule |
 |---|---|---|
@@ -107,19 +110,18 @@ The reconciled target contract is status-dependent:
 | `ready` | required, positive | Must come from successful S3 `HeadObject` verification |
 | `failed` / `deleted` | omitted by RIS | No fabricated value; historical internal values are not re-presented as authoritative |
 
-The RIS local contract projection now accepts pending and terminal documents
+The RIS local contract projection accepts pending and terminal documents
 without `sizeBytes`, requires a positive size for `ready`, and serializes the
 field only for `ready`. Runtime S3 completion and ownership verification were
 not weakened. New pending/terminal fixtures and contract tests cover the
 status-dependent behavior, and OpenAPI uses explicit status branches.
 
-### Jobsearch-v1 handoff required
+### Jobsearch-v1 handoff
 
-Jobsearch-v1 must change its `CVDocumentV1` JSON Schema from an unconditional
-required `sizeBytes` to status branches equivalent to the table above (or
-introduce a separate pending DTO with the same semantics). The ready branch
-must retain `type: integer` and `minimum: 1`; the pending and terminal branches
-must not require a size. RIS did not modify Jobsearch source.
+Jobsearch-v1 has applied the required JSON Schema, TypeScript and runtime
+validation change. Its `CreateCVInputV1.sizeBytes` remains a positive,
+client-declared upload hint and is not treated as verified document metadata.
+RIS did not modify Jobsearch source.
 
 ## 5. API contract parity
 
@@ -168,18 +170,23 @@ acceptance.
 | Finding | Severity | Status | Required next action |
 |---|---|---|---|
 | DynamoDB Local unavailable | P1 | **OPEN** | Configure `RIS_TEST_DYNAMODB_ENDPOINT`, rerun all 39 tests, and record the result |
-| Jobsearch-v1 schema still requires pending `sizeBytes` | P1 contract | **OPEN** | Apply the status-dependent schema change upstream; RIS side is reconciled |
+| Jobsearch full-suite environment assumptions | Verification boundary | **OPEN / separate** | Provide `VITE_CONTACT_EMAIL` and `__APP_COMMIT_SHA__` for the three unrelated Jobsearch tests |
 | Privacy receipt/erasure planned tests | Out of scope | **DEFERRED** | Separate R08 privacy capability gate; no activation here |
 
 ### Final decisions
 
-- **R08-PROFILES-01: BLOCKED** for formal P1-7 acceptance because the real
-  DynamoDB Local integration could not be executed. The RIS in-memory/fake-S3
-  implementation gate is **GO**.
-- **Jobsearch-Handoff: BLOCKED** until the upstream Jobsearch schema/fixture
-  adopts the status-dependent `sizeBytes` contract.
-- The RIS-side contract mismatch is reconciled without weakening S3
-  verification; only the upstream schema remains open.
+- **Contract-Freigabe: GO.** RIS and Jobsearch-v1 now agree on the
+  status-dependent `sizeBytes` semantics; the direct fixture/runtime check
+  passed.
+- **DynamoDB-Integration: BLOCKED.** All 39 real DynamoDB Local tests remain
+  skipped because no approved local endpoint is configured.
+- **Datenschutz-Freigabe: DEFERRED / unchanged.** Six planned privacy/receipt
+  capability tests remain outside this gate; receipt journal stays disabled.
+- **Jobsearch-Handoff: READY for the size contract**, with the separate
+  Jobsearch full-suite environment boundary recorded below.
+- **R08-PROFILES-01: BLOCKED** only for full formal readiness until the
+  DynamoDB Local gate is executed. Local in-memory/fake-S3 implementation and
+  contract gates are GO.
 
 ## 9. P1-7B contract reconciliation evidence
 
@@ -192,9 +199,35 @@ acceptance.
   fixture; `cv-document-pending-v1.json` covers pending omission.
 - OpenAPI: `PartnerCvV1` now selects explicit pending, ready, or terminal
   status branches; only the ready branch requires `sizeBytes`.
-- Required upstream handoff: apply the equivalent status branches to the
-  Jobsearch-v1 schema and update its pending fixture; do not make RIS emit a
+- Jobsearch-v1 handoff confirmation: the equivalent status branches and
+  pending fixture are present at `feature/arbeit@0c978278`. RIS emits no
   placeholder size.
+
+## 10. P1-7C acceptance evidence and separate boundaries
+
+### Repository and contract evidence
+
+- RIS: `feature/ris-partner-profile-persistence-v1@3d768f2`;
+  tracked-clean with exactly 39 pre-existing untracked files.
+- Jobsearch: `feature/arbeit@0c978278`; tracked-clean and read-only.
+- Jobsearch ready fixture roundtrips through the RIS contract projection with
+  positive `sizeBytes`.
+- Jobsearch pending fixture roundtrips without `sizeBytes`.
+- Jobsearch ready-without-size fixture is rejected by RIS contract validation.
+
+### Jobsearch test boundary
+
+Jobsearch reported `825 passed, 5 skipped, 3 failed`. The three failures are
+not contract failures: two `Imprint.test.tsx` assertions require
+`VITE_CONTACT_EMAIL`, and one `appInfo.test.ts` assertion requires
+`__APP_COMMIT_SHA__`. They are recorded separately from RIS verification and
+were not changed in the read-only Jobsearch repository.
+
+### RIS infrastructure boundary
+
+The repeated RIS selection reported `745 passed, 45 skipped, 258 subtests`:
+39 DynamoDB Local skips remain BLOCKED by the missing explicit loopback
+endpoint, and six planned privacy/receipt tests remain intentionally skipped.
 
 ## 8. P1-7A DynamoDB Local verification attempt
 
@@ -223,5 +256,5 @@ was started, and there were no temporary database resources to clean up.
 **P1-7A result: BLOCKED — environment unavailable.** The next attempt must
 provide an already-approved local DynamoDB endpoint (for example an existing
 loopback service) and then rerun this exact integration module. The original
-39 untracked files remain preserved; the pending `sizeBytes` contract finding
-is unchanged.
+39 untracked files remain preserved; the size-contract finding is resolved on
+both repository sides.

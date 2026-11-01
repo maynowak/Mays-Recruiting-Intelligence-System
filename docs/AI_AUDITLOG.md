@@ -8536,3 +8536,14 @@ Date: 2026-11-01.
 - Target Jobsearch-v1 change: replace unconditional sizeBytes requirement with pending/ready/terminal status branches; ready retains integer minimum 1. Jobsearch source was not modified.
 - Tests: focused 125 passed; full available RIS regression 745 passed, 45 skipped, 258 subtests. The 39 DynamoDB Local tests remain BLOCKED/skipped because RIS_TEST_DYNAMODB_ENDPOINT is unset.
 - py_compile and git diff --check passed.
+
+
+[RIS-R08-P1-7C JOBSEARCH CONTRACT ACCEPTANCE]
+Status: Contract acceptance GO; DynamoDB Local integration remains BLOCKED.
+Date: 2026-11-01.
+- Verified RIS feature/ris-partner-profile-persistence-v1 @ 3d768f2, tracked-clean with 39 pre-existing untracked files. Verified read-only Jobsearch feature/arbeit @ 0c978278, tracked-clean.
+- Jobsearch CVDocumentV1 now matches RIS: pending optional sizeBytes, ready required positive sizeBytes, failed/deleted optional; CreateCVInput size remains a client-declared hint.
+- Direct fixture checks: ready roundtrip PASS, pending-without-size roundtrip PASS, ready-without-size rejection PASS. Focused RIS suite 125 passed; repeated RIS selection 745 passed, 45 skipped, 258 subtests.
+- Separate boundaries: 39 DynamoDB Local tests remain skipped because RIS_TEST_DYNAMODB_ENDPOINT is unset; six planned privacy/receipt tests remain skipped. Jobsearch full suite had 825 passed, 5 skipped, 3 unrelated environment/build-identity failures.
+- Decisions: contract GO; DynamoDB integration BLOCKED; privacy DEFERRED; Jobsearch size-contract handoff READY; R08-PROFILES-01 BLOCKED only for full readiness pending DynamoDB Local.
+- Report: docs/reports/RIS-R08-P1-1-P1-7-LOCAL-INTEGRATION-ACCEPTANCE.md
