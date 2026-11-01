@@ -69,6 +69,9 @@ S3-version purge or other required scope is unresolved.
 - Backup/PITR restore reconciliation is not implemented.
 - F-5 legacy counter reconciliation remains partial.
 - Agent CANCELLED/FAILED/COMPLETED retention remains outside this gate.
+- R08-C0A now defines an execution-neutral operation/checkpoint contract;
+  operation/checkpoint retention remains REVIEW_REQUIRED and no erasure
+  implementation is activated.
 
 R08-JM-G0 finding F-JM-13 remains open: `POST /me/documents` returns an
 internal S3 `key` and uses `docId`/`expiresIn`, while OpenAPI says

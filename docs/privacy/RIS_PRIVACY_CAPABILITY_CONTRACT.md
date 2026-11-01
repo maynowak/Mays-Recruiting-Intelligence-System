@@ -1,9 +1,11 @@
 # RIS Privacy Capability Contract
 
 Status: **PARTIALLY IMPLEMENTED**. R08-A1 delivers the internal receipt journal
-repository and storage (production writes fail-closed); no public API, no
-inspect/export and no erasure code yet. The existing `POST /me/erasure` (G5)
-remains the only implemented account-level path.
+repository and storage (production writes fail-closed); R08-B1/B2A deliver
+read-only inspection/export; R08-C0A defines the storage-neutral erasure
+operation/checkpoint contract. No new erasure execution is active. The
+existing `POST /me/erasure` (G5) remains the only implemented account-level
+deletion path.
 
 ## Domains and responsibilities
 
@@ -48,6 +50,29 @@ privacy.request_status(operationId, context) -> PrivacyOperationV1
   `PrivacyReceiptV1` read model. **R08-A1 provides the internal repository
   only**; the public `privacy.receipts` read model/API is R08-B.
 - `request_status` is bound to the same identity and to the operation ID.
+
+## R08-C0A erasure operation contract
+
+`agents.ecosystem.privacy_erasure_contract.ErasureOperationV1` is the
+versioned, execution-neutral contract for the later C1 implementation. It is
+bound to `operationId`, `idempotencyKey`, user, tenant, partner application and
+issuer, and supports `USER` and single-`CV` scopes. Its statuses are
+`PENDING`, `RUNNING`, `PARTIAL`, `FAILED` and `COMPLETED`; `COMPLETED` is
+terminal and cannot be asserted while any required progress category is not
+complete or skipped.
+
+The logical DynamoDB item contract requires an idempotent conditional create
+(`attribute_not_exists(operationId)`) and every update to verify the stored
+`version` before atomically incrementing it. `idempotencyLookup` and
+`scopeKey` are server-derived. Checkpoints contain only opaque server-side
+references, phase/state, attempt and timestamps; raw DynamoDB keys, S3 keys,
+continuation tokens, URLs, credentials and CV content are not public contract
+fields. Checkpoint state is separate from `PrivacyReceiptV1` evidence.
+
+Operation/checkpoint retention is **REVIEW_REQUIRED** and has no invented
+duration. The contract does not create a table, call AWS, write receipts or
+delete data. C1 must add the guarded persistence and write-freeze behavior
+only after policy approval.
 
 ## Receipt journal storage (R08-A1)
 
