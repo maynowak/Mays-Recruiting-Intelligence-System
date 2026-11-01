@@ -8420,3 +8420,25 @@ Current resume point:
   - R08-P1-1 is BLOCKED by contract/security gaps. R08-A2 policy enablement is
     BLOCKED / REVIEW_REQUIRED. R08-B/C/D and R07-B remain not started.
   - No production journal activation, no deploy/apply/destroy.
+
+[R08-P1-1 / P0-1 CANONICAL USER & CV CONTRACT]
+Status: COMPLETE (contract-only); runtime P0-2/P0-3 remains open.
+Date: 2026-11-01
+- Baseline checked: feature/ris-partner-profile-persistence-v1 @ b76adfa; tracked
+  tree clean; the existing 39 untracked files were not modified.
+- Finalized canonical UserProfileV1 projection: schemaVersion 1, lowercase
+  active/disabled/pending status, server-authoritative identity/email, version,
+  PATCH/expectedVersion/If-Match contract and 409 stale-version requirement.
+- Finalized canonical CVDocumentV1 projection: cvId distinct from documentId,
+  filename/sizeBytes, application/pdf, pending/ready/failed/deleted, allow-listed
+  metadata and explicit legacy name/size/status mappings.
+- Finalized public upload-ticket DTO: server-owned documentId, expiresAt and
+  requiredHeaders; internal S3 keys rejected. Existing legacy runtime ticket is
+  deliberately unchanged and assigned to P0-2.
+- Added synthetic fixtures, positive/negative contract tests and synchronized
+  OpenAPI schemas without advertising an unimplemented PATCH runtime route.
+- Tests: P0-1 targeted 117 passed, 250 subtests; broader partner/API contract
+  regression 575 passed, 256 subtests; git diff --check PASS.
+- No handler, AWS, deployment, Jobsearch, Orders or receipt-journal changes.
+Resume: P0-2 GO for local document-API implementation; BLOCKED for AWS-E2E/
+product release until runtime projection, ownership and no-S3-key tests pass.

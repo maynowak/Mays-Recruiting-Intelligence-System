@@ -56,12 +56,21 @@ CLIENT_FORBIDDEN_IDENTITY_FIELDS = frozenset({
 # Strict field sets per resource type (camelCase persisted form).
 USER_PROFILE_FIELDS = frozenset({
     "resourceType", "schemaVersion", "userId", "tenantId",
-    "displayName", "email", "createdAt", "updatedAt", "metadata",
+    "displayName", "nickname", "firstName", "lastName", "email", "status",
+    "createdAt", "updatedAt", "version", "metadata",
 })
 CV_DOCUMENT_FIELDS = frozenset({
     "resourceType", "schemaVersion", "cvId", "userId", "tenantId",
-    "name", "size", "contentHash", "contentType", "etag", "uploadedAt",
-    "documentId", "processingStatus", "createdAt", "updatedAt", "metadata",
+    "name", "filename", "size", "sizeBytes", "contentHash", "contentType",
+    "etag", "uploadedAt", "documentId", "processingStatus", "createdAt",
+    "updatedAt", "version", "metadata",
+})
+
+USER_STATUS_ACTIVE = "active"
+USER_STATUS_DISABLED = "disabled"
+USER_STATUS_PENDING = "pending"
+USER_ALLOWED_STATUSES = frozenset({
+    USER_STATUS_ACTIVE, USER_STATUS_DISABLED, USER_STATUS_PENDING,
 })
 
 # CV processing status machine (R04). READY requires a verified S3 object.
@@ -76,7 +85,22 @@ CV_ALLOWED_STATUSES = frozenset({
     CV_STATUS_READY,
     CV_STATUS_DELETE_FAILED,
     CV_STATUS_ERROR,
+    "failed",
+    "deleted",
 })
+
+# Canonical Jobsearch v1 status values. Legacy RIS values are accepted on read
+# and normalized by ``canonical_dict``; they are never emitted there.
+CV_STATUS_FAILED = "failed"
+CV_STATUS_DELETED = "deleted"
+CV_CANONICAL_STATUSES = frozenset({
+    CV_STATUS_PENDING, CV_STATUS_READY, CV_STATUS_FAILED, CV_STATUS_DELETED,
+})
+CV_LEGACY_STATUS_TO_CANONICAL = {
+    "upload_pending": CV_STATUS_PENDING,
+    "error": CV_STATUS_FAILED,
+    "delete_failed": CV_STATUS_FAILED,
+}
 CV_SEARCH_PROFILE_FIELDS = frozenset({
     "resourceType", "schemaVersion", "searchProfileId", "cvId", "userId",
     "tenantId", "name", "description", "origin", "searchConfig",
@@ -532,13 +556,18 @@ class UserProfile:
     user_id: str
     tenant_id: str
     display_name: Optional[str] = None
+    nickname: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     email: Optional[str] = None
+    status: str = USER_STATUS_ACTIVE
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    version: int = 1
 
     resource_type: str = "UserProfile"
-    schema_version: str = SCHEMA_VERSION
+    schema_version: int = SCHEMA_VERSION
 
     def to_dict(self) -> Dict[str, Any]:
         result: Dict[str, Any] = {
@@ -573,10 +602,15 @@ class UserProfile:
             user_id=user_id,
             tenant_id=tenant_id,
             display_name=_optional_str(data.get("displayName"), "displayName"),
+            nickname=_optional_str(data.get("nickname"), "nickname"),
+            first_name=_optional_str(data.get("firstName"), "firstName"),
+            last_name=_optional_str(data.get("lastName"), "lastName"),
             email=_optional_str(data.get("email"), "email"),
+            status=str(data.get("status", USER_STATUS_ACTIVE) or USER_STATUS_ACTIVE).lower(),
             metadata=data.get("metadata") or {},
             created_at=_optional_str(data.get("createdAt"), "createdAt"),
             updated_at=_optional_str(data.get("updatedAt"), "updatedAt"),
+            version=data.get("version", 1),
             resource_type=rt,
             schema_version=sv,
         )
@@ -586,8 +620,36 @@ class UserProfile:
     def validate(self) -> None:
         _require_str(self.user_id, "userId")
         _require_str(self.tenant_id, "tenantId")
+        if self.status not in USER_ALLOWED_STATUSES:
+            raise ProfileContractError("INVALID_FIELD", "status must be active, disabled or pending")
+        if isinstance(self.version, bool) or not isinstance(self.version, int) or self.version < 1:
+            raise ProfileContractError("INVALID_FIELD", "version must be a positive integer")
         if self.metadata is not None and not isinstance(self.metadata, dict):
             raise ProfileContractError("INVALID_FIELD", "metadata must be an object")
+
+    def canonical_dict(self) -> Dict[str, Any]:
+        """Return the Jobsearch ``UserProfileV1`` response DTO.
+
+        ``to_dict`` remains the legacy persistence representation until the
+        runtime handler migration (P0-2/P0-3). This explicit projection lets
+        contract clients validate the target shape without changing handlers.
+        """
+        self.validate()
+        result: Dict[str, Any] = {
+            "schemaVersion": SCHEMA_VERSION,
+            "userId": self.user_id,
+            "status": self.status,
+            "createdAt": self.created_at,
+            "updatedAt": self.updated_at,
+            "version": self.version,
+        }
+        if self.tenant_id:
+            result["tenantId"] = self.tenant_id
+        for key, value in (("nickname", self.nickname), ("firstName", self.first_name),
+                           ("lastName", self.last_name), ("email", self.email)):
+            if value is not None:
+                result[key] = value
+        return result
 
 
 @dataclass
@@ -606,9 +668,10 @@ class CVDocument:
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    version: int = 1
 
     resource_type: str = "CVDocument"
-    schema_version: str = SCHEMA_VERSION
+    schema_version: int = SCHEMA_VERSION
 
     def to_dict(self) -> Dict[str, Any]:
         result: Dict[str, Any] = {
@@ -651,8 +714,8 @@ class CVDocument:
             cv_id=_require_str(data.get("cvId"), "cvId"),
             user_id=_require_str(data.get("userId"), "userId"),
             tenant_id=_require_str(data.get("tenantId"), "tenantId"),
-            name=_require_str(data.get("name"), "name"),
-            size=data.get("size", 0),
+            name=_require_str(data.get("name", data.get("filename")), "name"),
+            size=data.get("size", data.get("sizeBytes", 0)),
             content_hash=_optional_str(data.get("contentHash"), "contentHash"),
             content_type=_optional_str(data.get("contentType"), "contentType"),
             etag=_optional_str(data.get("etag"), "etag"),
@@ -662,6 +725,7 @@ class CVDocument:
             metadata=data.get("metadata") or {},
             created_at=_optional_str(data.get("createdAt"), "createdAt"),
             updated_at=_optional_str(data.get("updatedAt"), "updatedAt"),
+            version=data.get("version", 1),
             resource_type=rt,
             schema_version=sv,
         )
@@ -680,11 +744,141 @@ class CVDocument:
                 "INVALID_FIELD",
                 f"processingStatus must be one of {sorted(CV_ALLOWED_STATUSES)}, got {self.processing_status!r}",
             )
+        if isinstance(self.version, bool) or not isinstance(self.version, int) or self.version < 1:
+            raise ProfileContractError("INVALID_FIELD", "version must be a positive integer")
         # No Browser File objects or original CV text may be stored.
         if "file" in (self.metadata or {}):
             raise ProfileContractError("FORBIDDEN_CONTENT", "Browser File objects must not be stored in profile JSON")
         if "cvText" in (self.metadata or {}) or "originalText" in (self.metadata or {}):
             raise ProfileContractError("FORBIDDEN_CONTENT", "Original CV text must not be stored in profile JSON")
+
+    def canonical_dict(self) -> Dict[str, Any]:
+        """Return the Jobsearch ``CVDocumentV1`` response DTO.
+
+        Legacy names/statuses remain readable and are intentionally kept in
+        ``to_dict`` until the handler/repository migration. ``documentId`` is
+        distinct from ``cvId`` and is never an S3 key.
+        """
+        self.validate()
+        status = CV_LEGACY_STATUS_TO_CANONICAL.get(
+            self.processing_status, self.processing_status)
+        if status not in CV_CANONICAL_STATUSES:
+            raise ProfileContractError("INVALID_FIELD", "processingStatus has no canonical v1 mapping")
+        if not self.document_id:
+            raise ProfileContractError("MISSING_FIELD", "documentId is required by CVDocumentV1")
+        if self.content_type != "application/pdf":
+            raise ProfileContractError("INVALID_FIELD", "CVDocumentV1 contentType must be application/pdf")
+        if self.size < 1:
+            raise ProfileContractError("INVALID_FIELD", "sizeBytes must be at least 1")
+        result: Dict[str, Any] = {
+            "schemaVersion": SCHEMA_VERSION,
+            "cvId": self.cv_id,
+            "documentId": self.document_id,
+            "filename": self.name,
+            "contentType": "application/pdf",
+            "sizeBytes": self.size,
+            "processingStatus": status,
+            "createdAt": self.created_at,
+            "updatedAt": self.updated_at,
+            "version": self.version,
+        }
+        allowed_metadata = {k: self.metadata[k] for k in ("pageCount", "language")
+                            if k in self.metadata}
+        if allowed_metadata:
+            result["metadata"] = allowed_metadata
+        return result
+
+
+@dataclass(frozen=True)
+class UserProfilePatchV1:
+    """Client-writable UserProfile v1 fields only."""
+
+    nickname: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    expected_version: Optional[int] = None
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "UserProfilePatchV1":
+        if not isinstance(data, dict):
+            raise ProfileContractError("INVALID_FIELD", "UserProfile patch must be an object")
+        allowed = {"nickname", "firstName", "lastName", "expectedVersion"}
+        _check_unknown_fields(data, allowed, "UserProfilePatchV1")
+        reject_client_identity(data)
+        expected = data.get("expectedVersion")
+        if expected is not None and (isinstance(expected, bool) or not isinstance(expected, int) or expected < 1):
+            raise ProfileContractError("INVALID_FIELD", "expectedVersion must be a positive integer")
+        return cls(
+            nickname=_optional_str(data.get("nickname"), "nickname"),
+            first_name=_optional_str(data.get("firstName"), "firstName"),
+            last_name=_optional_str(data.get("lastName"), "lastName"),
+            expected_version=expected,
+        )
+
+
+def parse_expected_version(data: Optional[Dict[str, Any]], if_match: Optional[str] = None) -> int:
+    """Parse the v1 optimistic-lock token from body or ``If-Match``.
+
+    Both transports are accepted at the contract boundary during migration,
+    but callers must provide exactly one consistent positive integer.
+    """
+    body_value = data.get("expectedVersion") if isinstance(data, dict) else None
+    header_value = if_match.strip().strip('"') if isinstance(if_match, str) else None
+    if body_value is None and header_value is None:
+        raise ProfileContractError("MISSING_FIELD", "expectedVersion or If-Match is required")
+    values = [value for value in (body_value, header_value) if value is not None]
+    try:
+        parsed = [int(value) for value in values]
+    except (TypeError, ValueError):
+        raise ProfileContractError("INVALID_FIELD", "expectedVersion/If-Match must be an integer")
+    if any(value < 1 for value in parsed) or len(set(parsed)) != 1:
+        raise ProfileContractError("INVALID_FIELD", "expectedVersion/If-Match values conflict")
+    return parsed[0]
+
+
+def validate_user_status_transition(current: str, requested: str) -> None:
+    """Validate the intentionally small UserProfile status machine."""
+    if current not in USER_ALLOWED_STATUSES or requested not in USER_ALLOWED_STATUSES:
+        raise ProfileContractError("INVALID_FIELD", "unknown UserProfile status")
+    if current == USER_STATUS_DISABLED and requested == USER_STATUS_ACTIVE:
+        # Re-enablement is a product/security decision, not an implicit PATCH.
+        raise ProfileContractError("INVALID_STATUS_TRANSITION", "disabled profiles require an explicit re-enable flow")
+
+
+@dataclass(frozen=True)
+class DocumentUploadTicketV1:
+    """Public upload ticket; internal S3 keys are deliberately absent."""
+
+    document_id: str
+    upload_url: str
+    expires_at: str
+    required_headers: Dict[str, str] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "documentId": _require_str(self.document_id, "documentId"),
+            "uploadUrl": _require_str(self.upload_url, "uploadUrl"),
+            "expiresAt": _require_str(self.expires_at, "expiresAt"),
+            "requiredHeaders": dict(self.required_headers),
+        }
+
+    @classmethod
+    def from_legacy(cls, data: Dict[str, Any]) -> "DocumentUploadTicketV1":
+        """Read legacy ``docId``/``expiresIn`` only for migration diagnostics.
+
+        A legacy ticket cannot be upgraded to an absolute ``expiresAt``
+        without the server clock, so callers must supply that value.
+        """
+        if not isinstance(data, dict):
+            raise ProfileContractError("INVALID_FIELD", "upload ticket must be an object")
+        if "key" in data:
+            raise ProfileContractError("FORBIDDEN_FIELD", "internal S3 key must not be public")
+        return cls(
+            document_id=_require_str(data.get("documentId", data.get("docId")), "documentId"),
+            upload_url=_require_str(data.get("uploadUrl"), "uploadUrl"),
+            expires_at=_require_str(data.get("expiresAt"), "expiresAt"),
+            required_headers=dict(data.get("requiredHeaders") or {}),
+        )
 
 
 @dataclass

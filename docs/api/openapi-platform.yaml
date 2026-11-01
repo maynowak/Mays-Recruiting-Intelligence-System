@@ -2162,31 +2162,38 @@ components:
     UserProfile:
       type: object
       description: >-
-        Application profile v1. Exactly the fields below; no others are
-        accepted. `userId`, `tenantId` and `email` originate from the JWT,
-        never from the request body.
-      required: [userId, tenantId, status, createdAt, updatedAt]
+        Canonical Jobsearch UserProfileV1. `userId`, `tenantId` and `email`
+        originate from verified server context, never from the request body.
+      additionalProperties: false
+      required: [schemaVersion, userId, tenantId, status, createdAt, updatedAt, version]
       properties:
+        schemaVersion: { type: integer, enum: [1] }
         userId: { type: string }
         tenantId: { type: string }
         nickname: { type: string, nullable: true }
         firstName: { type: string, nullable: true }
         lastName: { type: string, nullable: true }
         email: { type: string, nullable: true }
-        status: { type: string, enum: [ACTIVE] }
+        status: { type: string, enum: [active, disabled, pending] }
         createdAt: { type: string }
         updatedAt: { type: string }
+        version: { type: integer, minimum: 1 }
 
     UserProfileWritable:
       type: object
       description: >-
         Only the three mutable v1 fields. Identity and audit fields are
-        server-owned; supplying them in the body has no effect.
+        server-owned and rejected. PATCH requires expectedVersion or If-Match.
       additionalProperties: false
       properties:
-        nickname: { type: string }
-        firstName: { type: string }
-        lastName: { type: string }
+        nickname: { type: string, nullable: true }
+        firstName: { type: string, nullable: true }
+        lastName: { type: string, nullable: true }
+        expectedVersion: { type: integer, minimum: 1 }
+
+    UserProfilePatchV1:
+      allOf:
+        - $ref: "#/components/schemas/UserProfileWritable"
 
     DocumentUploadTicket:
       type: object
@@ -2376,38 +2383,42 @@ components:
 
     PartnerCvV1:
       type: object
-      required: [schemaVersion, cvId, name, processingStatus]
+      description: Canonical Jobsearch CVDocumentV1. Legacy RIS names are not emitted.
+      additionalProperties: false
+      required: [schemaVersion, cvId, documentId, filename, contentType, sizeBytes, processingStatus, createdAt, updatedAt, version]
       properties:
         schemaVersion: { type: integer, enum: [1] }
         cvId: { type: string }
-        documentId:
-          type: string
-          nullable: true
-          description: Server-assigned S3 document id (never a presigned URL).
-        name: { type: string }
-        size: { type: integer, minimum: 0 }
-        contentType: { type: string, nullable: true }
-        etag: { type: string, nullable: true }
+        documentId: { type: string, description: Server-assigned document id; never an S3 key. }
+        filename: { type: string }
+        contentType: { type: string, enum: [application/pdf] }
+        sizeBytes: { type: integer, minimum: 1 }
         processingStatus:
           type: string
-          enum: [pending, upload_pending, ready, delete_failed, error]
-        uploadedAt: { type: string, format: date-time, nullable: true }
+          enum: [pending, ready, failed, deleted]
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         version: { type: integer, minimum: 1 }
-        userId: { type: string }
-        tenantId: { type: string }
+        metadata:
+          type: object
+          additionalProperties: false
+          properties:
+            pageCount: { type: integer, minimum: 1 }
+            language: { type: string }
 
     PartnerCvUploadTicket:
       type: object
-      required: [cvId, documentId, uploadUrl, expiresIn]
+      required: [cvId, documentId, uploadUrl, expiresAt, requiredHeaders]
       properties:
         cvId: { type: string }
         documentId: { type: string }
         uploadUrl:
           type: string
           description: Short-lived presigned PUT URL; never persisted.
-        expiresIn: { type: integer }
+        expiresAt: { type: string, format: date-time }
+        requiredHeaders:
+          type: object
+          additionalProperties: { type: string }
 
     PartnerCvDownload:
       type: object
