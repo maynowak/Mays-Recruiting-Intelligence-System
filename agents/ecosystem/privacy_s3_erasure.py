@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import base64
 import json
+import threading
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -50,6 +51,10 @@ class S3ErasureUnknownResult(S3ErasureError):
     """An S3 result is unknown and therefore cannot advance completion."""
 
 
+class S3QuiescenceBlocked(S3ErasureError):
+    """The subject cannot yet be proven quiet for S3 erasure."""
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -65,6 +70,128 @@ class S3VersionRef:
     key: str
     version_id: str
     delete_marker: bool = False
+
+
+@dataclass(frozen=True)
+class UploadTicketEvidence:
+    """Ticket evidence without URL, object key or storage identifiers."""
+
+    ticket_ref: str
+    expires_at: Optional[str]
+
+
+@dataclass(frozen=True)
+class S3QuiescenceAssessment:
+    ready: bool
+    reasons: tuple = field(default_factory=tuple)
+
+    def public_dict(self) -> Dict[str, Any]:
+        return {"ready": self.ready, "reasons": list(self.reasons)}
+
+
+@dataclass(frozen=True)
+class S3QuiescenceLease:
+    operation_id: str
+    attempt_id: str
+    lease_id: str
+
+
+class InMemoryS3QuiescenceLeaseStore:
+    """Thread-safe local exclusive lease fake; never used in production."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._leases: Dict[str, S3QuiescenceLease] = {}
+
+    def acquire(self, operation_id: str, attempt_id: str) -> S3QuiescenceLease:
+        with self._lock:
+            if operation_id in self._leases:
+                raise S3ErasureConflict("another S3 worker owns the quiescence lease")
+            lease = S3QuiescenceLease(operation_id, attempt_id, "lease-" + uuid.uuid4().hex)
+            self._leases[operation_id] = lease
+            return lease
+
+    def is_current(self, lease: S3QuiescenceLease) -> bool:
+        with self._lock:
+            return self._leases.get(lease.operation_id) == lease
+
+    def release(self, lease: S3QuiescenceLease) -> None:
+        with self._lock:
+            if self._leases.get(lease.operation_id) != lease:
+                raise S3ErasureConflict("stale S3 quiescence lease")
+            del self._leases[lease.operation_id]
+
+
+class S3QuiescenceCoordinator:
+    """Local-verifiable quiescence gate; disabled unless explicitly enabled."""
+
+    def __init__(self, *, lease_store: Any, enabled: Optional[bool] = None,
+                 clock: Any = None):
+        self.lease_store = lease_store
+        self.enabled = (os.environ.get(
+            "ERASURE_S3_QUIESCENCE_ENABLED", "false").lower() == "true"
+                        if enabled is None else bool(enabled))
+        self.clock = clock or (lambda: datetime.now(timezone.utc))
+
+    def assess(self, *, freeze_active: bool,
+               new_tickets_blocked: bool,
+               tickets: Iterable[UploadTicketEvidence],
+               active_actions: Optional[int],
+               inventory_complete: bool,
+               inventory_empty: bool,
+               object_lock_blocked: bool = False,
+               object_lock_unknown: bool = False) -> S3QuiescenceAssessment:
+        reasons: List[str] = []
+        if not freeze_active:
+            reasons.append("FREEZE_NOT_ACTIVE")
+        if not new_tickets_blocked:
+            reasons.append("UPLOAD_TICKETS_NOT_BLOCKED")
+        now = self.clock()
+        for ticket in tickets:
+            if not ticket.ticket_ref or not ticket.expires_at:
+                reasons.append("TICKET_EXPIRY_UNKNOWN")
+                continue
+            try:
+                expiry = datetime.fromisoformat(ticket.expires_at.replace("Z", "+00:00"))
+                if expiry.tzinfo is None:
+                    reasons.append("TICKET_EXPIRY_UNKNOWN")
+                elif expiry > now:
+                    reasons.append("TICKET_STILL_VALID")
+            except (TypeError, ValueError):
+                reasons.append("TICKET_EXPIRY_UNKNOWN")
+        if active_actions is None:
+            reasons.append("ACTIVE_ACTIONS_UNKNOWN")
+        elif active_actions != 0:
+            reasons.append("ACTIVE_ACTIONS_PRESENT")
+        if not inventory_complete:
+            reasons.append("INVENTORY_INCOMPLETE")
+        if not inventory_empty:
+            reasons.append("OBJECTS_REMAIN")
+        if object_lock_blocked:
+            reasons.append("OBJECT_LOCK_BLOCKED")
+        if object_lock_unknown:
+            reasons.append("OBJECT_LOCK_UNKNOWN")
+        return S3QuiescenceAssessment(not reasons, tuple(reasons))
+
+    def begin(self, *, ctx: ErasureExecutionContextV1,
+              attempt_id: str, assessment: S3QuiescenceAssessment
+              ) -> S3QuiescenceLease:
+        if not self.enabled:
+            raise S3ErasureUnavailable("S3 quiescence is disabled")
+        if not assessment.ready:
+            raise S3QuiescenceBlocked("S3 quiescence is not proven")
+        return self.lease_store.acquire(ctx.operation_id, attempt_id)
+
+    def assert_current(self, lease: S3QuiescenceLease) -> None:
+        if not self.lease_store.is_current(lease):
+            raise S3ErasureConflict("stale S3 quiescence worker")
+
+    def complete(self, *, lease: S3QuiescenceLease,
+                 final_assessment: S3QuiescenceAssessment) -> None:
+        self.assert_current(lease)
+        if not final_assessment.ready:
+            raise S3QuiescenceBlocked("final S3 quiescence proof failed")
+        self.lease_store.release(lease)
 
 
 @dataclass(frozen=True)
@@ -455,6 +582,9 @@ class FencedS3ErasureOrchestrator:
 __all__ = [
     "PHASE_INVENTORY", "PHASE_DELETE", "PHASE_VERIFY", "PHASE_RETRY",
     "PHASE_COMPLETED", "S3VersionRef", "S3ErasurePhaseV1",
+    "UploadTicketEvidence", "S3QuiescenceAssessment",
+    "S3QuiescenceLease", "InMemoryS3QuiescenceLeaseStore",
+    "S3QuiescenceCoordinator", "S3QuiescenceBlocked",
     "S3ErasurePhaseRepository", "FencedS3Adapter",
     "FencedS3VersionedAdapter",
     "FencedS3ErasureOrchestrator", "S3ErasureError", "S3ErasureUnavailable",

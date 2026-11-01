@@ -10,7 +10,8 @@ from agents.ecosystem.privacy_s3_erasure import (
     FencedS3Adapter, FencedS3ErasureOrchestrator, FencedS3VersionedAdapter,
     S3ErasureConflict,
     S3ErasurePhaseRepository, S3ErasureUnavailable, S3ErasureUnknownResult,
-    S3VersionRef)
+    S3VersionRef, InMemoryS3QuiescenceLeaseStore, S3QuiescenceBlocked,
+    S3QuiescenceCoordinator, S3QuiescenceAssessment, UploadTicketEvidence)
 
 
 NOW = datetime.now(timezone.utc).isoformat()
@@ -201,3 +202,72 @@ def test_local_adapter_stale_worker_is_rejected_before_s3_call():
     with pytest.raises(S3ErasureConflict):
         adapter.inventory(attempt_id="attempt-1")
     assert fake.list_calls == []
+
+
+def _ready_assessment(coordinator, tickets=()):
+    return coordinator.assess(
+        freeze_active=True, new_tickets_blocked=True, tickets=tickets,
+        active_actions=0, inventory_complete=True, inventory_empty=True)
+
+
+def test_quiescence_requires_expired_known_tickets_and_empty_inventory():
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    coordinator = S3QuiescenceCoordinator(
+        lease_store=InMemoryS3QuiescenceLeaseStore(), enabled=True,
+        clock=lambda: now)
+    before = coordinator.assess(
+        freeze_active=True, new_tickets_blocked=True,
+        tickets=[UploadTicketEvidence("ticket-1", "2026-01-01T00:01:00+00:00")],
+        active_actions=0, inventory_complete=True, inventory_empty=True)
+    assert not before.ready
+    assert "TICKET_STILL_VALID" in before.reasons
+    unknown = coordinator.assess(
+        freeze_active=True, new_tickets_blocked=True,
+        tickets=[UploadTicketEvidence("ticket-2", None)], active_actions=0,
+        inventory_complete=True, inventory_empty=True)
+    assert not unknown.ready
+    assert "TICKET_EXPIRY_UNKNOWN" in unknown.reasons
+    after = _ready_assessment(coordinator, [
+        UploadTicketEvidence("ticket-1", "2025-12-31T23:59:00+00:00")])
+    assert after.ready
+
+
+def test_quiescence_blocks_open_actions_late_uploads_and_object_lock():
+    coordinator = S3QuiescenceCoordinator(
+        lease_store=InMemoryS3QuiescenceLeaseStore(), enabled=True)
+    assessment = coordinator.assess(
+        freeze_active=True, new_tickets_blocked=True, tickets=[],
+        active_actions=1, inventory_complete=True, inventory_empty=False,
+        object_lock_blocked=True)
+    assert not assessment.ready
+    assert {"ACTIVE_ACTIONS_PRESENT", "OBJECTS_REMAIN", "OBJECT_LOCK_BLOCKED"} \
+        <= set(assessment.reasons)
+
+
+def test_quiescence_lease_is_exclusive_and_stale_workers_fail_closed():
+    store = InMemoryS3QuiescenceLeaseStore()
+    coordinator = S3QuiescenceCoordinator(lease_store=store, enabled=True)
+    assessment = _ready_assessment(coordinator)
+    first = coordinator.begin(ctx=CTX, attempt_id="attempt-1",
+                              assessment=assessment)
+    with pytest.raises(Exception):
+        coordinator.begin(ctx=CTX, attempt_id="attempt-2",
+                          assessment=assessment)
+    store._leases[CTX.operation_id] = type(first)(
+        first.operation_id, "other-attempt", "other-lease")
+    with pytest.raises(Exception):
+        coordinator.assert_current(first)
+
+
+def test_final_completion_requires_quiescent_reinventory():
+    store = InMemoryS3QuiescenceLeaseStore()
+    coordinator = S3QuiescenceCoordinator(lease_store=store, enabled=True)
+    assessment = _ready_assessment(coordinator)
+    lease = coordinator.begin(ctx=CTX, attempt_id="attempt-1",
+                              assessment=assessment)
+    late_upload = coordinator.assess(
+        freeze_active=True, new_tickets_blocked=True, tickets=[],
+        active_actions=0, inventory_complete=True, inventory_empty=False)
+    with pytest.raises(S3QuiescenceBlocked):
+        coordinator.complete(lease=lease, final_assessment=late_upload)
+    coordinator.complete(lease=lease, final_assessment=assessment)
