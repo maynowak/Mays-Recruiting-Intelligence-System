@@ -4989,8 +4989,9 @@ def _cv_delete(ctx, cv_id):
 
 
 def _cv_upload_ticket(event, ctx, cv_id):
-    from datetime import datetime, timezone
-    from documents import ALLOWED_CONTENT_TYPES, new_doc_id, presign_upload
+    from datetime import datetime, timedelta, timezone
+    from documents import (ALLOWED_CONTENT_TYPES, UPLOAD_EXPIRY_SECONDS,
+                           new_doc_id, presign_upload)
     from jobsearch.partner_profile_contract import (
         CVDocument, CV_STATUS_READY, CV_STATUS_UPLOAD_PENDING,
         ProfileContractError,
@@ -5045,14 +5046,54 @@ def _cv_upload_ticket(event, ctx, cv_id):
         logger.error('cv upload reservation failed')
         return _cv_error(500, 'Internal error')
 
+    ledger = None
+    ledger_ticket = None
+    ledger_enabled = os.environ.get(
+        'ERASURE_UPLOAD_TICKET_LEDGER_ENABLED', 'false').strip().lower() == 'true'
+    freeze_enabled = os.environ.get(
+        'ERASURE_WRITE_FREEZE_ENABLED', 'false').strip().lower() == 'true'
+    if freeze_enabled and not ledger_enabled:
+        return _cv_error(503, 'Upload ticket ledger unavailable')
+    if ledger_enabled:
+        try:
+            from agents.ecosystem.privacy_upload_ticket import (
+                UploadTicketLedgerV1, UploadTicketLedgerRepository)
+            expires_at = (datetime.now(timezone.utc)
+                          + timedelta(seconds=UPLOAD_EXPIRY_SECONDS)).isoformat()
+            ledger = UploadTicketLedgerRepository(
+                client=getattr(_get_dynamodb().meta, 'client', None))
+            ledger_ticket = UploadTicketLedgerV1(
+                ticket_id='ticket-' + document_id,
+                cv_id=cv_id, document_id=document_id,
+                user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+                partner_application_id=ctx['partnerApplicationId'],
+                issuer=ctx['issuer'], issued_at=now, expires_at=expires_at)
+            ledger.register(ledger_ticket)
+        except Exception:
+            logger.error('cv upload ticket ledger registration failed')
+            return _cv_error(503, 'Upload ticket unavailable')
+
     try:
         ticket = presign_upload(
             tenant_id=ctx['tenantId'], user_id=ctx['userId'],
             content_type=content_type, doc_id=document_id,
-            require_tenant=True)
+            require_tenant=True,
+            expires_at=ledger_ticket.expires_at if ledger_ticket else None)
     except ValueError as exc:
+        if ledger and ledger_ticket:
+            try:
+                ledger.transition(ledger_ticket, status='PRESIGN_FAILED',
+                                  expected_version=ledger_ticket.version)
+            except Exception:
+                logger.error('cv upload ticket failure transition failed')
         return _cv_error(400, str(exc))
     except Exception:
+        if ledger and ledger_ticket:
+            try:
+                ledger.transition(ledger_ticket, status='PRESIGN_FAILED',
+                                  expected_version=ledger_ticket.version)
+            except Exception:
+                logger.error('cv upload ticket failure transition failed')
         logger.error('cv upload presign failed')
         return _cv_error(500, 'Failed to prepare upload')
 
@@ -5113,6 +5154,21 @@ def _cv_complete(event, ctx, cv_id):
 
     if existing.processing_status == CV_STATUS_READY:
         return _cv_response(existing)
+
+    ledger_ticket = None
+    if os.environ.get('ERASURE_UPLOAD_TICKET_LEDGER_ENABLED', 'false').strip().lower() == 'true':
+        try:
+            from agents.ecosystem.privacy_upload_ticket import (
+                STATUS_COMPLETED, UploadTicketLedgerRepository)
+            ledger = UploadTicketLedgerRepository(
+                client=getattr(_get_dynamodb().meta, 'client', None))
+            ledger_ticket = ledger.get('ticket-' + existing.document_id)
+            if ledger_ticket.status != STATUS_COMPLETED:
+                ledger.transition(ledger_ticket, status=STATUS_COMPLETED,
+                                  expected_version=ledger_ticket.version)
+        except Exception:
+            logger.error('cv upload ticket completion ledger update failed')
+            return _cv_error(503, 'Upload ticket ledger unavailable')
 
     now = datetime.now(timezone.utc).isoformat()
     updated = CVDocument(

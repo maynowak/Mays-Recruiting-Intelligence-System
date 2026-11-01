@@ -244,6 +244,17 @@ def test_quiescence_blocks_open_actions_late_uploads_and_object_lock():
         <= set(assessment.reasons)
 
 
+def test_unknown_legacy_tickets_block_cutover():
+    coordinator = S3QuiescenceCoordinator(
+        lease_store=InMemoryS3QuiescenceLeaseStore(), enabled=True)
+    assessment = coordinator.assess(
+        freeze_active=True, new_tickets_blocked=True, tickets=[],
+        active_actions=0, inventory_complete=True, inventory_empty=True,
+        unregistered_tickets_unknown=True)
+    assert not assessment.ready
+    assert "UNREGISTERED_TICKETS_UNKNOWN" in assessment.reasons
+
+
 def test_quiescence_lease_is_exclusive_and_stale_workers_fail_closed():
     store = InMemoryS3QuiescenceLeaseStore()
     coordinator = S3QuiescenceCoordinator(lease_store=store, enabled=True)

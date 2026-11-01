@@ -77,7 +77,8 @@ def _expires_at() -> str:
 def presign_upload(s3: Any = None, tenant_id: str = "", user_id: str = "",
                    content_type: Optional[str] = None,
                    doc_id: Optional[str] = None,
-                   require_tenant: bool = False) -> Dict[str, Any]:
+                   require_tenant: bool = False,
+                   expires_at: Optional[str] = None) -> Dict[str, Any]:
     """Presigned PUT for one server-owned document id.
 
     The S3 key is deliberately kept inside this module and is never returned
@@ -97,7 +98,7 @@ def presign_upload(s3: Any = None, tenant_id: str = "", user_id: str = "",
         ExpiresIn=UPLOAD_EXPIRY_SECONDS,
     )
     return {"documentId": doc_id, "uploadUrl": url,
-            "expiresAt": _expires_at(),
+            "expiresAt": expires_at or _expires_at(),
             "requiredHeaders": {"Content-Type": content_type}}
 
 
