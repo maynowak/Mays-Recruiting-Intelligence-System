@@ -69,10 +69,19 @@ references, phase/state, attempt and timestamps; raw DynamoDB keys, S3 keys,
 continuation tokens, URLs, credentials and CV content are not public contract
 fields. Checkpoint state is separate from `PrivacyReceiptV1` evidence.
 
+R08-C0B adds `ErasureOperationRepository` as the conditional persistence
+adapter for this contract. It is explicitly fail-closed unless
+`ERASURE_OPERATION_REPOSITORY_ENABLED=true` is approved and configured. It
+uses point reads and conditional writes/transactions only; no normal-path table
+scan is available. The repository does not execute G5, delete data or write
+receipts. `ErasureWriteFreezeV1` is the prepared next-gate contract for
+blocking new uploads/profile changes while an operation is active; C0B does
+not enforce it yet.
+
 Operation/checkpoint retention is **REVIEW_REQUIRED** and has no invented
-duration. The contract does not create a table, call AWS, write receipts or
-delete data. C1 must add the guarded persistence and write-freeze behavior
-only after policy approval.
+ duration. The contract does not activate production persistence, call AWS,
+ write receipts or delete data. C1 must add the subject guard and write-freeze
+ enforcement only after policy approval.
 
 ## Receipt journal storage (R08-A1)
 

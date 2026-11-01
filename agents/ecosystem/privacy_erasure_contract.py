@@ -9,6 +9,8 @@ version contract documented below.
 from __future__ import annotations
 
 import re
+import hashlib
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Mapping, Optional
@@ -47,6 +49,8 @@ CHECKPOINT_COMPLETED = "COMPLETED"
 CHECKPOINT_STATUSES = frozenset({
     CHECKPOINT_NOT_STARTED, CHECKPOINT_IN_PROGRESS, CHECKPOINT_COMPLETED,
 })
+FREEZE_ACTIVE = "ACTIVE"
+FREEZE_RELEASED = "RELEASED"
 
 ERASURE_CATEGORIES = (
     "credentials", "apiProfiles", "workItems", "atsSearchProfiles",
@@ -195,6 +199,49 @@ class ErasureProgressV1:
 
 
 @dataclass(frozen=True)
+class ErasureWriteFreezeV1:
+    """C0B/C0C write-gate contract; enforcement belongs to the next gate."""
+
+    operation_id: str
+    user_id: str
+    tenant_id: str
+    partner_application_id: str
+    issuer: str
+    state: str = FREEZE_ACTIVE
+    version: int = 1
+    updated_at: str = ""
+
+    def __post_init__(self):
+        for value, name in (
+            (self.operation_id, "operationId"), (self.user_id, "userId"),
+            (self.tenant_id, "tenantId"),
+            (self.partner_application_id, "partnerApplicationId"),
+            (self.issuer, "issuer"),
+        ):
+            _required_ref(value, name, opaque=True)
+        if self.state not in (FREEZE_ACTIVE, FREEZE_RELEASED):
+            raise ErasureContractError("INVALID_FREEZE_STATE", "invalid freeze state")
+        if isinstance(self.version, bool) or not isinstance(self.version, int) or self.version < 1:
+            raise ErasureContractError("INVALID_VERSION", "version must be positive")
+        if self.updated_at:
+            _timestamp(self.updated_at, "updatedAt")
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "resourceType": "ErasureWriteFreeze",
+            "schemaVersion": SCHEMA_VERSION,
+            "operationId": self.operation_id,
+            "userId": self.user_id,
+            "tenantId": self.tenant_id,
+            "partnerApplicationId": self.partner_application_id,
+            "issuer": self.issuer,
+            "state": self.state,
+            "version": self.version,
+            **({"updatedAt": self.updated_at} if self.updated_at else {}),
+        }
+
+
+@dataclass(frozen=True)
 class ErasureOperationV1:
     """Versioned durable operation contract; execution remains G5-owned."""
 
@@ -302,6 +349,51 @@ class ErasureOperationV1:
                 result[name] = value
         return result
 
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "ErasureOperationV1":
+        if not isinstance(data, Mapping):
+            raise ErasureContractError("INVALID_FIELD", "operation must be an object")
+        if data.get("resourceType") not in (None, OPERATION_RESOURCE_TYPE):
+            raise ErasureContractError("INVALID_RESOURCE", "invalid operation resource type")
+        if data.get("schemaVersion", SCHEMA_VERSION) != SCHEMA_VERSION:
+            raise ErasureContractError("INVALID_SCHEMA", "unsupported operation schema")
+        progress = {}
+        for category, raw in (data.get("progress") or {}).items():
+            if not isinstance(raw, Mapping):
+                raise ErasureContractError("INVALID_PROGRESS", "progress must be an object")
+            checkpoint_raw = raw.get("checkpoint")
+            checkpoint = None
+            if checkpoint_raw is not None:
+                checkpoint = ErasureCheckpointV1(
+                    phase=checkpoint_raw.get("phase"),
+                    state=checkpoint_raw.get("state", CHECKPOINT_NOT_STARTED),
+                    cursor_ref=checkpoint_raw.get("cursorRef"),
+                    last_resource_ref=checkpoint_raw.get("lastResourceRef"),
+                    attempt=checkpoint_raw.get("attempt", 0),
+                    updated_at=checkpoint_raw.get("updatedAt", ""),
+                )
+            progress[category] = ErasureProgressV1(
+                status=raw.get("status", PROGRESS_PENDING),
+                affected=raw.get("affected", 0),
+                checkpoint=checkpoint,
+                error_code=raw.get("errorCode"),
+                retryable=raw.get("retryable", False),
+            )
+        return cls(
+            operation_id=data.get("operationId"),
+            idempotency_key=data.get("idempotencyKey"),
+            user_id=data.get("userId"), tenant_id=data.get("tenantId"),
+            partner_application_id=data.get("partnerApplicationId"),
+            issuer=data.get("issuer"), scope=data.get("scope"),
+            status=data.get("status", STATUS_PENDING),
+            version=data.get("version", 1), cv_id=data.get("cvId"),
+            progress=progress, created_at=data.get("createdAt", ""),
+            updated_at=data.get("updatedAt", ""),
+            started_at=data.get("startedAt"), completed_at=data.get("completedAt"),
+            retry_count=data.get("retryCount", 0),
+            last_error_code=data.get("lastErrorCode"),
+        )
+
     def to_dynamodb_item(self) -> Dict[str, Any]:
         """Return the logical item shape for conditional DynamoDB persistence.
 
@@ -311,10 +403,23 @@ class ErasureOperationV1:
         left to C1 and this method performs no AWS operation.
         """
         item = self.to_dict()
+        item["resourceId"] = self.operation_id
         item["idempotencyLookup"] = "%s#%s" % (self.tenant_id, self.idempotency_key)
         item["scopeKey"] = "%s#%s#%s#%s" % (
             self.tenant_id, self.user_id, self.partner_application_id, self.issuer)
         return item
+
+
+def operation_fingerprint(operation: ErasureOperationV1) -> str:
+    """Stable, non-secret request identity for idempotency replay checks."""
+    payload = {
+        "userId": operation.user_id, "tenantId": operation.tenant_id,
+        "partnerApplicationId": operation.partner_application_id,
+        "issuer": operation.issuer, "scope": operation.scope,
+        "cvId": operation.cv_id or "",
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def new_operation(*, operation_id: str, idempotency_key: str, user_id: str,
@@ -342,5 +447,6 @@ __all__ = [
     "PROGRESS_FAILED", "PROGRESS_COMPLETED", "PROGRESS_SKIPPED",
     "CHECKPOINT_NOT_STARTED", "CHECKPOINT_IN_PROGRESS", "CHECKPOINT_COMPLETED",
     "ERASURE_CATEGORIES", "ErasureContractError", "ErasureCheckpointV1",
-    "ErasureProgressV1", "ErasureOperationV1", "new_operation",
+    "ErasureProgressV1", "ErasureWriteFreezeV1", "ErasureOperationV1",
+    "operation_fingerprint", "new_operation",
 ]
