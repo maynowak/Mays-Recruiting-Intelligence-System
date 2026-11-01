@@ -442,6 +442,8 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_me_profile_update(event, context)
     elif method == 'DELETE' and path == '/me/profile':
         return _handle_me_profile_delete(event, context)
+    elif method == 'GET' and path == '/v1/partner/me/privacy/inspect':
+        return _handle_privacy_inspect(event, context)
     elif method == 'POST' and path == '/me/erasure':
         return _handle_me_erasure(event, context)
     elif method == 'POST' and path == '/me/documents':
@@ -3550,6 +3552,199 @@ def _partner_profile_context(event: Dict[str, Any]):
         'credentialId': meta.get('credentialId'),
         'issuer': issuer,
     }, None
+
+
+_PRIVACY_INSPECT_ROUTE = '/v1/partner/me/privacy/inspect'
+_PRIVACY_INSPECT_LIMIT = 50
+_PRIVACY_INSPECT_SCOPE = 'privacy-inspect'
+
+
+class _PrivacyInspectionUnavailable(Exception):
+    """A storage domain could not be inspected without claiming it is empty."""
+
+
+def _privacy_inspection_page(event, *, repo, ctx, resource_type, serializer,
+                             query_name, limit):
+    """Read one complete, identity-bound page from the profile GSI."""
+    raw_cursor = (event.get('queryStringParameters') or {}).get(query_name)
+    cursor = _decode_cursor(
+        raw_cursor, repo=repo, ctx=ctx, scope=_PRIVACY_INSPECT_SCOPE,
+        resource_type=resource_type, limit=limit)
+    if cursor == 'invalid':
+        raise ValueError('Invalid privacy inspection cursor')
+    if not getattr(repo, 'table_name', None) or getattr(repo, 'table', None) is None:
+        raise _PrivacyInspectionUnavailable('Profile storage is unavailable')
+    items, next_cursor = repo.list_by_user(
+        ctx['userId'], ctx['tenantId'], resource_type=resource_type,
+        partner_app_id=ctx.get('partnerApplicationId'),
+        issuer=ctx.get('issuer'), limit=limit, cursor=cursor)
+    return {
+        'items': [serializer(item) for item in items],
+        'nextCursor': _encode_cursor(
+            next_cursor, repo=repo, ctx=ctx, scope=_PRIVACY_INSPECT_SCOPE,
+            resource_type=resource_type, limit=limit),
+    }
+
+
+def _privacy_category(*, name, purpose, storage_status, retention_ref,
+                      page=None, status='COMPLETE', code=None):
+    result = {
+        'status': status,
+        'dataCategory': name,
+        'processingPurpose': purpose,
+        'storageStatus': storage_status,
+        'retentionPolicyRef': retention_ref,
+        'items': (page or {}).get('items', []),
+        'nextCursor': (page or {}).get('nextCursor'),
+    }
+    if code:
+        result['code'] = code
+    return result
+
+
+def _privacy_read_user_profile(ctx):
+    table_name = os.environ.get('USER_PROFILE_TABLE')
+    if not table_name:
+        raise _PrivacyInspectionUnavailable('User profile storage is unavailable')
+    try:
+        table = _get_dynamodb().Table(table_name)
+        response = table.get_item(Key={'userId': ctx['userId']},
+                                  ConsistentRead=True)
+    except Exception as exc:
+        raise _PrivacyInspectionUnavailable(
+            'User profile storage is unavailable') from exc
+    item = response.get('Item')
+    if item is None:
+        return None
+    if item.get('tenantId') != ctx['tenantId']:
+        raise _PrivacyInspectionUnavailable('User profile storage is unavailable')
+    return _canonical_user_profile(item)
+
+
+def _privacy_receipt_page(event, ctx, limit):
+    from agents.ecosystem.privacy_receipt import PrivacyContextV1
+    from agents.ecosystem.privacy_receipt_journal import (
+        PrivacyReceiptJournal, PrivacyReceiptJournalDisabled,
+        PrivacyReceiptInvalidCursor, PrivacyReceiptStorageError,
+    )
+    context = PrivacyContextV1(
+        user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+        partner_application_id=ctx['partnerApplicationId'],
+        issuer=ctx['issuer'])
+    raw_cursor = (event.get('queryStringParameters') or {}).get('receiptsCursor')
+    try:
+        receipts, next_cursor = PrivacyReceiptJournal().list_receipts(
+            context, cursor=raw_cursor, limit=limit)
+    except PrivacyReceiptInvalidCursor as exc:
+        raise ValueError('Invalid privacy inspection cursor') from exc
+    except (PrivacyReceiptJournalDisabled, PrivacyReceiptStorageError) as exc:
+        raise _PrivacyInspectionUnavailable(
+            'Privacy receipt storage is unavailable') from exc
+    return {
+        'items': [receipt.to_dict() for receipt in receipts],
+        'nextCursor': next_cursor,
+    }
+
+
+def _handle_privacy_inspect(event, context):
+    """Read-only, self-scoped inventory of RIS user data.
+
+    Each resource domain has its own secure cursor. A missing or failing store
+    is returned as UNAVAILABLE/PARTIAL, never as an empty successful list.
+    """
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return error
+    params = event.get('queryStringParameters') or {}
+    try:
+        limit = int(params.get('limit', _PRIVACY_INSPECT_LIMIT))
+    except (TypeError, ValueError):
+        return _cv_error(422, 'Invalid inspection limit')
+    if limit < 1 or limit > _PRIVACY_INSPECT_LIMIT:
+        return _cv_error(422, 'Invalid inspection limit')
+
+    categories = {}
+    unavailable = False
+    try:
+        profile = _privacy_read_user_profile(ctx)
+        categories['userProfile'] = _privacy_category(
+            name='user_profile', purpose='account/profile management',
+            storage_status='stored' if profile else 'no_data',
+            retention_ref='RIS-JOBSEARCH-RETENTION-POLICY-V1#user-profile',
+            page={'items': [profile] if profile else [], 'nextCursor': None})
+    except _PrivacyInspectionUnavailable:
+        unavailable = True
+        categories['userProfile'] = _privacy_category(
+            name='user_profile', purpose='account/profile management',
+            storage_status='unavailable',
+            retention_ref='RIS-JOBSEARCH-RETENTION-POLICY-V1#user-profile',
+            status='UNAVAILABLE', code='unavailable')
+
+    repo = _manual_profile_repo()
+    profile_pages = (
+        ('cvDocuments', 'CVDocument', _serialize_cv, 'cvCursor',
+         'cv document metadata', 'RIS-JOBSEARCH-RETENTION-POLICY-V1#cv-metadata'),
+        ('manualSearchProfiles', 'ManualSearchProfile', _serialize_manual_profile,
+         'manualCursor', 'manual search configuration',
+         'RIS-JOBSEARCH-RETENTION-POLICY-V1#manual-search-profile'),
+        ('cvSearchProfiles', 'CVSearchProfile', _serialize_cv_search_profile,
+         'cvSearchCursor', 'CV-derived search configuration',
+         'RIS-JOBSEARCH-RETENTION-POLICY-V1#cv-search-profile'),
+        ('atsSearchProfiles', 'ATSSearchProfile', _serialize_ats_profile,
+         'atsCursor', 'ATS search configuration',
+         'RIS-JOBSEARCH-RETENTION-POLICY-V1#ats-search-profile'),
+    )
+    for key, resource_type, serializer, query_name, purpose, retention_ref in profile_pages:
+        try:
+            page = _privacy_inspection_page(
+                event, repo=repo, ctx=ctx, resource_type=resource_type,
+                serializer=serializer, query_name=query_name, limit=limit)
+            categories[key] = _privacy_category(
+                name=resource_type, purpose=purpose,
+                storage_status=('stored' if page['items'] or page['nextCursor']
+                                else 'no_data'),
+                retention_ref=retention_ref, page=page)
+        except ValueError:
+            return _cv_error(400, 'Invalid privacy inspection cursor')
+        except _PrivacyInspectionUnavailable:
+            unavailable = True
+            categories[key] = _privacy_category(
+                name=resource_type, purpose=purpose, storage_status='unavailable',
+                retention_ref=retention_ref, status='UNAVAILABLE',
+                code='unavailable')
+        except Exception:
+            logger.error('privacy inspection profile domain unavailable')
+            unavailable = True
+            categories[key] = _privacy_category(
+                name=resource_type, purpose=purpose, storage_status='unavailable',
+                retention_ref=retention_ref, status='UNAVAILABLE',
+                code='unavailable')
+
+    try:
+        receipt_page = _privacy_receipt_page(event, ctx, limit)
+        categories['privacyReceipts'] = _privacy_category(
+            name='privacy_receipt', purpose='privacy evidence retrieval',
+            storage_status='stored', retention_ref=(
+                'RIS-PRIVACY-RECEIPT-RETENTION-DECISION#REVIEW_REQUIRED'),
+            page=receipt_page)
+    except ValueError:
+        return _cv_error(400, 'Invalid privacy inspection cursor')
+    except _PrivacyInspectionUnavailable:
+        unavailable = True
+        categories['privacyReceipts'] = _privacy_category(
+            name='privacy_receipt', purpose='privacy evidence retrieval',
+            storage_status='unavailable', retention_ref=(
+                'RIS-PRIVACY-RECEIPT-RETENTION-DECISION#REVIEW_REQUIRED'),
+            status='UNAVAILABLE', code='unavailable')
+
+    payload = {
+        'schemaVersion': 1,
+        'status': 'PARTIAL' if unavailable else 'COMPLETE',
+        'userId': ctx['userId'],
+        'generatedAt': datetime.now(timezone.utc).isoformat(),
+        'categories': categories,
+    }
+    return {'statusCode': 200, 'body': json.dumps(payload, ensure_ascii=False)}
 
 
 def _idempotency_key(event: Dict[str, Any]):

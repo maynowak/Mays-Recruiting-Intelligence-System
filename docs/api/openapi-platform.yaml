@@ -912,6 +912,70 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }
 
+  /v1/partner/me/privacy/inspect:
+    get:
+      tags: [Partner, Privacy]
+      operationId: inspectPartnerUserData
+      summary: Read the caller's scoped RIS privacy data inventory
+      description: |
+        Read-only, self-scoped inventory. Identity is derived from the verified
+        JWT plus the active partner credential/registry boundary. Each resource
+        category has its own opaque cursor query parameter. Missing or
+        unreachable stores are reported as UNAVAILABLE and make the overall
+        status PARTIAL; they are never reported as empty data.
+        Receipt data is available only when the receipt journal is explicitly
+        enabled and configured.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+        - name: cvCursor
+          in: query
+          required: false
+          schema: { type: string }
+        - name: manualCursor
+          in: query
+          required: false
+          schema: { type: string }
+        - name: cvSearchCursor
+          in: query
+          required: false
+          schema: { type: string }
+        - name: atsCursor
+          in: query
+          required: false
+          schema: { type: string }
+        - name: receiptsCursor
+          in: query
+          required: false
+          schema: { type: string }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Complete or partial scoped inventory.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrivacyInspectionV1" }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Inspection limit is invalid.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "503":
+          description: Auth or backing store unavailable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
   /v1/partner/me/manual-search-profiles:
     get:
       tags: [Partner]
@@ -2486,6 +2550,35 @@ components:
           properties:
             pageCount: { type: integer, minimum: 1 }
             language: { type: string }
+
+    PrivacyInspectionV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, status, userId, generatedAt, categories]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        status: { type: string, enum: [COMPLETE, PARTIAL] }
+        userId: { type: string }
+        generatedAt: { type: string, format: date-time }
+        categories:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/PrivacyInspectionCategoryV1"
+
+    PrivacyInspectionCategoryV1:
+      type: object
+      additionalProperties: false
+      required: [status, dataCategory, processingPurpose, storageStatus,
+                 retentionPolicyRef, items, nextCursor]
+      properties:
+        status: { type: string, enum: [COMPLETE, UNAVAILABLE] }
+        dataCategory: { type: string }
+        processingPurpose: { type: string }
+        storageStatus: { type: string, enum: [stored, no_data, unavailable] }
+        retentionPolicyRef: { type: string }
+        items: { type: array, items: {} }
+        nextCursor: { type: string, nullable: true }
+        code: { type: string, enum: [unavailable] }
 
     PartnerCvV1:
       type: object
