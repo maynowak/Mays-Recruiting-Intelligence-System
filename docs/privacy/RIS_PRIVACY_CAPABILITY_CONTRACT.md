@@ -80,11 +80,12 @@ not enforce it yet.
 
 R08-C0C now couples USER/CV freeze `ConditionCheck` items to partner-profile
 create/update/delete transactions when `ERASURE_WRITE_FREEZE_ENABLED=true`.
-The legacy JWT-only UserProfile route fails closed while that mechanism is
-enabled because it cannot yet provide the verified partner scope in the same
-cross-table transaction. Presigned S3 upload URLs already issued before a
-freeze may remain valid; upload completion and subsequent metadata mutations
-are guarded, but this is not an absolute S3 network write lock.
+The legacy UserProfile routes now require the same verified partner context
+while that mechanism is enabled and fail closed for JWT-only callers; their
+Guard-`ConditionCheck` and UserProfile mutation share one transaction.
+Presigned S3 upload URLs already issued before a freeze may remain valid;
+upload completion and subsequent metadata mutations are guarded, but this is
+not an absolute S3 network write lock.
 
 Operation/checkpoint retention is **REVIEW_REQUIRED** and has no invented
  duration. The contract does not activate production persistence, call AWS,

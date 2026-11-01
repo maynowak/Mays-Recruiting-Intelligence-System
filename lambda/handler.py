@@ -664,22 +664,76 @@ class _WriteFreezeUnavailable(Exception):
     """Enabled freeze cannot safely authorize a legacy UserProfile mutation."""
 
 
-def _enforce_user_profile_write_freeze_boundary(user_context: Dict[str, Any]) -> None:
-    """Fail closed until UserProfile shares the atomic guard transaction.
+class _UserProfileMutationConflict(Exception):
+    """The UserProfile mutation condition failed after the guard passed."""
 
-    The legacy JWT-only UserProfile routes lack the verified partner scope used
-    by the C0B guard. A read-before-write check would be race-unsafe, so C0C
-    blocks these mutations while the freeze mechanism is enabled. C1 must
-    replace this conservative boundary with a cross-table transaction.
-    """
-    if os.environ.get("ERASURE_WRITE_FREEZE_ENABLED", "false").strip().lower() == "true":
-        raise _WriteFreezeUnavailable(
-            "UserProfile write freeze transaction is not available")
+
+def _user_profile_freeze_context(event: Dict[str, Any],
+                                 user_context: Dict[str, Any],
+                                 tenant_id: str) -> Optional[Dict[str, Any]]:
+    """Resolve the verified dual-auth scope required for atomic UserProfile writes."""
+    if os.environ.get("ERASURE_WRITE_FREEZE_ENABLED", "false").strip().lower() != "true":
+        return None
+    verified, error = _partner_profile_context(event)
+    if error or not verified:
+        raise _WriteFreezeUnavailable("verified partner freeze scope unavailable")
+    if (verified.get("userId") != user_context.get("userId")
+            or verified.get("tenantId") != tenant_id
+            or not verified.get("partnerApplicationId")
+            or not verified.get("issuer")):
+        raise _WriteFreezeUnavailable("verified partner freeze scope mismatch")
+    return verified
+
+
+def _user_profile_guard_check(freeze_context: Dict[str, Any]) -> Dict[str, Any]:
+    """Build the guard ConditionCheck without reading the guard first."""
+    from agents.ecosystem.privacy_erasure_contract import freeze_resource_id
+    key = freeze_resource_id(
+        user_id=freeze_context["userId"], tenant_id=freeze_context["tenantId"],
+        partner_application_id=freeze_context["partnerApplicationId"],
+        issuer=freeze_context["issuer"], scope="USER")
+    return {
+        "ConditionCheck": {
+            "TableName": os.environ.get("PARTNER_PROFILE_TABLE"),
+            "Key": {"resourceId": {"S": key}},
+            "ConditionExpression": (
+                "attribute_not_exists(resourceId) OR #s = :released"),
+            "ExpressionAttributeNames": {"#s": "state"},
+            "ExpressionAttributeValues": {":released": {"S": "RELEASED"}},
+        }
+    }
+
+
+def _user_profile_transact(table_name: str, freeze_context: Dict[str, Any],
+                           mutation: Dict[str, Any]) -> None:
+    """Atomically couple the partner guard and UserProfile mutation."""
+    guard_table = os.environ.get("PARTNER_PROFILE_TABLE")
+    if not guard_table:
+        raise _WriteFreezeUnavailable("partner profile guard store unavailable")
+    check = _user_profile_guard_check(freeze_context)
+    check["ConditionCheck"]["TableName"] = guard_table
+    dynamodb = _get_dynamodb()
+    client = getattr(getattr(dynamodb, "meta", None), "client", None)
+    if client is None or not hasattr(client, "transact_write_items"):
+        raise _WriteFreezeUnavailable("transactional UserProfile writer unavailable")
+    mutation["Put" if "Put" in mutation else "Update" if "Update" in mutation else "Delete"]["TableName"] = table_name
+    try:
+        client.transact_write_items(TransactItems=[check, mutation])
+    except Exception as exc:
+        if hasattr(exc, "response") and exc.response.get("CancellationReasons"):
+            reasons = exc.response["CancellationReasons"]
+            if reasons and reasons[0].get("Code") not in (None, "None"):
+                raise _WriteFreezeUnavailable("UserProfile freeze conflict") from exc
+            raise _UserProfileMutationConflict("UserProfile mutation conflict") from exc
+        if "ConditionalCheckFailed" in str(exc):
+            raise _UserProfileMutationConflict("UserProfile mutation conflict") from exc
+        raise
 
 
 def _provision_user_profile(table: Any, user_context: Dict[str, Any],
                             body: Dict[str, Any],
-                            tenant_id: Optional[str] = None) -> Dict[str, Any]:
+                            tenant_id: Optional[str] = None,
+                            freeze_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Profil provisionieren — NUR explizit (nie via GET).
 
     Gate 10: Trigger ist die Registrierung/Aktivierung (Client ruft POST
@@ -698,7 +752,6 @@ def _provision_user_profile(table: Any, user_context: Dict[str, Any],
     body = body or {}
     if not tenant_id:
         raise ValueError('tenant is required to provision a profile')
-    _enforce_user_profile_write_freeze_boundary(user_context)
     # Gate 12 (Profile v1): NUR diese Felder; userId/tenantId/email aus JWT
     # (Body-Identitaeten werden IGNORIERT — kein Spoofing).
     item = {
@@ -715,7 +768,16 @@ def _provision_user_profile(table: Any, user_context: Dict[str, Any],
         'version': 1,
     }
     try:
-        table.put_item(Item=item, ConditionExpression='attribute_not_exists(userId)')
+        if freeze_context:
+            from jobsearch.partner_profile_repository import serializer
+            _user_profile_transact(table.name, freeze_context, {"Put": {
+                "Item": {key: serializer(value) for key, value in item.items()},
+                "ConditionExpression": "attribute_not_exists(userId)",
+            }})
+        else:
+            table.put_item(Item=item, ConditionExpression='attribute_not_exists(userId)')
+    except _UserProfileMutationConflict:
+        return {'statusCode': 409, 'body': json.dumps({'error': 'Profile already exists'})}
     except Exception as e:
         if hasattr(e, 'response') and e.response.get('Error', {}).get('Code') == \
                 'ConditionalCheckFailedException':
@@ -761,9 +823,12 @@ def _handle_me_profile_create(event: Dict[str, Any], context: Any) -> Dict[str, 
         }
 
     try:
+        freeze_context = _user_profile_freeze_context(
+            event, user_context, tenant_id)
         table = _get_dynamodb().Table(table_name)
         return _provision_user_profile(table, user_context, body,
-                                       tenant_id=tenant_id)
+                                       tenant_id=tenant_id,
+                                       freeze_context=freeze_context)
     except ValueError as e:
         logger.warning(f"Profile provisioning refused: {e}")
         return {
@@ -785,7 +850,8 @@ def _handle_me_profile_create(event: Dict[str, Any], context: Any) -> Dict[str, 
 
 def _update_user_profile(table: Any, user_context: Dict[str, Any],
                          body: Dict[str, Any], expected_version: int,
-                         tenant_id: str) -> Dict[str, Any]:
+                         tenant_id: str,
+                         freeze_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Atomically PATCH UserProfileV1 with an optimistic-lock condition.
 
     A missing legacy ``version`` is treated as version 1 only inside the
@@ -794,7 +860,6 @@ def _update_user_profile(table: Any, user_context: Dict[str, Any],
     once; a stale token cannot overwrite a newer row.
     """
     body = body or {}
-    _enforce_user_profile_write_freeze_boundary(user_context)
     allowed = {'nickname', 'firstName', 'lastName', 'expectedVersion'}
     unknown = set(body) - allowed
     if unknown:
@@ -824,15 +889,33 @@ def _update_user_profile(table: Any, user_context: Dict[str, Any],
     )
     names['#version'] = 'version'
     try:
-        result = table.update_item(
-            Key={'userId': user_context['userId']},
-            UpdateExpression=expr,
-            ConditionExpression=condition,
-            ExpressionAttributeNames=names,
-            ExpressionAttributeValues=values,
-            ReturnValues='ALL_NEW',
-        )
+        if freeze_context:
+            from jobsearch.partner_profile_repository import serializer
+            _user_profile_transact(table.name, freeze_context, {"Update": {
+                "Key": {"userId": serializer(user_context['userId'])},
+                "UpdateExpression": expr,
+                "ConditionExpression": condition,
+                "ExpressionAttributeNames": names,
+                "ExpressionAttributeValues": {
+                    key: serializer(value) for key, value in values.items()},
+            }})
+            result = table.get_item(
+                Key={'userId': user_context['userId']}, ConsistentRead=True)
+        else:
+            result = table.update_item(
+                Key={'userId': user_context['userId']},
+                UpdateExpression=expr,
+                ConditionExpression=condition,
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=values,
+                ReturnValues='ALL_NEW',
+            )
     except Exception as e:
+        if isinstance(e, _UserProfileMutationConflict):
+            current = table.get_item(Key={'userId': user_context['userId']}).get('Item')
+            if not current or current.get('tenantId') != tenant_id:
+                return {'statusCode': 404, 'body': json.dumps({'error': 'Profile not found'})}
+            return {'statusCode': 409, 'body': json.dumps({'error': 'Version conflict'})}
         if hasattr(e, 'response') and e.response.get('Error', {}).get('Code') == \
                 'ConditionalCheckFailedException':
             # Classification read is only after the failed conditional write;
@@ -902,11 +985,13 @@ def _handle_me_profile_update(event: Dict[str, Any], context: Any) -> Dict[str, 
         }
 
     try:
-        _enforce_user_profile_write_freeze_boundary(user_context)
+        freeze_context = _user_profile_freeze_context(
+            event, user_context, tenant_id)
         table = _get_dynamodb().Table(table_name)
         return _update_user_profile(table, user_context, body,
                                     expected_version=expected_version,
-                                    tenant_id=tenant_id)
+                                    tenant_id=tenant_id,
+                                    freeze_context=freeze_context)
     except _WriteFreezeUnavailable:
         return {
             'statusCode': 503,
@@ -939,17 +1024,36 @@ def _handle_me_profile_delete(event: Dict[str, Any], context: Any) -> Dict[str, 
         }
 
     try:
-        _enforce_user_profile_write_freeze_boundary(user_context)
+        freeze_context = None
+        if os.environ.get("ERASURE_WRITE_FREEZE_ENABLED", "false").strip().lower() == "true":
+            delete_tenant, delete_conflict = _resolve_tenant(user_context)
+            if delete_conflict or not delete_tenant:
+                return {'statusCode': 403,
+                        'body': json.dumps({'error': 'Tenant not resolvable'})}
+            freeze_context = _user_profile_freeze_context(
+                event, user_context, delete_tenant)
         table = _get_dynamodb().Table(table_name)
         # Delete with conditional check to ensure profile exists
         try:
-            table.delete_item(
-                Key={'userId': user_context['userId']},
-                ConditionExpression='attribute_exists(userId)'
-            )
+            if freeze_context:
+                from jobsearch.partner_profile_repository import serializer
+                _user_profile_transact(table.name, freeze_context, {"Delete": {
+                    "Key": {"userId": serializer(user_context['userId'])},
+                    "ConditionExpression": "attribute_exists(userId)",
+                }})
+            else:
+                table.delete_item(
+                    Key={'userId': user_context['userId']},
+                    ConditionExpression='attribute_exists(userId)'
+                )
             return {
                 'statusCode': 204,
                 'body': ''
+            }
+        except _UserProfileMutationConflict:
+            return {
+                'statusCode': 404,
+                'body': json.dumps({'error': 'Profile not found'})
             }
         except Exception as e:
             if hasattr(e, 'response') and e.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':

@@ -47,5 +47,9 @@ def test_legacy_user_profile_boundary_blocks_when_freeze_enabled(monkeypatch):
     import handler
 
     monkeypatch.setenv("ERASURE_WRITE_FREEZE_ENABLED", "true")
+    monkeypatch.setattr(
+        handler, "_partner_profile_context",
+        lambda _event: (None, {"statusCode": 401}))
     with pytest.raises(handler._WriteFreezeUnavailable):
-        handler._enforce_user_profile_write_freeze_boundary({"userId": "user-1"})
+        handler._user_profile_freeze_context(
+            {}, {"userId": "user-1"}, "tenant-1")
