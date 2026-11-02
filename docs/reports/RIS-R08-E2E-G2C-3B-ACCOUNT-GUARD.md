@@ -58,6 +58,29 @@ STS GetCallerIdentity
 and must pass both account `240571105849` and region `eu-central-1` before any
 resource discovery is considered.
 
+## G2C-3B-R explicit profile check
+
+The subsequent explicit-profile check was performed locally only, using the
+actual execution context. The requested profile was `devmemo`; neither
+`default` nor `mayaws` was used as a fallback.
+
+| Local source | `devmemo` present? |
+|---|---|
+| `AWS_PROFILE` environment variable | **No**; variable unset |
+| `AWS_DEFAULT_PROFILE` environment variable | **No**; variable unset |
+| AWS config profile section | **No** |
+| AWS shared credentials profile section | **No** |
+| Local config files | Files exist, but contain no `devmemo` section |
+
+Because the explicit profile is absent, the required precondition for an
+explicit `devmemo` STS call is not met. No STS call was made in G2C-3B-R, and
+no resource, state, Terraform or deployment operation followed.
+
+**G2C-3B-R result: BLOCKED / STOP.** The original G2C-3B STS evidence above
+is preserved unchanged; it was obtained with the previously authorized
+`default` check and is not reused as a fallback for this explicit-profile
+gate.
+
 ## Commit intent
 
 ```text
