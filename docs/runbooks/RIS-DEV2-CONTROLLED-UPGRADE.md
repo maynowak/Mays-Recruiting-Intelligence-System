@@ -40,6 +40,20 @@ Orders `disabled` versus `external`, approve the isolated State tuple, and
 review the exact plan hash outside Git. Protected Cognito, users, clients,
 CloudFront/OAC, DNS and ACM resources must have zero plan actions.
 
+## G2C-7D-2A external identity gate
+
+The RIS implementation requires one consistent external tuple:
+`pool_id`, `pool_arn`, regional `issuer`, human client ID and M2M client ID.
+The M2M reference is required by the current machine JWT authorizer and
+`ris-api/m2m/execute` route, even when Orders is disabled. A CloudFront DNS
+target is not a Cognito ownership proof. Historical pool/client/CloudFront
+values must not be reused without current owner evidence.
+
+If the protected pool is in another account, do not switch the AWS profile for
+this workflow. Obtain authorized read-only evidence and update the reviewed
+input contract separately; do not bypass validation or create replacement
+identity resources.
+
 ## Identity guard
 
 Before every stage, verify explicitly:
