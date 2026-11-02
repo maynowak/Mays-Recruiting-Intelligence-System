@@ -14,7 +14,7 @@ TRANSITIONS = {
     "WITHDRAWN": frozenset({"WITHDRAWN", "ARCHIVED"}),
     "ARCHIVED": frozenset({"ARCHIVED"}),
 }
-IDENTITY_FIELDS = frozenset({"applicationId", "userId", "tenantId", "partnerApplicationId", "issuer"})
+IDENTITY_FIELDS = frozenset({"applicationId", "ownerId", "userId", "tenantId", "partnerApplicationId", "issuer"})
 
 
 class ApplicationContractError(ValueError):

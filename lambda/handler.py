@@ -635,7 +635,7 @@ def _application_routes(event, context, method, path):
     except ApplicationNotFound:
         return _application_response(404, 'Application not found', 'NOT_FOUND')
     except ApplicationConflict as exc:
-        code = str(exc) if str(exc) in {'VERSION_CONFLICT', 'HISTORY_CONFLICT', 'COVER_LETTER_CONFLICT'} else 'CONFLICT'
+        code = str(exc) if str(exc) in {'VERSION_CONFLICT', 'HISTORY_CONFLICT', 'COVER_LETTER_CONFLICT', 'IDEMPOTENCY_PAYLOAD_CONFLICT'} else 'CONFLICT'
         return _application_response(409, 'Application conflict', code)
     except ApplicationContractError as exc:
         return _application_response(422, str(exc), exc.code)

@@ -10,6 +10,12 @@ class ApplicationContractTests(unittest.TestCase):
     def test_identity_is_server_owned(self):
         with self.assertRaisesRegex(ApplicationContractError, "identity"):
             validate_create({"applicationId": "attacker", "job": {"jobId": "j1"}})
+        with self.assertRaisesRegex(ApplicationContractError, "identity"):
+            validate_create({"ownerId": "attacker", "job": {"jobId": "j1"}})
+
+    def test_email_cannot_replace_verified_identity(self):
+        with self.assertRaises(ApplicationContractError):
+            validate_create({"email": "candidate@example.invalid", "job": {"jobId": "j1"}})
 
     def test_create_requires_job_id_and_preserves_references(self):
         value = validate_create({"job": {"jobId": "j1", "title": "Engineer"}, "cvRef": {"id": "cv1", "version": 2}})
