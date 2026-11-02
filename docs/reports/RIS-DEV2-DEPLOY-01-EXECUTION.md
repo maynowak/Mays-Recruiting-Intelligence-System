@@ -1,12 +1,12 @@
 # RIS-DEV2-DEPLOY-01 — Controlled Foundation Deployment
 
-**Result:** R1 PLAN GUARD PASS / PLAN READY FOR EXPLICIT APPLY APPROVAL
+**Result:** RIS FOUNDATION DEPLOYED / SMOKE TESTS PASS / PROTECTED INFRASTRUCTURE UNCHANGED
 
 The initial plan was blocked by the original blanket CloudFront guard. R1
 introduces a narrow, test-covered exception for exactly the two isolated
 `ris-dev2` health resources. The revised plan was created against the same
-configured backend and workspace. It is ready for explicit approval of this
-exact saved plan; apply remains unexecuted.
+configured backend and workspace. The plan was explicitly approved and applied
+without recalculation; the foundation is deployed and verified.
 
 ## Execution matrix
 
@@ -14,11 +14,11 @@ exact saved plan; apply remains unexecuted.
 |---|---|---|
 | Validate | **PASS** | Account/region guard, state baseline, builder, Lambda artifacts, Terraform init/validate and regression tests |
 | Plan | **PASS** | R1 saved plan; 153 creates, 0 updates, 0 deletes, 0 replacements |
-| Apply Gate | **READY / EXPLICIT APPROVAL REQUIRED** | Only the two R1 allowlisted Health CloudFront creates are present |
-| Apply | **NOT RUN** | No `terraform apply` executed |
-| Verify | **NOT RUN** | No apply occurred |
-| Clean | **NOT RUN** | Plan retained outside repository for review; existing worktree preserved |
-| Protected Infrastructure | **UNCHANGED / EXISTING SCOPE NOT MUTATED** | No Cognito, DNS or ACM actions; existing Jobsearch CloudFront is not addressed |
+| Apply Gate | **GO** | Explicit approval received for the exact plan hash |
+| Apply | **PASS** | `153 added, 0 changed, 0 destroyed`; exit 0 |
+| Verify | **PASS** | State, AWS resources, authorizers, Lambda and health smoke tests verified |
+| Clean | **PASS** | No repository cleanup; pre-existing worktree preserved |
+| Protected Infrastructure | **UNCHANGED** | No Cognito, DNS or ACM actions; existing Jobsearch CloudFront not addressed |
 
 ## Baseline and guards
 
@@ -35,8 +35,10 @@ exact saved plan; apply remains unexecuted.
 | Backend key | `env:/ris-dev2/dev/terraform.tfstate` |
 | Lock table | `ris-dev2-tf-lock` |
 | State serial before plan | `17` |
+| State serial after apply | `23` |
 | State lineage | `a0bd361d-5cd1-a207-a8c0-e6888f0be082` |
 | Resources in state before plan | `0` |
+| Resources in state after apply | `160` |
 | Terraform | `1.17.0` |
 
 The default-profile STS guard matched account `262370457690`, region
@@ -63,7 +65,7 @@ Cognito pool, client, domain, DNS or ACM resource actions. The protected
 - RIS Lambda bundles (`--bundle all`): **PASS**.
 - Terraform `init -backend=false`: **PASS**.
 - Terraform `validate`: **PASS**, with existing provider deprecation warnings.
-- Relevant G2C identity/bootstrap/contract regressions: **19 passed**.
+- Relevant G2C identity/bootstrap/contract/plan-guard regressions: **24 passed**.
 - Python installer/builder/backend/runner compilation: **PASS**.
 - `terraform fmt -check` for `ris-dev2.tfvars`: **PASS**.
 
@@ -136,21 +138,53 @@ new resources are the explicitly approved isolated Health exception.
 
 ## Apply and verification
 
-No apply approval was assumed. Therefore no resources were created, no
-post-apply smoke test was possible, and `RIS FOUNDATION: DEPLOYED` cannot yet
-be reported.
+The explicit approval was received for SHA-256
+`FC30B406F16DB860203539D079730B8B9A27A4A359505B8430AAF0A9F40F431D`.
+The same saved plan was applied; no replacement plan was generated.
+
+Apply result:
+
+```text
+Apply complete! Resources: 153 added, 0 changed, 0 destroyed.
+exit: 0
+```
+
+Verification evidence:
+
+- AWS identity: account `262370457690`, principal
+  `arn:aws:iam::262370457690:user/devnemo`, region `eu-central-1`.
+- API: `8apxb6fgne`, endpoint
+  `https://8apxb6fgne.execute-api.eu-central-1.amazonaws.com`.
+- Human JWT authorizer: external issuer, audience
+  `7ldhihlpdgsgcl3puvu4oi7ksv`.
+- M2M JWT authorizer: external issuer, audience
+  `82ji073smu1b3fsvj96sonso`; M2M route present.
+- Lambda `ris-dev2-dev-agent`: Python 3.14, `Active`, last update
+  `Successful`.
+- DynamoDB: 17 `ris-dev2` application tables verified; the separate backend
+  lock table is excluded from that application count.
+- SQS: five expected queues verified (work, DLQ, CV, ATS, match).
+- Health CloudFront: distribution `E1IZKHFPZ5X7SN`, domain
+  `d3axlsioawbq92.cloudfront.net`, origin `S3-health-public`, aliases empty,
+  default CloudFront certificate, tags `Project=ris-dev2` and
+  `Environment=dev`.
+- Health OAC: `E30BLRTMAWVYN1`, name `ris-dev2-dev-health-oac`, SigV4 and
+  `SigningBehavior=always`.
+- Public health smoke test: HTTP **200**.
+- Protected API health smoke without JWT: HTTP **401 Unauthorized**, as
+  required by the API contract.
+- Target-account Cognito pools named `ris-dev2`: **none**; external Cognito
+  remained reference-only.
+- Privacy/erasure/freeze/cutover execution flags: all **false**.
 
 ## Apply gate
 
-The plan is now ready for explicit approval. Remaining risks are the normal
-cost and propagation time of a new CloudFront distribution, Lambda/API/IAM
-foundation creation, and the requirement to use the exact saved plan without
-replanning. No existing protected identity or domain resource is included.
-
-Until the concrete plan hash is approved:
+Remaining operational risks are the normal cost and propagation time of the
+new CloudFront distribution and ongoing Lambda/API/IAM operation. No existing
+protected identity or domain resource was included or changed.
 
 ```text
-RIS FOUNDATION: NOT DEPLOYED
-SMOKE TESTS: NOT RUN
-PROTECTED INFRASTRUCTURE: EXISTING RESOURCES UNCHANGED; APPLY PENDING
+RIS FOUNDATION: DEPLOYED
+SMOKE TESTS: PASS
+PROTECTED INFRASTRUCTURE: UNCHANGED
 ```
