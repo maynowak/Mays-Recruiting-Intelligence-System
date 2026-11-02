@@ -9,6 +9,24 @@ contract; the managed Cognito module is omitted. For `disabled`, no Orders
 reader or Orders monitoring resources are declared. See the G2C-6A, 6B, 6C
 and 6D reports for the exact offline and read-only evidence.
 
+## G2C-7 local bootstrap preflight
+
+Before any remote operation, validate a non-secret configuration file locally:
+
+```text
+python -m installer.bootstrap_preflight --config <non-secret-config.json>
+```
+
+The file must explicitly select `ris-dev2`, `dev`, account `262370457690`,
+region `eu-central-1`, profile `default`, the approved backend tuple,
+`identity_mode`, and `orders_lifecycle`. Missing values fail closed. The
+preflight does not query AWS and does not establish live resource ownership.
+
+G2C-7 confirms that the pinned Orders builder can create the generated local
+module required by Terraform source resolution. Run the builder before local
+`terraform init -backend=false`; never replace it with a dummy module. The
+generated module is not committed.
+
 ## Identity guard
 
 Before every stage, verify explicitly:
