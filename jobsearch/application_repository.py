@@ -18,11 +18,9 @@ from typing import Any, Mapping
 try:
     import boto3
     from boto3.dynamodb.conditions import Key
-    from boto3.dynamodb.types import TypeSerializer
 except ImportError:  # pragma: no cover - Lambda provides boto3
     boto3 = None
     Key = None
-    TypeSerializer = None
 
 from jobsearch.application_contract import (
     ApplicationContractError, ApplicationContext, validate_create,
@@ -60,16 +58,8 @@ class ApplicationRepository:
 
     @staticmethod
     def _transaction_item(item: dict[str, Any]) -> dict[str, Any]:
-        """Convert resource-style native values for the low-level client."""
-        serializer = TypeSerializer()
-        converted = dict(item)
-        if "Item" in converted:
-            converted["Item"] = {k: serializer.serialize(v) for k, v in converted["Item"].items()}
-        if "Key" in converted:
-            converted["Key"] = {k: serializer.serialize(v) for k, v in converted["Key"].items()}
-        if "ExpressionAttributeValues" in converted:
-            converted["ExpressionAttributeValues"] = {k: serializer.serialize(v) for k, v in converted["ExpressionAttributeValues"].items()}
-        return converted
+        """Return native values; boto3's low-level client serializes them."""
+        return dict(item)
 
     def _transact(self, items: list[dict[str, Any]]) -> None:
         self.table.meta.client.transact_write_items(
@@ -128,6 +118,7 @@ class ApplicationRepository:
         parsed = validate_create(data)
         stamp, app_id = _now(), str(uuid.uuid4())
         idempotency_key = parsed.pop("idempotencyKey", None)
+        request_hash = hashlib.sha256(_json(parsed).encode()).hexdigest()
         row = {
             **parsed, "schemaVersion": 1, "applicationId": app_id, "entityKey": "META",
             "entityType": "META", "userId": ctx.user_id, "tenantId": ctx.tenant_id,
@@ -143,16 +134,19 @@ class ApplicationRepository:
             items.append({"Put": {"TableName": self.table_name,
                                    "Item": {"applicationId": "IDEMP#" + idem, "entityKey": "IDEMP",
                                              "entityType": "IDEMP", "ownerKey": self._scope(ctx),
-                                             "targetApplicationId": app_id, "createdAt": stamp},
+                                             "targetApplicationId": app_id, "requestHash": request_hash,
+                                             "createdAt": stamp},
                                    "ConditionExpression": "attribute_not_exists(applicationId)"}})
         try:
             self._transact(items)
         except Exception as exc:
             # An idempotent retry returns the original row after the conditional
             # conflict; other conditional conflicts are safe conflicts.
-            if parsed.get("idempotencyKey"):
-                existing = self.table.get_item(Key={"applicationId": "IDEMP#" + self._idempotency_key(ctx, parsed["idempotencyKey"]), "entityKey": "IDEMP"}, ConsistentRead=True).get("Item")
+            if idempotency_key:
+                existing = self.table.get_item(Key={"applicationId": "IDEMP#" + self._idempotency_key(ctx, idempotency_key), "entityKey": "IDEMP"}, ConsistentRead=True).get("Item")
                 if existing and existing.get("targetApplicationId"):
+                    if existing.get("requestHash") != request_hash:
+                        raise ApplicationConflict("IDEMPOTENCY_PAYLOAD_CONFLICT") from exc
                     return self._public(self._owned(existing["targetApplicationId"], ctx))
             raise ApplicationConflict("application already exists or could not be created") from exc
         return self._public(row)
