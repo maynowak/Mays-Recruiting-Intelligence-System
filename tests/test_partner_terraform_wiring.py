@@ -187,7 +187,7 @@ class TestNoDuplicateTable(unittest.TestCase):
                     body = fh.read()
                 if ('resource "aws_dynamodb_table" "partner_applications"'
                         in body):
-                    hits.append(os.path.relpath(path, TF))
+                    hits.append(os.path.relpath(path, TF).replace(os.sep, "/"))
         self.assertEqual(hits, ["modules/dynamodb/main.tf"])
 
 

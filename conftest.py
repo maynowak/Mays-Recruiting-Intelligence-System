@@ -9,10 +9,23 @@ Builder test file so a full RIS collection cannot cross-import either project.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 import pytest
+
+
+# The existing Git installation is not visible to subprocesses launched from
+# the isolated R07A Python environment.  Expose that executable for offline
+# tests without installing or emulating Git.
+if os.name == "nt":
+    _GIT_CMD_DIR = Path(r"C:\Program Files\Git\cmd")
+    if (_GIT_CMD_DIR / "git.exe").exists():
+        _path_parts = os.environ.get("PATH", "").split(os.pathsep)
+        if str(_GIT_CMD_DIR) not in _path_parts:
+            os.environ["PATH"] = str(_GIT_CMD_DIR) + os.pathsep + os.environ.get(
+                "PATH", "")
 
 
 REPO_ROOT = Path(__file__).resolve().parent

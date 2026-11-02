@@ -468,7 +468,7 @@ class TestArchitectureRuleNoRuntimeWriter(unittest.TestCase):
                     for fn_name, builds_handle, writes, reads in _functions(src):
                         if not builds_handle:
                             continue
-                        rel = os.path.relpath(path, ROOT)
+                        rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
                         checked.append(f"{rel}:{fn_name}")
                         if writes:
                             offenders.append(
@@ -492,7 +492,7 @@ class TestArchitectureRuleNoRuntimeWriter(unittest.TestCase):
                     src = open(path, encoding="utf-8", errors="replace").read()
                     for fn_name, builds_handle, writes, reads in _functions(src):
                         if builds_handle:
-                            rel = os.path.relpath(path, ROOT)
+                            rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
                             checked.append((rel, fn_name))
                             if not reads:
                                 offenders.append(

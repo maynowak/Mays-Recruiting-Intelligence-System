@@ -298,7 +298,7 @@ class TestPlanToJsonConversion:
         from installer.ris import resolve_plan_path
 
         got = resolve_plan_path(".mays-installer/runs/x/plans/p.tfplan", "/clone")
-        assert got == "/clone/.mays-installer/runs/x/plans/p.tfplan"
+        assert got.replace("\\", "/") == "/clone/.mays-installer/runs/x/plans/p.tfplan"
 
     def test_only_a_show_json_command_is_ever_issued(self):
         """It converts a plan the component made; it must not touch state.
