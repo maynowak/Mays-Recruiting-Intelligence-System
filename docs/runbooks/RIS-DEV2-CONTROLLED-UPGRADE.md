@@ -2,6 +2,13 @@
 
 **Status:** Template only; current `ris-dev2` execution is blocked before plan.
 
+G2C-6 adds explicit `identity_mode` (`managed`/`external`) and
+`orders_lifecycle` (`managed`/`external`/`disabled`). For `external`, supply
+and independently verify the Cognito pool/ARN/issuer/human-client/M2M-client
+contract; the managed Cognito module is omitted. For `disabled`, no Orders
+reader or Orders monitoring resources are declared. See the G2C-6A, 6B, 6C
+and 6D reports for the exact offline and read-only evidence.
+
 ## Identity guard
 
 Before every stage, verify explicitly:
