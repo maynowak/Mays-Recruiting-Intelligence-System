@@ -72,6 +72,7 @@ def _forget_modules_loaded_from(paths: tuple[Path, ...]) -> None:
 
 _ACTIVE_PATHS: dict[str, tuple[Path, tuple[Path, ...]]] = {}
 _INSERTED_PATHS: list[Path] = []
+_RUNTIME_PATHS: dict[str, tuple[Path, ...]] = {}
 
 
 def _collector_path(collector) -> Path | None:
@@ -130,8 +131,55 @@ def _end_builder_isolation() -> None:
     _INSERTED_PATHS.clear()
     _forget_modules_loaded_from((BUILDER_ROOT,))
     # ``installer`` can be a namespace package after pytest's import-mode
-    # handling, so it may not expose a ``__file__`` for the path-based cleanup
-    # above.  Always evict this one colliding package before RIS tests load.
+    # handling, so path-based cleanup alone is insufficient.
     for name in list(sys.modules):
         if name == "installer" or name.startswith("installer."):
             sys.modules.pop(name, None)
+
+
+def pytest_runtest_setup(item) -> None:
+    """Activate Builder import roots for runtime-only test imports.
+
+    Some Builder tests resolve top-level Lambda modules from mock patch targets
+    during test execution rather than during collection.  Collection cleanup
+    must still happen before RIS tests, so the path is scoped to the individual
+    Builder test instead of being left globally active.
+    """
+    path = _collector_path(item)
+    if path is None:
+        return
+    try:
+        is_builder_lambda = path.is_relative_to(BUILDER_ROOT / "lambda")
+    except AttributeError:  # pragma: no cover - Python 3.8 compatibility
+        is_builder_lambda = _path_is_below(path, BUILDER_ROOT / "lambda")
+    if not is_builder_lambda:
+        return
+    paths = _paths_for_builder_directory(path)
+    if not paths:
+        return
+    inserted: list[Path] = []
+    for candidate in reversed(paths):
+        value = str(candidate)
+        if value not in sys.path:
+            sys.path.insert(0, value)
+            inserted.append(candidate)
+    _RUNTIME_PATHS[item.nodeid] = tuple(inserted)
+
+
+def pytest_runtest_teardown(item, nextitem) -> None:
+    path = _collector_path(item)
+    inserted = _RUNTIME_PATHS.pop(item.nodeid, ())
+    for candidate in inserted:
+        try:
+            sys.path.remove(str(candidate))
+        except ValueError:
+            pass
+    if inserted:
+        _forget_modules_loaded_from(inserted)
+    if path is not None and _path_is_below(path, BUILDER_ROOT):
+        # Builder and RIS both expose a top-level ``installer`` package.  A
+        # Builder test can import it at runtime without a __file__ on the
+        # namespace package, so path-based cleanup alone is insufficient.
+        for name in list(sys.modules):
+            if name == "installer" or name.startswith("installer."):
+                sys.modules.pop(name, None)
