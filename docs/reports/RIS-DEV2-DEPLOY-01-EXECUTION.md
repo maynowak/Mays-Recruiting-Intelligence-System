@@ -1,31 +1,32 @@
 # RIS-DEV2-DEPLOY-01 — Controlled Foundation Deployment
 
-**Result:** VALIDATE PASS / PLAN CREATED / APPLY BLOCKED BY PROTECTED-SCOPE GUARD
+**Result:** R1 PLAN GUARD PASS / PLAN READY FOR EXPLICIT APPLY APPROVAL
 
-The `ris-dev2` foundation plan was created against the configured `ris-dev2`
-backend and workspace. Apply was not executed because the plan creates a
-CloudFront distribution and CloudFront OAC, while this deployment contract
-explicitly requires STOP for any CloudFront create/update/delete/replace
-action. No AWS resource mutation was performed.
+The initial plan was blocked by the original blanket CloudFront guard. R1
+introduces a narrow, test-covered exception for exactly the two isolated
+`ris-dev2` health resources. The revised plan was created against the same
+configured backend and workspace. It is ready for explicit approval of this
+exact saved plan; apply remains unexecuted.
 
 ## Execution matrix
 
 | Phase | Result | Evidence |
 |---|---|---|
 | Validate | **PASS** | Account/region guard, state baseline, builder, Lambda artifacts, Terraform init/validate and regression tests |
-| Plan | **PASS / GUARD BLOCKED** | Saved plan; 153 creates, 0 updates, 0 deletes, 0 replacements |
-| Apply Gate | **BLOCKED** | New `module.health_public` CloudFront distribution and OAC are in the plan |
+| Plan | **PASS** | R1 saved plan; 153 creates, 0 updates, 0 deletes, 0 replacements |
+| Apply Gate | **READY / EXPLICIT APPROVAL REQUIRED** | Only the two R1 allowlisted Health CloudFront creates are present |
 | Apply | **NOT RUN** | No `terraform apply` executed |
 | Verify | **NOT RUN** | No apply occurred |
 | Clean | **NOT RUN** | Plan retained outside repository for review; existing worktree preserved |
-| Protected Infrastructure | **UNCHANGED / EXISTING SCOPE NOT MUTATED** | No Cognito, DNS or ACM actions; external protected resources not imported |
+| Protected Infrastructure | **UNCHANGED / EXISTING SCOPE NOT MUTATED** | No Cognito, DNS or ACM actions; existing Jobsearch CloudFront is not addressed |
 
 ## Baseline and guards
 
 | Item | Value |
 |---|---|
 | Branch | `feature/ris-partner-profile-persistence-v1` |
-| Commit | `4b259706c287fda1b138ac8e69edbd6c728c7e06` |
+| Initial deployment commit | `4b259706c287fda1b138ac8e69edbd6c728c7e06` |
+| R1 implementation commit | `390632ef99e9081d752c217f7ee578646110b27e` |
 | AWS profile | `default` |
 | AWS account | `262370457690` |
 | Region | `eu-central-1` |
@@ -71,18 +72,44 @@ The original checkout's 39 untracked files and the pre-existing deletion of
 module files and deployment artifacts were created only in the isolated
 temporary deployment workspace.
 
-## Plan evidence
+## R1 Plan Guard
+
+The installer now permits only this exact set when the project is `ris-dev2`
+and environment is `dev`:
+
+```text
+module.health_public.aws_cloudfront_distribution.health_public       ["create"]
+module.health_public.aws_cloudfront_origin_access_control.health_public ["create"]
+```
+
+The guard rejects every other CloudFront address or action, including update,
+delete and replacement. Cognito, Route53 and ACM resource actions remain
+strictly forbidden. Regression coverage includes wrong addresses, wrong
+actions, wrong project, and protected Cognito/DNS/ACM types.
+
+The Health module is isolated by names and tags:
+
+- S3 origin bucket: `ris-dev2-dev-health-public`
+- OAC: `ris-dev2-dev-health-oac`
+- origin ID: `S3-health-public`
+- tags: `Project=ris-dev2`, `Environment=dev`
+- no aliases, no custom ACM certificate, no Route53 record
+- CloudFront default certificate only; S3 public access is blocked and OAC
+  uses SigV4
+- exactly two CloudFront/OAC resources appear in the plan
+
+## R1 Plan evidence
 
 Plan artifact:
 
 ```text
-C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-foundation.tfplan
+C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-foundation-r1.tfplan
 ```
 
 SHA-256:
 
 ```text
-B19456A4DEA1462FF6E58EEF8B696B87B8BF46841566341BE31145F3A0FC65DB
+FC30B406F16DB860203539D079730B8B9A27A4A359505B8430AAF0A9F40F431D
 ```
 
 Machine-readable plan JSON was generated outside the repository. Action
@@ -96,40 +123,34 @@ replace: 0
 read: 3
 ```
 
-Protected-scope scan found:
+CloudFront/OAC scan found exactly:
 
 ```text
 module.health_public.aws_cloudfront_distribution.health_public       create
 module.health_public.aws_cloudfront_origin_access_control.health_public create
 ```
 
-No `aws_cognito_*`, `aws_route53_*` or `aws_acm_*` actions were present. The
-CloudFront resources appear to be new RIS-owned health presentation
-infrastructure rather than the existing Jobsearch distribution, but the
-deployment prompt's explicit CloudFront-create guard still requires STOP.
+No `aws_cognito_*`, `aws_route53_*` or `aws_acm_*` actions were present. No
+existing CloudFront distribution or OAC is referenced by the plan. The two
+new resources are the explicitly approved isolated Health exception.
 
 ## Apply and verification
 
-No apply approval was requested or assumed because the plan is not compliant
-with the supplied protected-scope guard. Therefore no resources were created,
-no post-apply smoke test was possible, and `RIS FOUNDATION: DEPLOYED` cannot
+No apply approval was assumed. Therefore no resources were created, no
+post-apply smoke test was possible, and `RIS FOUNDATION: DEPLOYED` cannot yet
 be reported.
 
-## Required decision
+## Apply gate
 
-Either:
+The plan is now ready for explicit approval. Remaining risks are the normal
+cost and propagation time of a new CloudFront distribution, Lambda/API/IAM
+foundation creation, and the requirement to use the exact saved plan without
+replanning. No existing protected identity or domain resource is included.
 
-1. explicitly revise the protected-scope policy to permit these two new,
-   separately named RIS health CloudFront resources while retaining the
-   existing Jobsearch CloudFront distribution unchanged; then review and
-   approve this exact plan hash; or
-2. change the Terraform foundation so health presentation does not create
-   CloudFront/OAC, then regenerate and re-review the plan.
-
-Until one of these decisions is made:
+Until the concrete plan hash is approved:
 
 ```text
 RIS FOUNDATION: NOT DEPLOYED
 SMOKE TESTS: NOT RUN
-PROTECTED INFRASTRUCTURE: EXISTING RESOURCES UNCHANGED; PLAN BLOCKED
+PROTECTED INFRASTRUCTURE: EXISTING RESOURCES UNCHANGED; APPLY PENDING
 ```
