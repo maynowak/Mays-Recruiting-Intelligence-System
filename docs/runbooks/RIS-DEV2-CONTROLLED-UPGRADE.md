@@ -27,6 +27,19 @@ module required by Terraform source resolution. Run the builder before local
 `terraform init -backend=false`; never replace it with a dummy module. The
 generated module is not committed.
 
+## G2C-7D discovery and plan-input gate
+
+The current read-only discovery found only the `ris-dev2` backend/lock
+resources in the target account. Public `auth.mays-job-matcher.app` DNS points
+to an external CloudFront name, but this does not establish ownership or a
+current Cognito pool. Missing current pool/client/issuer evidence is a hard
+STOP, not a reason to reuse historical IDs.
+
+Before G2C-7D-3, obtain owner-approved external identity references, confirm
+Orders `disabled` versus `external`, approve the isolated State tuple, and
+review the exact plan hash outside Git. Protected Cognito, users, clients,
+CloudFront/OAC, DNS and ACM resources must have zero plan actions.
+
 ## Identity guard
 
 Before every stage, verify explicitly:
