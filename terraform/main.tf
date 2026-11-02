@@ -148,6 +148,7 @@ module "lambda" {
   # M2M execution. Without this env var the registry lookup returns None and
   # both routes fail closed with 403.
   partner_applications_table_name     = module.dynamodb.partner_applications_table_name
+  applications_table_name             = module.dynamodb.applications_table_name
   user_profile_table_arn              = module.dynamodb.user_profile_table_arn
   agent_catalog_table_arn             = module.dynamodb.agent_catalog_table_arn
   entitlements_table_arn              = module.dynamodb.entitlements_table_arn
@@ -156,6 +157,8 @@ module "lambda" {
   credentials_table_arn               = module.dynamodb.credentials_table_arn
   partner_applications_table_arn      = module.dynamodb.partner_applications_table_arn
   partner_applications_gsi_client_arn = module.dynamodb.partner_applications_gsi_client_arn
+  applications_table_arn              = module.dynamodb.applications_table_arn
+  applications_gsi_owner_arn          = module.dynamodb.applications_gsi_owner_arn
   s3_bucket_arn                       = aws_s3_bucket.data.arn
   documents_bucket_name               = module.documents.bucket_name
   documents_bucket_arn                = module.documents.bucket_arn

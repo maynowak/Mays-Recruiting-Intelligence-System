@@ -250,6 +250,26 @@ resource "aws_iam_role_policy" "lambda_dynamodb_partner_profiles" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_dynamodb_applications" {
+  name = "${var.project_name}-${var.environment}-lambda-dynamodb-applications"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:Query",
+        "dynamodb:DeleteItem",
+        "dynamodb:TransactWriteItems"
+      ]
+      Resource = [var.applications_table_arn, var.applications_gsi_owner_arn]
+    }]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_privacy_receipts" {
   name = "${var.project_name}-${var.environment}-lambda-dynamodb-privacy-receipts"
   role = aws_iam_role.lambda_execution.id
@@ -537,6 +557,7 @@ resource "aws_lambda_function" "agent" {
       WORK_QUEUE_URL        = var.work_queue_url
       JOBSEARCH_TABLE       = var.jobsearch_table_name
       PARTNER_PROFILE_TABLE = var.partner_profiles_table_name
+      APPLICATIONS_TABLE    = var.applications_table_name
       DOCUMENTS_BUCKET      = var.documents_bucket_name
       API_PROFILES_TABLE    = var.api_profiles_table_name
       OFFERS_TABLE          = var.offers_table_name

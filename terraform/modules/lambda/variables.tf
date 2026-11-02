@@ -97,6 +97,21 @@ variable "partner_applications_gsi_client_arn" {
   type        = string
 }
 
+variable "applications_table_name" {
+  description = "DynamoDB table for authenticated ApplicationV1 persistence."
+  type        = string
+}
+
+variable "applications_table_arn" {
+  description = "DynamoDB table ARN for ApplicationV1 persistence."
+  type        = string
+}
+
+variable "applications_gsi_owner_arn" {
+  description = "Owner-scoped GSI ARN for ApplicationV1 list operations."
+  type        = string
+}
+
 variable "user_profile_table_arn" {
   description = "DynamoDB table ARN for user profiles"
   type        = string

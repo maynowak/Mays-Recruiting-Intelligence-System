@@ -490,6 +490,50 @@ resource "aws_dynamodb_table" "partner_applications" {
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
+# ApplicationV1 persistence. The base item and immutable child records share a
+# partition; gsi-owner is the only user-facing access path and is always
+# queried with the complete server-derived owner scope.
+resource "aws_dynamodb_table" "applications" {
+  name         = "${var.project_name}-${var.environment}-applications"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "applicationId"
+  range_key    = "entityKey"
+
+  attribute {
+    name = "applicationId"
+    type = "S"
+  }
+
+  attribute {
+    name = "entityKey"
+    type = "S"
+  }
+
+  attribute {
+    name = "ownerKey"
+    type = "S"
+  }
+
+  attribute {
+    name = "updatedAt"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "gsi-owner"
+    hash_key        = "ownerKey"
+    range_key       = "updatedAt"
+    projection_type = "ALL"
+  }
+
+  ttl {
+    attribute_name = var.table_config.ttl_attribute
+    enabled        = var.table_config.ttl_enabled
+  }
+
+  tags = merge({ "Project" = var.project_name, "DataClass" = "application-metadata" }, var.tags)
+}
+
 output "api_profiles_table_name" {
   value = aws_dynamodb_table.api_profiles.name
 }

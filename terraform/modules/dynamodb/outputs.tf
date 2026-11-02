@@ -111,3 +111,15 @@ output "partner_applications_table_arn" {
 output "partner_applications_gsi_client_arn" {
   value = "${aws_dynamodb_table.partner_applications.arn}/index/gsi-client"
 }
+
+output "applications_table_name" {
+  value = aws_dynamodb_table.applications.name
+}
+
+output "applications_table_arn" {
+  value = aws_dynamodb_table.applications.arn
+}
+
+output "applications_gsi_owner_arn" {
+  value = "${aws_dynamodb_table.applications.arn}/index/gsi-owner"
+}
