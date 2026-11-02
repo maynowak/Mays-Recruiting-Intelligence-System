@@ -519,6 +519,8 @@ resource "aws_lambda_function" "agent" {
       ERASURE_S3_EXECUTION_ENABLED         = "false"
       ERASURE_S3_QUIESCENCE_ENABLED        = "false"
       ERASURE_WRITE_FREEZE_ENABLED         = "false"
+      ERASURE_UPLOAD_TICKET_LEDGER_ENABLED = "false"
+      ERASURE_UPLOAD_CUTOVER_ENABLED       = "false"
       LOG_LEVEL                            = var.log_level
     }
   }
