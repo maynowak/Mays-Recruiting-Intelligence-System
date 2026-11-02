@@ -3,6 +3,17 @@
 Jobsearch remains unchanged in this phase. The adapter is a client-side or
 integration-layer contract, not a new RIS identity boundary.
 
+## Adapter configuration
+
+- `RIS_APPLICATION_API_BASE_URL` is supplied by deployment configuration; it
+  is never hardcoded into a browser bundle or fixture.
+- The adapter sends the existing Cognito access token to the trusted RIS
+  boundary. It does **not** manufacture or persist `X-Api-Credential`.
+- A server-side broker/integration proxy must attach the partner credential
+  from its protected runtime configuration. Direct browser calls are allowed
+  only when an already-approved short-lived mediation mechanism exists.
+- Session mode remains local-only when the broker is unavailable.
+
 ## Mapping
 
 | SessionApplicationV1 | ApplicationV1 create input |
@@ -32,6 +43,16 @@ derived from the local handoff attempt. It must not send `userId`, `tenantId`,
 
 `SUBMITTED` is never inferred from a successful create. It requires the
 separate status call with `confirm: true` and the returned `expectedVersion`.
+
+## End-to-end readiness matrix
+
+| Flow | Required behavior |
+|---|---|
+| login/reload/logout/login | remote ID is reloaded only for the authenticated subject |
+| create/save | explicit user action, same idempotency key on retry |
+| status/history/letter | expectedVersion required; 409 triggers re-read/merge UI |
+| pagination/export/delete | cursor and application ID remain server-scoped |
+| offline/network error | session draft is retained; remote state is not guessed |
 
 ## Document and status references
 
