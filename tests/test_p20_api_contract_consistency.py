@@ -187,14 +187,16 @@ class TestTerraformRouteInventory(unittest.TestCase):
         eine stille Ruecknahme nicht durchgeht.
         """
         routes = terraform_routes()
-        self.assertEqual(58, len(routes))
-        self.assertEqual(54, sum(1 for v in routes.values()
+        self.assertEqual(60, len(routes))
+        self.assertEqual(56, sum(1 for v in routes.values()
                                  if v["target"] == "agent"))
         self.assertEqual(4, sum(1 for v in routes.values()
                                 if v["target"] == "orders"))
         # Die Routen, die den Zaehler verschoben haben, muessen existieren.
         self.assertIn("DELETE /me/profile", routes)
         self.assertIn("POST /me/erasure", routes)
+        self.assertIn("GET /v1/partner/me/privacy/inspect", routes)
+        self.assertIn("GET /v1/partner/me/privacy/export", routes)
         for route in (
             "GET /v1/partner/me/manual-search-profiles",
             "POST /v1/partner/me/manual-search-profiles",

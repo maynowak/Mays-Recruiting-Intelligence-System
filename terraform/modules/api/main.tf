@@ -568,3 +568,22 @@ resource "aws_lambda_permission" "api_gateway" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.ris_api.execution_arn}/*/*"
 }
+
+# R08 privacy inspection/export are read-only, self-scoped metadata endpoints.
+# They use the existing human JWT authorizer and proxy integration; execution
+# flags for erasure/cutover remain independent and disabled by default.
+resource "aws_apigatewayv2_route" "privacy_inspect" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/privacy/inspect"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "privacy_export" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/privacy/export"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}

@@ -1499,7 +1499,6 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
         return 1
     ctx.aws_context = aws_ctx
     orders_project = orders_component_project_name(ctx.project_name)
-    orders_lifecycle = configured_orders_lifecycle(ctx)
     print(f"DESTROY scope: composite project {ctx.project_name}")
     print(f"  RIS workspace: {ctx.workspace}")
     print(f"  Orders component: {orders_project}")
@@ -2215,6 +2214,7 @@ def _cmd_install(
         ctx.project_name, ctx.environment, region=ctx.aws_region
     )
     orders_project = orders_component_project_name(ctx.project_name)
+    orders_lifecycle = configured_orders_lifecycle(ctx)
 
     # Update context with backend configuration derived from project name
     ctx.backend_bucket = names.bucket
@@ -2232,6 +2232,7 @@ def _cmd_install(
         print(f"  lock table: {names.lock_table}")
         print("  phases: orders validate -> orders plan -> output handoff -> ")
         print("  phases: package -> bootstrap -> orders validate -> orders plan -> RIS plan -> orders deploy -> RIS apply")
+        return 0
 
     # --- Composite preflight + Orders component (fail fast, no mutation) ---
     if ctx.composite and orders_lifecycle == "managed":
