@@ -331,6 +331,38 @@ resource "aws_dynamodb_table" "s3_erasure_phases" {
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
+# R08-C0F-2C: durable upload-ticket authorization/lifecycle ledger. Ticket
+# rows and server-derived idempotency markers share one resourceId key;
+# USER/CV freeze checks are transaction conditions on the partner-profile
+# guard table. No TTL is invented before retention approval.
+resource "aws_dynamodb_table" "upload_ticket_ledger" {
+  name         = "${var.project_name}-${var.environment}-upload-ticket-ledger"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "resourceId"
+
+  attribute {
+    name = "resourceId"
+    type = "S"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
+# R08-C0F-2D: versioned legacy upload cutover evidence. The repository uses
+# conditional PutItem only and stores server/operator evidence, not tickets.
+resource "aws_dynamodb_table" "upload_cutover" {
+  name         = "${var.project_name}-${var.environment}-upload-cutover"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "resourceId"
+
+  attribute {
+    name = "resourceId"
+    type = "S"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
 output "work_items_table_name" {
   value = aws_dynamodb_table.work_items.name
 }

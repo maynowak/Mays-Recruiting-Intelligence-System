@@ -77,6 +77,22 @@ output "s3_erasure_phases_table_arn" {
   value = aws_dynamodb_table.s3_erasure_phases.arn
 }
 
+output "upload_ticket_ledger_table_name" {
+  value = aws_dynamodb_table.upload_ticket_ledger.name
+}
+
+output "upload_ticket_ledger_table_arn" {
+  value = aws_dynamodb_table.upload_ticket_ledger.arn
+}
+
+output "upload_cutover_table_name" {
+  value = aws_dynamodb_table.upload_cutover.name
+}
+
+output "upload_cutover_table_arn" {
+  value = aws_dynamodb_table.upload_cutover.arn
+}
+
 # Partner Application Registry. The runtime Lambda resolves this table on every
 # authorized agent execution (agents/ecosystem/partner_registry.py reads
 # RIS_PARTNER_APPLICATIONS_TABLE); without it the registry lookup returns None

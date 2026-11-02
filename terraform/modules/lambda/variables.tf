@@ -188,6 +188,26 @@ variable "s3_erasure_phases_table_arn" {
   type        = string
 }
 
+variable "upload_ticket_ledger_table_name" {
+  description = "DynamoDB table name for the CV upload-ticket ledger (R08-C0F-2C)"
+  type        = string
+}
+
+variable "upload_ticket_ledger_table_arn" {
+  description = "DynamoDB table ARN for the CV upload-ticket ledger (R08-C0F-2C)"
+  type        = string
+}
+
+variable "upload_cutover_table_name" {
+  description = "DynamoDB table name for legacy upload cutover evidence (R08-C0F-2D)"
+  type        = string
+}
+
+variable "upload_cutover_table_arn" {
+  description = "DynamoDB table ARN for legacy upload cutover evidence (R08-C0F-2D)"
+  type        = string
+}
+
 variable "tags" {
   description = "Additional tags for resources"
   type        = map(string)

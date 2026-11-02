@@ -121,20 +121,24 @@ module "lambda" {
   jobsearch_table_name = module.dynamodb.jobsearches_table_name
   jobsearch_table_arn  = module.dynamodb.jobsearches_table_arn
   # Partner profile persistence (R02/R03): manual search profile CRUD.
-  partner_profiles_table_name   = module.dynamodb.partner_profiles_table_name
-  partner_profiles_table_arn    = module.dynamodb.partner_profiles_table_arn
-  privacy_receipts_table_name   = module.dynamodb.privacy_receipts_table_name
-  privacy_receipts_table_arn    = module.dynamodb.privacy_receipts_table_arn
-  erasure_operations_table_name = module.dynamodb.erasure_operations_table_name
-  erasure_operations_table_arn  = module.dynamodb.erasure_operations_table_arn
-  s3_erasure_phases_table_name  = module.dynamodb.s3_erasure_phases_table_name
-  s3_erasure_phases_table_arn   = module.dynamodb.s3_erasure_phases_table_arn
-  user_profile_table_name       = module.dynamodb.user_profile_table_name
-  agent_catalog_table_name      = module.dynamodb.agent_catalog_table_name
-  entitlements_table_name       = module.dynamodb.entitlements_table_name
-  api_profiles_table_name       = module.dynamodb.api_profiles_table_name
-  offers_table_name             = module.dynamodb.offers_table_name
-  credentials_table_name        = module.dynamodb.credentials_table_name
+  partner_profiles_table_name     = module.dynamodb.partner_profiles_table_name
+  partner_profiles_table_arn      = module.dynamodb.partner_profiles_table_arn
+  privacy_receipts_table_name     = module.dynamodb.privacy_receipts_table_name
+  privacy_receipts_table_arn      = module.dynamodb.privacy_receipts_table_arn
+  erasure_operations_table_name   = module.dynamodb.erasure_operations_table_name
+  erasure_operations_table_arn    = module.dynamodb.erasure_operations_table_arn
+  s3_erasure_phases_table_name    = module.dynamodb.s3_erasure_phases_table_name
+  s3_erasure_phases_table_arn     = module.dynamodb.s3_erasure_phases_table_arn
+  upload_ticket_ledger_table_name = module.dynamodb.upload_ticket_ledger_table_name
+  upload_ticket_ledger_table_arn  = module.dynamodb.upload_ticket_ledger_table_arn
+  upload_cutover_table_name       = module.dynamodb.upload_cutover_table_name
+  upload_cutover_table_arn        = module.dynamodb.upload_cutover_table_arn
+  user_profile_table_name         = module.dynamodb.user_profile_table_name
+  agent_catalog_table_name        = module.dynamodb.agent_catalog_table_name
+  entitlements_table_name         = module.dynamodb.entitlements_table_name
+  api_profiles_table_name         = module.dynamodb.api_profiles_table_name
+  offers_table_name               = module.dynamodb.offers_table_name
+  credentials_table_name          = module.dynamodb.credentials_table_name
   # Partner Application Registry: resolved on every authorized partner and
   # M2M execution. Without this env var the registry lookup returns None and
   # both routes fail closed with 403.
