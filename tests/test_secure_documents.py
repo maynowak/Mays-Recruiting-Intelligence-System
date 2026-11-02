@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -68,7 +69,8 @@ class TestKeyScheme(unittest.TestCase):
                 documents.build_key("t", "u", bad)
 
     def test_tenant_default(self):
-        self.assertTrue(documents.build_key(None, "u", "d").startswith("tenant/default/"))
+        with self.assertRaises(ValueError):
+            documents.build_key(None, "u", "d")
 
 
 class TestPresign(unittest.TestCase):
@@ -81,8 +83,11 @@ class TestPresign(unittest.TestCase):
 
     def test_upload_returns_short_lived_url(self):
         out = documents.presign_upload(self.s3, "tenant-a", "user-1", "application/pdf")
-        self.assertEqual(out["expiresIn"], 900)
-        self.assertTrue(out["key"].startswith("tenant/tenant-a/users/user-1/documents/"))
+        self.assertIn("documentId", out)
+        self.assertIn("expiresAt", out)
+        self.assertEqual(out["requiredHeaders"], {"Content-Type": "application/pdf"})
+        self.assertNotIn("key", out)
+        self.assertNotIn("expiresIn", out)
         op, key, exp = self.s3.signed[0]
         self.assertEqual(op, "put_object")
         self.assertLessEqual(exp, 900)
@@ -98,6 +103,9 @@ class TestPresign(unittest.TestCase):
         self.s3.objects["tenant/t/users/u/documents/d1"] = b"x"
         out = documents.presign_download(self.s3, "t", "u", "d1")
         self.assertTrue(out["downloadUrl"].startswith("https://s3.example/get_object/"))
+        self.assertIn("documentId", out)
+        self.assertIn("expiresAt", out)
+        self.assertNotIn("key", out)
 
     def test_delete_semantics(self):
         self.assertFalse(documents.delete_document(self.s3, "t", "u", "nope"))
@@ -124,6 +132,45 @@ class TestHandlerAuth(unittest.TestCase):
         for method, path in (("POST", "/me/documents"),):
             resp = handler.handler(self._event(method, path, {}, {"sub": None}), None)
             self.assertEqual(resp["statusCode"], 401)
+
+    def test_missing_tenant_denied_without_default_fallback(self):
+        event = self._event("POST", "/me/documents", {}, self._claims(tenant=None))
+        context = handler._documents_context(event)
+        self.assertIsNotNone(context)
+        self.assertEqual(context.get("_documentContextError"), "Tenant not resolvable")
+        response = handler.handler(event, None)
+        self.assertEqual(response["statusCode"], 403)
+
+    def test_upload_response_is_canonical_and_context_bound(self):
+        event = self._event("POST", "/me/documents", {"contentType": "application/pdf"},
+                            self._claims(tenant="tenant-a"))
+        ticket = {
+            "documentId": "doc-1", "uploadUrl": "https://upload.invalid/1",
+            "expiresAt": "2026-11-01T12:15:00+00:00",
+            "requiredHeaders": {"Content-Type": "application/pdf"},
+        }
+        with patch.object(documents, "presign_upload", return_value=ticket) as mocked:
+            response = handler.handler(event, None)
+        self.assertEqual(response["statusCode"], 200)
+        body = json.loads(response["body"])
+        self.assertEqual(body, ticket)
+        self.assertNotIn("key", body)
+        self.assertTrue(mocked.call_args.kwargs["require_tenant"])
+        self.assertEqual(mocked.call_args.kwargs["tenant_id"], "tenant-a")
+
+    def test_download_and_delete_responses_do_not_expose_storage_key(self):
+        claims = self._claims(tenant="tenant-a")
+        download = {
+            "documentId": "doc-1", "downloadUrl": "https://download.invalid/1",
+            "expiresAt": "2026-11-01T12:15:00+00:00",
+        }
+        with patch.object(documents, "presign_download", return_value=download), \
+                patch.object(documents, "delete_document", return_value=True):
+            get_response = handler.handler(self._event("GET", "/me/documents/doc-1", claims=claims), None)
+            delete_response = handler.handler(self._event("DELETE", "/me/documents/doc-1", claims=claims), None)
+        self.assertNotIn("key", json.loads(get_response["body"]))
+        self.assertEqual(json.loads(delete_response["body"]),
+                         {"deleted": True, "documentId": "doc-1"})
 
     def test_spoofed_identity_ignored(self):
         """Body-userId/tenantId/Key duerfen nie in Keys landen (Unit: build_key)."""

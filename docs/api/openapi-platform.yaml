@@ -171,10 +171,55 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }
         "500": { $ref: "#/components/responses/ServerErrorString" }
+    patch:
+      tags: [Profile]
+      operationId: patchProfile
+      summary: Patch the caller's profile with optimistic concurrency
+      x-infrastructure-governance: imperative-open-3
+      x-infrastructure-note: Live handler route; not declared in Terraform (OPEN-3).
+      description: >-
+        Partial update of nickname, firstName and lastName. Supply
+        expectedVersion in the body or the exact version in If-Match. A stale
+        version returns 409; identity, tenant, email, status and roles are
+        server-owned.
+      parameters:
+        - name: If-Match
+          in: header
+          required: false
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserProfilePatchV1" }
+      responses:
+        "200":
+          description: Updated canonical UserProfileV1.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserProfile" }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Tenant context is missing or conflicts with the caller.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+        "409":
+          description: The supplied profile version is stale.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "428":
+          description: Optimistic-lock token required.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
     put:
       tags: [Profile]
       operationId: updateProfile
-      summary: Update the caller's profile
+      summary: Update the caller's profile (legacy method alias)
       description: |
         v1 fields only. `userId`, `tenantId` and `createdAt` are immutable.
         No upsert: a missing profile yields 404.
@@ -196,7 +241,22 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }
         "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Tenant context is missing or conflicts with the caller.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
         "404": { $ref: "#/components/responses/NotFoundString" }
+        "409":
+          description: The supplied profile version is stale.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "428":
+          description: Optimistic-lock token required.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
         "500": { $ref: "#/components/responses/ServerErrorString" }
     delete:
       tags: [Profile]
@@ -353,12 +413,12 @@ paths:
           description: Deletion acknowledgement.
           content:
             application/json:
-              schema:
-                type: object
-                required: [deleted, docId]
-                properties:
-                  deleted: { type: boolean }
-                  docId: { type: string }
+               schema:
+                 type: object
+                 required: [deleted, documentId]
+                 properties:
+                   deleted: { type: boolean }
+                   documentId: { type: string }
         "400": { $ref: "#/components/responses/BadRequestString" }
         "401": { $ref: "#/components/responses/UnauthorizedString" }
         "404": { $ref: "#/components/responses/NotFoundString" }
@@ -852,6 +912,1209 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }
 
+  /v1/partner/me/privacy/inspect:
+    get:
+      tags: [Partner, Privacy]
+      operationId: inspectPartnerUserData
+      summary: Read the caller's scoped RIS privacy data inventory
+      description: |
+        Read-only, self-scoped inventory. Identity is derived from the verified
+        JWT plus the active partner credential/registry boundary. Each resource
+        category has its own opaque cursor query parameter. Missing or
+        unreachable stores are reported as UNAVAILABLE and make the overall
+        status PARTIAL; they are never reported as empty data.
+        Receipt data is available only when the receipt journal is explicitly
+        enabled and configured.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+        - name: cvCursor
+          in: query
+          required: false
+          schema: { type: string }
+        - name: manualCursor
+          in: query
+          required: false
+          schema: { type: string }
+        - name: cvSearchCursor
+          in: query
+          required: false
+          schema: { type: string }
+        - name: atsCursor
+          in: query
+          required: false
+          schema: { type: string }
+        - name: receiptsCursor
+          in: query
+          required: false
+          schema: { type: string }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Complete or partial scoped inventory.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrivacyInspectionV1" }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Inspection limit is invalid.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "503":
+          description: Auth or backing store unavailable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
+  /v1/partner/me/privacy/export:
+    get:
+      tags: [Partner, Privacy]
+      operationId: exportPartnerUserData
+      summary: Export the caller's scoped RIS privacy data
+      description: |
+        Read-only, versioned JSON export of all available RIS metadata for the
+        authenticated subject. The handler exhausts each category using
+        identity-bound secure cursors. Metadata completeness and file
+        completeness are reported separately. CV file contents are not embedded
+        and no S3 key or presigned URL is persisted in the export; ready files
+        are referenced only through the existing ownership-checked endpoint
+        that issues a short-lived download ticket. Missing stores produce
+        PARTIAL/UNAVAILABLE, never an empty successful category.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Complete or partial machine-readable export.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrivacyExportV1" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Export limit is invalid.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
+  /v1/partner/me/manual-search-profiles:
+    get:
+      tags: [Partner]
+      operationId: listPartnerManualSearchProfiles
+      summary: List the caller's manual search profiles
+      description: |
+        Returns only profiles owned by the authenticated JWT subject in the
+        server-resolved tenant, partner application and Cognito issuer.
+        Paginated; the cursor is opaque.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Paginated page of manual search profiles.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/ManualSearchProfileV1" }
+                  nextCursor:
+                    type: string
+                    nullable: true
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    post:
+      tags: [Partner]
+      operationId: createPartnerManualSearchProfile
+      summary: Create a manual search profile
+      description: |
+        Creates a profile owned by the JWT subject. The server generates the
+        resource id and derives userId/tenantId/partner/issuer; client-supplied
+        identity fields are rejected. No agent work and no model call.
+        An optional ``Idempotency-Key`` makes retries return the original
+        resource identity; reusing the key with a different payload is a 409.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 200 }
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ManualSearchProfileInput" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ManualSearchProfileV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Resource conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+  /v1/partner/me/manual-search-profiles/{profileId}:
+    parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Partner]
+      operationId: getPartnerManualSearchProfile
+      summary: Get one manual search profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: The profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ManualSearchProfileV1" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    put:
+      tags: [Partner]
+      operationId: updatePartnerManualSearchProfile
+      summary: Update one manual search profile
+      description: |
+        Optimistic locking: send the current `version`. A mismatch returns 409.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ManualSearchProfileInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ManualSearchProfileV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    delete:
+      tags: [Partner]
+      operationId: deletePartnerManualSearchProfile
+      summary: Delete one manual search profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: version
+          in: query
+          required: false
+          schema: { type: integer }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "204":
+          description: Deleted (empty body).
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Invalid version.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
+  /v1/partner/me/cvs:
+    get:
+      tags: [Partner]
+      operationId: listPartnerCvs
+      summary: List the caller's CV metadata
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: The caller's CV metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/PartnerCvV1" }
+                  nextCursor: { type: string, nullable: true }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Pagination limit is invalid.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    post:
+      tags: [Partner]
+      operationId: createPartnerCv
+      summary: Create CV metadata (status pending)
+      description: |
+        An optional ``Idempotency-Key`` makes retries return the original
+        resource identity; reusing the key with a different payload is a 409.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 200 }
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PartnerCvInput" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerCvV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Capacity limit (10 CVs) exceeded.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+  /v1/partner/me/cvs/{cvId}:
+    parameters:
+      - name: cvId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Partner]
+      operationId: getPartnerCv
+      summary: Get one CV metadata record
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: The CV metadata.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerCvV1" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    patch:
+      tags: [Partner]
+      operationId: updatePartnerCv
+      summary: Update CV metadata (does not change lifecycle fields)
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: If-Match
+          in: header
+          required: false
+          schema: { type: string }
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PartnerCvInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerCvV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    delete:
+      tags: [Partner]
+      operationId: deletePartnerCv
+      summary: Delete a CV and its current document version
+      description: |
+        Deletes the current S3 object version (a versioned bucket creates a
+        delete marker) and then the metadata. It never claims physical purge
+        of all object versions.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Deleted; includes the document delete classification.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerCvDeleteResult" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "502":
+          description: Document deletion failed; metadata was retained.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+  /v1/partner/me/cvs/{cvId}/document/upload:
+    post:
+      tags: [Partner]
+      operationId: createPartnerCvUploadTicket
+      summary: Issue a short-lived upload ticket for a CV
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contentType: { type: string }
+      responses:
+        "200":
+          description: Upload ticket.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerCvUploadTicket" }
+        "400":
+          description: Invalid content type / tenant context.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Document already ready; re-upload refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: contentType missing or not allowed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+  /v1/partner/me/cvs/{cvId}/document/complete:
+    post:
+      tags: [Partner]
+      operationId: completePartnerCvUpload
+      summary: Verify the uploaded object and mark the CV ready
+      description: |
+        Calls S3 HeadObject for the server-assigned document key. READY is set
+        only when the object exists, is a non-empty PDF, and matches the
+        stored cvId/documentId/user/tenant/partner/issuer ownership context.
+        Repeating completion is idempotent.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PartnerCvCompletionRequest" }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Verified; processingStatus is ready.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerCvV1" }
+        "400":
+          description: Invalid tenant/document context.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Upload missing/empty or not ready.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+  /v1/partner/me/cvs/{cvId}/document:
+    get:
+      tags: [Partner]
+      operationId: getPartnerCvDocument
+      summary: Get a short-lived download URL for a ready CV
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Download link.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerCvDownload" }
+        "400":
+          description: Invalid tenant/document context.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Document not ready.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
+  /v1/partner/me/cvs/{cvId}/search-profiles:
+    parameters:
+      - name: cvId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Partner]
+      operationId: listPartnerCvSearchProfiles
+      summary: List the search profiles of one owned CV
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Paginated page of CV search profiles.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/CVSearchProfileV1" }
+                  nextCursor: { type: string, nullable: true }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Parent CV not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    post:
+      tags: [Partner]
+      operationId: createPartnerCvSearchProfile
+      summary: Create a search profile for one owned CV
+      description: |
+        At most two search profiles per CV. A 24h Idempotency-Key makes retries
+        return the original identity; the same key with a different payload is
+        a 409. No agent work and no model call.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 200 }
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CVSearchProfileInput" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CVSearchProfileV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Parent CV not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Capacity (2/CV), version or idempotency conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+  /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}:
+    parameters:
+      - name: cvId
+        in: path
+        required: true
+        schema: { type: string }
+      - name: searchProfileId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Partner]
+      operationId: getPartnerCvSearchProfile
+      summary: Get one CV search profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: The CV search profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CVSearchProfileV1" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or wrong parent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    put:
+      tags: [Partner]
+      operationId: updatePartnerCvSearchProfile
+      summary: Update one CV search profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CVSearchProfileInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CVSearchProfileV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or wrong parent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    delete:
+      tags: [Partner]
+      operationId: deletePartnerCvSearchProfile
+      summary: Delete one CV search profile
+      description: |
+        Refused with 409 while ATS child profiles exist. No cascade deletion.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: version
+          in: query
+          required: false
+          schema: { type: integer }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "204":
+          description: Deleted (empty body).
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or wrong parent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: ATS children present or version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Invalid version.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
+  /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles:
+    parameters:
+      - name: searchProfileId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Partner]
+      operationId: listPartnerAtsProfiles
+      summary: List the ATS profiles of one owned CV search profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: Paginated page of ATS search profiles.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/ATSSearchProfileV1" }
+                  nextCursor: { type: string, nullable: true }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Parent CV search profile not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    post:
+      tags: [Partner]
+      operationId: createPartnerAtsProfile
+      summary: Create an ATS profile for one owned CV search profile
+      description: |
+        At most five ATS profiles per search profile. A 24h Idempotency-Key
+        makes retries return the original identity; the same key with a
+        different payload is a 409. No agent work and no model call.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 200 }
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ATSProfileInput" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ATSSearchProfileV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Parent CV search profile not found or not accessible.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Capacity (5/parent), version or idempotency conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+  /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles/{atsSearchProfileId}:
+    parameters:
+      - name: searchProfileId
+        in: path
+        required: true
+        schema: { type: string }
+      - name: atsSearchProfileId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Partner]
+      operationId: getPartnerAtsProfile
+      summary: Get one ATS search profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200":
+          description: The ATS search profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ATSSearchProfileV1" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or wrong parent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    put:
+      tags: [Partner]
+      operationId: updatePartnerAtsProfile
+      summary: Update one ATS search profile
+      description: |
+        ``criteria`` absent preserves the existing criteria; ``criteria: null``
+        removes it; an object merges the provided lists and preserves omitted
+        lists. An explicit empty list clears that list.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ATSProfileInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ATSSearchProfileV1" }
+        "400":
+          description: Invalid JSON or client-supplied identity fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or wrong parent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Contract validation failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+    delete:
+      tags: [Partner]
+      operationId: deletePartnerAtsProfile
+      summary: Delete one ATS search profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: version
+          in: query
+          required: false
+          schema: { type: integer }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "204":
+          description: Deleted (empty body).
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, tenant or credential boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404":
+          description: Not found or wrong parent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "409":
+          description: Version conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "422":
+          description: Invalid version.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
   /orders:
     post:
       tags: [Orders]
@@ -1034,6 +2297,10 @@ components:
       required: [error]
       properties:
         error: { type: string }
+        code:
+          type: string
+          description: Stable machine-readable error category when available.
+          enum: [unauthorized, forbidden, not_found, validation, conflict, capacity_exceeded, unavailable, internal_error]
 
     ErrorObject:
       type: object
@@ -1089,39 +2356,48 @@ components:
     UserProfile:
       type: object
       description: >-
-        Application profile v1. Exactly the fields below; no others are
-        accepted. `userId`, `tenantId` and `email` originate from the JWT,
-        never from the request body.
-      required: [userId, tenantId, status, createdAt, updatedAt]
+        Canonical Jobsearch UserProfileV1. `userId`, `tenantId` and `email`
+        originate from verified server context, never from the request body.
+      additionalProperties: false
+      required: [schemaVersion, userId, tenantId, status, createdAt, updatedAt, version]
       properties:
+        schemaVersion: { type: integer, enum: [1] }
         userId: { type: string }
         tenantId: { type: string }
         nickname: { type: string, nullable: true }
         firstName: { type: string, nullable: true }
         lastName: { type: string, nullable: true }
         email: { type: string, nullable: true }
-        status: { type: string, enum: [ACTIVE] }
+        status: { type: string, enum: [active, disabled, pending] }
         createdAt: { type: string }
         updatedAt: { type: string }
+        version: { type: integer, minimum: 1 }
 
     UserProfileWritable:
       type: object
       description: >-
         Only the three mutable v1 fields. Identity and audit fields are
-        server-owned; supplying them in the body has no effect.
+        server-owned and rejected. PATCH requires expectedVersion or If-Match.
       additionalProperties: false
       properties:
-        nickname: { type: string }
-        firstName: { type: string }
-        lastName: { type: string }
+        nickname: { type: string, nullable: true }
+        firstName: { type: string, nullable: true }
+        lastName: { type: string, nullable: true }
+        expectedVersion: { type: integer, minimum: 1 }
+
+    UserProfilePatchV1:
+      allOf:
+        - $ref: "#/components/schemas/UserProfileWritable"
 
     DocumentUploadTicket:
       type: object
       description: Short-lived pre-signed upload authorisation.
+      additionalProperties: false
+      required: [documentId, uploadUrl, expiresAt, requiredHeaders]
       properties:
         uploadUrl: { type: string }
         documentId: { type: string }
-        expiresAt: { type: string }
+        expiresAt: { type: string, format: date-time }
         requiredHeaders:
           type: object
           additionalProperties: { type: string }
@@ -1129,10 +2405,12 @@ components:
     DocumentDownloadTicket:
       type: object
       description: Short-lived pre-signed download authorisation.
+      additionalProperties: false
+      required: [documentId, downloadUrl, expiresAt]
       properties:
         downloadUrl: { type: string }
         documentId: { type: string }
-        expiresAt: { type: string }
+        expiresAt: { type: string, format: date-time }
 
     Agent:
       type: object
@@ -1210,6 +2488,401 @@ components:
         agentId: { type: string }
         validFrom: { type: string }
         validUntil: { type: string }
+
+    SearchConfigurationV1:
+      type: object
+      description: >-
+        Canonical Jobsearch SearchConfigurationV1. `skills` is a phrase-
+        preserving string (quoted phrases must not be split); `radiusKm` is
+        nullable and restricted to the product values.
+      additionalProperties: false
+      required: [skills, targetRoles, city, radiusKm, workModes, employmentTypes]
+      properties:
+        skills: { type: string, maxLength: 4000 }
+        targetRoles:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        city: { type: string, maxLength: 200 }
+        radiusKm:
+          type: integer
+          nullable: true
+          enum: [10, 25, 50, 100]
+        workModes:
+          type: array
+          uniqueItems: true
+          items: { type: string, enum: [remote, hybrid, onsite] }
+        employmentTypes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, enum: [full_time, part_time] }
+
+    MatchingPreferencesV1:
+      type: object
+      description: Canonical Jobsearch MatchingPreferencesV1 (three phrase lists).
+      additionalProperties: false
+      required: [requiredSkills, preferredSkills, excludedTerms]
+      properties:
+        requiredSkills:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        preferredSkills:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        excludedTerms:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+
+    ManualSearchProfileInput:
+      type: object
+      description: >-
+        Client-supplied v1 fields. Identity (userId, tenantId, partner, issuer)
+        and schemaVersion/version are server-owned and rejected in the body.
+        On update a missing searchConfig or matchingPreferences is preserved.
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        searchConfig:
+          $ref: "#/components/schemas/SearchConfigurationV1"
+        matchingPreferences:
+          $ref: "#/components/schemas/MatchingPreferencesV1"
+        version: { type: integer, minimum: 1, description: "Optimistic-lock version for updates." }
+
+    ManualSearchProfileV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, manualSearchProfileId, name, origin, searchConfig, matchingPreferences, createdAt, updatedAt, version]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        manualSearchProfileId: { type: string }
+        name: { type: string }
+        description: { type: string }
+        origin: { type: string, enum: [manual] }
+        searchConfig:
+          $ref: "#/components/schemas/SearchConfigurationV1"
+        matchingPreferences:
+          $ref: "#/components/schemas/MatchingPreferencesV1"
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+
+    PartnerCvInput:
+      type: object
+      additionalProperties: false
+      oneOf:
+        - required: [name]
+        - required: [filename]
+      properties:
+        name: { type: string }
+        filename: { type: string, description: Canonical alias for legacy name. }
+        contentType: { type: string }
+        version: { type: integer, minimum: 1, description: "Optimistic-lock version for PATCH." }
+        expectedVersion: { type: integer, minimum: 1, description: "Canonical optimistic-lock version for PATCH." }
+        metadata:
+          type: object
+          additionalProperties: false
+          properties:
+            pageCount: { type: integer, minimum: 1 }
+            language: { type: string }
+
+    PrivacyInspectionV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, status, userId, generatedAt, categories]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        status: { type: string, enum: [COMPLETE, PARTIAL] }
+        userId: { type: string }
+        generatedAt: { type: string, format: date-time }
+        categories:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/PrivacyInspectionCategoryV1"
+
+    PrivacyInspectionCategoryV1:
+      type: object
+      additionalProperties: false
+      required: [status, dataCategory, processingPurpose, storageStatus,
+                 retentionPolicyRef, items, nextCursor]
+      properties:
+        status: { type: string, enum: [COMPLETE, UNAVAILABLE] }
+        dataCategory: { type: string }
+        processingPurpose: { type: string }
+        storageStatus: { type: string, enum: [stored, no_data, unavailable] }
+        retentionPolicyRef: { type: string }
+        items: { type: array, items: {} }
+        nextCursor: { type: string, nullable: true }
+        code: { type: string, enum: [unavailable] }
+
+    PrivacyExportV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, exportType, status, metadataExport,
+                 fileExport, userId, generatedAt]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        exportType: { type: string, enum: [RIS_USER_PRIVACY_EXPORT] }
+        status: { type: string, enum: [COMPLETE, PARTIAL] }
+        userId: { type: string }
+        generatedAt: { type: string, format: date-time }
+        metadataExport:
+          $ref: "#/components/schemas/PrivacyMetadataExportV1"
+        fileExport:
+          $ref: "#/components/schemas/PrivacyFileExportV1"
+
+    PrivacyMetadataExportV1:
+      type: object
+      additionalProperties: false
+      required: [status, categories]
+      properties:
+        status: { type: string, enum: [COMPLETE, PARTIAL] }
+        categories:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/PrivacyExportCategoryV1"
+
+    PrivacyExportCategoryV1:
+      type: object
+      additionalProperties: false
+      required: [status, dataCategory, processingPurpose, storageStatus,
+                 retentionPolicyRef, items]
+      properties:
+        status: { type: string, enum: [COMPLETE, UNAVAILABLE] }
+        dataCategory: { type: string }
+        processingPurpose: { type: string }
+        storageStatus: { type: string, enum: [stored, no_data, unavailable] }
+        retentionPolicyRef: { type: string }
+        items: { type: array, items: {} }
+        code: { type: string, enum: [unavailable] }
+
+    PrivacyFileExportV1:
+      type: object
+      additionalProperties: false
+      required: [status, complete, items, reason]
+      properties:
+        status: { type: string, enum: [NOT_INCLUDED, UNAVAILABLE] }
+        complete: { type: boolean }
+        reason: { type: string }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrivacyFileReferenceV1"
+
+    PrivacyFileReferenceV1:
+      type: object
+      additionalProperties: false
+      required: [cvId, documentId, downloadEndpoint, access]
+      properties:
+        cvId: { type: string }
+        documentId: { type: string }
+        downloadEndpoint: { type: string }
+        access: { type: string, enum: [short-lived-secure-download-ticket] }
+
+    PartnerCvV1:
+      type: object
+      description: |
+        Canonical Jobsearch CVDocumentV1. Pending documents omit sizeBytes
+        until S3 HeadObject verification. Ready documents require a positive
+        verified sizeBytes. Failed and deleted documents do not invent a size.
+      oneOf:
+        - $ref: "#/components/schemas/PartnerCvPendingV1"
+        - $ref: "#/components/schemas/PartnerCvReadyV1"
+        - $ref: "#/components/schemas/PartnerCvTerminalV1"
+
+    PartnerCvBaseV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, cvId, filename, processingStatus, createdAt, updatedAt, version]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        cvId: { type: string }
+        documentId: { type: string, description: Server-assigned document id; never an S3 key. }
+        filename: { type: string }
+        contentType: { type: string, enum: [application/pdf] }
+        sizeBytes:
+          type: integer
+          minimum: 1
+          description: Required only for ready; populated only from verified HeadObject.
+        processingStatus:
+          type: string
+          enum: [pending, ready, failed, deleted]
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+        metadata:
+          type: object
+          additionalProperties: false
+          properties:
+            pageCount: { type: integer, minimum: 1 }
+            language: { type: string }
+
+    PartnerCvPendingV1:
+      allOf:
+        - $ref: "#/components/schemas/PartnerCvBaseV1"
+        - type: object
+          properties:
+            processingStatus: { type: string, enum: [pending] }
+
+    PartnerCvReadyV1:
+      allOf:
+        - $ref: "#/components/schemas/PartnerCvBaseV1"
+        - type: object
+          required: [sizeBytes]
+          properties:
+            processingStatus: { type: string, enum: [ready] }
+
+    PartnerCvTerminalV1:
+      allOf:
+        - $ref: "#/components/schemas/PartnerCvBaseV1"
+        - type: object
+          properties:
+            processingStatus: { type: string, enum: [failed, deleted] }
+
+    PartnerCvUploadTicket:
+      type: object
+      required: [cvId, documentId, uploadUrl, expiresAt, requiredHeaders]
+      properties:
+        cvId: { type: string }
+        documentId: { type: string }
+        uploadUrl:
+          type: string
+          description: Short-lived presigned PUT URL; never persisted.
+        expiresAt: { type: string, format: date-time }
+        requiredHeaders:
+          type: object
+          additionalProperties: { type: string }
+
+    PartnerCvDownload:
+      type: object
+      required: [cvId, documentId, downloadUrl, expiresAt]
+      properties:
+        cvId: { type: string }
+        documentId: { type: string }
+        downloadUrl:
+          type: string
+          description: Short-lived presigned GET URL; never persisted.
+        expiresAt: { type: string, format: date-time }
+
+    PartnerCvCompletionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        documentId:
+          type: string
+          description: Optional echo of the server-assigned document id; mismatches are rejected.
+
+    PartnerCvDeleteResult:
+      type: object
+      properties:
+        cvId: { type: string }
+        deleted: { type: boolean }
+        physicalPurge:
+          type: boolean
+          description: Always false; versioned delete creates a delete marker.
+        document:
+          type: object
+          properties:
+            existed: { type: boolean }
+            deleted: { type: boolean }
+            deleteMarker: { type: boolean }
+            physicalPurge: { type: boolean }
+            versionId: { type: string, nullable: true }
+
+    CVSearchProfileInput:
+      type: object
+      description: >-
+        Client-supplied CV search profile fields. IDs, parent cvId, identity,
+        origin, timestamps and schemaVersion are server-owned.
+      additionalProperties: false
+      required: [name, searchConfig]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+        searchConfig:
+          $ref: "#/components/schemas/SearchConfigurationV1"
+        version: { type: integer, minimum: 1, description: "Optimistic-lock version for updates." }
+
+    CVSearchProfileV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, searchProfileId, cvId, name, origin, searchConfig, createdAt, updatedAt, version]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        searchProfileId: { type: string }
+        cvId: { type: string }
+        name: { type: string }
+        description: { type: string }
+        origin: { type: string, enum: [cv] }
+        searchConfig:
+          $ref: "#/components/schemas/SearchConfigurationV1"
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+
+    ATSCriteriaV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        requiredSkills:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        preferredSkills:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        excludedTerms:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+
+    ATSProfileInput:
+      type: object
+      additionalProperties: false
+      required: [name, targetRoles, skills]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        targetRoles:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        skills:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        criteria:
+          $ref: "#/components/schemas/ATSCriteriaV1"
+        version: { type: integer, minimum: 1, description: "Optimistic-lock version for updates." }
+
+    ATSSearchProfileV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, atsSearchProfileId, searchProfileId, name, targetRoles, skills, createdAt, updatedAt, version]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        atsSearchProfileId: { type: string }
+        searchProfileId: { type: string }
+        name: { type: string }
+        targetRoles:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        skills:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        criteria:
+          $ref: "#/components/schemas/ATSCriteriaV1"
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
 
     WorkAccepted:
       type: object

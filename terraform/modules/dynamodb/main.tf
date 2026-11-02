@@ -218,6 +218,151 @@ resource "aws_dynamodb_table" "jobsearches" {
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
+# Partner profile persistence table (R02) - stores v1 profile resources.
+resource "aws_dynamodb_table" "partner_profiles" {
+  name         = "${var.project_name}-${var.environment}-partner-profiles"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "resourceId"
+
+  attribute {
+    name = "resourceId"
+    type = "S"
+  }
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  attribute {
+    name = "resourceType"
+    type = "S"
+  }
+
+  attribute {
+    name = "parentId"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "gsi-user"
+    hash_key        = "userId"
+    range_key       = "resourceType"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "gsi-parent"
+    hash_key        = "parentId"
+    projection_type = "ALL"
+  }
+
+  # Idempotency records carry an epoch ``expiresAt``. TTL is a cleanup
+  # optimisation only; correctness is enforced by the conditional Put
+  # (attribute_not_exists OR expiresAt < now).
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
+resource "aws_dynamodb_table" "privacy_receipts" {
+  name         = "${var.project_name}-${var.environment}-privacy-receipts"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "receiptId"
+
+  attribute {
+    name = "receiptId"
+    type = "S"
+  }
+
+  attribute {
+    name = "scopeKey"
+    type = "S"
+  }
+
+  attribute {
+    name = "scopeSort"
+    type = "S"
+  }
+
+  # One immutable receipt per receiptId; the subject-scoped GSI provides the
+  # only list path. No TTL: retention policy is still REVIEW REQUIRED.
+  global_secondary_index {
+    name            = "gsi-subject"
+    hash_key        = "scopeKey"
+    range_key       = "scopeSort"
+    projection_type = "ALL"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
+# R08-C0B: durable, identity-bound erasure operation state. The repository
+# uses point reads plus conditional Put/TransactWrite operations only; no GSI
+# or scan path is provisioned. Persistence is separate from runtime activation.
+resource "aws_dynamodb_table" "erasure_operations" {
+  name         = "${var.project_name}-${var.environment}-erasure-operations"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "resourceId"
+
+  attribute {
+    name = "resourceId"
+    type = "S"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
+# R08-C0F: durable fenced S3 phase state. The phase repository addresses one
+# operation by its server-derived resourceId and never needs a table scan.
+resource "aws_dynamodb_table" "s3_erasure_phases" {
+  name         = "${var.project_name}-${var.environment}-s3-erasure-phases"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "resourceId"
+
+  attribute {
+    name = "resourceId"
+    type = "S"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
+# R08-C0F-2C: durable upload-ticket authorization/lifecycle ledger. Ticket
+# rows and server-derived idempotency markers share one resourceId key;
+# USER/CV freeze checks are transaction conditions on the partner-profile
+# guard table. No TTL is invented before retention approval.
+resource "aws_dynamodb_table" "upload_ticket_ledger" {
+  name         = "${var.project_name}-${var.environment}-upload-ticket-ledger"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "resourceId"
+
+  attribute {
+    name = "resourceId"
+    type = "S"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
+# R08-C0F-2D: versioned legacy upload cutover evidence. The repository uses
+# conditional PutItem only and stores server/operator evidence, not tickets.
+resource "aws_dynamodb_table" "upload_cutover" {
+  name         = "${var.project_name}-${var.environment}-upload-cutover"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "resourceId"
+
+  attribute {
+    name = "resourceId"
+    type = "S"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
 output "work_items_table_name" {
   value = aws_dynamodb_table.work_items.name
 }

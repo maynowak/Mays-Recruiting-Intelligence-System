@@ -65,9 +65,12 @@ class TestProjectPinning(unittest.TestCase):
     def test_definition_and_paths(self):
         from pathlib import Path
         local = self.inst.project_local_dir("demo_proj", repo_root=Path(self.repo_root))
-        self.assertTrue(str(local).endswith("installer/projects/demo_proj"))
+        self.assertEqual("demo_proj", local.name)
+        self.assertEqual("projects", local.parent.name)
+        self.assertEqual("installer", local.parent.parent.name)
         pin = self.inst.pin_path("demo_proj", repo_root=Path(self.repo_root))
-        self.assertTrue(str(pin).endswith("installer/demo-proj-clone.pinned.json"))
+        self.assertEqual("demo-proj-clone.pinned.json", pin.name)
+        self.assertEqual("installer", pin.parent.name)
         self.assertNotIn("projects/demo", str(pin))
 
     def test_resolve_and_write_pin(self):
@@ -130,7 +133,9 @@ class TestProjectPinning(unittest.TestCase):
         self._clone()
         info = self.inst.discover_project("demo_proj")
         # Fallback-Pfad existiert nicht; local_dir schon:
-        self.assertTrue(str(info.local_path).endswith("installer/projects/demo_proj"))
+        self.assertEqual("demo_proj", info.local_path.name)
+        self.assertEqual("projects", info.local_path.parent.name)
+        self.assertEqual("installer", info.local_path.parent.parent.name)
         self.assertIsNotNone(info.git_info)
         self.assertEqual(info.git_info.commit, self.remote_sha)
         self.assertFalse(info.installer_exists)  # kind=reference ohne installer/

@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import re
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 UPLOAD_EXPIRY_SECONDS = 900
@@ -35,9 +36,9 @@ def new_doc_id() -> str:
 
 def build_key(tenant_id: Optional[str], user_id: str, doc_id: str) -> str:
     """Server-seitiger Key (wirft bei ungueltiger docId)."""
-    if not user_id or not _DOC_ID_RE.match(doc_id or ""):
+    if not user_id or not (tenant_id or "").strip() or not _DOC_ID_RE.match(doc_id or ""):
         raise ValueError("Ungueltige Dokument-ID")
-    tenant = (tenant_id or "default").strip() or "default"
+    tenant = tenant_id.strip()
     if not _DOC_ID_RE.match(tenant):
         raise ValueError("Ungueltiger Tenant-Kontext")
     return f"tenant/{tenant}/users/{user_id}/documents/{doc_id}"
@@ -59,26 +60,81 @@ def _bucket() -> str:
     return bucket
 
 
+def _require_tenant(tenant_id: str, require_tenant: bool) -> None:
+    """Fail closed for every public document operation.
+
+    ``require_tenant`` remains as a compatibility argument for internal
+    callers, but no path may fall back to a shared ``default`` tenant.
+    """
+    if not (tenant_id or "").strip():
+        raise ValueError("Tenant context required")
+
+
+def _expires_at() -> str:
+    return (datetime.now(timezone.utc) + timedelta(seconds=UPLOAD_EXPIRY_SECONDS)).isoformat()
+
+
 def presign_upload(s3: Any = None, tenant_id: str = "", user_id: str = "",
-                   content_type: Optional[str] = None) -> Dict[str, Any]:
-    """Presigned PUT (kurzlebig) fuer ein NEUES Dokument. Gibt Key + docId mit."""
+                   content_type: Optional[str] = None,
+                   doc_id: Optional[str] = None,
+                   require_tenant: bool = False,
+                   expires_at: Optional[str] = None) -> Dict[str, Any]:
+    """Presigned PUT for one server-owned document id.
+
+    The S3 key is deliberately kept inside this module and is never returned
+    as a public DTO. ``requiredHeaders`` must match the signed request.
+    """
+    _require_tenant(tenant_id, require_tenant)
     if content_type not in ALLOWED_CONTENT_TYPES:
         raise ValueError("Content-Type nicht zugelassen")
     client = s3 if s3 is not None else _s3_client()
-    doc_id = new_doc_id()
+    doc_id = doc_id or new_doc_id()
+    if not _DOC_ID_RE.match(doc_id or ""):
+        raise ValueError("Ungueltige Dokument-ID")
     key = build_key(tenant_id, user_id, doc_id)
     url = client.generate_presigned_url(
         "put_object",
         Params={"Bucket": _bucket(), "Key": key, "ContentType": content_type},
         ExpiresIn=UPLOAD_EXPIRY_SECONDS,
     )
-    return {"docId": doc_id, "key": key, "uploadUrl": url,
-            "expiresIn": UPLOAD_EXPIRY_SECONDS}
+    return {"documentId": doc_id, "uploadUrl": url,
+            "expiresAt": expires_at or _expires_at(),
+            "requiredHeaders": {"Content-Type": content_type}}
+
+
+def head_document(s3: Any = None, tenant_id: str = "", user_id: str = "",
+                  doc_id: str = "", require_tenant: bool = False) -> Optional[Dict[str, Any]]:
+    """Return S3 object metadata if the object exists, else None (404).
+
+    Never returns a presigned URL; the upload is verified by actual object
+    metadata (size/etag/content-type/last-modified).
+    """
+    _require_tenant(tenant_id, require_tenant)
+    client = s3 if s3 is not None else _s3_client()
+    key = build_key(tenant_id, user_id, doc_id)
+    try:
+        resp = client.head_object(Bucket=_bucket(), Key=key)
+    except Exception as exc:
+        code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
+        if code in ("404", "NoSuchKey", "NotFound"):
+            return None
+        raise
+    last_modified = resp.get("LastModified")
+    return {
+        "key": key,
+        "docId": doc_id,
+        "size": int(resp.get("ContentLength", 0) or 0),
+        "etag": str(resp.get("ETag", "") or "").strip('"'),
+        "contentType": resp.get("ContentType"),
+        "lastModified": last_modified.isoformat() if hasattr(last_modified, "isoformat") else last_modified,
+    }
 
 
 def presign_download(s3: Any = None, tenant_id: str = "",
-                     user_id: str = "", doc_id: str = "") -> Optional[Dict[str, Any]]:
+                     user_id: str = "", doc_id: str = "",
+                     require_tenant: bool = False) -> Optional[Dict[str, Any]]:
     """Presigned GET wenn Objekt existiert, sonst None (404)."""
+    _require_tenant(tenant_id, require_tenant)
     client = s3 if s3 is not None else _s3_client()
     key = build_key(tenant_id, user_id, doc_id)
     try:
@@ -92,13 +148,43 @@ def presign_download(s3: Any = None, tenant_id: str = "",
         "get_object", Params={"Bucket": _bucket(), "Key": key},
         ExpiresIn=UPLOAD_EXPIRY_SECONDS,
     )
-    return {"docId": doc_id, "key": key, "downloadUrl": url,
-            "expiresIn": UPLOAD_EXPIRY_SECONDS}
+    return {"documentId": doc_id, "downloadUrl": url,
+            "expiresAt": _expires_at()}
+
+
+def delete_document_report(s3: Any = None, tenant_id: str = "",
+                           user_id: str = "", doc_id: str = "",
+                           require_tenant: bool = False) -> Dict[str, Any]:
+    """Delete the CURRENT object version and classify the result.
+
+    On a versioned bucket this creates a delete marker; it does NOT purge
+    older versions. ``physicalPurge`` is therefore always False here, and
+    callers must not claim full physical deletion.
+    """
+    _require_tenant(tenant_id, require_tenant)
+    client = s3 if s3 is not None else _s3_client()
+    key = build_key(tenant_id, user_id, doc_id)
+    try:
+        client.head_object(Bucket=_bucket(), Key=key)
+    except Exception as exc:
+        code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
+        if code in ("404", "NoSuchKey", "NotFound"):
+            return {"documentId": doc_id, "existed": False,
+                    "deleted": True, "deleteMarker": False,
+                    "versionId": None, "physicalPurge": False}
+        raise
+    resp = client.delete_object(Bucket=_bucket(), Key=key) or {}
+    version_id = resp.get("VersionId")
+    return {"documentId": doc_id, "existed": True, "deleted": True,
+            "deleteMarker": bool(version_id), "versionId": version_id,
+            "physicalPurge": False}
 
 
 def delete_document(s3: Any = None, tenant_id: str = "",
-                    user_id: str = "", doc_id: str = "") -> bool:
+                    user_id: str = "", doc_id: str = "",
+                    require_tenant: bool = False) -> bool:
     """Loeschen (versioniert -> Delete-Marker). True wenn vorhanden war."""
+    _require_tenant(tenant_id, require_tenant)
     client = s3 if s3 is not None else _s3_client()
     key = build_key(tenant_id, user_id, doc_id)
     try:
@@ -156,6 +242,7 @@ def delete_all_for_user(s3: Any = None, user_id: str = "") -> int:
             return deleted
 
 
-__all__ = ["presign_upload", "presign_download", "delete_document",
+__all__ = ["presign_upload", "presign_download", "head_document",
+           "delete_document", "delete_document_report",
            "delete_all_for_user", "build_key", "new_doc_id",
            "UPLOAD_EXPIRY_SECONDS", "ALLOWED_CONTENT_TYPES"]

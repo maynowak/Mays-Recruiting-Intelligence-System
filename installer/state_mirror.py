@@ -30,7 +30,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -112,8 +114,22 @@ class StateMirror:
             )
 
         # Exclusive create: a snapshot must never overwrite a previous one.
-        with open(target, "x", encoding="utf-8") as handle:
+        # ``newline=""`` is required for a verbatim state mirror.  Without
+        # it, Windows text mode expands LF to CRLF and changes the bytes (and
+        # therefore the recorded digest) before they reach disk.
+        with open(target, "x", encoding="utf-8", newline="") as handle:
             handle.write(raw)
+
+        # Windows filesystems can assign the same mtime to several rapid
+        # creates.  Make write order observable for rotation while retaining
+        # mtime as the persisted ordering authority used by ``entries()``.
+        existing = self._snapshot_paths()
+        previous_ns = max(
+            (path.stat().st_mtime_ns for path in existing if path != target),
+            default=0,
+        )
+        write_ns = max(time.time_ns(), previous_ns + 1_000_000)
+        os.utime(target, ns=(write_ns, write_ns))
 
         entry = self._describe(target, stamp)
         self._rotate()

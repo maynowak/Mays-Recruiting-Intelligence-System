@@ -436,10 +436,16 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_me_profile(event, context)
     elif method == 'POST' and path == '/me/profile':
         return _handle_me_profile_create(event, context)
+    elif method == 'PATCH' and path == '/me/profile':
+        return _handle_me_profile_update(event, context)
     elif method == 'PUT' and path == '/me/profile':
         return _handle_me_profile_update(event, context)
     elif method == 'DELETE' and path == '/me/profile':
         return _handle_me_profile_delete(event, context)
+    elif method == 'GET' and path == '/v1/partner/me/privacy/inspect':
+        return _handle_privacy_inspect(event, context)
+    elif method == 'GET' and path == '/v1/partner/me/privacy/export':
+        return _handle_privacy_export(event, context)
     elif method == 'POST' and path == '/me/erasure':
         return _handle_me_erasure(event, context)
     elif method == 'POST' and path == '/me/documents':
@@ -501,6 +507,23 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _machine_execute_agent(event, _machine_agent_id(path))
     elif method == 'POST' and path.startswith('/v1/partner/agents/'):
         return _partner_execute_agent(event, _machine_agent_id(path.replace('/v1/partner/agents/', '/v1/m2m/agents/')))
+    elif path == '/v1/partner/me/manual-search-profiles':
+        # R03: partner manual search profile CRUD (human JWT + RIS credential).
+        return _partner_storage_guard(
+            _handle_manual_profile_collection, event, context, method)
+    elif path.startswith('/v1/partner/me/manual-search-profiles/'):
+        params = event.get('pathParameters') or {}
+        profile_id = params.get('profileId') or path[len('/v1/partner/me/manual-search-profiles/'):].split('?')[0]
+        return _partner_storage_guard(
+            _handle_manual_profile_item, event, context, method, profile_id)
+    elif path == '/v1/partner/me/cvs' or path.startswith('/v1/partner/me/cvs/'):
+        # R04: partner CV metadata + secure document lifecycle.
+        return _partner_storage_guard(
+            _handle_partner_cv_routes, event, context, method, path)
+    elif path.startswith('/v1/partner/me/search-profiles/'):
+        # R06: partner ATS search profiles (ATSSearchProfileV1 CRUD).
+        return _partner_storage_guard(
+            _handle_partner_ats_routes, event, context, method, path)
     elif method == 'GET' and path.startswith('/work'):
         work_id = event.get('pathParameters', {}).get('workId')
         return _get_work(work_id, event)
@@ -595,15 +618,122 @@ def _handle_me_profile(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'Profile not found'})
         }
     
+    try:
+        profile = _canonical_user_profile(profile)
+    except ValueError:
+        logger.error("profile read returned invalid status")
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Invalid profile state'})}
+
     return {
         'statusCode': 200,
         'body': json.dumps(profile)
     }
 
 
+def _canonical_user_profile(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Project a stored profile into the canonical UserProfileV1 response.
+
+    Legacy rows may not have ``schemaVersion``/``version`` and may contain
+    uppercase status values. This is a read projection only; migration is
+    performed atomically by the versioned PATCH path.
+    """
+    if not isinstance(item, dict):
+        raise ValueError('profile must be an object')
+    status = str(item.get('status', 'pending') or 'pending').lower()
+    if status not in {'active', 'disabled', 'pending'}:
+        raise ValueError('invalid profile status')
+    version = item.get('version', 1)
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise ValueError('invalid profile version')
+    result = {
+        'schemaVersion': 1,
+        'userId': item.get('userId'),
+        'tenantId': item.get('tenantId'),
+        'status': status,
+        'createdAt': item.get('createdAt'),
+        'updatedAt': item.get('updatedAt'),
+        'version': version,
+    }
+    for key in ('nickname', 'firstName', 'lastName', 'email'):
+        if key in item:
+            result[key] = item.get(key)
+    return result
+
+
+class _WriteFreezeUnavailable(Exception):
+    """Enabled freeze cannot safely authorize a legacy UserProfile mutation."""
+
+
+class _UserProfileMutationConflict(Exception):
+    """The UserProfile mutation condition failed after the guard passed."""
+
+
+def _user_profile_freeze_context(event: Dict[str, Any],
+                                 user_context: Dict[str, Any],
+                                 tenant_id: str) -> Optional[Dict[str, Any]]:
+    """Resolve the verified dual-auth scope required for atomic UserProfile writes."""
+    if os.environ.get("ERASURE_WRITE_FREEZE_ENABLED", "false").strip().lower() != "true":
+        return None
+    verified, error = _partner_profile_context(event)
+    if error or not verified:
+        raise _WriteFreezeUnavailable("verified partner freeze scope unavailable")
+    if (verified.get("userId") != user_context.get("userId")
+            or verified.get("tenantId") != tenant_id
+            or not verified.get("partnerApplicationId")
+            or not verified.get("issuer")):
+        raise _WriteFreezeUnavailable("verified partner freeze scope mismatch")
+    return verified
+
+
+def _user_profile_guard_check(freeze_context: Dict[str, Any]) -> Dict[str, Any]:
+    """Build the guard ConditionCheck without reading the guard first."""
+    from agents.ecosystem.privacy_erasure_contract import freeze_resource_id
+    key = freeze_resource_id(
+        user_id=freeze_context["userId"], tenant_id=freeze_context["tenantId"],
+        partner_application_id=freeze_context["partnerApplicationId"],
+        issuer=freeze_context["issuer"], scope="USER")
+    return {
+        "ConditionCheck": {
+            "TableName": os.environ.get("PARTNER_PROFILE_TABLE"),
+            "Key": {"resourceId": {"S": key}},
+            "ConditionExpression": (
+                "attribute_not_exists(resourceId) OR #s = :released"),
+            "ExpressionAttributeNames": {"#s": "state"},
+            "ExpressionAttributeValues": {":released": {"S": "RELEASED"}},
+        }
+    }
+
+
+def _user_profile_transact(table_name: str, freeze_context: Dict[str, Any],
+                           mutation: Dict[str, Any]) -> None:
+    """Atomically couple the partner guard and UserProfile mutation."""
+    guard_table = os.environ.get("PARTNER_PROFILE_TABLE")
+    if not guard_table:
+        raise _WriteFreezeUnavailable("partner profile guard store unavailable")
+    check = _user_profile_guard_check(freeze_context)
+    check["ConditionCheck"]["TableName"] = guard_table
+    dynamodb = _get_dynamodb()
+    client = getattr(getattr(dynamodb, "meta", None), "client", None)
+    if client is None or not hasattr(client, "transact_write_items"):
+        raise _WriteFreezeUnavailable("transactional UserProfile writer unavailable")
+    mutation["Put" if "Put" in mutation else "Update" if "Update" in mutation else "Delete"]["TableName"] = table_name
+    try:
+        client.transact_write_items(TransactItems=[check, mutation])
+    except Exception as exc:
+        if hasattr(exc, "response") and exc.response.get("CancellationReasons"):
+            reasons = exc.response["CancellationReasons"]
+            if reasons and reasons[0].get("Code") not in (None, "None"):
+                raise _WriteFreezeUnavailable("UserProfile freeze conflict") from exc
+            raise _UserProfileMutationConflict("UserProfile mutation conflict") from exc
+        if "ConditionalCheckFailed" in str(exc):
+            raise _UserProfileMutationConflict("UserProfile mutation conflict") from exc
+        raise
+
+
 def _provision_user_profile(table: Any, user_context: Dict[str, Any],
                             body: Dict[str, Any],
-                            tenant_id: Optional[str] = None) -> Dict[str, Any]:
+                            tenant_id: Optional[str] = None,
+                            freeze_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Profil provisionieren — NUR explizit (nie via GET).
 
     Gate 10: Trigger ist die Registrierung/Aktivierung (Client ruft POST
@@ -631,18 +761,29 @@ def _provision_user_profile(table: Any, user_context: Dict[str, Any],
         'firstName': body.get('firstName'),
         'lastName': body.get('lastName'),
         'email': user_context.get('email'),
-        'status': 'ACTIVE',
+        'schemaVersion': 1,
+        'status': 'active',
         'createdAt': now,
         'updatedAt': now,
+        'version': 1,
     }
     try:
-        table.put_item(Item=item, ConditionExpression='attribute_not_exists(userId)')
+        if freeze_context:
+            from jobsearch.partner_profile_repository import serializer
+            _user_profile_transact(table.name, freeze_context, {"Put": {
+                "Item": {key: serializer(value) for key, value in item.items()},
+                "ConditionExpression": "attribute_not_exists(userId)",
+            }})
+        else:
+            table.put_item(Item=item, ConditionExpression='attribute_not_exists(userId)')
+    except _UserProfileMutationConflict:
+        return {'statusCode': 409, 'body': json.dumps({'error': 'Profile already exists'})}
     except Exception as e:
         if hasattr(e, 'response') and e.response.get('Error', {}).get('Code') == \
                 'ConditionalCheckFailedException':
             return {'statusCode': 409, 'body': json.dumps({'error': 'Profile already exists'})}
         raise
-    return {'statusCode': 201, 'body': json.dumps(item)}
+    return {'statusCode': 201, 'body': json.dumps(_canonical_user_profile(item))}
 
 
 def _handle_me_profile_create(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -682,14 +823,22 @@ def _handle_me_profile_create(event: Dict[str, Any], context: Any) -> Dict[str, 
         }
 
     try:
+        freeze_context = _user_profile_freeze_context(
+            event, user_context, tenant_id)
         table = _get_dynamodb().Table(table_name)
         return _provision_user_profile(table, user_context, body,
-                                       tenant_id=tenant_id)
+                                       tenant_id=tenant_id,
+                                       freeze_context=freeze_context)
     except ValueError as e:
         logger.warning(f"Profile provisioning refused: {e}")
         return {
             'statusCode': 400,
             'body': json.dumps({'error': 'Invalid request'})
+        }
+    except _WriteFreezeUnavailable:
+        return {
+            'statusCode': 503,
+            'body': json.dumps({'error': 'Write freeze unavailable'})
         }
     except Exception as e:
         logger.error(f"Error provisioning profile: {e}")
@@ -700,43 +849,88 @@ def _handle_me_profile_create(event: Dict[str, Any], context: Any) -> Dict[str, 
 
 
 def _update_user_profile(table: Any, user_context: Dict[str, Any],
-                         body: Dict[str, Any]) -> Dict[str, Any]:
-    """Profil aktualisieren — nur v1-Felder; userId/tenantId/createdAt unveränderlich.
+                         body: Dict[str, Any], expected_version: int,
+                         tenant_id: str,
+                         freeze_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Atomically PATCH UserProfileV1 with an optimistic-lock condition.
 
-    Gate 12: Body-userId/tenantId/createdAt werden IGNORIERT (Identitaet aus
-    JWT); updatedAt serverseitig. Fehlt das Profil -> 404 (kein Upsert).
+    A missing legacy ``version`` is treated as version 1 only inside the
+    conditional update. The same write sets version 2, so no unprotected
+    read-then-write migration exists. A successful update increments exactly
+    once; a stale token cannot overwrite a newer row.
     """
-    from datetime import datetime
-
     body = body or {}
-    updates = {k: body.get(k) for k in ('nickname', 'firstName', 'lastName')
-               if body.get(k) is not None}
+    allowed = {'nickname', 'firstName', 'lastName', 'expectedVersion'}
+    unknown = set(body) - allowed
+    if unknown:
+        return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid profile fields'})}
+
+    updates = {}
+    for key in ('nickname', 'firstName', 'lastName'):
+        if key in body:
+            value = body[key]
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid profile fields'})}
+            updates[key] = value.strip() if isinstance(value, str) else None
     if not updates:
         return {'statusCode': 400,
                 'body': json.dumps({'error': 'No updatable v1 fields provided'})}
+
     updates['updatedAt'] = utcnow_naive_iso()
+    updates['version'] = expected_version + 1
     expr = "SET " + ", ".join(f"#{k} = :{k}" for k in updates)
     names = {f"#{k}": k for k in updates}
+    names.update({'#userId': 'userId', '#tenantId': 'tenantId'})
     values = {f":{k}": v for k, v in updates.items()}
+    values.update({':tenantId': tenant_id, ':expectedVersion': expected_version})
+    condition = (
+        'attribute_exists(#userId) AND #tenantId = :tenantId AND '
+        '(attribute_not_exists(#version) OR #version = :expectedVersion)'
+    )
+    names['#version'] = 'version'
     try:
-        result = table.update_item(
-            Key={'userId': user_context['userId']},
-            UpdateExpression=expr,
-            ConditionExpression='attribute_exists(userId)',
-            ExpressionAttributeNames=names,
-            ExpressionAttributeValues=values,
-            ReturnValues='ALL_NEW',
-        )
+        if freeze_context:
+            from jobsearch.partner_profile_repository import serializer
+            _user_profile_transact(table.name, freeze_context, {"Update": {
+                "Key": {"userId": serializer(user_context['userId'])},
+                "UpdateExpression": expr,
+                "ConditionExpression": condition,
+                "ExpressionAttributeNames": names,
+                "ExpressionAttributeValues": {
+                    key: serializer(value) for key, value in values.items()},
+            }})
+            result = table.get_item(
+                Key={'userId': user_context['userId']}, ConsistentRead=True)
+        else:
+            result = table.update_item(
+                Key={'userId': user_context['userId']},
+                UpdateExpression=expr,
+                ConditionExpression=condition,
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=values,
+                ReturnValues='ALL_NEW',
+            )
     except Exception as e:
+        if isinstance(e, _UserProfileMutationConflict):
+            current = table.get_item(Key={'userId': user_context['userId']}).get('Item')
+            if not current or current.get('tenantId') != tenant_id:
+                return {'statusCode': 404, 'body': json.dumps({'error': 'Profile not found'})}
+            return {'statusCode': 409, 'body': json.dumps({'error': 'Version conflict'})}
         if hasattr(e, 'response') and e.response.get('Error', {}).get('Code') == \
                 'ConditionalCheckFailedException':
-            return {'statusCode': 404, 'body': json.dumps({'error': 'Profile not found'})}
+            # Classification read is only after the failed conditional write;
+            # it is never used to authorize or perform a migration.
+            current = table.get_item(Key={'userId': user_context['userId']}).get('Item')
+            if not current or current.get('tenantId') != tenant_id:
+                return {'statusCode': 404, 'body': json.dumps({'error': 'Profile not found'})}
+            return {'statusCode': 409, 'body': json.dumps({'error': 'Version conflict'})}
         raise
-    return {'statusCode': 200, 'body': json.dumps(result.get('Attributes', {}))}
+    return {'statusCode': 200,
+            'body': json.dumps(_canonical_user_profile(result.get('Attributes', {})))}
 
 
 def _handle_me_profile_update(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Handle PUT /me/profile - eigenes Profil aktualisieren."""
+    """Handle PATCH (and legacy PUT) /me/profile with optimistic locking."""
     user_context = _extract_user_context(event)
 
     if not user_context['userId']:
@@ -752,6 +946,35 @@ def _handle_me_profile_update(event: Dict[str, Any], context: Any) -> Dict[str, 
             'statusCode': 400,
             'body': json.dumps({'error': 'Request body must be valid JSON'})
         }
+    if not isinstance(body, dict):
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'Request body must be an object'})
+        }
+
+    # Resolve authorization context before interpreting optimistic-lock
+    # tokens, so an unauthorizable caller cannot learn route semantics.
+    tenant_id, tenant_conflict = _resolve_tenant(user_context)
+    if tenant_conflict or not tenant_id:
+        logger.warning("profile update denied: tenant not resolvable")
+        return {
+            'statusCode': 403,
+            'body': json.dumps({'error': 'Tenant not resolvable'})
+        }
+
+    headers = event.get('headers') or {}
+    if_match = next((value for key, value in headers.items()
+                     if str(key).lower() == 'if-match'), None)
+    try:
+        from jobsearch.partner_profile_contract import (
+            ProfileContractError, parse_expected_version)
+        expected_version = parse_expected_version(body, if_match)
+    except ProfileContractError as exc:
+        status = 428 if exc.code == 'MISSING_FIELD' else 400
+        return {
+            'statusCode': status,
+            'body': json.dumps({'error': str(exc)})
+        }
 
     table_name = os.environ.get('USER_PROFILE_TABLE')
     if not table_name:
@@ -761,19 +984,19 @@ def _handle_me_profile_update(event: Dict[str, Any], context: Any) -> Dict[str, 
             'body': json.dumps({'error': 'Profile store not configured'})
         }
 
-    # L03: Tenant serverseitig aufloesen (Claim autoritativ, sonst
-    # Registry) — gleiche Bedingung wie beim Lesen und Anlegen.
-    tenant_id, tenant_conflict = _resolve_tenant(user_context)
-    if tenant_conflict or not tenant_id:
-        logger.warning("profile update denied: tenant not resolvable")
-        return {
-            'statusCode': 403,
-            'body': json.dumps({'error': 'Tenant not resolvable'})
-        }
-
     try:
+        freeze_context = _user_profile_freeze_context(
+            event, user_context, tenant_id)
         table = _get_dynamodb().Table(table_name)
-        return _update_user_profile(table, user_context, body)
+        return _update_user_profile(table, user_context, body,
+                                    expected_version=expected_version,
+                                    tenant_id=tenant_id,
+                                    freeze_context=freeze_context)
+    except _WriteFreezeUnavailable:
+        return {
+            'statusCode': 503,
+            'body': json.dumps({'error': 'Write freeze unavailable'})
+        }
     except Exception as e:
         logger.error(f"Error updating profile: {e}")
         return {
@@ -801,16 +1024,36 @@ def _handle_me_profile_delete(event: Dict[str, Any], context: Any) -> Dict[str, 
         }
 
     try:
+        freeze_context = None
+        if os.environ.get("ERASURE_WRITE_FREEZE_ENABLED", "false").strip().lower() == "true":
+            delete_tenant, delete_conflict = _resolve_tenant(user_context)
+            if delete_conflict or not delete_tenant:
+                return {'statusCode': 403,
+                        'body': json.dumps({'error': 'Tenant not resolvable'})}
+            freeze_context = _user_profile_freeze_context(
+                event, user_context, delete_tenant)
         table = _get_dynamodb().Table(table_name)
         # Delete with conditional check to ensure profile exists
         try:
-            table.delete_item(
-                Key={'userId': user_context['userId']},
-                ConditionExpression='attribute_exists(userId)'
-            )
+            if freeze_context:
+                from jobsearch.partner_profile_repository import serializer
+                _user_profile_transact(table.name, freeze_context, {"Delete": {
+                    "Key": {"userId": serializer(user_context['userId'])},
+                    "ConditionExpression": "attribute_exists(userId)",
+                }})
+            else:
+                table.delete_item(
+                    Key={'userId': user_context['userId']},
+                    ConditionExpression='attribute_exists(userId)'
+                )
             return {
                 'statusCode': 204,
                 'body': ''
+            }
+        except _UserProfileMutationConflict:
+            return {
+                'statusCode': 404,
+                'body': json.dumps({'error': 'Profile not found'})
             }
         except Exception as e:
             if hasattr(e, 'response') and e.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
@@ -819,6 +1062,11 @@ def _handle_me_profile_delete(event: Dict[str, Any], context: Any) -> Dict[str, 
                     'body': json.dumps({'error': 'Profile not found'})
                 }
             raise
+    except _WriteFreezeUnavailable:
+        return {
+            'statusCode': 503,
+            'body': json.dumps({'error': 'Write freeze unavailable'})
+        }
     except Exception as e:
         logger.error(f"Error deleting profile: {e}")
         return {
@@ -857,7 +1105,8 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
 
     try:
-        from agents.ecosystem.privacy_erasure import PrivacyErasure
+        from agents.ecosystem.privacy_erasure import (
+            PrivacyErasure, ErasureExecutionUnavailable)
         from agents.ecosystem.credentials import DynamoDBCredentialStore
         from agents.ecosystem.api_profiles import DynamoDBApiProfileStore
     except Exception as e:
@@ -905,6 +1154,11 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     try:
         result = erasure.erase(user_context['userId'],
                                tenant_id=user_context.get('tenantId'))
+    except ErasureExecutionUnavailable:
+        return {
+            'statusCode': 503,
+            'body': json.dumps({'error': 'Erasure execution unavailable'})
+        }
     except Exception as e:
         logger.error(f"Erasure failed: {e}")
         return {
@@ -920,10 +1174,21 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 
 def _documents_context(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Authentifizierter Dokumenten-Kontext (None wenn unauthentifiziert)."""
+    """Authenticated, server-resolved document ownership context.
+
+    Legacy document routes used to pass a missing tenant through to the
+    storage helper, which then selected ``tenant/default``. Resolve the
+    tenant from verified JWT/registry context before any S3 operation and
+    fail closed when it cannot be resolved.
+    """
     user_context = _extract_user_context(event)
     if not user_context.get('userId'):
         return None
+    tenant_id, conflict = _resolve_tenant(user_context)
+    if conflict or not tenant_id:
+        user_context['_documentContextError'] = 'Tenant not resolvable'
+        return user_context
+    user_context['tenantId'] = tenant_id
     return user_context
 
 
@@ -931,9 +1196,20 @@ def _handle_documents_create(event: Dict[str, Any], context: Any) -> Dict[str, A
     """Handle POST /me/documents - kurzlebige Upload-Berechtigung (Gate 14)."""
     from documents import presign_upload
 
+    # This legacy issuer has no CV reference or partner issuer context and is
+    # therefore not representable in UploadTicketLedgerV1.  Once cutover or
+    # ledger enforcement is enabled, fail closed rather than minting an
+    # untracked presigned upload ticket.
+    if (os.environ.get('ERASURE_UPLOAD_TICKET_LEDGER_ENABLED', 'false').strip().lower() == 'true'
+            or os.environ.get('ERASURE_UPLOAD_CUTOVER_ENABLED', 'false').strip().lower() == 'true'):
+        return {'statusCode': 503,
+                'body': json.dumps({'error': 'Upload ticket ledger unavailable'})}
+
     user_context = _documents_context(event)
     if user_context is None:
         return {'statusCode': 401, 'body': json.dumps({'error': 'Unauthenticated'})}
+    if user_context.get('_documentContextError'):
+        return {'statusCode': 403, 'body': json.dumps({'error': 'Tenant not resolvable'})}
     try:
         body = json.loads(event.get('body') or '{}')
     except (ValueError, TypeError):
@@ -944,6 +1220,7 @@ def _handle_documents_create(event: Dict[str, Any], context: Any) -> Dict[str, A
             tenant_id=user_context.get('tenantId'),
             user_id=user_context['userId'],
             content_type=(body or {}).get('contentType'),
+            require_tenant=True,
         )
     except ValueError as e:
         return {'statusCode': 400, 'body': json.dumps({'error': str(e)})}
@@ -961,11 +1238,14 @@ def _handle_documents_get(event: Dict[str, Any], context: Any,
     user_context = _documents_context(event)
     if user_context is None:
         return {'statusCode': 401, 'body': json.dumps({'error': 'Unauthenticated'})}
+    if user_context.get('_documentContextError'):
+        return {'statusCode': 403, 'body': json.dumps({'error': 'Tenant not resolvable'})}
     try:
         result = presign_download(
             tenant_id=user_context.get('tenantId'),
             user_id=user_context['userId'],
             doc_id=doc_id,
+            require_tenant=True,
         )
     except ValueError:
         return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid document ID'})}
@@ -985,11 +1265,14 @@ def _handle_documents_delete(event: Dict[str, Any], context: Any,
     user_context = _documents_context(event)
     if user_context is None:
         return {'statusCode': 401, 'body': json.dumps({'error': 'Unauthenticated'})}
+    if user_context.get('_documentContextError'):
+        return {'statusCode': 403, 'body': json.dumps({'error': 'Tenant not resolvable'})}
     try:
         deleted = delete_document(
             tenant_id=user_context.get('tenantId'),
             user_id=user_context['userId'],
             doc_id=doc_id,
+            require_tenant=True,
         )
     except ValueError:
         return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid document ID'})}
@@ -998,7 +1281,7 @@ def _handle_documents_delete(event: Dict[str, Any], context: Any,
         return {'statusCode': 500, 'body': json.dumps({'error': 'Failed to delete document'})}
     if not deleted:
         return {'statusCode': 404, 'body': json.dumps({'error': 'Document not found'})}
-    return {'statusCode': 200, 'body': json.dumps({'deleted': True, 'docId': doc_id})}
+    return {'statusCode': 200, 'body': json.dumps({'deleted': True, 'documentId': doc_id})}
 
 
 def _handle_agents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -1135,6 +1418,14 @@ def _machine_deny(status_code, error):
     """Neutral external denial (no oracle, no reason category leaked)."""
     return {'statusCode': status_code,
             'body': json.dumps({'error': error})}
+
+
+def _partner_boundary_error(status_code, error):
+    """Flat dual-auth error with a stable adapter-facing category."""
+    code = {401: 'unauthorized', 403: 'forbidden', 503: 'unavailable'}.get(
+        status_code, 'internal_error')
+    return {'statusCode': status_code,
+            'body': json.dumps({'error': error, 'code': code})}
 
 
 def _partner_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Dict[str, Any]:
@@ -3308,6 +3599,2274 @@ def _handle_jobsearch_delete(event: Dict[str, Any], context: Any, job_search_id:
             'statusCode': 500,
             'body': json.dumps({'error': 'Failed to delete JobSearch'})
         }
+
+
+# ---------------------------------------------------------------------------
+# R03: Partner manual search profile CRUD
+#
+#   GET    /v1/partner/me/manual-search-profiles
+#   POST   /v1/partner/me/manual-search-profiles
+#   GET    /v1/partner/me/manual-search-profiles/{profileId}
+#   PUT    /v1/partner/me/manual-search-profiles/{profileId}
+#   DELETE /v1/partner/me/manual-search-profiles/{profileId}
+#
+# Minimal storage scope: authenticated human user + ACTIVE RIS
+# credential/profile + ACTIVE partner application (registry binding).
+# Agent entitlements are NOT reused as a storage permission. Storing,
+# loading or deleting a profile never enqueues work and never calls a model.
+# ---------------------------------------------------------------------------
+
+_MANUAL_PROFILE_COLLECTION = '/v1/partner/me/manual-search-profiles'
+_MANUAL_PROFILE_PAGE_LIMIT = 50
+
+
+def _partner_profile_context(event: Dict[str, Any]):
+    """Resolve the authenticated partner/user context for profile storage.
+
+    Returns ``(context, None)`` on success or ``(None, error_response)``.
+    Reuses the existing partner dual-auth boundary; nothing new is invented.
+    """
+    from agents.ecosystem.credentials import (
+        CredentialStoreUnavailable,
+        VerifyOutcome,
+        _Denied,
+        resolve_credential_profile,
+    )
+    from agents.ecosystem.partner_registry import resolve_partner_application
+
+    headers = {(k or "").lower(): v for k, v in (event.get("headers") or {}).items()}
+
+    cognito_context, cognito_error = _machine_cognito_context(event)
+    if cognito_error:
+        return None, _partner_boundary_error(401, 'Unauthorized')
+    if cognito_context.get('tokenUse') != 'access':
+        return None, _partner_boundary_error(401, 'Unauthorized')
+
+    bearer, header_error = _machine_bearer(headers)
+    if header_error:
+        return None, _partner_boundary_error(401, 'Unauthorized')
+
+    try:
+        sources = _build_introspection_sources()
+    except Exception:
+        return None, {'statusCode': 503,
+                      'body': json.dumps({'error': 'Service unavailable',
+                                          'code': 'unavailable'})}
+
+    try:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        meta, _profile = resolve_credential_profile(
+            bearer=bearer,
+            credential_store=sources["credential_store"],
+            profile_store=sources["profile_store"],
+            now=now,
+            base={"route": "partner-manual-profile"},
+        )
+    except CredentialStoreUnavailable:
+        return None, {'statusCode': 503,
+                      'body': json.dumps({'error': 'Service unavailable',
+                                          'code': 'unavailable'})}
+    except _Denied as exc:
+        status = 401 if exc.outcome is VerifyOutcome.UNAUTHORIZED else 403
+        return None, _partner_boundary_error(
+            status, 'Unauthorized' if status == 401 else 'Forbidden')
+
+    client_id = cognito_context.get('clientId')
+    if not client_id:
+        return None, _partner_boundary_error(401, 'Unauthorized')
+    try:
+        registry = resolve_partner_application(client_id)
+    except Exception:
+        return None, _partner_boundary_error(403, 'Forbidden')
+    if not registry or registry.get('status') != 'ACTIVE':
+        return None, _partner_boundary_error(403, 'Forbidden')
+    if registry.get('apiProfileId') != meta.get('apiProfileId'):
+        return None, _partner_boundary_error(403, 'Forbidden')
+    if registry.get('tenantId') != meta.get('tenantId'):
+        return None, _partner_boundary_error(403, 'Forbidden')
+
+    resolved_tenant, tenant_conflict = _resolve_tenant(
+        cognito_context, expected_tenant=meta.get('tenantId'))
+    if tenant_conflict or not resolved_tenant:
+        return None, _partner_boundary_error(403, 'Forbidden')
+
+    jwt_user_id = cognito_context.get('userId')
+    if not jwt_user_id:
+        return None, _partner_boundary_error(401, 'Unauthorized')
+
+    claims = (((event.get('requestContext') or {}).get('authorizer') or {})
+              .get('jwt') or {}).get('claims') or {}
+    issuer = claims.get('iss')
+    if not issuer:
+        return None, _partner_boundary_error(401, 'Unauthorized')
+
+    return {
+        'userId': jwt_user_id,
+        'tenantId': resolved_tenant,
+        'partnerApplicationId': registry.get('applicationId'),
+        'apiProfileId': meta.get('apiProfileId'),
+        'credentialId': meta.get('credentialId'),
+        'issuer': issuer,
+    }, None
+
+
+_PRIVACY_INSPECT_ROUTE = '/v1/partner/me/privacy/inspect'
+_PRIVACY_INSPECT_LIMIT = 50
+_PRIVACY_INSPECT_SCOPE = 'privacy-inspect'
+
+
+class _PrivacyInspectionUnavailable(Exception):
+    """A storage domain could not be inspected without claiming it is empty."""
+
+
+def _privacy_inspection_page(event, *, repo, ctx, resource_type, serializer,
+                             query_name, limit):
+    """Read one complete, identity-bound page from the profile GSI."""
+    raw_cursor = (event.get('queryStringParameters') or {}).get(query_name)
+    cursor = _decode_cursor(
+        raw_cursor, repo=repo, ctx=ctx, scope=_PRIVACY_INSPECT_SCOPE,
+        resource_type=resource_type, limit=limit)
+    if cursor == 'invalid':
+        raise ValueError('Invalid privacy inspection cursor')
+    if not getattr(repo, 'table_name', None) or getattr(repo, 'table', None) is None:
+        raise _PrivacyInspectionUnavailable('Profile storage is unavailable')
+    items, next_cursor = repo.list_by_user(
+        ctx['userId'], ctx['tenantId'], resource_type=resource_type,
+        partner_app_id=ctx.get('partnerApplicationId'),
+        issuer=ctx.get('issuer'), limit=limit, cursor=cursor)
+    return {
+        'items': [serializer(item) for item in items],
+        'nextCursor': _encode_cursor(
+            next_cursor, repo=repo, ctx=ctx, scope=_PRIVACY_INSPECT_SCOPE,
+            resource_type=resource_type, limit=limit),
+    }
+
+
+def _privacy_category(*, name, purpose, storage_status, retention_ref,
+                      page=None, status='COMPLETE', code=None):
+    result = {
+        'status': status,
+        'dataCategory': name,
+        'processingPurpose': purpose,
+        'storageStatus': storage_status,
+        'retentionPolicyRef': retention_ref,
+        'items': (page or {}).get('items', []),
+        'nextCursor': (page or {}).get('nextCursor'),
+    }
+    if code:
+        result['code'] = code
+    return result
+
+
+def _privacy_read_user_profile(ctx):
+    table_name = os.environ.get('USER_PROFILE_TABLE')
+    if not table_name:
+        raise _PrivacyInspectionUnavailable('User profile storage is unavailable')
+    try:
+        table = _get_dynamodb().Table(table_name)
+        response = table.get_item(Key={'userId': ctx['userId']},
+                                  ConsistentRead=True)
+    except Exception as exc:
+        raise _PrivacyInspectionUnavailable(
+            'User profile storage is unavailable') from exc
+    item = response.get('Item')
+    if item is None:
+        return None
+    if item.get('tenantId') != ctx['tenantId']:
+        raise _PrivacyInspectionUnavailable('User profile storage is unavailable')
+    return _canonical_user_profile(item)
+
+
+def _privacy_receipt_page(event, ctx, limit):
+    from agents.ecosystem.privacy_receipt import PrivacyContextV1
+    from agents.ecosystem.privacy_receipt_journal import (
+        PrivacyReceiptJournal, PrivacyReceiptJournalDisabled,
+        PrivacyReceiptInvalidCursor, PrivacyReceiptStorageError,
+    )
+    context = PrivacyContextV1(
+        user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+        partner_application_id=ctx['partnerApplicationId'],
+        issuer=ctx['issuer'])
+    raw_cursor = (event.get('queryStringParameters') or {}).get('receiptsCursor')
+    try:
+        receipts, next_cursor = PrivacyReceiptJournal().list_receipts(
+            context, cursor=raw_cursor, limit=limit)
+    except PrivacyReceiptInvalidCursor as exc:
+        raise ValueError('Invalid privacy inspection cursor') from exc
+    except (PrivacyReceiptJournalDisabled, PrivacyReceiptStorageError) as exc:
+        raise _PrivacyInspectionUnavailable(
+            'Privacy receipt storage is unavailable') from exc
+    return {
+        'items': [receipt.to_dict() for receipt in receipts],
+        'nextCursor': next_cursor,
+    }
+
+
+def _handle_privacy_inspect(event, context):
+    """Read-only, self-scoped inventory of RIS user data.
+
+    Each resource domain has its own secure cursor. A missing or failing store
+    is returned as UNAVAILABLE/PARTIAL, never as an empty successful list.
+    """
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return error
+    params = event.get('queryStringParameters') or {}
+    try:
+        limit = int(params.get('limit', _PRIVACY_INSPECT_LIMIT))
+    except (TypeError, ValueError):
+        return _cv_error(422, 'Invalid inspection limit')
+    if limit < 1 or limit > _PRIVACY_INSPECT_LIMIT:
+        return _cv_error(422, 'Invalid inspection limit')
+
+    categories = {}
+    unavailable = False
+    try:
+        profile = _privacy_read_user_profile(ctx)
+        categories['userProfile'] = _privacy_category(
+            name='user_profile', purpose='account/profile management',
+            storage_status='stored' if profile else 'no_data',
+            retention_ref='RIS-JOBSEARCH-RETENTION-POLICY-V1#user-profile',
+            page={'items': [profile] if profile else [], 'nextCursor': None})
+    except _PrivacyInspectionUnavailable:
+        unavailable = True
+        categories['userProfile'] = _privacy_category(
+            name='user_profile', purpose='account/profile management',
+            storage_status='unavailable',
+            retention_ref='RIS-JOBSEARCH-RETENTION-POLICY-V1#user-profile',
+            status='UNAVAILABLE', code='unavailable')
+
+    repo = _manual_profile_repo()
+    profile_pages = (
+        ('cvDocuments', 'CVDocument', _serialize_cv, 'cvCursor',
+         'cv document metadata', 'RIS-JOBSEARCH-RETENTION-POLICY-V1#cv-metadata'),
+        ('manualSearchProfiles', 'ManualSearchProfile', _serialize_manual_profile,
+         'manualCursor', 'manual search configuration',
+         'RIS-JOBSEARCH-RETENTION-POLICY-V1#manual-search-profile'),
+        ('cvSearchProfiles', 'CVSearchProfile', _serialize_cv_search_profile,
+         'cvSearchCursor', 'CV-derived search configuration',
+         'RIS-JOBSEARCH-RETENTION-POLICY-V1#cv-search-profile'),
+        ('atsSearchProfiles', 'ATSSearchProfile', _serialize_ats_profile,
+         'atsCursor', 'ATS search configuration',
+         'RIS-JOBSEARCH-RETENTION-POLICY-V1#ats-search-profile'),
+    )
+    for key, resource_type, serializer, query_name, purpose, retention_ref in profile_pages:
+        try:
+            page = _privacy_inspection_page(
+                event, repo=repo, ctx=ctx, resource_type=resource_type,
+                serializer=serializer, query_name=query_name, limit=limit)
+            categories[key] = _privacy_category(
+                name=resource_type, purpose=purpose,
+                storage_status=('stored' if page['items'] or page['nextCursor']
+                                else 'no_data'),
+                retention_ref=retention_ref, page=page)
+        except ValueError:
+            return _cv_error(400, 'Invalid privacy inspection cursor')
+        except _PrivacyInspectionUnavailable:
+            unavailable = True
+            categories[key] = _privacy_category(
+                name=resource_type, purpose=purpose, storage_status='unavailable',
+                retention_ref=retention_ref, status='UNAVAILABLE',
+                code='unavailable')
+        except Exception:
+            logger.error('privacy inspection profile domain unavailable')
+            unavailable = True
+            categories[key] = _privacy_category(
+                name=resource_type, purpose=purpose, storage_status='unavailable',
+                retention_ref=retention_ref, status='UNAVAILABLE',
+                code='unavailable')
+
+    try:
+        receipt_page = _privacy_receipt_page(event, ctx, limit)
+        categories['privacyReceipts'] = _privacy_category(
+            name='privacy_receipt', purpose='privacy evidence retrieval',
+            storage_status='stored', retention_ref=(
+                'RIS-PRIVACY-RECEIPT-RETENTION-DECISION#REVIEW_REQUIRED'),
+            page=receipt_page)
+    except ValueError:
+        return _cv_error(400, 'Invalid privacy inspection cursor')
+    except _PrivacyInspectionUnavailable:
+        unavailable = True
+        categories['privacyReceipts'] = _privacy_category(
+            name='privacy_receipt', purpose='privacy evidence retrieval',
+            storage_status='unavailable', retention_ref=(
+                'RIS-PRIVACY-RECEIPT-RETENTION-DECISION#REVIEW_REQUIRED'),
+            status='UNAVAILABLE', code='unavailable')
+
+    payload = {
+        'schemaVersion': 1,
+        'status': 'PARTIAL' if unavailable else 'COMPLETE',
+        'userId': ctx['userId'],
+        'generatedAt': datetime.now(timezone.utc).isoformat(),
+        'categories': categories,
+    }
+    return {'statusCode': 200, 'body': json.dumps(payload, ensure_ascii=False)}
+
+
+def _privacy_export_collect(event, *, repo, ctx, resource_type, serializer,
+                            query_name, limit):
+    """Collect every page for one profile category using scoped cursors."""
+    items = []
+    cursor = None
+    seen = set()
+    while True:
+        if cursor in seen:
+            raise _PrivacyInspectionUnavailable('Cursor did not advance')
+        if cursor:
+            seen.add(cursor)
+        page_event = {'queryStringParameters': {
+            query_name: cursor} if cursor else {}}
+        page = _privacy_inspection_page(
+            page_event, repo=repo, ctx=ctx, resource_type=resource_type,
+            serializer=serializer, query_name=query_name, limit=limit)
+        items.extend(page['items'])
+        cursor = page['nextCursor']
+        if cursor is None:
+            return items
+
+
+def _privacy_export_category(*, name, purpose, storage_status,
+                             retention_ref, items=None, status='COMPLETE',
+                             code=None):
+    result = {
+        'status': status,
+        'dataCategory': name,
+        'processingPurpose': purpose,
+        'storageStatus': storage_status,
+        'retentionPolicyRef': retention_ref,
+        'items': items or [],
+    }
+    if code:
+        result['code'] = code
+    return result
+
+
+def _privacy_file_export(cv_items):
+    """Describe secure, on-demand file retrieval without exporting URLs."""
+    files = []
+    for cv in cv_items:
+        if cv.get('processingStatus') != 'ready' or not cv.get('documentId'):
+            continue
+        cv_id = cv.get('cvId')
+        files.append({
+            'cvId': cv_id,
+            'documentId': cv['documentId'],
+            'downloadEndpoint': '/v1/partner/me/cvs/%s/document' % cv_id,
+            'access': 'short-lived-secure-download-ticket',
+        })
+    return {
+        'status': 'NOT_INCLUDED',
+        'complete': False,
+        'items': files,
+        'reason': 'File contents are not embedded; request an authorized '
+                  'short-lived download ticket per document.',
+    }
+
+
+def _privacy_export_receipts(event, ctx, limit):
+    """Collect all authorized receipt pages, if the journal is available."""
+    items = []
+    cursor = None
+    seen = set()
+    while True:
+        if cursor in seen:
+            raise _PrivacyInspectionUnavailable('Receipt cursor did not advance')
+        if cursor:
+            seen.add(cursor)
+        page_event = {'queryStringParameters': {
+            'receiptsCursor': cursor} if cursor else {}}
+        page = _privacy_receipt_page(page_event, ctx, limit)
+        items.extend(page['items'])
+        cursor = page['nextCursor']
+        if cursor is None:
+            return items
+
+
+def _handle_privacy_export(event, context):
+    """Return a complete, machine-readable, self-scoped metadata export."""
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return error
+    params = event.get('queryStringParameters') or {}
+    try:
+        limit = int(params.get('limit', _PRIVACY_INSPECT_LIMIT))
+    except (TypeError, ValueError):
+        return _cv_error(422, 'Invalid export limit')
+    if limit < 1 or limit > _PRIVACY_INSPECT_LIMIT:
+        return _cv_error(422, 'Invalid export limit')
+
+    categories = {}
+    partial = False
+    cv_items = []
+    try:
+        profile = _privacy_read_user_profile(ctx)
+        categories['userProfile'] = _privacy_export_category(
+            name='user_profile', purpose='account/profile management',
+            storage_status='stored' if profile else 'no_data',
+            retention_ref='RIS-JOBSEARCH-RETENTION-POLICY-V1#user-profile',
+            items=[profile] if profile else [])
+    except _PrivacyInspectionUnavailable:
+        partial = True
+        categories['userProfile'] = _privacy_export_category(
+            name='user_profile', purpose='account/profile management',
+            storage_status='unavailable',
+            retention_ref='RIS-JOBSEARCH-RETENTION-POLICY-V1#user-profile',
+            status='UNAVAILABLE', code='unavailable')
+
+    repo = _manual_profile_repo()
+    profile_pages = (
+        ('cvDocuments', 'CVDocument', _serialize_cv, 'cvDocuments',
+         'cv document metadata', 'RIS-JOBSEARCH-RETENTION-POLICY-V1#cv-metadata'),
+        ('manualSearchProfiles', 'ManualSearchProfile', _serialize_manual_profile,
+         'manualSearchProfiles', 'manual search configuration',
+         'RIS-JOBSEARCH-RETENTION-POLICY-V1#manual-search-profile'),
+        ('cvSearchProfiles', 'CVSearchProfile', _serialize_cv_search_profile,
+         'cvSearchProfiles', 'CV-derived search configuration',
+         'RIS-JOBSEARCH-RETENTION-POLICY-V1#cv-search-profile'),
+        ('atsSearchProfiles', 'ATSSearchProfile', _serialize_ats_profile,
+         'atsSearchProfiles', 'ATS search configuration',
+         'RIS-JOBSEARCH-RETENTION-POLICY-V1#ats-search-profile'),
+    )
+    for key, resource_type, serializer, query_name, purpose, retention_ref in profile_pages:
+        try:
+            collected = _privacy_export_collect(
+                event, repo=repo, ctx=ctx, resource_type=resource_type,
+                serializer=serializer, query_name=query_name, limit=limit)
+            categories[key] = _privacy_export_category(
+                name=resource_type, purpose=purpose,
+                storage_status='stored' if collected else 'no_data',
+                retention_ref=retention_ref, items=collected)
+            if key == 'cvDocuments':
+                cv_items = collected
+        except _PrivacyInspectionUnavailable:
+            partial = True
+            categories[key] = _privacy_export_category(
+                name=resource_type, purpose=purpose,
+                storage_status='unavailable', retention_ref=retention_ref,
+                status='UNAVAILABLE', code='unavailable')
+        except Exception:
+            logger.error('privacy export profile domain unavailable')
+            partial = True
+            categories[key] = _privacy_export_category(
+                name=resource_type, purpose=purpose,
+                storage_status='unavailable', retention_ref=retention_ref,
+                status='UNAVAILABLE', code='unavailable')
+
+    try:
+        receipts = _privacy_export_receipts(event, ctx, limit)
+        categories['privacyReceipts'] = _privacy_export_category(
+            name='privacy_receipt', purpose='privacy evidence retrieval',
+            storage_status='stored',
+            retention_ref='RIS-PRIVACY-RECEIPT-RETENTION-DECISION#REVIEW_REQUIRED',
+            items=receipts)
+    except _PrivacyInspectionUnavailable:
+        partial = True
+        categories['privacyReceipts'] = _privacy_export_category(
+            name='privacy_receipt', purpose='privacy evidence retrieval',
+            storage_status='unavailable',
+            retention_ref='RIS-PRIVACY-RECEIPT-RETENTION-DECISION#REVIEW_REQUIRED',
+            status='UNAVAILABLE', code='unavailable')
+
+    payload = {
+        'schemaVersion': 1,
+        'exportType': 'RIS_USER_PRIVACY_EXPORT',
+        'status': 'PARTIAL' if partial else 'COMPLETE',
+        'metadataExport': {
+            'status': 'PARTIAL' if partial else 'COMPLETE',
+            'categories': categories,
+        },
+        'fileExport': _privacy_file_export(cv_items),
+        'userId': ctx['userId'],
+        'generatedAt': datetime.now(timezone.utc).isoformat(),
+    }
+    return {'statusCode': 200, 'body': json.dumps(payload, ensure_ascii=False)}
+
+
+def _idempotency_key(event: Dict[str, Any]):
+    """Optional Idempotency-Key header (1..200 chars). Never logged."""
+    headers = {(k or "").lower(): v for k, v in (event.get("headers") or {}).items()}
+    key = headers.get("idempotency-key") or headers.get("x-idempotency-key")
+    if isinstance(key, str):
+        key = key.strip()
+        if 1 <= len(key) <= 200:
+            return key
+    return None
+
+
+def _manual_profile_repo():
+    from jobsearch.partner_profile_repository import PartnerProfileRepository
+    return PartnerProfileRepository()
+
+
+def _manual_profile_error(exc):
+    """Map a ProfileContractError to an HTTP response (no internal detail)."""
+    from jobsearch.partner_profile_contract import ProfileContractError
+    if isinstance(exc, ProfileContractError):
+        code = getattr(exc, 'code', 'INVALID_INPUT')
+        status = 400 if code == 'CLIENT_IDENTITY_FORBIDDEN' else 422
+        return {'statusCode': status,
+                'body': json.dumps({'error': 'Invalid profile', 'code': code})}
+    return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid request'})}
+
+
+def _manual_profile_body(event):
+    try:
+        data = json.loads(event.get('body') or '{}')
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _manual_profile_parse(data, *, existing=None):
+    """Validate a client payload into the canonical v1 contract pieces.
+
+    ``searchConfig`` and ``matchingPreferences`` are parsed independently. On
+    update (``existing`` supplied) a missing object is preserved, so changing
+    one never mutates the other. A legacy create body without ``searchConfig``
+    is mapped from the old R03 fields (never silently dropped).
+    """
+    from jobsearch.partner_profile_contract import (
+        MatchingPreferences, ProfileContractError, SearchConfiguration,
+        reject_client_identity,
+    )
+    reject_client_identity(data)
+    name = data.get('name', None)
+    if name is None and existing is not None:
+        name = existing.name
+    if not isinstance(name, str) or not name.strip():
+        raise ProfileContractError('MISSING_FIELD', 'name is required')
+    description = data.get('description')
+    if description is None:
+        description = existing.description if existing is not None else ""
+
+    mp_raw = data.get('matchingPreferences')
+    if mp_raw is not None and not isinstance(mp_raw, dict):
+        raise ProfileContractError('INVALID_FIELD',
+                                   'matchingPreferences must be an object')
+    if mp_raw is None and existing is not None:
+        mp = existing.matching_preferences
+    else:
+        mp = MatchingPreferences.from_dict(mp_raw or {})
+
+    sc_raw = data.get('searchConfig')
+    sc_provided = sc_raw is not None
+    if sc_provided:
+        if not isinstance(sc_raw, dict):
+            raise ProfileContractError('INVALID_FIELD',
+                                       'searchConfig must be an object')
+        sc = SearchConfiguration.from_dict(sc_raw)
+    elif existing is not None:
+        sc = existing.search_config
+    else:
+        sc = SearchConfiguration.from_legacy_matching_preferences(mp)
+
+    # v1 write rules apply to new writes and explicitly supplied searchConfig.
+    # A preserved legacy searchConfig may be incomplete; it is not silently
+    # upgraded into a "complete" v1 object.
+    if existing is None or sc_provided:
+        if not sc.skills.strip() and not sc.target_roles:
+            raise ProfileContractError(
+                'INVALID_SEARCH_CONFIG',
+                'searchConfig.skills or searchConfig.targetRoles is required')
+        if not sc.employment_types:
+            raise ProfileContractError(
+                'INVALID_SEARCH_CONFIG',
+                'searchConfig.employmentTypes must contain at least one value')
+    return {
+        'name': name.strip(),
+        'description': str(description or ''),
+        'search_config': sc,
+        'matching_preferences': mp,
+    }
+
+
+def _serialize_manual_profile(profile):
+    """Emit the canonical Jobsearch v1 ManualSearchProfileV1 shape."""
+    body = profile.to_dict()
+    return {
+        'schemaVersion': body.get('schemaVersion', 1),
+        'manualSearchProfileId': body.get('manualProfileId'),
+        'name': body.get('name'),
+        'description': body.get('description', ''),
+        'origin': body.get('origin', 'manual'),
+        'searchConfig': body.get('searchConfig'),
+        'matchingPreferences': body.get('matchingPreferences'),
+        'createdAt': body.get('createdAt'),
+        'updatedAt': body.get('updatedAt'),
+        'version': getattr(profile, 'version', None),
+    }
+
+
+def _manual_profile_response(profile, status=200):
+    return {'statusCode': status,
+            'body': json.dumps(_serialize_manual_profile(profile),
+                               ensure_ascii=False)}
+
+
+def _storage_error():
+    """Generic 500 for a failed backing-store read/write (no detail leak)."""
+    return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
+
+
+def _storage_unavailable():
+    """503 for exhausted transient conflicts or an unknown commit outcome."""
+    return {'statusCode': 503,
+            'body': json.dumps({'error': 'Service unavailable'})}
+
+
+def _integrity_conflict():
+    """409 for a missing/inconsistent counter that blocks a safe delete."""
+    return {'statusCode': 409,
+            'body': json.dumps({'error': 'Profile integrity check failed'})}
+
+
+def _post_write_response(stored, response, status=200):
+    """Serialize only a freshly re-read record.
+
+    A successful write followed by an unreadable/missing record must not fall
+    back to an in-memory object: that object has no authoritative ``version``
+    and would emit ``version: null`` or other incomplete fields.
+    """
+    if stored is None:
+        logger.error('post-write read returned no item')
+        return _storage_error()
+    return response(stored, status)
+
+
+def _partner_storage_guard(call, *args):
+    """Map storage failures to 500/503 instead of 404/409."""
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileIndeterminateError, PartnerProfileIntegrityError,
+        PartnerProfileReadError, PartnerProfileTransientError,
+    )
+    try:
+        return call(*args)
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        logger.error('partner profile transaction outcome unavailable')
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        logger.error('partner profile counter integrity check failed')
+        return _integrity_conflict()
+    except PartnerProfileReadError:
+        logger.error('partner profile storage read failed')
+        return _storage_error()
+
+
+def _decode_cursor(raw, *, repo, ctx, scope, resource_type,
+                   parent_id=None, limit=50):
+    if not raw:
+        return None
+    from jobsearch.partner_profile_cursor import CursorError
+    try:
+        return repo.resolve_cursor(
+            raw, user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+            partner_app_id=ctx.get('partnerApplicationId'),
+            issuer=ctx.get('issuer'), scope=scope,
+            resource_type=resource_type, parent_id=parent_id, limit=limit)
+    except CursorError:
+        return 'invalid'
+
+
+def _encode_cursor(cursor, *, repo, ctx, scope, resource_type,
+                   parent_id=None, limit=50):
+    if not cursor:
+        return None
+    return repo.issue_cursor(
+        cursor, user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+        partner_app_id=ctx.get('partnerApplicationId'),
+        issuer=ctx.get('issuer'), scope=scope,
+        resource_type=resource_type, parent_id=parent_id, limit=limit)
+
+
+def _handle_manual_profile_collection(event, context, method):
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return error
+    if method == 'GET':
+        return _manual_profile_list(event, ctx)
+    if method == 'POST':
+        return _manual_profile_create(event, ctx)
+    return {'statusCode': 405,
+            'body': json.dumps({'error': 'Method not allowed'})}
+
+
+def _manual_profile_list(event, ctx):
+    params = event.get('queryStringParameters') or {}
+    try:
+        limit = int(params.get('limit', _MANUAL_PROFILE_PAGE_LIMIT))
+    except (TypeError, ValueError):
+        limit = _MANUAL_PROFILE_PAGE_LIMIT
+    limit = max(1, min(limit, _MANUAL_PROFILE_PAGE_LIMIT))
+    repo = _manual_profile_repo()
+    try:
+        cursor = _decode_cursor(
+            params.get('cursor'), repo=repo, ctx=ctx,
+            scope='manual-search-profiles',
+            resource_type='ManualSearchProfile', limit=limit)
+        if cursor == 'invalid':
+            return {'statusCode': 400,
+                    'body': json.dumps({'error': 'Invalid cursor'})}
+        items, next_cursor = repo.list_by_user(
+            ctx['userId'], ctx['tenantId'], resource_type='ManualSearchProfile',
+            partner_app_id=ctx.get('partnerApplicationId'),
+            issuer=ctx.get('issuer'), limit=limit, cursor=cursor)
+        next_token = _encode_cursor(
+            next_cursor, repo=repo, ctx=ctx,
+            scope='manual-search-profiles',
+            resource_type='ManualSearchProfile', limit=limit)
+    except Exception:
+        logger.error('manual profile list failed')
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
+
+    return {'statusCode': 200, 'body': json.dumps({
+        'items': [_serialize_manual_profile(p) for p in items],
+        'nextCursor': next_token,
+    }, ensure_ascii=False)}
+
+
+def _manual_profile_create(event, ctx):
+    from datetime import datetime, timezone
+    import uuid
+    from jobsearch.partner_profile_contract import (
+        ManualSearchProfile, ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileIntegrityError, PartnerProfileTransientError,
+    )
+
+    data = _manual_profile_body(event)
+    if data is None:
+        return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid JSON'})}
+    try:
+        parsed = _manual_profile_parse(data)
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+
+    now = datetime.now(timezone.utc).isoformat()
+    profile = ManualSearchProfile(
+        manual_profile_id=uuid.uuid4().hex,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=parsed['name'],
+        description=parsed['description'],
+        origin='manual',
+        search_config=parsed['search_config'],
+        matching_preferences=parsed['matching_preferences'],
+        created_at=now,
+        updated_at=now,
+    )
+    try:
+        profile.validate()
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+
+    repo = _manual_profile_repo()
+    try:
+        rid = repo.create(profile, user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+                          partner_app_id=ctx.get('partnerApplicationId'),
+                          issuer=ctx.get('issuer'),
+                          idempotency_key=_idempotency_key(event))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError as exc:
+        return _partner_conflict_response(exc)
+    except Exception:
+        logger.error('manual profile create failed')
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
+
+    stored = repo.get(rid, ctx['userId'], ctx['tenantId'],
+                      ctx.get('partnerApplicationId'), ctx.get('issuer'))
+    return _post_write_response(stored, _manual_profile_response, 201)
+
+
+def _handle_manual_profile_item(event, context, method, profile_id):
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return error
+    if not profile_id:
+        return {'statusCode': 400,
+                'body': json.dumps({'error': 'profileId is required'})}
+    if method == 'GET':
+        return _manual_profile_get(ctx, profile_id)
+    if method == 'PUT':
+        return _manual_profile_update(event, ctx, profile_id)
+    if method == 'DELETE':
+        return _manual_profile_delete(event, ctx, profile_id)
+    return {'statusCode': 405,
+            'body': json.dumps({'error': 'Method not allowed'})}
+
+
+def _manual_profile_get(ctx, profile_id):
+    from jobsearch.partner_profile_contract import ManualSearchProfile
+    repo = _manual_profile_repo()
+    try:
+        profile = repo.get(profile_id, ctx['userId'], ctx['tenantId'],
+                           ctx.get('partnerApplicationId'), ctx.get('issuer'))
+    except Exception:
+        logger.error('manual profile get failed')
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
+    if profile is None or not isinstance(profile, ManualSearchProfile):
+        return {'statusCode': 404, 'body': json.dumps({'error': 'Not found'})}
+    return _manual_profile_response(profile)
+
+
+def _manual_profile_update(event, ctx, profile_id):
+    from datetime import datetime, timezone
+    from jobsearch.partner_profile_contract import (
+        ManualSearchProfile, ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileIntegrityError, PartnerProfileTransientError,
+    )
+
+    repo = _manual_profile_repo()
+    try:
+        existing = repo.get(profile_id, ctx['userId'], ctx['tenantId'],
+                            ctx.get('partnerApplicationId'), ctx.get('issuer'))
+    except Exception:
+        logger.error('manual profile update lookup failed')
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
+    if existing is None or not isinstance(existing, ManualSearchProfile):
+        return {'statusCode': 404, 'body': json.dumps({'error': 'Not found'})}
+
+    data = _manual_profile_body(event)
+    if data is None:
+        return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid JSON'})}
+    try:
+        parsed = _manual_profile_parse(data, existing=existing)
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+
+    expected_version = data.get('version')
+    if expected_version is not None:
+        try:
+            expected_version = int(expected_version)
+        except (TypeError, ValueError):
+            return {'statusCode': 422, 'body': json.dumps({'error': 'Invalid version'})}
+
+    now = datetime.now(timezone.utc).isoformat()
+    updated = ManualSearchProfile(
+        manual_profile_id=profile_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=parsed['name'],
+        description=parsed['description'],
+        origin='manual',
+        search_config=parsed['search_config'],
+        matching_preferences=parsed['matching_preferences'],
+        metadata=dict(existing.metadata or {}),
+        created_at=existing.created_at,
+        updated_at=now,
+    )
+    try:
+        updated.validate()
+        repo.update(updated, user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+                    partner_app_id=ctx.get('partnerApplicationId'),
+                    issuer=ctx.get('issuer'),
+                    expected_version=expected_version)
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError:
+        return {'statusCode': 409, 'body': json.dumps({'error': 'Version conflict'})}
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    except Exception:
+        logger.error('manual profile update failed')
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
+
+    stored = repo.get(profile_id, ctx['userId'], ctx['tenantId'],
+                      ctx.get('partnerApplicationId'), ctx.get('issuer'))
+    return _post_write_response(stored, _manual_profile_response)
+
+
+def _manual_profile_delete(event, ctx, profile_id):
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileIntegrityError, PartnerProfileTransientError,
+    )
+
+    params = event.get('queryStringParameters') or {}
+    expected = params.get('version')
+    if expected is not None:
+        try:
+            expected = int(expected)
+        except (TypeError, ValueError):
+            return {'statusCode': 422, 'body': json.dumps({'error': 'Invalid version'})}
+
+    repo = _manual_profile_repo()
+    try:
+        deleted = repo.delete(profile_id, ctx['userId'], ctx['tenantId'],
+                              ctx.get('partnerApplicationId'), ctx.get('issuer'),
+                              expected_version=expected)
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError:
+        return {'statusCode': 409, 'body': json.dumps({'error': 'Version conflict'})}
+    except Exception:
+        logger.error('manual profile delete failed')
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Internal error'})}
+    if not deleted:
+        return {'statusCode': 404, 'body': json.dumps({'error': 'Not found'})}
+    return {'statusCode': 204, 'body': ''}
+
+
+# ---------------------------------------------------------------------------
+# R04: Partner CV metadata + secure document lifecycle
+#
+#   GET    /v1/partner/me/cvs
+#   POST   /v1/partner/me/cvs
+#   GET    /v1/partner/me/cvs/{cvId}
+#   PATCH  /v1/partner/me/cvs/{cvId}
+#   DELETE /v1/partner/me/cvs/{cvId}
+#   POST   /v1/partner/me/cvs/{cvId}/document/upload
+#   POST   /v1/partner/me/cvs/{cvId}/document/complete
+#   GET    /v1/partner/me/cvs/{cvId}/document
+#
+# Status machine: pending -> upload_pending -> ready. READY is only set after
+# the S3 object is verified via head_object. A delete on a versioned bucket
+# creates a delete marker; it is never reported as a full physical purge.
+# ---------------------------------------------------------------------------
+
+_CV_COLLECTION = '/v1/partner/me/cvs'
+
+
+def _cv_repo():
+    return _manual_profile_repo()
+
+
+def _cv_body(event):
+    try:
+        data = json.loads(event.get('body') or '{}')
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _serialize_cv(cv):
+    """Project a stored CVDocument into the public CVDocumentV1 shape.
+
+    Pending/upload-pending rows deliberately omit ``sizeBytes`` because no
+    verified object size exists yet. A positive size is public only for the
+    verified ``ready`` state. Legacy names and lifecycle values are normalized
+    without exposing repository or S3 internals.
+    """
+    status = str(getattr(cv, 'processing_status', 'pending') or 'pending').lower()
+    status = {
+        'upload_pending': 'pending',
+        'error': 'failed',
+        'delete_failed': 'failed',
+    }.get(status, status)
+    if status not in {'pending', 'ready', 'failed', 'deleted'}:
+        raise ValueError('invalid CV processing status')
+    content_type = getattr(cv, 'content_type', None)
+    if content_type is not None and content_type != 'application/pdf':
+        raise ValueError('invalid CV content type')
+    version = getattr(cv, 'version', 1)
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise ValueError('invalid CV version')
+    body = {
+        'schemaVersion': 1,
+        'cvId': cv.cv_id,
+        'filename': cv.name,
+        'processingStatus': status,
+        'createdAt': cv.created_at,
+        'updatedAt': cv.updated_at,
+        'version': version,
+    }
+    if content_type is not None:
+        body['contentType'] = 'application/pdf'
+    if getattr(cv, 'document_id', None):
+        body['documentId'] = cv.document_id
+    # ``size`` is trusted for the public DTO only after _cv_complete has
+    # verified the object with HeadObject and moved the row to READY.
+    size = getattr(cv, 'size', 0)
+    if status == 'ready' and isinstance(size, int) and not isinstance(size, bool) and size >= 1:
+        body['sizeBytes'] = size
+    metadata = getattr(cv, 'metadata', None) or {}
+    if not isinstance(metadata, dict):
+        raise ValueError('invalid CV metadata')
+    body['metadata'] = {
+        key: metadata[key] for key in ('pageCount', 'language')
+        if key in metadata
+    }
+    if not body['metadata']:
+        body.pop('metadata')
+    return body
+
+
+def _validate_cv_metadata(metadata):
+    """Validate the allow-listed public CV metadata fields."""
+    from jobsearch.partner_profile_contract import ProfileContractError
+    if metadata is None:
+        return {}
+    if not isinstance(metadata, dict):
+        raise ProfileContractError('INVALID_FIELD', 'metadata must be an object')
+    unknown = set(metadata) - {'pageCount', 'language'}
+    if unknown:
+        raise ProfileContractError('INVALID_FIELD', 'metadata contains unsupported fields')
+    if 'pageCount' in metadata:
+        page_count = metadata['pageCount']
+        if (isinstance(page_count, bool) or not isinstance(page_count, int)
+                or page_count < 1):
+            raise ProfileContractError('INVALID_FIELD', 'metadata.pageCount must be a positive integer')
+    if 'language' in metadata and (
+            not isinstance(metadata['language'], str) or not metadata['language'].strip()):
+        raise ProfileContractError('INVALID_FIELD', 'metadata.language must be a non-empty string')
+    return dict(metadata)
+
+
+def _cv_response(cv, status=200):
+    return {'statusCode': status,
+            'body': json.dumps(_serialize_cv(cv), ensure_ascii=False)}
+
+
+def _cv_error(status, message, **extra):
+    payload = {'error': message}
+    code = extra.pop('code', None)
+    if code is None:
+        code = {
+            400: 'validation', 401: 'unauthorized', 403: 'forbidden',
+            404: 'not_found', 409: 'conflict', 422: 'validation',
+            503: 'unavailable',
+        }.get(status, 'internal_error')
+    payload['code'] = code
+    payload.update(extra)
+    return {'statusCode': status, 'body': json.dumps(payload)}
+
+
+def _partner_conflict_response(exc, message='Conflict'):
+    """Keep the flat error envelope while exposing a stable error code."""
+    code = 'capacity_exceeded' if 'capacity exceeded' in str(exc).lower() else 'conflict'
+    return {'statusCode': 409,
+            'body': json.dumps({'error': message, 'code': code})}
+
+
+def _cv_parse_path(path):
+    """Return (cvId, action) for a CV path.
+
+    action in: collection, item, upload, complete, document, unknown.
+    """
+    rest = path[len(_CV_COLLECTION):].strip('/')
+    if not rest:
+        return None, 'collection'
+    parts = rest.split('/')
+    cv_id = parts[0]
+    if len(parts) == 1:
+        return cv_id, 'item'
+    if len(parts) == 2 and parts[1] == 'document':
+        return cv_id, 'document'
+    if len(parts) == 3 and parts[1] == 'document':
+        if parts[2] in ('upload', 'complete'):
+            return cv_id, parts[2]
+    return cv_id, 'unknown'
+
+
+def _cv_identity(ctx):
+    return {
+        'user_id': ctx['userId'],
+        'tenant_id': ctx['tenantId'],
+        'partner_app_id': ctx.get('partnerApplicationId'),
+        'issuer': ctx.get('issuer'),
+    }
+
+
+def _cv_get_owned(ctx, cv_id):
+    from jobsearch.partner_profile_contract import CVDocument
+    repo = _cv_repo()
+    cv = repo.get(cv_id, **_cv_identity(ctx))
+    return repo, (cv if isinstance(cv, CVDocument) else None)
+
+
+def _handle_partner_cv_routes(event, context, method, path):
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return error
+    rest = path[len(_CV_COLLECTION):].strip('/')
+    parts = [p for p in rest.split('/') if p]
+    if len(parts) >= 2 and parts[1] == 'search-profiles':
+        cv_id = parts[0]
+        if len(parts) == 2:
+            return _cv_search_profile_collection(event, ctx, method, cv_id)
+        if len(parts) == 3:
+            return _cv_search_profile_item(event, ctx, method, cv_id, parts[2])
+        return _cv_error(404, 'Not found')
+    cv_id, action = _cv_parse_path(path)
+    if action == 'collection':
+        if method == 'GET':
+            return _cv_list(event, ctx)
+        if method == 'POST':
+            return _cv_create(event, ctx)
+        return _cv_error(405, 'Method not allowed')
+    if not cv_id:
+        return _cv_error(400, 'cvId is required')
+    if action == 'item':
+        if method == 'GET':
+            return _cv_get(ctx, cv_id)
+        if method == 'PATCH':
+            return _cv_update(event, ctx, cv_id)
+        if method == 'DELETE':
+            return _cv_delete(ctx, cv_id)
+        return _cv_error(405, 'Method not allowed')
+    if action == 'upload' and method == 'POST':
+        return _cv_upload_ticket(event, ctx, cv_id)
+    if action == 'complete' and method == 'POST':
+        return _cv_complete(event, ctx, cv_id)
+    if action == 'document' and method == 'GET':
+        return _cv_download(ctx, cv_id)
+    return _cv_error(405, 'Method not allowed')
+
+
+def _cv_list(event, ctx):
+    # The repository performs a scoped GSI query; this is deliberately not a
+    # table scan. The secure cursor is bound to this exact identity/scope.
+    params = event.get('queryStringParameters') or {}
+    repo = _cv_repo()
+    try:
+        try:
+            limit = int(params.get('limit', _MANUAL_PROFILE_PAGE_LIMIT))
+        except (TypeError, ValueError):
+            return _cv_error(422, 'Invalid limit')
+        if limit < 1 or limit > _MANUAL_PROFILE_PAGE_LIMIT:
+            return _cv_error(422, 'Invalid limit')
+        cursor = _decode_cursor(
+            params.get('cursor'), repo=repo, ctx=ctx,
+            scope='cv-documents', resource_type='CVDocument', limit=limit)
+        if cursor == 'invalid':
+            return _cv_error(400, 'Invalid cursor')
+        items, next_cursor = repo.list_by_user(
+            ctx['userId'], ctx['tenantId'], resource_type='CVDocument',
+            partner_app_id=ctx.get('partnerApplicationId'),
+            issuer=ctx.get('issuer'), limit=limit, cursor=cursor)
+        next_token = _encode_cursor(
+            next_cursor, repo=repo, ctx=ctx, scope='cv-documents',
+            resource_type='CVDocument', limit=limit)
+    except (TypeError, ValueError):
+        return _cv_error(422, 'Invalid pagination')
+    except Exception:
+        logger.error('cv list failed')
+        return _cv_error(503, 'Service unavailable', code='unavailable')
+    return {'statusCode': 200,
+            'body': json.dumps({'items': [_serialize_cv(cv) for cv in items],
+                                'nextCursor': next_token}, ensure_ascii=False)}
+
+
+def _cv_create(event, ctx):
+    from datetime import datetime, timezone
+    import uuid
+    from documents import ALLOWED_CONTENT_TYPES
+    from jobsearch.partner_profile_contract import (
+        CVDocument, CV_STATUS_PENDING, ProfileContractError,
+        reject_client_identity,
+    )
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileIntegrityError, PartnerProfileTransientError,
+    )
+
+    data = _cv_body(event)
+    if data is None:
+        return _cv_error(400, 'Invalid JSON')
+    try:
+        reject_client_identity(data)
+        if set(data) - {'name', 'filename', 'contentType', 'metadata'}:
+            raise ProfileContractError('INVALID_FIELD', 'unsupported CV fields')
+        name = data.get('filename', data.get('name'))
+        if not isinstance(name, str) or not name.strip():
+            raise ProfileContractError('MISSING_FIELD', 'filename is required')
+        content_type = data.get('contentType') or 'application/pdf'
+        if content_type not in ALLOWED_CONTENT_TYPES or content_type != 'application/pdf':
+            raise ProfileContractError('INVALID_FIELD', 'contentType not allowed')
+        metadata = _validate_cv_metadata(data.get('metadata'))
+        now = datetime.now(timezone.utc).isoformat()
+        cv = CVDocument(
+            cv_id=uuid.uuid4().hex,
+            user_id=ctx['userId'],
+            tenant_id=ctx['tenantId'],
+            name=name.strip(),
+            content_type=content_type,
+            processing_status=CV_STATUS_PENDING,
+            metadata=metadata,
+            created_at=now,
+            updated_at=now,
+        )
+        cv.validate()
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+
+    repo = _cv_repo()
+    try:
+        rid = repo.create(cv, **_cv_identity(ctx),
+                          idempotency_key=_idempotency_key(event))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError as exc:
+        return _cv_error(409, 'Conflict', code=(
+            'capacity_exceeded' if 'capacity exceeded' in str(exc).lower()
+            else 'conflict'))
+    except Exception:
+        logger.error('cv create failed')
+        return _cv_error(500, 'Internal error')
+    stored = repo.get(rid, **_cv_identity(ctx))
+    return _post_write_response(stored, _cv_response, 201)
+
+
+def _cv_get(ctx, cv_id):
+    _, cv = _cv_get_owned(ctx, cv_id)
+    if cv is None:
+        return _cv_error(404, 'Not found')
+    return _cv_response(cv)
+
+
+def _cv_update(event, ctx, cv_id):
+    from datetime import datetime, timezone
+    from documents import ALLOWED_CONTENT_TYPES
+    from jobsearch.partner_profile_contract import CVDocument, ProfileContractError
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileIntegrityError, PartnerProfileTransientError,
+    )
+
+    repo, existing = _cv_get_owned(ctx, cv_id)
+    if existing is None:
+        return _cv_error(404, 'Not found')
+    data = _cv_body(event)
+    if data is None:
+        return _cv_error(400, 'Invalid JSON')
+    try:
+        from jobsearch.partner_profile_contract import reject_client_identity
+        reject_client_identity(data)
+        if set(data) - {'name', 'filename', 'contentType', 'metadata',
+                        'version', 'expectedVersion'}:
+            raise ProfileContractError('INVALID_FIELD', 'unsupported CV fields')
+        name = data.get('filename', data.get('name', existing.name))
+        if not isinstance(name, str) or not name.strip():
+            raise ProfileContractError('MISSING_FIELD', 'filename is required')
+        content_type = data.get('contentType', existing.content_type)
+        if content_type is None:
+            content_type = 'application/pdf'
+        if content_type not in ALLOWED_CONTENT_TYPES or content_type != 'application/pdf':
+            raise ProfileContractError('INVALID_FIELD', 'contentType not allowed')
+        metadata = (_validate_cv_metadata(data.get('metadata'))
+                    if 'metadata' in data else dict(existing.metadata or {}))
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+
+    expected_version = data.get('expectedVersion')
+    legacy_version = data.get('version')
+    if expected_version is not None and legacy_version is not None \
+            and expected_version != legacy_version:
+        return _cv_error(422, 'Conflicting version tokens')
+    if expected_version is None:
+        expected_version = legacy_version
+    headers = {(key or '').lower(): value
+               for key, value in (event.get('headers') or {}).items()}
+    if_match = headers.get('if-match')
+    if if_match is not None:
+        from jobsearch.partner_profile_contract import parse_expected_version
+        try:
+            header_version = parse_expected_version({}, if_match)
+        except ProfileContractError:
+            return _cv_error(422, 'Invalid If-Match')
+        if expected_version is not None and expected_version != header_version:
+            return _cv_error(422, 'Conflicting version tokens')
+        expected_version = header_version
+    if expected_version is not None and (
+            isinstance(expected_version, bool)
+            or not isinstance(expected_version, int)
+            or expected_version < 1):
+        return _cv_error(422, 'Invalid version')
+
+    now = datetime.now(timezone.utc).isoformat()
+    updated = CVDocument(
+        cv_id=cv_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=name.strip(),
+        size=existing.size,
+        content_hash=existing.content_hash,
+        content_type=content_type,
+        etag=existing.etag,
+        uploaded_at=existing.uploaded_at,
+        document_id=existing.document_id,
+        processing_status=existing.processing_status,
+        created_at=existing.created_at,
+        updated_at=now,
+        metadata=metadata,
+    )
+    try:
+        updated.validate()
+        repo.update(updated, **_cv_identity(ctx), expected_version=expected_version)
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Version conflict')
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    except Exception:
+        logger.error('cv update failed')
+        return _cv_error(500, 'Internal error')
+    stored = repo.get(cv_id, **_cv_identity(ctx))
+    return _post_write_response(stored, _cv_response)
+
+
+def _cv_delete(ctx, cv_id):
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileIntegrityError, PartnerProfileNotFoundError,
+        PartnerProfileTransientError,
+    )
+
+    repo, existing = _cv_get_owned(ctx, cv_id)
+    if existing is None:
+        return _cv_error(404, 'Not found')
+
+    # Phase A: atomically reserve deletion and verify there are no child
+    # CVSearchProfiles. This happens BEFORE S3 is touched, so a child conflict
+    # can never delete the document.
+    try:
+        reservation = repo.reserve_parent_delete(
+            cv_id, **_cv_identity(ctx), child_type='CVSearchProfile',
+            expected_version=getattr(existing, 'version', None))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'CV has child search profiles; delete refused',
+                         cvId=cv_id, s3Touched=False)
+    except PartnerProfileNotFoundError:
+        return _cv_error(404, 'Not found')
+    except Exception:
+        logger.error('cv delete reservation failed')
+        return _cv_error(500, 'Internal error')
+
+    # Phase B: delete the current S3 object version only after the child guard
+    # succeeded. On failure the guard is released and metadata is retained.
+    document_report = None
+    if existing.document_id:
+        try:
+            from documents import delete_document_report
+            document_report = delete_document_report(
+                tenant_id=ctx['tenantId'], user_id=ctx['userId'],
+                doc_id=existing.document_id, require_tenant=True)
+        except Exception:
+            repo.release_parent_delete(reservation, **_cv_identity(ctx))
+            logger.error('cv document delete failed; metadata retained')
+            return _cv_error(502, 'Document deletion failed',
+                             cvId=cv_id, metadataRetained=True,
+                             physicalPurge=False)
+
+    # Phase C: delete metadata + counter + guard atomically.
+    try:
+        deleted = repo.finalize_parent_delete(
+            reservation, **_cv_identity(ctx),
+            expected_version=getattr(existing, 'version', None))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError:
+        # A concurrent complete/update may have advanced the parent version
+        # after Phase A. Release the delete reservation before returning the
+        # conflict so the failed delete cannot strand a deleting guard.
+        repo.release_parent_delete(reservation, **_cv_identity(ctx))
+        return _cv_error(409, 'Delete conflict', cvId=cv_id)
+    except Exception:
+        logger.error('cv metadata delete failed')
+        return _cv_error(500, 'Internal error')
+    if not deleted:
+        return _cv_error(404, 'Not found')
+    return {'statusCode': 200, 'body': json.dumps({
+        'cvId': cv_id,
+        'deleted': True,
+        'document': document_report or {'existed': False},
+        'physicalPurge': False,
+    }, ensure_ascii=False)}
+
+
+def _cv_upload_ticket(event, ctx, cv_id):
+    from datetime import datetime, timedelta, timezone
+    from documents import (ALLOWED_CONTENT_TYPES, UPLOAD_EXPIRY_SECONDS,
+                           new_doc_id, presign_upload)
+    from jobsearch.partner_profile_contract import (
+        CVDocument, CV_STATUS_READY, CV_STATUS_UPLOAD_PENDING,
+        ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileIntegrityError, PartnerProfileTransientError,
+    )
+
+    repo, existing = _cv_get_owned(ctx, cv_id)
+    if existing is None:
+        return _cv_error(404, 'Not found')
+    if existing.processing_status == CV_STATUS_READY:
+        return _cv_error(409, 'Document already uploaded; re-upload not allowed')
+
+    data = _cv_body(event) or {}
+    content_type = data.get('contentType') or existing.content_type
+    if content_type not in ALLOWED_CONTENT_TYPES:
+        return _cv_error(422, 'contentType is required and must be allowed')
+
+    document_id = existing.document_id or new_doc_id()
+    now = datetime.now(timezone.utc).isoformat()
+    updated = CVDocument(
+        cv_id=cv_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=existing.name,
+        size=existing.size,
+        content_hash=existing.content_hash,
+        content_type=content_type,
+        etag=existing.etag,
+        uploaded_at=existing.uploaded_at,
+        document_id=document_id,
+        processing_status=CV_STATUS_UPLOAD_PENDING,
+        created_at=existing.created_at,
+        updated_at=now,
+        metadata=dict(existing.metadata or {}),
+    )
+    try:
+        updated.validate()
+        repo.update(updated, **_cv_identity(ctx),
+                    expected_version=getattr(existing, 'version', None))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Version conflict')
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    except Exception:
+        logger.error('cv upload reservation failed')
+        return _cv_error(500, 'Internal error')
+
+    ledger = None
+    ledger_ticket = None
+    ledger_enabled = os.environ.get(
+        'ERASURE_UPLOAD_TICKET_LEDGER_ENABLED', 'false').strip().lower() == 'true'
+    freeze_enabled = os.environ.get(
+        'ERASURE_WRITE_FREEZE_ENABLED', 'false').strip().lower() == 'true'
+    if freeze_enabled and not ledger_enabled:
+        return _cv_error(503, 'Upload ticket ledger unavailable')
+    if ledger_enabled:
+        try:
+            from agents.ecosystem.privacy_upload_ticket import (
+                UploadTicketLedgerV1, UploadTicketLedgerRepository)
+            expires_at = (datetime.now(timezone.utc)
+                          + timedelta(seconds=UPLOAD_EXPIRY_SECONDS)).isoformat()
+            ledger = UploadTicketLedgerRepository(
+                client=getattr(_get_dynamodb().meta, 'client', None))
+            ledger_ticket = UploadTicketLedgerV1(
+                ticket_id='ticket-' + document_id,
+                cv_id=cv_id, document_id=document_id,
+                user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+                partner_application_id=ctx['partnerApplicationId'],
+                issuer=ctx['issuer'], issued_at=now, expires_at=expires_at)
+            ledger.register(ledger_ticket)
+        except Exception:
+            logger.error('cv upload ticket ledger registration failed')
+            return _cv_error(503, 'Upload ticket unavailable')
+
+    try:
+        ticket = presign_upload(
+            tenant_id=ctx['tenantId'], user_id=ctx['userId'],
+            content_type=content_type, doc_id=document_id,
+            require_tenant=True,
+            expires_at=ledger_ticket.expires_at if ledger_ticket else None)
+    except ValueError as exc:
+        if ledger and ledger_ticket:
+            try:
+                ledger.transition(ledger_ticket, status='PRESIGN_FAILED',
+                                  expected_version=ledger_ticket.version)
+            except Exception:
+                logger.error('cv upload ticket failure transition failed')
+        return _cv_error(400, str(exc))
+    except Exception:
+        if ledger and ledger_ticket:
+            try:
+                ledger.transition(ledger_ticket, status='PRESIGN_FAILED',
+                                  expected_version=ledger_ticket.version)
+            except Exception:
+                logger.error('cv upload ticket failure transition failed')
+        logger.error('cv upload presign failed')
+        return _cv_error(500, 'Failed to prepare upload')
+
+    return {'statusCode': 200, 'body': json.dumps({
+        'cvId': cv_id,
+        'documentId': document_id,
+        'uploadUrl': ticket['uploadUrl'],
+        'expiresAt': ticket['expiresAt'],
+        'requiredHeaders': ticket['requiredHeaders'],
+    }, ensure_ascii=False)}
+
+
+def _cv_complete(event, ctx, cv_id):
+    from datetime import datetime, timezone
+    from documents import head_document
+    from jobsearch.partner_profile_contract import (
+        CVDocument, CV_STATUS_READY, ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileIntegrityError, PartnerProfileTransientError,
+    )
+
+    repo, existing = _cv_get_owned(ctx, cv_id)
+    if existing is None:
+        return _cv_error(404, 'Not found')
+    if not existing.document_id:
+        return _cv_error(409, 'No document assigned')
+
+    data = _cv_body(event)
+    if data is None:
+        return _cv_error(400, 'Invalid JSON')
+    if set(data) - {'documentId'}:
+        return _cv_error(400, 'Unsupported completion fields')
+    requested_document_id = data.get('documentId')
+    if requested_document_id is not None and requested_document_id != existing.document_id:
+        return _cv_error(409, 'Document ticket does not match CV', cvId=cv_id)
+
+    try:
+        meta = head_document(
+            tenant_id=ctx['tenantId'], user_id=ctx['userId'],
+            doc_id=existing.document_id, require_tenant=True)
+    except ValueError as exc:
+        return _cv_error(400, str(exc))
+    except Exception:
+        logger.error('cv upload verification failed')
+        return _cv_error(500, 'Failed to verify upload')
+
+    if meta is None:
+        return _cv_error(409, 'Upload not found',
+                         cvId=cv_id, processingStatus=existing.processing_status)
+    if meta.get('docId') != existing.document_id:
+        return _cv_error(409, 'Uploaded document does not match CV', cvId=cv_id)
+    if meta.get('contentType') != 'application/pdf':
+        return _cv_error(409, 'Uploaded object content type is not PDF', cvId=cv_id)
+    if meta.get('size', 0) <= 0:
+        return _cv_error(409, 'Uploaded object is empty', cvId=cv_id)
+
+    if existing.processing_status == CV_STATUS_READY:
+        return _cv_response(existing)
+
+    ledger_ticket = None
+    if os.environ.get('ERASURE_UPLOAD_TICKET_LEDGER_ENABLED', 'false').strip().lower() == 'true':
+        try:
+            from agents.ecosystem.privacy_upload_ticket import (
+                STATUS_COMPLETED, UploadTicketLedgerRepository)
+            ledger = UploadTicketLedgerRepository(
+                client=getattr(_get_dynamodb().meta, 'client', None))
+            ledger_ticket = ledger.get('ticket-' + existing.document_id)
+            if ledger_ticket.status != STATUS_COMPLETED:
+                ledger.transition(ledger_ticket, status=STATUS_COMPLETED,
+                                  expected_version=ledger_ticket.version)
+        except Exception:
+            logger.error('cv upload ticket completion ledger update failed')
+            return _cv_error(503, 'Upload ticket ledger unavailable')
+
+    now = datetime.now(timezone.utc).isoformat()
+    updated = CVDocument(
+        cv_id=cv_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=existing.name,
+        size=meta['size'],
+        content_hash=existing.content_hash,
+        content_type=meta.get('contentType') or existing.content_type,
+        etag=meta.get('etag'),
+        uploaded_at=meta.get('lastModified') or now,
+        document_id=existing.document_id,
+        processing_status=CV_STATUS_READY,
+        created_at=existing.created_at,
+        updated_at=now,
+        metadata=dict(existing.metadata or {}),
+    )
+    try:
+        updated.validate()
+        repo.update(updated, **_cv_identity(ctx),
+                    expected_version=getattr(existing, 'version', None))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Version conflict')
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    except Exception:
+        logger.error('cv complete failed')
+        return _cv_error(500, 'Internal error')
+    stored = repo.get(cv_id, **_cv_identity(ctx))
+    return _post_write_response(stored, _cv_response)
+
+
+def _cv_download(ctx, cv_id):
+    from documents import presign_download
+    from jobsearch.partner_profile_contract import CV_STATUS_READY
+
+    _, existing = _cv_get_owned(ctx, cv_id)
+    if existing is None:
+        return _cv_error(404, 'Not found')
+    if existing.processing_status != CV_STATUS_READY or not existing.document_id:
+        return _cv_error(409, 'Document not ready', cvId=cv_id)
+    try:
+        result = presign_download(
+            tenant_id=ctx['tenantId'], user_id=ctx['userId'],
+            doc_id=existing.document_id, require_tenant=True)
+    except ValueError as exc:
+        return _cv_error(400, str(exc))
+    except Exception:
+        logger.error('cv download presign failed')
+        return _cv_error(500, 'Failed to prepare download')
+    if result is None:
+        return _cv_error(404, 'Document not found')
+    return {'statusCode': 200, 'body': json.dumps({
+        'cvId': cv_id,
+        'documentId': existing.document_id,
+        'downloadUrl': result['downloadUrl'],
+        'expiresAt': result['expiresAt'],
+    }, ensure_ascii=False)}
+
+
+# ---------------------------------------------------------------------------
+# R05-B: Partner CV search profiles (CVSearchProfileV1 CRUD)
+#
+#   GET    /v1/partner/me/cvs/{cvId}/search-profiles
+#   POST   /v1/partner/me/cvs/{cvId}/search-profiles
+#   GET    /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}
+#   PUT    /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}
+#   DELETE /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}
+# ---------------------------------------------------------------------------
+
+def _serialize_cv_search_profile(profile):
+    body = profile.to_dict()
+    return {
+        'schemaVersion': body.get('schemaVersion', 1),
+        'searchProfileId': body.get('searchProfileId'),
+        'cvId': body.get('cvId'),
+        'name': body.get('name'),
+        'description': body.get('description', ''),
+        'origin': body.get('origin', 'cv'),
+        'searchConfig': body.get('searchConfig'),
+        'createdAt': body.get('createdAt'),
+        'updatedAt': body.get('updatedAt'),
+        'version': getattr(profile, 'version', None),
+    }
+
+
+def _cv_search_profile_response(profile, status=200):
+    return {'statusCode': status,
+            'body': json.dumps(_serialize_cv_search_profile(profile),
+                               ensure_ascii=False)}
+
+
+def _cv_search_profile_parse(data, *, existing=None):
+    from jobsearch.partner_profile_contract import (
+        ProfileContractError, SearchConfiguration, reject_client_identity,
+    )
+    reject_client_identity(data)
+    name = data.get('name')
+    if name is None and existing is not None:
+        name = existing.name
+    if not isinstance(name, str) or not name.strip():
+        raise ProfileContractError('MISSING_FIELD', 'name is required')
+    description = data.get('description')
+    if description is None:
+        description = existing.description if existing is not None else ""
+    sc_raw = data.get('searchConfig')
+    sc_provided = sc_raw is not None
+    if sc_provided:
+        if not isinstance(sc_raw, dict):
+            raise ProfileContractError('INVALID_FIELD',
+                                       'searchConfig must be an object')
+        sc = SearchConfiguration.from_dict(sc_raw)
+    elif existing is not None:
+        sc = existing.search_config
+    else:
+        raise ProfileContractError('MISSING_FIELD', 'searchConfig is required')
+    if existing is None or sc_provided:
+        if not sc.skills.strip() and not sc.target_roles:
+            raise ProfileContractError(
+                'INVALID_SEARCH_CONFIG',
+                'searchConfig.skills or searchConfig.targetRoles is required')
+        if not sc.employment_types:
+            raise ProfileContractError(
+                'INVALID_SEARCH_CONFIG',
+                'searchConfig.employmentTypes must contain at least one value')
+    return {'name': name.strip(),
+            'description': str(description or ''),
+            'search_config': sc}
+
+
+def _cv_search_profile_collection(event, ctx, method, cv_id):
+    from jobsearch.partner_profile_contract import CVDocument as _CVDocument
+    repo = _cv_repo()
+    try:
+        cv = repo.get(cv_id, **_cv_identity(ctx))
+    except Exception:
+        return _cv_error(500, 'Internal error')
+    if cv is None or not isinstance(cv, _CVDocument):
+        return _cv_error(404, 'Not found')
+    if method == 'GET':
+        return _cv_search_profile_list(event, ctx, cv_id)
+    if method == 'POST':
+        return _cv_search_profile_create(event, ctx, cv_id)
+    return _cv_error(405, 'Method not allowed')
+
+
+def _cv_search_profile_list(event, ctx, cv_id):
+    params = event.get('queryStringParameters') or {}
+    try:
+        limit = int(params.get('limit', 50))
+    except (TypeError, ValueError):
+        limit = 50
+    limit = max(1, min(limit, 50))
+    repo = _cv_repo()
+    try:
+        cursor = _decode_cursor(
+            params.get('cursor'), repo=repo, ctx=ctx,
+            scope='cv-search-profiles', resource_type='CVSearchProfile',
+            parent_id=cv_id, limit=limit)
+        if cursor == 'invalid':
+            return _cv_error(400, 'Invalid cursor')
+        items, next_cursor = repo.list_by_parent(
+            cv_id, ctx['userId'], ctx['tenantId'], 'CVSearchProfile',
+            partner_app_id=ctx.get('partnerApplicationId'),
+            issuer=ctx.get('issuer'), limit=limit, cursor=cursor)
+        next_token = _encode_cursor(
+            next_cursor, repo=repo, ctx=ctx,
+            scope='cv-search-profiles', resource_type='CVSearchProfile',
+            parent_id=cv_id, limit=limit)
+    except Exception:
+        logger.error('cv search profile list failed')
+        return _cv_error(500, 'Internal error')
+    return {'statusCode': 200, 'body': json.dumps({
+        'items': [_serialize_cv_search_profile(p) for p in items],
+        'nextCursor': next_token,
+    }, ensure_ascii=False)}
+
+
+def _cv_search_profile_create(event, ctx, cv_id):
+    from datetime import datetime, timezone
+    import uuid
+    from jobsearch.partner_profile_contract import (
+        CVSearchProfile, ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileIntegrityError, PartnerProfileTransientError,
+    )
+
+    data = _cv_body(event)
+    if data is None:
+        return _cv_error(400, 'Invalid JSON')
+    try:
+        parsed = _cv_search_profile_parse(data)
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    now = datetime.now(timezone.utc).isoformat()
+    profile = CVSearchProfile(
+        search_profile_id=uuid.uuid4().hex,
+        cv_id=cv_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=parsed['name'],
+        description=parsed['description'],
+        origin='cv',
+        search_config=parsed['search_config'],
+        created_at=now,
+        updated_at=now,
+    )
+    try:
+        profile.validate()
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    repo = _cv_repo()
+    try:
+        rid = repo.create(profile, **_cv_identity(ctx),
+                          idempotency_key=_idempotency_key(event))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError as exc:
+        return _cv_error(409, 'Conflict', code=(
+            'capacity_exceeded' if 'capacity exceeded' in str(exc).lower()
+            else 'conflict'))
+    except Exception:
+        logger.error('cv search profile create failed')
+        return _cv_error(500, 'Internal error')
+    stored = repo.get(rid, **_cv_identity(ctx))
+    return _post_write_response(stored, _cv_search_profile_response, 201)
+
+
+def _cv_search_profile_item(event, ctx, method, cv_id, search_profile_id):
+    from jobsearch.partner_profile_contract import CVSearchProfile
+    repo = _cv_repo()
+    try:
+        existing = repo.get(search_profile_id, **_cv_identity(ctx))
+    except Exception:
+        return _cv_error(500, 'Internal error')
+    if (existing is None or not isinstance(existing, CVSearchProfile)
+            or existing.cv_id != cv_id):
+        return _cv_error(404, 'Not found')
+    if method == 'GET':
+        return _cv_search_profile_response(existing)
+    if method == 'PUT':
+        return _cv_search_profile_update(event, ctx, cv_id, search_profile_id, existing)
+    if method == 'DELETE':
+        return _cv_search_profile_delete(event, ctx, cv_id, search_profile_id)
+    return _cv_error(405, 'Method not allowed')
+
+
+def _cv_search_profile_update(event, ctx, cv_id, search_profile_id, existing):
+    from datetime import datetime, timezone
+    from jobsearch.partner_profile_contract import (
+        CVSearchProfile, ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileIntegrityError, PartnerProfileTransientError,
+    )
+
+    data = _cv_body(event)
+    if data is None:
+        return _cv_error(400, 'Invalid JSON')
+    try:
+        parsed = _cv_search_profile_parse(data, existing=existing)
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    expected_version = data.get('version')
+    if expected_version is not None:
+        try:
+            expected_version = int(expected_version)
+        except (TypeError, ValueError):
+            return _cv_error(422, 'Invalid version')
+    now = datetime.now(timezone.utc).isoformat()
+    updated = CVSearchProfile(
+        search_profile_id=search_profile_id,
+        cv_id=cv_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=parsed['name'],
+        description=parsed['description'],
+        origin='cv',
+        search_config=parsed['search_config'],
+        metadata=dict(existing.metadata or {}),
+        created_at=existing.created_at,
+        updated_at=now,
+    )
+    repo = _cv_repo()
+    try:
+        updated.validate()
+        repo.update(updated, **_cv_identity(ctx), expected_version=expected_version)
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Version conflict')
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    except Exception:
+        logger.error('cv search profile update failed')
+        return _cv_error(500, 'Internal error')
+    stored = repo.get(search_profile_id, **_cv_identity(ctx))
+    return _post_write_response(stored, _cv_search_profile_response)
+
+
+def _cv_search_profile_delete(event, ctx, cv_id, search_profile_id):
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileIntegrityError, PartnerProfileTransientError,
+    )
+
+    params = event.get('queryStringParameters') or {}
+    expected = params.get('version')
+    if expected is not None:
+        try:
+            expected = int(expected)
+        except (TypeError, ValueError):
+            return _cv_error(422, 'Invalid version')
+    repo = _cv_repo()
+    try:
+        deleted = repo.delete(search_profile_id, **_cv_identity(ctx),
+                              expected_version=expected,
+                              child_type='ATSSearchProfile')
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Search profile has ATS children or version conflict',
+                         cvId=cv_id)
+    except Exception:
+        logger.error('cv search profile delete failed')
+        return _cv_error(500, 'Internal error')
+    if not deleted:
+        return _cv_error(404, 'Not found')
+    return {'statusCode': 204, 'body': ''}
+
+
+# ---------------------------------------------------------------------------
+# R06: Partner ATS search profiles (ATSSearchProfileV1 CRUD)
+#
+# Flat parent addressing: searchProfileId identifies the CVSearchProfile; the
+# CV is derived via the parent chain and never appears in the v1 DTO.
+# ---------------------------------------------------------------------------
+
+_ATS_PARENT_PREFIX = '/v1/partner/me/search-profiles/'
+
+
+def _serialize_ats_profile(profile):
+    body = profile.to_dict()
+    out = {
+        'schemaVersion': body.get('schemaVersion', 1),
+        'atsSearchProfileId': body.get('atsProfileId'),
+        'searchProfileId': body.get('searchProfileId'),
+        'name': body.get('name'),
+        'targetRoles': body.get('targetRoles', []),
+        'skills': body.get('skills', []),
+        'createdAt': body.get('createdAt'),
+        'updatedAt': body.get('updatedAt'),
+        'version': getattr(profile, 'version', None),
+    }
+    if body.get('criteria') is not None:
+        out['criteria'] = body['criteria']
+    return out
+
+
+def _ats_response(profile, status=200):
+    return {'statusCode': status,
+            'body': json.dumps(_serialize_ats_profile(profile),
+                               ensure_ascii=False)}
+
+
+def _ats_parent(ctx, search_profile_id):
+    from jobsearch.partner_profile_contract import CVSearchProfile, CVDocument
+    repo = _cv_repo()
+    # Read failures must propagate (-> 500); only genuinely missing/wrong
+    # parents become 404. No broad catch here.
+    parent = repo.get(search_profile_id, **_cv_identity(ctx))
+    if not isinstance(parent, CVSearchProfile):
+        return None, None, None
+    cv = repo.get(parent.cv_id, **_cv_identity(ctx))
+    if not isinstance(cv, CVDocument):
+        return None, None, None
+    return repo, parent, cv
+
+
+def _ats_parse(data, *, existing=None):
+    from jobsearch.partner_profile_contract import (
+        ATSCriteria, ProfileContractError, reject_client_identity,
+    )
+
+    def _str_list(value, field):
+        if not isinstance(value, list):
+            raise ProfileContractError('INVALID_FIELD',
+                                       f'{field} must be a list of strings')
+        out = []
+        for item in value:
+            if not isinstance(item, str) or not item.strip():
+                raise ProfileContractError(
+                    'INVALID_FIELD', f'{field} entries must be non-empty strings')
+            out.append(item.strip())
+        return out
+
+    reject_client_identity(data)
+    name = data.get('name')
+    if name is None and existing is not None:
+        name = existing.name
+    if not isinstance(name, str) or not name.strip():
+        raise ProfileContractError('MISSING_FIELD', 'name is required')
+
+    if 'targetRoles' in data:
+        target_roles = _str_list(data.get('targetRoles'), 'targetRoles')
+    elif existing is not None:
+        target_roles = list(existing.target_roles)
+    else:
+        raise ProfileContractError('MISSING_FIELD', 'targetRoles is required')
+
+    if 'skills' in data:
+        skills = _str_list(data.get('skills'), 'skills')
+    elif existing is not None:
+        skills = list(existing.skills)
+    else:
+        raise ProfileContractError('MISSING_FIELD', 'skills is required')
+
+    if 'criteria' in data:
+        raw = data.get('criteria')
+        if raw is None:
+            # Explicit removal of the optional criteria object.
+            criteria = None
+        elif isinstance(raw, dict):
+            parsed_raw = ATSCriteria.from_dict(raw)
+            if existing is not None and existing.criteria is not None:
+                # Merge: an omitted list is preserved; an explicit [] clears it.
+                criteria = ATSCriteria(
+                    required_skills=(parsed_raw.required_skills
+                                     if 'requiredSkills' in raw
+                                     else list(existing.criteria.required_skills)),
+                    preferred_skills=(parsed_raw.preferred_skills
+                                      if 'preferredSkills' in raw
+                                      else list(existing.criteria.preferred_skills)),
+                    excluded_terms=(parsed_raw.excluded_terms
+                                    if 'excludedTerms' in raw
+                                    else list(existing.criteria.excluded_terms)),
+                )
+                criteria.validate()
+            else:
+                criteria = parsed_raw
+        else:
+            raise ProfileContractError('INVALID_FIELD',
+                                       'criteria must be an object or null')
+    else:
+        criteria = existing.criteria if existing is not None else None
+
+    return {'name': name.strip(), 'target_roles': target_roles,
+            'skills': skills, 'criteria': criteria}
+
+
+def _handle_partner_ats_routes(event, context, method, path):
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return error
+    rest = path[len(_ATS_PARENT_PREFIX):].strip('/')
+    parts = [p for p in rest.split('/') if p]
+    if len(parts) < 2 or parts[1] != 'ats-profiles':
+        return _cv_error(404, 'Not found')
+    search_profile_id = parts[0]
+    if len(parts) == 2:
+        return _ats_collection(event, ctx, method, search_profile_id)
+    if len(parts) == 3:
+        return _ats_item(event, ctx, method, search_profile_id, parts[2])
+    return _cv_error(404, 'Not found')
+
+
+def _ats_collection(event, ctx, method, search_profile_id):
+    repo, parent, cv = _ats_parent(ctx, search_profile_id)
+    if parent is None:
+        return _cv_error(404, 'Not found')
+    if method == 'GET':
+        return _ats_list(event, ctx, repo, search_profile_id)
+    if method == 'POST':
+        return _ats_create(event, ctx, repo, parent)
+    return _cv_error(405, 'Method not allowed')
+
+
+def _ats_list(event, ctx, repo, search_profile_id):
+    params = event.get('queryStringParameters') or {}
+    try:
+        limit = int(params.get('limit', 50))
+    except (TypeError, ValueError):
+        limit = 50
+    limit = max(1, min(limit, 50))
+    try:
+        cursor = _decode_cursor(
+            params.get('cursor'), repo=repo, ctx=ctx,
+            scope='ats-search-profiles', resource_type='ATSSearchProfile',
+            parent_id=search_profile_id, limit=limit)
+        if cursor == 'invalid':
+            return _cv_error(400, 'Invalid cursor')
+        items, next_cursor = repo.list_by_parent(
+            search_profile_id, ctx['userId'], ctx['tenantId'],
+            'ATSSearchProfile',
+            partner_app_id=ctx.get('partnerApplicationId'),
+            issuer=ctx.get('issuer'), limit=limit, cursor=cursor)
+        next_token = _encode_cursor(
+            next_cursor, repo=repo, ctx=ctx,
+            scope='ats-search-profiles', resource_type='ATSSearchProfile',
+            parent_id=search_profile_id, limit=limit)
+    except Exception:
+        logger.error('ats list failed')
+        return _cv_error(500, 'Internal error')
+    return {'statusCode': 200, 'body': json.dumps({
+        'items': [_serialize_ats_profile(p) for p in items],
+        'nextCursor': next_token,
+    }, ensure_ascii=False)}
+
+
+def _ats_create(event, ctx, repo, parent):
+    from datetime import datetime, timezone
+    import uuid
+    from jobsearch.partner_profile_contract import (
+        ATSSearchProfile, ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileIntegrityError, PartnerProfileTransientError,
+    )
+
+    data = _cv_body(event)
+    if data is None:
+        return _cv_error(400, 'Invalid JSON')
+    try:
+        parsed = _ats_parse(data)
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    now = datetime.now(timezone.utc).isoformat()
+    profile = ATSSearchProfile(
+        ats_profile_id=uuid.uuid4().hex,
+        search_profile_id=parent.search_profile_id,
+        cv_id=parent.cv_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=parsed['name'],
+        target_roles=parsed['target_roles'],
+        skills=parsed['skills'],
+        criteria=parsed['criteria'],
+        created_at=now,
+        updated_at=now,
+    )
+    try:
+        profile.validate()
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    try:
+        rid = repo.create(profile, **_cv_identity(ctx),
+                          idempotency_key=_idempotency_key(event))
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError as exc:
+        return _cv_error(409, 'Conflict', code=(
+            'capacity_exceeded' if 'capacity exceeded' in str(exc).lower()
+            else 'conflict'))
+    except Exception:
+        logger.error('ats create failed')
+        return _cv_error(500, 'Internal error')
+    stored = repo.get(rid, **_cv_identity(ctx))
+    return _post_write_response(stored, _ats_response, 201)
+
+
+def _ats_item(event, ctx, method, search_profile_id, ats_id):
+    from jobsearch.partner_profile_contract import ATSSearchProfile
+    repo, parent, cv = _ats_parent(ctx, search_profile_id)
+    if parent is None:
+        return _cv_error(404, 'Not found')
+    try:
+        existing = repo.get(ats_id, **_cv_identity(ctx))
+    except Exception:
+        return _cv_error(500, 'Internal error')
+    if (existing is None or not isinstance(existing, ATSSearchProfile)
+            or existing.search_profile_id != search_profile_id):
+        return _cv_error(404, 'Not found')
+    if method == 'GET':
+        return _ats_response(existing)
+    if method == 'PUT':
+        return _ats_update(event, ctx, repo, search_profile_id, ats_id, existing)
+    if method == 'DELETE':
+        return _ats_delete(event, ctx, repo, search_profile_id, ats_id)
+    return _cv_error(405, 'Method not allowed')
+
+
+def _ats_update(event, ctx, repo, search_profile_id, ats_id, existing):
+    from datetime import datetime, timezone
+    from jobsearch.partner_profile_contract import (
+        ATSSearchProfile, ProfileContractError,
+    )
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileIntegrityError, PartnerProfileTransientError,
+    )
+
+    data = _cv_body(event)
+    if data is None:
+        return _cv_error(400, 'Invalid JSON')
+    try:
+        parsed = _ats_parse(data, existing=existing)
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    expected_version = data.get('version')
+    if expected_version is not None:
+        try:
+            expected_version = int(expected_version)
+        except (TypeError, ValueError):
+            return _cv_error(422, 'Invalid version')
+    now = datetime.now(timezone.utc).isoformat()
+    updated = ATSSearchProfile(
+        ats_profile_id=ats_id,
+        search_profile_id=search_profile_id,
+        cv_id=existing.cv_id,
+        user_id=ctx['userId'],
+        tenant_id=ctx['tenantId'],
+        name=parsed['name'],
+        target_roles=parsed['target_roles'],
+        skills=parsed['skills'],
+        criteria=parsed['criteria'],
+        ats_keywords=existing.ats_keywords,
+        requirements=existing.requirements,
+        preferred_criteria=existing.preferred_criteria,
+        exclusions=existing.exclusions,
+        location=existing.location,
+        radius=existing.radius,
+        work_mode=existing.work_mode,
+        metadata=dict(existing.metadata or {}),
+        created_at=existing.created_at,
+        updated_at=now,
+    )
+    try:
+        updated.validate()
+        repo.update(updated, **_cv_identity(ctx),
+                    expected_version=expected_version)
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Version conflict')
+    except ProfileContractError as exc:
+        return _manual_profile_error(exc)
+    except Exception:
+        logger.error('ats update failed')
+        return _cv_error(500, 'Internal error')
+    stored = repo.get(ats_id, **_cv_identity(ctx))
+    return _post_write_response(stored, _ats_response)
+
+
+def _ats_delete(event, ctx, repo, search_profile_id, ats_id):
+    from jobsearch.partner_profile_repository import (
+        PartnerProfileConflictError, PartnerProfileIndeterminateError,
+        PartnerProfileIntegrityError, PartnerProfileTransientError,
+    )
+    params = event.get('queryStringParameters') or {}
+    expected = params.get('version')
+    if expected is not None:
+        try:
+            expected = int(expected)
+        except (TypeError, ValueError):
+            return _cv_error(422, 'Invalid version')
+    try:
+        deleted = repo.delete(ats_id, **_cv_identity(ctx),
+                              expected_version=expected)
+    except (PartnerProfileTransientError, PartnerProfileIndeterminateError):
+        return _storage_unavailable()
+    except PartnerProfileIntegrityError:
+        return _integrity_conflict()
+    except PartnerProfileConflictError:
+        return _cv_error(409, 'Version conflict')
+    except Exception:
+        logger.error('ats delete failed')
+        return _cv_error(500, 'Internal error')
+    if not deleted:
+        return _cv_error(404, 'Not found')
+    return {'statusCode': 204, 'body': ''}
 
 
 if __name__ == '__main__':

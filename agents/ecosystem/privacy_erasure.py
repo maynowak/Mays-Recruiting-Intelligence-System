@@ -45,6 +45,7 @@ their data is gone while a live credential still exists.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
@@ -65,6 +66,10 @@ REVOKED_CREDENTIAL_STATUS = "REVOKED"
 REVOKED_PROFILE_STATUS = "REVOKED"
 
 ERASURE_REASON = "privacy-erasure"
+
+
+class ErasureExecutionUnavailable(RuntimeError):
+    """G5 cannot safely run while write-freeze enforcement is enabled."""
 
 
 def _utcnow() -> datetime:
@@ -143,6 +148,8 @@ class PrivacyErasure:
                  user_profile_table: Any = None,
                  user_profile_key: str = "userId",
                  clock: Callable[[], datetime] = _utcnow,
+                 execution_context: Any = None,
+                 mutation_executor: Any = None,
                  ) -> None:
         self.credentials = credential_store
         self.profiles = profile_store
@@ -151,6 +158,8 @@ class PrivacyErasure:
         self.user_profiles = user_profile_table
         self.user_profile_key = user_profile_key
         self._clock = clock
+        self.execution_context = execution_context
+        self.mutation_executor = mutation_executor
 
     # ------------------------------------------------------------------
     def erase(self, user_id: str,
@@ -165,6 +174,23 @@ class PrivacyErasure:
         """
         if not user_id:
             raise ValueError("user_id is required")
+        freeze_enabled = os.environ.get(
+            "ERASURE_WRITE_FREEZE_ENABLED", "false").strip().lower() == "true"
+        if freeze_enabled and (self.execution_context is None
+                               or self.mutation_executor is None):
+            raise ErasureExecutionUnavailable(
+                "G5 atomic execution context is required")
+        if self.execution_context is not None:
+            if getattr(self.execution_context, "scope", None) != "USER" \
+                    or getattr(self.execution_context, "user_id", None) != user_id \
+                    or getattr(self.execution_context, "tenant_id", None) != tenant_id:
+                raise ErasureExecutionUnavailable(
+                    "G5 execution context scope mismatch")
+            # S3 deletion cannot participate in the DynamoDB transaction.
+            # Refuse the complete G5 run rather than claiming an atomic bypass.
+            if self.documents is not None:
+                raise ErasureExecutionUnavailable(
+                    "S3 erasure mutation is not transaction-bound")
         result = ErasureResult(user_id=user_id, tenant_id=tenant_id,
                                complete=False)
         stamp = self._clock().isoformat()
@@ -209,8 +235,14 @@ class PrivacyErasure:
                     "revokeReason": ERASURE_REASON,
                     "updatedAt": stamp,
                 })
-                self.credentials.update_credential(
-                    meta["credentialId"], meta)
+                if self.execution_context is not None:
+                    self.credentials.update_credential(
+                        meta["credentialId"], meta,
+                        execution_context=self.execution_context,
+                        mutation_executor=self.mutation_executor,
+                        expected_updated_at=row.get("updatedAt"))
+                else:
+                    self.credentials.update_credential(meta["credentialId"], meta)
                 revoked += 1
             except Exception as exc:
                 failures.append("%s: %s" % (row.get("credentialId"), exc))
@@ -246,7 +278,14 @@ class PrivacyErasure:
                 # the actor/role indirection of update_profile() (which
                 # exists to police admin-vs-owner edits) would only add a
                 # second authorization path for the same outcome.
-                self.profiles.update_profile(item["apiProfileId"], item)
+                if self.execution_context is not None:
+                    self.profiles.update_profile(
+                        item["apiProfileId"], item,
+                        execution_context=self.execution_context,
+                        mutation_executor=self.mutation_executor,
+                        expected_updated_at=row.get("updatedAt"))
+                else:
+                    self.profiles.update_profile(item["apiProfileId"], item)
                 revoked += 1
             except Exception as exc:
                 failures.append("%s: %s" % (row.get("apiProfileId"), exc))
@@ -279,15 +318,39 @@ class PrivacyErasure:
             if status not in NON_TERMINAL_WORK_STATUSES:
                 continue  # terminal history is retained, never deleted
             try:
-                self.work_table.update_item(
-                    Key={"workId": item["workId"]},
-                    UpdateExpression="SET #s = :c, updatedAt = :u",
-                    ConditionExpression="attribute_exists(workId)",
-                    ExpressionAttributeNames={"#s": "status"},
-                    ExpressionAttributeValues={
-                        ":c": CANCELLED_STATUS,
-                        ":u": self._clock().isoformat()},
-                )
+                if self.execution_context is not None:
+                    from jobsearch.partner_profile_repository import serializer
+                    stamp = self._clock().isoformat()
+                    table_name = getattr(self.work_table, "name", None)
+                    if not table_name:
+                        raise ErasureExecutionUnavailable(
+                            "work table name is unavailable")
+                    self.mutation_executor.transact({"Update": {
+                        "TableName": table_name,
+                        "Key": {"workId": serializer(item["workId"])},
+                        "UpdateExpression": "SET #s = :c, updatedAt = :u",
+                        "ConditionExpression": (
+                            "attribute_exists(workId) AND userId = :owner "
+                            "AND tenantId = :tenant AND #s = :oldStatus"),
+                        "ExpressionAttributeNames": {"#s": "status"},
+                        "ExpressionAttributeValues": {
+                            ":c": serializer(CANCELLED_STATUS),
+                            ":u": serializer(stamp),
+                            ":owner": serializer(self.execution_context.user_id),
+                            ":tenant": serializer(self.execution_context.tenant_id),
+                            ":oldStatus": serializer(item["status"]),
+                        },
+                    }})
+                else:
+                    self.work_table.update_item(
+                        Key={"workId": item["workId"]},
+                        UpdateExpression="SET #s = :c, updatedAt = :u",
+                        ConditionExpression="attribute_exists(workId)",
+                        ExpressionAttributeNames={"#s": "status"},
+                        ExpressionAttributeValues={
+                            ":c": CANCELLED_STATUS,
+                            ":u": self._clock().isoformat()},
+                    )
                 cancelled += 1
             except Exception as exc:
                 failures.append("%s: %s" % (item.get("workId"), exc))
@@ -315,8 +378,27 @@ class PrivacyErasure:
         if self.user_profiles is None:
             return StepResult("delete-user-profile", True, 0)
         try:
-            self.user_profiles.delete_item(
-                Key={self.user_profile_key: result.user_id})
+            if self.execution_context is not None:
+                from jobsearch.partner_profile_repository import serializer
+                table_name = getattr(self.user_profiles, "name", None)
+                if not table_name:
+                    raise ErasureExecutionUnavailable(
+                        "user profile table name is unavailable")
+                self.mutation_executor.transact({"Delete": {
+                    "TableName": table_name,
+                    "Key": {self.user_profile_key:
+                            serializer(result.user_id)},
+                    "ConditionExpression": (
+                        "attribute_exists(userId) AND userId = :u "
+                        "AND tenantId = :t"),
+                    "ExpressionAttributeValues": {
+                        ":u": serializer(self.execution_context.user_id),
+                        ":t": serializer(self.execution_context.tenant_id),
+                    },
+                }})
+            else:
+                self.user_profiles.delete_item(
+                    Key={self.user_profile_key: result.user_id})
             result.profile_deleted = True
             return StepResult("delete-user-profile", True, 1)
         except Exception as exc:
@@ -329,5 +411,17 @@ class PrivacyErasure:
 # scope, matching the lazy-import discipline used elsewhere in this
 # package.
 def Key(name: str):  # noqa: N802 - mirrors boto3.dynamodb.conditions.Key
-    from boto3.dynamodb.conditions import Key as _Key
-    return _Key(name)
+    try:
+        from boto3.dynamodb.conditions import Key as _Key
+        return _Key(name)
+    except ImportError:  # test-only fallback; real DynamoDB uses boto3 above
+        class _KeyFallback:
+            def __init__(self, field: str):
+                self.field = field
+                self._values = (field, None)
+
+            def eq(self, value: Any):
+                self._values = (self.field, value)
+                return self
+
+        return _KeyFallback(name)

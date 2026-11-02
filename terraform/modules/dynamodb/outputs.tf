@@ -41,6 +41,58 @@ output "jobsearches_table_arn" {
   value = aws_dynamodb_table.jobsearches.arn
 }
 
+output "partner_profiles_table_name" {
+  value = aws_dynamodb_table.partner_profiles.name
+}
+
+output "partner_profiles_table_arn" {
+  value = aws_dynamodb_table.partner_profiles.arn
+}
+
+output "privacy_receipts_table_name" {
+  value = aws_dynamodb_table.privacy_receipts.name
+}
+
+output "privacy_receipts_table_arn" {
+  value = aws_dynamodb_table.privacy_receipts.arn
+}
+
+output "privacy_receipts_gsi_subject_arn" {
+  value = "${aws_dynamodb_table.privacy_receipts.arn}/index/gsi-subject"
+}
+
+output "erasure_operations_table_name" {
+  value = aws_dynamodb_table.erasure_operations.name
+}
+
+output "erasure_operations_table_arn" {
+  value = aws_dynamodb_table.erasure_operations.arn
+}
+
+output "s3_erasure_phases_table_name" {
+  value = aws_dynamodb_table.s3_erasure_phases.name
+}
+
+output "s3_erasure_phases_table_arn" {
+  value = aws_dynamodb_table.s3_erasure_phases.arn
+}
+
+output "upload_ticket_ledger_table_name" {
+  value = aws_dynamodb_table.upload_ticket_ledger.name
+}
+
+output "upload_ticket_ledger_table_arn" {
+  value = aws_dynamodb_table.upload_ticket_ledger.arn
+}
+
+output "upload_cutover_table_name" {
+  value = aws_dynamodb_table.upload_cutover.name
+}
+
+output "upload_cutover_table_arn" {
+  value = aws_dynamodb_table.upload_cutover.arn
+}
+
 # Partner Application Registry. The runtime Lambda resolves this table on every
 # authorized agent execution (agents/ecosystem/partner_registry.py reads
 # RIS_PARTNER_APPLICATIONS_TABLE); without it the registry lookup returns None

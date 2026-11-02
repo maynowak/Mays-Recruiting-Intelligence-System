@@ -117,6 +117,27 @@ PRODUCTION_RESOURCE_PREFIXES = (
     "mays-orders-",
 )
 
+# R1 exception: these are the only CloudFront resources allowed for the
+# isolated ris-dev2 health presentation, and only as pure creates. This is an
+# address-level exception, not a general CloudFront exemption.
+HEALTH_CLOUDFRONT_CREATE_ALLOWLIST = frozenset({
+    "module.health_public.aws_cloudfront_distribution.health_public",
+    "module.health_public.aws_cloudfront_origin_access_control.health_public",
+})
+
+PROTECTED_PLAN_RESOURCE_TYPES = frozenset({
+    "aws_cognito_user_pool",
+    "aws_cognito_user_pool_client",
+    "aws_cognito_user_pool_domain",
+    "aws_cognito_identity_provider",
+    "aws_cognito_user_group",
+    "aws_cognito_resource_server",
+    "aws_route53_record",
+    "aws_route53_zone",
+    "aws_acm_certificate",
+    "aws_acm_certificate_validation",
+})
+
 
 # ---------------------------------------------------------------------------
 # GLUE-01 (Composite Lifecycle): Orders component naming + output handoff.
@@ -453,6 +474,19 @@ PROJECT_CONFIG_DIR = "project-configs"
 #: overlay is for site-specific identity/browser values, not for re-defining
 #: behaviour switches or anything reproducible from project_name/environment.
 PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
+    "identity_mode",
+    "external_cognito_user_pool_id",
+    "external_cognito_account_id",
+    "external_cognito_user_pool_arn",
+    "external_cognito_issuer",
+    "external_cognito_human_client_id",
+    "external_cognito_m2m_client_id",
+    "external_cognito_domain",
+    "orders_lifecycle",
+    "external_orders_table_name",
+    "external_orders_table_arn",
+    "external_orders_queue_url",
+    "external_orders_queue_arn",
     "identity_oauth_enabled",
     "identity_oauth_scopes",
     "identity_oauth_callback_urls",
@@ -462,6 +496,19 @@ PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
     "identity_custom_domain_certificate_arn",
     "api_cors_origins",
 })
+
+
+def configured_orders_lifecycle(ctx: "RisInstallContext") -> str:
+    """Return the explicit Orders lifecycle without silently enabling managed mode."""
+    values = load_project_config(ctx.project_name)
+    values.update(ctx.extra_vars or {})
+    lifecycle = values.get("orders_lifecycle", "managed")
+    if lifecycle not in {"managed", "external", "disabled"}:
+        raise ValueError(
+            "orders_lifecycle must be managed, external, or disabled; "
+            f"got {lifecycle!r}"
+        )
+    return lifecycle
 
 #: Variable names that would carry a secret and therefore must never appear in
 #: a committed overlay.
@@ -917,6 +964,30 @@ def is_plan_safe(plan_json: dict, project_name: str, environment: str) -> tuple[
         actions = change.get("change", {}).get("actions", [])
         before = change.get("change", {}).get("before") or {}
         after = change.get("change", {}).get("after") or {}
+        address = change.get("address", "")
+        resource_type = change.get("type", "")
+
+        # CloudFront is forbidden by default. The only exception is the two
+        # isolated ris-dev2 health resources, and only for exactly ["create"].
+        if resource_type.startswith("aws_cloudfront_"):
+            if (
+                project_name == "ris-dev2"
+                and environment == "dev"
+                and address in HEALTH_CLOUDFRONT_CREATE_ALLOWLIST
+                and actions == ["create"]
+            ):
+                continue
+            return False, (
+                f"Protected CloudFront action is not allowlisted: "
+                f"{address} (type: {resource_type}, actions: {actions})"
+            )
+
+        # Cognito, DNS and ACM remain strictly zero-action scopes.
+        if resource_type in PROTECTED_PLAN_RESOURCE_TYPES and actions:
+            return False, (
+                f"Protected resource action is forbidden: {address} "
+                f"(type: {resource_type}, actions: {actions})"
+            )
         
         # Check before state for production resources being deleted/replaced
         for key, value in before.items():
@@ -941,7 +1012,6 @@ def is_plan_safe(plan_json: dict, project_name: str, environment: str) -> tuple[
                             )
         
         # Also check resource address for production module references
-        address = change.get("address", "")
         for prod_prefix in production_prefixes:
             if prod_prefix in address:
                 if "delete" in actions or "replace" in actions or "create" in actions:
@@ -1160,7 +1230,7 @@ def _cmd_preflight(ctx: RisInstallContext) -> int:
     print(f"profile-source: {aws_ctx.profile_source}")
 
     # GLUE-01: Composite preflight — validate the Orders component.
-    if ctx.composite and not ctx.dry_run:
+    if ctx.composite and not ctx.dry_run and configured_orders_lifecycle(ctx) == "managed":
         orders_project = orders_component_project_name(ctx.project_name)
         print(f"composite component project: {orders_project}")
         orchestrator = RISInstaller(dry_run=ctx.dry_run)
@@ -1244,9 +1314,9 @@ def _cmd_preflight(ctx: RisInstallContext) -> int:
 
 
 def _cmd_validate(ctx: RisInstallContext) -> List[TerraformResult]:
-    # Backend-less validation: init runs with -backend=false, so workspace
-    if ctx.aws_context is None:
-        ctx.aws_context = validate_aws_context(profile=ctx.aws_profile, region=ctx.aws_region)
+    # Backend-less validation is deliberately local: init runs with
+    # -backend=false and validate does not resolve AWS resources. Account and
+    # profile guards belong to preflight/plan/apply, not this offline command.
     # operations are meaningless here (no backend to select in) and would
     # fail. Config validation is workspace-independent.
     runner = ctx.make_runner()
@@ -2189,6 +2259,7 @@ def _cmd_install(
         ctx.project_name, ctx.environment, region=ctx.aws_region
     )
     orders_project = orders_component_project_name(ctx.project_name)
+    orders_lifecycle = configured_orders_lifecycle(ctx)
 
     # Update context with backend configuration derived from project name
     ctx.backend_bucket = names.bucket
@@ -2199,14 +2270,17 @@ def _cmd_install(
         print(f"  account: {aws_ctx.account_id}")
         print(f"  region: {aws_ctx.region}")
         print(f"  RIS project: {ctx.project_name} -> workspace {ctx.workspace}")
-        print(f"  Orders component: {orders_project}")
+        print(f"  Orders lifecycle: {orders_lifecycle}")
+        if orders_lifecycle == "managed":
+            print(f"  Orders component: {orders_project}")
         print(f"  backend bucket: {names.bucket}")
         print(f"  lock table: {names.lock_table}")
         print("  phases: orders validate -> orders plan -> output handoff -> ")
         print("  phases: package -> bootstrap -> orders validate -> orders plan -> RIS plan -> orders deploy -> RIS apply")
+        return 0
 
     # --- Composite preflight + Orders component (fail fast, no mutation) ---
-    if ctx.composite:
+    if ctx.composite and orders_lifecycle == "managed":
         pf_rc = _cmd_preflight(ctx)
         if pf_rc != 0:
             print("error: composite preflight failed", file=sys.stderr)

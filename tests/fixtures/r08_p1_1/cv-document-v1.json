@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "cvId": "cv-synthetic-001",
+  "documentId": "doc-synthetic-001",
+  "filename": "resume.pdf",
+  "contentType": "application/pdf",
+  "sizeBytes": 2048,
+  "processingStatus": "ready",
+  "createdAt": "2026-11-01T12:00:00Z",
+  "updatedAt": "2026-11-01T12:01:00Z",
+  "version": 2,
+  "metadata": {
+    "pageCount": 2,
+    "language": "de"
+  }
+}

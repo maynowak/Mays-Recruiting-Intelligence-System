@@ -7754,3 +7754,796 @@ Recommended next actions:
    - Perform live smoke test
 Current resume point:
    - Audit complete
+
+[RIS-PARTNER-PROFILE-R01-CONTRACT-FOUNDATION]
+Current status: COMPLETE — persistenzneutrale Contract-/Validierungsschicht v1 implementiert.
+Audit date/time: 2026-10-31
+Audit scope: R01 Contract Foundation, keine AWS-/Terraform-Ausführung, keine API-Routen.
+Actual findings:
+  - Neue Datei jobsearch/partner_profile_contract.py mit 6 Ressourcentypen und v1-Schema.
+  - Tests tests/unit/jobsearch/test_partner_profile_contract.py: 35/35 PASS.
+  - MO-Pin unverändert 1dbb0cb4.
+Evidence / file references:
+  - jobsearch/partner_profile_contract.py
+  - tests/unit/jobsearch/test_partner_profile_contract.py
+  - docs/reports/RIS-PARTNER-PROFILE-R01-CONTRACT-FOUNDATION.md
+Classification: GREEN
+Current resume point:
+  - R01 abgeschlossen; R02 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R02-DYNAMODB-REPOSITORY]
+Current status: COMPLETE — Partner-Profile-Repository und DynamoDB-Tabelle implementiert.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Neue Datei jobsearch/partner_profile_repository.py.
+  - Terraform-Tabelle partner-profiles mit GSI gsi-user/gsi-parent.
+  - Tests: 20 Repository-Tests PASS, 35 Contract-Tests PASS.
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - terraform/modules/dynamodb/main.tf
+  - terraform/modules/dynamodb/outputs.tf
+  - tests/unit/jobsearch/test_partner_profile_repository.py
+  - docs/reports/RIS-PARTNER-PROFILE-R02-DYNAMODB-REPOSITORY.md
+Classification: GREEN
+Current resume point:
+  - R02 abgeschlossen; R03 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R02R-CONCURRENCY-ISOLATION]
+Current status: COMPLETE — atomare Kapazitätsgrenzen und Isolations-/Pagination-Härtung.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Behoben: TOCTOU-Race in Create (Count+Put) durch TransactWriteItems ersetzt.
+  - Behoben: fehlende DynamoDB-Serialisierung der ExpressionAttributeValues.
+  - Atomare Zähler capacity#CV/CVSP/ATS mit ConditionCheck + Put + Update.
+  - Delete dekrementiert denselben Zähler atomar (count > 0).
+  - Tests: 28 Repository + 35 Contract + 75 Partner-Regression PASS.
+  - Offen für R07: echte DynamoDB-Integrationsprüfung der Transaktionen.
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - tests/unit/jobsearch/test_partner_profile_repository.py
+  - docs/reports/RIS-PARTNER-PROFILE-R02-DYNAMODB-REPOSITORY.md
+Classification: GREEN
+Current resume point:
+  - R02-R abgeschlossen; R03 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R02R2-TRANSACTION-COMPATIBILITY]
+Current status: COMPLETE — DynamoDB-Transaktionsregel korrigiert.
+Audit date/time: 2026-10-31
+Actual findings:
+  - ConditionCheck und Update adressierten dasselbe Counter-Item (AWS verbietet
+    mehrere Aktionen pro Item) -> ValidationException-Risiko.
+  - Behoben: Kapazitätsbedingung in die ConditionExpression der Counter-Update-
+    Aktion integriert; keine ConditionCheck-Aktion mehr.
+  - Create: Update(Counter, count < :max) + Put(Ressource) auf getrennten Keys.
+  - Delete: Delete(Ressource) + Update(Counter, count > :zero) auf getrennten Keys.
+  - Tests: 33 Repository + 35 Contract + 75 Partner = 143 PASS.
+  - DynamoDB-Integration: NOT RUN (kein Java/Docker/DynamoDB Local/boto3).
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - tests/unit/jobsearch/test_partner_profile_repository.py
+  - docs/reports/RIS-PARTNER-PROFILE-R02-DYNAMODB-REPOSITORY.md
+Classification: GREEN
+Current resume point:
+  - R02-R2 abgeschlossen; R03 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R03-MANUAL-CRUD-API]
+Current status: COMPLETE — Manual-Search-Profile-CRUD-API implementiert.
+Audit date/time: 2026-10-31
+Actual findings:
+  - 5 Routen: GET/POST /v1/partner/me/manual-search-profiles, GET/PUT/DELETE /{profileId}.
+  - Dual-Auth wiederverwendet (Cognito JWT + X-Api-Credential + Registry + L03).
+  - Handler delegieren an R02-Repository; keine zweite DynamoDB-Schicht.
+  - Contract additiv erweitert (requiredSkills/preferredSkills/excludedTerms,
+    description, origin); manualSearchProfileId als API-Alias.
+  - Terraform: 5 explizite Routen, PARTNER_PROFILE_TABLE + IAM.
+  - Tests: 216/216 R03-relevant PASS (26 API, 35 Contract, 33 Repository,
+    75 Partner, 47 OpenAPI).
+  - NOT RUN: volle Suite (fehlendes boto3, praeexistente Windows/Installer-Fehler).
+Evidence / file references:
+  - lambda/handler.py
+  - jobsearch/partner_profile_contract.py
+  - terraform/modules/api/main.tf
+  - terraform/modules/lambda/main.tf
+  - docs/api/openapi-platform.yaml
+  - tests/test_partner_manual_profiles_api.py
+  - docs/reports/RIS-PARTNER-PROFILE-R03-MANUAL-CRUD-API.md
+Classification: GREEN
+Current resume point:
+  - R03 abgeschlossen; R04 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R04-CV-DOCUMENT-LIFECYCLE]
+Current status: COMPLETE — CV-Metadaten und sicherer Dokument-Lifecycle implementiert.
+Audit date/time: 2026-10-31
+Actual findings:
+  - 8 Routen unter /v1/partner/me/cvs (CRUD + document upload/complete/get).
+  - Statusmaschine pending -> upload_pending -> ready; READY nur nach S3-HeadObject.
+  - Nutzt R02-Repository (atomare 10-CV-Grenze, version, bedingte Deletes).
+  - documents.py additiv erweitert: head_document, delete_document_report,
+    require_tenant, doc_id-Parameter; default-Tenant-Fallback bleibt nur fuer
+    das bestehende /me/documents, Partner-CVs fail-closed.
+  - S3-Delete auf versioniertem Bucket = Delete-Marker; keine physische
+    Vollloeschung behauptet (physicalPurge=false).
+  - Tests: 29 neue R04 + 273 R01-R03/OpenAPI + 11 bestehende Dokumente = 284 PASS.
+  - NOT RUN: echte S3-/DynamoDB-Integration; volle Suite (boto3/Windows).
+Evidence / file references:
+  - lambda/handler.py
+  - lambda/documents.py
+  - jobsearch/partner_profile_contract.py
+  - terraform/modules/api/main.tf
+  - docs/api/openapi-platform.yaml
+  - tests/test_partner_cv_document_api.py
+  - docs/reports/RIS-PARTNER-PROFILE-R04-CV-DOCUMENT-LIFECYCLE.md
+Classification: GREEN
+Current resume point:
+  - R04 abgeschlossen; R05 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R05G0-CONTRACT-RECONCILIATION]
+Current status: COMPLETE — Vertragsabgleich R01-R04 vs. Jobsearch v1; R05-CRUD BLOCKED.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Jobsearch origin/main = ad9b5ed (Contracts gelesen, read-only).
+  - P0-1: schemaVersion "v1" (String) vs. Contract 1 (Integer).
+  - P0-2: searchConfig fehlt; skills (String) und radiusKm (nullable) ohne
+    Speicherfeld; city->locations[], targetRoles->roles. Datenverlust.
+  - P1-1..P1-6: CVDocument-Naming/Status, CVSearchProfile-Shape,
+    ATS-criteria, employmentTypes-Superset, fehlender Child-Delete-Guard,
+    fehlende Create-Idempotenz.
+  - Neue Reconciliation-Tests: 28/28 PASS; R01-R04-Regression 312/312 PASS.
+  - R04-CV-Delete erzeugt heute keine Live-Orphans (keine Kind-Routen), ist
+    aber vor R05-Freischaltung mit einem 409-Kind-Guard zu haerten.
+Evidence / file references:
+  - docs/reports/RIS-PARTNER-PROFILE-R05-G0-CONTRACT-RECONCILIATION.md
+  - tests/test_partner_profile_contract_reconciliation.py
+Classification: YELLOW
+Current resume point:
+  - R05-G0 abgeschlossen; R05-CRUD nicht begonnen (BLOCKED durch P0-1/P0-2).
+
+[RIS-PARTNER-PROFILE-R05P0-CONTRACT-REPAIR]
+Current status: COMPLETE — P0-1 (schemaVersion) und P0-2 (searchConfig) behoben.
+Audit date/time: 2026-10-31
+Actual findings:
+  - P0-1: SCHEMA_VERSION jetzt Integer 1; Legacy "v1" wird lesend auf 1
+    normalisiert; unbekannte Versionen/bool abgelehnt.
+  - P0-2: SearchConfiguration (skills string, targetRoles[], city,
+    radiusKm nullable, workModes[], employmentTypes[]) eingefuehrt;
+    ManualSearchProfile.searchConfig getrennt von matchingPreferences.
+  - R03-Handler parst/speichert beide Objekte unabhaengig; partielle Updates
+    erhalten das jeweils andere Objekt.
+  - Legacy-Records bleiben lesbar; nicht abbildbare Felder werden in
+    metadata.legacy konserviert (legacyIncomplete=true), keine AWS-Migration.
+  - OpenAPI: schemaVersion integer 1, SearchConfigurationV1, v1-
+    MatchingPreferencesV1.
+  - Tests: 20 neue R05-P0 + 27 Reconciliation + 284 R01-R04 = 331 PASS.
+  - Offen: P1-1 (CVDocument-Naming/Status), P1-2 (CVSearchProfile), P1-3
+    (ATS criteria), P1-5 (Delete-Guard), P1-6 (Idempotenz); P1-4 teilweise.
+Evidence / file references:
+  - jobsearch/partner_profile_contract.py
+  - lambda/handler.py
+  - docs/api/openapi-platform.yaml
+  - tests/test_partner_profile_v1_repair.py
+  - tests/test_partner_profile_contract_reconciliation.py
+  - docs/reports/RIS-PARTNER-PROFILE-R05-P0-CONTRACT-REPAIR.md
+Classification: GREEN
+Current resume point:
+  - R05-P0 abgeschlossen; R05-CRUD nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R05A-INTEGRITY-IDEMPOTENCY]
+Current status: COMPLETE — Parent-Integritaet und Create-Idempotenz implementiert.
+Audit date/time: 2026-10-31
+Actual findings:
+  - P1-5: Child-Guard ueber bestehende Kapazitaetszaehler; Kind-Create
+    ConditionCheck auf Elternressource + Lifecycle-Guard; Parent-Delete mit
+    Child-Zaehler == 0. CV-Delete zweiphasig (reserve -> S3 -> finalize), S3
+    erst nach Kind-Sperre; Guard bei S3-Fehler auf active zurueckgesetzt.
+  - Delete-vs-Create-Race: genau eine Transaktion gewinnt, kein Orphan.
+  - P1-6: optionaler Idempotency-Key, identitaetsgebundener Digest,
+    Payload-Hash, 24h-Lebensdauer, atomare Kopplung von Idem-Put, Kapazitaet
+    und Ressource; Replay -> Original-ID, anderer Payload -> 409.
+  - LegacyIncomplete/metadata.legacy bleiben bei Updates erhalten; keine
+    v1-Write-Regeln fuer unvollstaendige Legacy-Configs.
+  - Terraform: TTL expiresAt + IAM UpdateItem/TransactWriteItems.
+  - OpenAPI: optionaler Idempotency-Key-Header an den bestehenden POSTs.
+  - Tests: 16 neue + 331 bestehende = 347 PASS.
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - lambda/handler.py
+  - terraform/modules/dynamodb/main.tf
+  - terraform/modules/lambda/main.tf
+  - docs/api/openapi-platform.yaml
+  - tests/test_partner_profile_integrity_idempotency.py
+  - docs/reports/RIS-PARTNER-PROFILE-R05-A-INTEGRITY-IDEMPOTENCY.md
+Classification: GREEN
+Current resume point:
+  - R05-A abgeschlossen; R05-CRUD nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R05B-CV-SEARCH-CRUD]
+Current status: COMPLETE — CVSearchProfileV1-CRUD-API implementiert.
+Audit date/time: 2026-10-31
+Actual findings:
+  - 5 Routen unter /v1/partner/me/cvs/{cvId}/search-profiles.
+  - CVSearchProfile um description, origin=cv und searchConfig erweitert
+    (P1-2 resolved); Legacy-profile/searchConfiguration werden migriert.
+  - Dual-Auth, Parent-/Owner-Isolation, 2/CV-Kapazitaet, 24h-Idempotenz,
+    Versionierung und ATS-Child-Delete-Guard wiederverwendet.
+  - Jobsearch origin/main erneut abgeglichen: a47a957; docs/contracts
+    unveraendert seit ad9b5ed (nur UI/Session-Aenderungen).
+  - Tests: 27 neue + 347 bestehende = 374 PASS.
+Evidence / file references:
+  - jobsearch/partner_profile_contract.py
+  - lambda/handler.py
+  - terraform/modules/api/main.tf
+  - docs/api/openapi-platform.yaml
+  - tests/test_partner_cv_search_profiles_api.py
+  - docs/reports/RIS-PARTNER-PROFILE-R05-B-CV-SEARCH-CRUD.md
+Classification: GREEN
+Current resume point:
+  - R05-B abgeschlossen; R06 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R06G0-ATS-CONTRACT-PARENT-GATE]
+Current status: COMPLETE — ATS-v1-Vertrag und Parent-Semantik analysiert; R06-CRUD vorbereitet.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Jobsearch origin/main = 0129559; ATS-Datenshape unveraendert seit c6137b3
+    (nur Session-Kapazitaetsdoku: 2 CV-Profile, 5 ATS, Grandfathering).
+  - P1-3: RIS ATSSearchProfile hat kein criteria, nutzt atsProfileId und
+    emittiert cvId/Legacy-Felder; v1-Fixture wird strikt abgelehnt.
+  - Referenz-Inkonsistenz: contractTypes.ts laesst excludedTerms aus; Data
+    Contract/Schema/Fixtures enthalten es (Data Contract ist massgeblich).
+  - R05-A Parent-Guard, 5er-Zaehler, Idempotenz und Delete-vs-Create sind
+    wiederverwendbar.
+  - Unassigned (searchProfileId=null) ist Session-only; RIS v1 lehnt es ab.
+  - Override: ATS-Skills/Rollen ersetzen Parent; city/radius/workModes/
+    employmentTypes bleiben beim Parent.
+  - Tests: 20 PASS + 9 PLANNED (skipped); Regression 394 PASS, 9 skipped.
+  - Keine Produktionsdatei in R06-G0 geaendert.
+Evidence / file references:
+  - tests/test_partner_profile_ats_contract_gate.py
+  - docs/reports/RIS-PARTNER-PROFILE-R06-G0-ATS-CONTRACT-PARENT-GATE.md
+Classification: YELLOW
+Current resume point:
+  - R06-G0 abgeschlossen; R06-CRUD nicht begonnen (P1-3 ist R06-Blocker).
+
+[RIS-PARTNER-PROFILE-R06-ATS-CRUD]
+Current status: COMPLETE — ATSSearchProfileV1-CRUD inkl. ATSCriteriaV1 implementiert.
+Audit date/time: 2026-10-31
+Actual findings:
+  - ATSCriteriaV1 (schemaVersion 1, drei optionale Listen, strikt, keine
+    Score-/Modellfelder) und criteria in ATSSearchProfile ergaenzt.
+  - Kanonische API: atsSearchProfileId, kein cvId/Legacy; cvId serverseitig
+    aus dem Parent abgeleitet.
+  - 5 Routen /v1/partner/me/search-profiles/{id}/ats-profiles; Parent-Kette
+    ATS -> CVSP -> CV, Dual-Auth, 5er-Kapazitaet, Idempotenz, Versionierung,
+    Delete-Schutz.
+  - R06-G0-Korrektur: excludedTerms ist in contractTypes.ts@0129559 vorhanden.
+  - Tests: 36 neue R06-API + ehemalige 9 PLANNED-Faelle jetzt echt; Regression
+    437 PASS, 0 skipped.
+  - P1-3 resolved; P1-1 (CV-Naming/Status) bleibt OPEN.
+Evidence / file references:
+  - jobsearch/partner_profile_contract.py
+  - lambda/handler.py
+  - terraform/modules/api/main.tf
+  - docs/api/openapi-platform.yaml
+  - tests/test_partner_ats_profiles_api.py
+  - tests/test_partner_profile_ats_contract_gate.py
+  - docs/reports/RIS-PARTNER-PROFILE-R06-ATS-CRUD.md
+Classification: GREEN
+Current resume point:
+  - R06 abgeschlossen; R07 nicht begonnen.
+
+[RIS-PARTNER-PROFILE-R07-G0-INTEGRATION-READINESS]
+Current status: COMPLETE (harness prep) - R07-A execution BLOCKED by missing toolchain.
+Audit date/time: 2026-10-31
+Actual findings:
+  - New local-only harness: endpoint guard (loopback only, explicit port, no
+    default), isolated ris-r07g0-* table namespace, dummy static credentials.
+  - 36 readiness tests PASS: Terraform PK/GSIs/TTL/IAM, 5 explicit ATS routes,
+    no scan, GSI usage, one-action-per-item transactions, idempotency replay
+    and expiry, pagination, S3 versioning/delete-marker statics.
+  - 23 DynamoDB Local integration tests written but SKIPPED: boto3/botocore,
+    Java, DynamoDB Local, Docker and AWS CLI are not installed.
+  - Regression: 473 passed, 23 skipped; Terraform validate PASS, targeted fmt PASS.
+  - Findings: F-1 GetItem eventual consistency (create-response version null,
+    idempotency replay 409), F-4 TransactionConflict not retried, F-5 delete
+    needs existing counter, F-6 reversible cursor, F-7 list fallback truncation.
+  - P1-1 (CVDocument naming/status) unchanged and non-blocking.
+  - R07-B AWS plan documented only; no AWS mutation, no apply/deploy.
+Evidence / file references:
+  - tests/test_partner_profile_integration_harness.py
+  - tests/integration/dynamodb_local_support.py
+  - tests/integration/test_partner_profile_dynamodb_local.py
+  - docs/reports/RIS-PARTNER-PROFILE-R07-G0-INTEGRATION-READINESS.md
+Classification: GREEN (harness) / BLOCKED (R07-A execution)
+Current resume point:
+  - R07-G0 complete; fix F-1/F-7, install boto3 + DynamoDB Local, then run
+    tests/integration/test_partner_profile_dynamodb_local.py. Do not start R07-B.
+
+[RIS-PARTNER-PROFILE-R07-FIX-01-CONSISTENCY-REPAIR]
+Current status: COMPLETE - F-1 and F-7 fixed and verified with fakes/statics.
+Audit date/time: 2026-10-31
+Actual findings:
+  - All authoritative GetItem reads (get, _get_raw, _ensure_counter) now use
+    ConsistentRead=True; GSI queries remain eventually consistent.
+  - Read failures raise PartnerProfileReadError instead of returning None or
+    an empty page; partner dispatchers map it to 500, never 404/409.
+  - list_by_parent no longer falls back to list_by_user(limit=1000); query
+    errors fail closed and keep correct pagination semantics.
+  - Post-write responses are built only from a successful re-read; missing
+    post-write reads return 500 instead of version:null.
+  - Unparseable stored items raise PartnerProfileReadError (no partial DTO).
+  - New tests: 20 PASS. Regression: 493 passed, 23 skipped.
+  - Optimistic locking, idempotency and schema unchanged.
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - lambda/handler.py
+  - tests/test_partner_profile_consistency_repair.py
+  - docs/reports/RIS-PARTNER-PROFILE-R07-FIX-01-CONSISTENCY-REPAIR.md
+Classification: GREEN
+Current resume point:
+  - F-1/F-7 closed; R07-A still blocked by missing boto3/Java/DynamoDB Local.
+  - Remaining OPEN: F-4, F-5, F-6, P1-1.
+
+[RIS-PARTNER-PROFILE-R07-A-DYNAMODB-LOCAL]
+Current status: COMPLETE - 23/23 real DynamoDB Local integration tests PASS.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Isolated venv (Python 3.15.0, boto3/botocore 1.43.123, pytest 9.2.0,
+    PyYAML 6.0.3) and Temurin JRE 21.0.13+9 outside the repo.
+  - DynamoDB Local 3.3.2 from the official AWS URL, SHA256 verified; bound to
+    127.0.0.1:18000 via a small launcher (no -bindAddress in 3.3.2; LAN
+    connection refused after hardening).
+  - Found and fixed seven real DynamoDB incompatibilities invisible to fakes:
+    resource-client double serialization, reserved keywords count/state,
+    invalid :sys-* placeholders, empty parentId GSI key on counters, Decimal
+    deserialization, GSI range key in FilterExpression, unused Terraform
+    tenantId attribute.
+  - Integration: 23 passed. Full suite with venv+endpoint: 517 passed.
+    System Python without boto3: 494 passed, 23 skipped.
+  - No AWS credentials/endpoint used; no AWS mutation.
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - terraform/modules/dynamodb/main.tf
+  - tests/integration/dynamodb_local_support.py
+  - tests/integration/test_partner_profile_dynamodb_local.py
+  - docs/reports/RIS-PARTNER-PROFILE-R07-A-DYNAMODB-LOCAL.md
+Classification: GREEN
+Current resume point:
+  - R07-A GO. Remaining OPEN: F-4, F-5, F-6, P1-1.
+  - R07-B not started; no AWS mutation.
+
+[RIS-PARTNER-PROFILE-R07-FIX-02-TRANSACTION-CONFLICT]
+Current status: COMPLETE - F-4 classified and bounded retry implemented.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Central classify_transaction_error separates business, transient,
+    indeterminate and fatal outcomes using CancellationReasons and top-level
+    botocore error codes. None means no error for that action; mixed or
+    unknown reasons fail closed.
+  - Bounded retry: max 3 attempts, 1s total budget, full-jitter backoff
+    (50ms base / 300ms cap). Same transaction items and IDs/timestamps are
+    reused; all conditions are re-evaluated by DynamoDB.
+  - Indeterminate create with Idempotency-Key recovers the original resource
+    via ConsistentRead; without key no retry (503). Delete/reserve/finalize
+    are never blindly retried. ClientRequestToken intentionally not used
+    (10min token vs 24h application idempotency).
+  - HTTP: business conflicts stay 409; exhausted/unclear outcomes 503;
+    unknown fatal errors 500.
+  - New tests: 29 PASS. DynamoDB Local: 23/23 PASS. Full suite: 546 passed
+    with local endpoint, 523 passed + 23 skipped without.
+  - No AWS access or mutation; local DynamoDB stopped afterwards.
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - lambda/handler.py
+  - tests/test_partner_profile_transaction_conflict.py
+  - docs/reports/RIS-PARTNER-PROFILE-R07-FIX-02-TRANSACTION-CONFLICT.md
+Classification: GREEN
+Current resume point:
+  - F-4 CLOSED. Remaining OPEN: F-5, F-6, P1-1, R08.
+  - R07-B not started.
+
+[RIS-PARTNER-PROFILE-R07-FIX-03-LEGACY-COUNTER]
+Current status: PARTIAL - safe legacy delete implemented; counter reconciliation remains offline work.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Legacy resources exist conceptually from e43bf53 (GSI capacity, no
+    counters) before befbb59/2e2a72e introduced atomic counters. No backfill
+    commit exists; no production evidence available without AWS access.
+  - Missing counters are never treated as zero. Modern parents now create
+    their child counter (0) at creation. Missing/non-covering counters use a
+    guard-held, strongly-consistent, fully paginated scan (50 pages / 5000
+    items) before deletion; failures release the guard and fail closed.
+  - Missing/invalid/contradictory counters map to 409 integrity; no counter is
+    auto-created or overwritten; decrement is skipped when not covered (safe
+    over-count, no under-count). Modern fast path remains scan-free.
+  - CV/S3: reserve/scan happens before S3; child/uncertain -> no S3; S3 error
+    releases guard to active and keeps metadata for retry.
+  - Tests: 21 new unit + 6 new DynamoDB Local legacy cases (29 local total).
+    Base: 544 passed, 29 skipped. Venv+local: 573 passed.
+Evidence / file references:
+  - jobsearch/partner_profile_repository.py
+  - lambda/handler.py
+  - tests/test_partner_profile_legacy_counter.py
+  - tests/integration/test_partner_profile_dynamodb_local.py
+  - docs/reports/RIS-PARTNER-PROFILE-R07-FIX-03-LEGACY-COUNTER.md
+Classification: GREEN with PARTIAL F-5 (counter backfill/reconciliation OPEN)
+Current resume point:
+  - F-5 delete path safe; offline counter reconciliation and R07-B remain.
+  - F-6, P1-1, R08 unchanged.
+
+[RIS-PARTNER-PROFILE-R07-FIX-04-SECURE-CURSORS]
+Current status: COMPLETE - F-6 secure pagination cursors implemented.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Old cursors were base64(JSON(LastEvaluatedKey)) with no confidentiality,
+    binding or expiry. They are now rejected as invalid.
+  - Chosen design: 256-bit random server-side token (rp1_ prefix), stored as a
+    CursorToken item in the existing partner_profiles table. The raw token is
+    not stored, only its SHA256 key. AES-GCM was rejected because the Lambda
+    bundle builder packages only Python sources (no native wheels) and no
+    cursor key management exists.
+  - Binding: exact userId/tenantId/partnerApplicationId/issuer plus SHA256
+    digest of scope/resourceType/parentId. Page size is intentionally not
+    bound; clients may omit limit on continuation.
+  - TTL 15 minutes, explicit expiresAt check, best-effort delete on expiry;
+    table TTL already enabled. No secret, no new table, no new IAM, no new
+    dependency, no packaging change.
+  - Errors: invalid/expired/mismatch/legacy/oversize -> 400 Invalid cursor;
+    store read/write failure -> 500. Normal authorization is always rechecked.
+  - Tests: 31 cursor security/API tests + 4 DynamoDB Local cursor tests
+    (33 local total). Base: 575 passed, 29 skipped. Venv+local: 608 passed.
+  - F-5 remains PARTIAL (counter reconciliation); P1-1 and R08 unchanged.
+Evidence / file references:
+  - jobsearch/partner_profile_cursor.py
+  - jobsearch/partner_profile_repository.py
+  - lambda/handler.py
+  - tests/test_partner_profile_cursor_security.py
+  - tests/integration/test_partner_profile_dynamodb_local.py
+  - docs/reports/RIS-PARTNER-PROFILE-R07-FIX-04-SECURE-CURSORS.md
+Classification: GREEN
+Current resume point:
+  - F-6 closed. R07-B not started; no AWS mutation.
+
+[RIS-PARTNER-PROFILE-R07-B-G0-AWS-E2E-READINESS]
+Current status: G0 COMPLETE - R07-B BLOCKED by isolation/IAM/test-identity prerequisites.
+Audit date/time: 2026-10-31
+Actual findings:
+  - No AWS calls/mutations; no apply/plan with provider refresh.
+  - Root always deploys module.mays_orders + orders_reader; no RIS-only
+    switch. A fully isolated RIS-only E2E is therefore not supported without
+    an explicit decision or a RIS-only root/flag.
+  - IAM lambda_dynamodb_partner_profiles lacks dynamodb:Scan, but the F-5
+    legacy child scan uses Scan. Legacy delete would fail with AccessDenied in
+    AWS. Fresh resources are unaffected.
+  - Package smoke: agent bundle 64 files, 0.73 MB, cursor/repository modules
+    present, no tests/venv/secrets; import works without boto3. Runtime 3.14.
+  - 24 /v1/partner/* routes (23 profile/CV + 1 agent), 54 routes total, JWT
+    human/m2m; no wildcard proxies.
+  - 608 local tests pass incl. 33 DynamoDB Local; Terraform fmt/validate and
+    OpenAPI pass.
+  - Test account 240571105849 / eu-central-1 is documented but not verified;
+    no synthetic users/partners/credentials exist (and were not created).
+  - F-5 PARTIAL (counter reconciliation + Scan IAM), P1-1 OPEN (CVDocument
+    filename/size/status vs Jobsearch v1), R08 OPEN.
+Evidence / file references:
+  - docs/reports/RIS-PARTNER-PROFILE-R07-B-G0-AWS-E2E-READINESS.md
+  - terraform/main.tf, terraform/modules/lambda/main.tf
+  - lambda/build_zip.py
+Classification: AMBER - prepared, cloud execution blocked
+Current resume point:
+  - Decide Orders scope, fix/waive dynamodb:Scan for legacy path, verify
+    account/region/global names, provision test identities after approval.
+  - Do not start R07-B until gate is unblocked.
+
+
+[RIS-R08-G0-PRIVACY-CAPABILITY-AND-EVIDENCE]
+Current status: COMPLETE (contract only) - R08-A technical GO, production privacy release blocked.
+Audit date/time: 2026-10-31
+Actual findings:
+  - MO privacy at 086a8be: internal inspect/export/erase, GSI2, project
+    context + permissions + internal secret, PREVIEW/EXECUTE, partial status.
+    inspect has no pagination; no receipts/operation persistence; no backup/S3
+    purge. Historical destroy evidence is contradictory; no running privacy
+    instance is assumed.
+  - RIS G5 erasure covers credentials/API profiles/non-terminal work/current
+    S3 objects/UserProfile only. Partner profiles, S3 versions, cursor/
+    idempotency/capacity/lifecycle records, Cognito, jobsearches, terminal
+    work and backups are not covered.
+  - New contract module agents/ecosystem/privacy_receipt.py: versioned
+    PrivacyReceiptV1, strict identity/event/evidence/status validation,
+    forbidden-content rejection, 8KiB bound. No API/storage/erasure.
+  - 30 new receipt contract tests; 46 existing privacy tests and 684 total
+    local tests pass (6 planned R08-A/B/C skips). 33 DynamoDB Local included.
+  - Docs: data inventory, legal/transparency matrix, receipt contract,
+    capability contract, user view spec, R08 roadmap.
+  - R08-A GO technical with legal/retention/storage conditions; production
+    privacy release BLOCKED by legal review, R08-C erasure and R08-D.
+Evidence / file references:
+  - agents/ecosystem/privacy_receipt.py
+  - tests/test_privacy_receipt_contract.py
+  - docs/privacy/PRIVACY_RECEIPT_V1.md
+  - docs/privacy/RIS_PRIVACY_CAPABILITY_CONTRACT.md
+  - docs/privacy/RIS_PRIVACY_DATA_INVENTORY_V1.md
+  - docs/privacy/LEGAL_TRANSPARENCY_MATRIX.md
+  - docs/reports/RIS-R08-G0-PRIVACY-CAPABILITY-AND-EVIDENCE.md
+Classification: AMBER - contract ready, legal/erasure gaps open
+Current resume point:
+  - R08-A can start; production release remains blocked. No AWS mutation.
+
+[RIS-R08-A1-PRIVACY-RECEIPT-STORAGE]
+Current status: COMPLETE (repository + infrastructure) - production writes fail-closed.
+Audit date/time: 2026-10-31
+Actual findings:
+  - Baseline: branch feature/ris-partner-profile-persistence-v1, HEAD a38c510,
+    clean tracked tree, 39 untracked unchanged. No AWS calls/mutations.
+  - Storage decision: dedicated DynamoDB table
+    ${project}-${env}-privacy-receipts instead of a partner-profiles
+    namespace. PK receiptId, GSI gsi-subject (scopeKey HASH, scopeSort RANGE),
+    PAY_PER_REQUEST, no TTL. Separate IAM, retention and deletion domain; no
+    interaction with the 10/2/5 capacity counters, cursors or idempotency.
+  - scopeKey = SHA256(tenantRef|partnerApplicationRef|issuerRef|subjectRef);
+    scopeSort = recordedAt#receiptId. No raw identity tuple in keys and no
+    hierarchy/parentId.
+  - agents/ecosystem/privacy_receipt_journal.py: append_receipt/get_receipt/
+    list_receipts. Server-set recordedAt, conditional PutItem
+    (attribute_not_exists), contentHash excludes recordedAt, identical replay
+    returns the stored receipt, same ID with different payload raises
+    PrivacyReceiptConflict, no update/delete API, no scan in the normal path.
+  - Exact cross-user/tenant/partner/issuer isolation from verified context;
+    foreign or missing receipts map to NotFound. Pagination uses the R07 secure
+    cursor store (scope privacy-receipts, resource PrivacyReceipt, parent
+    scopeKey); invalid/foreign cursors raise InvalidCursor.
+  - IAM lambda_privacy_receipts allows only PutItem/GetItem/Query. Terraform
+    provisions the table, GSI, table name/ARN and root outputs; Lambda env sets
+    PRIVACY_RECEIPTS_TABLE and PRIVACY_RECEIPT_JOURNAL_ENABLED="false".
+  - Contract: added USER_PROFILE_UPDATED, PRIVACY_NOTICE_ACKNOWLEDGED (requires
+    notice version/digest) and PROFILE_DELETED. CONSENT_* already existed.
+    32 contract tests pass.
+  - Tests: 26 new journal unit/contract tests + 6 new DynamoDB Local tests
+    (39 local total). Full local regression with DynamoDB Local:
+    718 passed, 6 skipped (planned R08-A/B/C), 256 subtests.
+  - Terraform fmt -check on changed files PASS; terraform validate PASS with
+    only pre-existing warnings; git diff --check PASS.
+  - DynamoDB Local stopped, port 18000 closed, no test tables left.
+  - Docs: PRIVACY_RECEIPT_JOURNAL.md, updated PRIVACY_RECEIPT_V1.md event table,
+    R08_ROADMAP, capability contract, data inventory and this auditlog.
+  - Browser boundary: X-Api-Credential is a confidential ris_... bearer secret
+    (32 random bytes, SHA-256 lookup digest) and must never be in browser code,
+    localStorage, VITE_* or public config. Existing dual-auth retained; a
+    Jobsearch BFF/delegation or separate end-user auth gate is the documented
+    later option. No new browser auth implemented.
+Evidence / file references:
+  - agents/ecosystem/privacy_receipt_journal.py
+  - agents/ecosystem/privacy_receipt.py
+  - tests/test_privacy_receipt_journal.py
+  - tests/integration/test_partner_profile_dynamodb_local.py
+  - terraform/modules/dynamodb/main.tf
+  - terraform/modules/lambda/main.tf
+  - docs/privacy/PRIVACY_RECEIPT_JOURNAL.md
+  - docs/reports/RIS-R08-A1-PRIVACY-RECEIPT-STORAGE.md
+Classification: AMBER - storage ready, production writes and R08-A2 blocked
+Current resume point:
+  - Retention/legal policy approval required before enabling the journal.
+  - R08-A2 atomic emission and R08-B/C/D not started; R07-B remains BLOCKED.
+  - No AWS mutation, no deploy/apply/destroy.
+
+[RIS-R08-JM-G0-JOBSEARCH-V1-CONTRACT-MATRIX]
+Current status: COMPLETE (analysis only) - contract differences specified, no implementation.
+Audit date/time: 2026-11-01
+Actual findings:
+  - Baseline: RIS feature/ris-partner-profile-persistence-v1 @ 7d89e9e, clean
+    tracked tree, 39 untracked unchanged. Jobsearch remote main c787feaf
+    verified via git ls-remote; local origin/main was 0129559 and the checkout
+    feature/arbeit @ c7f8eb6. GitHub compare 0129559...c787feaf lists 78 files,
+    none under docs/contracts, so the read contract artifacts match the
+    reported main. No Jobsearch writes, no AWS calls/mutations.
+  - Endpoint inventory: partner profile CRUD exists under
+    /v1/partner/me/{manual-search-profiles,cvs,search-profiles/...}; UserProfile
+    exists under /me/profile. No privacy.inspect/export/receipts/request_status
+    API exists yet.
+  - Compatible: ManualSearchProfileV1, CVSearchProfileV1, ATSSearchProfileV1
+    (including serializer ID normalization and version), SearchConfigurationV1
+    and MatchingPreferencesV1. Fixture probes show exact roundtrip for skills
+    phrases, nullable radiusKm, multi work modes and employment types; unknown
+    fields and ATS scores/prompts are rejected.
+  - P0 gaps: UserProfile lacks schemaVersion/version, uses status ACTIVE instead
+    of active, PUT without expected version, and is JWT-only rather than
+    partner-credential-scoped. CVDocument uses name/size instead of
+    filename/sizeBytes, does not guarantee contentType/documentId/size>=1, has
+    incompatible status values (upload_pending/error/delete_failed vs
+    pending/ready/failed/deleted), and creates metadata before the upload
+    instead of accepting documentId at create.
+  - P0 security finding: POST /me/documents returns a document key (S3 object
+    key) plus docId/expiresIn while OpenAPI declares documentId/expiresAt and
+    no key. The Jobsearch contract forbids S3 keys in profile metadata.
+  - P1 gaps: error envelope and capacity_exceeded are not distinguishable;
+    success envelope {data,meta} is absent; CV list omits nextCursor; version
+    transport is body/query version vs expectedVersion/If-Match; route base
+    /api/v1/me vs /v1/partner/me needs an adapter/facade decision.
+  - No backend or Jobsearch change; findings are assigned to G03/G04/G06/G11.
+Evidence / file references:
+  - docs/reports/RIS-JOBSEARCH-V1-CONTRACT-MATRIX.md
+  - lambda/handler.py
+  - jobsearch/partner_profile_contract.py
+  - docs/API/openapi-platform.yaml
+  - Jobsearch docs/contracts/JOBMATCHER-PROFILE-DATA-CONTRACT-V1.md
+  - Jobsearch docs/contracts/JOBMATCHER-PROFILE-REPOSITORY-CONTRACT-V1.md
+  - Jobsearch docs/contracts/MAYS-RIS-PROFILE-PERSISTENCE-01-HANDOFF.md
+Classification: AMBER - contract specified, P0 compatibility work open
+Current resume point:
+  - R08-POLICY-01 (retention/legal) and R08-P1-1 (UserProfile/CVDocument) are
+    the next gates. R08-A2/B/C/D, R07-B and Jobsearch handoff not started.
+  - No AWS mutation, no deploy/apply/destroy.
+
+[RIS-R08-POLICY-01-PRIVACY-DECISION-GATE]
+Current status: COMPLETE (analysis/documentation) - policy approval and production storage BLOCKED.
+Audit date/time: 2026-11-01
+Actual findings:
+  - Baseline: RIS feature/ris-partner-profile-persistence-v1 @ d087cc7, clean
+    tracked tree, 39 untracked preserved. Jobsearch main c787feaf was read-only;
+    no Jobsearch/Vercel/Orders/AWS changes.
+  - Processing purposes P-01 through P-10 are specified separately. Durable
+    RIS storage is distinct from browser CV extraction, session state and
+    optional /api/profile AI processing. â€œIn meinem Konto speichernâ€ is an
+    explicit product action, not automatically an Art. 7 consent record.
+  - No blanket Art. 6 basis was assigned. Art. 6(1)(b), (a), (f) and (c)
+    remain per-purpose candidates subject to factual/legal review. CVs may
+    contain Art. 9 special-category data; no general production approval is
+    possible without a separate Art. 9 assessment.
+  - Retention matrix covers UserProfile, CV metadata/PDF/current versions,
+    S3 versions/delete markers, Manual/CV/ATS profiles, receipts, idempotency,
+    cursors, counters/guards, logs, CloudTrail and backups. Observed technical
+    facts: cursor 15 minutes, idempotency 24 hours, no general profile/counter
+    TTL, no receipt TTL, S3 versioning enabled without lifecycle rule observed.
+  - PrivacyReceiptV1 retention is separate from CV retention and has no final
+    duration. No indefinite retention by convenience; no receipt TTL and no
+    production journal writes. Journal flag remains false.
+  - P0 F-JM-13 remains open: POST /me/documents returns an internal S3 key and
+    docId/expiresIn while OpenAPI says documentId/expiresAt. No fix in this
+    documentation gate; R08-P1-1 remains responsible.
+  - G5 erasure gaps remain: partner profile descendants, S3 versions/markers,
+    technical records, Cognito, complete paginated work cancellation,
+    receipt treatment, backups/PITR and F-5 legacy reconciliation.
+  - Added four privacy/policy specifications, the R08-POLICY-01 report and
+    documentation guard tests. No production or backend implementation change.
+  - Tests: targeted policy/privacy/contract set 137 passed, 250 subtests.
+    Full RIS regression: 684 passed, 45 skipped, 256 subtests. Skips include
+    planned R08 capabilities and unavailable local integration prerequisites.
+  - git diff --check PASS. No AWS access, apply, destroy or deployment.
+Evidence / file references:
+  - docs/privacy/RIS-JOBSEARCH-PROCESSING-PURPOSES-V1.md
+  - docs/privacy/RIS-JOBSEARCH-RETENTION-POLICY-V1.md
+  - docs/privacy/RIS-JOBSEARCH-PRIVACY-NOTICE-DRAFT-V1.md
+  - docs/privacy/RIS-PRIVACY-RECEIPT-RETENTION-DECISION.md
+  - docs/reports/RIS-R08-POLICY-01-PRIVACY-DECISION-GATE.md
+  - tests/test_r08_policy_decision_gate.py
+Classification: AMBER - technically documented, legal/retention and P1-1 gaps open
+Current resume point:
+  - R08-P1-1 is BLOCKED by contract/security gaps. R08-A2 policy enablement is
+    BLOCKED / REVIEW_REQUIRED. R08-B/C/D and R07-B remain not started.
+  - No production journal activation, no deploy/apply/destroy.
+
+[R08-P1-1 / P0-1 CANONICAL USER & CV CONTRACT]
+Status: COMPLETE (contract-only); runtime P0-2/P0-3 remains open.
+Date: 2026-11-01
+- Baseline checked: feature/ris-partner-profile-persistence-v1 @ b76adfa; tracked
+  tree clean; the existing 39 untracked files were not modified.
+- Finalized canonical UserProfileV1 projection: schemaVersion 1, lowercase
+  active/disabled/pending status, server-authoritative identity/email, version,
+  PATCH/expectedVersion/If-Match contract and 409 stale-version requirement.
+- Finalized canonical CVDocumentV1 projection: cvId distinct from documentId,
+  filename/sizeBytes, application/pdf, pending/ready/failed/deleted, allow-listed
+  metadata and explicit legacy name/size/status mappings.
+- Finalized public upload-ticket DTO: server-owned documentId, expiresAt and
+  requiredHeaders; internal S3 keys rejected. Existing legacy runtime ticket is
+  deliberately unchanged and assigned to P0-2.
+- Added synthetic fixtures, positive/negative contract tests and synchronized
+  OpenAPI schemas without advertising an unimplemented PATCH runtime route.
+- Tests: P0-1 targeted 117 passed, 250 subtests; broader partner/API contract
+  regression 575 passed, 256 subtests; git diff --check PASS.
+- No handler, AWS, deployment, Jobsearch, Orders or receipt-journal changes.
+Resume: P0-2 GO for local document-API implementation; BLOCKED for AWS-E2E/
+product release until runtime projection, ownership and no-S3-key tests pass.
+
+[RIS-R08-P1-1 / P0-2 DOCUMENT API SECURITY]
+Status: COMPLETE for document response security; product/AWS release remains blocked.
+Date: 2026-11-01
+- Baseline: feature/ris-partner-profile-persistence-v1 @ 95fe85aa; 39 existing
+  untracked files preserved.
+- Closed F-JM-13: legacy and partner document upload/download DTOs no longer
+  expose S3 keys, bucket paths or expiresIn. Public tickets use documentId,
+  upload/download URL, absolute expiresAt and requiredHeaders for uploads.
+- Removed tenant/default fallback. Legacy /me/documents now requires a tenant
+  resolved from verified JWT/registry context and denies missing/conflicting
+  context; user/tenant are not taken from request bodies.
+- Presigned URLs remain short-lived transport. Partner application, issuer,
+  tenant, parent-chain and ownership checks remain in the partner routes.
+- Added authorization, no-key, ticket-shape and OpenAPI/runtime regression
+  coverage. No AWS, Jobsearch, Orders or receipt-journal changes.
+- Tests: targeted 114 passed, 250 subtests; full RIS selection 695 passed,
+  45 skipped, 256 subtests. No runtime logs contain URLs, keys, JWTs or creds.
+Next: P0-3 GO for local implementation; AWS-E2E/product release remains blocked
+by subsequent profile/CV lifecycle and erasure gates.
+
+[RIS-R08-P1-1 / P0-3 USERPROFILE PATCH & VERSIONING]
+Status: COMPLETE for local runtime/contract gate; release remains blocked.
+Date: 2026-11-01
+- Baseline: feature/ris-partner-profile-persistence-v1 @ 9802b67cbfd1d04cca9fdd2eadb4453cfdc9fbbb; 39 existing untracked files preserved.
+- Added canonical UserProfileV1 GET/create projection with schemaVersion 1, version, normalized status, server-authoritative identity/email and timestamps.
+- Added PATCH /me/profile. Only nickname, firstName and lastName are mutable. expectedVersion/If-Match is required (428 missing, 400 malformed/conflicting, 409 stale).
+- DynamoDB update is atomic and conditional on user, resolved tenant and version; legacy versionless rows read as version 1 and migrate to version 2 in the same conditional write.
+- Forged identity, tenant, email, status, roles and unknown fields cannot mutate profiles. PUT remains a versioned compatibility alias.
+- OpenAPI/API standard, route inventory and focused concurrency/legacy/security tests synchronized. No AWS, deployment, Orders, CV lifecycle or receipt-journal changes.
+- Tests: focused 83 passed, 252 subtests; RIS regression 731 passed, 45 skipped, 258 subtests.
+Next: P0-4 GO for local implementation; CVDocument lifecycle and release gates remain blocked.
+
+[RIS-R08-P1-1 / P0-4 CVDOCUMENT V1 NORMALIZATION]
+Status: COMPLETE for local response/validation gate; release remains blocked.
+Date: 2026-11-01
+- Baseline: feature/ris-partner-profile-persistence-v1 @ b8d48e9; 39 existing untracked files preserved.
+- Partner CV create/get/list/update responses now project schemaVersion 1, cvId, distinct documentId, filename, PDF contentType, canonical status, timestamps and version. Legacy name remains input-compatible but is never emitted.
+- upload_pending -> pending and error/delete_failed -> failed; no unverified row becomes ready. sizeBytes is emitted only for ready rows after the existing HeadObject verification path.
+- Metadata allowlist is pageCount/language; unknown metadata and unsupported CV payload fields are rejected. Existing repository, capacity guard, ownership and partner/issuer isolation remain unchanged.
+- No S3 keys/URLs or internal repository fields are exposed. No P0-5 lifecycle, AWS, Orders, CV persistence rewrite or receipt-journal changes.
+- Tests: focused 115 passed, 252 subtests; RIS regression 735 passed, 45 skipped, 258 subtests. DynamoDB Local unavailable; local atomic/capacity harness evidence recorded in report.
+Next: P0-5 GO for local implementation; DynamoDB Local/E2E and release remain blocked until available and approved.
+
+[RIS-R08-P1-1 / P0-5 CV UPLOAD COMPLETION & OWNERSHIP]
+Status: COMPLETE for local completion-verification gate; release remains blocked.
+Date: 2026-11-01
+- Baseline: feature/ris-partner-profile-persistence-v1 @ 9079863; 39 existing untracked files preserved.
+- Existing Create -> server-derived presign -> S3 PUT -> Complete flow retained. Complete now validates stored document binding, optional documentId echo, HeadObject existence, positive size and application/pdf before ready/sizeBytes.
+- User/tenant/partner/issuer ownership remains repository-bound; client ids never build S3 keys. Repeated Complete is idempotent; concurrent delete conflict releases its temporary reservation.
+- Missing, empty, wrong-content-type and mismatched objects remain non-ready. Public responses/logs contain no S3 keys or secrets. Existing delete report retains versionId/delete-marker classification; receipt journal remains disabled.
+- OpenAPI resolves pending-vs-ready sizeBytes semantics. No AWS, deployment, Orders, Jobsearch or general erasure changes.
+- Tests: focused 83 passed, 252 subtests; RIS regression 738 passed, 45 skipped, 258 subtests. DynamoDB Local unavailable; local conditional/ownership harness gap documented.
+Next: P1-6 GO for local implementation; release remains blocked pending privacy/erasure decisions and AWS-equivalent verification.
+
+[RIS-R08-P1-1 / P1-6 PAGINATION & API ERROR CONTRACT]
+Status: COMPLETE for local adapter-compatibility gate; release remains blocked.
+Date: 2026-11-01
+- Baseline: feature/ris-partner-profile-persistence-v1 @ f241852; 39 existing untracked files preserved.
+- GET /v1/partner/me/cvs now returns {items,nextCursor}, uses the existing scoped server-side cursor and repository GSI query, validates limit 1..50, and rejects invalid/foreign/expired cursors without scans.
+- Flat {error} envelopes remain for client compatibility; stable codes distinguish unauthorized, forbidden, not_found, validation, conflict, capacity_exceeded and unavailable. No data/meta wrapper added and no internal details exposed.
+- CV PATCH accepts expectedVersion and If-Match while retaining legacy version; stale writes remain 409. P0-2 through P0-5 security/lifecycle behavior retained.
+- Pending CV responses omit unverified sizeBytes; ready responses expose sizeBytes only after HeadObject verification. OpenAPI/API standard synchronized.
+- Tests: focused 117 passed, 252 subtests; RIS regression 741 passed, 45 skipped, 258 subtests. DynamoDB Local unavailable; local cursor/conditional/capacity harness gap documented.
+Next: P1-7 GO for local implementation; AWS-equivalent verification and release remain blocked.
+
+[RIS-R08-P1-1 / P1-7 JOBSEARCH V1 LOCAL INTEGRATION ACCEPTANCE]
+Status: BLOCKED for formal acceptance; local implementation gate is GO.
+Date: 2026-11-01.
+- Baseline verified: feature/ris-partner-profile-persistence-v1 @ 0fb50467ecf9f5112d40c0843886d783b71f890e; 39 pre-existing untracked files preserved.
+- Reviewed P0-1 through P1-6 reports and Jobsearch-v1 fixtures. UserProfile, CV lifecycle, ManualSearchProfile, CVSearchProfile, ATSSearchProfile, pagination, isolation, capacity (10/2/5), conflicts, idempotency, negative security, OpenAPI parity, and sensitive-data absence passed through RIS local harnesses.
+- Regression: 741 passed, 45 skipped, 258 subtests; py_compile and git diff --check passed.
+- Skip grouping: 39 DynamoDB Local tests skipped because RIS_TEST_DYNAMODB_ENDPOINT is unset; 6 planned privacy/receipt capability tests skipped by explicit out-of-scope markers. DynamoDB Local is a separate unverified infrastructure gap, not a PASS.
+- Known upstream contract gap remains: Jobsearch-v1 currently requires pending CV sizeBytes, while RIS omits it until verified ready state. No fabricated size emitted; Jobsearch handoff BLOCKED pending adapter/schema fix gate.
+- Decisions: R08-PROFILES-01 BLOCKED for formal acceptance; RIS local implementation GO. No Jobsearch/Orders changes, AWS/deployment, erasure, or receipt-journal activation.
+Report: docs/reports/RIS-R08-P1-1-P1-7-LOCAL-INTEGRATION-ACCEPTANCE.md
+
+[RIS-R08-P1-7A DYNAMODB LOCAL VERIFICATION]
+Status: BLOCKED â€” no local DynamoDB test environment available.
+Date: 2026-11-01.
+- Git HEAD remained 0fb50467; existing uncommitted P1-7 report retained; original 39 untracked files preserved.
+- Existing harness reviewed: it requires explicit loopback RIS_TEST_DYNAMODB_ENDPOINT, rejects AWS/non-loopback endpoints, uses isolated ris-r07g0-* tables and static local-only credentials.
+- Host checks: Docker not found, Java not found, endpoint unset, and no DynamoDB Local runner/JAR exists in the repository. No external download/install performed.
+- Actual integration command: pytest tests/integration/test_partner_profile_dynamodb_local.py -q -rs -> 39 skipped, all due to RIS_TEST_DYNAMODB_ENDPOINT being unset. No PASS claimed and no temporary test resources created.
+- P1-7A STOPP: rerun only when an approved existing loopback DynamoDB Local endpoint is available. Pending sizeBytes contract remains unchanged.
+
+[RIS-R08-P1-7B CVDOCUMENT SIZE CONTRACT RECONCILIATION]
+Status: RIS-side contract reconciled; Jobsearch handoff remains BLOCKED pending upstream schema change.
+Date: 2026-11-01.
+- CVDocument contract now treats sizeBytes by status: pending optional/omitted, ready required positive and S3-verified, failed/deleted omitted without fabricated values.
+- RIS runtime S3 verification was not weakened or changed; only the local RIS contract projection, fixture, tests, and OpenAPI status branches were updated.
+- Target Jobsearch-v1 change: replace unconditional sizeBytes requirement with pending/ready/terminal status branches; ready retains integer minimum 1. Jobsearch source was not modified.
+- Tests: focused 125 passed; full available RIS regression 745 passed, 45 skipped, 258 subtests. The 39 DynamoDB Local tests remain BLOCKED/skipped because RIS_TEST_DYNAMODB_ENDPOINT is unset.
+- py_compile and git diff --check passed.
+
+
+[RIS-R08-P1-7C JOBSEARCH CONTRACT ACCEPTANCE]
+Status: Contract acceptance GO; DynamoDB Local integration remains BLOCKED.
+Date: 2026-11-01.
+- Verified RIS feature/ris-partner-profile-persistence-v1 @ 3d768f2, tracked-clean with 39 pre-existing untracked files. Verified read-only Jobsearch feature/arbeit @ 0c978278, tracked-clean.
+- Jobsearch CVDocumentV1 now matches RIS: pending optional sizeBytes, ready required positive sizeBytes, failed/deleted optional; CreateCVInput size remains a client-declared hint.
+- Direct fixture checks: ready roundtrip PASS, pending-without-size roundtrip PASS, ready-without-size rejection PASS. Focused RIS suite 125 passed; repeated RIS selection 745 passed, 45 skipped, 258 subtests.
+- Separate boundaries: 39 DynamoDB Local tests remain skipped because RIS_TEST_DYNAMODB_ENDPOINT is unset; six planned privacy/receipt tests remain skipped. Jobsearch full suite had 825 passed, 5 skipped, 3 unrelated environment/build-identity failures.
+- Decisions: contract GO; DynamoDB integration BLOCKED; privacy DEFERRED; Jobsearch size-contract handoff READY; R08-PROFILES-01 BLOCKED only for full readiness pending DynamoDB Local.
+- Report: docs/reports/RIS-R08-P1-1-P1-7-LOCAL-INTEGRATION-ACCEPTANCE.md

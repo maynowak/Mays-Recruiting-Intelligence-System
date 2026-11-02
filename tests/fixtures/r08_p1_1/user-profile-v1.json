@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "userId": "user-synthetic-001",
+  "tenantId": "tenant-synthetic-001",
+  "nickname": "Ada",
+  "firstName": "Ada",
+  "lastName": "Example",
+  "email": "ada@example.invalid",
+  "status": "active",
+  "createdAt": "2026-11-01T12:00:00Z",
+  "updatedAt": "2026-11-01T12:00:00Z",
+  "version": 3
+}

@@ -42,6 +42,16 @@ variable "jobsearch_table_arn" {
   type        = string
 }
 
+variable "partner_profiles_table_name" {
+  description = "DynamoDB table name for partner profile persistence (R02). Absent means profile CRUD fails closed."
+  type        = string
+}
+
+variable "partner_profiles_table_arn" {
+  description = "DynamoDB table ARN for partner profile persistence (R02). Grants the runtime role read/write access to profile resources and capacity counters."
+  type        = string
+}
+
 variable "user_profile_table_name" {
   description = "DynamoDB table name for user profiles"
   type        = string
@@ -146,6 +156,56 @@ variable "log_level" {
   description = "Log level for Lambda"
   type        = string
   default     = "INFO"
+}
+
+variable "privacy_receipts_table_name" {
+  description = "DynamoDB table name for the privacy receipt journal (R08-A1)"
+  type        = string
+}
+
+variable "privacy_receipts_table_arn" {
+  description = "DynamoDB table ARN for the privacy receipt journal (R08-A1)"
+  type        = string
+}
+
+variable "erasure_operations_table_name" {
+  description = "DynamoDB table name for durable erasure operation state (R08-C0B)"
+  type        = string
+}
+
+variable "erasure_operations_table_arn" {
+  description = "DynamoDB table ARN for durable erasure operation state (R08-C0B)"
+  type        = string
+}
+
+variable "s3_erasure_phases_table_name" {
+  description = "DynamoDB table name for fenced S3 erasure phases (R08-C0F)"
+  type        = string
+}
+
+variable "s3_erasure_phases_table_arn" {
+  description = "DynamoDB table ARN for fenced S3 erasure phases (R08-C0F)"
+  type        = string
+}
+
+variable "upload_ticket_ledger_table_name" {
+  description = "DynamoDB table name for the CV upload-ticket ledger (R08-C0F-2C)"
+  type        = string
+}
+
+variable "upload_ticket_ledger_table_arn" {
+  description = "DynamoDB table ARN for the CV upload-ticket ledger (R08-C0F-2C)"
+  type        = string
+}
+
+variable "upload_cutover_table_name" {
+  description = "DynamoDB table name for legacy upload cutover evidence (R08-C0F-2D)"
+  type        = string
+}
+
+variable "upload_cutover_table_arn" {
+  description = "DynamoDB table ARN for legacy upload cutover evidence (R08-C0F-2D)"
+  type        = string
 }
 
 variable "tags" {

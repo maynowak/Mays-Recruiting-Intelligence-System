@@ -96,6 +96,7 @@ IMPERATIVE_ONLY_ROUTES = {
     "POST /me/documents",
     "GET /me/documents/{docId}",
     "DELETE /me/documents/{docId}",
+    "PATCH /me/profile",
 }
 
 
@@ -176,20 +177,52 @@ class TestTerraformRouteInventory(unittest.TestCase):
 
         Gate-02 P2C: 32 -> 33 durch genau EINE echte Route
         (`DELETE /me/profile`). Gate-05: 33 -> 34 durch genau EINE weitere
-        (`POST /me/erasure`). Keine Magic-Number-Aktualisierung: die
-        Aufteilung wird per terraform_routes() nachgezaehlt und die jeweils
-        hinzugefuegte Route mitgeprueft, damit eine stille Ruecknahme nicht
-        durchgeht.
+        (`POST /me/erasure`). R03: 35 -> 40 durch die fuenf expliziten
+        Partner-Manual-Search-Profile-Routen. R04: 40 -> 48 durch die acht
+        expliziten Partner-CV-/Dokument-Routen. R05-B: 48 -> 53 durch die
+        fuenf expliziten CVSearchProfile-Routen. R06: 53 -> 58 durch die fuenf
+        expliziten ATS-Search-Profile-Routen. Keine Magic-Number-
+        Aktualisierung: die Aufteilung wird per terraform_routes()
+        nachgezaehlt und die jeweils hinzugefuegten Routen mitgeprueft, damit
+        eine stille Ruecknahme nicht durchgeht.
         """
         routes = terraform_routes()
-        self.assertEqual(35, len(routes))
-        self.assertEqual(31, sum(1 for v in routes.values()
+        self.assertEqual(60, len(routes))
+        self.assertEqual(56, sum(1 for v in routes.values()
                                  if v["target"] == "agent"))
         self.assertEqual(4, sum(1 for v in routes.values()
                                 if v["target"] == "orders"))
         # Die Routen, die den Zaehler verschoben haben, muessen existieren.
         self.assertIn("DELETE /me/profile", routes)
         self.assertIn("POST /me/erasure", routes)
+        self.assertIn("GET /v1/partner/me/privacy/inspect", routes)
+        self.assertIn("GET /v1/partner/me/privacy/export", routes)
+        for route in (
+            "GET /v1/partner/me/manual-search-profiles",
+            "POST /v1/partner/me/manual-search-profiles",
+            "GET /v1/partner/me/manual-search-profiles/{profileId}",
+            "PUT /v1/partner/me/manual-search-profiles/{profileId}",
+            "DELETE /v1/partner/me/manual-search-profiles/{profileId}",
+            "GET /v1/partner/me/cvs",
+            "POST /v1/partner/me/cvs",
+            "GET /v1/partner/me/cvs/{cvId}",
+            "PATCH /v1/partner/me/cvs/{cvId}",
+            "DELETE /v1/partner/me/cvs/{cvId}",
+            "POST /v1/partner/me/cvs/{cvId}/document/upload",
+            "POST /v1/partner/me/cvs/{cvId}/document/complete",
+            "GET /v1/partner/me/cvs/{cvId}/document",
+            "GET /v1/partner/me/cvs/{cvId}/search-profiles",
+            "POST /v1/partner/me/cvs/{cvId}/search-profiles",
+            "GET /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}",
+            "PUT /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}",
+            "DELETE /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}",
+            "GET /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles",
+            "POST /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles",
+            "GET /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles/{atsSearchProfileId}",
+            "PUT /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles/{atsSearchProfileId}",
+            "DELETE /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles/{atsSearchProfileId}",
+        ):
+            self.assertIn(route, routes)
 
     def test_offer_routes_are_documented(self):
         """P23-01: alle sieben offer-Routen stehen im kanonischen Vertrag."""
@@ -431,9 +464,9 @@ class TestDocumentedRoutesReachHandlerCode(unittest.TestCase):
             return (method, path.rstrip("/") or "/") in exposed
 
         self.assertTrue(_exposed("GET", "/me/profile"))
-        # PATCH existiert auf keinem /me/profile-Pfad: eine GET-Route
-        # darf das nicht decken.
-        self.assertFalse(_exposed("PATCH", "/me/profile"))
+        # PATCH is an explicit imperative profile route; a GET route alone
+        # would not cover it.
+        self.assertTrue(_exposed("PATCH", "/me/profile"))
         self.assertFalse(_exposed("TRACE", "/me"))
         # Gegenprobe: die imperative documents-Route IST methoden-spezifisch
         # erkannt, obwohl sie in keiner .tf steht.

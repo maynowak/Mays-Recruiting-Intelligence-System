@@ -239,9 +239,12 @@ def check_arn_id_contract(terraform_dir: Path) -> None:
     - authorizer_id = module.api.authorizer_id
     """
     main_tf = (terraform_dir / "main.tf").read_text(encoding="utf-8")
+    # Conditional module instances use [0]; normalize only for this static
+    # contract check, never for the Terraform source that is executed.
+    contract_tf = main_tf.replace("module.mays_orders[0].", "module.mays_orders.")
 
     # Teile main.tf in module-Blocks auf
-    module_blocks = _split_into_module_blocks(main_tf)
+    module_blocks = _split_into_module_blocks(contract_tf)
 
     # Prüfe jeden module-Block auf Vermischung von RIS- und MO-API-IDs
     for block_name, block_content in module_blocks:
@@ -278,8 +281,13 @@ def check_arn_id_contract(terraform_dir: Path) -> None:
     ]
 
     for consumer_input, expected_output in required_bindings:
-        pattern = rf"{re.escape(consumer_input)}\s*=\s*{re.escape(expected_output)}"
-        if not re.search(pattern, main_tf):
+        # G2C-6 lifecycle wiring may select the managed output conditionally:
+        #   input = local.orders_managed ? module.mays_orders[0].output : var.external_...
+        # Keep the safety invariant that the managed branch references the
+        # expected output, without requiring the obsolete direct assignment.
+        assignment = rf"{re.escape(consumer_input)}\s*=\s*[^\n]*{re.escape(expected_output)}"
+        legacy_assignment = rf"{re.escape(consumer_input)}\s*=\s*{re.escape(expected_output)}"
+        if not re.search(assignment, contract_tf) and not re.search(legacy_assignment, contract_tf):
             raise RuntimeError(
                 f"Vertragsbruch: Consumer-Input '{consumer_input}' nicht mit "
                 f"erwartetem Output '{expected_output}' verdrahtet. "

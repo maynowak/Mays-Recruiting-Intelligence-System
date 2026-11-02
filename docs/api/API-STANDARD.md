@@ -64,7 +64,8 @@ weder entfernt noch durch Cognito ersetzt.
 | `GET /me` | JWT | 200 | — |
 | `GET /me/profile` | JWT | 200 | 404 (kein Profil), 403 (Tenant nicht auflösbar) |
 | `POST /me/profile` | JWT | 201 | 409 (existiert), 400 (kein JSON), 403 (Tenant nicht auflösbar) |
-| `PUT /me/profile` | JWT | 200 | 400 (kein v1-Feld), 404 (kein Upsert), 403 (Tenant nicht auflösbar) |
+| `PATCH /me/profile` | JWT | 200 | 400 (ungültige Payload/Version), 409 (stale version), 428 (Version fehlt), 403 (Tenant nicht auflösbar) |
+| `PUT /me/profile` | JWT | 200 | Legacy-Alias mit derselben Versionierung; 400/409/428/403 wie PATCH |
 | `DELETE /me/profile` | JWT | 204 | 401 (unauthentifiziert), 404 (kein Profil), 500 (Store) |
 | `POST /me/documents` | JWT | 200 (Presigned PUT) | 400, 500 |
 | `GET /me/documents/{docId}` | JWT | 200 (Presigned GET) | 400, 404, 500 |
@@ -112,6 +113,31 @@ Antwort 202: `{"workId": string, "status": string, "requestId": string}`
 | Route | Auth | Erfolg | Weitere Codes |
 |---|---|---|---|
 | `POST /v1/partner/agents/{agentId}/execute` | JWT **+** `X-Api-Credential` | 202 | 401, 403, 500, 503 |
+| `GET /v1/partner/me/privacy/inspect` | JWT **+** `X-Api-Credential` | 200 (`COMPLETE`/`PARTIAL`, per-category cursors) | 400, 401, 403, 422, 503 |
+| `GET /v1/partner/me/privacy/export` | JWT **+** `X-Api-Credential` | 200 (versioned JSON, metadata/file status) | 401, 403, 422 |
+| `GET /v1/partner/me/manual-search-profiles` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 500, 503 |
+| `POST /v1/partner/me/manual-search-profiles` | JWT **+** `X-Api-Credential` | 201 | 400, 401, 403, 409, 422, 500, 503 |
+| `GET /v1/partner/me/manual-search-profiles/{profileId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 500, 503 |
+| `PUT /v1/partner/me/manual-search-profiles/{profileId}` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 409, 422, 500, 503 |
+| `DELETE /v1/partner/me/manual-search-profiles/{profileId}` | JWT **+** `X-Api-Credential` | 204 | 401, 403, 404, 409, 422, 500, 503 |
+| `GET /v1/partner/me/cvs` | JWT **+** `X-Api-Credential` | 200 (`items`, `nextCursor`) | 400 (invalid cursor), 401, 403, 422 (invalid limit), 503 |
+| `POST /v1/partner/me/cvs` | JWT **+** `X-Api-Credential` | 201 | 400, 401, 403, 409, 422, 500, 503 |
+| `GET /v1/partner/me/cvs/{cvId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 500, 503 |
+| `PATCH /v1/partner/me/cvs/{cvId}` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 409, 422, 500, 503 |
+| `DELETE /v1/partner/me/cvs/{cvId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 409, 502, 500, 503 |
+| `POST /v1/partner/me/cvs/{cvId}/document/upload` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 409, 422, 500, 503 |
+| `POST /v1/partner/me/cvs/{cvId}/document/complete` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 409, 500, 503 |
+| `GET /v1/partner/me/cvs/{cvId}/document` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 409, 500, 503 |
+| `GET /v1/partner/me/cvs/{cvId}/search-profiles` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 500, 503 |
+| `POST /v1/partner/me/cvs/{cvId}/search-profiles` | JWT **+** `X-Api-Credential` | 201 | 400, 401, 403, 404, 409, 422, 500, 503 |
+| `GET /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 500, 503 |
+| `PUT /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 409, 422, 500, 503 |
+| `DELETE /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}` | JWT **+** `X-Api-Credential` | 204 | 401, 403, 404, 409, 422, 500, 503 |
+| `GET /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 500, 503 |
+| `POST /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles` | JWT **+** `X-Api-Credential` | 201 | 400, 401, 403, 404, 409, 422, 500, 503 |
+| `GET /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles/{atsSearchProfileId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 500, 503 |
+| `PUT /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles/{atsSearchProfileId}` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 409, 422, 500, 503 |
+| `DELETE /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles/{atsSearchProfileId}` | JWT **+** `X-Api-Credential` | 204 | 401, 403, 404, 409, 422, 500, 503 |
 
 Request-Body (alle Felder optional):
 `{"capability": string, "payload": object, "idempotencyKey": string}`

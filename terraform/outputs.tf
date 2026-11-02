@@ -20,6 +20,16 @@ output "dynamodb_work_items_table_name" {
   value       = module.dynamodb.work_items_table_name
 }
 
+output "dynamodb_privacy_receipts_table_name" {
+  description = "Name of the privacy receipt journal table (R08-A1)."
+  value       = module.dynamodb.privacy_receipts_table_name
+}
+
+output "dynamodb_privacy_receipts_table_arn" {
+  description = "ARN of the privacy receipt journal table (R08-A1)."
+  value       = module.dynamodb.privacy_receipts_table_arn
+}
+
 output "dynamodb_work_items_table_arn" {
   description = "ARN of the DynamoDB work items table."
   value       = module.dynamodb.work_items_table_arn
@@ -101,22 +111,32 @@ output "lambda_invoke_arn" {
 # ============================================================
 output "cognito_user_pool_id" {
   description = "ID of the Cognito User Pool."
-  value       = module.cognito.user_pool_id
+  value       = local.identity_managed ? module.cognito[0].user_pool_id : var.external_cognito_user_pool_id
 }
 
 output "cognito_user_pool_arn" {
   description = "ARN of the Cognito User Pool."
-  value       = module.cognito.user_pool_arn
+  value       = local.identity_managed ? module.cognito[0].user_pool_arn : var.external_cognito_user_pool_arn
 }
 
 output "cognito_user_pool_endpoint" {
   description = "Endpoint of the Cognito User Pool (JWT issuer)."
-  value       = module.cognito.user_pool_endpoint
+  value       = local.identity_managed ? module.cognito[0].user_pool_endpoint : replace(var.external_cognito_issuer, "https://", "")
 }
 
 output "cognito_user_pool_client_id" {
   description = "ID of the Cognito User Pool app client."
-  value       = module.cognito.user_pool_client_id
+  value       = local.identity_managed ? module.cognito[0].user_pool_client_id : var.external_cognito_human_client_id
+}
+
+output "identity_mode" {
+  description = "Identity ownership mode used by this stack."
+  value       = var.identity_mode
+}
+
+output "cognito_issuer" {
+  description = "JWT issuer used by the API authorizers."
+  value       = local.identity_managed ? "https://${module.cognito[0].user_pool_endpoint}" : var.external_cognito_issuer
 }
 
 # ============================================================
@@ -168,12 +188,17 @@ output "sqs_queues" {
 # ============================================================
 output "orders_reader_function_name" {
   description = "Name of the orders-reader Lambda (own order facade)."
-  value       = module.orders_reader.function_name
+  value       = local.orders_enabled ? module.orders_reader[0].function_name : null
 }
 
 output "orders_reader_function_arn" {
   description = "ARN of the orders-reader Lambda."
-  value       = module.orders_reader.function_arn
+  value       = local.orders_enabled ? module.orders_reader[0].function_arn : null
+}
+
+output "orders_lifecycle" {
+  description = "Orders lifecycle mode used by this stack."
+  value       = var.orders_lifecycle
 }
 
 # ============================================================

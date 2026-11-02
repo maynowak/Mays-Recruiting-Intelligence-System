@@ -55,12 +55,18 @@ class FakeTable:
     def update_item(self, Key, UpdateExpression, ConditionExpression=None,
                     ExpressionAttributeNames=None, ExpressionAttributeValues=None,
                     **kwargs):
-        if "attribute_exists(userId)" in (ConditionExpression or "") \
+        if ("attribute_exists(userId)" in (ConditionExpression or "") or
+                "attribute_exists(#userId)" in (ConditionExpression or "")) \
                 and Key["userId"] not in self.items:
             raise FakeTable.ConditionalFailed()
         item = self.items[Key["userId"]]
         names = ExpressionAttributeNames or {}
         values = ExpressionAttributeValues or {}
+        if names.get('#tenantId') and item.get(names['#tenantId']) != values.get(':tenantId'):
+            raise FakeTable.ConditionalFailed()
+        expected = values.get(':expectedVersion')
+        if expected is not None and item.get('version', expected) != expected:
+            raise FakeTable.ConditionalFailed()
         set_part = UpdateExpression[len("SET "):]
         for assign in set_part.split(","):
             left, right = [s.strip() for s in assign.split("=", 1)]
@@ -191,7 +197,8 @@ class TestProvision(unittest.TestCase):
         self.assertEqual(body["firstName"], "Gate")
         self.assertEqual(body["lastName"], "Ten")
         self.assertEqual(body["email"], "gate10@example.com")
-        self.assertEqual(body["status"], "ACTIVE")
+        self.assertEqual(body["status"], "active")
+        self.assertEqual(body["version"], 1)
         self.assertTrue(body["createdAt"])
         self.assertNotIn("username", body)
         self.assertNotIn("displayName", body)
@@ -261,9 +268,8 @@ class TestUpdate(unittest.TestCase):
         table = self._seeded()
         before = dict(table.items["user-111"])
         resp = handler._update_user_profile(
-            table, ctx(), {"nickname": "Neu", "userId": "user-FREMD",
-                           "tenantId": "tenant-FREMD", "createdAt": "2000-01-01",
-                           "email": "fremd@x.io", "status": "BLOCKED"})
+            table, ctx(), {"nickname": "Neu"}, expected_version=1,
+            tenant_id=TENANT)
         self.assertEqual(resp["statusCode"], 200)
         body = json.loads(resp["body"])
         self.assertEqual(body["nickname"], "Neu")
@@ -271,17 +277,20 @@ class TestUpdate(unittest.TestCase):
         self.assertEqual(body["tenantId"], "tenant-gate10")
         self.assertEqual(body["createdAt"], before["createdAt"])
         self.assertEqual(body["email"], "gate10@example.com")
-        self.assertEqual(body["status"], "ACTIVE")
+        self.assertEqual(body["status"], "active")
+        self.assertEqual(body["version"], 2)
         self.assertNotEqual(body["updatedAt"], before["updatedAt"])
 
     def test_update_missing_profile_404(self):
         table = FakeTable()
-        resp = handler._update_user_profile(table, ctx(), {"nickname": "X"})
+        resp = handler._update_user_profile(table, ctx(), {"nickname": "X"},
+                                            expected_version=1, tenant_id=TENANT)
         self.assertEqual(resp["statusCode"], 404)
 
     def test_update_empty_body_400(self):
         table = self._seeded()
-        resp = handler._update_user_profile(table, ctx(), {})
+        resp = handler._update_user_profile(table, ctx(), {}, expected_version=1,
+                                            tenant_id=TENANT)
         self.assertEqual(resp["statusCode"], 400)
 
     def test_update_unauthenticated_401(self):

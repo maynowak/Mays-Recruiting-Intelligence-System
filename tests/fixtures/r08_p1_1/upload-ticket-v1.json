@@ -1,0 +1,8 @@
+{
+  "documentId": "doc-synthetic-001",
+  "uploadUrl": "https://upload.invalid/synthetic",
+  "expiresAt": "2026-11-01T12:15:00Z",
+  "requiredHeaders": {
+    "Content-Type": "application/pdf"
+  }
+}

@@ -32,6 +32,144 @@ variable "tags" {
   default     = {}
 }
 
+variable "identity_mode" {
+  description = "Identity ownership mode. external uses supplied Cognito references only."
+  type        = string
+  default     = "managed"
+
+  validation {
+    condition     = contains(["managed", "external"], var.identity_mode)
+    error_message = "identity_mode must be either managed or external."
+  }
+}
+
+variable "external_cognito_user_pool_id" {
+  description = "Existing Cognito User Pool ID used in external identity mode."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.identity_mode == "managed" || can(regex("^${var.aws_region}_[A-Za-z0-9]+$", var.external_cognito_user_pool_id))
+    error_message = "external_cognito_user_pool_id is required and must match the regional pool ID format."
+  }
+}
+
+variable "external_cognito_account_id" {
+  description = "AWS account that owns the externally managed Cognito pool; may differ from the RIS deployment account."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.identity_mode == "managed" || can(regex("^[0-9]{12}$", var.external_cognito_account_id))
+    error_message = "external_cognito_account_id is required and must be a 12-digit AWS account ID in external mode."
+  }
+}
+
+variable "external_cognito_user_pool_arn" {
+  description = "Existing Cognito User Pool ARN used in external identity mode."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.identity_mode == "managed" || can(regex("^arn:aws:cognito-idp:${var.aws_region}:${var.external_cognito_account_id}:userpool/${var.external_cognito_user_pool_id}$", var.external_cognito_user_pool_arn))
+    error_message = "external_cognito_user_pool_arn must reference the supplied external pool in this region."
+  }
+}
+
+variable "external_cognito_issuer" {
+  description = "Complete HTTPS issuer URL for the externally managed Cognito pool."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.identity_mode == "managed" || can(regex("^https://cognito-idp\\.${var.aws_region}\\.amazonaws\\.com/${var.external_cognito_user_pool_id}$", var.external_cognito_issuer))
+    error_message = "external_cognito_issuer must be the HTTPS issuer for the supplied pool."
+  }
+}
+
+variable "external_cognito_human_client_id" {
+  description = "Existing human/browser Cognito app client ID."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.identity_mode == "managed" || can(regex("^[A-Za-z0-9]+$", var.external_cognito_human_client_id))
+    error_message = "external_cognito_human_client_id is required in external mode."
+  }
+}
+
+variable "external_cognito_m2m_client_id" {
+  description = "Existing M2M Cognito app client ID for the machine authorizer."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.identity_mode == "managed" || can(regex("^[A-Za-z0-9]+$", var.external_cognito_m2m_client_id))
+    error_message = "external_cognito_m2m_client_id is required in external mode."
+  }
+}
+
+variable "external_cognito_domain" {
+  description = "Optional external Cognito OAuth/discovery domain; never managed by this stack."
+  type        = string
+  default     = ""
+}
+
+variable "orders_lifecycle" {
+  description = "Orders lifecycle: managed, external, or disabled."
+  type        = string
+  default     = "managed"
+
+  validation {
+    condition     = contains(["managed", "external", "disabled"], var.orders_lifecycle)
+    error_message = "orders_lifecycle must be managed, external, or disabled."
+  }
+}
+
+variable "external_orders_table_name" {
+  description = "Existing Orders table name used only in external Orders mode."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.orders_lifecycle != "external" || can(regex("^[A-Za-z0-9_.-]+$", var.external_orders_table_name))
+    error_message = "external_orders_table_name is required in external Orders mode."
+  }
+}
+
+variable "external_orders_table_arn" {
+  description = "Existing Orders table ARN used only in external Orders mode."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.orders_lifecycle != "external" || can(regex("^arn:aws:dynamodb:${var.aws_region}:[0-9]{12}:table/[A-Za-z0-9_.-]+$", var.external_orders_table_arn))
+    error_message = "external_orders_table_arn is required and must be a DynamoDB table ARN in this region."
+  }
+}
+
+variable "external_orders_queue_url" {
+  description = "Existing Orders queue URL used only in external Orders mode."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.orders_lifecycle != "external" || can(regex("^https://sqs\\.${var.aws_region}\\.amazonaws\\.com/[0-9]{12}/[A-Za-z0-9_.-]+$", var.external_orders_queue_url))
+    error_message = "external_orders_queue_url is required and must be an SQS URL in this region."
+  }
+}
+
+variable "external_orders_queue_arn" {
+  description = "Existing Orders queue ARN used only in external Orders mode."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.orders_lifecycle != "external" || can(regex("^arn:aws:sqs:${var.aws_region}:[0-9]{12}:[A-Za-z0-9_.-]+$", var.external_orders_queue_arn))
+    error_message = "external_orders_queue_arn is required and must be an SQS ARN in this region."
+  }
+}
+
 # Gate 11: Identity-Mail-Konfiguration (per --var KEY=VALUE setzbar,
 # Re-Run faehig via Terraform State; keine Secrets — Betreff/Text sind
 # oeffentliche Anwendungstexte, Versand AWS-managed).
