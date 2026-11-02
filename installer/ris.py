@@ -455,6 +455,7 @@ PROJECT_CONFIG_DIR = "project-configs"
 PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
     "identity_mode",
     "external_cognito_user_pool_id",
+    "external_cognito_account_id",
     "external_cognito_user_pool_arn",
     "external_cognito_issuer",
     "external_cognito_human_client_id",

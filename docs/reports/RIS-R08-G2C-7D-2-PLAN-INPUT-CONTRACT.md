@@ -1,7 +1,7 @@
 # RIS-R08-G2C-7D-2 — Terraform Plan Input Contract
 
-**Status:** BOOTSTRAP CONTRACT READY / OFFLINE VALIDATION PASS /
-EXTERNAL IDENTITY INPUTS BLOCKED / TERRAFORM PLAN NOT AUTHORIZED
+**Status:** CROSS-ACCOUNT CONTRACT VERIFIED / OFFLINE VALIDATION PASS /
+OWNER-SIDE LIVE CONFIRMATION REQUIRED / TERRAFORM PLAN NOT AUTHORIZED
 
 ## State decision
 
@@ -27,9 +27,11 @@ key=env:/ris-dev2/dev/terraform.tfstate
 
 ## Intended plan inputs
 
-The intended isolated foundation uses `identity_mode=external`. Current live
-discovery did not produce an authorized current pool/client/issuer reference,
-so these values remain UNKNOWN and the future plan input is incomplete.
+The intended isolated foundation uses `identity_mode=external`. The external
+identity account is now an explicit separate input from the RIS deployment
+account. Current `ris-dev` references are usable as `RIS_DEV_CONFIG_VERIFIED`
+protected inputs, but still require authorized owner-side live confirmation
+before plan approval.
 `orders_lifecycle=disabled` is the preferred candidate because no current
 ris-dev2 Orders/API/runtime resources were found and the RIS Terraform core has
 no required Orders reader dependency. This remains subject to functional owner
@@ -48,9 +50,9 @@ URLs.
 | Lock table | DynamoDB read-only inventory | YES | No | protected, no write |
 | Workspace | bootstrap contract | YES as declaration | No | approval required |
 | Identity mode | Terraform/G2C-7C contract | YES: external supported | No | explicit input required |
-| Cognito pool ID/ARN | live target-account discovery | **NO / UNKNOWN** | No | BLOCKED |
-| Cognito issuer | live pool/OIDC evidence | **NO / UNKNOWN** | No | BLOCKED |
-| Human/M2M clients | live pool discovery | **NO / UNKNOWN** | No | BLOCKED |
+| Cognito pool ID/ARN | `ris-dev` deployment/configuration evidence | CONFIG VERIFIED; owner-side live check required | No | contract ready; plan gate pending |
+| Cognito issuer | `ris-dev` configuration + regional issuer contract | CONFIG VERIFIED; owner-side live check required | No | contract ready; plan gate pending |
+| Human/M2M clients | `ris-dev` deployment/configuration evidence | CONFIG VERIFIED; owner-side live check required | No | contract ready; plan gate pending |
 | Orders lifecycle | Terraform contract | YES: disabled candidate | No | owner confirmation required |
 | Orders external refs | not required for disabled | N/A | No | no dummy refs |
 | RIS resource names | Terraform modules/`ris-dev2` prefix | YES structurally | No | collision check at later gate |
@@ -79,9 +81,12 @@ The following are prohibited from the plan:
 ## Offline checks
 
 - Terraform `init -backend=false`: PASS.
-- Terraform `validate`: PASS with existing provider deprecation warnings.
+- Terraform `init -backend=false` and `validate`: BLOCKED by the preserved
+  deletion of generated `terraform/modules/mays_orders/variables.tf`; this
+  leaves four root module arguments without declarations. The deletion was
+  not restored or regenerated in this contract-only task.
 - Terraform `fmt -check`: PASS.
-- G2C-7D static plan-input tests: **4 passed**.
+- G2C-7D static plan-input tests: **7 passed**.
 - G2C-7C bootstrap tests: **5 passed**.
 - G2C-6 identity protection tests: **6 passed**.
 - No remote Terraform plan was executed.
@@ -106,4 +111,5 @@ Replacements, implicit Cognito/Orders creation, state drift, lock/recovery
 uncertainty or any privacy flag becoming true. Do not repair by importing,
 restoring historical State, deleting locks or applying a partial plan.
 
-**Plan:** NOT AUTHORIZED. **Apply:** NOT AUTHORIZED.
+**Plan preparation:** READY after owner-side read-only identity confirmation.
+**Remote plan:** NOT AUTHORIZED. **Apply:** NOT AUTHORIZED.

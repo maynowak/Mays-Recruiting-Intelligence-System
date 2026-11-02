@@ -5,6 +5,7 @@ def valid_external_config():
     return {
         **EXPECTED,
         "identity_mode": "external",
+        "external_cognito_account_id": "262370457690",
         "external_cognito_user_pool_id": "eu-central-1_ExamplePool",
         "external_cognito_user_pool_arn": (
             "arn:aws:cognito-idp:eu-central-1:262370457690:"
@@ -66,4 +67,14 @@ def test_privacy_execution_flags_fail_closed():
 def test_disabled_orders_requires_no_dummy_references():
     config = {**EXPECTED, "identity_mode": "managed", "orders_lifecycle": "disabled"}
     config["privacy_flags"] = {}
+    assert validate_bootstrap_config(config) == []
+
+
+def test_external_identity_account_may_differ_from_ris_account():
+    config = valid_external_config()
+    config["external_cognito_account_id"] = "240571105849"
+    config["external_cognito_user_pool_arn"] = (
+        "arn:aws:cognito-idp:eu-central-1:240571105849:"
+        "userpool/eu-central-1_ExamplePool"
+    )
     assert validate_bootstrap_config(config) == []

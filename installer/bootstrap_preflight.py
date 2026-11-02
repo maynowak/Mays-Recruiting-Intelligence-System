@@ -56,14 +56,17 @@ def validate_bootstrap_config(config: Mapping[str, Any]) -> list[str]:
         errors.append("identity_mode must be explicitly managed or external")
     elif identity_mode == "external":
         pool_id = str(config.get("external_cognito_user_pool_id", ""))
+        identity_account = str(config.get("external_cognito_account_id", ""))
         pool_arn = str(config.get("external_cognito_user_pool_arn", ""))
         issuer = str(config.get("external_cognito_issuer", ""))
         human = str(config.get("external_cognito_human_client_id", ""))
         m2m = str(config.get("external_cognito_m2m_client_id", ""))
         if not re.fullmatch(r"eu-central-1_[A-Za-z0-9]+", pool_id):
             errors.append("external Cognito pool ID is missing or malformed")
+        if not re.fullmatch(r"[0-9]{12}", identity_account):
+            errors.append("external Cognito account ID is missing or malformed")
         if not re.fullmatch(
-            rf"arn:aws:cognito-idp:eu-central-1:{EXPECTED['account_id']}:userpool/{re.escape(pool_id)}",
+            rf"arn:aws:cognito-idp:eu-central-1:{re.escape(identity_account)}:userpool/{re.escape(pool_id)}",
             pool_arn,
         ):
             errors.append("external Cognito pool ARN does not match pool/account/region")

@@ -27,8 +27,9 @@ historical Cognito domain response was not sufficient to establish a live pool
 relationship. No ACM certificate or Route 53 record is represented as a
 Terraform resource in the retained state history.
 
-Accordingly, all current ownership fields below are `UNKNOWN`, not inferred
-from names:
+Accordingly, the historical `ris-dev2` ownership fields below remain
+`UNKNOWN`, not inferred from names. They do not override the separately
+identified protected `ris-dev` identity contract below:
 
 | Resource | ID/ARN evidence | Account/region | Ownership | Allowed change |
 |---|---|---|---|---|
@@ -40,6 +41,20 @@ from names:
 | Users/auth contracts | no current pool binding | UNKNOWN | UNKNOWN | none |
 | DNS/ACM/TLS | no Terraform-owned references | UNKNOWN | UNKNOWN | none |
 | CloudFront OAC | historical ID not live | historical only | UNKNOWN | none |
+
+## Cross-account protected `ris-dev` identity
+
+The protected Jobsearch/Cognito identity used by the established `ris-dev`
+installation is external to the `ris-dev2` ownership boundary. It is classified
+as **PROTECTED / EXTERNALLY MANAGED** for `ris-dev2`: Cognito pool, Human and
+M2M clients, Cognito domain/OAuth configuration, CloudFront/OAC, DNS and ACM
+are reference-only and must have zero `ris-dev2` resource addresses.
+
+Retained `ris-dev` deployment evidence identifies the pool/issuer and client
+contract, but the owning account was not queried under the `ris-dev2` profile.
+Those values are `RIS_DEV_CONFIG_VERIFIED` until an authorized owner performs
+`RIS_DEV_LIVE_VERIFIED` read-only confirmation. No value is replaced by a
+historical `ris-dev2` identity.
 
 ## Recovery requirement
 

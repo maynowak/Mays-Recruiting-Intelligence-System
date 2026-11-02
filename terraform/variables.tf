@@ -54,13 +54,24 @@ variable "external_cognito_user_pool_id" {
   }
 }
 
+variable "external_cognito_account_id" {
+  description = "AWS account that owns the externally managed Cognito pool; may differ from the RIS deployment account."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.identity_mode == "managed" || can(regex("^[0-9]{12}$", var.external_cognito_account_id))
+    error_message = "external_cognito_account_id is required and must be a 12-digit AWS account ID in external mode."
+  }
+}
+
 variable "external_cognito_user_pool_arn" {
   description = "Existing Cognito User Pool ARN used in external identity mode."
   type        = string
   default     = ""
 
   validation {
-    condition     = var.identity_mode == "managed" || can(regex("^arn:aws:cognito-idp:${var.aws_region}:[0-9]{12}:userpool/${var.external_cognito_user_pool_id}$", var.external_cognito_user_pool_arn))
+    condition     = var.identity_mode == "managed" || can(regex("^arn:aws:cognito-idp:${var.aws_region}:${var.external_cognito_account_id}:userpool/${var.external_cognito_user_pool_id}$", var.external_cognito_user_pool_arn))
     error_message = "external_cognito_user_pool_arn must reference the supplied external pool in this region."
   }
 }

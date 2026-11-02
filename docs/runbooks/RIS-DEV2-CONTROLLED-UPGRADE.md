@@ -47,7 +47,9 @@ The RIS implementation requires one consistent external tuple:
 The M2M reference is required by the current machine JWT authorizer and
 `ris-api/m2m/execute` route, even when Orders is disabled. A CloudFront DNS
 target is not a Cognito ownership proof. Historical pool/client/CloudFront
-values must not be reused without current owner evidence.
+values must not be replaced or migrated; the retained `ris-dev` contract is
+the protected external reference. Owner-side read-only confirmation remains
+required before remote plan approval.
 
 If the protected pool is in another account, do not switch the AWS profile for
 this workflow. Obtain authorized read-only evidence and update the reviewed
