@@ -168,6 +168,26 @@ variable "privacy_receipts_table_arn" {
   type        = string
 }
 
+variable "erasure_operations_table_name" {
+  description = "DynamoDB table name for durable erasure operation state (R08-C0B)"
+  type        = string
+}
+
+variable "erasure_operations_table_arn" {
+  description = "DynamoDB table ARN for durable erasure operation state (R08-C0B)"
+  type        = string
+}
+
+variable "s3_erasure_phases_table_name" {
+  description = "DynamoDB table name for fenced S3 erasure phases (R08-C0F)"
+  type        = string
+}
+
+variable "s3_erasure_phases_table_arn" {
+  description = "DynamoDB table ARN for fenced S3 erasure phases (R08-C0F)"
+  type        = string
+}
+
 variable "tags" {
   description = "Additional tags for resources"
   type        = map(string)

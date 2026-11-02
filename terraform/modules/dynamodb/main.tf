@@ -300,6 +300,37 @@ resource "aws_dynamodb_table" "privacy_receipts" {
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
+# R08-C0B: durable, identity-bound erasure operation state. The repository
+# uses point reads plus conditional Put/TransactWrite operations only; no GSI
+# or scan path is provisioned. Persistence is separate from runtime activation.
+resource "aws_dynamodb_table" "erasure_operations" {
+  name         = "${var.project_name}-${var.environment}-erasure-operations"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "resourceId"
+
+  attribute {
+    name = "resourceId"
+    type = "S"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
+# R08-C0F: durable fenced S3 phase state. The phase repository addresses one
+# operation by its server-derived resourceId and never needs a table scan.
+resource "aws_dynamodb_table" "s3_erasure_phases" {
+  name         = "${var.project_name}-${var.environment}-s3-erasure-phases"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "resourceId"
+
+  attribute {
+    name = "resourceId"
+    type = "S"
+  }
+
+  tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
 output "work_items_table_name" {
   value = aws_dynamodb_table.work_items.name
 }

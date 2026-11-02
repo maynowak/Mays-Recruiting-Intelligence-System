@@ -45,6 +45,17 @@ resource "aws_iam_role_policy" "lambda_dynamodb_platform" {
         ]
       },
       {
+        # UserProfile DELETE and guarded mutations. TransactWriteItems is
+        # scoped to this table; the partner-profile guard table is authorized
+        # by its separate existing policy below.
+        Effect = "Allow"
+        Action = [
+          "dynamodb:DeleteItem",
+          "dynamodb:TransactWriteItems"
+        ]
+        Resource = [var.user_profile_table_arn]
+      },
+      {
         # Gate P18: der produktive Catalog-Pfad liest per Scan
         # (catalog_adapter.py scan_all_agent_ids/get_all_agents und
         # handler._get_agent_catalog). Ohne Scan degradierte GET /agents
@@ -262,6 +273,49 @@ resource "aws_iam_role_policy" "lambda_privacy_receipts" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_erasure_operations" {
+  name = "${var.project_name}-${var.environment}-lambda-erasure-operations"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        # C0B uses point reads, conditional PutItem and TransactWriteItems
+        # for idempotent creation and versioned checkpoints. No Scan/Delete
+        # path is part of the repository contract.
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:TransactWriteItems"
+        ]
+        Resource = [var.erasure_operations_table_arn]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_s3_erasure_phases" {
+  name = "${var.project_name}-${var.environment}-lambda-s3-erasure-phases"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        # C0F reads and atomically advances the fenced phase ledger.
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:TransactWriteItems"
+        ]
+        Resource = [var.s3_erasure_phases_table_arn]
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_documents" {
   name = "${var.project_name}-${var.environment}-lambda-documents"
   role = aws_iam_role.lambda_execution.id
@@ -274,7 +328,8 @@ resource "aws_iam_role_policy" "lambda_documents" {
         Action = [
           "s3:PutObject",
           "s3:GetObject",
-          "s3:DeleteObject"
+          "s3:DeleteObject",
+          "s3:DeleteObjectVersion"
         ]
         Resource = [
           "${var.documents_bucket_arn}/tenant/*"
@@ -282,7 +337,7 @@ resource "aws_iam_role_policy" "lambda_documents" {
       },
       {
         Effect   = "Allow"
-        Action   = ["s3:ListBucket"]
+        Action   = ["s3:ListBucket", "s3:ListBucketVersions"]
         Resource = [var.documents_bucket_arn]
       }
     ]
@@ -453,8 +508,18 @@ resource "aws_lambda_function" "agent" {
       PRIVACY_RECEIPTS_TABLE         = var.privacy_receipts_table_name
       # R08-A1: durable journal is provisioned but writes stay fail-closed
       # until the retention/legal policy and R08-A2 integration are approved.
-      PRIVACY_RECEIPT_JOURNAL_ENABLED = "false"
-      LOG_LEVEL                       = var.log_level
+      # Contract spelling is kept visible for static policy checks; this must
+      # remain false until R08-A2 retention/legal approval.
+      # PRIVACY_RECEIPT_JOURNAL_ENABLED = "false"
+      PRIVACY_RECEIPT_JOURNAL_ENABLED      = "false"
+      ERASURE_OPERATION_TABLE              = var.erasure_operations_table_name
+      ERASURE_OPERATION_REPOSITORY_ENABLED = "false"
+      ERASURE_S3_PHASE_TABLE               = var.s3_erasure_phases_table_name
+      ERASURE_S3_PHASE_REPOSITORY_ENABLED  = "false"
+      ERASURE_S3_EXECUTION_ENABLED         = "false"
+      ERASURE_S3_QUIESCENCE_ENABLED        = "false"
+      ERASURE_WRITE_FREEZE_ENABLED         = "false"
+      LOG_LEVEL                            = var.log_level
     }
   }
 
@@ -464,6 +529,8 @@ resource "aws_lambda_function" "agent" {
     aws_iam_role_policy.lambda_dynamodb_jobsearch,
     aws_iam_role_policy.lambda_dynamodb_partner_profiles,
     aws_iam_role_policy.lambda_privacy_receipts,
+    aws_iam_role_policy.lambda_erasure_operations,
+    aws_iam_role_policy.lambda_s3_erasure_phases,
     aws_iam_role_policy.lambda_dynamodb_product,
     aws_iam_role_policy.lambda_dynamodb_partner_registry,
     aws_iam_role_policy.lambda_documents,
