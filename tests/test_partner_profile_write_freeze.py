@@ -33,6 +33,17 @@ def test_cv_mutation_gets_user_and_cv_atomic_condition_checks(monkeypatch):
         "ConditionExpression"] for item in checks)
 
 
+def test_freeze_keys_use_the_erasure_contract_projection(monkeypatch):
+    monkeypatch.setenv("ERASURE_WRITE_FREEZE_ENABLED", "true")
+    repo = PartnerProfileRepository(table_name="profiles")
+    checks = repo._freeze_checks(**CTX, resource=CVDocument(
+        cv_id="cv-1", user_id="user-1", tenant_id="tenant-1", name="cv.pdf"))
+    assert [item["ConditionCheck"]["Key"]["resourceId"] for item in checks] == [
+        {"S": "erasure-freeze#1a089fe0a779c32fb7aecadac77d6913e77a4974129f970f5745e5e865779fbf"},
+        {"S": "erasure-freeze#cbd36d855dc958aa9aaabea0edacbe0df136f5e484b47d1b3f3316d99574f267"},
+    ]
+
+
 def test_enabled_freeze_without_verified_partner_scope_fails_closed(monkeypatch):
     monkeypatch.setenv("ERASURE_WRITE_FREEZE_ENABLED", "true")
     repo = PartnerProfileRepository(table_name="profiles")

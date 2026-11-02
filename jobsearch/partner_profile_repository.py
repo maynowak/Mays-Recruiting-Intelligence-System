@@ -36,9 +36,33 @@ from jobsearch.partner_profile_contract import (
     MAX_SEARCH_PROFILES_PER_CV,
     MAX_ATS_PROFILES_PER_SEARCH_PROFILE,
 )
-from agents.ecosystem.privacy_erasure_contract import freeze_resource_id
-
 logger = logging.getLogger(__name__)
+
+
+def _freeze_resource_id(*, user_id: str, tenant_id: str,
+                        partner_application_id: str, issuer: str,
+                        scope: str, cv_id: Optional[str] = None) -> str:
+    """Return the stable write-freeze key without importing the agent layer.
+
+    This is the persistence-side projection of the existing erasure contract:
+    the canonical JSON material and hash prefix must remain byte-for-byte
+    compatible with ``privacy_erasure_contract.freeze_resource_id``.  Keeping
+    this pure projection local prevents the lower-level Jobsearch repository
+    from depending on the Agent/Ecosystem package.
+    """
+    if scope not in {"USER", "CV"}:
+        raise ValueError("invalid freeze scope")
+    if scope == "CV" and not cv_id:
+        raise ValueError("CV freeze needs cvId")
+    material = json.dumps({
+        "userId": user_id,
+        "tenantId": tenant_id,
+        "partnerApplicationId": partner_application_id,
+        "issuer": issuer,
+        "scope": scope,
+        "cvId": cv_id or "",
+    }, sort_keys=True, separators=(",", ":"))
+    return "erasure-freeze#" + hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 # DynamoDB type serializer: uses boto3 at runtime, falls back to a small
 # pure-Python serializer so the module stays importable and testable without
@@ -641,7 +665,7 @@ class PartnerProfileRepository:
         if cv_id:
             scopes.append(("CV", cv_id))
         for scope, scoped_cv_id in scopes:
-            key = freeze_resource_id(
+            key = _freeze_resource_id(
                 user_id=user_id, tenant_id=tenant_id,
                 partner_application_id=partner_app_id, issuer=issuer,
                 scope=scope, cv_id=scoped_cv_id)
