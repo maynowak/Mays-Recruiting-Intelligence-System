@@ -81,6 +81,22 @@ is preserved unchanged; it was obtained with the previously authorized
 `default` check and is not reused as a fallback for this explicit-profile
 gate.
 
+## G2C-3B-R retry — explicit `devmemo` authorization
+
+A subsequent user authorization requested an explicit STS check with profile
+`devmemo`, with no fallback. The actual local execution context was checked
+again:
+
+- Actual repository HEAD at check time: `0d5fa2d90f149a44a088df92c8ba0c80f9b00c6d`.
+- Pre-existing untracked files: 39.
+- `AWS_PROFILE=devmemo`: not set.
+- AWS config profile `[devmemo]`: absent.
+- Shared credentials profile `[devmemo]`: absent.
+
+Because the explicitly authorized profile is still unavailable locally, no STS
+call was made. `default` and `mayaws` were not used. This retry is therefore
+also **BLOCKED / STOP**, and no resource discovery followed.
+
 ## Commit intent
 
 ```text
