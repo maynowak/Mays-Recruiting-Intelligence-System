@@ -117,6 +117,27 @@ PRODUCTION_RESOURCE_PREFIXES = (
     "mays-orders-",
 )
 
+# R1 exception: these are the only CloudFront resources allowed for the
+# isolated ris-dev2 health presentation, and only as pure creates. This is an
+# address-level exception, not a general CloudFront exemption.
+HEALTH_CLOUDFRONT_CREATE_ALLOWLIST = frozenset({
+    "module.health_public.aws_cloudfront_distribution.health_public",
+    "module.health_public.aws_cloudfront_origin_access_control.health_public",
+})
+
+PROTECTED_PLAN_RESOURCE_TYPES = frozenset({
+    "aws_cognito_user_pool",
+    "aws_cognito_user_pool_client",
+    "aws_cognito_user_pool_domain",
+    "aws_cognito_identity_provider",
+    "aws_cognito_user_group",
+    "aws_cognito_resource_server",
+    "aws_route53_record",
+    "aws_route53_zone",
+    "aws_acm_certificate",
+    "aws_acm_certificate_validation",
+})
+
 
 # ---------------------------------------------------------------------------
 # GLUE-01 (Composite Lifecycle): Orders component naming + output handoff.
@@ -943,6 +964,30 @@ def is_plan_safe(plan_json: dict, project_name: str, environment: str) -> tuple[
         actions = change.get("change", {}).get("actions", [])
         before = change.get("change", {}).get("before") or {}
         after = change.get("change", {}).get("after") or {}
+        address = change.get("address", "")
+        resource_type = change.get("type", "")
+
+        # CloudFront is forbidden by default. The only exception is the two
+        # isolated ris-dev2 health resources, and only for exactly ["create"].
+        if resource_type.startswith("aws_cloudfront_"):
+            if (
+                project_name == "ris-dev2"
+                and environment == "dev"
+                and address in HEALTH_CLOUDFRONT_CREATE_ALLOWLIST
+                and actions == ["create"]
+            ):
+                continue
+            return False, (
+                f"Protected CloudFront action is not allowlisted: "
+                f"{address} (type: {resource_type}, actions: {actions})"
+            )
+
+        # Cognito, DNS and ACM remain strictly zero-action scopes.
+        if resource_type in PROTECTED_PLAN_RESOURCE_TYPES and actions:
+            return False, (
+                f"Protected resource action is forbidden: {address} "
+                f"(type: {resource_type}, actions: {actions})"
+            )
         
         # Check before state for production resources being deleted/replaced
         for key, value in before.items():
@@ -967,7 +1012,6 @@ def is_plan_safe(plan_json: dict, project_name: str, environment: str) -> tuple[
                             )
         
         # Also check resource address for production module references
-        address = change.get("address", "")
         for prod_prefix in production_prefixes:
             if prod_prefix in address:
                 if "delete" in actions or "replace" in actions or "create" in actions:
