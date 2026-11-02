@@ -1269,9 +1269,9 @@ def _cmd_preflight(ctx: RisInstallContext) -> int:
 
 
 def _cmd_validate(ctx: RisInstallContext) -> List[TerraformResult]:
-    # Backend-less validation: init runs with -backend=false, so workspace
-    if ctx.aws_context is None:
-        ctx.aws_context = validate_aws_context(profile=ctx.aws_profile, region=ctx.aws_region)
+    # Backend-less validation is deliberately local: init runs with
+    # -backend=false and validate does not resolve AWS resources. Account and
+    # profile guards belong to preflight/plan/apply, not this offline command.
     # operations are meaningless here (no backend to select in) and would
     # fail. Config validation is workspace-independent.
     runner = ctx.make_runner()
