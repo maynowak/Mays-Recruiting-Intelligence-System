@@ -27,8 +27,18 @@ variable "cognito_user_pool_m2m_client_id" {
 }
 
 variable "cognito_user_pool_endpoint" {
-  description = "Cognito User Pool endpoint (URL)"
+  description = "Legacy Cognito User Pool endpoint without scheme"
   type        = string
+}
+
+variable "cognito_issuer" {
+  description = "Complete JWT issuer URL for managed or external Cognito."
+  type        = string
+
+  validation {
+    condition     = can(regex("^https://", var.cognito_issuer))
+    error_message = "cognito_issuer must be a complete HTTPS URL."
+  }
 }
 
 variable "lambda_function_name" {

@@ -20,8 +20,11 @@ terraform {
 }
 
 locals {
-  maker  = "mays-ris"
-  prefix = "${var.project_name}-${var.environment}"
+  maker            = "mays-ris"
+  prefix           = "${var.project_name}-${var.environment}"
+  identity_managed = var.identity_mode == "managed"
+  orders_managed   = var.orders_lifecycle == "managed"
+  orders_enabled   = var.orders_lifecycle != "disabled"
 }
 
 provider "aws" {
@@ -40,6 +43,7 @@ provider "aws" {
 }
 
 module "cognito" {
+  count  = local.identity_managed ? 1 : 0
   source = "./modules/cognito"
 
   project_name               = var.project_name
@@ -100,10 +104,11 @@ module "api" {
 
   project_name                    = var.project_name
   environment                     = var.environment
-  cognito_user_pool_id            = module.cognito.user_pool_id
-  cognito_user_pool_client_id     = module.cognito.user_pool_client_id
-  cognito_user_pool_m2m_client_id = module.cognito.user_pool_m2m_client_id
-  cognito_user_pool_endpoint      = module.cognito.user_pool_endpoint
+  cognito_user_pool_id            = local.identity_managed ? module.cognito[0].user_pool_id : var.external_cognito_user_pool_id
+  cognito_user_pool_client_id     = local.identity_managed ? module.cognito[0].user_pool_client_id : var.external_cognito_human_client_id
+  cognito_user_pool_m2m_client_id = local.identity_managed ? module.cognito[0].user_pool_m2m_client_id : var.external_cognito_m2m_client_id
+  cognito_user_pool_endpoint      = local.identity_managed ? module.cognito[0].user_pool_endpoint : replace(var.external_cognito_issuer, "https://", "")
+  cognito_issuer                  = local.identity_managed ? "https://${module.cognito[0].user_pool_endpoint}" : var.external_cognito_issuer
   lambda_function_name            = "${local.prefix}-agent"
   lambda_invoke_arn               = module.lambda.invoke_arn
   cors_origins                    = var.api_cors_origins
@@ -165,6 +170,7 @@ module "lambda" {
 # GLUE-01: Composite-Installationen zeigen auf die projekt-eigene
 # Orders-Instanz (var.orders_*), Standalone behaelt die Defaults.
 module "orders_reader" {
+  count  = local.orders_enabled ? 1 : 0
   source = "./modules/orders_reader"
 
   project_name      = var.project_name
@@ -174,15 +180,16 @@ module "orders_reader" {
   aws_region        = var.aws_region
   filename          = var.filename
   tags              = var.tags
-  orders_table_name = module.mays_orders.dynamodb_table_name
-  orders_table_arn  = module.mays_orders.dynamodb_table_arn
-  orders_queue_url  = module.mays_orders.sqs_queue_url
-  orders_queue_arn  = module.mays_orders.sqs_queue_arn
+  orders_table_name = local.orders_managed ? module.mays_orders[0].dynamodb_table_name : var.external_orders_table_name
+  orders_table_arn  = local.orders_managed ? module.mays_orders[0].dynamodb_table_arn : var.external_orders_table_arn
+  orders_queue_url  = local.orders_managed ? module.mays_orders[0].sqs_queue_url : var.external_orders_queue_url
+  orders_queue_arn  = local.orders_managed ? module.mays_orders[0].sqs_queue_arn : var.external_orders_queue_arn
 }
 
 
 # Mays-Orders as Terraform-Module (Orders-Service)
 module "mays_orders" {
+  count              = local.orders_managed ? 1 : 0
   source             = "./modules/mays_orders"
   project_name       = "${var.project_name}-mays-orders"
   tags               = var.tags
@@ -239,11 +246,12 @@ module "monitoring_orders" {
   lambda_duration_threshold_ms = var.lambda_duration_threshold_ms
   lambda_throttle_threshold    = var.lambda_throttle_threshold
   dynamodb_throttled_threshold = var.dynamodb_throttled_threshold
-  api_id                       = module.mays_orders.api_gateway_id
-  api_stage_name               = module.mays_orders.api_gateway_stage_name
-  lambda_function_name         = module.mays_orders.lambda_function_name
-  dynamodb_table_name          = module.mays_orders.dynamodb_table_name
-  sqs_queue_name               = module.mays_orders.sqs_queue_name
+  count                        = local.orders_managed ? 1 : 0
+  api_id                       = local.orders_managed ? module.mays_orders[0].api_gateway_id : ""
+  api_stage_name               = local.orders_managed ? module.mays_orders[0].api_gateway_stage_name : ""
+  lambda_function_name         = local.orders_managed ? module.mays_orders[0].lambda_function_name : ""
+  dynamodb_table_name          = local.orders_managed ? module.mays_orders[0].dynamodb_table_name : ""
+  sqs_queue_name               = local.orders_managed ? module.mays_orders[0].sqs_queue_name : ""
   sqs_dlq_name                 = ""
 }
 

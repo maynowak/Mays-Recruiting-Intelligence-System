@@ -453,6 +453,18 @@ PROJECT_CONFIG_DIR = "project-configs"
 #: overlay is for site-specific identity/browser values, not for re-defining
 #: behaviour switches or anything reproducible from project_name/environment.
 PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
+    "identity_mode",
+    "external_cognito_user_pool_id",
+    "external_cognito_user_pool_arn",
+    "external_cognito_issuer",
+    "external_cognito_human_client_id",
+    "external_cognito_m2m_client_id",
+    "external_cognito_domain",
+    "orders_lifecycle",
+    "external_orders_table_name",
+    "external_orders_table_arn",
+    "external_orders_queue_url",
+    "external_orders_queue_arn",
     "identity_oauth_enabled",
     "identity_oauth_scopes",
     "identity_oauth_callback_urls",
@@ -462,6 +474,19 @@ PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
     "identity_custom_domain_certificate_arn",
     "api_cors_origins",
 })
+
+
+def configured_orders_lifecycle(ctx: "RisInstallContext") -> str:
+    """Return the explicit Orders lifecycle without silently enabling managed mode."""
+    values = load_project_config(ctx.project_name)
+    values.update(ctx.extra_vars or {})
+    lifecycle = values.get("orders_lifecycle", "managed")
+    if lifecycle not in {"managed", "external", "disabled"}:
+        raise ValueError(
+            "orders_lifecycle must be managed, external, or disabled; "
+            f"got {lifecycle!r}"
+        )
+    return lifecycle
 
 #: Variable names that would carry a secret and therefore must never appear in
 #: a committed overlay.
@@ -1160,7 +1185,7 @@ def _cmd_preflight(ctx: RisInstallContext) -> int:
     print(f"profile-source: {aws_ctx.profile_source}")
 
     # GLUE-01: Composite preflight — validate the Orders component.
-    if ctx.composite and not ctx.dry_run:
+    if ctx.composite and not ctx.dry_run and configured_orders_lifecycle(ctx) == "managed":
         orders_project = orders_component_project_name(ctx.project_name)
         print(f"composite component project: {orders_project}")
         orchestrator = RISInstaller(dry_run=ctx.dry_run)
@@ -1474,6 +1499,7 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
         return 1
     ctx.aws_context = aws_ctx
     orders_project = orders_component_project_name(ctx.project_name)
+    orders_lifecycle = configured_orders_lifecycle(ctx)
     print(f"DESTROY scope: composite project {ctx.project_name}")
     print(f"  RIS workspace: {ctx.workspace}")
     print(f"  Orders component: {orders_project}")
@@ -2199,14 +2225,16 @@ def _cmd_install(
         print(f"  account: {aws_ctx.account_id}")
         print(f"  region: {aws_ctx.region}")
         print(f"  RIS project: {ctx.project_name} -> workspace {ctx.workspace}")
-        print(f"  Orders component: {orders_project}")
+        print(f"  Orders lifecycle: {orders_lifecycle}")
+        if orders_lifecycle == "managed":
+            print(f"  Orders component: {orders_project}")
         print(f"  backend bucket: {names.bucket}")
         print(f"  lock table: {names.lock_table}")
         print("  phases: orders validate -> orders plan -> output handoff -> ")
         print("  phases: package -> bootstrap -> orders validate -> orders plan -> RIS plan -> orders deploy -> RIS apply")
 
     # --- Composite preflight + Orders component (fail fast, no mutation) ---
-    if ctx.composite:
+    if ctx.composite and orders_lifecycle == "managed":
         pf_rc = _cmd_preflight(ctx)
         if pf_rc != 0:
             print("error: composite preflight failed", file=sys.stderr)
