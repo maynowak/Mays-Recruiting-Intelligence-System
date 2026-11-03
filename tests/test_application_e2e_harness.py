@@ -119,16 +119,25 @@ class ApplicationE2EHarnessTests(unittest.TestCase):
         letter = self.harness.repository.add_cover_letter(
             app_id, "Synthetic cover letter only.", 4, ctx
         )
+        structured_letter = self.harness.repository.add_cover_letter(
+            app_id,
+            {"jobId": "synthetic-job-updated-1", "content": "Generated draft", "source": "generated", "language": "en", "model": "test-model"},
+            5,
+            ctx,
+        )
         exported = self.harness.repository.export(app_id, ctx)
         self.assertEqual(app_id, exported["application"]["applicationId"])
         # READY transition and the explicit history event are both retained.
         self.assertEqual(2, len(exported["history"]))
         self.assertEqual(letter["versionId"], exported["coverLetterVersions"][0]["versionId"])
+        self.assertEqual(structured_letter["versionId"], exported["coverLetterVersions"][1]["versionId"])
+        for identity_field in ("userId", "tenantId", "partnerApplicationId", "issuer"):
+            self.assertNotIn(identity_field, exported["application"])
         raw = json.dumps(exported, sort_keys=True, default=str)
         for forbidden in ("ownerKey", "credential", "Authorization", "Bearer", "secret"):
             self.assertNotIn(forbidden, raw)
 
-        self.harness.repository.delete(app_id, 5, ctx)
+        self.harness.repository.delete(app_id, 6, ctx)
         with self.assertRaises(ApplicationNotFound):
             self.harness.repository.get(app_id, ctx)
         items, _ = self.harness.repository.list(ctx)

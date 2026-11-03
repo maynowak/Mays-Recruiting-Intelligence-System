@@ -627,7 +627,9 @@ def _application_routes(event, context, method, path):
         if not suffix and method == 'DELETE':
             body = _application_body(event) or {}
             repo.delete(app_id, int(body.get('expectedVersion', 0)), ctx)
-            return _application_response(204, {})
+            response = _application_response(204, {})
+            response.pop('body', None)
+            return response
         if suffix == 'status' and method == 'POST':
             body = _application_body(event) or {}
             if ('status' in body) == ('stage' in body):

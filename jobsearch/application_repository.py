@@ -180,7 +180,7 @@ class ApplicationRepository:
 
     @staticmethod
     def _public(row: Mapping[str, Any]) -> dict[str, Any]:
-        return {k: v for k, v in row.items() if k not in {"entityKey", "ownerKey", "idempotencyHash", "entityType", "deletionState"}}
+        return {k: v for k, v in row.items() if k not in {"entityKey", "ownerKey", "idempotencyHash", "entityType", "deletionState", "userId", "tenantId", "partnerApplicationId", "issuer"}}
 
     def create(self, data: Mapping[str, Any], ctx: ApplicationContext) -> dict[str, Any]:
         ctx.validate()
@@ -373,14 +373,19 @@ class ApplicationRepository:
             raise ApplicationConflict("VERSION_CONFLICT") from exc
         return {**item, "applicationVersion": updated["version"]}
 
-    def add_cover_letter(self, application_id: str, letter: str, expected_version: int, ctx: ApplicationContext) -> dict[str, Any]:
+    def add_cover_letter(self, application_id: str, letter: str | Mapping[str, Any], expected_version: int, ctx: ApplicationContext) -> dict[str, Any]:
         current = self._owned(application_id, ctx)
-        if not isinstance(letter, str) or not letter.strip() or len(letter) > 100_000:
+        if isinstance(letter, str):
+            if not letter.strip() or len(letter) > 100_000:
+                raise ApplicationContractError("INVALID_COVER_LETTER", "cover letter is invalid")
+            version = {"jobId": current["job"]["jobId"], "content": letter, "source": "manual"}
+        elif isinstance(letter, Mapping):
+            version = dict(letter)
+        else:
             raise ApplicationContractError("INVALID_COVER_LETTER", "cover letter is invalid")
         if current["version"] != expected_version:
             raise ApplicationConflict("VERSION_CONFLICT")
         stamp = _now(); version_id = str(uuid.uuid4())
-        version = letter if isinstance(letter, Mapping) else {"jobId": current["job"]["jobId"], "content": letter, "source": "manual"}
         version = validate_cover_letter_version(version)
         if version["jobId"] != current["job"]["jobId"]:
             raise ApplicationContractError("INVALID_COVER_LETTER", "cover-letter jobId does not match application")
