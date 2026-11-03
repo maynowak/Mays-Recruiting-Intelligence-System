@@ -1,3 +1,41 @@
+[JM-GOOGLE-LOGIN-READINESS-01]
+Current status: COMPLETE / RED (NOT READY, read-only Audit)
+Audit date/time: 2026-10-31 21:48–21:52 UTC
+Current Git branch and HEAD: main, c49eb2b37ab3d629eeee224084045a9659c59705
+Audit scope: Google-Login-Bereitschaft für mays-job-matcher.app am dedizierten produktiven Jobsearch-Pool prüfen; keine Mutation.
+Actual findings:
+  - OIDC-/PKCE-/Callback-/Custom-Domain-Basis ist GREEN.
+  - Produktiver Pool eu-central-1_ZURSMpD2O hat keinen Google IdP; App Client 5hb3f6dj5ialg77jf4blur9g6g erlaubt nur COGNITO.
+  - Live `identity_provider=Google` ergibt `Login option is not available`.
+  - Google OAuth Client/Secret, Consent Screen, Redirect `/oauth2/idpresponse`, dedizierter IaC-Pfad, Account-Linking-/Profilentscheidung und Live-E2E fehlen bzw. sind nicht belegt.
+  - Vorhandene RIS-Terraform-Google-Foundation gehört zum Kernelpool ojbmoiYGM und darf nicht für den dedizierten Jobsearch-Pool aktiviert werden.
+Classification: RED — NOT READY.
+Tests: gezielte Auth-Suite 13 passed; npm build PASS; keine AWS/Vercel/Google/Terraform-Mutation.
+Evidence / report: docs/reports/JM-GOOGLE-LOGIN-READINESS-01-EXECUTION_LOG.md
+Current resume point: Produkt-/Security-Freigabe und dedizierter Jobsearch-IdP/IaC-Pfad erforderlich.
+
+[JM-RIS-AUTH-POOL-REPAIR-01]
+Current status: COMPLETE / GREEN
+Audit date/time: 2026-10-31 20:49–21:30 UTC
+Current Git branch and HEAD: main, c49eb2b37ab3d629eeee224084045a9659c59705
+Audit scope: Fehlerhaften Merge→Apply (`project_name=mays-ris` im Workspace `ris-dev`) rekonstruieren und korrigieren; leere falsche States entfernen; produktive Jobsearch-Poolgrenze erhalten; `auth.mays-job-matcher.app` am bestehenden dedizierten Jobsearch-Pool wiederherstellen.
+Actual findings:
+  - Der Apply am 31.10. nutzte `project_name=mays-ris`, Custom Domain false und ersetzte 104 Ressourcen statt `ris-dev` nur zu upgraden.
+  - Restore auf `ris-dev` abgeschlossen; Backend enthält nur `env:/ris-dev/dev/terraform.tfstate`; finaler Terraform-Plan: No changes.
+  - Jobsearch blieb unverändert auf Pool eu-central-1_ZURSMpD2O / Client 5hb3f6dj5ialg77jf4blur9g6g; keine Vercel- oder Jobsearch-Code-Änderung.
+  - Custom Domain auth.mays-job-matcher.app wieder ACTIVE am dedizierten Jobsearch-Pool; CNAME dsv3el0c1dn2.cloudfront.net; OIDC-Discovery und HTTPS 302 verifiziert.
+  - Neue Schutzregel: Produktive Site-Pools/-Domains dürfen bei Upgrades nur nach ausdrücklicher Bestätigung der betroffenen Site und des Zielpools migriert, entfernt oder umgehängt werden.
+Evidence / file references:
+  - docs/reports/JM-RIS-AUTH-POOL-REPAIR-01-EXECUTION_LOG.md
+  - AGENTS.md
+  - installer/project-configs/ris-dev.json
+  - tests/test_project_config_overlay.py
+Classification: GREEN (Browser-E2E mit echtem Nutzer optional/offen)
+Terraform checks: Restore/Recovery Apply abgeschlossen; final plan No changes; validate PASS; fmt-check PASS.
+Tests: 22 task-spezifische Tests PASS; Vollsuite 1669 passed, 11 skipped, 2 bestehende Installer-Testfehler.
+Git status: Task-Änderungen plus fremdes untracked docs/reports/TF-APPLY-CONTROLLED-2026-10-31.md (unverändert).
+Current resume point: Task abgeschlossen; Review/Commit optional.
+
 [
   MO-RIS-DEV2-S07-DEPENDENCY-CONSOLIDATION-2026]
   Current status: COMPLETE (Dependency consolidation: orders-service deps mapped, historical reports consolidated, no AWS, no Plan/Apply)

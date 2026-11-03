@@ -71,17 +71,12 @@ class TestOverlaySelection(unittest.TestCase):
         unknown = set(data["terraform_vars"]) - PROJECT_CONFIG_ALLOWED_KEYS
         self.assertEqual(set(), unknown)
 
-    def test_overlay_activates_oauth_and_custom_domain(self):
+    def test_overlay_activates_oauth_without_claiming_jobsearch_domain(self):
         cfg = load_project_config("ris-dev")
         self.assertEqual("true", cfg["identity_oauth_enabled"])
-        self.assertEqual("true", cfg["identity_custom_domain_enabled"])
-        self.assertEqual("auth.mays-job-matcher.app", cfg["identity_custom_domain"])
-
-    def test_overlay_references_existing_us_east_1_cert(self):
-        cfg = load_project_config("ris-dev")
-        arn = cfg["identity_custom_domain_certificate_arn"]
-        self.assertIn(":acm:us-east-1:", arn,
-                      "Cognito custom domains require a us-east-1 certificate")
+        self.assertEqual("false", cfg["identity_custom_domain_enabled"])
+        self.assertNotIn("identity_custom_domain", cfg)
+        self.assertNotIn("identity_custom_domain_certificate_arn", cfg)
 
 
 class TestOverlaySafety(unittest.TestCase):
@@ -186,8 +181,8 @@ class TestInstallerWiring(unittest.TestCase):
         ctx = RisInstallContext(project_name="ris-dev", environment="dev")
         variables = ctx.terraform_vars()
         self.assertEqual("true", variables["identity_oauth_enabled"])
-        self.assertEqual("auth.mays-job-matcher.app",
-                         variables["identity_custom_domain"])
+        self.assertEqual("false", variables["identity_custom_domain_enabled"])
+        self.assertNotIn("identity_custom_domain", variables)
 
     def test_ris_a_gets_no_oauth_vars(self):
         ctx = RisInstallContext(project_name="ris-a", environment="dev")
