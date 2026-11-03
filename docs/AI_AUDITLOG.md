@@ -9287,6 +9287,21 @@ Findings:
 Report: docs/reports/RIS-DEV-UPGRADE-S06R-REMEDIATION.md; Handoff: docs/reports/RIS-DEV-UPGRADE-S06R-ORDERS-SQS-HANDOFF.md
 Next: S07 nach Schließen von RG-07/09/10/11. STOP nach S06-R.
 
+[RIS-DEV-UPGRADE-S06R-DECISION-CLOSURE-01]
+Status: COMPLETE / BLOCKED — DECISIONS PENDING, keine Freigabe erteilt
+Date: 2026-11-03
+Git: main, HEAD 62ae32f, Docs-Commit folgt. Keine Code-/Terraform-/AWS-Änderung.
+Findings:
+  - Decision Register mit DEC-01..DEC-11 erstellt: 8 AWAITING APPROVAL, 1 PROPOSED, 2 BLOCKED, 0 APPROVED/IMPLEMENTED/VERIFIED.
+  - RG-07 BLOCKED: Secret fehlt weiterhin; Provisionierungsauftrag mit Guard, Kollisionsprüfung, Verify und Recovery vorbereitet, aber nicht ausgeführt.
+  - RG-09 BLOCKED: technische Erasure-Nachweise PASS (14 Tests), rechtliche Entscheidungen (Rollen, Rechtsgrundlage, Fristen, DSFA) offen.
+  - RG-10 BLOCKED: PITR-Entscheidung je 18 Ressourcen AWAITING APPROVAL; Change-Scope getrennt, nicht angewendet.
+  - RG-11 BLOCKED: SQS-Soll-Policy und Negativtest im Handoff; Eigentümerfreigabe oder Risikoakzeptanz fehlt.
+  - Baseline unverändert: State serial 36, Version 3tey8lIH..., 185 Ressourcen; 15 lokale Commits vor origin/main (kein Push).
+  - Keine neuen Terraform-Pläne erzwungen; letzter Plan 4dc29473... bleibt historische Evidence.
+Reports: docs/reports/RIS-DEV-UPGRADE-S06R-DECISION-REGISTER.md, docs/reports/RIS-DEV-UPGRADE-S06R-DECISION-CLOSURE-01.md
+Next: Freigaben einholen; danach Secret/PITR/SQS umsetzen und neuen Plan erzeugen. STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
