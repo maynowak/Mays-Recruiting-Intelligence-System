@@ -8591,3 +8591,20 @@ Reports:
 - docs/reports/RIS-APPLICATION-E2E-05B-G0-CROSS-ACCOUNT-AUTHORIZATION-EXECUTION_LOG.md
 Classification: YELLOW / 05B PROVISIONING BLOCKED.
 Next: obtain explicit external Cognito owner authorization, current OAuth evidence, tenant-scoped RIS admin authorization and secure credential handoff before any separately approved provisioning.
+
+[RIS-APPLICATION-E2E-06A-HARNESS-DESIGN]
+Status: COMPLETE LOCAL HARNESS DESIGN / DEV2 MUTATION BLOCKED
+Date: 2026-11-03
+Branch/HEAD at start: feature/ris-application-persistence-v1 @ 2361a7b6df5a208c8cf318c517e8a30a144566c7
+Scope: 06A only - test-only LOCAL/DEV2 mode separation and security boundary.
+Verified:
+- Existing ApplicationV1 repository, ApplicationContext, Moto table fixture and ApplicationErasureExecutor seams reviewed.
+- LOCAL mode will use Moto/in-memory only; no JWT forgery, API Gateway/Lambda call, production auth bypass, or public seam.
+- DEV2 mode remains separately gated and disabled; no live mutation authorization exists in 06A.
+- Synthetic identities are internal test values only; no Cognito/partner provisioning.
+- No AWS/Terraform command, production-code change, user/credential creation or API mutation performed.
+Reports:
+- docs/reports/RIS-APPLICATION-E2E-06A-HARNESS-DESIGN.md
+- docs/reports/RIS-APPLICATION-E2E-06A-HARNESS-DESIGN-EXECUTION_LOG.md
+Classification: GREEN for LOCAL design / BLOCKED for DEV2 mutation.
+Next: implement and run the test-only local harness in 06B; keep DEV2 disabled pending explicit live-mutation approval.
