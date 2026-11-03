@@ -17,7 +17,7 @@ tokens or credentials are copied into ApplicationV1.
 - Cross-user ownership rejection: passed.
 - Document mismatch rejection: passed.
 - Missing profile-store dependency for new document reference: passed closed.
-- Full ApplicationV1 runtime selection: **47 passed**.
+- Full ApplicationV1 runtime selection: **48 passed**.
 
 ## Remaining boundary
 

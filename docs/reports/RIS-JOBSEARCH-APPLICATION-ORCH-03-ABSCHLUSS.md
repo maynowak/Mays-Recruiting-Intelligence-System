@@ -22,7 +22,7 @@ DEPLOYMENT GO: BLOCKED
 
 | Suite | Result |
 |---|---:|
-| ApplicationV1/Moto | 47 passed, 0 skipped |
+| ApplicationV1/Moto | 48 passed, 0 skipped |
 | API/OpenAPI/route | 47 passed, 301 subtests |
 | Security/auth/privacy/erasure | 18 passed |
 | Full repository | 2300 passed, 27 environment/unrelated failures, 56 skipped |

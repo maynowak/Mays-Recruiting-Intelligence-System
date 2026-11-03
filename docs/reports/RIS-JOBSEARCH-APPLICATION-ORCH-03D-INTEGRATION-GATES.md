@@ -13,7 +13,7 @@ session-transfer route was added.
 
 ## Local evidence
 
-- ApplicationV1: **47 passed, 0 skipped**.
+- ApplicationV1: **48 passed, 0 skipped**.
 - API/OpenAPI/route consistency: **47 passed, 301 subtests**.
 - Security/auth/privacy/erasure: **18 passed**.
 - Python compile, diff-check and offline Terraform validation: PASS.

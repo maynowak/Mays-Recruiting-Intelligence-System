@@ -16,7 +16,7 @@ reviewer approval. No PR was pushed or created by this task.
 
 ### Local gates
 
-- Application/Moto: 47 passed, 0 skipped.
+- Application/Moto: 48 passed, 0 skipped.
 - API/OpenAPI: 47 passed, 301 subtests.
 - Security/privacy: 18 passed.
 - Python compile, `git diff --check`, offline Terraform validate/fmt: PASS.
