@@ -28,7 +28,9 @@ DEPLOYMENT GO: BLOCKED
 | Full repository | 2300 passed, 27 environment/unrelated failures, 56 skipped |
 | PyCompile | PASS |
 | `git diff --check` | PASS |
-| Terraform offline validate/fmt | PASS |
+| Terraform offline validate | PASS |
+| Terraform recursive fmt | BLOCKED by existing RIS-external `installer/projects/mays_order_builder/terraform/main.tf`; unchanged |
+| RIS Terraform targeted fmt | PASS |
 
 ## External dependencies
 
@@ -41,7 +43,7 @@ claimed locally.
 
 | Paket | GAP/OI | Beschreibung | Code-Evidence | Tests | Skips | Status | Fortschritt | Commit |
 |---|---|---|---|---:|---:|---|---:|---|
-| A | GAP-05 | Ownership/document references | `ce9ef29` | 43 | 0 | PARTIAL LOCAL | 85% | `ce9ef29` |
-| B | GAP-06 | Idempotency/concurrency/erasure/history | `006876d`, `22d09fe` | 43 | 0 | VERIFIED LOCAL | 95% | `006876d`, `22d09fe` |
-| C | GAP-02–07 | Regression and contract gates | `5a67804`, `5786cfd` | 43 + 18 + 47 | 0 | PASS LOCAL | 90% | ORCH-03 commits |
+| A | GAP-05 | Ownership/document references | `ce9ef29` | 48 | 0 | PARTIAL LOCAL | 85% | `ce9ef29` |
+| B | GAP-06 | Idempotency/concurrency/erasure/history | `006876d`, `22d09fe`, `1939425` | 48 | 0 | VERIFIED LOCAL | 95% | `006876d`, `22d09fe`, `1939425` |
+| C | GAP-02–07 | Regression and contract gates | `5a67804`, `5786cfd` | 48 + 18 + 47 | 0 | PASS LOCAL | 90% | ORCH-03 commits |
 | D | OI-07/08/09/10 | Transfer, delegation, privacy and live readiness | Handoff/report only | N/A | N/A | OPEN EXTERNAL | 30% | — |
