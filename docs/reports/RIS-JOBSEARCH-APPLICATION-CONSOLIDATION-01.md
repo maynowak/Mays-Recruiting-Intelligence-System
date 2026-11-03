@@ -3,7 +3,7 @@
 ## Decision
 
 ```text
-PR: READY TO PUBLISH
+PR: OPEN FOR CONTROLLED REVIEW
 MAIN MERGE: BLOCKED UNTIL REVIEW / REQUIRED CHECKS
 RIS-DEV HANDOFF: READY FOR INTEGRATION REVIEW
 DEPLOYMENT: BLOCKED
@@ -13,7 +13,7 @@ DEPLOYMENT: BLOCKED
 
 | Bereich | Beschreibung | Evidence | Status | Commit |
 |---|---|---|---|---|
-| Git/Audit | Expected branch, clean tree, baseline and auditlog reviewed | `7d56ff3`, `origin/main=37782f8`, merge-base verified | PASS | — |
+| Git/Audit | Expected branch, clean tree, baseline and auditlog reviewed | Final HEAD `3c5a9059313599c8d850df5bd136dd5be7bee535`, `origin/main=37782f8`, merge-base verified | PASS | `79ba98c`, `9cbc6a4`, `3c5a905` |
 | Compatibility | Legacy records, legacy history `type`, additive stage/status behavior | Application contract/repository tests; typed events retain legacy compatibility | PASS LOCAL | `22d09fe` |
 | Details/Follow-ups | Date, channel, contact, notes, salary and nullable follow-up PATCH | 48 ApplicationV1 tests | PASS LOCAL | `e3f352d`, `8db5bbf`, `1939425` |
 | Metrics/Pagination | Owner-scoped all-page traversal and signed cursor behavior | API/Moto metrics tests; API suite 301 subtests | PASS LOCAL | `76848a1`, `e065a9f` |
@@ -24,6 +24,7 @@ DEPLOYMENT: BLOCKED
 | Export/Delete | Owner-scoped export and metadata deletion; no credential/S3-key duplication | Privacy/security tests; retention and backup semantics open | PARTIAL LOCAL | `006876d` |
 | API/OpenAPI/Terraform | Routes, envelopes, OpenAPI consistency, offline Terraform | 47 passed, 301 subtests; `terraform validate` PASS; recursive fmt blocked by existing Mays-Orders file | PASS WITH OPEN FORMAT FINDING | `5786cfd` |
 | Regression | Full-suite failures individually classified | 2300 passed / 27 environment- or unrelated failures / 56 skipped | NO RIS REGRESSION FOUND | `0efab92` |
+| GitHub PR | Branch published and PR opened against `main` | [PR #4](https://github.com/maynowak/Mays-Recruiting-Intelligence-System/pull/4); mergeable `true`, state `clean`, no checks registered yet | OPEN / REVIEW REQUIRED | — |
 
 ## Verification
 
@@ -36,6 +37,8 @@ DEPLOYMENT: BLOCKED
   report and are not reclassified as PASS.
 - Recursive Terraform formatting: **NOT PASS**. Existing failure is outside
   RIS scope at `installer/projects/mays_order_builder/terraform/main.tf`.
+- GitHub PR: **#4**, open; mergeability currently `clean`; required-check
+  status is not yet available (`0` check runs at review time).
 
 ## Open gates
 
