@@ -1,6 +1,9 @@
-# RIS-DEV2-TEST-IDENTITY-01 — Saved Terraform Plan
+# RIS-DEV2-TEST-IDENTITY-01 — Saved Terraform Plan (SUPERSEDED)
 
-**Result:** **PLAN CREATED / APPLY BLOCKED**
+**Result:** **SUPERSEDED — DO NOT APPLY**
+
+The plan in this report is superseded by the secret-free Human-only plan from
+`RIS-DEV2-TEST-IDENTITY-02`. Do not apply the artifact below.
 
 ## 1. Plan artifact
 

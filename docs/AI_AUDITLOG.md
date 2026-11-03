@@ -8717,3 +8717,20 @@ Reports:
 - docs/reports/RIS-DEV2-TEST-IDENTITY-01-PLAN.md
 - docs/reports/RIS-DEV2-TEST-IDENTITY-01-PLAN-EXECUTION_LOG.md
 Decision: mandatory STOP before apply; exact plan hash and API authorizer changes require separate approval.
+
+[RIS-DEV2-TEST-IDENTITY-02A-SECRET-FREE-DESIGN]
+Status: COMPLETE / APPLY BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ 18bd01e0f7a7d1c7c45a4cc0051a16d10328fa56
+Scope: Disable only the new managed M2M resources for ris-dev2 while preserving existing M2M behavior elsewhere.
+Implemented:
+- identity_m2m_enabled defaults true; ris-dev2 overlay sets false.
+- Managed Cognito resource server and M2M client are conditional and omitted for ris-dev2.
+- Human client remains public with generate_secret=false and OAuth code+PKCE settings.
+- Existing machine authorizer/route are preserved with explicit fallback external issuer/audience to avoid destructive route/authorizer removal; no new managed M2M client is created.
+- Previous 01 plan report marked SUPERSEDED ? DO NOT APPLY.
+Safety: no AWS mutation, secret read/output, token, user, authorizer, partner or credential operation; no plan/apply.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02A-SECRET-FREE-DESIGN.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02A-SECRET-FREE-DESIGN-EXECUTION_LOG.md
+Decision: proceed to authorizer impact analysis and offline validation; apply remains blocked.

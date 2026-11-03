@@ -475,6 +475,9 @@ PROJECT_CONFIG_DIR = "project-configs"
 #: behaviour switches or anything reproducible from project_name/environment.
 PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
     "identity_mode",
+    "identity_m2m_enabled",
+    "identity_m2m_fallback_issuer",
+    "identity_m2m_fallback_client_id",
     "external_cognito_user_pool_id",
     "external_cognito_account_id",
     "external_cognito_user_pool_arn",

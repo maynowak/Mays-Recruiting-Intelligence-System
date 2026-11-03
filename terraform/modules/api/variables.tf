@@ -41,6 +41,16 @@ variable "cognito_issuer" {
   }
 }
 
+variable "cognito_m2m_issuer" {
+  description = "JWT issuer for the preserved machine authorizer."
+  type        = string
+
+  validation {
+    condition     = can(regex("^https://", var.cognito_m2m_issuer))
+    error_message = "cognito_m2m_issuer must be a complete HTTPS URL."
+  }
+}
+
 variable "lambda_function_name" {
   description = "Lambda function name"
   type        = string

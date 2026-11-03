@@ -7,6 +7,9 @@
   "project_name": "ris-dev2",
   "terraform_vars": {
     "identity_mode": "managed",
+    "identity_m2m_enabled": "false",
+    "identity_m2m_fallback_issuer": "https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_ojbmoiYGM",
+    "identity_m2m_fallback_client_id": "82ji073smu1b3fsvj96sonso",
     "orders_lifecycle": "disabled",
     "identity_oauth_enabled": "true",
     "identity_oauth_scopes": "[\"openid\",\"email\",\"profile\"]",

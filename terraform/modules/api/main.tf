@@ -54,7 +54,7 @@ resource "aws_apigatewayv2_authorizer" "jwt_m2m" {
 
   jwt_configuration {
     audience = [var.cognito_user_pool_m2m_client_id]
-    issuer   = var.cognito_issuer
+    issuer   = var.cognito_m2m_issuer
   }
 }
 
