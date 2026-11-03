@@ -9118,3 +9118,9 @@ Development branch feature/ris-application-persistence-v1 consolidated and pushe
 Evidence: 453 passed + 297 subtests; packaging 6 passed/2 explicit mayaws-credential skips; Python 3.14 compileall PASS; scoped Terraform fmt/init/validate PASS. Handoff: docs/reports/RIS-BRANCH-CONSOLIDATION-01D-RIS-DEV-HANDOFF.md.
 GitHub PR could not be opened because gh is unavailable and browser is unauthenticated. PR URL documented; no PR number, CI or merge success claimed.
 Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01-ABSCHLUSSBERICHT.md
+
+[RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
+Status: PR OPEN — MERGE BLOCKED
+Date: 2026-11-03
+Retry verification found GitHub PR #3 open against main. Current branch HEAD is fd5650167d1b647522d57dce29c6b267319d6d9d. Checks report .github/workflows/ci-cd.yml completed with no jobs; no review approval is present. No merge performed.
+Report corrections: docs/reports/RIS-BRANCH-CONSOLIDATION-01F-GITHUB-PR.md and docs/reports/RIS-BRANCH-CONSOLIDATION-01-ABSCHLUSSBERICHT.md

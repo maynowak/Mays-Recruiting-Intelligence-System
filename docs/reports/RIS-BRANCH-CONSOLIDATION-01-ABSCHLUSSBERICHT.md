@@ -3,19 +3,19 @@
 ## Ergebnis
 
 ```text
-PR READY — MERGE BLOCKED
+PR OPEN — MERGE BLOCKED
 ```
 
 The RIS development branch was reviewed, documented and pushed as a feature
-branch. No merge to `main` was performed because no authenticated PR could be
-opened and no GitHub checks or approval are available.
+branch. PR #3 is open against `main`; no merge was performed because required
+checks and approval are unavailable.
 
 ## Branch and HEADs
 
 ```text
 Development branch: feature/ris-application-persistence-v1
 Initial HEAD:       65a4b9a95732f5de0c4ec0192ba6af54cc277a41
-Final HEAD:         9766a0200cd6e560a31b94603ae15e856a059347
+Final HEAD:         fd5650167d1b647522d57dce29c6b267319d6d9d
 Target:             main
 Fetched origin/main: 26b36604204ff9822d66646a6a64c8f429025698
 ```
@@ -81,14 +81,14 @@ PR creation URL:
 
 https://github.com/maynowak/Mays-Recruiting-Intelligence-System/pull/new/feature/ris-application-persistence-v1
 
-GitHub CLI was unavailable and the browser session was unauthenticated. No PR
-number, GitHub check result or merge success is claimed.
+PR #3 is open against `main`. Its checks view reports the configured workflow
+completed with no jobs, and no review approval is present. No successful
+GitHub CI result or merge success is claimed.
 
 ## Remaining RIS-DEV tasks
 
-1. Open the PR using an authenticated maintainer account.
-2. Review the 01D handoff and the full branch diff against current `main`.
-3. Obtain required GitHub checks and reviewer approval.
+1. Review PR #3, the 01D handoff and the full branch diff against current `main`.
+2. Configure/run the required GitHub checks and obtain reviewer approval.
 4. Reconcile the missing formal Jobsearch handoff files.
 5. Generate a fresh `ris-dev` Terraform plan; never reuse `ris-dev2` plans.
 6. Verify real DynamoDB transaction/GSI behavior, S3 lifecycle/erasure and
