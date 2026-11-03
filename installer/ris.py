@@ -498,6 +498,7 @@ PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
     "identity_custom_domain",
     "identity_custom_domain_certificate_arn",
     "api_cors_origins",
+    "applications_cursor_secret_arn",
 })
 
 
@@ -562,7 +563,10 @@ def load_project_config(
                 f"(allowed: {sorted(PROJECT_CONFIG_ALLOWED_KEYS)})"
             )
         lowered = key.lower()
-        if any(marker in lowered for marker in PROJECT_CONFIG_FORBIDDEN_KEY_MARKERS):
+        # ARNs are references, never secret values. Allow them so a secret can
+        # be wired by ARN while value-bearing keys stay forbidden.
+        if (any(marker in lowered for marker in PROJECT_CONFIG_FORBIDDEN_KEY_MARKERS)
+                and not lowered.endswith("_arn")):
             raise ValueError(
                 f"project config {config_path}: key {key!r} looks like a "
                 f"secret and must not be committed"

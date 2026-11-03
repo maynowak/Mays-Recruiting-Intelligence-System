@@ -104,6 +104,12 @@ class TestOverlaySafety(unittest.TestCase):
         self.assertTrue(all(o.startswith("http") for o in logouts))
         self.assertNotIn("*", cfg["identity_oauth_callback_urls"])
 
+    def test_secret_arn_reference_is_allowed_but_value_keys_are_not(self):
+        cfg = load_project_config("ris-dev")
+        arn = cfg["applications_cursor_secret_arn"]
+        self.assertTrue(arn.startswith("arn:aws:secretsmanager:"))
+        self.assertNotIn("cursor_secret_value", cfg)
+
     def test_no_secret_like_values_in_config(self):
         data = json.loads(_read(RIS_DEV_CONFIG))
         blob = json.dumps(data).lower()

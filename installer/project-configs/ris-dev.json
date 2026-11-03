@@ -15,6 +15,8 @@
 
     "identity_custom_domain_enabled": "false",
 
+    "applications_cursor_secret_arn": "arn:aws:secretsmanager:eu-central-1:240571105849:secret:ris-dev/applications/cursor-hmac-cuHjQ8",
+
     "api_cors_origins": "[\"http://localhost:5173\",\"https://mays-job-matcher.vercel.app\",\"https://www.mays-job-matcher.app\"]"
   }
 }
