@@ -13,7 +13,7 @@ DEPLOYMENT/PRODUCTION GO: BLOCKED
 | Suite | Result |
 |---|---:|
 | Previously skipped Moto repository/E2E | 11 passed |
-| ApplicationV1 selection | 42 passed, 0 skipped |
+| ApplicationV1 selection | 43 passed, 0 skipped |
 | API/OpenAPI/route consistency | 47 passed, 301 subtests passed |
 | Security/auth/privacy/handoff/erasure | 18 passed |
 | Python compile | PASS |

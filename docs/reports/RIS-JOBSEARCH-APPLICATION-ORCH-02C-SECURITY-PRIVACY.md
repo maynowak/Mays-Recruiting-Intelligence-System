@@ -12,7 +12,7 @@ application export contract.
 ## Evidence
 
 - Security/auth/privacy/handoff/erasure selection: **18 passed**.
-- Moto cross-identity and erasure harness paths are included in the **42-pass**
+- Moto cross-identity and erasure harness paths are included in the **43-pass**
   ApplicationV1 runtime selection.
 - No live authenticated BFF or `ris-dev` identity was available or used.
 

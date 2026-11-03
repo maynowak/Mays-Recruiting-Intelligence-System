@@ -23,7 +23,7 @@ runtime/test dependencies were installed directly into the isolated venv.
 ## Gate evidence
 
 - Previously skipped repository/E2E Moto tests: **11 passed**.
-- Full ApplicationV1 selection after enabling Moto: **42 passed**.
+- Full ApplicationV1 selection after enabling Moto: **43 passed**.
 - No ApplicationV1 test remained skipped.
 - No AWS access or deployment was used.
 

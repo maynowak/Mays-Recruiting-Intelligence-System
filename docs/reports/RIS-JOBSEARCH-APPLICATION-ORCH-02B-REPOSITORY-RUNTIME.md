@@ -33,5 +33,5 @@ These are explicit residual integration/privacy items, not claimed as solved.
 
 - `tests/test_application_repository.py` + `tests/test_application_e2e_harness.py`:
   **11 passed**.
-- Complete ApplicationV1 selection: **42 passed**.
+- Complete ApplicationV1 selection: **43 passed**.
 - No Moto skip remains in the ApplicationV1 selection.
