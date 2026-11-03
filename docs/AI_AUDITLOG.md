@@ -8912,3 +8912,14 @@ Validation: 05B matrix 6 passed; prior focused suite 53 passed plus 7 subtests; 
 No bypass, fallback tenant, direct data path, AWS deployment or infrastructure mutation.
 Report: docs/reports/RIS-DEV2-AUTH-05B-AUTHORIZATION-HARDENING.md
 Decision: 05B complete; proceed to bootstrap design/readiness without provisioning.
+
+[RIS-DEV2-AUTH-05C-ADMIN-BOOTSTRAP-DESIGN]
+Status: DESIGN COMPLETE / BOOTSTRAP NOT AUTHORIZED
+Date: 2026-11-03
+Existing trust anchor: tools/ris_admin/credentials.py resolve_admin_authorization uses STS exact principal ARN plus owner-only local JSON mapping with role admin|staff|owner and mandatory tenantId; no fallback/default/CLI role.
+Security finding: file format has no cryptographic signature, issuer registry, expiry, nonce or replay counter; provenance must be supplied out-of-band by RIS owner/security authority. Account/environment are not explicit fields and must be independently approved and constrained to ris-dev2.
+Existing APIProfile/Credential adapters can be reused; raw credentials remain one-time owner-only output and revocable. Synthetic Cognito user is not an RIS administrator.
+Gap: current partner CLI subcommands expose direct registry operations and partner create --tenantId without the shared _actor trust-anchor guard. No partner mutation was attempted; this path is not accepted as safe bootstrap evidence.
+Current principal arn:aws:iam::262370457690:user/devnemo has no configured/matching authorization file.
+Report: docs/reports/RIS-DEV2-AUTH-05C-ADMIN-BOOTSTRAP-DESIGN.md
+Decision: provisioning remains BLOCKED; no self-authorization or parallel admin architecture.
