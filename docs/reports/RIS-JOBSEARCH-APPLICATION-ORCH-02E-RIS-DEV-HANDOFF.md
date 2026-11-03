@@ -12,7 +12,7 @@ or production rollout.
 | Area | Local evidence | RIS-DEV action |
 |---|---|---|
 | Status/stage | GAP-01 additive model and Moto roundtrip | Verify deployed legacy compatibility |
-| Details/PATCH | 42 ApplicationV1 tests; nullable fields and versions | Run authenticated API matrix |
+| Details/PATCH | 43 ApplicationV1 tests; nullable fields and versions | Run authenticated API matrix |
 | Follow-ups | Moto lifecycle, UTC overdue, stale version tests | Verify timezone and UI mapping |
 | Metrics/pagination | All-page algorithm and Moto metrics test | Verify scale, latency and concurrent mutation behavior |
 | Documents | Metadata-only contract and job binding | Verify CV/profile fixture ownership and export shape |
