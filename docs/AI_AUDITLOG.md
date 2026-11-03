@@ -8923,3 +8923,13 @@ Gap: current partner CLI subcommands expose direct registry operations and partn
 Current principal arn:aws:iam::262370457690:user/devnemo has no configured/matching authorization file.
 Report: docs/reports/RIS-DEV2-AUTH-05C-ADMIN-BOOTSTRAP-DESIGN.md
 Decision: provisioning remains BLOCKED; no self-authorization or parallel admin architecture.
+
+[RIS-DEV2-AUTH-05D-BOOTSTRAP-READINESS]
+Status: BLOCKED / NO VERIFIED ISSUER OR DEV2 AUTHORIZATION GRANT
+Date: 2026-11-03
+No bootstrap component, authorization file, partner, APIProfile or Credential was created. Self-signing/self-authorizing is prohibited.
+Offline authorization subset: 10 passed, 39 deselected (missing/unmapped/incomplete/unparsable/writable policy, no actor-role override, AWS identity alone).
+Readiness: exact principal binding is implemented but no DEV2 mapping exists; local file has no issuer/signature/expiry/nonce/replay protection and no explicit environment field. Partner CLI tenant override/direct registry path requires shared trust-anchor guard before mutation.
+Credential output/revocation protections exist in the existing adapter; no live credential exists for this run. Broader credential issuance tests were not treated as readiness evidence because Windows ACL assumptions caused runner-only failures; production checks were not weakened.
+Report: docs/reports/RIS-DEV2-AUTH-05D-BOOTSTRAP-READINESS.md
+Decision: remain BLOCKED; stop before AWS mutation/provisioning.
