@@ -9044,3 +9044,11 @@ Active root: terraform/; all root module sources resolve under terraform/modules
 Finding: installer/projects/mays_order_builder/terraform/main.tf is ignored builder-clone code and is not an active RIS module source; generated terraform/modules/mays_orders is the local module boundary. Saved plan has orders_lifecycle=disabled, so its module count is zero.
 No foreign Terraform file changed.
 Report: docs/reports/RIS-DEV2-AUTH-06H-A-SCOPE.md
+
+[RIS-DEV2-AUTH-06H-B-SCOPED-VALIDATION]
+Status: PASS — SCOPED RIS TERRAFORM FORMAT AND VALIDATION GATES
+Date: 2026-11-03
+Scoped terraform fmt/init/validate: PASS (validate retains existing DynamoDB hash_key/range_key deprecation warnings). Identity/API selection: 59 passed + 304 subtests; full RIS selection: 177 passed + 304 subtests.
+Packaging: 6 passed, 2 skipped; both skips explicitly report missing mayaws credentials at test lines 137 and 167. No test weakened.
+Global fmt failure remains separately attributed to ignored installer/projects/mays_order_builder/terraform/main.tf; no foreign file changed.
+Report: docs/reports/RIS-DEV2-AUTH-06H-B-SCOPED-VALIDATION.md
