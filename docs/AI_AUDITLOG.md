@@ -8962,3 +8962,12 @@ Runtime: ris-dev2-dev-agent; Zip; python3.14; x86_64; handler.lambda_handler; no
 Ownership: Terraform module owns aws_lambda_function.agent via filename and filebase64sha256; official package is terraform/lambda.zip from lambda/build_zip.py --bundle agent/all. Direct update-function-code is not authorized.
 Report: docs/reports/RIS-DEV2-AUTH-06B-RUNTIME-DISCOVERY.md
 Decision: current deployed package differs from newly built local artifact; continue offline packaging/validation, no AWS mutation.
+
+[RIS-DEV2-AUTH-06C-LAMBDA-PACKAGING]
+Status: PASS / REPRODUCIBLE LOCAL ARTIFACT CREATED / NOT UPLOADED
+Date: 2026-11-03
+Procedure: python lambda/build_zip.py --bundle all; existing official builder only.
+Agent artifact: terraform/lambda.zip; 76 Python entries; handler.py at root; lambda_handler alias present; corrected _application_routes call present; old dispatcher call absent; no bytecode or forbidden secret/config names.
+Artifact SHA-256 hex: f2630322a6887fef860552264f6c6fbeb4e1e8985acc7dbe612e99b6dea8d613. Lambda-compatible Base64: 8mMDIqaIf++GBVImT2xvvrTh6JhazH2+YS6Ztt6o1hM=. Existing AWS CodeSha256 differs; no update executed.
+Report: docs/reports/RIS-DEV2-AUTH-06C-LAMBDA-PACKAGING.md
+Decision: artifact ready for separately authorized Terraform-managed release; stop before upload/apply.
