@@ -600,6 +600,7 @@ resource "aws_lambda_function" "agent" {
     aws_iam_role_policy.lambda_upload_cutover,
     aws_iam_role_policy.lambda_dynamodb_product,
     aws_iam_role_policy.lambda_dynamodb_partner_registry,
+    aws_iam_role_policy.lambda_dynamodb_applications,
     aws_iam_role_policy.lambda_documents,
     aws_iam_role_policy.lambda_s3,
     aws_iam_role_policy.lambda_logs,
