@@ -8852,3 +8852,12 @@ JWT: signature valid against actual DEV2 pool JWKS; issuer correct; token_use=ac
 HTTP smoke: missing/invalid/expired/wrong-issuer JWTs returned 401. Valid JWT reached API Gateway; GET /me/profile returned 403 Tenant not resolvable. ApplicationV1 GET without and with invalid X-Api-Credential returned 500 Internal Server Error because no partner binding exists. No CRUD mutation sent.
 Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04C-PKCE-AUTH.md
 Decision: Human JWT authentication PASS; partner authorization and ApplicationV1 E2E remain blocked by 04D provisioning block and recorded runtime error.
+
+[RIS-DEV2-TEST-IDENTITY-04D-PARTNER-BINDING]
+Status: RIS PARTNER PROVISIONING BLOCKED
+Date: 2026-11-03
+Run ID: RIS-DEV2-04-20261103T111714Z
+The existing tools/ris_admin lifecycle requires a local owner-only RIS_ADMIN_AUTHORIZATION_FILE mapping the exact STS principal to role and tenant. Current principal arn:aws:iam::262370457690:user/devnemo has no configured/matching mapping. AdministratorAccess is not treated as RIS application authorization.
+No PartnerApplication, APIProfile, Credential, tenant binding, entitlement or direct DynamoDB write was performed. No M2M client/secret or production partner was touched.
+Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04D-PARTNER-BINDING.md
+Decision: authenticated ApplicationV1 CRUD and credential-dependent isolation/privacy gates are BLOCKED; do not bypass the RIS authorization contract.
