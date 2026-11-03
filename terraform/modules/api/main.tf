@@ -508,6 +508,14 @@ resource "aws_apigatewayv2_route" "applications_list" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
+resource "aws_apigatewayv2_route" "applications_metrics" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/applications/metrics"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
 resource "aws_apigatewayv2_route" "applications_create" {
   api_id             = aws_apigatewayv2_api.ris_api.id
   route_key          = "POST /v1/partner/me/applications"

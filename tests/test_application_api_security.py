@@ -11,7 +11,7 @@ API_TF = (ROOT / "terraform" / "modules" / "api" / "main.tf").read_text(encoding
 class ApplicationApiSecurityTests(unittest.TestCase):
     def test_all_application_routes_use_jwt_authorizer(self):
         blocks = re.findall(r'resource "aws_apigatewayv2_route" "applications_[^"]+" \{(.*?)\n\}', API_TF, re.S)
-        self.assertEqual(9, len(blocks))
+        self.assertEqual(10, len(blocks))
         for block in blocks:
             self.assertIn('authorization_type = "JWT"', block)
             self.assertIn('authorizer_id', block)
