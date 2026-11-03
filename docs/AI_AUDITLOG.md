@@ -9008,3 +9008,12 @@ Fix: mirror only lambda/handler.py, agents and jobsearch; mutate/restore handler
 Validation: tests/test_lambda_packaging.py 6 passed, 2 skipped (pre-existing live-contract skips).
 Report: docs/reports/RIS-DEV2-AUTH-06G1-WINDOWS-PACKAGING.md
 Decision: G1 complete; proceed to full packaging and functional validation.
+
+[RIS-DEV2-AUTH-06G2-FULL-VALIDATION]
+Status: FUNCTIONAL/PACKAGING PASS / TERRAFORM FORMAT CHECK BLOCKED BY UNRELATED FILE
+Date: 2026-11-03
+Artifact rebuilt with python lambda/build_zip.py --bundle all; hash unchanged: f2630322a6887fef860552264f6c6fbeb4e1e8985acc7dbe612e99b6dea8d613 (Base64 8mMDIqaIf++GBVImT2xvvrTh6JhazH2+YS6Ztt6o1hM=).
+Validation: packaging 6 passed/2 skipped; functional suite 177 passed + 304 subtests; Python 3.14.10 compileall PASS; Python 3.14 ZIP import smoke PASS; ZIP structure/dispatcher/secret-name checks PASS.
+Terraform: init -backend=false PASS; validate PASS with existing range_key deprecation warnings; fmt -check -recursive blocked by unrelated installer/projects/mays_order_builder/terraform/main.tf. Init-generated lockfile change removed; no state/apply.
+Report: docs/reports/RIS-DEV2-AUTH-06G2-FULL-VALIDATION.md
+Decision: artifact and functional checks green; strict G2 remains blocked by unrelated Terraform format failure.
