@@ -226,7 +226,7 @@ class ApplicationRepository:
             row.get("followUp") for row in rows
             if isinstance(row.get("followUp"), Mapping) and row["followUp"].get("status") == "open"
         ]
-        submitted = {"SUBMITTED", "submitted", "feedback", "interview", "offer", "rejected"}
+        submitted = {"submitted"}
         interviews = {"interview"}
         drafts = sum(1 for row in rows if row.get("stage") == "draft" or ("stage" not in row and row.get("status") == "DRAFT"))
         sent = sum(1 for row in rows if row.get("stage") in submitted or ("stage" not in row and row.get("status") == "SUBMITTED"))
