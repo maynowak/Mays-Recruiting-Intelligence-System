@@ -8,6 +8,7 @@ dry-run safety, and preservation of existing mechanisms (CWD, init).
 
 import os
 import sys
+from pathlib import Path
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -70,6 +71,12 @@ def test_environment_never_replaces_project_name():
     assert "filename" in vars
     assert "health_writer_zip_path" in vars
     assert "health_publisher_zip_path" in vars
+    repo_root = Path(__file__).resolve().parent.parent
+    for key in ("filename", "health_writer_zip_path", "health_publisher_zip_path"):
+        assert Path(vars[key]).is_absolute()
+        assert Path(vars[key]).is_relative_to(repo_root), (
+            "%s must resolve inside the repository, got %s" % (key, vars[key])
+        )
     with pytest.raises(ValueError):
         RisInstallContext(project_name="mays-ris", environment="prod2")
 

@@ -1110,8 +1110,11 @@ class RisInstallContext:
         # the overlay is named for -- load_project_config is fail-closed.
         merged = dict(load_project_config(self.project_name))
         merged.update(self.extra_vars or {})
-        # Provide absolute paths for lambda zips (required for isolated workdirs)
-        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(self.terraform_dir)))
+        # Provide absolute paths for lambda zips (required for isolated workdirs).
+        # Repo root is the parent of the terraform directory; deriving it from
+        # the parent of the *relative* path resolves one level too high and
+        # produced paths like /home/<user>/projects/lambda/... (plan blocker).
+        repo_root = os.path.dirname(os.path.abspath(self.terraform_dir))
         orders_reader_zip = os.path.join(repo_root, "lambda", "dist", "orders-reader.zip")
         health_writer_zip = os.path.join(repo_root, "lambda", "dist", "health-writer.zip")
         health_publisher_zip = os.path.join(repo_root, "lambda", "dist", "health-publisher.zip")
