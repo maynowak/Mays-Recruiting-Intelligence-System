@@ -32,6 +32,35 @@ class ApplicationContractTests(unittest.TestCase):
         with self.assertRaises(ApplicationContractError):
             validate_patch({"job": {"jobId": "j1"}})
 
+    def test_details_and_follow_up_round_trip_with_nullable_patch_fields(self):
+        value = validate_create({
+            "job": {"jobId": "j1"},
+            "applicationDate": "2026-11-03T00:00:00Z",
+            "applicationChannel": "email",
+            "contact": {"name": "Hiring Contact", "email": "hiring@example.test", "phone": "+49 30 1"},
+            "notes": "Synthetic note",
+            "salary": {"expectation": {"amount": 80000, "currency": "EUR", "period": "year"}},
+            "followUp": {"dueOn": "2026-11-10", "note": "Send reminder", "status": "open"},
+        })
+        self.assertEqual("email", value["applicationChannel"])
+        self.assertEqual("2026-11-10", value["followUp"]["dueOn"])
+        patch = validate_patch({
+            "expectedVersion": 1,
+            "applicationDate": None,
+            "contact": None,
+            "salary": None,
+            "followUp": None,
+        })
+        self.assertIsNone(patch["followUp"])
+
+    def test_follow_up_calendar_and_completion_invariants(self):
+        with self.assertRaises(ApplicationContractError):
+            validate_create({"job": {"jobId": "j1"}, "followUp": {"dueOn": "2026-02-30", "status": "open"}})
+        with self.assertRaises(ApplicationContractError):
+            validate_create({"job": {"jobId": "j1"}, "followUp": {"dueOn": "2026-11-10", "status": "completed"}})
+        with self.assertRaises(ApplicationContractError):
+            validate_create({"job": {"jobId": "j1"}, "followUp": {"dueOn": "2026-11-10", "status": "open", "completedAt": "2026-11-03T00:00:00Z"}})
+
 
 if __name__ == "__main__":
     unittest.main()
