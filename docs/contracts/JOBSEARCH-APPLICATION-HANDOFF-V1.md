@@ -63,3 +63,10 @@ The handoff carries CV/profile references and versions, not files. Cover-letter
 versions are explicit text records with server-generated version IDs. The
 adapter treats the legacy lifecycle and additive Jobsearch `stage` as
 server-owned values and handles `409 VERSION_CONFLICT` by re-reading.
+
+Application details and follow-ups use the existing PATCH route with
+`expectedVersion`. Omitted fields remain unchanged; explicit `null` removes an
+optional field. The metrics route is
+`GET /v1/partner/me/applications/metrics` and returns complete owner-scoped
+counts across all cursor pages. CV references are metadata-only and RIS checks
+their ownership through the existing partner-profile repository.

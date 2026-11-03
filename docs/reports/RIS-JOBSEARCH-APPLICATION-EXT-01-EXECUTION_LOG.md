@@ -45,3 +45,14 @@ commit.
   auth/security/privacy/handoff/erasure tests passed.
 - Moto-dependent repository E2E tests were skipped by their existing guard;
   no live API or AWS test was performed.
+
+## 2026-11-03 — ORCH-01 milestone
+
+- Read-only CONTRACT analysis confirmed Jobsearch fields, follow-up invariants,
+  metadata-only documents and CV ownership requirements. No reference files
+  were changed.
+- Package A implemented contract validation and repository persistence for
+  details/follow-ups with nullable PATCH semantics.
+- Package B implemented all-page metrics, metrics API route, metadata-only
+  document versions and existing-profile CV ownership verification.
+- Local Moto evidence remains open because `boto3` is unavailable.
