@@ -9212,6 +9212,22 @@ Tests: 119 passed/2 skipped fokussiert; 37 Installer-Tests; fmt/init/validate PA
 Report: docs/reports/RIS-DEV-UPGRADE-S03-RELEASE-PLAN.md
 Next: Modul-Adressmigration separat freigeben; danach neuer Plan mit 0 Deletes an geschützten Ressourcen. STOP nach S03.
 
+[RIS-DEV-UPGRADE-S04-A]
+Status: COMPLETE / GREEN für S04-A — keine Deployment-Freigabe
+Date: 2026-11-03 18:10 UTC
+Git: main, Basis 4ccbcd4, Commit db0c0c2 (moved blocks), Report-Commit folgt.
+Scope: Deklarative Adressmigration der vier count-indizierten Module; Plan-only, kein Apply.
+Findings:
+  - Ursache der 54 Deletes war ausschließlich die Adressinkompatibilität module.X -> module.X[0].
+  - Vier moved-Blöcke ergänzt (cognito, mays_orders, orders_reader, monitoring_orders); 1:1-Zuordnung über IDs belegt.
+  - Neuer Plan SHA256 3bb88eddc75055cbb9a1861368344c42eda0037f4d8b0e04caee07e220c5c5af: 0 DELETE, 0 REPLACE, 48 CREATE, 3 UPDATE, 54 MOVE (alle no-op), 1 informativer Computed-Drift.
+  - Creates: 34 Routen, 7 Tabellen, 7 IAM-Policies. Updates: Lambda-Code/Env, 2 IAM-Policies.
+  - Cognito/Orders/CloudFront/DNS/ACM: 0 Änderungen. State unverändert (serial 36, Version 3tey8lIH...).
+  - Tests: 51 Contract-Tests PASS; fmt/validate PASS.
+Remaining: RIS_CURSOR_SECRET, Application-Erasure, Orders-SQS Principal=*, PITR-Entscheidung.
+Report: docs/reports/RIS-DEV-UPGRADE-S04A-MODULE-ADDRESS-RECONCILIATION.md
+Next: Blocker schließen, Plan neu erzeugen. STOP nach S04-A.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
