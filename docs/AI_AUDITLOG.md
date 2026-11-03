@@ -9060,3 +9060,11 @@ Existing saved plan reused without replacement; SHA-256 7cfcbf7ba2a5986e95292248
 State serial 25 and lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082 unchanged. Plan scope exactly 0 creates / 1 in-place update / 0 deletes / 0 replacements at module.lambda.aws_lambda_function.agent.
 Recovery artifact remains available; no AWS mutation.
 Report: docs/reports/RIS-DEV2-AUTH-06H-C-PLAN-INTEGRITY.md
+
+[RIS-DEV2-AUTH-06H-SCOPED-DEPLOYMENT-GATE]
+Status: READY FOR CONTROLLED APPLY
+Date: 2026-11-03
+Scoped RIS fmt/init/validate PASS; external builder-clone format failure independently bounded and no foreign file changed. Identity/API, functional, packaging, artifact, saved-plan, state and recovery guards PASS.
+Plan remains exact: 0 creates / 1 in-place update / 0 deletes / 0 replacements at module.lambda.aws_lambda_function.agent. Plan SHA-256 7cfcbf7ba2a5986e9529224890b68b81bf32ce3fb9e96ef47ed82cfe5e570a8e; artifact SHA-256 f2630322a6887fef860552264f6c6fbeb4e1e8985acc7dbe612e99b6dea8d613; state serial 25; lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082.
+Decision: ready for controlled Terraform Apply only after explicit approval; stop before Apply.
+Report: docs/reports/RIS-DEV2-AUTH-06H-SCOPED-DEPLOYMENT-GATE.md
