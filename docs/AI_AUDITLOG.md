@@ -8783,3 +8783,20 @@ Reports:
 - docs/reports/RIS-DEV2-TEST-IDENTITY-02D-PLAN.md
 - docs/reports/RIS-DEV2-TEST-IDENTITY-02D-PLAN-EXECUTION_LOG.md
 Decision: structural plan gates PASS; final Apply Readiness report required; apply remains blocked pending explicit approval of exact hash and Human authorizer transition.
+
+[RIS-DEV2-TEST-IDENTITY-02-APPLY-READINESS]
+Status: COMPLETE / STOP BEFORE APPLY
+Date: 2026-11-03
+Final commit sequence: 02A=9e433a352e248e15bef5408d4fdbb5b953b7e412; 02B=77f7d2f627aba10724c02b3f27cd4810bf698b58; 02C=dff03a8cac32c0d3a634534c0702e43625b78e3b; 02D=c983441428b28e812567b32a7575add80235b1c7.
+Final plan: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-managed-identity-02.tfplan
+Final plan SHA-256: 35EE37C10CF190A0DD1A80714734C2DD9A567CF191186693B9952B9C2ED64CE6
+Final action matrix: 10 creates, 1 Human JWT authorizer in-place update, 0 deletes, 0 replacements.
+Secret gate: managed M2M client/resource server absent; Human public client generate_secret=false; no secret read/output. Existing external M2M authorizer/route preserved unchanged.
+Protected gate: no Lambda/DynamoDB/S3/SQS/CloudFront/OAC/DNS/ACM/external-Cognito/Orders/ris-dev changes; 64 Human routes and one M2M route preserved.
+Tests: identity 9 passed; selected API/ApplicationV1/privacy/erasure/APIProfile/CV/partner regressions 244 passed, 297 subtests; Terraform fmt/init-backend-false/validate PASS.
+Old plan ris-dev2-managed-identity-01.tfplan remains SUPERSEDED ? DO NOT APPLY.
+No Apply, Cognito user, token, partner binding, APIProfile, credential or AWS resource mutation performed.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02-APPLY-READINESS.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02-APPLY-READINESS-EXECUTION_LOG.md
+Decision: structurally ready for explicit review only; APPLY AUTHORIZATION NOT GRANTED; STOP BEFORE APPLY.
