@@ -8872,3 +8872,12 @@ Reports:
 - docs/reports/RIS-DEV2-TEST-IDENTITY-04E-APPLICATION-HTTP-E2E.md
 - docs/reports/RIS-DEV2-TEST-IDENTITY-04F-ISOLATION-PRIVACY.md
 Decision: do not claim authenticated ApplicationV1 E2E or privacy/isolation success without authorized RIS provisioning.
+
+[RIS-DEV2-TEST-IDENTITY-04G-CLEANUP-REGRESSION]
+Status: COMPLETE / REGRESSION PASS
+Date: 2026-11-03
+Run ID: RIS-DEV2-04-20261103T111714Z
+Cleanup: synthetic user ris-dev2-e2e-04-111714 deleted and verified absent; temporary password/access-token/PKCE/callback files deleted; callback server stopped. No ApplicationV1/APIProfile/Credential/PartnerApplication/entitlement was created. Test pool, client and authorizer retained.
+Regression: account 262370457690; eu-central-1; state serial 25; lineage unchanged; pool/client/Human authorizer correct; external M2M unchanged; zero pool users; no managed resource server; Lambda Active/Successful; core DynamoDB ACTIVE; public Health CloudFront Deployed and HTTP 200.
+Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04G-CLEANUP-REGRESSION.md
+Decision: cleanup COMPLETE; protected infrastructure unchanged; ApplicationV1 positive E2E remains blocked by missing RIS admin binding.
