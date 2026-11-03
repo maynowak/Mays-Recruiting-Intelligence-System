@@ -148,6 +148,36 @@ class ApplicationE2EHarnessTests(unittest.TestCase):
                 app_id, {"job": {"jobId": "synthetic-job-2b"}, "expectedVersion": 2}, ctx
             )
 
+    def test_details_follow_up_lifecycle_and_stale_delete_are_versioned(self):
+        ctx = self.harness.context()
+        app_id = self.harness.create(40)["applicationId"]
+        detailed = self.harness.repository.patch(app_id, {
+            "applicationDate": "2026-11-03T10:00:00Z",
+            "applicationChannel": "email",
+            "contact": {"name": "Contact", "email": "contact@example.test"},
+            "notes": "Initial note",
+            "salary": {"expectation": {"amount": 80000, "currency": "EUR", "period": "year"}},
+            "followUp": {"dueOn": "2026-11-10", "note": "Reminder", "status": "open"},
+            "expectedVersion": 1,
+        }, ctx)
+        self.assertEqual("draft", detailed["stage"])
+        self.assertEqual("open", detailed["followUp"]["status"])
+        completed = self.harness.repository.patch(app_id, {
+            "followUp": {"dueOn": "2026-11-10", "note": "Reminder", "status": "completed", "completedAt": "2026-11-03T11:00:00Z"},
+            "expectedVersion": 2,
+        }, ctx)
+        self.assertEqual("completed", completed["followUp"]["status"])
+        reopened = self.harness.repository.patch(app_id, {
+            "followUp": {"dueOn": "2026-11-10", "note": "Reminder", "status": "open"},
+            "expectedVersion": 3,
+        }, ctx)
+        self.assertNotIn("completedAt", reopened["followUp"])
+        removed = self.harness.repository.patch(app_id, {"followUp": None, "expectedVersion": 4}, ctx)
+        self.assertNotIn("followUp", removed)
+        with self.assertRaisesRegex(ApplicationConflict, "VERSION_CONFLICT"):
+            self.harness.repository.delete(app_id, 4, ctx)
+        self.harness.repository.delete(app_id, 5, ctx)
+
     def test_jobsearch_stage_roundtrip_preserves_legacy_lifecycle_and_history(self):
         ctx = self.harness.context()
         app_id = self.harness.create(4)["applicationId"]
