@@ -9136,3 +9136,9 @@ Status: COMPLETE — ANALYSIS ONLY
 Date: 2026-11-03
 Compared Jobsearch origin/main UX/domain contracts with RIS ApplicationV1 source/configuration. Foundation is present, but status compatibility, detail fields, follow-ups, aggregate metrics, document envelope, child concurrency and session transfer remain open. No tests or live calls were run.
 Reports: docs/reports/RIS-JOBSEARCH-APPLICATION-EXT-01-REPORT.md; docs/reports/RIS-JOBSEARCH-APPLICATION-EXT-01-COVERAGE.md
+
+[RIS-JOBSEARCH-APPLICATION-EXT-01-PLAN]
+Status: COMPLETE — IMPLEMENTATION NOT STARTED
+Date: 2026-11-03
+Open-items register GAP-01 through GAP-06 and additional identity, retention and live-readiness items created. Eight ordered RIS work packages documented with implementation progress 0%; no product code, AWS, Terraform state, deployment or Jobsearch change.
+Reports: docs/reports/RIS-JOBSEARCH-APPLICATION-EXT-01-OPEN-ITEMS.md; docs/reports/RIS-JOBSEARCH-APPLICATION-EXT-01-PLAN.md

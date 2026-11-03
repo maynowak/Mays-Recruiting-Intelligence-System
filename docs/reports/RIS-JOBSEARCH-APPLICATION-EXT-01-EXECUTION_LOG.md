@@ -28,3 +28,10 @@ commit.
   DynamoDB schema and IAM wiring.
 - Classified current capabilities and gaps in the coverage matrix; no runtime
   calls or tests were performed.
+
+## 2026-11-03 — planning milestone
+
+- Registered GAP-01 through GAP-06 plus identity, retention and live-readiness
+  items with stable IDs.
+- Defined eight ordered implementation packages; all implementation progress is
+  `0%` because no product code was changed.
