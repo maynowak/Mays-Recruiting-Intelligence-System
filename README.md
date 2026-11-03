@@ -88,3 +88,12 @@ python -m installer.build_mays_orders_module --clean
 `docs/reports/` (Gate-Nachweise G0–G9 + Execution-Logs, bleiben erhalten).
 Ältere Architektur-Docs sind Historie — im Zweifel gelten Code + die drei
 kanonischen Dateien oben.
+
+## Lizenzierung
+
+Mays-RIS veröffentlicht seinen Community-Code unter
+GNU AGPLv3, soweit die entsprechenden Rechte vorliegen.
+
+Weitere Informationen:
+
+[Community, Premium und kommerzielle Lizenzierung](./LICENSING.md)
