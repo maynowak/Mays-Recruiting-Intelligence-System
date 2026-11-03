@@ -33,3 +33,15 @@ or production rollout.
 - Metrics, CV/document ownership and delete/export evidence against `ris-dev`.
 
 Ownership for these gates is RIS-DEV/platform/privacy, not this local branch.
+
+## Executable acceptance criteria for open gates
+
+| OI | Owner | Command/test | Expected evidence | Target | Approval |
+|---|---|---|---|---|---|
+| OI-07 | Jobsearch/RIS-DEV | Execute approved session-transfer preview/confirm matrix with duplicate, retry and partial-failure cases | Per-item result artifact, no-loss reconciliation and rollback/retry proof | Authenticated integration environment | Jobsearch + RIS-DEV |
+| OI-08 | RIS-DEV/platform | Run authenticated HTTP E2E through the approved BFF/delegation path; verify JWT tenant/issuer/partner binding and absent browser partner secret | CI/live E2E report plus redacted request/response evidence | `ris-dev` integration environment | Security + platform |
+| OI-09 | Privacy/platform | Run retention, export-signing, hard-delete/tombstone and backup/PITR restore/delete acceptance suite | Approved privacy decision, retention config, restore/delete evidence and erasure receipt | Controlled non-production environment | Privacy/legal + platform |
+| OI-10 | RIS-DEV | Run package, plan and live verifier only with approved profile/workspace/backend guards | Plan artifact, live HTTP/S3/DynamoDB evidence, check results and deployment approval record | Authorized `ris-dev` | RIS-DEV release owner |
+
+Until each row has its named evidence and approval, the corresponding OI is
+OPEN and deployment remains BLOCKED.
