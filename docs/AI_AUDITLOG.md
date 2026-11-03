@@ -9274,6 +9274,19 @@ Gates: RG-01..06, 08, 12..14 PASS; RG-07/09/10/11 BLOCKED; RG-15 NO-GO.
 Report: docs/reports/RIS-DEV-UPGRADE-S06-FINAL-RELEASE-GATES.md
 Next: S07 nur nach Schließen der vier Gates. STOP nach S06.
 
+[RIS-DEV-UPGRADE-S06-R]
+Status: COMPLETE / NO-GO — Blocker entscheidungsreif, keine Freigabe
+Date: 2026-11-03
+Git: main, HEAD ab2aa40, Docs-Commit folgt. Keine Code-/Terraform-Änderung.
+Findings:
+  - Cursor-Secret: Vertrag, Namensvorschlag, IAM/KMS, Rotation, Provisionierungs- und Rollback-Anleitung dokumentiert -> READY FOR AUTHORIZED PROVISIONING; Gate bleibt BLOCKED bis Anlage+Verify.
+  - Privacy: 14 Erasure-/Repository-Tests erneut PASS (kein Erfolg ohne Deleter, pending bleibt incomplete, Tenant/User-Isolation, Idempotenz); Entscheidungsvorlage mit 7 Feldern und Verantwortlichen; RG-09 BLOCKED.
+  - PITR: Tabelle je Ressource mit Empfehlung; getrennter Change-Scope (neue Creates vs 10 Bestands-Updates) vorbereitet, nicht angewendet wegen Kollision mit offener Löschfrist; RG-10 BLOCKED.
+  - Orders-SQS: Handoff mit Soll-Policy (2 Rollen-ARNs, aws:SourceAccount), Negativtest und Rollback erstellt; RG-11 BLOCKED.
+  - Neuer Plan SHA256 4dc294738be7d1dd61ac10272fa08fd268094006b3a6f4504d57ab1d89c7f511: 48 CREATE, 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 1 Drift; State serial 36 unverändert.
+Report: docs/reports/RIS-DEV-UPGRADE-S06R-REMEDIATION.md; Handoff: docs/reports/RIS-DEV-UPGRADE-S06R-ORDERS-SQS-HANDOFF.md
+Next: S07 nach Schließen von RG-07/09/10/11. STOP nach S06-R.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
