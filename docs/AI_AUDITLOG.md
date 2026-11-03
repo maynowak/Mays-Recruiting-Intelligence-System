@@ -9017,3 +9017,13 @@ Validation: packaging 6 passed/2 skipped; functional suite 177 passed + 304 subt
 Terraform: init -backend=false PASS; validate PASS with existing range_key deprecation warnings; fmt -check -recursive blocked by unrelated installer/projects/mays_order_builder/terraform/main.tf. Init-generated lockfile change removed; no state/apply.
 Report: docs/reports/RIS-DEV2-AUTH-06G2-FULL-VALIDATION.md
 Decision: artifact and functional checks green; strict G2 remains blocked by unrelated Terraform format failure.
+
+[RIS-DEV2-AUTH-06G3-TERRAFORM-PLAN]
+Status: PASS — EXACT LAMBDA CODE-ONLY PLAN
+Date: 2026-11-03
+Preflight: account 262370457690, eu-central-1, workspace ris-dev2, state serial 25, lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082, Lambda revision f3719946-b052-48a5-bd62-750ffc54dcab.
+Plan: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-auth-06g.tfplan; SHA-256 7cfcbf7ba2a5986e9529224890b68b81bf32ce3fb9e96ef47ed82cfe5e570a8e.
+Scope: 0 creates, 1 in-place update, 0 deletes, 0 replacements; sole address module.lambda.aws_lambda_function.agent; source_code_hash only plus computed last_modified.
+Artifact: terraform/lambda.zip SHA-256 f2630322a6887fef860552264f6c6fbeb4e1e8985acc7dbe612e99b6dea8d613; Base64 8mMDIqaIf++GBVImT2xvvrTh6JhazH2+YS6Ztt6o1hM=.
+Decision: Terraform scope gate PASS; stop before Apply.
+Report: docs/reports/RIS-DEV2-AUTH-06G3-TERRAFORM-PLAN.md
