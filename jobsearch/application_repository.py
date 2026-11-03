@@ -141,10 +141,13 @@ class ApplicationRepository:
         except Exception as exc:
             raise ValueError("invalid cursor") from exc
 
-    def _owned(self, application_id: str, ctx: ApplicationContext, consistent: bool = True) -> dict[str, Any]:
+    def _owned(self, application_id: str, ctx: ApplicationContext,
+               consistent: bool = True, allow_deleting: bool = False) -> dict[str, Any]:
         row = self.table.get_item(Key={"applicationId": application_id, "entityKey": "META"}, ConsistentRead=consistent).get("Item")
         if not row or row.get("ownerKey") != self._scope(ctx):
             raise ApplicationNotFound("application not found")
+        if row.get("deletionState") == "IN_PROGRESS" and not allow_deleting:
+            raise ApplicationConflict("ERASURE_IN_PROGRESS")
         return row
 
     def _verify_cv_reference(self, reference: Mapping[str, Any], ctx: ApplicationContext) -> None:
@@ -177,7 +180,7 @@ class ApplicationRepository:
 
     @staticmethod
     def _public(row: Mapping[str, Any]) -> dict[str, Any]:
-        return {k: v for k, v in row.items() if k not in {"entityKey", "ownerKey", "idempotencyHash", "entityType"}}
+        return {k: v for k, v in row.items() if k not in {"entityKey", "ownerKey", "idempotencyHash", "entityType", "deletionState"}}
 
     def create(self, data: Mapping[str, Any], ctx: ApplicationContext) -> dict[str, Any]:
         ctx.validate()
@@ -243,7 +246,7 @@ class ApplicationRepository:
             if start_key:
                 kwargs["ExclusiveStartKey"] = start_key
             result = self.table.query(**kwargs)
-            page = [x for x in result.get("Items", []) if x.get("entityType") == "META"]
+            page = [x for x in result.get("Items", []) if x.get("entityType") == "META" and not x.get("deletionState")]
             if status_filter is not None:
                 page = [x for x in page if x.get("status") == status_filter]
             if stage_filter is not None:
@@ -420,9 +423,20 @@ class ApplicationRepository:
         return {"application": self._public(app), "history": history, "coverLetterVersions": versions, "documents": self._public(app).get("documents", {})}
 
     def delete(self, application_id: str, expected_version: int, ctx: ApplicationContext) -> None:
-        current = self._owned(application_id, ctx)
+        current = self._owned(application_id, ctx, allow_deleting=True)
         if current.get("version") != expected_version:
             raise ApplicationConflict("VERSION_CONFLICT")
+        if current.get("deletionState") != "IN_PROGRESS":
+            marked = dict(current, deletionState="IN_PROGRESS", updatedAt=_now())
+            try:
+                self.table.put_item(
+                    Item=marked,
+                    ConditionExpression="version = :expected AND ownerKey = :owner",
+                    ExpressionAttributeValues={":expected": expected_version, ":owner": self._scope(ctx)},
+                )
+            except Exception as exc:
+                raise ApplicationConflict("VERSION_CONFLICT") from exc
+            current = marked
         children: list[dict[str, Any]] = []
         exclusive_start_key = None
         while True:
@@ -437,20 +451,25 @@ class ApplicationRepository:
             exclusive_start_key = page.get("LastEvaluatedKey")
             if not exclusive_start_key:
                 break
-        children.sort(key=lambda item: 0 if item.get("entityType") == "META" else 1)
-        actions = []
-        for child in children:
-            condition = "ownerKey = :owner"
-            values = {":owner": self._scope(ctx)}
-            if child.get("entityType") == "META":
-                condition += " AND version = :expected"
-                values[":expected"] = expected_version
-            actions.append({"Delete": {"TableName": self.table_name,
-                                         "Key": {"applicationId": child["applicationId"], "entityKey": child["entityKey"]},
-                                         "ConditionExpression": condition,
-                                         "ExpressionAttributeValues": values}})
+        children = [child for child in children if child.get("entityType") != "META"]
+        actions = [{"Delete": {"TableName": self.table_name,
+                                "Key": {"applicationId": child["applicationId"], "entityKey": child["entityKey"]},
+                                "ConditionExpression": "ownerKey = :owner",
+                                "ExpressionAttributeValues": {":owner": self._scope(ctx)}}}
+                   for child in children]
+        idempotency_hash = current.get("idempotencyHash")
         try:
             for offset in range(0, len(actions), 100):
                 self._transact(actions[offset:offset + 100])
+            final_actions = [{"Delete": {"TableName": self.table_name,
+                                           "Key": {"applicationId": application_id, "entityKey": "META"},
+                                           "ConditionExpression": "ownerKey = :owner AND version = :expected AND deletionState = :state",
+                                           "ExpressionAttributeValues": {":owner": self._scope(ctx), ":expected": expected_version, ":state": "IN_PROGRESS"}}}]
+            if idempotency_hash:
+                final_actions.append({"Delete": {"TableName": self.table_name,
+                                                   "Key": {"applicationId": "IDEMP#" + idempotency_hash, "entityKey": "IDEMP"},
+                                                   "ConditionExpression": "ownerKey = :owner",
+                                                   "ExpressionAttributeValues": {":owner": self._scope(ctx)}}})
+            self._transact(final_actions)
         except Exception as exc:
             raise ApplicationConflict("VERSION_CONFLICT") from exc

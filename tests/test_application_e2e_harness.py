@@ -200,6 +200,39 @@ class ApplicationE2EHarnessTests(unittest.TestCase):
         self.assertEqual(1, metrics["openFollowUps"])
         self.assertEqual(1, metrics["overdueFollowUps"])
 
+    def test_delete_cleans_idempotency_record_for_reuse(self):
+        ctx = self.harness.context()
+        first = self.harness.create(44, idempotency_key="reusable-key")
+        self.harness.repository.delete(first["applicationId"], 1, ctx)
+        second = self.harness.create(45, idempotency_key="reusable-key")
+        self.assertNotEqual(first["applicationId"], second["applicationId"])
+        self.harness.repository.delete(second["applicationId"], 1, ctx)
+
+    def test_multi_batch_delete_resumes_after_intermediate_failure(self):
+        ctx = self.harness.context()
+        app = self.harness.create(46)
+        version = 1
+        for sequence in range(105):
+            self.harness.repository.add_history(app["applicationId"], {"type": "note", "sequence": sequence}, version, ctx)
+            version += 1
+        repo = self.harness.repository
+        original_transact = repo._transact
+        calls = {"count": 0}
+
+        def fail_on_second_batch(items):
+            calls["count"] += 1
+            if calls["count"] == 2:
+                raise RuntimeError("synthetic batch failure")
+            return original_transact(items)
+
+        repo._transact = fail_on_second_batch
+        with self.assertRaisesRegex(ApplicationConflict, "VERSION_CONFLICT"):
+            repo.delete(app["applicationId"], version, ctx)
+        repo._transact = original_transact
+        repo.delete(app["applicationId"], version, ctx)
+        with self.assertRaises(ApplicationNotFound):
+            repo.get(app["applicationId"], ctx)
+
     def test_jobsearch_stage_roundtrip_preserves_legacy_lifecycle_and_history(self):
         ctx = self.harness.context()
         app_id = self.harness.create(4)["applicationId"]
