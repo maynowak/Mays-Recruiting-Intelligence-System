@@ -8892,3 +8892,13 @@ ApplicationV1 CRUD/versioning/pagination/delete and cross-user/tenant/partner/pr
 No user, token, secret, application data, partner, APIProfile, credential or entitlement remains from the run. Pool/client/authorizer retained.
 Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04-ABSCHLUSSBERICHT.md
 Decision: stop; next run requires explicit tenant-scoped RIS admin authorization and secure credential handoff.
+
+[RIS-DEV2-AUTH-05A-500-ROOT-CAUSE]
+Status: ROOT CAUSE VERIFIED / LOCAL FIX APPLIED
+Date: 2026-11-03
+Environment guard: account 262370457690; eu-central-1; state serial 25; expected lineage; no Terraform/AWS mutation.
+Root cause: ApplicationV1 dispatcher called undefined _handle_application_routes; implemented function is _application_routes. NameError escaped before partner/credential/tenant authorization, producing HTTP 500.
+Fix: dispatcher wired to _application_routes; existing authorization path preserved. Malformed credential shape is rejected before store construction as 401; valid-shaped credentials with unavailable stores remain 503.
+Validation: focused auth/application/tenant/contract tests 53 passed plus 7 subtests; existing credential/machine/application E2E tests 90 passed.
+Report: docs/reports/RIS-DEV2-AUTH-05A-500-ROOT-CAUSE.md
+Decision: 05A complete; no AWS deployment authorized.

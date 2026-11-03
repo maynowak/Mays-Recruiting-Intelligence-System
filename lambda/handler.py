@@ -527,7 +527,7 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     elif path == '/v1/partner/me/applications' or path.startswith('/v1/partner/me/applications/'):
         # ApplicationV1 uses the existing authenticated partner boundary. It
         # never invokes an agent/model and never accepts client identity.
-        return _handle_application_routes(event, context, method, path)
+        return _application_routes(event, context, method, path)
     elif method == 'GET' and path.startswith('/work'):
         work_id = event.get('pathParameters', {}).get('workId')
         return _get_work(work_id, event)
@@ -3743,6 +3743,7 @@ def _partner_profile_context(event: Dict[str, Any]):
         VerifyOutcome,
         _Denied,
         resolve_credential_profile,
+        valid_secret_format,
     )
     from agents.ecosystem.partner_registry import resolve_partner_application
 
@@ -3756,6 +3757,13 @@ def _partner_profile_context(event: Dict[str, Any]):
 
     bearer, header_error = _machine_bearer(headers)
     if header_error:
+        return None, _partner_boundary_error(401, 'Unauthorized')
+
+    # The shared credential contract rejects malformed values before any
+    # store lookup. Keep that ordering at the HTTP boundary as well: a bad
+    # shape is a client denial (401), while an unavailable configured store
+    # remains a truthful 503 for structurally valid credentials.
+    if not valid_secret_format(bearer):
         return None, _partner_boundary_error(401, 'Unauthorized')
 
     try:
