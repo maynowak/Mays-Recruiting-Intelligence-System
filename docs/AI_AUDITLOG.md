@@ -9027,3 +9027,12 @@ Scope: 0 creates, 1 in-place update, 0 deletes, 0 replacements; sole address mod
 Artifact: terraform/lambda.zip SHA-256 f2630322a6887fef860552264f6c6fbeb4e1e8985acc7dbe612e99b6dea8d613; Base64 8mMDIqaIf++GBVImT2xvvrTh6JhazH2+YS6Ztt6o1hM=.
 Decision: Terraform scope gate PASS; stop before Apply.
 Report: docs/reports/RIS-DEV2-AUTH-06G3-TERRAFORM-PLAN.md
+
+[RIS-DEV2-AUTH-06G-DEPLOYMENT-READINESS]
+Status: DEPLOYMENT BLOCKED — EXACT REMAINING CAUSE
+Date: 2026-11-03
+Gates: Windows packaging, functional regression, ZIP integrity, Python 3.14 smoke and exact Terraform scope PASS; repository-wide terraform fmt -check -recursive fails on unrelated installer/projects/mays_order_builder/terraform/main.tf.
+Recovery artifact: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-auth-06-previous-lambda.zip; SHA-256 45ae52c1f3cc455f0e5dd1f64482eb6a02bbe7a3117a260d58bd20b81c54c38.
+Plan: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-auth-06g.tfplan; SHA-256 7cfcbf7ba2a5986e9529224890b68b81bf32ce3fb9e96ef47ed82cfe5e570a8e; exact 0/1/0/0 Agent Lambda code-only scope.
+Decision: no Apply; clear the unrelated format gate, then rerun preflight and plan before any separately approved Terraform Apply.
+Report: docs/reports/RIS-DEV2-AUTH-06G-DEPLOYMENT-READINESS.md
