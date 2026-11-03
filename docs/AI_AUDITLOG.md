@@ -8944,3 +8944,12 @@ Validation: auth/application/tenant/API contract 78 passed + 304 subtests; exist
 Gate matrix: root cause VERIFIED; fail-closed PASS; admin bootstrap BLOCKED; live credential lifecycle BLOCKED; ApplicationV1 CRUD PENDING; protected infrastructure UNCHANGED; AWS deployment NOT AUTHORIZED.
 Report: docs/reports/RIS-DEV2-AUTH-05-ABSCHLUSSBERICHT.md
 Decision: stop before deployment/provisioning; require externally issued tenant-scoped DEV2 authorization for follow-up.
+
+[RIS-DEV2-AUTH-06A-FIX-BASELINE]
+Status: PASS / COMMITTED DISPATCHER FIX VERIFIED
+Date: 2026-11-03
+Baseline: feature/ris-application-persistence-v1 @ f876c26dbb84be38b8c9604a46e48b8489f4f422; clean tree; no foreign changes overwritten.
+Fix: ApplicationV1 dispatch calls existing _application_routes(event, context, method, path), which enters _application_ctx and the existing _partner_profile_context boundary before repository access. lambda_handler = handler remains the configured entry point.
+Packaging contract: python lambda/build_zip.py --bundle all; agent artifact terraform/lambda.zip; Terraform-managed filename + filebase64sha256; runtime python3.14; handler handler.lambda_handler. No AWS write or deployment performed.
+Report: docs/reports/RIS-DEV2-AUTH-06A-FIX-BASELINE.md
+Decision: 06A complete; continue read-only discovery.
