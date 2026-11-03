@@ -9302,6 +9302,22 @@ Findings:
 Reports: docs/reports/RIS-DEV-UPGRADE-S06R-DECISION-REGISTER.md, docs/reports/RIS-DEV-UPGRADE-S06R-DECISION-CLOSURE-01.md
 Next: Freigaben einholen; danach Secret/PITR/SQS umsetzen und neuen Plan erzeugen. STOP.
 
+[RIS-DEV-UPGRADE-DEC01-SECRET-PROVISION-01]
+Status: COMPLETE / RG-07 PARTIAL — Secret angelegt, IAM-Grant noch nicht angewendet
+Date: 2026-11-03
+Git: main, Basis 30fa171, Commit 4988758 (Overlay/Guard), Report-Commit folgt.
+Scope: autorisierte Secrets-Manager-Anlage (nur ein Secret) + Plan; kein Apply.
+Findings:
+  - Benutzerfreigabe lag vor der Schreiboperation vor; keine Ableitung aus alten Reports.
+  - Secret ris-dev/applications/cursor-hmac existierte nicht (keine Kollision) und wurde angelegt: ARN arn:aws:secretsmanager:eu-central-1:240571105849:secret:ris-dev/applications/cursor-hmac-cuHjQ8, SecretString 64 Zeichen, AWS-managed KMS, Rotation aus.
+  - Wert nie ausgegeben; Erzeugung und Schreiben im selben Prozess.
+  - Lokaler Krypto-Test über ARN: issue/resolve ok; tampered, fremder Tenant und fremder User abgelehnt.
+  - Overlay referenziert nur den ARN; Guard erlaubt _arn-Referenzen, verbietet weiter werttragende Secret-Keys; 60 Tests PASS.
+  - Neuer Plan SHA256 f779d778a104d6b5bf54a6fab5b4a884daef409cd20262552718e5f54577668b: 49 CREATE (48 + lambda_cursor_secret[0]), 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 1 Drift; State serial 36 unverändert.
+  - RG-07 PARTIAL: IAM-Grant und Lambda-Env erst nach Apply wirksam; Runtime-Test BLOCKED; Negativtest ohne Fremdrolle nicht durchgeführt.
+Report: docs/reports/RIS-DEV-UPGRADE-DEC01-SECRET-PROVISION.md
+Next: Apply in separatem Auftrag, dann Runtime-Verifikation und RG-07 PASS. STOP nach DEC-01.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
