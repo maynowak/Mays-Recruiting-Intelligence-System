@@ -47,3 +47,17 @@ remained out of scope.
 
 AWS E2E can only be reconsidered after a separately authorized retry of the
 exact plan succeeds and the post-Apply guards pass.
+
+## 03H resume result
+
+The explicitly approved resume attempt also stopped before resource mutation
+with Terraform exit code `1` because the saved plan's dependency selections
+did not match the current Terraform working data:
+
+```text
+Error: Inconsistent dependency lock file
+```
+
+Read-only verification again found state serial `23`, no ApplicationV1 table,
+no ApplicationV1 routes and an unchanged Agent Lambda. No AWS E2E test was
+started and no retry was performed.
