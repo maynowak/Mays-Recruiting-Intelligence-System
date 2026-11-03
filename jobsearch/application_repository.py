@@ -28,7 +28,7 @@ from jobsearch.application_contract import (
     ApplicationContractError, ApplicationContext, validate_create,
     JOBSEARCH_STAGES, STATUSES, legacy_status_stage, validate_patch, validate_stage_filter,
     validate_cover_letter_version, validate_stage_transition, validate_status_filter,
-    validate_transition,
+    validate_history_event, validate_transition,
 )
 
 
@@ -357,8 +357,7 @@ class ApplicationRepository:
         current = self._owned(application_id, ctx)
         if current["version"] != expected_version:
             raise ApplicationConflict("VERSION_CONFLICT")
-        if not isinstance(event, Mapping) or not isinstance(event.get("type"), str):
-            raise ApplicationContractError("INVALID_HISTORY", "history type is required")
+        event = validate_history_event(event)
         stamp = _now()
         item = {"applicationId": application_id, "entityKey": "HISTORY#" + stamp + "#" + str(uuid.uuid4()), "entityType": "HISTORY", "ownerKey": self._scope(ctx), "event": dict(event), "createdAt": stamp, "actorUserId": ctx.user_id}
         updated = dict(current, version=expected_version + 1, updatedAt=stamp)

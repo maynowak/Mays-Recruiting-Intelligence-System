@@ -207,6 +207,36 @@ def validate_cover_letter_version(value: Any) -> dict[str, Any]:
     return result
 
 
+def validate_history_event(value: Any) -> dict[str, Any]:
+    """Validate Jobsearch timeline events while preserving legacy `type` events."""
+    if not isinstance(value, Mapping):
+        raise ApplicationContractError("INVALID_HISTORY", "history event is invalid")
+    event = dict(value)
+    kind = event.get("kind")
+    if kind is None:
+        legacy_type = event.get("type")
+        if not isinstance(legacy_type, str) or not legacy_type.strip():
+            raise ApplicationContractError("INVALID_HISTORY", "history kind is required")
+        return event
+    if kind not in {"feedback", "interview", "note"}:
+        raise ApplicationContractError("INVALID_HISTORY", "history kind is invalid")
+    if not isinstance(event.get("text"), str) and kind in {"feedback", "note"}:
+        raise ApplicationContractError("INVALID_HISTORY", "history text is required")
+    if kind == "interview":
+        scheduled_at = event.get("scheduledAt")
+        if not isinstance(scheduled_at, str):
+            raise ApplicationContractError("INVALID_HISTORY", "scheduledAt is required")
+        try:
+            datetime.fromisoformat(scheduled_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ApplicationContractError("INVALID_HISTORY", "scheduledAt is invalid") from exc
+        if event.get("note") is not None:
+            _optional_text(event["note"], "history.note", 2000, allow_empty=True)
+    if "id" in event and (not isinstance(event["id"], str) or not event["id"].strip()):
+        raise ApplicationContractError("INVALID_HISTORY", "history id is invalid")
+    return event
+
+
 def validate_create(data: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(data, Mapping):
         raise ApplicationContractError("INVALID_JSON", "request body must be an object")

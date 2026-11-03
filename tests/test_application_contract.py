@@ -2,11 +2,22 @@ import unittest
 
 from jobsearch.application_contract import (
     ApplicationContractError, validate_create, validate_patch,
-    validate_transition,
+    validate_history_event, validate_transition,
 )
 
 
 class ApplicationContractTests(unittest.TestCase):
+    def test_typed_history_event_shapes(self):
+        self.assertEqual("feedback", validate_history_event({"kind": "feedback", "text": "Positive reply"})["kind"])
+        self.assertEqual("interview", validate_history_event({
+            "kind": "interview", "scheduledAt": "2026-11-10T09:00:00Z"
+        })["kind"])
+        self.assertEqual("note", validate_history_event({"kind": "note", "text": "Call"})["kind"])
+        with self.assertRaises(ApplicationContractError):
+            validate_history_event({"kind": "feedback"})
+        with self.assertRaises(ApplicationContractError):
+            validate_history_event({"kind": "interview", "scheduledAt": "not-a-date"})
+
     def test_identity_is_server_owned(self):
         with self.assertRaisesRegex(ApplicationContractError, "identity"):
             validate_create({"applicationId": "attacker", "job": {"jobId": "j1"}})
