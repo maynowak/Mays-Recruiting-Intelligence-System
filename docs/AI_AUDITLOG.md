@@ -8565,3 +8565,29 @@ Reports:
 - docs/reports/RIS-APPLICATION-E2E-05A-SYNTHETIC-IDENTITY-PLAN-EXECUTION_LOG.md
 Classification: YELLOW / PROVISIONING BLOCKED.
 Next: separate explicit 05B approval from external Cognito owner and RIS operator; secure once-only credential handoff, expiry/revoke and cleanup must be approved first.
+
+[RIS-APPLICATION-E2E-05B-G0-CROSS-ACCOUNT-AUTHORIZATION]
+Status: COMPLETE READ-ONLY DISCOVERY / 05B PROVISIONING BLOCKED
+Date: 2026-11-03
+Branch/HEAD at start: feature/ris-application-persistence-v1 @ 6544208e343d2cb5acbf1fa0a576aa5f50fd0e2a
+Scope: G0-A through G0-G - cross-account Cognito owner authorization, OAuth evidence, RIS admin provisioning, secure credential handoff.
+Verified:
+- RIS default identity: account 262370457690, eu-central-1; workspace ris-dev2; state serial 24; lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082.
+- External pool owner: account 240571105849; pool eu-central-1_ojbmoiYGM; human audience 7ldhihlpdgsgcl3puvu4oi7ksv; target-account pool lookup returned ResourceNotFoundException.
+- Only local AWS profile [default] found; no alternate profile or documented cross-account role for this test verified; no foreign profile tried.
+- Twelve APIProfile/credential management routes are deployed and JWT-protected, but route presence is not admin authorization.
+- No RIS admin authorization file at documented candidate paths; no authorized operator handoff.
+- Current external Human OAuth flow/scopes/PKCE/token issuance and secure JWT handoff remain unverified.
+- No AWS/RIS mutation, Terraform command, token acquisition, secret read, user/password/group/role/profile/partner/credential creation performed.
+Decision matrix:
+- RIS Account Guard PASS.
+- Cognito Owner Authorization BLOCKED.
+- OAuth Test Flow BLOCKED.
+- RIS Admin Provisioning BLOCKED.
+- Credential Handoff BLOCKED.
+- ApplicationV1 Storage Scope VERIFIED; Agent Entitlement NOT REQUIRED.
+Reports:
+- docs/reports/RIS-APPLICATION-E2E-05B-G0-CROSS-ACCOUNT-AUTHORIZATION.md
+- docs/reports/RIS-APPLICATION-E2E-05B-G0-CROSS-ACCOUNT-AUTHORIZATION-EXECUTION_LOG.md
+Classification: YELLOW / 05B PROVISIONING BLOCKED.
+Next: obtain explicit external Cognito owner authorization, current OAuth evidence, tenant-scoped RIS admin authorization and secure credential handoff before any separately approved provisioning.
