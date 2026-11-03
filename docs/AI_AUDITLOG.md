@@ -9228,6 +9228,20 @@ Remaining: RIS_CURSOR_SECRET, Application-Erasure, Orders-SQS Principal=*, PITR-
 Report: docs/reports/RIS-DEV-UPGRADE-S04A-MODULE-ADDRESS-RECONCILIATION.md
 Next: Blocker schließen, Plan neu erzeugen. STOP nach S04-A.
 
+[RIS-DEV-UPGRADE-S04-B]
+Status: COMPLETE / YELLOW — kein Deployment
+Date: 2026-11-03 19:29 UTC
+Git: main, Basis 3b32a76, Commit 8e42e6c (Cursor-Secret), Report-Commit folgt.
+Findings:
+  - Cursor-Secret: HMAC-Key kommt jetzt aus Secrets Manager über RIS_CURSOR_SECRET_ARN (Prozess-Cache, fail-closed); Terraform liefert nur den ARN, bedingte GetSecretValue-Policy; kein Secret erzeugt, kein Klartext in State/Env/Logs.
+  - Application-Erasure: BLOCKED — /me/erasure nutzt PrivacyErasure ohne Applications; user-weite Löschung bräuchte gsi-user auf tenant|user plus Schreibpfad; Rechtsfreigabe offen; moto lokal nicht installierbar (PEP 668/kein venv) -> keine Integrationstests.
+  - PITR: 10 von 11 bestehenden Tabellen DISABLED, ris-dev-mays-orders ENABLED; 7 neue Tabellen ohne PITR im Modul. Empfehlungsmatrix erstellt, keine Änderung.
+  - Orders-SQS: Principal "*" ohne Conditions inkl. Receive/Delete (generiertes Modul sqs/main.tf:29-40). Kein anonymer Internetzugriff (SigV4), aber Cross-Account offen. Risiko HOCH; Korrektur beim Eigentümer.
+  - Neuer Plan SHA256 5fd68662754b5d1f1eb6e8aa9598f7acc32a93a655a9f2f269b1b4815ce71da6: 48 CREATE, 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 1 informativer Drift; State serial 36 unverändert.
+  - Tests: 217 passed, 8 skipped; fmt/validate PASS; Bundle reproduzierbar (SHA256 0ed0d4df...).
+Report: docs/reports/RIS-DEV-UPGRADE-S04B-RELEASE-BLOCKERS.md
+Next: Secret-Provisionierung, Erasure-GSI/Rechtsfreigabe, PITR-Entscheidung, SQS-Korrektur. STOP nach S04-B.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
