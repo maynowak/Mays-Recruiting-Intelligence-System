@@ -7756,13 +7756,13 @@ Current resume point:
    - Audit complete
 
 [RIS-PARTNER-PROFILE-R01-CONTRACT-FOUNDATION]
-Current status: COMPLETE — persistenzneutrale Contract-/Validierungsschicht v1 implementiert.
+Current status: COMPLETE ï¿½ persistenzneutrale Contract-/Validierungsschicht v1 implementiert.
 Audit date/time: 2026-10-31
-Audit scope: R01 Contract Foundation, keine AWS-/Terraform-Ausführung, keine API-Routen.
+Audit scope: R01 Contract Foundation, keine AWS-/Terraform-Ausfï¿½hrung, keine API-Routen.
 Actual findings:
   - Neue Datei jobsearch/partner_profile_contract.py mit 6 Ressourcentypen und v1-Schema.
   - Tests tests/unit/jobsearch/test_partner_profile_contract.py: 35/35 PASS.
-  - MO-Pin unverändert 1dbb0cb4.
+  - MO-Pin unverï¿½ndert 1dbb0cb4.
 Evidence / file references:
   - jobsearch/partner_profile_contract.py
   - tests/unit/jobsearch/test_partner_profile_contract.py
@@ -7772,7 +7772,7 @@ Current resume point:
   - R01 abgeschlossen; R02 nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R02-DYNAMODB-REPOSITORY]
-Current status: COMPLETE — Partner-Profile-Repository und DynamoDB-Tabelle implementiert.
+Current status: COMPLETE ï¿½ Partner-Profile-Repository und DynamoDB-Tabelle implementiert.
 Audit date/time: 2026-10-31
 Actual findings:
   - Neue Datei jobsearch/partner_profile_repository.py.
@@ -7789,15 +7789,15 @@ Current resume point:
   - R02 abgeschlossen; R03 nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R02R-CONCURRENCY-ISOLATION]
-Current status: COMPLETE — atomare Kapazitätsgrenzen und Isolations-/Pagination-Härtung.
+Current status: COMPLETE ï¿½ atomare Kapazitï¿½tsgrenzen und Isolations-/Pagination-Hï¿½rtung.
 Audit date/time: 2026-10-31
 Actual findings:
   - Behoben: TOCTOU-Race in Create (Count+Put) durch TransactWriteItems ersetzt.
   - Behoben: fehlende DynamoDB-Serialisierung der ExpressionAttributeValues.
-  - Atomare Zähler capacity#CV/CVSP/ATS mit ConditionCheck + Put + Update.
-  - Delete dekrementiert denselben Zähler atomar (count > 0).
+  - Atomare Zï¿½hler capacity#CV/CVSP/ATS mit ConditionCheck + Put + Update.
+  - Delete dekrementiert denselben Zï¿½hler atomar (count > 0).
   - Tests: 28 Repository + 35 Contract + 75 Partner-Regression PASS.
-  - Offen für R07: echte DynamoDB-Integrationsprüfung der Transaktionen.
+  - Offen fï¿½r R07: echte DynamoDB-Integrationsprï¿½fung der Transaktionen.
 Evidence / file references:
   - jobsearch/partner_profile_repository.py
   - tests/unit/jobsearch/test_partner_profile_repository.py
@@ -7807,12 +7807,12 @@ Current resume point:
   - R02-R abgeschlossen; R03 nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R02R2-TRANSACTION-COMPATIBILITY]
-Current status: COMPLETE — DynamoDB-Transaktionsregel korrigiert.
+Current status: COMPLETE ï¿½ DynamoDB-Transaktionsregel korrigiert.
 Audit date/time: 2026-10-31
 Actual findings:
   - ConditionCheck und Update adressierten dasselbe Counter-Item (AWS verbietet
     mehrere Aktionen pro Item) -> ValidationException-Risiko.
-  - Behoben: Kapazitätsbedingung in die ConditionExpression der Counter-Update-
+  - Behoben: Kapazitï¿½tsbedingung in die ConditionExpression der Counter-Update-
     Aktion integriert; keine ConditionCheck-Aktion mehr.
   - Create: Update(Counter, count < :max) + Put(Ressource) auf getrennten Keys.
   - Delete: Delete(Ressource) + Update(Counter, count > :zero) auf getrennten Keys.
@@ -7827,7 +7827,7 @@ Current resume point:
   - R02-R2 abgeschlossen; R03 nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R03-MANUAL-CRUD-API]
-Current status: COMPLETE — Manual-Search-Profile-CRUD-API implementiert.
+Current status: COMPLETE ï¿½ Manual-Search-Profile-CRUD-API implementiert.
 Audit date/time: 2026-10-31
 Actual findings:
   - 5 Routen: GET/POST /v1/partner/me/manual-search-profiles, GET/PUT/DELETE /{profileId}.
@@ -7852,7 +7852,7 @@ Current resume point:
   - R03 abgeschlossen; R04 nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R04-CV-DOCUMENT-LIFECYCLE]
-Current status: COMPLETE — CV-Metadaten und sicherer Dokument-Lifecycle implementiert.
+Current status: COMPLETE ï¿½ CV-Metadaten und sicherer Dokument-Lifecycle implementiert.
 Audit date/time: 2026-10-31
 Actual findings:
   - 8 Routen unter /v1/partner/me/cvs (CRUD + document upload/complete/get).
@@ -7878,7 +7878,7 @@ Current resume point:
   - R04 abgeschlossen; R05 nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R05G0-CONTRACT-RECONCILIATION]
-Current status: COMPLETE — Vertragsabgleich R01-R04 vs. Jobsearch v1; R05-CRUD BLOCKED.
+Current status: COMPLETE ï¿½ Vertragsabgleich R01-R04 vs. Jobsearch v1; R05-CRUD BLOCKED.
 Audit date/time: 2026-10-31
 Actual findings:
   - Jobsearch origin/main = ad9b5ed (Contracts gelesen, read-only).
@@ -7899,7 +7899,7 @@ Current resume point:
   - R05-G0 abgeschlossen; R05-CRUD nicht begonnen (BLOCKED durch P0-1/P0-2).
 
 [RIS-PARTNER-PROFILE-R05P0-CONTRACT-REPAIR]
-Current status: COMPLETE — P0-1 (schemaVersion) und P0-2 (searchConfig) behoben.
+Current status: COMPLETE ï¿½ P0-1 (schemaVersion) und P0-2 (searchConfig) behoben.
 Audit date/time: 2026-10-31
 Actual findings:
   - P0-1: SCHEMA_VERSION jetzt Integer 1; Legacy "v1" wird lesend auf 1
@@ -7928,7 +7928,7 @@ Current resume point:
   - R05-P0 abgeschlossen; R05-CRUD nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R05A-INTEGRITY-IDEMPOTENCY]
-Current status: COMPLETE — Parent-Integritaet und Create-Idempotenz implementiert.
+Current status: COMPLETE ï¿½ Parent-Integritaet und Create-Idempotenz implementiert.
 Audit date/time: 2026-10-31
 Actual findings:
   - P1-5: Child-Guard ueber bestehende Kapazitaetszaehler; Kind-Create
@@ -7957,7 +7957,7 @@ Current resume point:
   - R05-A abgeschlossen; R05-CRUD nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R05B-CV-SEARCH-CRUD]
-Current status: COMPLETE — CVSearchProfileV1-CRUD-API implementiert.
+Current status: COMPLETE ï¿½ CVSearchProfileV1-CRUD-API implementiert.
 Audit date/time: 2026-10-31
 Actual findings:
   - 5 Routen unter /v1/partner/me/cvs/{cvId}/search-profiles.
@@ -7980,7 +7980,7 @@ Current resume point:
   - R05-B abgeschlossen; R06 nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R06G0-ATS-CONTRACT-PARENT-GATE]
-Current status: COMPLETE — ATS-v1-Vertrag und Parent-Semantik analysiert; R06-CRUD vorbereitet.
+Current status: COMPLETE ï¿½ ATS-v1-Vertrag und Parent-Semantik analysiert; R06-CRUD vorbereitet.
 Audit date/time: 2026-10-31
 Actual findings:
   - Jobsearch origin/main = 0129559; ATS-Datenshape unveraendert seit c6137b3
@@ -8004,7 +8004,7 @@ Current resume point:
   - R06-G0 abgeschlossen; R06-CRUD nicht begonnen (P1-3 ist R06-Blocker).
 
 [RIS-PARTNER-PROFILE-R06-ATS-CRUD]
-Current status: COMPLETE — ATSSearchProfileV1-CRUD inkl. ATSCriteriaV1 implementiert.
+Current status: COMPLETE ï¿½ ATSSearchProfileV1-CRUD inkl. ATSCriteriaV1 implementiert.
 Audit date/time: 2026-10-31
 Actual findings:
   - ATSCriteriaV1 (schemaVersion 1, drei optionale Listen, strikt, keine
@@ -8933,3 +8933,14 @@ Readiness: exact principal binding is implemented but no DEV2 mapping exists; lo
 Credential output/revocation protections exist in the existing adapter; no live credential exists for this run. Broader credential issuance tests were not treated as readiness evidence because Windows ACL assumptions caused runner-only failures; production checks were not weakened.
 Report: docs/reports/RIS-DEV2-AUTH-05D-BOOTSTRAP-READINESS.md
 Decision: remain BLOCKED; stop before AWS mutation/provisioning.
+
+[RIS-DEV2-AUTH-05-ABSCHLUSS]
+Status: PARTIAL VERIFIED â€” FAIL-CLOSED FIX COMPLETE; BOOTSTRAP BLOCKED
+Date: 2026-11-03
+05A: dispatcher NameError root cause verified; _handle_application_routes corrected to _application_routes.
+05B: malformed credential precheck added at existing partner boundary; no bypass/fallback. 401/403/503 matrix covered.
+Validation: auth/application/tenant/API contract 78 passed + 304 subtests; existing credential/machine/application E2E 90 passed; trust-anchor subset 10 passed. Broader admin selection 175 passed with 6 Windows runner failures (symlink privilege/temp ACL), 15 deselected, 7 subtests; no production check weakened.
+05C/05D: existing trust anchor documented; no mapping/issuer exists for arn:aws:iam::262370457690:user/devnemo. No authorization file, partner, APIProfile, Credential or AWS mutation. Partner CLI mutation path requires shared trust-anchor review.
+Gate matrix: root cause VERIFIED; fail-closed PASS; admin bootstrap BLOCKED; live credential lifecycle BLOCKED; ApplicationV1 CRUD PENDING; protected infrastructure UNCHANGED; AWS deployment NOT AUTHORIZED.
+Report: docs/reports/RIS-DEV2-AUTH-05-ABSCHLUSSBERICHT.md
+Decision: stop before deployment/provisioning; require externally issued tenant-scoped DEV2 authorization for follow-up.
