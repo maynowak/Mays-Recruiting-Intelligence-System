@@ -8953,3 +8953,12 @@ Fix: ApplicationV1 dispatch calls existing _application_routes(event, context, m
 Packaging contract: python lambda/build_zip.py --bundle all; agent artifact terraform/lambda.zip; Terraform-managed filename + filebase64sha256; runtime python3.14; handler handler.lambda_handler. No AWS write or deployment performed.
 Report: docs/reports/RIS-DEV2-AUTH-06A-FIX-BASELINE.md
 Decision: 06A complete; continue read-only discovery.
+
+[RIS-DEV2-AUTH-06B-RUNTIME-DISCOVERY]
+Status: PASS / DEPLOYMENT METHOD VERIFIED / NO UPDATE EXECUTED
+Date: 2026-11-03
+Guard: default; account 262370457690; eu-central-1; state serial 25; lineage unchanged.
+Runtime: ris-dev2-dev-agent; Zip; python3.14; x86_64; handler.lambda_handler; no layers; Active/Successful; no aliases; only $LATEST listed. Revision and code hash captured read-only; no secrets printed.
+Ownership: Terraform module owns aws_lambda_function.agent via filename and filebase64sha256; official package is terraform/lambda.zip from lambda/build_zip.py --bundle agent/all. Direct update-function-code is not authorized.
+Report: docs/reports/RIS-DEV2-AUTH-06B-RUNTIME-DISCOVERY.md
+Decision: current deployed package differs from newly built local artifact; continue offline packaging/validation, no AWS mutation.
