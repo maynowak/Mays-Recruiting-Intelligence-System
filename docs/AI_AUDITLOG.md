@@ -9242,6 +9242,21 @@ Findings:
 Report: docs/reports/RIS-DEV-UPGRADE-S04B-RELEASE-BLOCKERS.md
 Next: Secret-Provisionierung, Erasure-GSI/Rechtsfreigabe, PITR-Entscheidung, SQS-Korrektur. STOP nach S04-B.
 
+[RIS-DEV-UPGRADE-S05]
+Status: COMPLETE / YELLOW — kein Deployment
+Date: 2026-11-03
+Git: main, Basis 7a8e27d, Commit 8535646 (Erasure), Report-Commit folgt.
+Findings:
+  - Erasure-GSI implementiert: userKey = tenant|user auf META, gsi-user; delete_all_for_user löscht partnerübergreifend innerhalb eines Tenants, autorisiert weiterhin über ownerKey.
+  - PrivacyErasure um optionalen delete-applications-Schritt erweitert (no-op ohne Deleter); Handler verdrahtet mit fail-closed bei fehlendem Tenant; pending bleibt incomplete.
+  - Tests: 267 passed (17 Dateien) mit moto 5.2.5 aus /tmp/opencode/pylibs; venv systemseitig blockiert (ensurepip fehlt).
+  - Cursor-Secret-Rotation dokumentiert: alte Cursor werden ungültig, Cache pro Prozess; optionaler zweiter ARN als nicht implementierte Option.
+  - PITR: 10/11 bestehende Tabellen DISABLED; Entscheidungsmatrix für 7 neue Tabellen; keine Änderung.
+  - Orders-SQS: Principal "*" ohne Conditions, Cross-Account offen; minimaler Policy-Vorschlag für Eigentümer.
+  - Neuer Plan SHA256 6908f4aff3e75c567d27321f8a5261df059ae6fba43a5fe2d818dba1ea0d059a: 48 CREATE (applications mit gsi-owner+gsi-user), 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 1 Drift; State serial 36 unverändert.
+Report: docs/reports/RIS-DEV-UPGRADE-S05-SECURITY-ERASURE-RECOVERY.md
+Next: Secret-Anlage, Datenschutzfreigabe, PITR-Entscheidung, SQS-Korrektur. STOP nach S05.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
