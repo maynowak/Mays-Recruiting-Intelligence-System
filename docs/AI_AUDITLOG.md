@@ -8608,3 +8608,24 @@ Reports:
 - docs/reports/RIS-APPLICATION-E2E-06A-HARNESS-DESIGN-EXECUTION_LOG.md
 Classification: GREEN for LOCAL design / BLOCKED for DEV2 mutation.
 Next: implement and run the test-only local harness in 06B; keep DEV2 disabled pending explicit live-mutation approval.
+
+[RIS-APPLICATION-E2E-06B-LOCAL-INTEGRATION]
+Status: COMPLETE LOCAL INTEGRATION PASS / DEV2 MUTATION BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ 097cb86b8405870e93753d7e9b59b40ce4c2cb88
+Scope: 06B - local ApplicationV1 integration tests using the test-only synthetic harness.
+Execution: python -m pytest tests/test_application_e2e_harness.py -q -> 8 passed in 1.73s.
+Verified:
+- LOCAL mode uses Moto/in-memory DynamoDB and synthetic values only.
+- DEV2 mode is rejected by the harness before repository construction; no live mutation path is enabled.
+- Create/get/list/update/delete, status transitions/confirmation, history, cover-letter versions and export pass.
+- Version conflicts, idempotent create and payload mismatch pass.
+- Signed pagination, tampering rejection and user/tenant/partner/issuer cursor binding pass.
+- Cross-user/tenant/partner/issuer reads are isolated; client identity fields are rejected.
+- Resumable, retry-safe, identity-scoped ApplicationErasureExecutor behavior passes.
+- No JWT, API Gateway/Lambda call, Cognito/partner/credential operation, production auth change, AWS mutation or Terraform operation occurred.
+Reports:
+- docs/reports/RIS-APPLICATION-E2E-06B-LOCAL-INTEGRATION.md
+- docs/reports/RIS-APPLICATION-E2E-06B-LOCAL-INTEGRATION-EXECUTION_LOG.md
+Classification: GREEN for LOCAL integration / BLOCKED for DEV2 mutation.
+Next: perform only the read-only 06C DEV2 preflight; 06D requires separate explicit live-DynamoDB mutation approval.
