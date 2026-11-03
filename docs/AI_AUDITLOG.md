@@ -8734,3 +8734,19 @@ Reports:
 - docs/reports/RIS-DEV2-TEST-IDENTITY-02A-SECRET-FREE-DESIGN.md
 - docs/reports/RIS-DEV2-TEST-IDENTITY-02A-SECRET-FREE-DESIGN-EXECUTION_LOG.md
 Decision: proceed to authorizer impact analysis and offline validation; apply remains blocked.
+
+[RIS-DEV2-TEST-IDENTITY-02B-AUTHORIZER-IMPACT]
+Status: COMPLETE READ-ONLY ANALYSIS / APPLY BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ 9e433a352e248e15bef5408d4fdbb5b953b7e412
+Scope: Live API Gateway authorizer and route impact analysis for Human-only managed DEV2 identity.
+Verified:
+- API 8apxb6fgne in account 262370457690 has Human authorizer 9i4w8r with 64 routes, including Profile, CV, ApplicationV1, privacy, partner and APIProfile surfaces.
+- M2M authorizer 9eli0a has one route: POST /v1/m2m/agents/{agentId}/execute.
+- Both currently reference external issuer eu-central-1_ojbmoiYGM; Human audience 7ldhihlpdgsgcl3puvu4oi7ksv; M2M audience 82ji073smu1b3fsvj96sonso.
+Decision: planned impact is one Human authorizer issuer/audience update; M2M authorizer/route remain unchanged against the external contract, while no new managed M2M resources are created.
+No API/Cognito/token/user/partner/credential mutation performed.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02B-AUTHORIZER-IMPACT.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02B-AUTHORIZER-IMPACT-EXECUTION_LOG.md
+Next: offline validation and regression tests.
