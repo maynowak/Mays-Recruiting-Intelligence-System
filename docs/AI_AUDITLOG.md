@@ -8750,3 +8750,19 @@ Reports:
 - docs/reports/RIS-DEV2-TEST-IDENTITY-02B-AUTHORIZER-IMPACT.md
 - docs/reports/RIS-DEV2-TEST-IDENTITY-02B-AUTHORIZER-IMPACT-EXECUTION_LOG.md
 Next: offline validation and regression tests.
+
+[RIS-DEV2-TEST-IDENTITY-02C-OFFLINE-VALIDATION]
+Status: COMPLETE PASS / APPLY BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ 77f7d2f627aba10724c02b3f27cd4810bf698b58
+Terraform: fmt-check PASS; init -backend=false PASS; validate PASS with existing provider deprecation warnings.
+Tests: identity/G2C set 9 passed; selected API/ApplicationV1/privacy/erasure/APIProfile/CV/partner regression set 244 passed, 297 subtests passed.
+Verified:
+- ris-dev2 identity_m2m_enabled=false; managed M2M resource server/client conditional and omitted for this overlay.
+- Human client remains public generate_secret=false; Human and M2M issuer inputs separate.
+- No M2M secret configured, read, logged or emitted.
+- No AWS/backend/plan/apply/Cognito/user/token/authorizer/route/partner/credential mutation.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02C-OFFLINE-VALIDATION.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02C-OFFLINE-VALIDATION-EXECUTION_LOG.md
+Next: guarded remote saved plan; old plan remains SUPERSEDED ? DO NOT APPLY.
