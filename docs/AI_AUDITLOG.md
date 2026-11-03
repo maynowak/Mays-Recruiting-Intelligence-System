@@ -9257,6 +9257,23 @@ Findings:
 Report: docs/reports/RIS-DEV-UPGRADE-S05-SECURITY-ERASURE-RECOVERY.md
 Next: Secret-Anlage, Datenschutzfreigabe, PITR-Entscheidung, SQS-Korrektur. STOP nach S05.
 
+[RIS-DEV-UPGRADE-S06]
+Status: COMPLETE / NO-GO — Deployment nicht autorisiert
+Date: 2026-11-03
+Git: main, HEAD 364769f, Report-Commit folgt. Keine Codeänderung.
+Baseline: Account 240571105849, Workspace ris-dev, Lineage 9cec61e5..., serial 36, 185 Ressourcen.
+Findings:
+  - Neuer Plan SHA256 6ccb94fef6cd97547a3207d2dfa1ec79ff0e37c3df9496c4b1cbe37800c6e5fe: 48 CREATE, 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 54 no-op, 1 Drift.
+  - Schutzgüter: RIS/Jobsearch Cognito, Domains, CloudFront, DNS/ACM, Orders: 0 Änderungen.
+  - Cursor-Secret BLOCKED: kein Secret im Account, ARN leer; Provisionierungsanleitung dokumentiert.
+  - Erasure technisch PASS (267 Tests, gsi-user, partnerübergreifend, idempotent, pending-Semantik); rechtlich BLOCKED.
+  - PITR BLOCKED: 10 bestehende Tabellen DISABLED, 7 neue ohne PITR; Entscheidungsmatrix erstellt.
+  - Orders-SQS BLOCKED: Principal "*" ohne Conditions inkl. Receive/Delete; Handoff-Vorschlag erstellt.
+  - Regression 267 passed; Bundle SHA256 c30556483979768ac861b8af260955a77e32308d519c4ecdc5f8c2fcef4df8f3, reproduzierbar.
+Gates: RG-01..06, 08, 12..14 PASS; RG-07/09/10/11 BLOCKED; RG-15 NO-GO.
+Report: docs/reports/RIS-DEV-UPGRADE-S06-FINAL-RELEASE-GATES.md
+Next: S07 nur nach Schließen der vier Gates. STOP nach S06.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
