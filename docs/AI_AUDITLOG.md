@@ -9157,6 +9157,24 @@ Evidence: 453 passed + 297 subtests; packaging 6 passed/2 explicit mayaws-creden
 GitHub PR could not be opened because gh is unavailable and browser is unauthenticated. PR URL documented; no PR number, CI or merge success claimed.
 Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01-ABSCHLUSSBERICHT.md
 
+[RIS-DEV-UPGRADE-S01]
+Status: COMPLETE / S01 GREEN — Upgrade-Readiness RED
+Date: 2026-11-03
+Baseline: main @ 37782f8 (Merge PR #3, ApplicationV1 Persistence). Local main was 182 commits behind origin/main and was fast-forwarded before analysis.
+Scope: Read-only evidence consolidation for the ris-dev upgrade against ris-dev2. No AWS access, no Terraform plan/apply, no changes to other repositories.
+Method: four parallel read-only subagents (DEV2 reports, ApplicationV1 code, Terraform contracts, protected infrastructure).
+Findings:
+  - No belegtes In-Place-Upgrade: ris-dev2 wurde als Greenfield in Account 262370457690 installiert (160 Ressourcen); DEPLOY-01 sagt explizit "IN-PLACE UPGRADE VERIFIED — NO".
+  - ApplicationV1 ist additive auf main: applications-Tabelle + gsi-owner, 9 JWT-Routen, 1 IAM-Policy, APPLICATIONS_TABLE; 33 lokale Tests, kein positiver Live-E2E.
+  - Zehn ApplicationV1-Lücken dokumentiert, u. a. Erasure löscht Applications nicht, RIS_CURSOR_SECRET fehlt, Delete nicht versionskonditional.
+  - Terraform-Delta: orders_lifecycle default managed (dev2: disabled), identity_m2m_enabled default true (dev2: false), Custom-Domain-Flip.
+  - Hard-Stop-Liste für Cognito, Domains, CloudFront, ACM, DNS, State-Backend dokumentiert.
+  - Der Domain-Konflikt im ris-dev-Overlay wurde vor diesem Commit behoben (Commit 4140fbc).
+Gaps: kein S09-Report, fehlende S05/S06/S08-Evidenzverzeichnisse, kein positiver Auth-E2E, Serial-24→25-Apply unbelegt.
+Report: docs/reports/RIS-DEV-UPGRADE-S01-EVIDENCE-CONSOLIDATION.md
+Next: S02 nur auf ausdrücklichen Auftrag; Prüfaufträge S02-A…S02-G im Report.
+STOP after S01 — S02 nicht gestartet.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
