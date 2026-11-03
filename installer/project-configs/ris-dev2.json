@@ -12,7 +12,6 @@
     "identity_oauth_scopes": "[\"openid\",\"email\",\"profile\"]",
     "identity_oauth_callback_urls": "[\"http://localhost:5173/auth/callback\"]",
     "identity_oauth_logout_urls": "[\"http://localhost:5173/\"]",
-    "identity_custom_domain_enabled": "false",
-    "api_cors_origins": "[\"http://localhost:5173\"]"
+    "identity_custom_domain_enabled": "false"
   }
 }

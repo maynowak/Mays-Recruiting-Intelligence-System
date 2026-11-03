@@ -8701,3 +8701,19 @@ Reports:
 - docs/reports/RIS-DEV2-TEST-IDENTITY-01-VALIDATION.md
 - docs/reports/RIS-DEV2-TEST-IDENTITY-01-VALIDATION-EXECUTION_LOG.md
 Decision: proceed to a guarded saved remote plan only; mandatory stop before apply.
+
+[RIS-DEV2-TEST-IDENTITY-01-PLAN]
+Status: SAVED PLAN CREATED / APPLY BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ aa84fb36967dbbc80d0b41846d0f83f2bf57b50f
+Plan artifact: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-managed-identity-01.tfplan
+Plan SHA-256: CFF34F75049A479F2263CEB103C327618AEA5E0D5319028D9F49766729F9CA7C
+Guards: default profile; account 262370457690; eu-central-1; workspace ris-dev2; backend state serial 24; lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082.
+Final action summary: 12 creates, 2 in-place updates, 0 deletes, 0 replacements. Creates are only managed Cognito pool/client/resource-server/groups/prefix-domain resources; updates are the existing Human and M2M API JWT authorizers to the new managed issuer/audiences.
+Protected-resource review: no external Cognito, CloudFront/OAC, Route53/DNS, ACM, Lambda, DynamoDB, S3, SQS, Orders, ris-dev or replacement/delete actions.
+Safety: first draft was discarded due to unrelated Health Lambda path and API CORS changes; final plan regenerated with exact existing artifact paths and no CORS overlay. No apply, user creation, token issuance, partner/APIProfile/credential provisioning or resource mutation performed.
+Open risk: existing managed module generates an M2M client secret; Terraform marks it sensitive but normal Terraform state persists it. Apply is not approval-ready until secret/state handling is explicitly accepted or redesigned.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-01-PLAN.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-01-PLAN-EXECUTION_LOG.md
+Decision: mandatory STOP before apply; exact plan hash and API authorizer changes require separate approval.

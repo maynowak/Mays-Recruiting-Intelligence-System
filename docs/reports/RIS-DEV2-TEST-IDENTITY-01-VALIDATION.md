@@ -11,8 +11,8 @@ installer/project-configs/ris-dev2.json
 ```
 
 It explicitly selects `managed` identity mode, disables Orders, enables OAuth
-authorization code + PKCE with one localhost callback/logout URL, disables
-custom Cognito domains, and permits only the localhost API origin.
+authorization code + PKCE with one localhost callback/logout URL, and disables
+custom Cognito domains. Existing API CORS is not changed by the identity overlay.
 
 No external pool ID, client secret, password, token, certificate ARN, DNS name
 or production callback was added.

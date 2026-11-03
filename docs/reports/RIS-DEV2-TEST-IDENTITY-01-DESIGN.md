@@ -47,8 +47,9 @@ identity_oauth_logout_urls = [http://localhost:5173/]
 identity_custom_domain_enabled = false
 ```
 
-The localhost callback is explicit and non-production. No wildcard origin,
-custom domain, ACM ARN, DNS record, external IdP, secret, password or token is
+The localhost callback is explicit and non-production. API CORS remains at its
+existing deployed value to avoid an unrelated API configuration update. No
+wildcard origin, custom domain, ACM ARN, DNS record, external IdP, secret, password or token is
 stored in the overlay.
 
 ## 4. Identity and test-user contract
