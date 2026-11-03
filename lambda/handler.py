@@ -524,6 +524,10 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # R06: partner ATS search profiles (ATSSearchProfileV1 CRUD).
         return _partner_storage_guard(
             _handle_partner_ats_routes, event, context, method, path)
+    elif path == '/v1/partner/me/applications' or path.startswith('/v1/partner/me/applications/'):
+        # ApplicationV1 uses the existing authenticated partner boundary. It
+        # never invokes an agent/model and never accepts client identity.
+        return _application_routes(event, context, method, path)
     elif method == 'GET' and path.startswith('/work'):
         work_id = event.get('pathParameters', {}).get('workId')
         return _get_work(work_id, event)
@@ -532,6 +536,114 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         'statusCode': 404,
         'body': json.dumps({'error': 'Not found'})
     }
+
+
+def _application_response(status, payload=None, code=None):
+    body = payload if isinstance(payload, dict) else {'error': payload or 'Application request failed'}
+    if code:
+        body['code'] = code
+    return {'statusCode': status, 'body': json.dumps(body, ensure_ascii=False)}
+
+
+def _application_repo():
+    from jobsearch.application_repository import ApplicationRepository
+    return ApplicationRepository()
+
+
+def _application_ctx(event):
+    from jobsearch.application_contract import ApplicationContext
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return None, error
+    return ApplicationContext(
+        user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+        partner_application_id=ctx['partnerApplicationId'], issuer=ctx['issuer']), None
+
+
+def _application_body(event):
+    try:
+        value = json.loads(event.get('body') or '{}')
+    except (TypeError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _application_id(event, path):
+    params = event.get('pathParameters') or {}
+    if params.get('applicationId'):
+        return params['applicationId']
+    rest = path[len('/v1/partner/me/applications/'):]
+    return rest.split('/', 1)[0]
+
+
+def _application_cursor(event, repo, ctx, limit):
+    raw = (event.get('queryStringParameters') or {}).get('cursor')
+    if not raw:
+        return None
+    try:
+        return repo.resolve_cursor(raw, user_id=ctx.user_id, tenant_id=ctx.tenant_id,
+                                   partner_app_id=ctx.partner_application_id,
+                                   issuer=ctx.issuer, scope='applications',
+                                   resource_type='ApplicationV1', limit=limit)
+    except Exception:
+        raise ValueError('invalid cursor')
+
+
+def _application_routes(event, context, method, path):
+    ctx, error = _application_ctx(event)
+    if error:
+        return error
+    from jobsearch.application_contract import ApplicationContractError
+    from jobsearch.application_repository import ApplicationConflict, ApplicationNotFound
+    repo = _application_repo()
+    try:
+        base = path == '/v1/partner/me/applications'
+        if base and method == 'POST':
+            result = repo.create(_application_body(event), ctx)
+            return _application_response(201, {'application': result})
+        if base and method == 'GET':
+            params = event.get('queryStringParameters') or {}
+            limit = int(params.get('limit', 50))
+            cursor = _application_cursor(event, repo, ctx, limit)
+            items, next_key = repo.list(ctx, limit=limit, cursor=cursor)
+            next_cursor = repo.issue_cursor(next_key, user_id=ctx.user_id, tenant_id=ctx.tenant_id,
+                                            partner_app_id=ctx.partner_application_id, issuer=ctx.issuer,
+                                            scope='applications', resource_type='ApplicationV1', limit=limit) if next_key else None
+            return _application_response(200, {'items': items, 'nextCursor': next_cursor})
+        app_id = _application_id(event, path)
+        suffix = path[len('/v1/partner/me/applications/' + app_id):].strip('/')
+        if not suffix and method == 'GET':
+            return _application_response(200, {'application': repo.get(app_id, ctx)})
+        if not suffix and method == 'PATCH':
+            return _application_response(200, {'application': repo.patch(app_id, _application_body(event), ctx)})
+        if not suffix and method == 'DELETE':
+            body = _application_body(event) or {}
+            repo.delete(app_id, int(body.get('expectedVersion', 0)), ctx)
+            return _application_response(204, {})
+        if suffix == 'status' and method == 'POST':
+            body = _application_body(event) or {}
+            return _application_response(200, {'application': repo.status(app_id, body.get('status'), int(body.get('expectedVersion', 0)), bool(body.get('confirm')), ctx)})
+        if suffix == 'history' and method == 'POST':
+            body = _application_body(event) or {}
+            return _application_response(201, {'history': repo.add_history(app_id, body.get('event'), int(body.get('expectedVersion', 0)), ctx)})
+        if suffix == 'cover-letter-versions' and method == 'POST':
+            body = _application_body(event) or {}
+            return _application_response(201, {'version': repo.add_cover_letter(app_id, body.get('text'), int(body.get('expectedVersion', 0)), ctx)})
+        if suffix == 'export' and method == 'GET':
+            return _application_response(200, repo.export(app_id, ctx))
+        return _application_response(405, 'Method not allowed', 'METHOD_NOT_ALLOWED')
+    except ApplicationNotFound:
+        return _application_response(404, 'Application not found', 'NOT_FOUND')
+    except ApplicationConflict as exc:
+        code = str(exc) if str(exc) in {'VERSION_CONFLICT', 'HISTORY_CONFLICT', 'COVER_LETTER_CONFLICT', 'IDEMPOTENCY_PAYLOAD_CONFLICT'} else 'CONFLICT'
+        return _application_response(409, 'Application conflict', code)
+    except ApplicationContractError as exc:
+        return _application_response(422, str(exc), exc.code)
+    except (TypeError, ValueError):
+        return _application_response(422, 'Invalid application request', 'VALIDATION_ERROR')
+    except Exception:
+        logger.exception('application request failed')
+        return _application_response(503, 'Service unavailable', 'UNAVAILABLE')
 
 
 def _handle_health(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -3631,6 +3743,7 @@ def _partner_profile_context(event: Dict[str, Any]):
         VerifyOutcome,
         _Denied,
         resolve_credential_profile,
+        valid_secret_format,
     )
     from agents.ecosystem.partner_registry import resolve_partner_application
 
@@ -3644,6 +3757,13 @@ def _partner_profile_context(event: Dict[str, Any]):
 
     bearer, header_error = _machine_bearer(headers)
     if header_error:
+        return None, _partner_boundary_error(401, 'Unauthorized')
+
+    # The shared credential contract rejects malformed values before any
+    # store lookup. Keep that ordering at the HTTP boundary as well: a bad
+    # shape is a client denial (401), while an unavailable configured store
+    # remains a truthful 503 for structurally valid credentials.
+    if not valid_secret_format(bearer):
         return None, _partner_boundary_error(401, 'Unauthorized')
 
     try:
@@ -3878,6 +3998,26 @@ def _handle_privacy_inspect(event, context):
                 code='unavailable')
 
     try:
+        from jobsearch.application_repository import ApplicationRepository
+        app_repo = ApplicationRepository()
+        app_page, _ = app_repo.list(
+            __import__('jobsearch.application_contract', fromlist=['ApplicationContext']).ApplicationContext(
+                ctx['userId'], ctx['tenantId'], ctx['partnerApplicationId'], ctx['issuer']),
+            limit=limit)
+        categories['applications'] = _privacy_category(
+            name='ApplicationV1', purpose='authenticated application tracking',
+            storage_status='stored' if app_page else 'no_data',
+            retention_ref='RIS-APPLICATION-V1-RETENTION-DECISION#APPROVAL_REQUIRED',
+            page={'items': app_page, 'nextCursor': None})
+    except Exception:
+        logger.error('privacy inspection application domain unavailable')
+        unavailable = True
+        categories['applications'] = _privacy_category(
+            name='ApplicationV1', purpose='authenticated application tracking',
+            storage_status='unavailable',
+            retention_ref='RIS-APPLICATION-V1-RETENTION-DECISION#APPROVAL_REQUIRED',
+            status='UNAVAILABLE', code='unavailable')
+    try:
         receipt_page = _privacy_receipt_page(event, ctx, limit)
         categories['privacyReceipts'] = _privacy_category(
             name='privacy_receipt', purpose='privacy evidence retrieval',
@@ -4053,6 +4193,29 @@ def _handle_privacy_export(event, context):
                 storage_status='unavailable', retention_ref=retention_ref,
                 status='UNAVAILABLE', code='unavailable')
 
+    try:
+        from jobsearch.application_repository import ApplicationRepository
+        from jobsearch.application_contract import ApplicationContext
+        app_repo = ApplicationRepository()
+        app_page, _ = app_repo.list(
+            ApplicationContext(ctx['userId'], ctx['tenantId'], ctx['partnerApplicationId'], ctx['issuer']),
+            limit=limit)
+        applications = [app_repo.export(item['applicationId'], ApplicationContext(
+            ctx['userId'], ctx['tenantId'], ctx['partnerApplicationId'], ctx['issuer']))
+                        for item in app_page]
+        categories['applications'] = _privacy_export_category(
+            name='ApplicationV1', purpose='authenticated application tracking',
+            storage_status='stored' if applications else 'no_data',
+            retention_ref='RIS-APPLICATION-V1-RETENTION-DECISION#APPROVAL_REQUIRED',
+            items=applications)
+    except Exception:
+        logger.error('privacy export application domain unavailable')
+        partial = True
+        categories['applications'] = _privacy_export_category(
+            name='ApplicationV1', purpose='authenticated application tracking',
+            storage_status='unavailable',
+            retention_ref='RIS-APPLICATION-V1-RETENTION-DECISION#APPROVAL_REQUIRED',
+            status='UNAVAILABLE', code='unavailable')
     try:
         receipts = _privacy_export_receipts(event, ctx, limit)
         categories['privacyReceipts'] = _privacy_export_category(

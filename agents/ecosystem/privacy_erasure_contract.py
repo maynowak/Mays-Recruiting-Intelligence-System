@@ -55,7 +55,8 @@ FREEZE_RELEASED = "RELEASED"
 ERASURE_CATEGORIES = (
     "credentials", "apiProfiles", "workItems", "atsSearchProfiles",
     "cvSearchProfiles", "manualSearchProfiles", "cvDocuments",
-    "s3Versions", "systemRecords", "userProfile", "privacyReceipts",
+    "applications", "s3Versions", "systemRecords", "userProfile",
+    "privacyReceipts",
 )
 
 _STATUS_TRANSITIONS = {

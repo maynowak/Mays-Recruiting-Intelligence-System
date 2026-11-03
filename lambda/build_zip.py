@@ -9,6 +9,7 @@ import os
 import sys
 import zipfile
 import argparse
+import re
 from pathlib import Path
 
 
@@ -173,6 +174,7 @@ def build_bundle(repo_root, files: list, arcname_fn, output: str) -> dict:
     entries = sorted((f, arcname_fn(f)) for f in files)
     with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as archive:
         for source_rel, arcname in entries:
+            arcname = _safe_archive_name(arcname)
             data = (repo_root / source_rel).read_bytes()
             info = zipfile.ZipInfo(arcname, date_time=FIXED_ZIP_DATE)
             info.compress_type = zipfile.ZIP_DEFLATED
@@ -181,6 +183,21 @@ def build_bundle(repo_root, files: list, arcname_fn, output: str) -> dict:
 
     digest = hashlib.sha256(output_path.read_bytes()).hexdigest()
     return {"output": str(output_path), "files": len(entries), "sha256": digest}
+
+
+def _safe_archive_name(arcname: str) -> str:
+    """Return a normalized relative ZIP name or reject traversal.
+
+    Archive names are always POSIX paths, even when packaging runs on Windows.
+    Rejecting traversal instead of silently normalizing it prevents a caller
+    supplied ``arcname_fn`` from creating ambiguous or escaping entries.
+    """
+    name = str(arcname).replace("\\", "/")
+    if (not name or name.startswith("/")
+            or re.match(r"^[A-Za-z]:/", name)
+            or any(part in ("", ".", "..") for part in name.split("/"))):
+        raise ValueError(f"unsafe archive path: {arcname!r}")
+    return name
 
 
 def build_agent_bundle(repo_root: str = ".") -> dict:

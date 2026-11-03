@@ -96,28 +96,41 @@ class TestSourceChange(unittest.TestCase):
         from pathlib import Path
         with tempfile.TemporaryDirectory() as tmp:
             mirror = os.path.join(tmp, "repo")
-            shutil.copytree(REPO_ROOT, mirror,
-                            ignore=shutil.ignore_patterns(".git", "__pycache__",
-                                                          ".terraform", ".pytest_cache",
-                                                          "installer/projects",
-                                                          "node_modules", ".venv"))
+            # Only the source roots consumed by the canonical agent bundle are
+            # mirrored. Copying the entire repository made this lifecycle test
+            # depend on unrelated archived evidence, long Windows paths and
+            # files that are never read by the builder.
+            for relative in ("lambda", "agents", "jobsearch"):
+                shutil.copytree(
+                    os.path.join(REPO_ROOT, relative),
+                    os.path.join(mirror, relative),
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+                )
             files = build_zip._collect(Path(mirror),
                                        ["lambda/handler.py", "agents", "jobsearch"])
             arc = lambda s: "handler.py" if s == "lambda/handler.py" else s
             base = build_zip.build_bundle(
                 Path(mirror), files, arc, os.path.join(tmp, "base.zip"))["sha256"]
-            with open(os.path.join(mirror, "lambda", "handler.py"), "a") as fh:
-                fh.write("\n# lifecycle-test: temporaere Aenderung\n")
+            handler_path = Path(mirror) / "lambda" / "handler.py"
+            marker = b"\n# lifecycle-test: temporaere Aenderung\n"
+            handler_path.write_bytes(handler_path.read_bytes() + marker)
             changed = build_zip.build_bundle(
                 Path(mirror), files, arc, os.path.join(tmp, "changed.zip"))["sha256"]
             self.assertNotEqual(base, changed, "Source-Aenderung muss Hash aendern")
-            with open(os.path.join(mirror, "lambda", "handler.py")) as fh:
-                content = fh.read()
-            with open(os.path.join(mirror, "lambda", "handler.py"), "w") as fh:
-                fh.write(content.replace("\n# lifecycle-test: temporaere Aenderung\n", ""))
+            handler_path.write_bytes(handler_path.read_bytes().replace(marker, b""))
             restored = build_zip.build_bundle(
                 Path(mirror), files, arc, os.path.join(tmp, "restored.zip"))["sha256"]
             self.assertEqual(base, restored, "Restore muss Hash zuruecksetzen")
+
+    def test_h_archive_path_traversal_is_rejected(self):
+        import build_zip
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):
+                build_zip.build_bundle(
+                    Path(REPO_ROOT), ["lambda/handler.py"],
+                    lambda _source: "../escape.py",
+                    os.path.join(tmp, "unsafe.zip"))
 
 
 class TestLiveContract(unittest.TestCase):

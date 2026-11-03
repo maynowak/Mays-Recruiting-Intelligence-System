@@ -7756,13 +7756,13 @@ Current resume point:
    - Audit complete
 
 [RIS-PARTNER-PROFILE-R01-CONTRACT-FOUNDATION]
-Current status: COMPLETE — persistenzneutrale Contract-/Validierungsschicht v1 implementiert.
+Current status: COMPLETE ï¿½ persistenzneutrale Contract-/Validierungsschicht v1 implementiert.
 Audit date/time: 2026-10-31
-Audit scope: R01 Contract Foundation, keine AWS-/Terraform-Ausführung, keine API-Routen.
+Audit scope: R01 Contract Foundation, keine AWS-/Terraform-Ausfï¿½hrung, keine API-Routen.
 Actual findings:
   - Neue Datei jobsearch/partner_profile_contract.py mit 6 Ressourcentypen und v1-Schema.
   - Tests tests/unit/jobsearch/test_partner_profile_contract.py: 35/35 PASS.
-  - MO-Pin unverändert 1dbb0cb4.
+  - MO-Pin unverï¿½ndert 1dbb0cb4.
 Evidence / file references:
   - jobsearch/partner_profile_contract.py
   - tests/unit/jobsearch/test_partner_profile_contract.py
@@ -7772,7 +7772,7 @@ Current resume point:
   - R01 abgeschlossen; R02 nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R02-DYNAMODB-REPOSITORY]
-Current status: COMPLETE — Partner-Profile-Repository und DynamoDB-Tabelle implementiert.
+Current status: COMPLETE ï¿½ Partner-Profile-Repository und DynamoDB-Tabelle implementiert.
 Audit date/time: 2026-10-31
 Actual findings:
   - Neue Datei jobsearch/partner_profile_repository.py.
@@ -7789,15 +7789,15 @@ Current resume point:
   - R02 abgeschlossen; R03 nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R02R-CONCURRENCY-ISOLATION]
-Current status: COMPLETE — atomare Kapazitätsgrenzen und Isolations-/Pagination-Härtung.
+Current status: COMPLETE ï¿½ atomare Kapazitï¿½tsgrenzen und Isolations-/Pagination-Hï¿½rtung.
 Audit date/time: 2026-10-31
 Actual findings:
   - Behoben: TOCTOU-Race in Create (Count+Put) durch TransactWriteItems ersetzt.
   - Behoben: fehlende DynamoDB-Serialisierung der ExpressionAttributeValues.
-  - Atomare Zähler capacity#CV/CVSP/ATS mit ConditionCheck + Put + Update.
-  - Delete dekrementiert denselben Zähler atomar (count > 0).
+  - Atomare Zï¿½hler capacity#CV/CVSP/ATS mit ConditionCheck + Put + Update.
+  - Delete dekrementiert denselben Zï¿½hler atomar (count > 0).
   - Tests: 28 Repository + 35 Contract + 75 Partner-Regression PASS.
-  - Offen für R07: echte DynamoDB-Integrationsprüfung der Transaktionen.
+  - Offen fï¿½r R07: echte DynamoDB-Integrationsprï¿½fung der Transaktionen.
 Evidence / file references:
   - jobsearch/partner_profile_repository.py
   - tests/unit/jobsearch/test_partner_profile_repository.py
@@ -7807,12 +7807,12 @@ Current resume point:
   - R02-R abgeschlossen; R03 nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R02R2-TRANSACTION-COMPATIBILITY]
-Current status: COMPLETE — DynamoDB-Transaktionsregel korrigiert.
+Current status: COMPLETE ï¿½ DynamoDB-Transaktionsregel korrigiert.
 Audit date/time: 2026-10-31
 Actual findings:
   - ConditionCheck und Update adressierten dasselbe Counter-Item (AWS verbietet
     mehrere Aktionen pro Item) -> ValidationException-Risiko.
-  - Behoben: Kapazitätsbedingung in die ConditionExpression der Counter-Update-
+  - Behoben: Kapazitï¿½tsbedingung in die ConditionExpression der Counter-Update-
     Aktion integriert; keine ConditionCheck-Aktion mehr.
   - Create: Update(Counter, count < :max) + Put(Ressource) auf getrennten Keys.
   - Delete: Delete(Ressource) + Update(Counter, count > :zero) auf getrennten Keys.
@@ -7827,7 +7827,7 @@ Current resume point:
   - R02-R2 abgeschlossen; R03 nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R03-MANUAL-CRUD-API]
-Current status: COMPLETE — Manual-Search-Profile-CRUD-API implementiert.
+Current status: COMPLETE ï¿½ Manual-Search-Profile-CRUD-API implementiert.
 Audit date/time: 2026-10-31
 Actual findings:
   - 5 Routen: GET/POST /v1/partner/me/manual-search-profiles, GET/PUT/DELETE /{profileId}.
@@ -7852,7 +7852,7 @@ Current resume point:
   - R03 abgeschlossen; R04 nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R04-CV-DOCUMENT-LIFECYCLE]
-Current status: COMPLETE — CV-Metadaten und sicherer Dokument-Lifecycle implementiert.
+Current status: COMPLETE ï¿½ CV-Metadaten und sicherer Dokument-Lifecycle implementiert.
 Audit date/time: 2026-10-31
 Actual findings:
   - 8 Routen unter /v1/partner/me/cvs (CRUD + document upload/complete/get).
@@ -7878,7 +7878,7 @@ Current resume point:
   - R04 abgeschlossen; R05 nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R05G0-CONTRACT-RECONCILIATION]
-Current status: COMPLETE — Vertragsabgleich R01-R04 vs. Jobsearch v1; R05-CRUD BLOCKED.
+Current status: COMPLETE ï¿½ Vertragsabgleich R01-R04 vs. Jobsearch v1; R05-CRUD BLOCKED.
 Audit date/time: 2026-10-31
 Actual findings:
   - Jobsearch origin/main = ad9b5ed (Contracts gelesen, read-only).
@@ -7899,7 +7899,7 @@ Current resume point:
   - R05-G0 abgeschlossen; R05-CRUD nicht begonnen (BLOCKED durch P0-1/P0-2).
 
 [RIS-PARTNER-PROFILE-R05P0-CONTRACT-REPAIR]
-Current status: COMPLETE — P0-1 (schemaVersion) und P0-2 (searchConfig) behoben.
+Current status: COMPLETE ï¿½ P0-1 (schemaVersion) und P0-2 (searchConfig) behoben.
 Audit date/time: 2026-10-31
 Actual findings:
   - P0-1: SCHEMA_VERSION jetzt Integer 1; Legacy "v1" wird lesend auf 1
@@ -7928,7 +7928,7 @@ Current resume point:
   - R05-P0 abgeschlossen; R05-CRUD nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R05A-INTEGRITY-IDEMPOTENCY]
-Current status: COMPLETE — Parent-Integritaet und Create-Idempotenz implementiert.
+Current status: COMPLETE ï¿½ Parent-Integritaet und Create-Idempotenz implementiert.
 Audit date/time: 2026-10-31
 Actual findings:
   - P1-5: Child-Guard ueber bestehende Kapazitaetszaehler; Kind-Create
@@ -7957,7 +7957,7 @@ Current resume point:
   - R05-A abgeschlossen; R05-CRUD nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R05B-CV-SEARCH-CRUD]
-Current status: COMPLETE — CVSearchProfileV1-CRUD-API implementiert.
+Current status: COMPLETE ï¿½ CVSearchProfileV1-CRUD-API implementiert.
 Audit date/time: 2026-10-31
 Actual findings:
   - 5 Routen unter /v1/partner/me/cvs/{cvId}/search-profiles.
@@ -7980,7 +7980,7 @@ Current resume point:
   - R05-B abgeschlossen; R06 nicht begonnen.
 
 [RIS-PARTNER-PROFILE-R06G0-ATS-CONTRACT-PARENT-GATE]
-Current status: COMPLETE — ATS-v1-Vertrag und Parent-Semantik analysiert; R06-CRUD vorbereitet.
+Current status: COMPLETE ï¿½ ATS-v1-Vertrag und Parent-Semantik analysiert; R06-CRUD vorbereitet.
 Audit date/time: 2026-10-31
 Actual findings:
   - Jobsearch origin/main = 0129559; ATS-Datenshape unveraendert seit c6137b3
@@ -8004,7 +8004,7 @@ Current resume point:
   - R06-G0 abgeschlossen; R06-CRUD nicht begonnen (P1-3 ist R06-Blocker).
 
 [RIS-PARTNER-PROFILE-R06-ATS-CRUD]
-Current status: COMPLETE — ATSSearchProfileV1-CRUD inkl. ATSCriteriaV1 implementiert.
+Current status: COMPLETE ï¿½ ATSSearchProfileV1-CRUD inkl. ATSCriteriaV1 implementiert.
 Audit date/time: 2026-10-31
 Actual findings:
   - ATSCriteriaV1 (schemaVersion 1, drei optionale Listen, strikt, keine
@@ -8547,3 +8547,580 @@ Date: 2026-11-01.
 - Separate boundaries: 39 DynamoDB Local tests remain skipped because RIS_TEST_DYNAMODB_ENDPOINT is unset; six planned privacy/receipt tests remain skipped. Jobsearch full suite had 825 passed, 5 skipped, 3 unrelated environment/build-identity failures.
 - Decisions: contract GO; DynamoDB integration BLOCKED; privacy DEFERRED; Jobsearch size-contract handoff READY; R08-PROFILES-01 BLOCKED only for full readiness pending DynamoDB Local.
 - Report: docs/reports/RIS-R08-P1-1-P1-7-LOCAL-INTEGRATION-ACCEPTANCE.md
+
+[RIS-APPLICATION-E2E-05A-SYNTHETIC-IDENTITY-PLAN]
+Status: COMPLETE READ-ONLY DISCOVERY / PROVISIONING BLOCKED
+Date: 2026-11-03
+Branch/HEAD at start: feature/ris-application-persistence-v1 @ b377ca8479dac02571e98309719642ccf3d09205
+Scope: 05A only - external Cognito ownership, dual-auth contract, minimal partner context, test matrix and non-executable 05B plan.
+Verified:
+- Foundation account/profile/region: 262370457690 / default / eu-central-1; workspace ris-dev2; state serial 24; lineage unchanged.
+- External Cognito pool eu-central-1_ojbmoiYGM and human audience 7ldhihlpdgsgcl3puvu4oi7ksv verified from live authorizer/state; pool ARN owner account 240571105849.
+- Target-account pool lookup returned ResourceNotFoundException; no cross-account operation attempted.
+- ApplicationV1 storage uses JWT access identity + active APIProfile/credential + active Partner Application Registry binding; agent entitlements are not reused for storage permission.
+- Active-row discovery: partner applications, API profiles, credentials and entitlements all 0; no authorized synthetic identity or secure local credential handoff found.
+- No Terraform command, AWS mutation, user/credential creation, token acquisition, secret read, API mutation or Jobsearch connection performed.
+Reports:
+- docs/reports/RIS-APPLICATION-E2E-05A-SYNTHETIC-IDENTITY-PLAN.md
+- docs/reports/RIS-APPLICATION-E2E-05A-SYNTHETIC-IDENTITY-PLAN-EXECUTION_LOG.md
+Classification: YELLOW / PROVISIONING BLOCKED.
+Next: separate explicit 05B approval from external Cognito owner and RIS operator; secure once-only credential handoff, expiry/revoke and cleanup must be approved first.
+
+[RIS-APPLICATION-E2E-05B-G0-CROSS-ACCOUNT-AUTHORIZATION]
+Status: COMPLETE READ-ONLY DISCOVERY / 05B PROVISIONING BLOCKED
+Date: 2026-11-03
+Branch/HEAD at start: feature/ris-application-persistence-v1 @ 6544208e343d2cb5acbf1fa0a576aa5f50fd0e2a
+Scope: G0-A through G0-G - cross-account Cognito owner authorization, OAuth evidence, RIS admin provisioning, secure credential handoff.
+Verified:
+- RIS default identity: account 262370457690, eu-central-1; workspace ris-dev2; state serial 24; lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082.
+- External pool owner: account 240571105849; pool eu-central-1_ojbmoiYGM; human audience 7ldhihlpdgsgcl3puvu4oi7ksv; target-account pool lookup returned ResourceNotFoundException.
+- Only local AWS profile [default] found; no alternate profile or documented cross-account role for this test verified; no foreign profile tried.
+- Twelve APIProfile/credential management routes are deployed and JWT-protected, but route presence is not admin authorization.
+- No RIS admin authorization file at documented candidate paths; no authorized operator handoff.
+- Current external Human OAuth flow/scopes/PKCE/token issuance and secure JWT handoff remain unverified.
+- No AWS/RIS mutation, Terraform command, token acquisition, secret read, user/password/group/role/profile/partner/credential creation performed.
+Decision matrix:
+- RIS Account Guard PASS.
+- Cognito Owner Authorization BLOCKED.
+- OAuth Test Flow BLOCKED.
+- RIS Admin Provisioning BLOCKED.
+- Credential Handoff BLOCKED.
+- ApplicationV1 Storage Scope VERIFIED; Agent Entitlement NOT REQUIRED.
+Reports:
+- docs/reports/RIS-APPLICATION-E2E-05B-G0-CROSS-ACCOUNT-AUTHORIZATION.md
+- docs/reports/RIS-APPLICATION-E2E-05B-G0-CROSS-ACCOUNT-AUTHORIZATION-EXECUTION_LOG.md
+Classification: YELLOW / 05B PROVISIONING BLOCKED.
+Next: obtain explicit external Cognito owner authorization, current OAuth evidence, tenant-scoped RIS admin authorization and secure credential handoff before any separately approved provisioning.
+
+[RIS-APPLICATION-E2E-06A-HARNESS-DESIGN]
+Status: COMPLETE LOCAL HARNESS DESIGN / DEV2 MUTATION BLOCKED
+Date: 2026-11-03
+Branch/HEAD at start: feature/ris-application-persistence-v1 @ 2361a7b6df5a208c8cf318c517e8a30a144566c7
+Scope: 06A only - test-only LOCAL/DEV2 mode separation and security boundary.
+Verified:
+- Existing ApplicationV1 repository, ApplicationContext, Moto table fixture and ApplicationErasureExecutor seams reviewed.
+- LOCAL mode will use Moto/in-memory only; no JWT forgery, API Gateway/Lambda call, production auth bypass, or public seam.
+- DEV2 mode remains separately gated and disabled; no live mutation authorization exists in 06A.
+- Synthetic identities are internal test values only; no Cognito/partner provisioning.
+- No AWS/Terraform command, production-code change, user/credential creation or API mutation performed.
+Reports:
+- docs/reports/RIS-APPLICATION-E2E-06A-HARNESS-DESIGN.md
+- docs/reports/RIS-APPLICATION-E2E-06A-HARNESS-DESIGN-EXECUTION_LOG.md
+Classification: GREEN for LOCAL design / BLOCKED for DEV2 mutation.
+Next: implement and run the test-only local harness in 06B; keep DEV2 disabled pending explicit live-mutation approval.
+
+[RIS-APPLICATION-E2E-06B-LOCAL-INTEGRATION]
+Status: COMPLETE LOCAL INTEGRATION PASS / DEV2 MUTATION BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ 097cb86b8405870e93753d7e9b59b40ce4c2cb88
+Scope: 06B - local ApplicationV1 integration tests using the test-only synthetic harness.
+Execution: python -m pytest tests/test_application_e2e_harness.py -q -> 8 passed in 1.73s.
+Verified:
+- LOCAL mode uses Moto/in-memory DynamoDB and synthetic values only.
+- DEV2 mode is rejected by the harness before repository construction; no live mutation path is enabled.
+- Create/get/list/update/delete, status transitions/confirmation, history, cover-letter versions and export pass.
+- Version conflicts, idempotent create and payload mismatch pass.
+- Signed pagination, tampering rejection and user/tenant/partner/issuer cursor binding pass.
+- Cross-user/tenant/partner/issuer reads are isolated; client identity fields are rejected.
+- Resumable, retry-safe, identity-scoped ApplicationErasureExecutor behavior passes.
+- No JWT, API Gateway/Lambda call, Cognito/partner/credential operation, production auth change, AWS mutation or Terraform operation occurred.
+Reports:
+- docs/reports/RIS-APPLICATION-E2E-06B-LOCAL-INTEGRATION.md
+- docs/reports/RIS-APPLICATION-E2E-06B-LOCAL-INTEGRATION-EXECUTION_LOG.md
+Classification: GREEN for LOCAL integration / BLOCKED for DEV2 mutation.
+Next: perform only the read-only 06C DEV2 preflight; 06D requires separate explicit live-DynamoDB mutation approval.
+
+[RIS-APPLICATION-E2E-06C-DEV2-PREFLIGHT]
+Status: COMPLETE READ-ONLY PREFLIGHT / DEV2 DATA TEST BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ 2db320981a45441cc73271a50ede85bd32fb8b53
+Scope: 06C - read-only DEV2 account, state, table/GSI and IAM boundary verification.
+Verified:
+- AWS_PROFILE=default resolves to account 262370457690, region eu-central-1.
+- Terraform workspace ris-dev2; state serial 24; lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082.
+- Exact target table ris-dev2-dev-applications is ACTIVE with expected primary key and active gsi-owner.
+- Actual principal is arn:aws:iam::262370457690:user/devnemo.
+- IAM metadata shows broad AWS-managed AdministratorAccess plus IAMUserChangePassword; no narrow table-scoped authorization proof.
+- No application item contents were read; no scan/query/get, write, delete, Terraform plan/refresh/apply or state mutation performed.
+Decision: account/resource guards PASS, narrow IAM guard BLOCKED, live mutation approval BLOCKED; DEV2 DATA TEST BLOCKED.
+Reports:
+- docs/reports/RIS-APPLICATION-E2E-06C-DEV2-PREFLIGHT.md
+- docs/reports/RIS-APPLICATION-E2E-06C-DEV2-PREFLIGHT-EXECUTION_LOG.md
+Next: do not execute 06D without separate explicit approval naming exact table scope, synthetic correlation, repository-only operations and cleanup.
+
+[RIS-APPLICATION-E2E-06-FINAL]
+Status: COMPLETE LOCAL HARNESS / DEV2 LIVE TEST BLOCKED
+Date: 2026-11-03
+Phase commits: 06A=097cb86b8405870e93753d7e9b59b40ce4c2cb88; 06B=2db320981a45441cc73271a50ede85bd32fb8b53; 06C=81dc6fbb189f9505ac86a222fefb9edaea20198e.
+Final evidence:
+- Test-only ApplicationV1 harness implemented without production auth changes, HTTP routes, JWT forgery, Lambda/API Gateway calls or credential bypass.
+- Local Moto suite: python -m pytest tests/test_application_e2e_harness.py -q -> 8 passed.
+- Local coverage includes CRUD/versioning, idempotency, pagination/cursor binding, cross-identity isolation, export privacy and resumable/retry-safe application erasure.
+- DEV2 read-only preflight verified account 262370457690, eu-central-1, workspace ris-dev2, state serial 24, expected lineage, ACTIVE ris-dev2-dev-applications and ACTIVE gsi-owner.
+- Actual principal has broad AdministratorAccess; narrow table-scoped authorization and separate live-mutation approval are absent.
+- 06D was not executed; no live application item read/write/delete, Cognito/partner/credential provisioning, Terraform operation or protected-infrastructure mutation occurred.
+Reports:
+- docs/reports/RIS-APPLICATION-E2E-06-ABSCHLUSSBERICHT.md
+- docs/reports/RIS-APPLICATION-E2E-06-ABSCHLUSSBERICHT-EXECUTION_LOG.md
+Decision matrix: LOCAL HARNESS PASS; DEV2 LIVE DATA BLOCKED/NOT AUTHORIZED; positive API-Gateway auth BLOCKED; Cognito/Partner provisioning NOT PERFORMED; Jobsearch NOT IN SCOPE.
+Next: use LOCAL harness; perform 06D only after separate explicit approval naming table scope, synthetic correlation, repository-only operations, mutation window and cleanup owner.
+
+[RIS-DEV2-TEST-IDENTITY-01-DESIGN]
+Status: DESIGN COMPLETE / APPLY BLOCKED
+Date: 2026-11-03
+Branch/HEAD at start: feature/ris-application-persistence-v1 @ e19b0cd322dbc4fc88bc86dd9f3bd1b3236294bb
+Scope: Review existing managed/external Cognito architecture for a dedicated ris-dev2 test identity.
+Verified:
+- Existing Terraform supports identity_mode=managed|external; managed mode declares a project-scoped pool, Human public client, M2M client/resource server and JWT authorizer inputs.
+- Proposed ris-dev2 overlay can use managed mode with OAuth code+PKCE, explicit localhost callback/logout, custom domain disabled and orders disabled.
+- Switching current ris-dev2 external mode to managed is state-significant: managed Cognito resources are created and existing API JWT authorizers receive a new issuer/audience; the saved plan must reject deletes/replacements/unexpected resources.
+- Partner registry/APIProfile/credential bindings are separate and are not created by identity mode; ApplicationV1 needs no agent entitlement.
+- External Cognito pool/account, CloudFront, DNS, ACM, Jobsearch and ris-dev resources remain protected.
+- No AWS mutation, user/client/pool/credential/partner creation, token issuance or Terraform plan/apply performed.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-01-DESIGN.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-01-DESIGN-EXECUTION_LOG.md
+Decision: proceed to offline implementation/validation only; apply remains blocked pending exact saved-plan approval.
+
+[RIS-DEV2-TEST-IDENTITY-01-VALIDATION]
+Status: COMPLETE OFFLINE VALIDATION / APPLY BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ 891065f5be5bec1234fe79adbfee3aa3a29b4030
+Scope: Non-secret ris-dev2 managed-identity overlay and offline Terraform/contract validation.
+Implemented:
+- installer/project-configs/ris-dev2.json selects identity_mode=managed, orders_lifecycle=disabled, OAuth code flow settings with localhost-only callback/logout, custom domain disabled and localhost CORS.
+- No external pool IDs, credentials, passwords, tokens, certificate ARNs, DNS values or production callbacks added.
+Validation:
+- Dedicated overlay + existing G2C identity tests: 8 passed.
+- terraform fmt -check -recursive: PASS.
+- terraform init -backend=false: PASS.
+- terraform validate: PASS with existing provider deprecation warnings.
+- Mays-Orders builder: PASS locally; generated module not committed and Orders remains disabled.
+Safety: no backend/state operation, remote plan, apply, Cognito/API authorizer mutation, user/client creation, partner/APIProfile/credential provisioning or AWS resource mutation.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-01-VALIDATION.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-01-VALIDATION-EXECUTION_LOG.md
+Decision: proceed to a guarded saved remote plan only; mandatory stop before apply.
+
+[RIS-DEV2-TEST-IDENTITY-01-PLAN]
+Status: SAVED PLAN CREATED / APPLY BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ aa84fb36967dbbc80d0b41846d0f83f2bf57b50f
+Plan artifact: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-managed-identity-01.tfplan
+Plan SHA-256: CFF34F75049A479F2263CEB103C327618AEA5E0D5319028D9F49766729F9CA7C
+Guards: default profile; account 262370457690; eu-central-1; workspace ris-dev2; backend state serial 24; lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082.
+Final action summary: 12 creates, 2 in-place updates, 0 deletes, 0 replacements. Creates are only managed Cognito pool/client/resource-server/groups/prefix-domain resources; updates are the existing Human and M2M API JWT authorizers to the new managed issuer/audiences.
+Protected-resource review: no external Cognito, CloudFront/OAC, Route53/DNS, ACM, Lambda, DynamoDB, S3, SQS, Orders, ris-dev or replacement/delete actions.
+Safety: first draft was discarded due to unrelated Health Lambda path and API CORS changes; final plan regenerated with exact existing artifact paths and no CORS overlay. No apply, user creation, token issuance, partner/APIProfile/credential provisioning or resource mutation performed.
+Open risk: existing managed module generates an M2M client secret; Terraform marks it sensitive but normal Terraform state persists it. Apply is not approval-ready until secret/state handling is explicitly accepted or redesigned.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-01-PLAN.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-01-PLAN-EXECUTION_LOG.md
+Decision: mandatory STOP before apply; exact plan hash and API authorizer changes require separate approval.
+
+[RIS-DEV2-TEST-IDENTITY-02A-SECRET-FREE-DESIGN]
+Status: COMPLETE / APPLY BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ 18bd01e0f7a7d1c7c45a4cc0051a16d10328fa56
+Scope: Disable only the new managed M2M resources for ris-dev2 while preserving existing M2M behavior elsewhere.
+Implemented:
+- identity_m2m_enabled defaults true; ris-dev2 overlay sets false.
+- Managed Cognito resource server and M2M client are conditional and omitted for ris-dev2.
+- Human client remains public with generate_secret=false and OAuth code+PKCE settings.
+- Existing machine authorizer/route are preserved with explicit fallback external issuer/audience to avoid destructive route/authorizer removal; no new managed M2M client is created.
+- Previous 01 plan report marked SUPERSEDED ? DO NOT APPLY.
+Safety: no AWS mutation, secret read/output, token, user, authorizer, partner or credential operation; no plan/apply.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02A-SECRET-FREE-DESIGN.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02A-SECRET-FREE-DESIGN-EXECUTION_LOG.md
+Decision: proceed to authorizer impact analysis and offline validation; apply remains blocked.
+
+[RIS-DEV2-TEST-IDENTITY-02B-AUTHORIZER-IMPACT]
+Status: COMPLETE READ-ONLY ANALYSIS / APPLY BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ 9e433a352e248e15bef5408d4fdbb5b953b7e412
+Scope: Live API Gateway authorizer and route impact analysis for Human-only managed DEV2 identity.
+Verified:
+- API 8apxb6fgne in account 262370457690 has Human authorizer 9i4w8r with 64 routes, including Profile, CV, ApplicationV1, privacy, partner and APIProfile surfaces.
+- M2M authorizer 9eli0a has one route: POST /v1/m2m/agents/{agentId}/execute.
+- Both currently reference external issuer eu-central-1_ojbmoiYGM; Human audience 7ldhihlpdgsgcl3puvu4oi7ksv; M2M audience 82ji073smu1b3fsvj96sonso.
+Decision: planned impact is one Human authorizer issuer/audience update; M2M authorizer/route remain unchanged against the external contract, while no new managed M2M resources are created.
+No API/Cognito/token/user/partner/credential mutation performed.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02B-AUTHORIZER-IMPACT.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02B-AUTHORIZER-IMPACT-EXECUTION_LOG.md
+Next: offline validation and regression tests.
+
+[RIS-DEV2-TEST-IDENTITY-02C-OFFLINE-VALIDATION]
+Status: COMPLETE PASS / APPLY BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ 77f7d2f627aba10724c02b3f27cd4810bf698b58
+Terraform: fmt-check PASS; init -backend=false PASS; validate PASS with existing provider deprecation warnings.
+Tests: identity/G2C set 9 passed; selected API/ApplicationV1/privacy/erasure/APIProfile/CV/partner regression set 244 passed, 297 subtests passed.
+Verified:
+- ris-dev2 identity_m2m_enabled=false; managed M2M resource server/client conditional and omitted for this overlay.
+- Human client remains public generate_secret=false; Human and M2M issuer inputs separate.
+- No M2M secret configured, read, logged or emitted.
+- No AWS/backend/plan/apply/Cognito/user/token/authorizer/route/partner/credential mutation.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02C-OFFLINE-VALIDATION.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02C-OFFLINE-VALIDATION-EXECUTION_LOG.md
+Next: guarded remote saved plan; old plan remains SUPERSEDED ? DO NOT APPLY.
+
+[RIS-DEV2-TEST-IDENTITY-02D-PLAN]
+Status: SAVED PLAN PASS / APPLY BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ dff03a8cac32c0d3a634534c0702e43625b78e3b
+Guards: default; account 262370457690; eu-central-1; workspace ris-dev2; state serial 24; lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082.
+Plan artifact: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-managed-identity-02.tfplan
+SHA-256: 35EE37C10CF190A0DD1A80714734C2DD9A567CF191186693B9952B9C2ED64CE6
+Action summary: 10 creates, 1 in-place update, 0 deletes, 0 replacements.
+Creates: managed Human pool/client/prefix-domain and seven existing-module groups. Update: Human JWT authorizer only. No managed M2M client/resource server, no M2M secret, no M2M authorizer update.
+Protected review: zero Lambda/DynamoDB/S3/SQS/CloudFront/OAC/DNS/ACM/external-Cognito/Orders/ris-dev actions; all Human/M2M routes preserved.
+Old plan ris-dev2-managed-identity-01.tfplan: SUPERSEDED ? DO NOT APPLY.
+No apply, user/token/partner/credential operation or resource mutation performed.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02D-PLAN.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02D-PLAN-EXECUTION_LOG.md
+Decision: structural plan gates PASS; final Apply Readiness report required; apply remains blocked pending explicit approval of exact hash and Human authorizer transition.
+
+[RIS-DEV2-TEST-IDENTITY-02-APPLY-READINESS]
+Status: COMPLETE / STOP BEFORE APPLY
+Date: 2026-11-03
+Final commit sequence: 02A=9e433a352e248e15bef5408d4fdbb5b953b7e412; 02B=77f7d2f627aba10724c02b3f27cd4810bf698b58; 02C=dff03a8cac32c0d3a634534c0702e43625b78e3b; 02D=c983441428b28e812567b32a7575add80235b1c7.
+Final plan: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-managed-identity-02.tfplan
+Final plan SHA-256: 35EE37C10CF190A0DD1A80714734C2DD9A567CF191186693B9952B9C2ED64CE6
+Final action matrix: 10 creates, 1 Human JWT authorizer in-place update, 0 deletes, 0 replacements.
+Secret gate: managed M2M client/resource server absent; Human public client generate_secret=false; no secret read/output. Existing external M2M authorizer/route preserved unchanged.
+Protected gate: no Lambda/DynamoDB/S3/SQS/CloudFront/OAC/DNS/ACM/external-Cognito/Orders/ris-dev changes; 64 Human routes and one M2M route preserved.
+Tests: identity 9 passed; selected API/ApplicationV1/privacy/erasure/APIProfile/CV/partner regressions 244 passed, 297 subtests; Terraform fmt/init-backend-false/validate PASS.
+Old plan ris-dev2-managed-identity-01.tfplan remains SUPERSEDED ? DO NOT APPLY.
+No Apply, Cognito user, token, partner binding, APIProfile, credential or AWS resource mutation performed.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02-APPLY-READINESS.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02-APPLY-READINESS-EXECUTION_LOG.md
+Decision: structurally ready for explicit review only; APPLY AUTHORIZATION NOT GRANTED; STOP BEFORE APPLY.
+
+[RIS-DEV2-TEST-IDENTITY-03-CONTROLLED-APPLY]
+Status: APPLY PASS / POST-APPLY PASS / COMPLETE
+Date: 2026-11-03
+Repository: feature/ris-application-persistence-v1; starting HEAD a96bbe99b8dba38f1c3d7f8d9f318f19b48c9d05.
+Guards: AWS_PROFILE=default; account 262370457690; region eu-central-1; workspace ris-dev2; state serial 24 before apply; lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082.
+Approved plan: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-managed-identity-02.tfplan; SHA-256 35EE37C10CF190A0DD1A80714734C2DD9A567CF191186693B9952B9C2ED64CE6.
+Integrity: exact 10 creates, 1 Human authorizer update, 0 deletes, 0 replacements; no managed M2M client/resource server, secret generation, protected-resource action or external M2M authorizer action.
+Apply: exactly one terraform apply -input=false against the saved plan; exit code 0; Terraform reported 10 added, 1 changed, 0 destroyed. No retry, replan, target, replace or rollback.
+Created identity: pool eu-central-1_K3dkdSipZ; Human client 21j28p71vogg0m41tcue0ib3l4; issuer https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_K3dkdSipZ; prefix domain ris-dev2-dev. Client secret absent; no user/token/partner/APIProfile/credential operation.
+Post-apply: state serial 25, lineage unchanged; Human authorizer 9i4w8r points to new issuer/audience; M2M authorizer 9eli0a remains external issuer/audience; 64 Human routes and one M2M route preserved; public Health CloudFront returned 200; Lambda Active/Successful; core DynamoDB tables ACTIVE.
+Negative auth: missing JWT, invalid JWT, malformed Authorization header and unauthenticated ApplicationV1 request returned 401. API GET /health without JWT returned 401, consistent with current JWT-protected API contract; public Health CloudFront endpoint returned 200. No valid JWT test performed.
+Consumed plan: APPLIED ? DO NOT REAPPLY. Old ris-dev2-managed-identity-01.tfplan remains SUPERSEDED ? DO NOT APPLY.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-03-APPLY.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-03-POST-APPLY.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-03-ABSCHLUSSBERICHT.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-03-EXECUTION_LOG.md
+Decision: RIS-DEV2-TEST-IDENTITY-03 ? APPLY PASS; stop before synthetic user or authenticated E2E work.
+
+[RIS-DEV2-TEST-IDENTITY-04A-PREFLIGHT]
+Status: ENVIRONMENT GUARD PASS / RIS PARTNER PROVISIONING BLOCKED
+Date: 2026-11-03
+Run ID: RIS-DEV2-04-20261103T111714Z
+Repository: feature/ris-application-persistence-v1 @ 3b7a6ea89db05e61d563dae6fee2c5ec13299e6a; working tree clean.
+AWS guard: default; account 262370457690; eu-central-1; workspace ris-dev2; state serial 25; lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082.
+Identity guard: pool eu-central-1_K3dkdSipZ; Human client 21j28p71vogg0m41tcue0ib3l4; Human issuer/audience correct; external M2M authorizer unchanged.
+Provisioning finding: existing tools/ris_admin fails closed without a local principal-bound RIS_ADMIN_AUTHORIZATION_FILE. Current principal arn:aws:iam::262370457690:user/devnemo has no configured/matching authorization mapping. No public PartnerApplication admin route exists; direct DynamoDB writes are prohibited.
+No Terraform operation, user, password, group, token, PartnerApplication, APIProfile, Credential, entitlement or DynamoDB mutation performed.
+Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04A-PREFLIGHT.md
+Decision: Cognito-only synthetic path may proceed if AWS Cognito Admin API permissions are verified; RIS partner binding and credential-dependent ApplicationV1 E2E remain BLOCKED.
+
+[RIS-DEV2-TEST-IDENTITY-04B-SYNTHETIC-USER]
+Status: PASS / ONE SYNTHETIC USER CREATED
+Date: 2026-11-03
+Run ID: RIS-DEV2-04-20261103T111714Z
+Pool: eu-central-1_K3dkdSipZ in account 262370457690; client 21j28p71vogg0m41tcue0ib3l4 unchanged.
+Created exactly one synthetic user via existing Cognito Admin API with MessageAction=SUPPRESS; username ris-dev2-e2e-04-111714; synthetic tenant ris-dev2-e2e-111714; status CONFIRMED; enabled; no groups.
+Password: generated in memory, placed only in restricted temporary local handoff file, never printed or committed; scheduled for deletion after PKCE/cleanup.
+No existing user, pool, client, OAuth setting or group modified; no real-person email used.
+Partner/APIProfile/Credential provisioning remains BLOCKED by 04A missing principal-bound RIS admin authorization mapping.
+Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04B-SYNTHETIC-USERS.md
+
+[RIS-DEV2-TEST-IDENTITY-04C-PKCE-AUTH]
+Status: PASS VALID ACCESS JWT / PARTNER AUTHORIZATION NOT ESTABLISHED
+Date: 2026-11-03
+Run ID: RIS-DEV2-04-20261103T111714Z
+OAuth: existing ris-dev2-dev prefix domain, public client, code flow, localhost callback and PKCE S256. Authorization Code exchanged once; no client secret or alternate flow used.
+JWT: signature valid against actual DEV2 pool JWKS; issuer correct; token_use=access; client_id correct; subject present; scopes/expiry valid. Token/password not logged or committed.
+HTTP smoke: missing/invalid/expired/wrong-issuer JWTs returned 401. Valid JWT reached API Gateway; GET /me/profile returned 403 Tenant not resolvable. ApplicationV1 GET without and with invalid X-Api-Credential returned 500 Internal Server Error because no partner binding exists. No CRUD mutation sent.
+Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04C-PKCE-AUTH.md
+Decision: Human JWT authentication PASS; partner authorization and ApplicationV1 E2E remain blocked by 04D provisioning block and recorded runtime error.
+
+[RIS-DEV2-TEST-IDENTITY-04D-PARTNER-BINDING]
+Status: RIS PARTNER PROVISIONING BLOCKED
+Date: 2026-11-03
+Run ID: RIS-DEV2-04-20261103T111714Z
+The existing tools/ris_admin lifecycle requires a local owner-only RIS_ADMIN_AUTHORIZATION_FILE mapping the exact STS principal to role and tenant. Current principal arn:aws:iam::262370457690:user/devnemo has no configured/matching mapping. AdministratorAccess is not treated as RIS application authorization.
+No PartnerApplication, APIProfile, Credential, tenant binding, entitlement or direct DynamoDB write was performed. No M2M client/secret or production partner was touched.
+Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04D-PARTNER-BINDING.md
+Decision: authenticated ApplicationV1 CRUD and credential-dependent isolation/privacy gates are BLOCKED; do not bypass the RIS authorization contract.
+
+[RIS-DEV2-TEST-IDENTITY-04E-04F]
+Status: APPLICATION E2E BLOCKED / ISOLATION PRIVACY BLOCKED
+Date: 2026-11-03
+Run ID: RIS-DEV2-04-20261103T111714Z
+04E: no ApplicationV1 CRUD, versioning, pagination, export, delete or idempotency mutation was sent because 04D partner binding is blocked.
+04F: no cross-user/tenant/partner positive isolation or privacy inspect/export/erasure was run; no second identity or RIS credential existed, and no global flags or foreign data were touched.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-04E-APPLICATION-HTTP-E2E.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-04F-ISOLATION-PRIVACY.md
+Decision: do not claim authenticated ApplicationV1 E2E or privacy/isolation success without authorized RIS provisioning.
+
+[RIS-DEV2-TEST-IDENTITY-04G-CLEANUP-REGRESSION]
+Status: COMPLETE / REGRESSION PASS
+Date: 2026-11-03
+Run ID: RIS-DEV2-04-20261103T111714Z
+Cleanup: synthetic user ris-dev2-e2e-04-111714 deleted and verified absent; temporary password/access-token/PKCE/callback files deleted; callback server stopped. No ApplicationV1/APIProfile/Credential/PartnerApplication/entitlement was created. Test pool, client and authorizer retained.
+Regression: account 262370457690; eu-central-1; state serial 25; lineage unchanged; pool/client/Human authorizer correct; external M2M unchanged; zero pool users; no managed resource server; Lambda Active/Successful; core DynamoDB ACTIVE; public Health CloudFront Deployed and HTTP 200.
+Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04G-CLEANUP-REGRESSION.md
+Decision: cleanup COMPLETE; protected infrastructure unchanged; ApplicationV1 positive E2E remains blocked by missing RIS admin binding.
+
+[RIS-DEV2-TEST-IDENTITY-04-ABSCHLUSS]
+Status: PARTIAL VERIFIED ? REMAINING GATES DOCUMENTED
+Date: 2026-11-03
+Run ID: RIS-DEV2-04-20261103T111714Z
+PASS: Cognito pool/client/authorizer; one synthetic user created and cleaned; Authorization Code + PKCE; access JWT signature/JWKS/issuer/token_use/client/subject; negative 401 tests; cleanup; protected infrastructure regression.
+BLOCKED: RIS PartnerApplication/APIProfile/Credential binding because no principal-bound RIS_ADMIN_AUTHORIZATION_FILE exists for arn:aws:iam::262370457690:user/devnemo. AdministratorAccess was not treated as RIS application authorization; no direct DynamoDB writes.
+ApplicationV1 CRUD/versioning/pagination/delete and cross-user/tenant/partner/privacy gates were not run. Valid JWT without partner context yielded 403 Profile and 500 ApplicationV1 list; this is a recorded runtime finding, not a success.
+No user, token, secret, application data, partner, APIProfile, credential or entitlement remains from the run. Pool/client/authorizer retained.
+Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04-ABSCHLUSSBERICHT.md
+Decision: stop; next run requires explicit tenant-scoped RIS admin authorization and secure credential handoff.
+
+[RIS-DEV2-AUTH-05A-500-ROOT-CAUSE]
+Status: ROOT CAUSE VERIFIED / LOCAL FIX APPLIED
+Date: 2026-11-03
+Environment guard: account 262370457690; eu-central-1; state serial 25; expected lineage; no Terraform/AWS mutation.
+Root cause: ApplicationV1 dispatcher called undefined _handle_application_routes; implemented function is _application_routes. NameError escaped before partner/credential/tenant authorization, producing HTTP 500.
+Fix: dispatcher wired to _application_routes; existing authorization path preserved. Malformed credential shape is rejected before store construction as 401; valid-shaped credentials with unavailable stores remain 503.
+Validation: focused auth/application/tenant/contract tests 53 passed plus 7 subtests; existing credential/machine/application E2E tests 90 passed.
+Report: docs/reports/RIS-DEV2-AUTH-05A-500-ROOT-CAUSE.md
+Decision: 05A complete; no AWS deployment authorized.
+
+[RIS-DEV2-AUTH-05B-AUTHORIZATION-HARDENING]
+Status: PASS / FAIL-CLOSED COVERAGE
+Date: 2026-11-03
+Fix: existing ApplicationV1 dispatcher now calls _application_routes; _partner_profile_context rejects malformed X-Api-Credential via existing valid_secret_format before store construction. Valid-shaped credentials with unavailable stores remain controlled 503.
+Coverage: missing/invalid/malformed credential 401; unknown well-formed credential 401; inactive partner 403; tenant conflict 403; backend unavailable 503; no repository access without authorization.
+Validation: 05B matrix 6 passed; prior focused suite 53 passed plus 7 subtests; existing credential/machine/application E2E 90 passed. API-STANDARD updated with stable dual-auth error form.
+No bypass, fallback tenant, direct data path, AWS deployment or infrastructure mutation.
+Report: docs/reports/RIS-DEV2-AUTH-05B-AUTHORIZATION-HARDENING.md
+Decision: 05B complete; proceed to bootstrap design/readiness without provisioning.
+
+[RIS-DEV2-AUTH-05C-ADMIN-BOOTSTRAP-DESIGN]
+Status: DESIGN COMPLETE / BOOTSTRAP NOT AUTHORIZED
+Date: 2026-11-03
+Existing trust anchor: tools/ris_admin/credentials.py resolve_admin_authorization uses STS exact principal ARN plus owner-only local JSON mapping with role admin|staff|owner and mandatory tenantId; no fallback/default/CLI role.
+Security finding: file format has no cryptographic signature, issuer registry, expiry, nonce or replay counter; provenance must be supplied out-of-band by RIS owner/security authority. Account/environment are not explicit fields and must be independently approved and constrained to ris-dev2.
+Existing APIProfile/Credential adapters can be reused; raw credentials remain one-time owner-only output and revocable. Synthetic Cognito user is not an RIS administrator.
+Gap: current partner CLI subcommands expose direct registry operations and partner create --tenantId without the shared _actor trust-anchor guard. No partner mutation was attempted; this path is not accepted as safe bootstrap evidence.
+Current principal arn:aws:iam::262370457690:user/devnemo has no configured/matching authorization file.
+Report: docs/reports/RIS-DEV2-AUTH-05C-ADMIN-BOOTSTRAP-DESIGN.md
+Decision: provisioning remains BLOCKED; no self-authorization or parallel admin architecture.
+
+[RIS-DEV2-AUTH-05D-BOOTSTRAP-READINESS]
+Status: BLOCKED / NO VERIFIED ISSUER OR DEV2 AUTHORIZATION GRANT
+Date: 2026-11-03
+No bootstrap component, authorization file, partner, APIProfile or Credential was created. Self-signing/self-authorizing is prohibited.
+Offline authorization subset: 10 passed, 39 deselected (missing/unmapped/incomplete/unparsable/writable policy, no actor-role override, AWS identity alone).
+Readiness: exact principal binding is implemented but no DEV2 mapping exists; local file has no issuer/signature/expiry/nonce/replay protection and no explicit environment field. Partner CLI tenant override/direct registry path requires shared trust-anchor guard before mutation.
+Credential output/revocation protections exist in the existing adapter; no live credential exists for this run. Broader credential issuance tests were not treated as readiness evidence because Windows ACL assumptions caused runner-only failures; production checks were not weakened.
+Report: docs/reports/RIS-DEV2-AUTH-05D-BOOTSTRAP-READINESS.md
+Decision: remain BLOCKED; stop before AWS mutation/provisioning.
+
+[RIS-DEV2-AUTH-05-ABSCHLUSS]
+Status: PARTIAL VERIFIED â€” FAIL-CLOSED FIX COMPLETE; BOOTSTRAP BLOCKED
+Date: 2026-11-03
+05A: dispatcher NameError root cause verified; _handle_application_routes corrected to _application_routes.
+05B: malformed credential precheck added at existing partner boundary; no bypass/fallback. 401/403/503 matrix covered.
+Validation: auth/application/tenant/API contract 78 passed + 304 subtests; existing credential/machine/application E2E 90 passed; trust-anchor subset 10 passed. Broader admin selection 175 passed with 6 Windows runner failures (symlink privilege/temp ACL), 15 deselected, 7 subtests; no production check weakened.
+05C/05D: existing trust anchor documented; no mapping/issuer exists for arn:aws:iam::262370457690:user/devnemo. No authorization file, partner, APIProfile, Credential or AWS mutation. Partner CLI mutation path requires shared trust-anchor review.
+Gate matrix: root cause VERIFIED; fail-closed PASS; admin bootstrap BLOCKED; live credential lifecycle BLOCKED; ApplicationV1 CRUD PENDING; protected infrastructure UNCHANGED; AWS deployment NOT AUTHORIZED.
+Report: docs/reports/RIS-DEV2-AUTH-05-ABSCHLUSSBERICHT.md
+Decision: stop before deployment/provisioning; require externally issued tenant-scoped DEV2 authorization for follow-up.
+
+[RIS-DEV2-AUTH-06A-FIX-BASELINE]
+Status: PASS / COMMITTED DISPATCHER FIX VERIFIED
+Date: 2026-11-03
+Baseline: feature/ris-application-persistence-v1 @ f876c26dbb84be38b8c9604a46e48b8489f4f422; clean tree; no foreign changes overwritten.
+Fix: ApplicationV1 dispatch calls existing _application_routes(event, context, method, path), which enters _application_ctx and the existing _partner_profile_context boundary before repository access. lambda_handler = handler remains the configured entry point.
+Packaging contract: python lambda/build_zip.py --bundle all; agent artifact terraform/lambda.zip; Terraform-managed filename + filebase64sha256; runtime python3.14; handler handler.lambda_handler. No AWS write or deployment performed.
+Report: docs/reports/RIS-DEV2-AUTH-06A-FIX-BASELINE.md
+Decision: 06A complete; continue read-only discovery.
+
+[RIS-DEV2-AUTH-06B-RUNTIME-DISCOVERY]
+Status: PASS / DEPLOYMENT METHOD VERIFIED / NO UPDATE EXECUTED
+Date: 2026-11-03
+Guard: default; account 262370457690; eu-central-1; state serial 25; lineage unchanged.
+Runtime: ris-dev2-dev-agent; Zip; python3.14; x86_64; handler.lambda_handler; no layers; Active/Successful; no aliases; only $LATEST listed. Revision and code hash captured read-only; no secrets printed.
+Ownership: Terraform module owns aws_lambda_function.agent via filename and filebase64sha256; official package is terraform/lambda.zip from lambda/build_zip.py --bundle agent/all. Direct update-function-code is not authorized.
+Report: docs/reports/RIS-DEV2-AUTH-06B-RUNTIME-DISCOVERY.md
+Decision: current deployed package differs from newly built local artifact; continue offline packaging/validation, no AWS mutation.
+
+[RIS-DEV2-AUTH-06C-LAMBDA-PACKAGING]
+Status: PASS / REPRODUCIBLE LOCAL ARTIFACT CREATED / NOT UPLOADED
+Date: 2026-11-03
+Procedure: python lambda/build_zip.py --bundle all; existing official builder only.
+Agent artifact: terraform/lambda.zip; 76 Python entries; handler.py at root; lambda_handler alias present; corrected _application_routes call present; old dispatcher call absent; no bytecode or forbidden secret/config names.
+Artifact SHA-256 hex: f2630322a6887fef860552264f6c6fbeb4e1e8985acc7dbe612e99b6dea8d613. Lambda-compatible Base64: 8mMDIqaIf++GBVImT2xvvrTh6JhazH2+YS6Ztt6o1hM=. Existing AWS CodeSha256 differs; no update executed.
+Report: docs/reports/RIS-DEV2-AUTH-06C-LAMBDA-PACKAGING.md
+Decision: artifact ready for separately authorized Terraform-managed release; stop before upload/apply.
+
+[RIS-DEV2-AUTH-06D-OFFLINE-VALIDATION]
+Status: FUNCTIONAL PASS / PACKAGING REGRESSION ENVIRONMENT-BLOCKED
+Date: 2026-11-03
+Functional suite: 177 passed; 304 subtests passed. ZIP import smoke PASS; handler.lambda_handler alias and corrected dispatcher present in terraform/lambda.zip.
+Full selected packaging run: 181 passed, 1 failed, 2 skipped, 304 subtests. Failure is TestSourceChange temporary repository copy/archived-evidence WinError 3 on Windows; excluding that environment-sensitive case packaging tests are 4 passed, 2 skipped, 1 deselected. No production code/security check weakened.
+Decision: strict offline gate remains blocked by runner environment; no AWS code update, Terraform plan/apply, alias change or rollback.
+Report: docs/reports/RIS-DEV2-AUTH-06D-OFFLINE-VALIDATION.md
+
+[RIS-DEV2-AUTH-06E-DEPLOYMENT-PLAN]
+Status: DEPLOYMENT BLOCKED / PLAN PREPARED ONLY
+Date: 2026-11-03
+Scope: later release may only update Terraform-managed ris-dev2-dev-agent code via terraform/lambda.zip; no environment/IAM/API/DDB/S3/Cognito/CloudFront/DNS/ACM changes. No alias exists; only $LATEST discovered.
+Concurrency: re-read RevisionId immediately before any future operation; discovered revision f3719946-b052-48a5-bd62-750ffc54dcab. No automatic retry or direct update-function-code.
+Recovery: current deployed ZIP downloaded read-only outside Git to C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-auth-06-previous-lambda.zip; SHA-256 45ae52c1f3cc455f0e5dd1f64482eb6a02bbee7a3117a260d58bd20b81c54c38; matches Lambda CodeSha256. No rollback performed.
+Report: docs/reports/RIS-DEV2-AUTH-06E-DEPLOYMENT-PLAN.md
+Decision: no AWS write; future release requires exact artifact/revision/plan approval and Terraform-only execution.
+
+[RIS-DEV2-AUTH-06-ABSCHLUSS]
+Status: DEPLOYMENT BLOCKED
+Date: 2026-11-03
+Baseline/account/state/ownership: PASS; account 262370457690; default; eu-central-1; state serial 25; expected lineage; Terraform-managed ris-dev2-dev-agent.
+Artifact: terraform/lambda.zip; official deterministic builder; 76 Python entries; local SHA-256 f2630322a6887fef860552264f6c6fbeb4e1e8985acc7dbe612e99b6dea8d613; release artifact contains dispatcher fix.
+Validation: functional auth/application suite 177 passed + 304 subtests; ZIP import smoke PASS. Full packaging selection 181 passed, 1 failed, 2 skipped due Windows archived-evidence path-copy failure; strict offline gate not fully green.
+Recovery/deployment difference: prior deployed ZIP read-only recovered, hash 45ae52c1f3cc455f0e5dd1f64482eb6a02bbee7a3117a260d58bd20b81c54c38 matching AWS CodeSha256; prior package contains old dispatcher call; current RevisionId f3719946-b052-48a5-bd62-750ffc54dcab. No rollback.
+Protected infrastructure unchanged; no Lambda update-function-code, Terraform plan/apply, alias change, API deployment, or other AWS write.
+Report: docs/reports/RIS-DEV2-AUTH-06-ABSCHLUSSBERICHT.md
+Decision: stop; future release requires explicit artifact/ARN/revision/plan authorization and Terraform-only execution.
+
+[RIS-DEV2-AUTH-06G1-WINDOWS-PACKAGING]
+Status: PASS / WINDOWS PACKAGING TEST RECOVERED
+Date: 2026-11-03
+Root cause: lifecycle test copied unrelated archived evidence with deep Windows paths; after narrowing the mirror, text-mode newline translation altered restored source bytes.
+Fix: mirror only lambda/handler.py, agents and jobsearch; mutate/restore handler bytes exactly; builder normalizes POSIX ZIP separators and rejects absolute/drive-qualified/dot/traversal archive paths. No test skipped/deleted/xfail.
+Validation: tests/test_lambda_packaging.py 6 passed, 2 skipped (pre-existing live-contract skips).
+Report: docs/reports/RIS-DEV2-AUTH-06G1-WINDOWS-PACKAGING.md
+Decision: G1 complete; proceed to full packaging and functional validation.
+
+[RIS-DEV2-AUTH-06G2-FULL-VALIDATION]
+Status: FUNCTIONAL/PACKAGING PASS / TERRAFORM FORMAT CHECK BLOCKED BY UNRELATED FILE
+Date: 2026-11-03
+Artifact rebuilt with python lambda/build_zip.py --bundle all; hash unchanged: f2630322a6887fef860552264f6c6fbeb4e1e8985acc7dbe612e99b6dea8d613 (Base64 8mMDIqaIf++GBVImT2xvvrTh6JhazH2+YS6Ztt6o1hM=).
+Validation: packaging 6 passed/2 skipped; functional suite 177 passed + 304 subtests; Python 3.14.10 compileall PASS; Python 3.14 ZIP import smoke PASS; ZIP structure/dispatcher/secret-name checks PASS.
+Terraform: init -backend=false PASS; validate PASS with existing range_key deprecation warnings; fmt -check -recursive blocked by unrelated installer/projects/mays_order_builder/terraform/main.tf. Init-generated lockfile change removed; no state/apply.
+Report: docs/reports/RIS-DEV2-AUTH-06G2-FULL-VALIDATION.md
+Decision: artifact and functional checks green; strict G2 remains blocked by unrelated Terraform format failure.
+
+[RIS-DEV2-AUTH-06G3-TERRAFORM-PLAN]
+Status: PASS â€” EXACT LAMBDA CODE-ONLY PLAN
+Date: 2026-11-03
+Preflight: account 262370457690, eu-central-1, workspace ris-dev2, state serial 25, lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082, Lambda revision f3719946-b052-48a5-bd62-750ffc54dcab.
+Plan: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-auth-06g.tfplan; SHA-256 7cfcbf7ba2a5986e9529224890b68b81bf32ce3fb9e96ef47ed82cfe5e570a8e.
+Scope: 0 creates, 1 in-place update, 0 deletes, 0 replacements; sole address module.lambda.aws_lambda_function.agent; source_code_hash only plus computed last_modified.
+Artifact: terraform/lambda.zip SHA-256 f2630322a6887fef860552264f6c6fbeb4e1e8985acc7dbe612e99b6dea8d613; Base64 8mMDIqaIf++GBVImT2xvvrTh6JhazH2+YS6Ztt6o1hM=.
+Decision: Terraform scope gate PASS; stop before Apply.
+Report: docs/reports/RIS-DEV2-AUTH-06G3-TERRAFORM-PLAN.md
+
+[RIS-DEV2-AUTH-06G-DEPLOYMENT-READINESS]
+Status: DEPLOYMENT BLOCKED â€” EXACT REMAINING CAUSE
+Date: 2026-11-03
+Gates: Windows packaging, functional regression, ZIP integrity, Python 3.14 smoke and exact Terraform scope PASS; repository-wide terraform fmt -check -recursive fails on unrelated installer/projects/mays_order_builder/terraform/main.tf.
+Recovery artifact: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-auth-06-previous-lambda.zip; SHA-256 45ae52c1f3cc455f0e5dd1f64482eb6a02bbe7a3117a260d58bd20b81c54c38.
+Plan: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-auth-06g.tfplan; SHA-256 7cfcbf7ba2a5986e9529224890b68b81bf32ce3fb9e96ef47ed82cfe5e570a8e; exact 0/1/0/0 Agent Lambda code-only scope.
+Decision: no Apply; clear the unrelated format gate, then rerun preflight and plan before any separately approved Terraform Apply.
+Report: docs/reports/RIS-DEV2-AUTH-06G-DEPLOYMENT-READINESS.md
+
+[RIS-DEV2-AUTH-06H-A-SCOPE]
+Status: PASS â€” MAYS-ORDERS BUILDER CLONE OUTSIDE ACTIVE RIS ROOT
+Date: 2026-11-03
+Active root: terraform/; all root module sources resolve under terraform/modules/.
+Finding: installer/projects/mays_order_builder/terraform/main.tf is ignored builder-clone code and is not an active RIS module source; generated terraform/modules/mays_orders is the local module boundary. Saved plan has orders_lifecycle=disabled, so its module count is zero.
+No foreign Terraform file changed.
+Report: docs/reports/RIS-DEV2-AUTH-06H-A-SCOPE.md
+
+[RIS-DEV2-AUTH-06H-B-SCOPED-VALIDATION]
+Status: PASS â€” SCOPED RIS TERRAFORM FORMAT AND VALIDATION GATES
+Date: 2026-11-03
+Scoped terraform fmt/init/validate: PASS (validate retains existing DynamoDB hash_key/range_key deprecation warnings). Identity/API selection: 59 passed + 304 subtests; full RIS selection: 177 passed + 304 subtests.
+Packaging: 6 passed, 2 skipped; both skips explicitly report missing mayaws credentials at test lines 137 and 167. No test weakened.
+Global fmt failure remains separately attributed to ignored installer/projects/mays_order_builder/terraform/main.tf; no foreign file changed.
+Report: docs/reports/RIS-DEV2-AUTH-06H-B-SCOPED-VALIDATION.md
+
+[RIS-DEV2-AUTH-06H-C-PLAN-INTEGRITY]
+Status: PASS â€” SAVED PLAN AND STATE GUARDS MATCH
+Date: 2026-11-03
+Existing saved plan reused without replacement; SHA-256 7cfcbf7ba2a5986e9529224890b68b81bf32ce3fb9e96ef47ed82cfe5e570a8e. Artifact SHA-256 f2630322a6887fef860552264f6c6fbeb4e1e8985acc7dbe612e99b6dea8d613.
+State serial 25 and lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082 unchanged. Plan scope exactly 0 creates / 1 in-place update / 0 deletes / 0 replacements at module.lambda.aws_lambda_function.agent.
+Recovery artifact remains available; no AWS mutation.
+Report: docs/reports/RIS-DEV2-AUTH-06H-C-PLAN-INTEGRITY.md
+
+[RIS-DEV2-AUTH-06H-SCOPED-DEPLOYMENT-GATE]
+Status: READY FOR CONTROLLED APPLY
+Date: 2026-11-03
+Scoped RIS fmt/init/validate PASS; external builder-clone format failure independently bounded and no foreign file changed. Identity/API, functional, packaging, artifact, saved-plan, state and recovery guards PASS.
+Plan remains exact: 0 creates / 1 in-place update / 0 deletes / 0 replacements at module.lambda.aws_lambda_function.agent. Plan SHA-256 7cfcbf7ba2a5986e9529224890b68b81bf32ce3fb9e96ef47ed82cfe5e570a8e; artifact SHA-256 f2630322a6887fef860552264f6c6fbeb4e1e8985acc7dbe612e99b6dea8d613; state serial 25; lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082.
+Decision: ready for controlled Terraform Apply only after explicit approval; stop before Apply.
+Report: docs/reports/RIS-DEV2-AUTH-06H-SCOPED-DEPLOYMENT-GATE.md
+
+[RIS-BRANCH-CONSOLIDATION-01B-FUNCTIONAL-REVIEW]
+Status: COMPLETE â€” LOCAL IMPLEMENTATION REVIEWED; RIS-DEV INTEGRATION OPEN
+Date: 2026-11-03
+Reviewed profile persistence, CV/S3 lifecycle, CV/ATS/manual profiles, MatchingPreferences, ApplicationV1, privacy/erasure, API contracts and read-only Jobsearch contracts. No Jobsearch file changed. Missing formal Jobsearch handoff files recorded as an integration-documentation gap.
+Classification: implementation and local tests verified; ApplicationV1 historical deployment is ris-dev2 only; ris-dev remains NOT DEPLOYED.
+Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01B-FUNCTIONAL-REVIEW.md
+
+[RIS-BRANCH-CONSOLIDATION-01A-BASELINE]
+Status: COMPLETE â€” CLEAN LOCAL BASELINE
+Date: 2026-11-03
+Initial branch feature/ris-application-persistence-v1 at HEAD 65a4b9a95732f5de0c4ec0192ba6af54cc277a41; working tree clean. Fetched origin; origin/main is 26b36604204ff9822d66646a6a64c8f429025698, branch has 77 commits ahead and origin/main 6 commits ahead. No remote feature branch exists yet.
+Main already includes partner-profile branch merge; ApplicationV1 paths remain branch-only. Other worktrees preserved; no reset/clean/stash/push/AWS operation.
+Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01A-BASELINE.md
+
+[RIS-BRANCH-CONSOLIDATION-01C-REGRESSION]
+Status: PASS â€” FOCUSED RIS REGRESSION AND PACKAGING GATES
+Date: 2026-11-03
+Focused profile/CV/ATS/manual/ApplicationV1/API/isolation/privacy selection: 453 passed + 297 subtests. Packaging: 6 passed, 2 explicit live mayaws-credential skips. Python 3.14.10 compileall PASS. Scoped Terraform fmt/init/validate PASS with existing deprecation warnings.
+No AWS mutation, Jobsearch change, Cognito campaign, ris-dev operation or generated plan/state commit.
+Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01C-REGRESSION.md
+
+[RIS-BRANCH-CONSOLIDATION-01D-RIS-DEV-HANDOFF]
+Status: COMPLETE â€” HANDOFF ONLY, NO DEPLOYMENT AUTHORIZATION
+Date: 2026-11-03
+Handoff covers profile/CV/ATS/manual/ApplicationV1 components, routes, models, tables/GSIs, S3 lifecycle, Terraform/IAM, identity/environment separation, packaging, tests, privacy boundaries and RIS-DEV open tasks. ris-dev2 and ris-dev explicitly separated; no Jobsearch file changed; no plan reused.
+Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01D-RIS-DEV-HANDOFF.md
+
+[RIS-BRANCH-CONSOLIDATION-01E-MERGE-READINESS]
+Status: READY FOR PR / MERGE BLOCKED PENDING GITHUB CHECKS AND REVIEW
+Date: 2026-11-03
+Three-way merge against fetched origin/main conflict-free. Working tree clean; no Jobsearch changes; no state/plan artifacts; no real secrets; handoff complete. Historical git diff --check trailing whitespace in three old RIS-DEV2 reports documented and not silently changed.
+Decision: reviewed branch may proceed to PR; no merge until required GitHub checks and approval are evidenced.
+Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01E-MERGE-READINESS.md
+
+[RIS-BRANCH-CONSOLIDATION-01F-GITHUB-PR]
+Status: PR READY â€” MERGE BLOCKED
+Date: 2026-11-03
+Reviewed feature branch pushed without force to origin/feature/ris-application-persistence-v1 at HEAD 04bfd3ad96fc155f271fb33fa5730f6e7dcda2f6. No push to main. gh is unavailable and browser GitHub session unauthenticated, so no PR number or CI result is claimed.
+PR URL: https://github.com/maynowak/Mays-Recruiting-Intelligence-System/pull/new/feature/ris-application-persistence-v1
+Decision: authenticated maintainer must open/review PR and obtain required checks/approval before merge.
+Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01F-GITHUB-PR.md
+
+[RIS-BRANCH-CONSOLIDATION-01-ABSCHLUSSBERICHT]
+Status: PR READY â€” MERGE BLOCKED
+Date: 2026-11-03
+Development branch feature/ris-application-persistence-v1 consolidated and pushed at HEAD 9766a0200cd6e560a31b94603ae15e856a059347. Initial HEAD 65a4b9a95732f5de0c4ec0192ba6af54cc277a41. No main checkout/merge, no AWS mutation, no Jobsearch modification.
+Evidence: 453 passed + 297 subtests; packaging 6 passed/2 explicit mayaws-credential skips; Python 3.14 compileall PASS; scoped Terraform fmt/init/validate PASS. Handoff: docs/reports/RIS-BRANCH-CONSOLIDATION-01D-RIS-DEV-HANDOFF.md.
+GitHub PR could not be opened because gh is unavailable and browser is unauthenticated. PR URL documented; no PR number, CI or merge success claimed.
+Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01-ABSCHLUSSBERICHT.md
+
+[RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
+Status: PR OPEN â€” MERGE BLOCKED
+Date: 2026-11-03
+Retry verification found GitHub PR #3 open against main. Current branch HEAD is fd5650167d1b647522d57dce29c6b267319d6d9d. Checks report .github/workflows/ci-cd.yml completed with no jobs; no review approval is present. No merge performed.
+Report corrections: docs/reports/RIS-BRANCH-CONSOLIDATION-01F-GITHUB-PR.md and docs/reports/RIS-BRANCH-CONSOLIDATION-01-ABSCHLUSSBERICHT.md

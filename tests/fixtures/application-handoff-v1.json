@@ -1,0 +1,47 @@
+{
+  "sessionApplication": {
+    "sessionId": "session-local-1",
+    "job": {
+      "id": "job-42",
+      "source": "example",
+      "title": "Software Engineer",
+      "company": "Example GmbH",
+      "location": "Berlin",
+      "url": "https://example.invalid/jobs/42"
+    },
+    "profileRef": { "id": "profile-existing", "version": 3 },
+    "cvRef": { "id": "cv-existing", "version": 2 },
+    "draftLetter": "User-authored draft"
+  },
+  "createRequest": {
+    "job": {
+      "jobId": "job-42",
+      "source": "example",
+      "title": "Software Engineer",
+      "company": "Example GmbH",
+      "location": "Berlin",
+      "url": "https://example.invalid/jobs/42"
+    },
+    "profileRef": { "id": "profile-existing", "version": 3 },
+    "cvRef": { "id": "cv-existing", "version": 2 },
+    "idempotencyKey": "handoff-attempt-1"
+  },
+  "remoteLifecycleExamples": {
+    "statusRequest": {
+      "status": "SUBMITTED",
+      "expectedVersion": 2,
+      "confirm": true
+    },
+    "historyRequest": {
+      "event": { "type": "USER_CONFIRMED", "note": "synthetic fixture" },
+      "expectedVersion": 2
+    },
+    "coverLetterVersionRequest": {
+      "text": "Synthetic user-authored letter",
+      "expectedVersion": 2
+    },
+    "conflictResponse": { "status": 409, "code": "VERSION_CONFLICT" },
+    "pageResponse": { "items": [], "nextCursor": null }
+  },
+  "forbiddenClientFields": ["applicationId", "userId", "tenantId", "ownerId", "issuer", "partnerApplicationId"]
+}

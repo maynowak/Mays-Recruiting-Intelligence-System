@@ -141,3 +141,9 @@ variable "custom_domain_certificate_arn" {
     error_message = "Cognito Custom Domains verlangen ein ACM-Zertifikat in us-east-1."
   }
 }
+
+variable "m2m_enabled" {
+  description = "Whether to provision the managed M2M resource server and client."
+  type        = bool
+  default     = true
+}

@@ -25,6 +25,9 @@ locals {
   identity_managed = var.identity_mode == "managed"
   orders_managed   = var.orders_lifecycle == "managed"
   orders_enabled   = var.orders_lifecycle != "disabled"
+  identity_issuer  = local.identity_managed ? "https://${module.cognito[0].user_pool_endpoint}" : var.external_cognito_issuer
+  m2m_issuer       = local.identity_managed && !var.identity_m2m_enabled ? var.identity_m2m_fallback_issuer : local.identity_issuer
+  m2m_client_id    = local.identity_managed && !var.identity_m2m_enabled ? var.identity_m2m_fallback_client_id : (local.identity_managed ? module.cognito[0].user_pool_m2m_client_id : var.external_cognito_m2m_client_id)
 }
 
 provider "aws" {
@@ -65,6 +68,7 @@ module "cognito" {
   custom_domain_enabled         = var.identity_custom_domain_enabled
   custom_domain                 = var.identity_custom_domain
   custom_domain_certificate_arn = var.identity_custom_domain_certificate_arn
+  m2m_enabled                   = var.identity_m2m_enabled
 }
 
 module "sqs" {
@@ -106,9 +110,10 @@ module "api" {
   environment                     = var.environment
   cognito_user_pool_id            = local.identity_managed ? module.cognito[0].user_pool_id : var.external_cognito_user_pool_id
   cognito_user_pool_client_id     = local.identity_managed ? module.cognito[0].user_pool_client_id : var.external_cognito_human_client_id
-  cognito_user_pool_m2m_client_id = local.identity_managed ? module.cognito[0].user_pool_m2m_client_id : var.external_cognito_m2m_client_id
+  cognito_user_pool_m2m_client_id = local.m2m_client_id
   cognito_user_pool_endpoint      = local.identity_managed ? module.cognito[0].user_pool_endpoint : replace(var.external_cognito_issuer, "https://", "")
-  cognito_issuer                  = local.identity_managed ? "https://${module.cognito[0].user_pool_endpoint}" : var.external_cognito_issuer
+  cognito_issuer                  = local.identity_issuer
+  cognito_m2m_issuer              = local.m2m_issuer
   lambda_function_name            = "${local.prefix}-agent"
   lambda_invoke_arn               = module.lambda.invoke_arn
   cors_origins                    = var.api_cors_origins
@@ -148,6 +153,7 @@ module "lambda" {
   # M2M execution. Without this env var the registry lookup returns None and
   # both routes fail closed with 403.
   partner_applications_table_name     = module.dynamodb.partner_applications_table_name
+  applications_table_name             = module.dynamodb.applications_table_name
   user_profile_table_arn              = module.dynamodb.user_profile_table_arn
   agent_catalog_table_arn             = module.dynamodb.agent_catalog_table_arn
   entitlements_table_arn              = module.dynamodb.entitlements_table_arn
@@ -156,6 +162,8 @@ module "lambda" {
   credentials_table_arn               = module.dynamodb.credentials_table_arn
   partner_applications_table_arn      = module.dynamodb.partner_applications_table_arn
   partner_applications_gsi_client_arn = module.dynamodb.partner_applications_gsi_client_arn
+  applications_table_arn              = module.dynamodb.applications_table_arn
+  applications_gsi_owner_arn          = module.dynamodb.applications_gsi_owner_arn
   s3_bucket_arn                       = aws_s3_bucket.data.arn
   documents_bucket_name               = module.documents.bucket_name
   documents_bucket_arn                = module.documents.bucket_arn

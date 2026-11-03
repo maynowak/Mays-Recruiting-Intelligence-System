@@ -43,6 +43,34 @@ variable "identity_mode" {
   }
 }
 
+variable "identity_m2m_enabled" {
+  description = "Whether this identity module provisions its own M2M client."
+  type        = bool
+  default     = true
+}
+
+variable "identity_m2m_fallback_issuer" {
+  description = "Existing M2M JWT issuer preserved when managed Human-only mode is selected."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.identity_mode != "managed" || var.identity_m2m_enabled || can(regex("^https://cognito-idp\\.${var.aws_region}\\.amazonaws\\.com/eu-central-1_[A-Za-z0-9]+$", var.identity_m2m_fallback_issuer))
+    error_message = "identity_m2m_fallback_issuer is required when managed M2M is disabled."
+  }
+}
+
+variable "identity_m2m_fallback_client_id" {
+  description = "Existing M2M audience preserved when managed Human-only mode is selected."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.identity_mode != "managed" || var.identity_m2m_enabled || can(regex("^[A-Za-z0-9]+$", var.identity_m2m_fallback_client_id))
+    error_message = "identity_m2m_fallback_client_id is required when managed M2M is disabled."
+  }
+}
+
 variable "external_cognito_user_pool_id" {
   description = "Existing Cognito User Pool ID used in external identity mode."
   type        = string

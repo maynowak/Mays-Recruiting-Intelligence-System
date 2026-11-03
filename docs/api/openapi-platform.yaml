@@ -2206,6 +2206,88 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorObject" }
 
+  /v1/partner/me/applications:
+    get:
+      tags: [Partner]
+      operationId: listApplications
+      summary: List authenticated ApplicationV1 records
+      x-infrastructure-governance: terraform-managed
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      responses:
+        "200": { description: Application page }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403": { description: Partner boundary refused }
+        "503": { $ref: "#/components/responses/ServerErrorString" }
+    post:
+      tags: [Partner]
+      operationId: createApplication
+      summary: Create an ApplicationV1 draft
+      x-infrastructure-governance: terraform-managed
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "201": { description: Created }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403": { description: Partner boundary refused }
+        "409": { description: Idempotency conflict }
+        "422": { description: Invalid request }
+  /v1/partner/me/applications/{applicationId}:
+    parameters:
+      - name: applicationId
+        in: path
+        required: true
+        schema: { type: string }
+      - $ref: "#/components/parameters/ApiCredential"
+    get:
+      tags: [Partner]
+      operationId: getApplication
+      summary: Get one owned application
+      x-infrastructure-governance: terraform-managed
+      responses: { "200": { description: Application }, "404": { description: Not found } }
+    patch:
+      tags: [Partner]
+      operationId: patchApplication
+      summary: Update one owned application with expectedVersion
+      x-infrastructure-governance: terraform-managed
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { "200": { description: Updated }, "409": { description: Version conflict } }
+    delete:
+      tags: [Partner]
+      operationId: deleteApplication
+      summary: Delete one owned application
+      x-infrastructure-governance: terraform-managed
+      responses: { "204": { description: Deleted }, "409": { description: Version conflict } }
+  /v1/partner/me/applications/{applicationId}/status:
+    post:
+      tags: [Partner]
+      operationId: changeApplicationStatus
+      summary: Explicitly change application status
+      x-infrastructure-governance: terraform-managed
+      responses: { "200": { description: Updated }, "409": { description: Conflict } }
+  /v1/partner/me/applications/{applicationId}/history:
+    post:
+      tags: [Partner]
+      operationId: appendApplicationHistory
+      summary: Append application history metadata
+      x-infrastructure-governance: terraform-managed
+      responses: { "201": { description: Created }, "409": { description: Conflict } }
+  /v1/partner/me/applications/{applicationId}/cover-letter-versions:
+    post:
+      tags: [Partner]
+      operationId: createCoverLetterVersion
+      summary: Store an explicitly supplied cover-letter version
+      x-infrastructure-governance: terraform-managed
+      responses: { "201": { description: Created }, "409": { description: Conflict } }
+  /v1/partner/me/applications/{applicationId}/export:
+    get:
+      tags: [Partner]
+      operationId: exportApplication
+      summary: Export one owned application
+      x-infrastructure-governance: terraform-managed
+      responses: { "200": { description: Structured export }, "404": { description: Not found } }
+
 components:
   securitySchemes:
     cognitoJwt:

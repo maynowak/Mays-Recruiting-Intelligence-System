@@ -137,10 +137,11 @@ class DocumentErasureIntegration:
                      operation: ErasureOperationV1) -> ErasureExecutionContextV1:
         return replace(ctx, operation_version=operation.version)
 
-    @staticmethod
-    def _profiles_done(operation: ErasureOperationV1) -> bool:
+    def _profiles_done(self, operation: ErasureOperationV1) -> bool:
         required = ("atsSearchProfiles", "cvSearchProfiles",
                     "manualSearchProfiles", "userProfile")
+        if self.profile_executor.applications is not None:
+            required += ("applications",)
         return all(operation.progress.get(name, ErasureProgressV1()).status
                    in (PROGRESS_COMPLETED, PROGRESS_SKIPPED) for name in required)
 

@@ -110,12 +110,14 @@ class ProfileOnlyErasureExecutor:
 
     def __init__(self, *, profile_repository: Any, operation_repository: Any,
                  delete_user_profile: Optional[Callable[..., Any]] = None,
+                 application_repository: Any = None,
                  page_size: int = 50):
         if not isinstance(page_size, int) or isinstance(page_size, bool) or page_size < 1:
             raise ValueError("page_size must be positive")
         self.profiles = profile_repository
         self.operations = operation_repository
         self.delete_user_profile = delete_user_profile
+        self.applications = application_repository
         self.page_size = page_size
         self._last_operation: Optional[ErasureOperationV1] = None
 
@@ -349,6 +351,71 @@ class ProfileOnlyErasureExecutor:
         return self._progress(operation, "userProfile", status=PROGRESS_COMPLETED,
                               affected=1, checkpoint=cp)
 
+    def _delete_applications(self, operation: ErasureOperationV1,
+                             context: ErasureExecutionContextV1) -> ErasureOperationV1:
+        """Delete ApplicationV1 records through the same fenced operation.
+
+        The repository receives the verified operation scope, never a client
+        payload. The persisted cursor is opaque to the public erasure
+        contract, and a replay treats an already-deleted application as
+        success so a failed checkpoint can safely resume.
+        """
+        category = "applications"
+        if self.applications is None:
+            cp = ErasureCheckpointV1(phase=category, state=CHECKPOINT_IN_PROGRESS)
+            return self._progress(operation, category, status=PROGRESS_PARTIAL,
+                                  affected=0, checkpoint=cp,
+                                  error_code="APPLICATION_STORAGE_UNAVAILABLE",
+                                  retryable=True)
+        from jobsearch.application_contract import ApplicationContext
+        from jobsearch.application_repository import ApplicationNotFound
+        old = operation.progress.get(category, ErasureProgressV1())
+        cursor = _cursor_decode(old.checkpoint.cursor_ref) if old.checkpoint else None
+        affected = old.affected
+        app_context = ApplicationContext(operation.user_id, operation.tenant_id,
+                                         operation.partner_application_id,
+                                         operation.issuer)
+        while True:
+            items, next_cursor = self.applications.list(
+                app_context, limit=self.page_size, cursor=cursor)
+            for item in items:
+                self._require_context(operation, context)
+                try:
+                    self.applications.delete(item["applicationId"],
+                                             item["version"], app_context)
+                    affected += 1
+                except ApplicationNotFound:
+                    # A prior attempt committed before its checkpoint write.
+                    pass
+                cp = ErasureCheckpointV1(
+                    phase=category, state=CHECKPOINT_IN_PROGRESS,
+                    cursor_ref=_cursor_encode(cursor),
+                    last_resource_ref=item.get("applicationId"),
+                    updated_at=operation.updated_at)
+                operation = self._progress(operation, category,
+                    status=PROGRESS_RUNNING, affected=affected, checkpoint=cp)
+                context = self._context_for(context, operation)
+            if not next_cursor:
+                cp = ErasureCheckpointV1(
+                    phase=category, state=CHECKPOINT_COMPLETED,
+                    last_resource_ref=(old.checkpoint.last_resource_ref
+                                       if old.checkpoint else None),
+                    updated_at=operation.updated_at)
+                return self._progress(operation, category,
+                                      status=PROGRESS_COMPLETED,
+                                      affected=affected, checkpoint=cp)
+            cursor = next_cursor
+            cp = ErasureCheckpointV1(
+                phase=category, state=CHECKPOINT_IN_PROGRESS,
+                cursor_ref=_cursor_encode(cursor),
+                last_resource_ref=(old.checkpoint.last_resource_ref
+                                   if old.checkpoint else None),
+                updated_at=operation.updated_at)
+            operation = self._progress(operation, category,
+                                       status=PROGRESS_RUNNING,
+                                       affected=affected, checkpoint=cp)
+            context = self._context_for(context, operation)
+
     def run(self, operation: ErasureOperationV1,
             context: ErasureExecutionContextV1) -> ErasureOperationV1:
         """Execute/resume profile work; failures are durable PARTIAL progress."""
@@ -375,11 +442,24 @@ class ProfileOnlyErasureExecutor:
                 operation = self._delete_cv_hierarchy(operation, context)
                 context = self._context_for(context, operation)
                 operation = self._progress(
+                    operation, "applications", status="SKIPPED", affected=0,
+                    checkpoint=ErasureCheckpointV1(
+                        phase="applications", state=CHECKPOINT_COMPLETED))
+                context = self._context_for(context, operation)
+                operation = self._progress(
                     operation, "manualSearchProfiles", status="SKIPPED", affected=0,
                     checkpoint=ErasureCheckpointV1(
                         phase="manualSearchProfiles", state=CHECKPOINT_COMPLETED))
                 context = self._context_for(context, operation)
             else:
+                if self.applications is not None:
+                    operation = self._delete_applications(operation, context)
+                else:
+                    operation = self._progress(
+                        operation, "applications", status="SKIPPED", affected=0,
+                        checkpoint=ErasureCheckpointV1(
+                            phase="applications", state=CHECKPOINT_COMPLETED))
+                context = self._context_for(context, operation)
                 operation = self._delete_user_category(operation, "atsSearchProfiles", "ATSSearchProfile", context)
                 context = self._context_for(context, operation)
                 operation = self._delete_user_category(operation, "cvSearchProfiles", "CVSearchProfile", context)

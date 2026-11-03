@@ -54,7 +54,7 @@ resource "aws_apigatewayv2_authorizer" "jwt_m2m" {
 
   jwt_configuration {
     audience = [var.cognito_user_pool_m2m_client_id]
-    issuer   = var.cognito_issuer
+    issuer   = var.cognito_m2m_issuer
   }
 }
 
@@ -492,6 +492,81 @@ resource "aws_apigatewayv2_route" "partner_ats_profiles_update" {
 resource "aws_apigatewayv2_route" "partner_ats_profiles_delete" {
   api_id             = aws_apigatewayv2_api.ris_api.id
   route_key          = "DELETE /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles/{atsSearchProfileId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+# ApplicationV1 durable Jobsearch handoff. These routes deliberately remain in
+# the existing partner namespace and use the same JWT authorizer; the Lambda
+# reuses the partner credential/tenant/issuer boundary.
+resource "aws_apigatewayv2_route" "applications_list" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/applications"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "applications_create" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/partner/me/applications"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "applications_get" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/applications/{applicationId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "applications_patch" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "PATCH /v1/partner/me/applications/{applicationId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "applications_status" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/partner/me/applications/{applicationId}/status"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "applications_history" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/partner/me/applications/{applicationId}/history"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "applications_cover_letter" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/partner/me/applications/{applicationId}/cover-letter-versions"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "applications_export" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/applications/{applicationId}/export"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "applications_delete" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "DELETE /v1/partner/me/applications/{applicationId}"
   target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id

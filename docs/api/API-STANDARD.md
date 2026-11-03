@@ -133,6 +133,15 @@ Antwort 202: `{"workId": string, "status": string, "requestId": string}`
 | `GET /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 500, 503 |
 | `PUT /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 409, 422, 500, 503 |
 | `DELETE /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}` | JWT **+** `X-Api-Credential` | 204 | 401, 403, 404, 409, 422, 500, 503 |
+| `POST /v1/partner/me/applications` | JWT **+** `X-Api-Credential` | 201 | 401, 403, 409, 422, 503 |
+| `GET /v1/partner/me/applications` | JWT **+** `X-Api-Credential` | 200 (`items`, `nextCursor`) | 401, 403, 422, 503 |
+| `GET /v1/partner/me/applications/{applicationId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 503 |
+| `PATCH /v1/partner/me/applications/{applicationId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 409, 422, 503 |
+| `POST /v1/partner/me/applications/{applicationId}/status` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 409, 422, 503 |
+| `POST /v1/partner/me/applications/{applicationId}/history` | JWT **+** `X-Api-Credential` | 201 | 401, 403, 404, 409, 422, 503 |
+| `POST /v1/partner/me/applications/{applicationId}/cover-letter-versions` | JWT **+** `X-Api-Credential` | 201 | 401, 403, 404, 409, 422, 503 |
+| `GET /v1/partner/me/applications/{applicationId}/export` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 503 |
+| `DELETE /v1/partner/me/applications/{applicationId}` | JWT **+** `X-Api-Credential` | 204 | 401, 403, 404, 409, 422, 503 |
 | `GET /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 500, 503 |
 | `POST /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles` | JWT **+** `X-Api-Credential` | 201 | 400, 401, 403, 404, 409, 422, 500, 503 |
 | `GET /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles/{atsSearchProfileId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 500, 503 |
@@ -177,6 +186,20 @@ kommt dann vom Credential/Registry. Ein nicht auflösbarer Tenant führt zu
   Agent nicht ausführbar.
 - **503** — Store-/Infrastrukturfehler. **Niemals** 401/403: ein nicht
   erreichbarer Store darf nicht als schlechtes Credential gemeldet werden.
+
+Für die ApplicationV1-Partnerroute gilt dieselbe Reihenfolge und derselbe
+Fehlervertrag. Der Dispatcher muss zuerst die vorhandene
+`_partner_profile_context`-Grenze erreichen; fehlende oder ungültige
+Partnerautorisierung wird als kontrollierte Antwort abgewiesen und darf nicht
+als unbehandelter HTTP-500-Fehler aus dem Dispatcher austreten. Die stabile
+Form der Dual-Auth-Grenze ist:
+
+```json
+{"error": "Unauthorized", "code": "unauthorized"}
+```
+
+beziehungsweise `403`/`forbidden` oder `503`/`unavailable`. Interne Registry-,
+Credential- und Exception-Details werden nicht an den Client ausgegeben.
 
 **Identity Binding:** Die Cognito-Identität wird für Audit und Korrelation
 erfasst, wählt aber **nie** die ausführende Identität. Diese bleibt der Owner
