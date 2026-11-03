@@ -1,39 +1,39 @@
 # Kommerzielle Lizenzierung und Partnerschaften – Mays Recruiting Intelligence System (Mays-RIS)
 
-**Stand: 03.11.2026 · Aktuell GPLv3; AGPL-Umstellung geplant · Kein verbindliches Vertragsangebot**
+**Stand: 03.11.2026 · AGPLv3-Lizenztext veröffentlicht · Rechteprüfung offen · kein verbindliches Vertragsangebot**
 
-## Was schon erlaubt ist
+## Was bereits erlaubt ist
 
-Für die bereits unter **GNU General Public License, Version 3 (GPL-3.0)** veröffentlichten Programmteile bleibt die kommerzielle Nutzung **im Rahmen dieser Lizenz** zulässig. Es gibt **keine automatische Lizenzgebühr, Umsatzbeteiligung oder Pflicht**, für eine GNU-konforme Nutzung einen Vertrag mit dem Projekt abzuschließen.
+Für Softwarebestandteile, für die eine wirksame **GNU AGPL Version 3** gilt, ist kommerzielle Nutzung **unter Einhaltung der Lizenzbedingungen** erlaubt. Für früher rechtmäßig unter **GPLv3** erhaltene RIS-Versionen bleiben die entsprechenden Rechte bestehen. Es besteht **keine automatische Lizenzgebühr, Umsatzbeteiligung oder Pflicht zu einem gesonderten Vertrag** für eine GNU-konforme Nutzung.
 
-Die ursprünglichen GNU-Rechte werden durch dieses Dokument **nicht** eingeschränkt. Die [AGPL-Umstellung](./AGPL-TRANSITION.md) ist erst geplant und ändert den gegenwärtigen Rechtsstand nicht. Die Regelungen der [Lizenzdatei](./LICENSE) gelten weiterhin.
+Die [Lizenzdatei](./LICENSE) enthält den veröffentlichten AGPLv3-Text. Der [AGPL-Statusbericht](./AGPL-TRANSITION.md) dokumentiert den Wechsel und die noch **offene Prüfung der Rechtekette und betroffenen Komponenten**. Diese Informationsseite schränkt keine wirksam eingeräumten GNU-Rechte ein.
 
-## Wofür individuelle Verträge sinnvoll sind
+## Wofür sich individuelle Vereinbarungen eignen
 
 Auf freiwilliger Basis können Unternehmen anfragen für:
 
-- gesonderte kommerzielle Nutzungsrechte **an geeigneten, hierfür rechtswirksam verfügbaren Komponenten**, etwa falls GPL-/AGPL-Pflichten in einem konkreten Anwendungsfall nicht übernommen werden sollen;
-- kundenspezifische Integrationen, White-Label-Leistungen, Unternehmenssupport oder Service Level Agreements;
-- Zugang zu gesondert bereitgestellten Hosting-, API-, Premium- oder Managementdiensten;
-- neue, separat lizenzierte Softwaremodule und Enterprise-Produkte;
-- Partnerschaften mit vereinbarter Umsatzbeteiligung.
+- rechtlich mögliche zusätzliche kommerzielle Software-Nutzungsrechte, etwa für geeignetes Material, bei dem eine alternative Lizenzierung tatsächlich angeboten werden darf;
+- kundenspezifische Integrationen, White-Label-Leistungen, Unternehmenssupport und Service Level Agreements;
+- gesondert bereitgestellte Hosting-, API-, Premium- oder Managementdienste;
+- neu geschaffene, rechtlich eigenständig lizenzierbare Zusatzmodule und Enterprise-Produkte;
+- Partnerschaften mit ausdrücklich vereinbarter Umsatzbeteiligung.
 
-**Nicht angeboten wird** eine pauschale „Freikauf“-Lizenz für Fremdcode, Rechte Dritter oder Teile, die nicht wirksam gesondert lizenzierbar sind. Für GPL-/AGPL-kombinierte Werke sind die tatsächlichen Grenzen gesondert zu prüfen.
+**Nicht angeboten wird** eine pauschale Freikauf-Lizenz für Fremdcode, Rechte Dritter oder kombinierte Werke, die nicht rechtswirksam alternativ lizenzierbar sind. Keine Vereinbarung über künftige Leistungen hebt bereits gewährte GPL-/AGPL-Rechte auf.
 
-## Mögliche Vergütung – erst nach Vereinbarung
+## Mögliche Vergütung – nur nach Vereinbarung
 
-Die Vertragspartner können eine feste Gebühr, laufende Mindestgebühren und/oder einen prozentualen Anteil am **vertraglich genau definierten zurechenbaren Nettoumsatz** vereinbaren. Ein Vertrag muss insbesondere festlegen:
+Vertragspartner können eine feste Gebühr, laufende Mindestgebühren und/oder einen prozentualen Anteil am **vertraglich definierten zurechenbaren Nettoumsatz** vereinbaren. Ein solcher Vertrag sollte mindestens Folgendes bestimmen:
 
-1. **Parteien, Versionen, Module und erlaubte Nutzung** (einschließlich Hosting, Tochterunternehmen, Unterlizenzen).
-2. **Bemessungsgrundlage** (zurechenbare Erlöse, Steuern, Rabatte, Rückerstattungen, Bündelprodukte, verbundene Unternehmen).
-3. **Höhe und Fälligkeit** von Grundgebühr, Umsatzanteil, Mindestentgelt und Abrechnung.
-4. **Nachweis und Prüfungsrecht** sowie Schutz vertraulicher Geschäftsdaten.
-5. **Laufzeit, Kündigung, Folgen von Vertragsverstößen, anwendbares Recht** und Regelungen für künftige Versionen.
+1. **Vertragspartner, Versionen, Module und erlaubte Nutzungen**, einschließlich Hosting, Tochterunternehmen, Weitergabe und Unterlizenzen.
+2. **Bemessungsgrundlage**, insbesondere zurechenbare Erlöse, Steuern, Nachlässe, Erstattungen, Bündelprodukte und verbundene Unternehmen.
+3. **Vergütung**, Fälligkeiten, Mindestbeträge, Umsatzanteile und Abrechnungsintervalle.
+4. **Nachweise und Prüfungsrechte** unter Berücksichtigung vertraulicher Unternehmensdaten.
+5. **Laufzeit, Kündigung, Vertragsverstöße, Rechtswahl** und Regelungen zu neuen Versionen.
 
-**Beispiel (unverbindlich):** Bei individuell vereinbarten 5 % und 100.000 EUR zurechenbarem Nettoumsatz ergäbe sich ein Entgelt von 5.000 EUR. Es besteht **kein allgemeiner Satz von 5 %** und ohne Vertrag kein Zahlungsanspruch aus diesem Beispiel.
+**Unverbindliches Rechenbeispiel:** 5 % von 100.000 EUR vertraglich definiertem zurechenbarem Nettoumsatz entsprechen 5.000 EUR. Es gibt **keinen allgemeinen 5-%-Satz**, und dieses Beispiel allein begründet keinen Zahlungsanspruch.
 
-## Kontakt und Abschluss
+## Kontakt und Vertragsabschluss
 
-Eine unverbindliche Anfrage ist über das [GitHub-Profil](https://github.com/maynowak) möglich. Rechte, Preise oder Exklusivität entstehen **erst durch eine gesonderte rechtswirksame Vereinbarung**. Die GNU-Nutzungsrechte für die bestehenden Versionen bleiben davon unberührt.
+Anfragen können über das [GitHub-Profil maynowak](https://github.com/maynowak) gestellt werden. Besondere Nutzungsrechte, Vergütungspflichten oder Exklusivität ergeben sich erst aus einer **gesonderten rechtswirksamen Vereinbarung**, soweit die erforderlichen Rechte tatsächlich vorliegen.
 
-Zur Übersicht: [LICENSING.md](./LICENSING.md).
+Zurück zur [Lizenzübersicht](./LICENSING.md).

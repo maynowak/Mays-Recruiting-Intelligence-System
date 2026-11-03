@@ -1,28 +1,36 @@
 # Lizenzierung – Mays Recruiting Intelligence System (Mays-RIS)
 
-**Stand: 03.11.2026 · Aktueller Rechtsstand: GPLv3 · Ziel: AGPL-3.0-only (noch nicht umgesetzt)**
+**Dokumentationsstand: 03.11.2026 · `LICENSE` enthält GNU AGPLv3 · Rechteprüfung weiterhin offen**
 
-Für den heute veröffentlichten RIS-Quellcode ist die in diesem Repository vorhandene [GNU General Public License Version 3](./LICENSE) maßgeblich, soweit keine abweichenden wirksamen Dateilizenzierungen bestehen. **Die geplante Umstellung auf AGPL-3.0-only ist hiermit noch NICHT erfolgt.**
+## Aktuell veröffentlichter Lizenztext
 
-Wir streben für künftige entsprechend lizenzierbare RIS-Versionen eine gemeinsame Community-Grundlage mit [Mays Jobsearch](https://github.com/maynowak/mays-jobsearch) unter **GNU AGPL-3.0-only** an. Vorher müssen Urheberrechte, Beiträge, Fremdcode und technische Kombinationen geprüft werden. GPLv3 und AGPLv3 sind in bestimmten Kombinationen miteinander vereinbar; das ist **keine pauschale Erlaubnis, fremden GPL-Code umzulisenzieren**.
+Im Standard-Branch `main` enthält die Datei [`LICENSE`](./LICENSE) seit dem [Commit `1fe9086` vom 03.11.2026](https://github.com/maynowak/Mays-Recruiting-Intelligence-System/commit/1fe9086c2814336062e637d08d259ee37ccc7633) den vollständigen Text der **GNU Affero General Public License, Version 3 (AGPLv3)**. Für selbst geschaffene und wirksam unter dieser Lizenz veröffentlichbare RIS-Bestandteile ist die AGPLv3 als Community-Lizenz vorgesehen.
 
-## Drei klar getrennte Angebote
+**Wichtige Einschränkung:** Die Veröffentlichung einer Lizenzdatei allein belegt nicht, dass alle Bestandteile des Repositories rechtlich wirksam umgestellt werden konnten. Eine vollständige Prüfung von Urheberrechten, Contributors, Fremdcode und der tatsächlichen Integration ist noch **nicht nachgewiesen**. Für Drittbestandteile sowie ausdrücklich anders lizenzierte Dateien gelten ihre jeweiligen Rechte. **Früher wirksam eingeräumte GPLv3-Rechte bleiben bestehen.**
+
+Details: [Status des Lizenztextwechsels und offene Prüfungen](./AGPL-TRANSITION.md) und [Lizenzhistorie](./LICENSE-HISTORY.md).
+
+## Unsere drei Angebotsbereiche
 
 | Bereich | Grundsatz |
 | --- | --- |
-| **Community-Code** | Gegenwärtig GPLv3 für RIS, AGPL-3.0-only für Jobsearch. Beide erlauben auch kommerzielle Verwendung unter Lizenzbedingungen. |
-| **Gehostete Dienste / Premium** | Preise, Konten, API-Kontingente, Hosting und Support können in gesonderten Nutzungsverträgen geregelt werden. |
-| **Enterprise / Partnerschaften** | Freiwillige Sonderrechte, neue gesondert lizenzierbare Komponenten, Integration, White-Label oder Umsatzbeteiligung nur auf Basis eines individuellen Vertrags. |
+| **Community-Code** | Für die von der AGPLv3 wirksam erfassten Bestandteile: Nutzung, Änderung und Weitergabe nach AGPLv3, **auch kommerziell**, wenn deren Voraussetzungen eingehalten werden. Für frühere GPLv3-Fassungen bleiben die zuvor eingeräumten Rechte bestehen. |
+| **Gehostete Dienste / Premium** | Hosting, Accounts, zusätzliche API-Kapazitäten, Speicher, Support und andere Dienstleistungen können separat angeboten und bepreist werden. Dies ändert nicht stillschweigend die Rechte am veröffentlichten Community-Code. |
+| **Enterprise / Partnerschaften** | Weitergehende, rechtlich mögliche Software-Nutzungsrechte, Integrationen, White-Label, Servicevereinbarungen und Umsatzbeteiligungen setzen eine **separate individuelle Vereinbarung** voraus. |
 
-## Dokumente
+## Weitere Dokumente
 
-- [Aktuelle maßgebliche GNU-Lizenz (GPLv3)](./LICENSE)
-- [Plan und Voraussetzungen der AGPL-Umstellung](./AGPL-TRANSITION.md)
-- [Kommerzielle Lizenzierung / Partnerschaften](./COMMERCIAL-LICENSING.md)
-- [Community, Premium und Enterprise](./PREMIUM-SERVICES.md)
-- [Lizenzhistorie](./LICENSE-HISTORY.md)
+- [GNU AGPLv3 – aktuell veröffentlichter Lizenztext](./LICENSE)
+- [AGPL-Lizenztextwechsel: Status, Voraussetzungen, offene Rechteprüfung](./AGPL-TRANSITION.md)
+- [Kommerzielle Lizenzierung und Partnerschaften](./COMMERCIAL-LICENSING.md)
+- [Community-, Premium- und Enterprise-Dienste](./PREMIUM-SERVICES.md)
+- [Lizenzhistorie einschließlich früherer GPLv3-Veröffentlichungen](./LICENSE-HISTORY.md)
 - [Fremdsoftware und Schnittstellen](./THIRD-PARTY-NOTICES.md)
 
-**Keine zusätzlichen GPL-Einschränkungen:** Dieses Informationsdokument verbietet keine unter GPLv3 erlaubte Nutzung, erhebt keine GNU-Lizenzgebühr und ändert keine bestehenden Rechte. Es überträgt auch keine Rechte an Mays-Orders, Drittsoftware, externen Diensten oder Marken.
+## Rechtliche Abgrenzung
 
-**Kontakt:** [GitHub-Profil maynowak](https://github.com/maynowak). Diese Übersicht ist keine individuell ausgehandelte Lizenz oder Rechtsberatung.
+Dieses Dokument ist **keine zusätzliche Einschränkung** der GPLv3 oder AGPLv3. Es verlangt weder zusätzliche Zahlungen noch eine besondere Freigabe für Nutzungen, die durch eine gültige GNU-Lizenz bereits erlaubt sind. Mays-Orders, fremde Komponenten, Marken, Zugangsdaten und gehostete Infrastruktur werden nicht durch diese RIS-Lizenzübersicht mitlizenziert. Eine bloße API-Grenze beweist nicht automatisch die lizenzrechtliche Unabhängigkeit kombinierter Werke.
+
+**Kontakt für individuelle Verträge:** [GitHub-Profil maynowak](https://github.com/maynowak). Preise, Exklusivität oder besondere Rechte entstehen erst durch eine rechtswirksame gesonderte Vereinbarung.
+
+*Hinweis: Diese Informationsseite ersetzt keine Prüfung der Rechtekette oder rechtliche Beratung.*
