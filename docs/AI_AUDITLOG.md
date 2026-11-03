@@ -9089,3 +9089,9 @@ Date: 2026-11-03
 Focused profile/CV/ATS/manual/ApplicationV1/API/isolation/privacy selection: 453 passed + 297 subtests. Packaging: 6 passed, 2 explicit live mayaws-credential skips. Python 3.14.10 compileall PASS. Scoped Terraform fmt/init/validate PASS with existing deprecation warnings.
 No AWS mutation, Jobsearch change, Cognito campaign, ris-dev operation or generated plan/state commit.
 Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01C-REGRESSION.md
+
+[RIS-BRANCH-CONSOLIDATION-01D-RIS-DEV-HANDOFF]
+Status: COMPLETE — HANDOFF ONLY, NO DEPLOYMENT AUTHORIZATION
+Date: 2026-11-03
+Handoff covers profile/CV/ATS/manual/ApplicationV1 components, routes, models, tables/GSIs, S3 lifecycle, Terraform/IAM, identity/environment separation, packaging, tests, privacy boundaries and RIS-DEV open tasks. ris-dev2 and ris-dev explicitly separated; no Jobsearch file changed; no plan reused.
+Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01D-RIS-DEV-HANDOFF.md
