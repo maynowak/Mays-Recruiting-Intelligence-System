@@ -8831,3 +8831,14 @@ Provisioning finding: existing tools/ris_admin fails closed without a local prin
 No Terraform operation, user, password, group, token, PartnerApplication, APIProfile, Credential, entitlement or DynamoDB mutation performed.
 Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04A-PREFLIGHT.md
 Decision: Cognito-only synthetic path may proceed if AWS Cognito Admin API permissions are verified; RIS partner binding and credential-dependent ApplicationV1 E2E remain BLOCKED.
+
+[RIS-DEV2-TEST-IDENTITY-04B-SYNTHETIC-USER]
+Status: PASS / ONE SYNTHETIC USER CREATED
+Date: 2026-11-03
+Run ID: RIS-DEV2-04-20261103T111714Z
+Pool: eu-central-1_K3dkdSipZ in account 262370457690; client 21j28p71vogg0m41tcue0ib3l4 unchanged.
+Created exactly one synthetic user via existing Cognito Admin API with MessageAction=SUPPRESS; username ris-dev2-e2e-04-111714; synthetic tenant ris-dev2-e2e-111714; status CONFIRMED; enabled; no groups.
+Password: generated in memory, placed only in restricted temporary local handoff file, never printed or committed; scheduled for deletion after PKCE/cleanup.
+No existing user, pool, client, OAuth setting or group modified; no real-person email used.
+Partner/APIProfile/Credential provisioning remains BLOCKED by 04A missing principal-bound RIS admin authorization mapping.
+Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04B-SYNTHETIC-USERS.md
