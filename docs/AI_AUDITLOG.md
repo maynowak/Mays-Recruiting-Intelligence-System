@@ -8881,3 +8881,14 @@ Cleanup: synthetic user ris-dev2-e2e-04-111714 deleted and verified absent; temp
 Regression: account 262370457690; eu-central-1; state serial 25; lineage unchanged; pool/client/Human authorizer correct; external M2M unchanged; zero pool users; no managed resource server; Lambda Active/Successful; core DynamoDB ACTIVE; public Health CloudFront Deployed and HTTP 200.
 Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04G-CLEANUP-REGRESSION.md
 Decision: cleanup COMPLETE; protected infrastructure unchanged; ApplicationV1 positive E2E remains blocked by missing RIS admin binding.
+
+[RIS-DEV2-TEST-IDENTITY-04-ABSCHLUSS]
+Status: PARTIAL VERIFIED ? REMAINING GATES DOCUMENTED
+Date: 2026-11-03
+Run ID: RIS-DEV2-04-20261103T111714Z
+PASS: Cognito pool/client/authorizer; one synthetic user created and cleaned; Authorization Code + PKCE; access JWT signature/JWKS/issuer/token_use/client/subject; negative 401 tests; cleanup; protected infrastructure regression.
+BLOCKED: RIS PartnerApplication/APIProfile/Credential binding because no principal-bound RIS_ADMIN_AUTHORIZATION_FILE exists for arn:aws:iam::262370457690:user/devnemo. AdministratorAccess was not treated as RIS application authorization; no direct DynamoDB writes.
+ApplicationV1 CRUD/versioning/pagination/delete and cross-user/tenant/partner/privacy gates were not run. Valid JWT without partner context yielded 403 Profile and 500 ApplicationV1 list; this is a recorded runtime finding, not a success.
+No user, token, secret, application data, partner, APIProfile, credential or entitlement remains from the run. Pool/client/authorizer retained.
+Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04-ABSCHLUSSBERICHT.md
+Decision: stop; next run requires explicit tenant-scoped RIS admin authorization and secure credential handoff.
