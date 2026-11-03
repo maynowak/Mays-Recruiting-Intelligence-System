@@ -8979,3 +8979,12 @@ Functional suite: 177 passed; 304 subtests passed. ZIP import smoke PASS; handle
 Full selected packaging run: 181 passed, 1 failed, 2 skipped, 304 subtests. Failure is TestSourceChange temporary repository copy/archived-evidence WinError 3 on Windows; excluding that environment-sensitive case packaging tests are 4 passed, 2 skipped, 1 deselected. No production code/security check weakened.
 Decision: strict offline gate remains blocked by runner environment; no AWS code update, Terraform plan/apply, alias change or rollback.
 Report: docs/reports/RIS-DEV2-AUTH-06D-OFFLINE-VALIDATION.md
+
+[RIS-DEV2-AUTH-06E-DEPLOYMENT-PLAN]
+Status: DEPLOYMENT BLOCKED / PLAN PREPARED ONLY
+Date: 2026-11-03
+Scope: later release may only update Terraform-managed ris-dev2-dev-agent code via terraform/lambda.zip; no environment/IAM/API/DDB/S3/Cognito/CloudFront/DNS/ACM changes. No alias exists; only $LATEST discovered.
+Concurrency: re-read RevisionId immediately before any future operation; discovered revision f3719946-b052-48a5-bd62-750ffc54dcab. No automatic retry or direct update-function-code.
+Recovery: current deployed ZIP downloaded read-only outside Git to C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-auth-06-previous-lambda.zip; SHA-256 45ae52c1f3cc455f0e5dd1f64482eb6a02bbee7a3117a260d58bd20b81c54c38; matches Lambda CodeSha256. No rollback performed.
+Report: docs/reports/RIS-DEV2-AUTH-06E-DEPLOYMENT-PLAN.md
+Decision: no AWS write; future release requires exact artifact/revision/plan approval and Terraform-only execution.
