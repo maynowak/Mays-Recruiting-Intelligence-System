@@ -178,6 +178,28 @@ class ApplicationE2EHarnessTests(unittest.TestCase):
             self.harness.repository.delete(app_id, 4, ctx)
         self.harness.repository.delete(app_id, 5, ctx)
 
+    def test_metrics_runtime_traverses_owner_scoped_moto_pages(self):
+        ctx = self.harness.context()
+        draft = self.harness.create(41)
+        submitted = self.harness.create(42)
+        interview = self.harness.create(43)
+        self.harness.repository.status(submitted["applicationId"], "READY", 1, False, ctx)
+        self.harness.repository.status(submitted["applicationId"], "SUBMITTED", 2, True, ctx)
+        self.harness.repository.status(interview["applicationId"], "READY", 1, False, ctx)
+        self.harness.repository.status(interview["applicationId"], "SUBMITTED", 2, True, ctx)
+        self.harness.repository.status(interview["applicationId"], "interview", 3, False, ctx)
+        self.harness.repository.patch(interview["applicationId"], {
+            "followUp": {"dueOn": "2000-01-01", "status": "open"},
+            "expectedVersion": 4,
+        }, ctx)
+        metrics = self.harness.repository.metrics(ctx)
+        self.assertEqual(3, metrics["total"])
+        self.assertEqual(1, metrics["drafts"])
+        self.assertEqual(1, metrics["submitted"])
+        self.assertEqual(1, metrics["interviews"])
+        self.assertEqual(1, metrics["openFollowUps"])
+        self.assertEqual(1, metrics["overdueFollowUps"])
+
     def test_jobsearch_stage_roundtrip_preserves_legacy_lifecycle_and_history(self):
         ctx = self.harness.context()
         app_id = self.harness.create(4)["applicationId"]
