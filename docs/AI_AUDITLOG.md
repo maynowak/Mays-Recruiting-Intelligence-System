@@ -8902,3 +8902,13 @@ Fix: dispatcher wired to _application_routes; existing authorization path preser
 Validation: focused auth/application/tenant/contract tests 53 passed plus 7 subtests; existing credential/machine/application E2E tests 90 passed.
 Report: docs/reports/RIS-DEV2-AUTH-05A-500-ROOT-CAUSE.md
 Decision: 05A complete; no AWS deployment authorized.
+
+[RIS-DEV2-AUTH-05B-AUTHORIZATION-HARDENING]
+Status: PASS / FAIL-CLOSED COVERAGE
+Date: 2026-11-03
+Fix: existing ApplicationV1 dispatcher now calls _application_routes; _partner_profile_context rejects malformed X-Api-Credential via existing valid_secret_format before store construction. Valid-shaped credentials with unavailable stores remain controlled 503.
+Coverage: missing/invalid/malformed credential 401; unknown well-formed credential 401; inactive partner 403; tenant conflict 403; backend unavailable 503; no repository access without authorization.
+Validation: 05B matrix 6 passed; prior focused suite 53 passed plus 7 subtests; existing credential/machine/application E2E 90 passed. API-STANDARD updated with stable dual-auth error form.
+No bypass, fallback tenant, direct data path, AWS deployment or infrastructure mutation.
+Report: docs/reports/RIS-DEV2-AUTH-05B-AUTHORIZATION-HARDENING.md
+Decision: 05B complete; proceed to bootstrap design/readiness without provisioning.

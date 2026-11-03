@@ -187,6 +187,20 @@ kommt dann vom Credential/Registry. Ein nicht auflösbarer Tenant führt zu
 - **503** — Store-/Infrastrukturfehler. **Niemals** 401/403: ein nicht
   erreichbarer Store darf nicht als schlechtes Credential gemeldet werden.
 
+Für die ApplicationV1-Partnerroute gilt dieselbe Reihenfolge und derselbe
+Fehlervertrag. Der Dispatcher muss zuerst die vorhandene
+`_partner_profile_context`-Grenze erreichen; fehlende oder ungültige
+Partnerautorisierung wird als kontrollierte Antwort abgewiesen und darf nicht
+als unbehandelter HTTP-500-Fehler aus dem Dispatcher austreten. Die stabile
+Form der Dual-Auth-Grenze ist:
+
+```json
+{"error": "Unauthorized", "code": "unauthorized"}
+```
+
+beziehungsweise `403`/`forbidden` oder `503`/`unavailable`. Interne Registry-,
+Credential- und Exception-Details werden nicht an den Client ausgegeben.
+
 **Identity Binding:** Die Cognito-Identität wird für Audit und Korrelation
 erfasst, wählt aber **nie** die ausführende Identität. Diese bleibt der Owner
 des APIProfile, zu dem die Credential gehört (`verify_api_credential`). Ein
