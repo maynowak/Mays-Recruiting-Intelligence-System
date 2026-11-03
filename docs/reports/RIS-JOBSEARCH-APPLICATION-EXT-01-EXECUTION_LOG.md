@@ -1,0 +1,21 @@
+# RIS-JOBSEARCH-APPLICATION-EXT-01 — Execution Log
+
+## 2026-11-03 — baseline milestone
+
+- Read `docs/AI_AUDITLOG.md` and `AGENTS.md` before analysis.
+- Verified RIS checkout, clean tree, old branch, `origin/main`, PR #3 merge
+  commit, and branch ancestry.
+- Created `feature/ris-jobsearch-application-ext-01` from verified
+  `origin/main` at `37782f8`.
+- Verified Jobsearch local checkout read-only: `feature/arbeit` at `0c97827`,
+  clean; fetched `origin/main` at `0fa799e`.
+- Confirmed requested UX files are in Jobsearch `origin/main`; copied only
+  read-only snapshots outside repositories.
+- No tests, builds, AWS commands, Terraform operations, deployment, or
+  Jobsearch writes were performed.
+
+## Current resume point
+
+Next milestone is the evidence-based coverage matrix and open-items register.
+RIS working tree is expected to contain only this documentation phase before
+commit.
