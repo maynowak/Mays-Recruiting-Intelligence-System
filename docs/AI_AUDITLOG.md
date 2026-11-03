@@ -9082,3 +9082,10 @@ Date: 2026-11-03
 Initial branch feature/ris-application-persistence-v1 at HEAD 65a4b9a95732f5de0c4ec0192ba6af54cc277a41; working tree clean. Fetched origin; origin/main is 26b36604204ff9822d66646a6a64c8f429025698, branch has 77 commits ahead and origin/main 6 commits ahead. No remote feature branch exists yet.
 Main already includes partner-profile branch merge; ApplicationV1 paths remain branch-only. Other worktrees preserved; no reset/clean/stash/push/AWS operation.
 Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01A-BASELINE.md
+
+[RIS-BRANCH-CONSOLIDATION-01C-REGRESSION]
+Status: PASS — FOCUSED RIS REGRESSION AND PACKAGING GATES
+Date: 2026-11-03
+Focused profile/CV/ATS/manual/ApplicationV1/API/isolation/privacy selection: 453 passed + 297 subtests. Packaging: 6 passed, 2 explicit live mayaws-credential skips. Python 3.14.10 compileall PASS. Scoped Terraform fmt/init/validate PASS with existing deprecation warnings.
+No AWS mutation, Jobsearch change, Cognito campaign, ris-dev operation or generated plan/state commit.
+Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01C-REGRESSION.md
