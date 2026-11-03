@@ -61,3 +61,22 @@ Error: Inconsistent dependency lock file
 Read-only verification again found state serial `23`, no ApplicationV1 table,
 no ApplicationV1 routes and an unchanged Agent Lambda. No AWS E2E test was
 started and no retry was performed.
+
+## 03L Apply and E2E update
+
+The separately approved 03J plan was applied successfully with exit code `0`:
+
+```text
+Apply complete! Resources: 11 added, 1 changed, 0 destroyed.
+```
+
+Read-only verification confirmed the ApplicationV1 table and GSI are ACTIVE,
+all nine JWT-protected ApplicationV1 routes exist, and the agent Lambda is
+Active with `LastUpdateStatus=Successful`. CloudFront remained deployed and
+enabled with its prior origin/OAC configuration.
+
+Negative authentication tests passed for all nine ApplicationV1 routes:
+missing JWT, invalid JWT, and credential-without-JWT each returned `401` (27/27
+expected responses). Positive CRUD, isolation and privacy tests remain
+**BLOCKED** because no authorized Cognito identity and partner credential were
+available. No real applicant data or authentication boundary bypass was used.
