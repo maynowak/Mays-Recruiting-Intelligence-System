@@ -145,6 +145,7 @@ class PrivacyErasure:
                  profile_store: Any = None,
                  work_table: Any = None,
                  document_deleter: Optional[Callable[[str], int]] = None,
+                 application_deleter: Optional[Callable[[str, Optional[str]], tuple[int, bool]]] = None,
                  user_profile_table: Any = None,
                  user_profile_key: str = "userId",
                  clock: Callable[[], datetime] = _utcnow,
@@ -155,6 +156,9 @@ class PrivacyErasure:
         self.profiles = profile_store
         self.work_table = work_table
         self.documents = document_deleter
+        # (user_id, tenant_id) -> (deleted, pending). None keeps the step a
+        # no-op, so existing deployments behave exactly as before.
+        self.applications = application_deleter
         self.user_profiles = user_profile_table
         self.user_profile_key = user_profile_key
         self._clock = clock
@@ -203,6 +207,10 @@ class PrivacyErasure:
         result.steps.append(self._cancel_work(result))
         # 4. Documents owned by the platform for this user.
         result.steps.append(self._delete_documents(result))
+        # 4b. Applications (partner-scoped records of the same person).
+        # Runs after documents and before the profile row, so a failure here
+        # still leaves the identity intact and the run resumable.
+        result.steps.append(self._delete_applications(result))
         # 5. Profile row last.
         result.steps.append(self._delete_profile(result, stamp))
 
@@ -372,6 +380,20 @@ class PrivacyErasure:
             return StepResult("delete-documents", False, 0, str(exc))
         result.documents_deleted = deleted
         return StepResult("delete-documents", True, deleted)
+
+    def _delete_applications(self, result: ErasureResult) -> StepResult:
+        if self.applications is None:
+            return StepResult("delete-applications", True, 0)
+        try:
+            deleted, pending = self.applications(result.user_id, result.tenant_id)
+        except Exception as exc:
+            logger.error("application deletion failed for %s: %s",
+                         result.user_id, exc)
+            return StepResult("delete-applications", False, 0, str(exc))
+        # Pending means more pages exist. Never report success on a partial
+        # delete: the caller must resume with the same scope.
+        return StepResult("delete-applications", not pending, deleted,
+                          "applications remain" if pending else None)
 
     def _delete_profile(self, result: ErasureResult,
                         stamp: str) -> StepResult:

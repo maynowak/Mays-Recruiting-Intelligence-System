@@ -519,9 +519,25 @@ resource "aws_dynamodb_table" "applications" {
     type = "S"
   }
 
+  # User-scoped index. gsi-owner is partner/issuer-scoped and cannot answer
+  # "all applications of this user in this tenant", which account erasure
+  # needs. userKey is server-derived as tenant|user and is only written on
+  # META rows, so the index contains exactly one entry per application.
+  attribute {
+    name = "userKey"
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "gsi-owner"
     hash_key        = "ownerKey"
+    range_key       = "updatedAt"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "gsi-user"
+    hash_key        = "userKey"
     range_key       = "updatedAt"
     projection_type = "ALL"
   }

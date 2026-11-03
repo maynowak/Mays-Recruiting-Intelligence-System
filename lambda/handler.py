@@ -1241,6 +1241,33 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'Erasure temporarily unavailable'})
         }
 
+    def _delete_applications(user_id: str, tenant_id: Optional[str]) -> tuple:
+        """Delete ApplicationV1 rows for the erased user across partners.
+
+        Identity-scoped: the repository resolves candidates through gsi-user
+        on tenant|user and deletes each application under its stored
+        ownerKey. Missing or conflicting tenant context fails closed by
+        reporting the phase as still pending.
+        """
+        if not os.environ.get("APPLICATIONS_TABLE"):
+            return 0, False
+        resolved = tenant_id
+        if not resolved:
+            resolved, conflict = _resolve_tenant(user_context)
+            if conflict or not resolved:
+                return 0, True
+        from jobsearch.application_repository import ApplicationRepository
+        repo = ApplicationRepository()
+        total = 0
+        # Bounded resume: each pass deletes one page. A remaining page keeps
+        # the erasure result incomplete instead of claiming success.
+        for _ in range(20):
+            deleted, pending = repo.delete_all_for_user(resolved, user_id)
+            total += deleted
+            if not pending:
+                return total, False
+        return total, True
+
     def _delete_documents(user_id: str) -> int:
         """Delete every document object the platform holds for this user."""
         try:
@@ -1259,6 +1286,7 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             table_name=os.environ.get("API_PROFILES_TABLE")),
         work_table=dynamodb.Table(os.environ.get("WORK_ITEMS_TABLE")),
         document_deleter=_delete_documents,
+        application_deleter=_delete_applications,
         user_profile_table=dynamodb.Table(
             os.environ.get("USER_PROFILE_TABLE")),
     )

@@ -49,3 +49,34 @@ class ApplicationErasureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PrivacyErasureApplicationStepTests(unittest.TestCase):
+    def test_application_step_runs_and_counts(self):
+        from agents.ecosystem.privacy_erasure import PrivacyErasure
+        calls = []
+
+        def deleter(user_id, tenant_id):
+            calls.append((user_id, tenant_id))
+            return 2, False
+
+        result = PrivacyErasure(application_deleter=deleter).erase("u1", tenant_id="t1")
+        step = next(s for s in result.steps if s.step == "delete-applications")
+        self.assertTrue(step.ok)
+        self.assertEqual(2, step.affected)
+        self.assertTrue(result.complete)
+        self.assertEqual([("u1", "t1")], calls)
+
+    def test_pending_application_page_keeps_run_incomplete(self):
+        from agents.ecosystem.privacy_erasure import PrivacyErasure
+        result = PrivacyErasure(application_deleter=lambda u, t: (1, True)).erase("u1", tenant_id="t1")
+        step = next(s for s in result.steps if s.step == "delete-applications")
+        self.assertFalse(step.ok)
+        self.assertFalse(result.complete)
+
+    def test_absent_deleter_is_a_no_op(self):
+        from agents.ecosystem.privacy_erasure import PrivacyErasure
+        result = PrivacyErasure().erase("u1", tenant_id="t1")
+        step = next(s for s in result.steps if s.step == "delete-applications")
+        self.assertTrue(step.ok)
+        self.assertEqual(0, step.affected)

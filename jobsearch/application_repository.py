@@ -92,6 +92,18 @@ class ApplicationRepository:
         return "|".join((ctx.tenant_id, ctx.user_id, ctx.partner_application_id, ctx.issuer))
 
     @staticmethod
+    def _user_key(tenant_id: str, user_id: str) -> str:
+        """Server-derived key for the user-scoped index.
+
+        Deliberately excludes partner and issuer: erasure must reach every
+        application of the user inside one tenant, regardless of which
+        partner application or issuer created it.
+        """
+        if not tenant_id or not user_id:
+            raise ValueError("tenant_id and user_id are required")
+        return tenant_id + "|" + user_id
+
+    @staticmethod
     def _transaction_item(item: dict[str, Any]) -> dict[str, Any]:
         """Return native values; boto3's low-level client serializes them."""
         return dict(item)
@@ -155,7 +167,9 @@ class ApplicationRepository:
             **parsed, "schemaVersion": 1, "applicationId": app_id, "entityKey": "META",
             "entityType": "META", "userId": ctx.user_id, "tenantId": ctx.tenant_id,
             "partnerApplicationId": ctx.partner_application_id, "issuer": ctx.issuer,
-            "ownerKey": self._scope(ctx), "status": "DRAFT", "version": 1,
+            "ownerKey": self._scope(ctx),
+            "userKey": self._user_key(ctx.tenant_id, ctx.user_id),
+            "status": "DRAFT", "version": 1,
             "createdAt": stamp, "updatedAt": stamp, "submittedAt": None,
         }
         items = [{"Put": {"TableName": self.table_name, "Item": row,
@@ -256,6 +270,70 @@ class ApplicationRepository:
         app = self._owned(application_id, ctx)
         children = self.table.query(KeyConditionExpression=Key("applicationId").eq(application_id), ConsistentRead=True).get("Items", [])
         return {"application": self._public(app), "history": [{k: v for k, v in x.items() if k not in {"ownerKey", "entityType", "entityKey"}} for x in children if x.get("entityType") == "HISTORY"], "coverLetterVersions": [{k: v for k, v in x.items() if k not in {"ownerKey", "entityType", "entityKey"}} for x in children if x.get("entityType") == "COVER_LETTER"]}
+
+    def _list_raw_by_user(self, tenant_id: str, user_id: str, *,
+                          limit: int = 25, cursor: dict[str, Any] | None = None,
+                          ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+        if not 1 <= limit <= 100:
+            raise ApplicationContractError("INVALID_LIMIT", "limit is invalid")
+        kwargs: dict[str, Any] = {
+            "IndexName": "gsi-user",
+            "KeyConditionExpression": Key("userKey").eq(self._user_key(tenant_id, user_id)),
+            "Limit": limit,
+            "ScanIndexForward": False,
+        }
+        if cursor:
+            kwargs["ExclusiveStartKey"] = cursor
+        result = self.table.query(**kwargs)
+        return [x for x in result.get("Items", []) if x.get("entityType") == "META"], result.get("LastEvaluatedKey")
+
+    def list_by_user(self, tenant_id: str, user_id: str, *,
+                     limit: int = 25, cursor: dict[str, Any] | None = None,
+                     ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+        """List every application of one user inside one tenant.
+
+        Uses gsi-user, so applications created under different partner
+        applications or issuers are included. Only META rows carry userKey;
+        child rows never appear in this index.
+        """
+        items, next_cursor = self._list_raw_by_user(tenant_id, user_id,
+                                                   limit=limit, cursor=cursor)
+        return [self._public(x) for x in items], next_cursor
+
+    def delete_all_for_user(self, tenant_id: str, user_id: str, *,
+                            limit: int = 25) -> tuple[int, bool]:
+        """Delete one page of a user's applications across partners.
+
+        Returns (deleted, pending). ``pending`` means another page must be
+        processed; the caller (erasure orchestrator) keeps the run incomplete
+        until it receives pending=False. Deletion is per application and
+        unconditionally scoped by the stored ownerKey, so a concurrent writer
+        cannot make the delete cross an ownership boundary.
+        """
+        items, next_cursor = self._list_raw_by_user(tenant_id, user_id, limit=limit)
+        deleted = 0
+        for item in items:
+            owner_key = item.get("ownerKey")
+            if not owner_key:
+                raise ApplicationConflict("application owner is missing")
+            self._delete_application_partition(item["applicationId"], owner_key)
+            deleted += 1
+        return deleted, bool(next_cursor)
+
+    def _delete_application_partition(self, application_id: str, owner_key: str) -> None:
+        children = self.table.query(
+            KeyConditionExpression=Key("applicationId").eq(application_id),
+            ConsistentRead=True,
+        ).get("Items", [])
+        self._transact([
+            {"Delete": {
+                "TableName": self.table_name,
+                "Key": {"applicationId": x["applicationId"], "entityKey": x["entityKey"]},
+                "ConditionExpression": "ownerKey = :owner",
+                "ExpressionAttributeValues": {":owner": owner_key},
+            }}
+            for x in children
+        ])
 
     def delete(self, application_id: str, expected_version: int, ctx: ApplicationContext) -> None:
         current = self._owned(application_id, ctx)
