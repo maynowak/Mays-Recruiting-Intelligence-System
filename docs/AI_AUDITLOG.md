@@ -8842,3 +8842,13 @@ Password: generated in memory, placed only in restricted temporary local handoff
 No existing user, pool, client, OAuth setting or group modified; no real-person email used.
 Partner/APIProfile/Credential provisioning remains BLOCKED by 04A missing principal-bound RIS admin authorization mapping.
 Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04B-SYNTHETIC-USERS.md
+
+[RIS-DEV2-TEST-IDENTITY-04C-PKCE-AUTH]
+Status: PASS VALID ACCESS JWT / PARTNER AUTHORIZATION NOT ESTABLISHED
+Date: 2026-11-03
+Run ID: RIS-DEV2-04-20261103T111714Z
+OAuth: existing ris-dev2-dev prefix domain, public client, code flow, localhost callback and PKCE S256. Authorization Code exchanged once; no client secret or alternate flow used.
+JWT: signature valid against actual DEV2 pool JWKS; issuer correct; token_use=access; client_id correct; subject present; scopes/expiry valid. Token/password not logged or committed.
+HTTP smoke: missing/invalid/expired/wrong-issuer JWTs returned 401. Valid JWT reached API Gateway; GET /me/profile returned 403 Tenant not resolvable. ApplicationV1 GET without and with invalid X-Api-Credential returned 500 Internal Server Error because no partner binding exists. No CRUD mutation sent.
+Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04C-PKCE-AUTH.md
+Decision: Human JWT authentication PASS; partner authorization and ApplicationV1 E2E remain blocked by 04D provisioning block and recorded runtime error.
