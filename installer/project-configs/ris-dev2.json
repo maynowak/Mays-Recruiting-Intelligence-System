@@ -1,0 +1,18 @@
+{
+  "_comment": "Dedicated non-secret Cognito test-identity overlay for ris-dev2 only. No external pool, secret, password, token, DNS, ACM or custom-domain values.",
+  "_schema": {
+    "project_name": "must equal the directory/file name",
+    "terraform_vars": "non-secret site-specific Terraform values forwarded by the installer"
+  },
+  "project_name": "ris-dev2",
+  "terraform_vars": {
+    "identity_mode": "managed",
+    "orders_lifecycle": "disabled",
+    "identity_oauth_enabled": "true",
+    "identity_oauth_scopes": "[\"openid\",\"email\",\"profile\"]",
+    "identity_oauth_callback_urls": "[\"http://localhost:5173/auth/callback\"]",
+    "identity_oauth_logout_urls": "[\"http://localhost:5173/\"]",
+    "identity_custom_domain_enabled": "false",
+    "api_cors_origins": "[\"http://localhost:5173\"]"
+  }
+}

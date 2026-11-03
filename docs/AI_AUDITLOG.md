@@ -8681,3 +8681,23 @@ Reports:
 - docs/reports/RIS-DEV2-TEST-IDENTITY-01-DESIGN.md
 - docs/reports/RIS-DEV2-TEST-IDENTITY-01-DESIGN-EXECUTION_LOG.md
 Decision: proceed to offline implementation/validation only; apply remains blocked pending exact saved-plan approval.
+
+[RIS-DEV2-TEST-IDENTITY-01-VALIDATION]
+Status: COMPLETE OFFLINE VALIDATION / APPLY BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ 891065f5be5bec1234fe79adbfee3aa3a29b4030
+Scope: Non-secret ris-dev2 managed-identity overlay and offline Terraform/contract validation.
+Implemented:
+- installer/project-configs/ris-dev2.json selects identity_mode=managed, orders_lifecycle=disabled, OAuth code flow settings with localhost-only callback/logout, custom domain disabled and localhost CORS.
+- No external pool IDs, credentials, passwords, tokens, certificate ARNs, DNS values or production callbacks added.
+Validation:
+- Dedicated overlay + existing G2C identity tests: 8 passed.
+- terraform fmt -check -recursive: PASS.
+- terraform init -backend=false: PASS.
+- terraform validate: PASS with existing provider deprecation warnings.
+- Mays-Orders builder: PASS locally; generated module not committed and Orders remains disabled.
+Safety: no backend/state operation, remote plan, apply, Cognito/API authorizer mutation, user/client creation, partner/APIProfile/credential provisioning or AWS resource mutation.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-01-VALIDATION.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-01-VALIDATION-EXECUTION_LOG.md
+Decision: proceed to a guarded saved remote plan only; mandatory stop before apply.
