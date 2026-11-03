@@ -8999,3 +8999,12 @@ Recovery/deployment difference: prior deployed ZIP read-only recovered, hash 45a
 Protected infrastructure unchanged; no Lambda update-function-code, Terraform plan/apply, alias change, API deployment, or other AWS write.
 Report: docs/reports/RIS-DEV2-AUTH-06-ABSCHLUSSBERICHT.md
 Decision: stop; future release requires explicit artifact/ARN/revision/plan authorization and Terraform-only execution.
+
+[RIS-DEV2-AUTH-06G1-WINDOWS-PACKAGING]
+Status: PASS / WINDOWS PACKAGING TEST RECOVERED
+Date: 2026-11-03
+Root cause: lifecycle test copied unrelated archived evidence with deep Windows paths; after narrowing the mirror, text-mode newline translation altered restored source bytes.
+Fix: mirror only lambda/handler.py, agents and jobsearch; mutate/restore handler bytes exactly; builder normalizes POSIX ZIP separators and rejects absolute/drive-qualified/dot/traversal archive paths. No test skipped/deleted/xfail.
+Validation: tests/test_lambda_packaging.py 6 passed, 2 skipped (pre-existing live-contract skips).
+Report: docs/reports/RIS-DEV2-AUTH-06G1-WINDOWS-PACKAGING.md
+Decision: G1 complete; proceed to full packaging and functional validation.
