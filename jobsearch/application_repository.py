@@ -229,7 +229,8 @@ class ApplicationRepository:
         return self._public(self._owned(application_id, ctx))
 
     def list(self, ctx: ApplicationContext, limit: int = 50, cursor: dict[str, Any] | None = None,
-             status_filter: str | None = None, stage_filter: str | None = None) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+             status_filter: str | None = None, stage_filter: str | None = None,
+             include_deleting: bool = False) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
         if not 1 <= limit <= 100:
             raise ApplicationContractError("INVALID_LIMIT", "limit is invalid")
         if status_filter is not None:
@@ -246,7 +247,9 @@ class ApplicationRepository:
             if start_key:
                 kwargs["ExclusiveStartKey"] = start_key
             result = self.table.query(**kwargs)
-            page = [x for x in result.get("Items", []) if x.get("entityType") == "META" and not x.get("deletionState")]
+            page = [x for x in result.get("Items", [])
+                    if x.get("entityType") == "META"
+                    and (include_deleting or not x.get("deletionState"))]
             if status_filter is not None:
                 page = [x for x in page if x.get("status") == status_filter]
             if stage_filter is not None:

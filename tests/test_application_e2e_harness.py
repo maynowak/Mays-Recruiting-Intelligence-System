@@ -233,6 +233,29 @@ class ApplicationE2EHarnessTests(unittest.TestCase):
         with self.assertRaises(ApplicationNotFound):
             repo.get(app["applicationId"], ctx)
 
+    def test_erasure_executor_sees_marked_application_after_partial_failure(self):
+        ctx = self.harness.context()
+        app = self.harness.create(47)
+        repo = self.harness.repository
+        original_transact = repo._transact
+        failed = {"value": False}
+
+        def fail_once(items):
+            if not failed["value"]:
+                failed["value"] = True
+                raise RuntimeError("synthetic erasure failure")
+            return original_transact(items)
+
+        repo._transact = fail_once
+        from agents.ecosystem.privacy_application_erasure import ApplicationErasureExecutor
+        progress = ApplicationErasureExecutor(repo).run(ctx, limit=10)
+        self.assertTrue(progress.pending)
+        repo._transact = original_transact
+        resumed = ApplicationErasureExecutor(repo).run(ctx, cursor=progress.cursor, limit=10)
+        self.assertFalse(resumed.pending)
+        with self.assertRaises(ApplicationNotFound):
+            repo.get(app["applicationId"], ctx)
+
     def test_jobsearch_stage_roundtrip_preserves_legacy_lifecycle_and_history(self):
         ctx = self.harness.context()
         app_id = self.harness.create(4)["applicationId"]
