@@ -8800,3 +8800,22 @@ Reports:
 - docs/reports/RIS-DEV2-TEST-IDENTITY-02-APPLY-READINESS.md
 - docs/reports/RIS-DEV2-TEST-IDENTITY-02-APPLY-READINESS-EXECUTION_LOG.md
 Decision: structurally ready for explicit review only; APPLY AUTHORIZATION NOT GRANTED; STOP BEFORE APPLY.
+
+[RIS-DEV2-TEST-IDENTITY-03-CONTROLLED-APPLY]
+Status: APPLY PASS / POST-APPLY PASS / COMPLETE
+Date: 2026-11-03
+Repository: feature/ris-application-persistence-v1; starting HEAD a96bbe99b8dba38f1c3d7f8d9f318f19b48c9d05.
+Guards: AWS_PROFILE=default; account 262370457690; region eu-central-1; workspace ris-dev2; state serial 24 before apply; lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082.
+Approved plan: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-managed-identity-02.tfplan; SHA-256 35EE37C10CF190A0DD1A80714734C2DD9A567CF191186693B9952B9C2ED64CE6.
+Integrity: exact 10 creates, 1 Human authorizer update, 0 deletes, 0 replacements; no managed M2M client/resource server, secret generation, protected-resource action or external M2M authorizer action.
+Apply: exactly one terraform apply -input=false against the saved plan; exit code 0; Terraform reported 10 added, 1 changed, 0 destroyed. No retry, replan, target, replace or rollback.
+Created identity: pool eu-central-1_K3dkdSipZ; Human client 21j28p71vogg0m41tcue0ib3l4; issuer https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_K3dkdSipZ; prefix domain ris-dev2-dev. Client secret absent; no user/token/partner/APIProfile/credential operation.
+Post-apply: state serial 25, lineage unchanged; Human authorizer 9i4w8r points to new issuer/audience; M2M authorizer 9eli0a remains external issuer/audience; 64 Human routes and one M2M route preserved; public Health CloudFront returned 200; Lambda Active/Successful; core DynamoDB tables ACTIVE.
+Negative auth: missing JWT, invalid JWT, malformed Authorization header and unauthenticated ApplicationV1 request returned 401. API GET /health without JWT returned 401, consistent with current JWT-protected API contract; public Health CloudFront endpoint returned 200. No valid JWT test performed.
+Consumed plan: APPLIED ? DO NOT REAPPLY. Old ris-dev2-managed-identity-01.tfplan remains SUPERSEDED ? DO NOT APPLY.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-03-APPLY.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-03-POST-APPLY.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-03-ABSCHLUSSBERICHT.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-03-EXECUTION_LOG.md
+Decision: RIS-DEV2-TEST-IDENTITY-03 ? APPLY PASS; stop before synthetic user or authenticated E2E work.
