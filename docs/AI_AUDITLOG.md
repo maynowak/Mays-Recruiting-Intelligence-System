@@ -9102,3 +9102,11 @@ Date: 2026-11-03
 Three-way merge against fetched origin/main conflict-free. Working tree clean; no Jobsearch changes; no state/plan artifacts; no real secrets; handoff complete. Historical git diff --check trailing whitespace in three old RIS-DEV2 reports documented and not silently changed.
 Decision: reviewed branch may proceed to PR; no merge until required GitHub checks and approval are evidenced.
 Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01E-MERGE-READINESS.md
+
+[RIS-BRANCH-CONSOLIDATION-01F-GITHUB-PR]
+Status: PR READY — MERGE BLOCKED
+Date: 2026-11-03
+Reviewed feature branch pushed without force to origin/feature/ris-application-persistence-v1 at HEAD 04bfd3ad96fc155f271fb33fa5730f6e7dcda2f6. No push to main. gh is unavailable and browser GitHub session unauthenticated, so no PR number or CI result is claimed.
+PR URL: https://github.com/maynowak/Mays-Recruiting-Intelligence-System/pull/new/feature/ris-application-persistence-v1
+Decision: authenticated maintainer must open/review PR and obtain required checks/approval before merge.
+Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01F-GITHUB-PR.md
