@@ -44,6 +44,41 @@ def _json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
+_SECRET_CACHE: dict[str, bytes] = {}
+
+
+def _cursor_secret() -> bytes:
+    """Return the HMAC key, preferring a runtime secret over plain env.
+
+    Resolution order:
+      1. ``RIS_CURSOR_SECRET`` (tests/local only; never set in Terraform)
+      2. ``RIS_CURSOR_SECRET_ARN`` -> Secrets Manager ``GetSecretValue``
+    Missing or unreadable configuration fails closed: no static fallback.
+    The value is cached per ARN for the life of the process and never logged.
+    """
+    raw = os.environ.get("RIS_CURSOR_SECRET")
+    if raw:
+        return raw.encode()
+    arn = os.environ.get("RIS_CURSOR_SECRET_ARN")
+    if not arn:
+        raise RuntimeError("cursor secret is not configured")
+    cached = _SECRET_CACHE.get(arn)
+    if cached is not None:
+        return cached
+    if boto3 is None:
+        raise RuntimeError("cursor secret is unavailable")
+    try:
+        payload = boto3.client("secretsmanager").get_secret_value(SecretId=arn)
+    except Exception as exc:
+        raise RuntimeError("cursor secret is unavailable") from exc
+    value = payload.get("SecretString")
+    if not value:
+        raise RuntimeError("cursor secret is empty")
+    data = value.encode()
+    _SECRET_CACHE[arn] = data
+    return data
+
+
 class ApplicationRepository:
     def __init__(self, table_name: str | None = None, dynamodb: Any = None):
         self.table_name = table_name or os.environ.get("APPLICATIONS_TABLE")
@@ -73,10 +108,7 @@ class ApplicationRepository:
 
     @staticmethod
     def _cursor_secret() -> bytes:
-        secret = os.environ.get("RIS_CURSOR_SECRET")
-        if not secret:
-            raise RuntimeError("RIS_CURSOR_SECRET is required for pagination")
-        return secret.encode()
+        return _cursor_secret()
 
     def issue_cursor(self, key: dict[str, Any], *, user_id: str, tenant_id: str,
                      partner_app_id: str | None, issuer: str | None,

@@ -68,3 +68,62 @@ class ApplicationRepositoryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CursorSecretConfigurationTests(unittest.TestCase):
+    """Cursor signing must fail closed without leaking the key."""
+
+    def setUp(self):
+        import jobsearch.application_repository as module
+        module._SECRET_CACHE.clear()
+        self._saved = dict(os.environ)
+
+    def tearDown(self):
+        os.environ.clear()
+        os.environ.update(self._saved)
+
+    def test_missing_secret_fails_closed(self):
+        from jobsearch.application_repository import _cursor_secret
+        os.environ.pop("RIS_CURSOR_SECRET", None)
+        os.environ.pop("RIS_CURSOR_SECRET_ARN", None)
+        with self.assertRaises(RuntimeError):
+            _cursor_secret()
+
+    def test_secret_arn_is_resolved_and_cached(self):
+        from unittest.mock import patch
+        from jobsearch.application_repository import _cursor_secret
+
+        calls = []
+
+        class FakeClient:
+            def get_secret_value(self, **kwargs):
+                calls.append(kwargs["SecretId"])
+                return {"SecretString": "from-secret-store"}
+
+        arn = "arn:aws:secretsmanager:eu-central-1:1:secret:cursor"
+        os.environ.pop("RIS_CURSOR_SECRET", None)
+        os.environ["RIS_CURSOR_SECRET_ARN"] = arn
+        with patch("jobsearch.application_repository.boto3.client", return_value=FakeClient()):
+            self.assertEqual(b"from-secret-store", _cursor_secret())
+            self.assertEqual(b"from-secret-store", _cursor_secret())
+        self.assertEqual([arn], calls)
+
+    def test_unreadable_secret_fails_closed(self):
+        from unittest.mock import patch
+        from jobsearch.application_repository import _cursor_secret
+
+        class Boom:
+            def get_secret_value(self, **kwargs):
+                raise RuntimeError("denied")
+
+        os.environ.pop("RIS_CURSOR_SECRET", None)
+        os.environ["RIS_CURSOR_SECRET_ARN"] = "arn:aws:secretsmanager:eu-central-1:1:secret:x"
+        with patch("jobsearch.application_repository.boto3.client", return_value=Boom()):
+            with self.assertRaises(RuntimeError):
+                _cursor_secret()
+
+    def test_plain_env_secret_is_not_preferred_over_arn(self):
+        from jobsearch.application_repository import _cursor_secret
+        os.environ["RIS_CURSOR_SECRET"] = "local-test-key"
+        os.environ["RIS_CURSOR_SECRET_ARN"] = "arn:aws:secretsmanager:eu-central-1:1:secret:x"
+        self.assertEqual(b"local-test-key", _cursor_secret())

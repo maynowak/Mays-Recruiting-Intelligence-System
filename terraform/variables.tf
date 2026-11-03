@@ -336,6 +336,12 @@ variable "identity_custom_domain_certificate_arn" {
 
 # CORS fuer die Browser-Frontends der Jobsearch-UI. Explizite Origins,
 # KEIN Wildcard. Leer = CORS aus (Bestandsverhalten, kein Diff).
+variable "applications_cursor_secret_arn" {
+  description = "ARN of the Secrets Manager secret holding the ApplicationV1 pagination HMAC key. Only the ARN is configured; the secret value must never be stored in Terraform, git or reports. Empty keeps pagination fail-closed."
+  type        = string
+  default     = ""
+}
+
 variable "api_cors_origins" {
   description = "Erlaubte CORS-Origins der RIS-HTTP-API (explizit, kein Wildcard)."
   type        = list(string)

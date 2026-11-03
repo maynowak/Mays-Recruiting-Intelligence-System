@@ -270,6 +270,21 @@ resource "aws_iam_role_policy" "lambda_dynamodb_applications" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_cursor_secret" {
+  count = var.applications_cursor_secret_arn != "" ? 1 : 0
+  name  = "${var.project_name}-${var.environment}-lambda-cursor-secret"
+  role  = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = [var.applications_cursor_secret_arn]
+    }]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_privacy_receipts" {
   name = "${var.project_name}-${var.environment}-lambda-dynamodb-privacy-receipts"
   role = aws_iam_role.lambda_execution.id
@@ -558,6 +573,9 @@ resource "aws_lambda_function" "agent" {
       JOBSEARCH_TABLE       = var.jobsearch_table_name
       PARTNER_PROFILE_TABLE = var.partner_profiles_table_name
       APPLICATIONS_TABLE    = var.applications_table_name
+      # ARN only. Empty means no secret is provisioned and pagination
+      # fails closed instead of falling back to a static key.
+      RIS_CURSOR_SECRET_ARN = var.applications_cursor_secret_arn
       DOCUMENTS_BUCKET      = var.documents_bucket_name
       API_PROFILES_TABLE    = var.api_profiles_table_name
       OFFERS_TABLE          = var.offers_table_name
@@ -601,6 +619,7 @@ resource "aws_lambda_function" "agent" {
     aws_iam_role_policy.lambda_dynamodb_product,
     aws_iam_role_policy.lambda_dynamodb_partner_registry,
     aws_iam_role_policy.lambda_dynamodb_applications,
+    aws_iam_role_policy.lambda_cursor_secret,
     aws_iam_role_policy.lambda_documents,
     aws_iam_role_policy.lambda_s3,
     aws_iam_role_policy.lambda_logs,

@@ -163,6 +163,7 @@ module "lambda" {
   partner_applications_table_arn      = module.dynamodb.partner_applications_table_arn
   partner_applications_gsi_client_arn = module.dynamodb.partner_applications_gsi_client_arn
   applications_table_arn              = module.dynamodb.applications_table_arn
+  applications_cursor_secret_arn      = var.applications_cursor_secret_arn
   applications_gsi_owner_arn          = module.dynamodb.applications_gsi_owner_arn
   s3_bucket_arn                       = aws_s3_bucket.data.arn
   documents_bucket_name               = module.documents.bucket_name

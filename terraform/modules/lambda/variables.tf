@@ -112,6 +112,12 @@ variable "applications_gsi_owner_arn" {
   type        = string
 }
 
+variable "applications_cursor_secret_arn" {
+  description = "ARN of the Secrets Manager secret that holds the pagination HMAC key. ARN only; the value must never enter Terraform state, environment variables or logs. Empty = pagination stays fail-closed."
+  type        = string
+  default     = ""
+}
+
 variable "user_profile_table_arn" {
   description = "DynamoDB table ARN for user profiles"
   type        = string
