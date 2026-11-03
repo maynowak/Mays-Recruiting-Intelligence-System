@@ -9193,6 +9193,25 @@ Blockers: RIS_CURSOR_SECRET fehlt; Application-Erasure nicht verdrahtet; Orders-
 Report: docs/reports/RIS-DEV-UPGRADE-S02-TARGET-DISCOVERY.md
 Next: S03 Plan-Erstellung, S04 Apply-Gate. STOP nach S02.
 
+[RIS-DEV-UPGRADE-S03]
+Status: COMPLETE / RED — NO-GO für S04
+Date: 2026-11-03 17:40 UTC
+Git: main, HEAD bei Beginn d205bb2, neue Commits 5a73c66 und 9bfa37d, Report-Commit folgt.
+Scope: Release-Vorbereitung und geschützter Terraform-Plan für ris-dev. Kein Apply, keine AWS-Mutation.
+Findings:
+  - Installer-Pfadfehler behoben: terraform_vars() leitete das Repo-Root eine Ebene zu hoch ab; Plan war dadurch blockiert (9bfa37d, 37 Installer-Tests PASS).
+  - IAM-Reihenfolge ergänzt: lambda_dynamodb_applications in depends_on der Agent-Lambda (5a73c66).
+  - Plan erstellt: SHA256 e5d3b28d8ea0836ac78721a628d61129908cdedecaa40a7f78861ceccf45f4dd, 102 CREATE / 5 UPDATE / 54 DELETE / 0 REPLACE / 3 READ, 1 Drift.
+  - Ursache: main führt count für module.cognito, orders_reader, mays_orders, monitoring_orders ein; State hat unindizierte Adressen -> Terraform plant Destroy+Create ganzer Module.
+  - Betroffen: RIS-Cognito (Pool, 2 Clients, Domain, 7 Gruppen), Orders-Stack (22), Orders-Reader (10), Monitoring (7).
+  - Zusätzlich erwartet: 7 Tabellen, 33 Routen, 7 IAM-Policies, Lambda-Update.
+  - State unverändert: serial 36, Version 3tey8lIHFnMBSsaWeFErDer8a2BucoCK.
+  - Erasure weiterhin nicht produktiv verdrahtet: BLOCKED.
+  - RIS_CURSOR_SECRET nicht provisioniert; Klartext-Env nicht freigabefähig: BLOCKED.
+Tests: 119 passed/2 skipped fokussiert; 37 Installer-Tests; fmt/init/validate PASS.
+Report: docs/reports/RIS-DEV-UPGRADE-S03-RELEASE-PLAN.md
+Next: Modul-Adressmigration separat freigeben; danach neuer Plan mit 0 Deletes an geschützten Ressourcen. STOP nach S03.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
