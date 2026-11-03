@@ -4,7 +4,7 @@ import unittest
 try:
     import boto3
     from moto import mock_aws
-    from jobsearch.application_contract import ApplicationContext
+    from jobsearch.application_contract import ApplicationContext, ApplicationContractError
     from jobsearch.application_repository import ApplicationRepository, ApplicationConflict
 except ImportError:  # pragma: no cover
     boto3 = None
@@ -13,6 +13,31 @@ except ImportError:  # pragma: no cover
 
 @unittest.skipUnless(boto3, "boto3/moto unavailable")
 class ApplicationRepositoryTests(unittest.TestCase):
+    def test_document_and_legacy_reference_ownership_is_fail_closed(self):
+        class Resource:
+            resource_type = "CVDocument"
+            cv_id = "cv-owned"
+            document_id = "doc-owned"
+
+        class Profiles:
+            def get(self, resource_id, user_id, tenant_id, partner_app_id, issuer):
+                if resource_id == "cv-owned" and user_id == "user-a" and tenant_id == "tenant-a":
+                    return Resource()
+                return None
+
+        repo = object.__new__(ApplicationRepository)
+        repo.profile_repository = Profiles()
+        ctx = ApplicationContext("user-a", "tenant-a", "partner-a", "issuer-a")
+        repo._verify_cv_reference({"cvId": "cv-owned", "documentId": "doc-owned"}, ctx)
+        repo._verify_legacy_reference({"id": "cv-owned", "version": 1}, "cvRef", ctx)
+        with self.assertRaisesRegex(ApplicationContractError, "not owned"):
+            repo._verify_cv_reference({"cvId": "cv-owned"}, ApplicationContext("user-b", "tenant-a", "partner-a", "issuer-a"))
+        with self.assertRaisesRegex(ApplicationContractError, "not owned"):
+            repo._verify_cv_reference({"cvId": "cv-owned", "documentId": "doc-other"}, ctx)
+        repo.profile_repository = None
+        with self.assertRaisesRegex(ApplicationContractError, "cannot be verified"):
+            repo._verify_cv_reference({"cvId": "cv-owned"}, ctx)
+
     @mock_aws
     def test_scoped_idempotent_create_and_versioned_status(self):
         os.environ["AWS_DEFAULT_REGION"] = "eu-central-1"

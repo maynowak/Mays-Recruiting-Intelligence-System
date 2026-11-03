@@ -49,7 +49,8 @@ def _json(value: Any) -> str:
 
 
 class ApplicationRepository:
-    def __init__(self, table_name: str | None = None, dynamodb: Any = None):
+    def __init__(self, table_name: str | None = None, dynamodb: Any = None,
+                 profile_repository: Any = None):
         self.table_name = table_name or os.environ.get("APPLICATIONS_TABLE")
         if not self.table_name:
             raise ValueError("APPLICATIONS_TABLE is required")
@@ -61,6 +62,11 @@ class ApplicationRepository:
         region = self.dynamodb.meta.client.meta.region_name
         endpoint = self.dynamodb.meta.client.meta.endpoint_url
         self.client = boto3.client("dynamodb", region_name=region, endpoint_url=endpoint)
+        self.profile_repository = profile_repository
+        if self.profile_repository is None and os.environ.get("PARTNER_PROFILE_TABLE"):
+            from jobsearch.partner_profile_repository import PartnerProfileRepository
+            self.profile_repository = PartnerProfileRepository(
+                table_name=os.environ["PARTNER_PROFILE_TABLE"], dynamodb=self.dynamodb)
 
     @staticmethod
     def _scope(ctx: ApplicationContext) -> str:
@@ -141,18 +147,33 @@ class ApplicationRepository:
             raise ApplicationNotFound("application not found")
         return row
 
-    @staticmethod
-    def _verify_cv_reference(reference: Mapping[str, Any], ctx: ApplicationContext) -> None:
+    def _verify_cv_reference(self, reference: Mapping[str, Any], ctx: ApplicationContext) -> None:
         """Verify a canonical CV reference through the existing profile store."""
-        from jobsearch.partner_profile_repository import PartnerProfileRepository
         cv_id = reference.get("cvId")
-        profiles = PartnerProfileRepository()
-        resource = profiles.get(cv_id, ctx.user_id, ctx.tenant_id, ctx.partner_application_id, ctx.issuer)
+        if self.profile_repository is None:
+            raise ApplicationContractError("REFERENCE_STORE_UNAVAILABLE", "CV ownership cannot be verified")
+        resource = self.profile_repository.get(
+            cv_id, ctx.user_id, ctx.tenant_id, ctx.partner_application_id, ctx.issuer)
         if resource is None or getattr(resource, "cv_id", None) != cv_id:
             raise ApplicationContractError("CV_NOT_OWNED", "cvReference is not owned by the caller")
         document_id = reference.get("documentId")
         if document_id is not None and getattr(resource, "document_id", None) != document_id:
             raise ApplicationContractError("CV_DOCUMENT_MISMATCH", "cvReference document is not owned by the caller")
+
+    def _verify_legacy_reference(self, reference: Mapping[str, Any], name: str,
+                                 ctx: ApplicationContext) -> None:
+        if self.profile_repository is None:
+            # Existing records and synthetic local fixtures may carry legacy
+            # references without a profile table. New documents.cvReference
+            # remains fail-closed through _verify_cv_reference above.
+            return
+        resource = self.profile_repository.get(
+            reference["id"], ctx.user_id, ctx.tenant_id,
+            ctx.partner_application_id, ctx.issuer)
+        if resource is None:
+            raise ApplicationContractError("REFERENCE_NOT_OWNED", f"{name} is not owned by the caller")
+        if name == "cvRef" and getattr(resource, "resource_type", None) != "CVDocument":
+            raise ApplicationContractError("INVALID_REFERENCE", "cvRef is not a CV reference")
 
     @staticmethod
     def _public(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -161,6 +182,9 @@ class ApplicationRepository:
     def create(self, data: Mapping[str, Any], ctx: ApplicationContext) -> dict[str, Any]:
         ctx.validate()
         parsed = validate_create(data)
+        for name in ("profileRef", "cvRef"):
+            if name in parsed:
+                self._verify_legacy_reference(parsed[name], name, ctx)
         if parsed.get("documents", {}).get("cvReference") is not None:
             self._verify_cv_reference(parsed["documents"]["cvReference"], ctx)
         stamp, app_id = _now(), str(uuid.uuid4())
@@ -267,6 +291,9 @@ class ApplicationRepository:
         if parsed["expectedVersion"] != current.get("version"):
             raise ApplicationConflict("VERSION_CONFLICT")
         updates = {k: v for k, v in parsed.items() if k != "expectedVersion"}
+        for name in ("profileRef", "cvRef"):
+            if name in updates:
+                self._verify_legacy_reference(updates[name], name, ctx)
         stamp = _now()
         documents = current.get("documents")
         if "documents" in updates and updates["documents"] is not None:
