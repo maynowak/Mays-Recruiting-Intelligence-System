@@ -3,6 +3,7 @@
 ## Implementation
 
 Implementation commit: `8ea5918625fff965349433c15fcb5bdd272e356a`.
+Additional cursor-filter test commit: `40a00b6151f827d78d47abe57643264a06d871ce`.
 
 Changed RIS files:
 
@@ -12,6 +13,7 @@ Changed RIS files:
 - `docs/api/API-STANDARD.md`
 - `tests/test_application_status_model.py`
 - `tests/test_application_e2e_harness.py`
+- `tests/test_application_repository.py`
 
 No Jobsearch file was changed.
 
