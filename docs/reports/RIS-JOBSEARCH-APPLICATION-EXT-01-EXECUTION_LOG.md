@@ -35,3 +35,13 @@ commit.
   items with stable IDs.
 - Defined eight ordered implementation packages; all implementation progress is
   `0%` because no product code was changed.
+
+## 2026-11-03 — EXT-02 status milestone
+
+- Implemented additive `stage` support while preserving legacy `status`.
+- Added stage transitions, explicit submission confirmation, transition history
+  fields and filter-bound cursors.
+- Focused local results: 27 application tests passed / 11 skipped; 18
+  auth/security/privacy/handoff/erasure tests passed.
+- Moto-dependent repository E2E tests were skipped by their existing guard;
+  no live API or AWS test was performed.

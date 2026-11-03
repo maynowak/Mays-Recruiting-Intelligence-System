@@ -45,6 +45,7 @@ transition, history append, export and delete is scoped by all five values.
   "cvRef": { "cvId": "existing-cv-id", "version": 1 },
   "coverLetterVersionIds": [],
   "status": "DRAFT",
+  "stage": "draft",
   "submittedAt": null,
   "version": 1,
   "createdAt": "ISO-8601",
@@ -52,9 +53,12 @@ transition, history append, export and delete is scoped by all five values.
 }
 ```
 
-Allowed statuses are `DRAFT`, `READY`, `SUBMITTED`, `WITHDRAWN`, and
-`ARCHIVED`. `SUBMITTED` requires an explicit `confirm: true` request field;
-there are no automatic model or agent calls.
+The legacy `status` remains `DRAFT`, `READY`, `SUBMITTED`, `WITHDRAWN`, or
+`ARCHIVED`. The additive optional `stage` carries the lossless Jobsearch values
+`draft`, `submitted`, `feedback`, `interview`, `offer`, `rejected`, and
+`withdrawn`. The status route accepts exactly one of `status` or `stage`;
+`SUBMITTED` and `stage: submitted` require explicit `confirm: true`. Existing
+legacy records are not automatically migrated.
 
 History and cover-letter versions contain metadata/text supplied explicitly by
 the authenticated client. CV raw bytes, access tokens, credentials and
@@ -67,6 +71,8 @@ presigned URLs are never stored in an application item.
 - Updates require `expectedVersion`; stale writes return `409 VERSION_CONFLICT`.
 - Status changes validate the state machine and append a history event in one
   DynamoDB transaction where supported.
+- Status/stage filters are mutually exclusive and signed into pagination
+  cursors.
 - Pagination uses a signed, scope-bound cursor; arbitrary DynamoDB keys are
   not accepted from clients.
 - Foreign, missing, or cross-issuer IDs return the same `404 NOT_FOUND` shape
