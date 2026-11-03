@@ -8819,3 +8819,15 @@ Reports:
 - docs/reports/RIS-DEV2-TEST-IDENTITY-03-ABSCHLUSSBERICHT.md
 - docs/reports/RIS-DEV2-TEST-IDENTITY-03-EXECUTION_LOG.md
 Decision: RIS-DEV2-TEST-IDENTITY-03 ? APPLY PASS; stop before synthetic user or authenticated E2E work.
+
+[RIS-DEV2-TEST-IDENTITY-04A-PREFLIGHT]
+Status: ENVIRONMENT GUARD PASS / RIS PARTNER PROVISIONING BLOCKED
+Date: 2026-11-03
+Run ID: RIS-DEV2-04-20261103T111714Z
+Repository: feature/ris-application-persistence-v1 @ 3b7a6ea89db05e61d563dae6fee2c5ec13299e6a; working tree clean.
+AWS guard: default; account 262370457690; eu-central-1; workspace ris-dev2; state serial 25; lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082.
+Identity guard: pool eu-central-1_K3dkdSipZ; Human client 21j28p71vogg0m41tcue0ib3l4; Human issuer/audience correct; external M2M authorizer unchanged.
+Provisioning finding: existing tools/ris_admin fails closed without a local principal-bound RIS_ADMIN_AUTHORIZATION_FILE. Current principal arn:aws:iam::262370457690:user/devnemo has no configured/matching authorization mapping. No public PartnerApplication admin route exists; direct DynamoDB writes are prohibited.
+No Terraform operation, user, password, group, token, PartnerApplication, APIProfile, Credential, entitlement or DynamoDB mutation performed.
+Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04A-PREFLIGHT.md
+Decision: Cognito-only synthetic path may proceed if AWS Cognito Admin API permissions are verified; RIS partner binding and credential-dependent ApplicationV1 E2E remain BLOCKED.
