@@ -17,6 +17,7 @@ the existing RIS partner namespace:
 |---|---|
 | create | `POST /v1/partner/me/applications` |
 | list | `GET /v1/partner/me/applications` |
+| metrics | `GET /v1/partner/me/applications/metrics` |
 | read | `GET /v1/partner/me/applications/{applicationId}` |
 | patch | `PATCH /v1/partner/me/applications/{applicationId}` |
 | status | `POST /v1/partner/me/applications/{applicationId}/status` |
@@ -41,8 +42,8 @@ transition, history append, export and delete is scoped by all five values.
   "schemaVersion": 1,
   "applicationId": "server-generated",
   "job": { "jobId": "source-specific", "source": "provider", "title": "", "company": "", "location": "" },
-  "profileRef": { "profileId": "existing-profile-id", "version": 1 },
-  "cvRef": { "cvId": "existing-cv-id", "version": 1 },
+  "profileRef": { "id": "existing-profile-id", "version": 1 },
+  "cvRef": { "id": "existing-cv-id", "version": 1 },
   "coverLetterVersionIds": [],
   "status": "DRAFT",
   "stage": "draft",
