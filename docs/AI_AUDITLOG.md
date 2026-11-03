@@ -8971,3 +8971,11 @@ Agent artifact: terraform/lambda.zip; 76 Python entries; handler.py at root; lam
 Artifact SHA-256 hex: f2630322a6887fef860552264f6c6fbeb4e1e8985acc7dbe612e99b6dea8d613. Lambda-compatible Base64: 8mMDIqaIf++GBVImT2xvvrTh6JhazH2+YS6Ztt6o1hM=. Existing AWS CodeSha256 differs; no update executed.
 Report: docs/reports/RIS-DEV2-AUTH-06C-LAMBDA-PACKAGING.md
 Decision: artifact ready for separately authorized Terraform-managed release; stop before upload/apply.
+
+[RIS-DEV2-AUTH-06D-OFFLINE-VALIDATION]
+Status: FUNCTIONAL PASS / PACKAGING REGRESSION ENVIRONMENT-BLOCKED
+Date: 2026-11-03
+Functional suite: 177 passed; 304 subtests passed. ZIP import smoke PASS; handler.lambda_handler alias and corrected dispatcher present in terraform/lambda.zip.
+Full selected packaging run: 181 passed, 1 failed, 2 skipped, 304 subtests. Failure is TestSourceChange temporary repository copy/archived-evidence WinError 3 on Windows; excluding that environment-sensitive case packaging tests are 4 passed, 2 skipped, 1 deselected. No production code/security check weakened.
+Decision: strict offline gate remains blocked by runner environment; no AWS code update, Terraform plan/apply, alias change or rollback.
+Report: docs/reports/RIS-DEV2-AUTH-06D-OFFLINE-VALIDATION.md
