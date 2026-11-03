@@ -12,15 +12,17 @@ import hmac
 import json
 import os
 import uuid
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Any, Mapping
 
 try:
     import boto3
     from boto3.dynamodb.conditions import Key
+    from boto3.dynamodb.types import TypeSerializer
 except ImportError:  # pragma: no cover - Lambda provides boto3
     boto3 = None
     Key = None
+    TypeSerializer = None
 
 from jobsearch.application_contract import (
     ApplicationContractError, ApplicationContext, validate_create,
@@ -53,18 +55,36 @@ class ApplicationRepository:
             raise ValueError("APPLICATIONS_TABLE is required")
         self.dynamodb = dynamodb or boto3.resource("dynamodb")
         self.table = self.dynamodb.Table(self.table_name)
+        # Use a dedicated low-level client for serialized transaction values.
+        # Moto and botocore otherwise retain the resource client's conversion
+        # hooks and reject nested AttributeValue maps.
+        region = self.dynamodb.meta.client.meta.region_name
+        endpoint = self.dynamodb.meta.client.meta.endpoint_url
+        self.client = boto3.client("dynamodb", region_name=region, endpoint_url=endpoint)
 
     @staticmethod
     def _scope(ctx: ApplicationContext) -> str:
+        ctx.validate()
         return "|".join((ctx.tenant_id, ctx.user_id, ctx.partner_application_id, ctx.issuer))
 
     @staticmethod
     def _transaction_item(item: dict[str, Any]) -> dict[str, Any]:
-        """Return native values; boto3's low-level client serializes them."""
-        return dict(item)
+        """Serialize resource values for the low-level DynamoDB client."""
+        serializer = TypeSerializer()
+        result = dict(item)
+        if "Item" in result:
+            result["Item"] = {key: serializer.serialize(value) for key, value in result["Item"].items()}
+        if "Key" in result:
+            result["Key"] = {key: serializer.serialize(value) for key, value in result["Key"].items()}
+        if "ExpressionAttributeValues" in result:
+            result["ExpressionAttributeValues"] = {
+                key: serializer.serialize(value)
+                for key, value in result["ExpressionAttributeValues"].items()
+            }
+        return result
 
     def _transact(self, items: list[dict[str, Any]]) -> None:
-        self.table.meta.client.transact_write_items(
+        self.client.transact_write_items(
             TransactItems=[{action: self._transaction_item(value)
                             for action, value in item.items()}
                            for item in items])
@@ -221,7 +241,7 @@ class ApplicationRepository:
             rows.extend(page)
             if not cursor:
                 break
-        today = date.today().isoformat()
+        today = datetime.now(timezone.utc).date().isoformat()
         open_follow_ups = [
             row.get("followUp") for row in rows
             if isinstance(row.get("followUp"), Mapping) and row["followUp"].get("status") == "open"
@@ -354,7 +374,20 @@ class ApplicationRepository:
 
     def export(self, application_id: str, ctx: ApplicationContext) -> dict[str, Any]:
         app = self._owned(application_id, ctx)
-        children = self.table.query(KeyConditionExpression=Key("applicationId").eq(application_id), ConsistentRead=True).get("Items", [])
+        children: list[dict[str, Any]] = []
+        exclusive_start_key = None
+        while True:
+            kwargs: dict[str, Any] = {
+                "KeyConditionExpression": Key("applicationId").eq(application_id),
+                "ConsistentRead": True,
+            }
+            if exclusive_start_key:
+                kwargs["ExclusiveStartKey"] = exclusive_start_key
+            page = self.table.query(**kwargs)
+            children.extend(page.get("Items", []))
+            exclusive_start_key = page.get("LastEvaluatedKey")
+            if not exclusive_start_key:
+                break
         history = [{k: v for k, v in x.items() if k not in {"ownerKey", "entityType", "entityKey"}} for x in children if x.get("entityType") == "HISTORY"]
         versions = [{k: v for k, v in x.items() if k not in {"ownerKey", "entityType", "entityKey", "text"}} for x in children if x.get("entityType") == "COVER_LETTER"]
         return {"application": self._public(app), "history": history, "coverLetterVersions": versions, "documents": self._public(app).get("documents", {})}
@@ -363,5 +396,34 @@ class ApplicationRepository:
         current = self._owned(application_id, ctx)
         if current.get("version") != expected_version:
             raise ApplicationConflict("VERSION_CONFLICT")
-        children = self.table.query(KeyConditionExpression=Key("applicationId").eq(application_id), ConsistentRead=True).get("Items", [])
-        self._transact([{"Delete": {"TableName": self.table_name, "Key": {"applicationId": x["applicationId"], "entityKey": x["entityKey"]}, "ConditionExpression": "ownerKey = :owner", "ExpressionAttributeValues": {":owner": self._scope(ctx)}}} for x in children])
+        children: list[dict[str, Any]] = []
+        exclusive_start_key = None
+        while True:
+            kwargs: dict[str, Any] = {
+                "KeyConditionExpression": Key("applicationId").eq(application_id),
+                "ConsistentRead": True,
+            }
+            if exclusive_start_key:
+                kwargs["ExclusiveStartKey"] = exclusive_start_key
+            page = self.table.query(**kwargs)
+            children.extend(page.get("Items", []))
+            exclusive_start_key = page.get("LastEvaluatedKey")
+            if not exclusive_start_key:
+                break
+        children.sort(key=lambda item: 0 if item.get("entityType") == "META" else 1)
+        actions = []
+        for child in children:
+            condition = "ownerKey = :owner"
+            values = {":owner": self._scope(ctx)}
+            if child.get("entityType") == "META":
+                condition += " AND version = :expected"
+                values[":expected"] = expected_version
+            actions.append({"Delete": {"TableName": self.table_name,
+                                         "Key": {"applicationId": child["applicationId"], "entityKey": child["entityKey"]},
+                                         "ConditionExpression": condition,
+                                         "ExpressionAttributeValues": values}})
+        try:
+            for offset in range(0, len(actions), 100):
+                self._transact(actions[offset:offset + 100])
+        except Exception as exc:
+            raise ApplicationConflict("VERSION_CONFLICT") from exc

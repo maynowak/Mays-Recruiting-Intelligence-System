@@ -4012,10 +4012,15 @@ def _handle_privacy_inspect(event, context):
     try:
         from jobsearch.application_repository import ApplicationRepository
         app_repo = ApplicationRepository()
-        app_page, _ = app_repo.list(
-            __import__('jobsearch.application_contract', fromlist=['ApplicationContext']).ApplicationContext(
-                ctx['userId'], ctx['tenantId'], ctx['partnerApplicationId'], ctx['issuer']),
-            limit=limit)
+        app_ctx = __import__('jobsearch.application_contract', fromlist=['ApplicationContext']).ApplicationContext(
+            ctx['userId'], ctx['tenantId'], ctx['partnerApplicationId'], ctx['issuer'])
+        app_page = []
+        app_cursor = None
+        while True:
+            page, app_cursor = app_repo.list(app_ctx, limit=limit, cursor=app_cursor)
+            app_page.extend(page)
+            if not app_cursor:
+                break
         categories['applications'] = _privacy_category(
             name='ApplicationV1', purpose='authenticated application tracking',
             storage_status='stored' if app_page else 'no_data',
@@ -4209,9 +4214,14 @@ def _handle_privacy_export(event, context):
         from jobsearch.application_repository import ApplicationRepository
         from jobsearch.application_contract import ApplicationContext
         app_repo = ApplicationRepository()
-        app_page, _ = app_repo.list(
-            ApplicationContext(ctx['userId'], ctx['tenantId'], ctx['partnerApplicationId'], ctx['issuer']),
-            limit=limit)
+        app_ctx = ApplicationContext(ctx['userId'], ctx['tenantId'], ctx['partnerApplicationId'], ctx['issuer'])
+        app_page = []
+        app_cursor = None
+        while True:
+            page, app_cursor = app_repo.list(app_ctx, limit=limit, cursor=app_cursor)
+            app_page.extend(page)
+            if not app_cursor:
+                break
         applications = [app_repo.export(item['applicationId'], ApplicationContext(
             ctx['userId'], ctx['tenantId'], ctx['partnerApplicationId'], ctx['issuer']))
                         for item in app_page]
