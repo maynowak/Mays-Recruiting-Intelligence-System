@@ -79,3 +79,15 @@ ApplicationV1 remains locally validated but is not installed on `ris-dev2`.
 Any future Apply retry requires a separately authorized execution after the
 Terraform provider-runtime issue is resolved. This report grants no retry
 authorization and no production/privacy approval.
+
+## 03H resume update
+
+Provider recovery made `hashicorp/time` `0.14.2` available and all new
+pre-Apply guards passed. The explicitly approved resume then failed before
+resource execution with Terraform's `Inconsistent dependency lock file`
+error: the binary plan's dependency selections did not match the current
+working data. No replacement plan or retry was allowed.
+
+Read-only verification continues to show state serial `23`, no ApplicationV1
+table/routes, unchanged Agent Lambda and unchanged protected CloudFront.
+ApplicationV1 AWS E2E remains blocked.
