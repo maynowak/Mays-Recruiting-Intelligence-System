@@ -8664,3 +8664,20 @@ Reports:
 - docs/reports/RIS-APPLICATION-E2E-06-ABSCHLUSSBERICHT-EXECUTION_LOG.md
 Decision matrix: LOCAL HARNESS PASS; DEV2 LIVE DATA BLOCKED/NOT AUTHORIZED; positive API-Gateway auth BLOCKED; Cognito/Partner provisioning NOT PERFORMED; Jobsearch NOT IN SCOPE.
 Next: use LOCAL harness; perform 06D only after separate explicit approval naming table scope, synthetic correlation, repository-only operations, mutation window and cleanup owner.
+
+[RIS-DEV2-TEST-IDENTITY-01-DESIGN]
+Status: DESIGN COMPLETE / APPLY BLOCKED
+Date: 2026-11-03
+Branch/HEAD at start: feature/ris-application-persistence-v1 @ e19b0cd322dbc4fc88bc86dd9f3bd1b3236294bb
+Scope: Review existing managed/external Cognito architecture for a dedicated ris-dev2 test identity.
+Verified:
+- Existing Terraform supports identity_mode=managed|external; managed mode declares a project-scoped pool, Human public client, M2M client/resource server and JWT authorizer inputs.
+- Proposed ris-dev2 overlay can use managed mode with OAuth code+PKCE, explicit localhost callback/logout, custom domain disabled and orders disabled.
+- Switching current ris-dev2 external mode to managed is state-significant: managed Cognito resources are created and existing API JWT authorizers receive a new issuer/audience; the saved plan must reject deletes/replacements/unexpected resources.
+- Partner registry/APIProfile/credential bindings are separate and are not created by identity mode; ApplicationV1 needs no agent entitlement.
+- External Cognito pool/account, CloudFront, DNS, ACM, Jobsearch and ris-dev resources remain protected.
+- No AWS mutation, user/client/pool/credential/partner creation, token issuance or Terraform plan/apply performed.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-01-DESIGN.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-01-DESIGN-EXECUTION_LOG.md
+Decision: proceed to offline implementation/validation only; apply remains blocked pending exact saved-plan approval.
