@@ -8547,3 +8547,21 @@ Date: 2026-11-01.
 - Separate boundaries: 39 DynamoDB Local tests remain skipped because RIS_TEST_DYNAMODB_ENDPOINT is unset; six planned privacy/receipt tests remain skipped. Jobsearch full suite had 825 passed, 5 skipped, 3 unrelated environment/build-identity failures.
 - Decisions: contract GO; DynamoDB integration BLOCKED; privacy DEFERRED; Jobsearch size-contract handoff READY; R08-PROFILES-01 BLOCKED only for full readiness pending DynamoDB Local.
 - Report: docs/reports/RIS-R08-P1-1-P1-7-LOCAL-INTEGRATION-ACCEPTANCE.md
+
+[RIS-APPLICATION-E2E-05A-SYNTHETIC-IDENTITY-PLAN]
+Status: COMPLETE READ-ONLY DISCOVERY / PROVISIONING BLOCKED
+Date: 2026-11-03
+Branch/HEAD at start: feature/ris-application-persistence-v1 @ b377ca8479dac02571e98309719642ccf3d09205
+Scope: 05A only - external Cognito ownership, dual-auth contract, minimal partner context, test matrix and non-executable 05B plan.
+Verified:
+- Foundation account/profile/region: 262370457690 / default / eu-central-1; workspace ris-dev2; state serial 24; lineage unchanged.
+- External Cognito pool eu-central-1_ojbmoiYGM and human audience 7ldhihlpdgsgcl3puvu4oi7ksv verified from live authorizer/state; pool ARN owner account 240571105849.
+- Target-account pool lookup returned ResourceNotFoundException; no cross-account operation attempted.
+- ApplicationV1 storage uses JWT access identity + active APIProfile/credential + active Partner Application Registry binding; agent entitlements are not reused for storage permission.
+- Active-row discovery: partner applications, API profiles, credentials and entitlements all 0; no authorized synthetic identity or secure local credential handoff found.
+- No Terraform command, AWS mutation, user/credential creation, token acquisition, secret read, API mutation or Jobsearch connection performed.
+Reports:
+- docs/reports/RIS-APPLICATION-E2E-05A-SYNTHETIC-IDENTITY-PLAN.md
+- docs/reports/RIS-APPLICATION-E2E-05A-SYNTHETIC-IDENTITY-PLAN-EXECUTION_LOG.md
+Classification: YELLOW / PROVISIONING BLOCKED.
+Next: separate explicit 05B approval from external Cognito owner and RIS operator; secure once-only credential handoff, expiry/revoke and cleanup must be approved first.
