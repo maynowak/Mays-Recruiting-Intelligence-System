@@ -9175,6 +9175,24 @@ Report: docs/reports/RIS-DEV-UPGRADE-S01-EVIDENCE-CONSOLIDATION.md
 Next: S02 nur auf ausdrücklichen Auftrag; Prüfaufträge S02-A…S02-G im Report.
 STOP after S01 — S02 nicht gestartet.
 
+[RIS-DEV-UPGRADE-S02]
+Status: COMPLETE / GREEN — Upgrade-Delta dokumentiert, keine Mutation
+Date: 2026-11-03 17:05 UTC
+Git: main, HEAD vor Auftrag 64cc38f (2 lokale Commits vor origin/main), Account 240571105849, Profil mayaws, Region eu-central-1.
+Scope: READ-ONLY Target Discovery für das In-place-Upgrade von ris-dev. Kein Plan, kein Apply, kein Destroy, keine AWS-Mutation, keine fremde Datei verändert.
+Findings:
+  - State eindeutig ris-dev: Bucket mays-ris-tf-state-dev, Key env:/ris-dev/dev/terraform.tfstate, Lineage 9cec61e5-c036-1ad5-6ae4-8b48a50122a4, serial 36, 185 Ressourcen, TF 1.16.1.
+  - API g6901and25 hat 35 Live-Routen; 33 der 65 deklarierten Routen fehlen (Applications, CVs, Search Profiles, Manual Profiles, Privacy).
+  - DynamoDB: 10 Kernel-Tabellen live, 7 fehlen (partner-profiles, privacy-receipts, erasure-operations, s3-erasure-phases, upload-ticket-ledger, upload-cutover, applications).
+  - Lambda ris-dev-dev-agent ohne APPLICATIONS_TABLE und ohne RIS_CURSOR_SECRET; Orders vollständig eingebunden.
+  - Cognito: RIS-Pool ojbmoiYGM mit Prefix-Domain ris-dev-dev; Jobsearch-Pool ZURSMpD2O mit auth.mays-job-matcher.app; ACM-Cert wird von CloudFront in fremdem Account 590490809858 benutzt (E13K7HSK6ZHXP2).
+  - CloudFront: E1IP0DIEAXAZPY (RIS health, keine Aliases) + fremde E1R3BHTJNMC6XW; OACs entsprechend; keine Route53-Zone.
+  - Fremde/verwaiste Ressourcen: Lambda devmemo-permission-test, Disabled ESM mays-ris-b-dev-agent, E2E-CF/OAC — unberührt.
+  - Prognose additiv: +7 Tabellen, +33 Routen, +1 IAM-Policy, +2 Env-Keys, 1 Lambda-Update; Cognito/CloudFront/DNS/ACM/Orders NONE.
+Blockers: RIS_CURSOR_SECRET fehlt; Application-Erasure nicht verdrahtet; Orders-SQS Principal=* extern offen; PITR deaktiviert.
+Report: docs/reports/RIS-DEV-UPGRADE-S02-TARGET-DISCOVERY.md
+Next: S03 Plan-Erstellung, S04 Apply-Gate. STOP nach S02.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
