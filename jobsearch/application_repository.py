@@ -122,12 +122,27 @@ class ApplicationRepository:
         return row
 
     @staticmethod
+    def _verify_cv_reference(reference: Mapping[str, Any], ctx: ApplicationContext) -> None:
+        """Verify a canonical CV reference through the existing profile store."""
+        from jobsearch.partner_profile_repository import PartnerProfileRepository
+        cv_id = reference.get("cvId")
+        profiles = PartnerProfileRepository()
+        resource = profiles.get(cv_id, ctx.user_id, ctx.tenant_id, ctx.partner_application_id, ctx.issuer)
+        if resource is None or getattr(resource, "cv_id", None) != cv_id:
+            raise ApplicationContractError("CV_NOT_OWNED", "cvReference is not owned by the caller")
+        document_id = reference.get("documentId")
+        if document_id is not None and getattr(resource, "document_id", None) != document_id:
+            raise ApplicationContractError("CV_DOCUMENT_MISMATCH", "cvReference document is not owned by the caller")
+
+    @staticmethod
     def _public(row: Mapping[str, Any]) -> dict[str, Any]:
         return {k: v for k, v in row.items() if k not in {"entityKey", "ownerKey", "idempotencyHash", "entityType"}}
 
     def create(self, data: Mapping[str, Any], ctx: ApplicationContext) -> dict[str, Any]:
         ctx.validate()
         parsed = validate_create(data)
+        if parsed.get("documents", {}).get("cvReference") is not None:
+            self._verify_cv_reference(parsed["documents"]["cvReference"], ctx)
         stamp, app_id = _now(), str(uuid.uuid4())
         idempotency_key = parsed.pop("idempotencyKey", None)
         request_hash = hashlib.sha256(_json(parsed).encode()).hexdigest()
@@ -235,6 +250,8 @@ class ApplicationRepository:
         stamp = _now()
         documents = current.get("documents")
         if "documents" in updates and updates["documents"] is not None:
+            if updates["documents"].get("cvReference") is not None:
+                self._verify_cv_reference(updates["documents"]["cvReference"], ctx)
             documents = {**(documents if isinstance(documents, Mapping) else {}), **updates.pop("documents")}
             updates["documents"] = documents
         for name in ("applicationDate", "applicationChannel", "contact", "notes", "salary", "followUp", "documents"):
