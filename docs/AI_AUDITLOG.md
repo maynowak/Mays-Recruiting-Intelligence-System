@@ -9036,3 +9036,11 @@ Recovery artifact: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-aut
 Plan: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-auth-06g.tfplan; SHA-256 7cfcbf7ba2a5986e9529224890b68b81bf32ce3fb9e96ef47ed82cfe5e570a8e; exact 0/1/0/0 Agent Lambda code-only scope.
 Decision: no Apply; clear the unrelated format gate, then rerun preflight and plan before any separately approved Terraform Apply.
 Report: docs/reports/RIS-DEV2-AUTH-06G-DEPLOYMENT-READINESS.md
+
+[RIS-DEV2-AUTH-06H-A-SCOPE]
+Status: PASS — MAYS-ORDERS BUILDER CLONE OUTSIDE ACTIVE RIS ROOT
+Date: 2026-11-03
+Active root: terraform/; all root module sources resolve under terraform/modules/.
+Finding: installer/projects/mays_order_builder/terraform/main.tf is ignored builder-clone code and is not an active RIS module source; generated terraform/modules/mays_orders is the local module boundary. Saved plan has orders_lifecycle=disabled, so its module count is zero.
+No foreign Terraform file changed.
+Report: docs/reports/RIS-DEV2-AUTH-06H-A-SCOPE.md
