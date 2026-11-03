@@ -117,7 +117,7 @@ class ApplicationE2EHarnessTests(unittest.TestCase):
         )
         self.assertEqual("synthetic-note", history["event"]["type"])
         letter = self.harness.repository.add_cover_letter(
-            app_id, "Synthetic cover letter only.", 3, ctx
+            app_id, "Synthetic cover letter only.", 4, ctx
         )
         exported = self.harness.repository.export(app_id, ctx)
         self.assertEqual(app_id, exported["application"]["applicationId"])
@@ -128,7 +128,7 @@ class ApplicationE2EHarnessTests(unittest.TestCase):
         for forbidden in ("ownerKey", "credential", "Authorization", "Bearer", "secret"):
             self.assertNotIn(forbidden, raw)
 
-        self.harness.repository.delete(app_id, 3, ctx)
+        self.harness.repository.delete(app_id, 5, ctx)
         with self.assertRaises(ApplicationNotFound):
             self.harness.repository.get(app_id, ctx)
         items, _ = self.harness.repository.list(ctx)

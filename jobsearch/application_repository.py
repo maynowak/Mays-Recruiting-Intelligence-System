@@ -12,7 +12,7 @@ import hmac
 import json
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Mapping
 
 try:
@@ -25,7 +25,8 @@ except ImportError:  # pragma: no cover - Lambda provides boto3
 from jobsearch.application_contract import (
     ApplicationContractError, ApplicationContext, validate_create,
     JOBSEARCH_STAGES, STATUSES, legacy_status_stage, validate_patch, validate_stage_filter,
-    validate_stage_transition, validate_status_filter, validate_transition,
+    validate_cover_letter_version, validate_stage_transition, validate_status_filter,
+    validate_transition,
 )
 
 
@@ -175,16 +176,55 @@ class ApplicationRepository:
             validate_stage_filter(stage_filter)
         if status_filter is not None and stage_filter is not None:
             raise ApplicationContractError("FILTER_CONFLICT", "status and stage filters cannot be combined")
-        kwargs: dict[str, Any] = {"IndexName": "gsi-owner", "KeyConditionExpression": Key("ownerKey").eq(self._scope(ctx)), "Limit": limit, "ScanIndexForward": False}
-        if cursor:
-            kwargs["ExclusiveStartKey"] = cursor
-        result = self.table.query(**kwargs)
-        items = [x for x in result.get("Items", []) if x.get("entityType") == "META"]
-        if status_filter is not None:
-            items = [x for x in items if x.get("status") == status_filter]
-        if stage_filter is not None:
-            items = [x for x in items if x.get("stage") == stage_filter]
-        return [self._public(x) for x in items], result.get("LastEvaluatedKey")
+        items: list[dict[str, Any]] = []
+        start_key = cursor
+        last_key = None
+        while len(items) < limit:
+            kwargs: dict[str, Any] = {"IndexName": "gsi-owner", "KeyConditionExpression": Key("ownerKey").eq(self._scope(ctx)), "Limit": limit, "ScanIndexForward": False}
+            if start_key:
+                kwargs["ExclusiveStartKey"] = start_key
+            result = self.table.query(**kwargs)
+            page = [x for x in result.get("Items", []) if x.get("entityType") == "META"]
+            if status_filter is not None:
+                page = [x for x in page if x.get("status") == status_filter]
+            if stage_filter is not None:
+                page = [x for x in page if (x.get("stage") or legacy_status_stage(x.get("status"))) == stage_filter]
+            items.extend(page)
+            last_key = result.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            start_key = last_key
+        return [self._public(x) for x in items[:limit]], last_key
+
+    def metrics(self, ctx: ApplicationContext) -> dict[str, int]:
+        """Compute complete owner metrics by consuming every cursor page."""
+        ctx.validate()
+        rows: list[dict[str, Any]] = []
+        cursor = None
+        while True:
+            page, cursor = self.list(ctx, limit=100, cursor=cursor)
+            rows.extend(page)
+            if not cursor:
+                break
+        today = date.today().isoformat()
+        open_follow_ups = [
+            row.get("followUp") for row in rows
+            if isinstance(row.get("followUp"), Mapping) and row["followUp"].get("status") == "open"
+        ]
+        submitted = {"SUBMITTED", "submitted", "feedback", "interview", "offer", "rejected"}
+        interviews = {"interview"}
+        drafts = sum(1 for row in rows if row.get("stage") == "draft" or ("stage" not in row and row.get("status") == "DRAFT"))
+        sent = sum(1 for row in rows if row.get("stage") in submitted or ("stage" not in row and row.get("status") == "SUBMITTED"))
+        conversations = sum(1 for row in rows if row.get("stage") in interviews)
+        overdue = sum(1 for item in open_follow_ups if isinstance(item.get("dueOn"), str) and item["dueOn"] < today)
+        return {
+            "total": len(rows),
+            "drafts": drafts,
+            "submitted": sent,
+            "interviews": conversations,
+            "openFollowUps": len(open_follow_ups),
+            "overdueFollowUps": overdue,
+        }
 
     def patch(self, application_id: str, data: Mapping[str, Any], ctx: ApplicationContext) -> dict[str, Any]:
         current = self._owned(application_id, ctx)
@@ -193,6 +233,16 @@ class ApplicationRepository:
             raise ApplicationConflict("VERSION_CONFLICT")
         updates = {k: v for k, v in parsed.items() if k != "expectedVersion"}
         stamp = _now()
+        documents = current.get("documents")
+        if "documents" in updates and updates["documents"] is not None:
+            documents = {**(documents if isinstance(documents, Mapping) else {}), **updates.pop("documents")}
+            updates["documents"] = documents
+        for name in ("applicationDate", "applicationChannel", "contact", "notes", "salary", "followUp", "documents"):
+            if name in updates and updates[name] is None:
+                updates.pop(name)
+                current.pop(name, None)
+                if name == "documents":
+                    continue
         current.update(updates, version=current["version"] + 1, updatedAt=stamp)
         try:
             self.table.put_item(Item=current, ConditionExpression="version = :expected AND ownerKey = :owner", ExpressionAttributeValues={":expected": parsed["expectedVersion"], ":owner": self._scope(ctx)})
@@ -244,11 +294,15 @@ class ApplicationRepository:
             raise ApplicationContractError("INVALID_HISTORY", "history type is required")
         stamp = _now()
         item = {"applicationId": application_id, "entityKey": "HISTORY#" + stamp + "#" + str(uuid.uuid4()), "entityType": "HISTORY", "ownerKey": self._scope(ctx), "event": dict(event), "createdAt": stamp, "actorUserId": ctx.user_id}
+        updated = dict(current, version=expected_version + 1, updatedAt=stamp)
         try:
-            self.table.put_item(Item=item, ConditionExpression="attribute_not_exists(applicationId)")
+            self._transact([
+                {"Put": {"TableName": self.table_name, "Item": updated, "ConditionExpression": "version = :expected AND ownerKey = :owner", "ExpressionAttributeValues": {":expected": expected_version, ":owner": self._scope(ctx)} }},
+                {"Put": {"TableName": self.table_name, "Item": item, "ConditionExpression": "attribute_not_exists(applicationId)"}},
+            ])
         except Exception as exc:
-            raise ApplicationConflict("HISTORY_CONFLICT") from exc
-        return item
+            raise ApplicationConflict("VERSION_CONFLICT") from exc
+        return {**item, "applicationVersion": updated["version"]}
 
     def add_cover_letter(self, application_id: str, letter: str, expected_version: int, ctx: ApplicationContext) -> dict[str, Any]:
         current = self._owned(application_id, ctx)
@@ -257,17 +311,36 @@ class ApplicationRepository:
         if current["version"] != expected_version:
             raise ApplicationConflict("VERSION_CONFLICT")
         stamp = _now(); version_id = str(uuid.uuid4())
-        item = {"applicationId": application_id, "entityKey": "COVER#" + stamp + "#" + version_id, "entityType": "COVER_LETTER", "ownerKey": self._scope(ctx), "versionId": version_id, "text": letter, "createdAt": stamp, "actorUserId": ctx.user_id}
+        version = letter if isinstance(letter, Mapping) else {"jobId": current["job"]["jobId"], "content": letter, "source": "manual"}
+        version = validate_cover_letter_version(version)
+        if version["jobId"] != current["job"]["jobId"]:
+            raise ApplicationContractError("INVALID_COVER_LETTER", "cover-letter jobId does not match application")
+        version.setdefault("versionId", version_id)
+        version.setdefault("createdAt", stamp)
+        item = {"applicationId": application_id, "entityKey": "COVER#" + stamp + "#" + version["versionId"], "entityType": "COVER_LETTER", "ownerKey": self._scope(ctx), "versionId": version["versionId"], "jobId": version["jobId"], "content": version["content"], "source": version["source"], "createdAt": version["createdAt"], "actorUserId": ctx.user_id}
+        for field in ("language", "model"):
+            if field in version:
+                item[field] = version[field]
+        documents = dict(current.get("documents") or {"coverLetterDraft": "", "coverLetterVersions": [], "documentStatus": "missing"})
+        documents["coverLetterVersions"] = list(documents.get("coverLetterVersions") or []) + [version]
+        if documents.get("documentStatus") == "missing":
+            documents["documentStatus"] = "draft"
+        updated = dict(current, documents=documents, version=expected_version + 1, updatedAt=stamp)
         try:
-            self.table.put_item(Item=item, ConditionExpression="attribute_not_exists(applicationId)")
+            self._transact([
+                {"Put": {"TableName": self.table_name, "Item": updated, "ConditionExpression": "version = :expected AND ownerKey = :owner", "ExpressionAttributeValues": {":expected": expected_version, ":owner": self._scope(ctx)} }},
+                {"Put": {"TableName": self.table_name, "Item": item, "ConditionExpression": "attribute_not_exists(applicationId)"}},
+            ])
         except Exception as exc:
-            raise ApplicationConflict("COVER_LETTER_CONFLICT") from exc
-        return {"versionId": version_id, "createdAt": stamp}
+            raise ApplicationConflict("VERSION_CONFLICT") from exc
+        return {**version, "applicationVersion": updated["version"]}
 
     def export(self, application_id: str, ctx: ApplicationContext) -> dict[str, Any]:
         app = self._owned(application_id, ctx)
         children = self.table.query(KeyConditionExpression=Key("applicationId").eq(application_id), ConsistentRead=True).get("Items", [])
-        return {"application": self._public(app), "history": [{k: v for k, v in x.items() if k not in {"ownerKey", "entityType", "entityKey"}} for x in children if x.get("entityType") == "HISTORY"], "coverLetterVersions": [{k: v for k, v in x.items() if k not in {"ownerKey", "entityType", "entityKey"}} for x in children if x.get("entityType") == "COVER_LETTER"]}
+        history = [{k: v for k, v in x.items() if k not in {"ownerKey", "entityType", "entityKey"}} for x in children if x.get("entityType") == "HISTORY"]
+        versions = [{k: v for k, v in x.items() if k not in {"ownerKey", "entityType", "entityKey", "text"}} for x in children if x.get("entityType") == "COVER_LETTER"]
+        return {"application": self._public(app), "history": history, "coverLetterVersions": versions, "documents": self._public(app).get("documents", {})}
 
     def delete(self, application_id: str, expected_version: int, ctx: ApplicationContext) -> None:
         current = self._owned(application_id, ctx)
