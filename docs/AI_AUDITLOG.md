@@ -8988,3 +8988,14 @@ Concurrency: re-read RevisionId immediately before any future operation; discove
 Recovery: current deployed ZIP downloaded read-only outside Git to C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-auth-06-previous-lambda.zip; SHA-256 45ae52c1f3cc455f0e5dd1f64482eb6a02bbee7a3117a260d58bd20b81c54c38; matches Lambda CodeSha256. No rollback performed.
 Report: docs/reports/RIS-DEV2-AUTH-06E-DEPLOYMENT-PLAN.md
 Decision: no AWS write; future release requires exact artifact/revision/plan approval and Terraform-only execution.
+
+[RIS-DEV2-AUTH-06-ABSCHLUSS]
+Status: DEPLOYMENT BLOCKED
+Date: 2026-11-03
+Baseline/account/state/ownership: PASS; account 262370457690; default; eu-central-1; state serial 25; expected lineage; Terraform-managed ris-dev2-dev-agent.
+Artifact: terraform/lambda.zip; official deterministic builder; 76 Python entries; local SHA-256 f2630322a6887fef860552264f6c6fbeb4e1e8985acc7dbe612e99b6dea8d613; release artifact contains dispatcher fix.
+Validation: functional auth/application suite 177 passed + 304 subtests; ZIP import smoke PASS. Full packaging selection 181 passed, 1 failed, 2 skipped due Windows archived-evidence path-copy failure; strict offline gate not fully green.
+Recovery/deployment difference: prior deployed ZIP read-only recovered, hash 45ae52c1f3cc455f0e5dd1f64482eb6a02bbee7a3117a260d58bd20b81c54c38 matching AWS CodeSha256; prior package contains old dispatcher call; current RevisionId f3719946-b052-48a5-bd62-750ffc54dcab. No rollback.
+Protected infrastructure unchanged; no Lambda update-function-code, Terraform plan/apply, alias change, API deployment, or other AWS write.
+Report: docs/reports/RIS-DEV2-AUTH-06-ABSCHLUSSBERICHT.md
+Decision: stop; future release requires explicit artifact/ARN/revision/plan authorization and Terraform-only execution.
