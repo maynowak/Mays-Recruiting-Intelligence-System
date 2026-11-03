@@ -19,3 +19,12 @@
 Next milestone is the evidence-based coverage matrix and open-items register.
 RIS working tree is expected to contain only this documentation phase before
 commit.
+
+## 2026-11-03 — coverage milestone
+
+- Read the Jobsearch application contract/domain/repository snapshots and
+  UX-04A through UX-05B plus cover-letter evidence.
+- Read RIS ApplicationV1 contract, repository, handler, API Gateway routes,
+  DynamoDB schema and IAM wiring.
+- Classified current capabilities and gaps in the coverage matrix; no runtime
+  calls or tests were performed.
