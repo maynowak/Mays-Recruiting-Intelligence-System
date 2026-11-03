@@ -9153,6 +9153,6 @@ Reports: docs/reports/RIS-JOBSEARCH-APPLICATION-EXT-02-STATUS-DESIGN.md; docs/re
 [RIS-JOBSEARCH-APPLICATION-ORCH-01]
 Status: PACKAGES A/B IMPLEMENTED LOCALLY — MOTO EVIDENCE OPEN
 Date: 2026-11-03
-Branch feature/ris-jobsearch-application-ext-01. Contract/validation, repository, metrics/API and document/CV changes were implemented in serial commits. Local gates: 29 passed in the final static/security subset, 15 passed in the metrics/contract/API subset, Python compile and diff-check PASS. Existing Moto-dependent application tests remain skipped because boto3 is unavailable; no live AWS/API/deployment operation. Jobsearch was read-only.
+Branch feature/ris-jobsearch-application-ext-01. Contract/validation, repository, metrics/API and document/CV changes were implemented in serial commits. Local gates: application selection 30 passed / 11 skipped, security selection 18 passed, metrics/contract/API subset 15 passed, Python compile and diff-check PASS. Existing Moto-dependent application tests remain skipped because boto3 is unavailable; no live AWS/API/deployment operation. Jobsearch was read-only.
 Commits: e3f352d, 8db5bbf, b3fb276, e592321, 6c1344c
 Reports: docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-01A-DETAILS-FOLLOWUPS.md; docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-01B-COCKPIT-DOCUMENTS.md
