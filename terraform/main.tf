@@ -337,3 +337,34 @@ module "health_plane" {
   log_retention_days = var.lambda_config.log_retention_days
 }
 
+# ---------------------------------------------------------------------------
+# Module address reconciliation (RIS-DEV-UPGRADE-S04-A).
+#
+# The ris-dev state predates the count gates on these four module calls, so the
+# resources are stored under unindexed addresses while the configuration now
+# instantiates them as index [0]. Without these declarations Terraform plans a
+# destroy+create of the whole module (Cognito pool, orders stack, reader,
+# monitoring) instead of continuing to manage the same AWS resources.
+#
+# These blocks change addresses only. They add no resource, no attribute and no
+# permission; the target instance must exist in the applied state (count = 1).
+# ---------------------------------------------------------------------------
+moved {
+  from = module.cognito
+  to   = module.cognito[0]
+}
+
+moved {
+  from = module.mays_orders
+  to   = module.mays_orders[0]
+}
+
+moved {
+  from = module.orders_reader
+  to   = module.orders_reader[0]
+}
+
+moved {
+  from = module.monitoring_orders
+  to   = module.monitoring_orders[0]
+}
