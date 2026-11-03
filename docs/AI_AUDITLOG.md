@@ -8629,3 +8629,21 @@ Reports:
 - docs/reports/RIS-APPLICATION-E2E-06B-LOCAL-INTEGRATION-EXECUTION_LOG.md
 Classification: GREEN for LOCAL integration / BLOCKED for DEV2 mutation.
 Next: perform only the read-only 06C DEV2 preflight; 06D requires separate explicit live-DynamoDB mutation approval.
+
+[RIS-APPLICATION-E2E-06C-DEV2-PREFLIGHT]
+Status: COMPLETE READ-ONLY PREFLIGHT / DEV2 DATA TEST BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ 2db320981a45441cc73271a50ede85bd32fb8b53
+Scope: 06C - read-only DEV2 account, state, table/GSI and IAM boundary verification.
+Verified:
+- AWS_PROFILE=default resolves to account 262370457690, region eu-central-1.
+- Terraform workspace ris-dev2; state serial 24; lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082.
+- Exact target table ris-dev2-dev-applications is ACTIVE with expected primary key and active gsi-owner.
+- Actual principal is arn:aws:iam::262370457690:user/devnemo.
+- IAM metadata shows broad AWS-managed AdministratorAccess plus IAMUserChangePassword; no narrow table-scoped authorization proof.
+- No application item contents were read; no scan/query/get, write, delete, Terraform plan/refresh/apply or state mutation performed.
+Decision: account/resource guards PASS, narrow IAM guard BLOCKED, live mutation approval BLOCKED; DEV2 DATA TEST BLOCKED.
+Reports:
+- docs/reports/RIS-APPLICATION-E2E-06C-DEV2-PREFLIGHT.md
+- docs/reports/RIS-APPLICATION-E2E-06C-DEV2-PREFLIGHT-EXECUTION_LOG.md
+Next: do not execute 06D without separate explicit approval naming exact table scope, synthetic correlation, repository-only operations and cleanup.
