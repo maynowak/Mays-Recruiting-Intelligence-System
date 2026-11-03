@@ -91,3 +91,26 @@ working data. No replacement plan or retry was allowed.
 Read-only verification continues to show state serial `23`, no ApplicationV1
 table/routes, unchanged Agent Lambda and unchanged protected CloudFront.
 ApplicationV1 AWS E2E remains blocked.
+
+## 03L final deployment update
+
+The explicitly approved clean 03J plan was subsequently applied successfully:
+
+- plan SHA-256: `587E02FC61DE16BD74BFDDDF1B02625C411EFE6F9CD9903DD7CA9925AC243078`;
+- Terraform exit code: `0`;
+- actual actions: 11 creates, 1 update, 0 deletes, 0 replacements;
+- state serial: `23 -> 24`;
+- state lineage unchanged.
+
+ApplicationV1 infrastructure is verified: the table and `gsi-owner` are
+ACTIVE, all nine JWT-protected routes exist, the agent Lambda is Active with a
+successful update, and the ApplicationV1 IAM policy is scoped to its table and
+GSI. CloudFront, OAC, JWT authorizer, and other protected infrastructure remain
+unchanged by read-only comparison.
+
+Synthetic negative authentication checks passed 27/27 with expected `401`
+responses. Positive CRUD, cross-boundary isolation, privacy export/inspect and
+erasure tests are **BLOCKED** because no approved Cognito/partner test
+credentials were available. No real applicant data was used, no global
+privacy/erasure flags were enabled, and DSGVO production approval remains not
+granted.
