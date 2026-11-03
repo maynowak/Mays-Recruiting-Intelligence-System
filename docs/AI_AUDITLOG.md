@@ -8861,3 +8861,14 @@ The existing tools/ris_admin lifecycle requires a local owner-only RIS_ADMIN_AUT
 No PartnerApplication, APIProfile, Credential, tenant binding, entitlement or direct DynamoDB write was performed. No M2M client/secret or production partner was touched.
 Report: docs/reports/RIS-DEV2-TEST-IDENTITY-04D-PARTNER-BINDING.md
 Decision: authenticated ApplicationV1 CRUD and credential-dependent isolation/privacy gates are BLOCKED; do not bypass the RIS authorization contract.
+
+[RIS-DEV2-TEST-IDENTITY-04E-04F]
+Status: APPLICATION E2E BLOCKED / ISOLATION PRIVACY BLOCKED
+Date: 2026-11-03
+Run ID: RIS-DEV2-04-20261103T111714Z
+04E: no ApplicationV1 CRUD, versioning, pagination, export, delete or idempotency mutation was sent because 04D partner binding is blocked.
+04F: no cross-user/tenant/partner positive isolation or privacy inspect/export/erasure was run; no second identity or RIS credential existed, and no global flags or foreign data were touched.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-04E-APPLICATION-HTTP-E2E.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-04F-ISOLATION-PRIVACY.md
+Decision: do not claim authenticated ApplicationV1 E2E or privacy/isolation success without authorized RIS provisioning.
