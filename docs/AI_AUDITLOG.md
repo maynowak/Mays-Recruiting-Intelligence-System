@@ -8647,3 +8647,20 @@ Reports:
 - docs/reports/RIS-APPLICATION-E2E-06C-DEV2-PREFLIGHT.md
 - docs/reports/RIS-APPLICATION-E2E-06C-DEV2-PREFLIGHT-EXECUTION_LOG.md
 Next: do not execute 06D without separate explicit approval naming exact table scope, synthetic correlation, repository-only operations and cleanup.
+
+[RIS-APPLICATION-E2E-06-FINAL]
+Status: COMPLETE LOCAL HARNESS / DEV2 LIVE TEST BLOCKED
+Date: 2026-11-03
+Phase commits: 06A=097cb86b8405870e93753d7e9b59b40ce4c2cb88; 06B=2db320981a45441cc73271a50ede85bd32fb8b53; 06C=81dc6fbb189f9505ac86a222fefb9edaea20198e.
+Final evidence:
+- Test-only ApplicationV1 harness implemented without production auth changes, HTTP routes, JWT forgery, Lambda/API Gateway calls or credential bypass.
+- Local Moto suite: python -m pytest tests/test_application_e2e_harness.py -q -> 8 passed.
+- Local coverage includes CRUD/versioning, idempotency, pagination/cursor binding, cross-identity isolation, export privacy and resumable/retry-safe application erasure.
+- DEV2 read-only preflight verified account 262370457690, eu-central-1, workspace ris-dev2, state serial 24, expected lineage, ACTIVE ris-dev2-dev-applications and ACTIVE gsi-owner.
+- Actual principal has broad AdministratorAccess; narrow table-scoped authorization and separate live-mutation approval are absent.
+- 06D was not executed; no live application item read/write/delete, Cognito/partner/credential provisioning, Terraform operation or protected-infrastructure mutation occurred.
+Reports:
+- docs/reports/RIS-APPLICATION-E2E-06-ABSCHLUSSBERICHT.md
+- docs/reports/RIS-APPLICATION-E2E-06-ABSCHLUSSBERICHT-EXECUTION_LOG.md
+Decision matrix: LOCAL HARNESS PASS; DEV2 LIVE DATA BLOCKED/NOT AUTHORIZED; positive API-Gateway auth BLOCKED; Cognito/Partner provisioning NOT PERFORMED; Jobsearch NOT IN SCOPE.
+Next: use LOCAL harness; perform 06D only after separate explicit approval naming table scope, synthetic correlation, repository-only operations, mutation window and cleanup owner.
