@@ -8766,3 +8766,20 @@ Reports:
 - docs/reports/RIS-DEV2-TEST-IDENTITY-02C-OFFLINE-VALIDATION.md
 - docs/reports/RIS-DEV2-TEST-IDENTITY-02C-OFFLINE-VALIDATION-EXECUTION_LOG.md
 Next: guarded remote saved plan; old plan remains SUPERSEDED ? DO NOT APPLY.
+
+[RIS-DEV2-TEST-IDENTITY-02D-PLAN]
+Status: SAVED PLAN PASS / APPLY BLOCKED
+Date: 2026-11-03
+Branch/starting HEAD: feature/ris-application-persistence-v1 @ dff03a8cac32c0d3a634534c0702e43625b78e3b
+Guards: default; account 262370457690; eu-central-1; workspace ris-dev2; state serial 24; lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082.
+Plan artifact: C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-managed-identity-02.tfplan
+SHA-256: 35EE37C10CF190A0DD1A80714734C2DD9A567CF191186693B9952B9C2ED64CE6
+Action summary: 10 creates, 1 in-place update, 0 deletes, 0 replacements.
+Creates: managed Human pool/client/prefix-domain and seven existing-module groups. Update: Human JWT authorizer only. No managed M2M client/resource server, no M2M secret, no M2M authorizer update.
+Protected review: zero Lambda/DynamoDB/S3/SQS/CloudFront/OAC/DNS/ACM/external-Cognito/Orders/ris-dev actions; all Human/M2M routes preserved.
+Old plan ris-dev2-managed-identity-01.tfplan: SUPERSEDED ? DO NOT APPLY.
+No apply, user/token/partner/credential operation or resource mutation performed.
+Reports:
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02D-PLAN.md
+- docs/reports/RIS-DEV2-TEST-IDENTITY-02D-PLAN-EXECUTION_LOG.md
+Decision: structural plan gates PASS; final Apply Readiness report required; apply remains blocked pending explicit approval of exact hash and Human authorizer transition.
