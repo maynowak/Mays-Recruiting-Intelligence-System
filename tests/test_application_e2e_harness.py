@@ -102,6 +102,7 @@ class ApplicationE2EHarnessTests(unittest.TestCase):
         created = self.harness.create(1, idempotency_key="synthetic-idem-1")
         app_id = created["applicationId"]
         self.assertEqual("DRAFT", created["status"])
+        self.assertEqual("draft", created["stage"])
         self.assertEqual(1, created["version"])
         self.assertEqual(created, self.harness.repository.get(app_id, ctx))
 
@@ -146,6 +147,22 @@ class ApplicationE2EHarnessTests(unittest.TestCase):
             self.harness.repository.patch(
                 app_id, {"job": {"jobId": "synthetic-job-2b"}, "expectedVersion": 2}, ctx
             )
+
+    def test_jobsearch_stage_roundtrip_preserves_legacy_lifecycle_and_history(self):
+        ctx = self.harness.context()
+        app_id = self.harness.create(4)["applicationId"]
+        submitted = self.harness.repository.status(app_id, "submitted", 1, True, ctx, "confirmed send")
+        self.assertEqual("SUBMITTED", submitted["status"])
+        self.assertEqual("submitted", submitted["stage"])
+        feedback = self.harness.repository.status(app_id, "feedback", 2, False, ctx)
+        self.assertEqual("SUBMITTED", feedback["status"])
+        self.assertEqual("feedback", feedback["stage"])
+        exported = self.harness.repository.export(app_id, ctx)
+        transitions = exported["history"]
+        self.assertEqual("draft", transitions[-2]["fromStage"])
+        self.assertEqual("submitted", transitions[-2]["toStage"])
+        self.assertEqual("submitted", transitions[-1]["fromStage"])
+        self.assertEqual("feedback", transitions[-1]["toStage"])
 
     def test_idempotency_and_payload_conflict(self):
         first = self.harness.create(3, idempotency_key="synthetic-idem-3")

@@ -7,6 +7,9 @@ from typing import Any, Mapping
 
 SCHEMA_VERSION = 1
 STATUSES = frozenset({"DRAFT", "READY", "SUBMITTED", "WITHDRAWN", "ARCHIVED"})
+JOBSEARCH_STAGES = frozenset({
+    "draft", "submitted", "feedback", "interview", "offer", "rejected", "withdrawn",
+})
 TRANSITIONS = {
     "DRAFT": frozenset({"DRAFT", "READY", "ARCHIVED"}),
     "READY": frozenset({"READY", "DRAFT", "SUBMITTED", "ARCHIVED"}),
@@ -14,6 +17,24 @@ TRANSITIONS = {
     "WITHDRAWN": frozenset({"WITHDRAWN", "ARCHIVED"}),
     "ARCHIVED": frozenset({"ARCHIVED"}),
 }
+STAGE_TRANSITIONS = {
+    "draft": frozenset({"draft", "submitted"}),
+    "submitted": frozenset({"submitted", "feedback", "interview", "rejected", "withdrawn"}),
+    "feedback": frozenset({"feedback", "interview", "offer", "rejected", "withdrawn"}),
+    "interview": frozenset({"interview", "offer", "rejected", "withdrawn"}),
+    "offer": frozenset({"offer", "withdrawn"}),
+    "rejected": frozenset({"rejected"}),
+    "withdrawn": frozenset({"withdrawn"}),
+}
+
+
+def legacy_status_stage(status: str) -> str | None:
+    """Project a legacy status without rewriting the stored legacy value."""
+    return {
+        "DRAFT": "draft",
+        "SUBMITTED": "submitted",
+        "WITHDRAWN": "withdrawn",
+    }.get(status)
 IDENTITY_FIELDS = frozenset({"applicationId", "ownerId", "userId", "tenantId", "partnerApplicationId", "issuer"})
 
 
@@ -89,6 +110,28 @@ def validate_transition(current: str, target: Any, confirm: bool = False) -> Non
         raise ApplicationContractError("INVALID_STATUS_TRANSITION", "status transition is not allowed")
     if target == "SUBMITTED" and not confirm:
         raise ApplicationContractError("SUBMIT_CONFIRMATION_REQUIRED", "submit requires explicit confirmation")
+
+
+def validate_stage_transition(current: str, target: Any, confirm: bool = False) -> None:
+    """Validate the additive Jobsearch stage without changing legacy status."""
+    if current not in JOBSEARCH_STAGES or target not in JOBSEARCH_STAGES:
+        raise ApplicationContractError("INVALID_STAGE", "jobsearch stage is invalid")
+    if target not in STAGE_TRANSITIONS[current]:
+        raise ApplicationContractError("INVALID_STAGE_TRANSITION", "stage transition is not allowed")
+    if target == "submitted" and not confirm:
+        raise ApplicationContractError("SUBMIT_CONFIRMATION_REQUIRED", "submit requires explicit confirmation")
+
+
+def validate_status_filter(value: Any) -> str:
+    if value not in STATUSES:
+        raise ApplicationContractError("INVALID_STATUS_FILTER", "status filter is invalid")
+    return value
+
+
+def validate_stage_filter(value: Any) -> str:
+    if value not in JOBSEARCH_STAGES:
+        raise ApplicationContractError("INVALID_STAGE_FILTER", "stage filter is invalid")
+    return value
 
 
 @dataclass(frozen=True)

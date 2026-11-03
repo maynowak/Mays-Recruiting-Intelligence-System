@@ -24,7 +24,8 @@ except ImportError:  # pragma: no cover - Lambda provides boto3
 
 from jobsearch.application_contract import (
     ApplicationContractError, ApplicationContext, validate_create,
-    validate_patch, validate_transition,
+    JOBSEARCH_STAGES, STATUSES, legacy_status_stage, validate_patch, validate_stage_filter,
+    validate_stage_transition, validate_status_filter, validate_transition,
 )
 
 
@@ -80,16 +81,22 @@ class ApplicationRepository:
 
     def issue_cursor(self, key: dict[str, Any], *, user_id: str, tenant_id: str,
                      partner_app_id: str | None, issuer: str | None,
-                     scope: str, resource_type: str, limit: int) -> str:
+                     scope: str, resource_type: str, limit: int,
+                     status_filter: str | None = None,
+                     stage_filter: str | None = None) -> str:
         payload = {"key": key, "scope": scope, "resourceType": resource_type,
-                   "limit": limit, "owner": "|".join((tenant_id, user_id, partner_app_id or "", issuer or ""))}
+                   "limit": limit, "statusFilter": status_filter,
+                   "stageFilter": stage_filter,
+                   "owner": "|".join((tenant_id, user_id, partner_app_id or "", issuer or ""))}
         raw = base64.urlsafe_b64encode(_json(payload).encode()).decode().rstrip("=")
         sig = hmac.new(self._cursor_secret(), raw.encode(), hashlib.sha256).hexdigest()
         return raw + "." + sig
 
     def resolve_cursor(self, token: str, *, user_id: str, tenant_id: str,
                        partner_app_id: str | None, issuer: str | None,
-                       scope: str, resource_type: str, limit: int) -> dict[str, Any]:
+                       scope: str, resource_type: str, limit: int,
+                       status_filter: str | None = None,
+                       stage_filter: str | None = None) -> dict[str, Any]:
         try:
             raw, sig = token.split(".", 1)
             expected = hmac.new(self._cursor_secret(), raw.encode(), hashlib.sha256).hexdigest()
@@ -97,7 +104,11 @@ class ApplicationRepository:
                 raise ValueError
             payload = json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
             owner = "|".join((tenant_id, user_id, partner_app_id or "", issuer or ""))
-            if payload.get("scope") != scope or payload.get("resourceType") != resource_type or payload.get("limit") != limit or payload.get("owner") != owner:
+            if (payload.get("scope") != scope or payload.get("resourceType") != resource_type
+                    or payload.get("limit") != limit
+                    or payload.get("statusFilter") != status_filter
+                    or payload.get("stageFilter") != stage_filter
+                    or payload.get("owner") != owner):
                 raise ValueError
             return payload["key"]
         except Exception as exc:
@@ -124,7 +135,7 @@ class ApplicationRepository:
             "entityType": "META", "userId": ctx.user_id, "tenantId": ctx.tenant_id,
             "partnerApplicationId": ctx.partner_application_id, "issuer": ctx.issuer,
             "ownerKey": self._scope(ctx), "status": "DRAFT", "version": 1,
-            "createdAt": stamp, "updatedAt": stamp, "submittedAt": None,
+            "stage": "draft", "createdAt": stamp, "updatedAt": stamp, "submittedAt": None,
         }
         items = [{"Put": {"TableName": self.table_name, "Item": row,
                             "ConditionExpression": "attribute_not_exists(applicationId)"}}]
@@ -154,14 +165,26 @@ class ApplicationRepository:
     def get(self, application_id: str, ctx: ApplicationContext) -> dict[str, Any]:
         return self._public(self._owned(application_id, ctx))
 
-    def list(self, ctx: ApplicationContext, limit: int = 50, cursor: dict[str, Any] | None = None) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    def list(self, ctx: ApplicationContext, limit: int = 50, cursor: dict[str, Any] | None = None,
+             status_filter: str | None = None, stage_filter: str | None = None) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
         if not 1 <= limit <= 100:
             raise ApplicationContractError("INVALID_LIMIT", "limit is invalid")
+        if status_filter is not None:
+            validate_status_filter(status_filter)
+        if stage_filter is not None:
+            validate_stage_filter(stage_filter)
+        if status_filter is not None and stage_filter is not None:
+            raise ApplicationContractError("FILTER_CONFLICT", "status and stage filters cannot be combined")
         kwargs: dict[str, Any] = {"IndexName": "gsi-owner", "KeyConditionExpression": Key("ownerKey").eq(self._scope(ctx)), "Limit": limit, "ScanIndexForward": False}
         if cursor:
             kwargs["ExclusiveStartKey"] = cursor
         result = self.table.query(**kwargs)
-        return [self._public(x) for x in result.get("Items", []) if x.get("entityType") == "META"], result.get("LastEvaluatedKey")
+        items = [x for x in result.get("Items", []) if x.get("entityType") == "META"]
+        if status_filter is not None:
+            items = [x for x in items if x.get("status") == status_filter]
+        if stage_filter is not None:
+            items = [x for x in items if x.get("stage") == stage_filter]
+        return [self._public(x) for x in items], result.get("LastEvaluatedKey")
 
     def patch(self, application_id: str, data: Mapping[str, Any], ctx: ApplicationContext) -> dict[str, Any]:
         current = self._owned(application_id, ctx)
@@ -177,14 +200,35 @@ class ApplicationRepository:
             raise ApplicationConflict("VERSION_CONFLICT") from exc
         return self._public(current)
 
-    def status(self, application_id: str, target: str, expected_version: int, confirm: bool, ctx: ApplicationContext) -> dict[str, Any]:
+    def status(self, application_id: str, target: str, expected_version: int, confirm: bool,
+               ctx: ApplicationContext, note: str | None = None) -> dict[str, Any]:
         current = self._owned(application_id, ctx)
-        validate_transition(current["status"], target, confirm)
+        is_stage = target in JOBSEARCH_STAGES
+        if is_stage:
+            current_stage = current.get("stage") or legacy_status_stage(current["status"])
+            if current_stage is None:
+                raise ApplicationContractError("STAGE_UNAVAILABLE", "legacy status has no jobsearch stage")
+            validate_stage_transition(current_stage, target, confirm)
+        else:
+            validate_transition(current["status"], target, confirm)
         if current["version"] != expected_version:
             raise ApplicationConflict("VERSION_CONFLICT")
         stamp = _now()
-        history = {"applicationId": application_id, "entityKey": "HISTORY#" + stamp + "#" + str(uuid.uuid4()), "entityType": "HISTORY", "ownerKey": self._scope(ctx), "status": target, "createdAt": stamp, "actorUserId": ctx.user_id}
-        current.update(status=target, version=expected_version + 1, updatedAt=stamp, submittedAt=stamp if target == "SUBMITTED" else current.get("submittedAt"))
+        history = {"applicationId": application_id, "entityKey": "HISTORY#" + stamp + "#" + str(uuid.uuid4()), "entityType": "HISTORY", "ownerKey": self._scope(ctx), "status": target, "fromStatus": current.get("status"), "toStatus": target if not is_stage else current.get("status"), "createdAt": stamp, "actorUserId": ctx.user_id}
+        if note is not None:
+            history["note"] = note
+        updated = dict(current)
+        if is_stage:
+            updated["stage"] = target
+            updated["status"] = "SUBMITTED" if target in {"submitted", "feedback", "interview", "offer", "rejected"} else "WITHDRAWN" if target == "withdrawn" else "DRAFT"
+            history.update(fromStage=current.get("stage", "draft"), toStage=target)
+        else:
+            updated["status"] = target
+            projected_stage = legacy_status_stage(target)
+            if projected_stage is not None:
+                updated["stage"] = projected_stage
+        updated.update(version=expected_version + 1, updatedAt=stamp, submittedAt=stamp if target in {"SUBMITTED", "submitted"} else current.get("submittedAt"))
+        current = updated
         tx = [{"Put": {"TableName": self.table_name, "Item": current, "ConditionExpression": "version = :expected AND ownerKey = :owner", "ExpressionAttributeValues": {":expected": expected_version, ":owner": self._scope(ctx)}}}, {"Put": {"TableName": self.table_name, "Item": history, "ConditionExpression": "attribute_not_exists(applicationId)"}}]
         try:
             self._transact(tx)

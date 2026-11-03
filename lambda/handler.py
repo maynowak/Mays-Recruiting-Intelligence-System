@@ -581,10 +581,12 @@ def _application_cursor(event, repo, ctx, limit):
     if not raw:
         return None
     try:
+        params = event.get('queryStringParameters') or {}
         return repo.resolve_cursor(raw, user_id=ctx.user_id, tenant_id=ctx.tenant_id,
                                    partner_app_id=ctx.partner_application_id,
                                    issuer=ctx.issuer, scope='applications',
-                                   resource_type='ApplicationV1', limit=limit)
+                                   resource_type='ApplicationV1', limit=limit,
+                                   status_filter=params.get('status'), stage_filter=params.get('stage'))
     except Exception:
         raise ValueError('invalid cursor')
 
@@ -604,11 +606,15 @@ def _application_routes(event, context, method, path):
         if base and method == 'GET':
             params = event.get('queryStringParameters') or {}
             limit = int(params.get('limit', 50))
+            status_filter = params.get('status')
+            stage_filter = params.get('stage')
             cursor = _application_cursor(event, repo, ctx, limit)
-            items, next_key = repo.list(ctx, limit=limit, cursor=cursor)
+            items, next_key = repo.list(ctx, limit=limit, cursor=cursor,
+                                        status_filter=status_filter, stage_filter=stage_filter)
             next_cursor = repo.issue_cursor(next_key, user_id=ctx.user_id, tenant_id=ctx.tenant_id,
                                             partner_app_id=ctx.partner_application_id, issuer=ctx.issuer,
-                                            scope='applications', resource_type='ApplicationV1', limit=limit) if next_key else None
+                                            scope='applications', resource_type='ApplicationV1', limit=limit,
+                                            status_filter=status_filter, stage_filter=stage_filter) if next_key else None
             return _application_response(200, {'items': items, 'nextCursor': next_cursor})
         app_id = _application_id(event, path)
         suffix = path[len('/v1/partner/me/applications/' + app_id):].strip('/')
@@ -622,7 +628,10 @@ def _application_routes(event, context, method, path):
             return _application_response(204, {})
         if suffix == 'status' and method == 'POST':
             body = _application_body(event) or {}
-            return _application_response(200, {'application': repo.status(app_id, body.get('status'), int(body.get('expectedVersion', 0)), bool(body.get('confirm')), ctx)})
+            if ('status' in body) == ('stage' in body):
+                return _application_response(422, 'Exactly one of status or stage is required', 'STATUS_SELECTOR_REQUIRED')
+            target = body.get('stage') if body.get('stage') is not None else body.get('status')
+            return _application_response(200, {'application': repo.status(app_id, target, int(body.get('expectedVersion', 0)), bool(body.get('confirm')), ctx, body.get('note'))})
         if suffix == 'history' and method == 'POST':
             body = _application_body(event) or {}
             return _application_response(201, {'history': repo.add_history(app_id, body.get('event'), int(body.get('expectedVersion', 0)), ctx)})

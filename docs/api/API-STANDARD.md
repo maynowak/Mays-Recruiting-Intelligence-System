@@ -142,6 +142,15 @@ Antwort 202: `{"workId": string, "status": string, "requestId": string}`
 | `POST /v1/partner/me/applications/{applicationId}/cover-letter-versions` | JWT **+** `X-Api-Credential` | 201 | 401, 403, 404, 409, 422, 503 |
 | `GET /v1/partner/me/applications/{applicationId}/export` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 503 |
 | `DELETE /v1/partner/me/applications/{applicationId}` | JWT **+** `X-Api-Credential` | 204 | 401, 403, 404, 409, 422, 503 |
+
+Application status compatibility: the existing `status` field remains the
+legacy uppercase lifecycle (`DRAFT`, `READY`, `SUBMITTED`, `WITHDRAWN`,
+`ARCHIVED`) and is never silently rewritten. New Jobsearch-compatible states
+are carried by the additive optional `stage` field (`draft`, `submitted`,
+`feedback`, `interview`, `offer`, `rejected`, `withdrawn`). The status route
+accepts exactly one of `status` or `stage`; `stage: submitted` still requires
+explicit `confirm: true`. List filters use either `status` or `stage`, never
+both, and signed cursors bind the selected filter.
 | `GET /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 500, 503 |
 | `POST /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles` | JWT **+** `X-Api-Credential` | 201 | 400, 401, 403, 404, 409, 422, 500, 503 |
 | `GET /v1/partner/me/search-profiles/{searchProfileId}/ats-profiles/{atsSearchProfileId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 500, 503 |
