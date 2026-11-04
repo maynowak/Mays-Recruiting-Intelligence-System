@@ -187,8 +187,8 @@ class TestTerraformRouteInventory(unittest.TestCase):
         eine stille Ruecknahme nicht durchgeht.
         """
         routes = terraform_routes()
-        self.assertEqual(69, len(routes))
-        self.assertEqual(65, sum(1 for v in routes.values()
+        self.assertEqual(70, len(routes))
+        self.assertEqual(66, sum(1 for v in routes.values()
                                  if v["target"] == "agent"))
         self.assertEqual(4, sum(1 for v in routes.values()
                                 if v["target"] == "orders"))

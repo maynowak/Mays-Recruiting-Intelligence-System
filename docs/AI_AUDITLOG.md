@@ -9348,3 +9348,65 @@ Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
 Retry verification found GitHub PR #3 open against main. Current branch HEAD is fd5650167d1b647522d57dce29c6b267319d6d9d. Checks report .github/workflows/ci-cd.yml completed with no jobs; no review approval is present. No merge performed.
 Report corrections: docs/reports/RIS-BRANCH-CONSOLIDATION-01F-GITHUB-PR.md and docs/reports/RIS-BRANCH-CONSOLIDATION-01-ABSCHLUSSBERICHT.md
+[RIS-JOBSEARCH-APPLICATION-EXT-01-BASELINE]
+Status: COMPLETE — DOCUMENTATION BRANCH VERIFIED
+Date: 2026-11-03
+RIS checkout verified clean on feature/ris-jobsearch-application-ext-01 at 37782f8462f515e0d860ba1ba64e976c7e14b8b9, created from verified origin/main after PR #3 merge commit 37782f8. Old feature branch was seven commits behind with no unintegrated commits. Jobsearch was read-only: local feature/arbeit at 0c97827 clean; origin/main at 0fa799e; UX application files are in origin/main. No Jobsearch write, AWS operation, deployment or test/build was performed.
+Report: docs/reports/RIS-JOBSEARCH-APPLICATION-EXT-01-BASELINE.md
+Execution log: docs/reports/RIS-JOBSEARCH-APPLICATION-EXT-01-EXECUTION_LOG.md
+
+[RIS-JOBSEARCH-APPLICATION-EXT-01-COVERAGE]
+Status: COMPLETE — ANALYSIS ONLY
+Date: 2026-11-03
+Compared Jobsearch origin/main UX/domain contracts with RIS ApplicationV1 source/configuration. Foundation is present, but status compatibility, detail fields, follow-ups, aggregate metrics, document envelope, child concurrency and session transfer remain open. No tests or live calls were run.
+Reports: docs/reports/RIS-JOBSEARCH-APPLICATION-EXT-01-REPORT.md; docs/reports/RIS-JOBSEARCH-APPLICATION-EXT-01-COVERAGE.md
+
+[RIS-JOBSEARCH-APPLICATION-EXT-01-PLAN]
+Status: COMPLETE — IMPLEMENTATION NOT STARTED
+Date: 2026-11-03
+Open-items register GAP-01 through GAP-06 and additional identity, retention and live-readiness items created. Eight ordered RIS work packages documented with implementation progress 0%; no product code, AWS, Terraform state, deployment or Jobsearch change.
+Reports: docs/reports/RIS-JOBSEARCH-APPLICATION-EXT-01-OPEN-ITEMS.md; docs/reports/RIS-JOBSEARCH-APPLICATION-EXT-01-PLAN.md
+
+[RIS-JOBSEARCH-APPLICATION-EXT-02-STATUS]
+Status: COMPLETE — LOCAL VERIFIED / LIVE NOT VERIFIED
+Date: 2026-11-03
+On feature/ris-jobsearch-application-ext-01, additive Jobsearch stage support was implemented without changing legacy status semantics or migrating existing records. `status` remains the legacy lifecycle; optional `stage` carries all seven Jobsearch states. Focused application tests: 27 passed, 11 skipped; auth/security/privacy/handoff/erasure selection: 18 passed. PyCompile and git diff --check passed. No Jobsearch/AWS/Cognito/Terraform state/deployment/push/merge operation.
+Implementation: 8ea5918625fff965349433c15fcb5bdd272e356a
+Reports: docs/reports/RIS-JOBSEARCH-APPLICATION-EXT-02-STATUS-DESIGN.md; docs/reports/RIS-JOBSEARCH-APPLICATION-EXT-02-TEST-REPORT.md
+
+[RIS-JOBSEARCH-APPLICATION-ORCH-01]
+Status: PACKAGES A/B IMPLEMENTED LOCALLY — MOTO EVIDENCE OPEN
+Date: 2026-11-03
+Branch feature/ris-jobsearch-application-ext-01. Contract/validation, repository, metrics/API and document/CV changes were implemented in serial commits. Local gates: application selection 30 passed / 11 skipped, security selection 18 passed, metrics/contract/API subset 15 passed, Python compile and diff-check PASS. Existing Moto-dependent application tests remain skipped because boto3 is unavailable; no live AWS/API/deployment operation. Jobsearch was read-only.
+Commits: e3f352d, 8db5bbf, b3fb276, e592321, 6c1344c
+Reports: docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-01A-DETAILS-FOLLOWUPS.md; docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-01B-COCKPIT-DOCUMENTS.md
+
+[RIS-JOBSEARCH-APPLICATION-ORCH-02]
+Status: LOCAL RUNTIME GATE PASS — RIS-DEV DEPLOYMENT GO BLOCKED
+Date: 2026-11-03
+Branch feature/ris-jobsearch-application-ext-01. C0 used an isolated Python 3.14 venv outside RIS with boto3 1.43.123, moto 5.2.5 and pytest 9.2.0; the optional requirements types-all constraint remains unavailable on PyPI. Previously skipped Moto tests now run: 11 passed. ApplicationV1 selection: 43 passed, 0 skipped. API/OpenAPI/route consistency: 47 passed, 301 subtests passed. Security/auth/privacy/handoff/erasure: 18 passed. PyCompile, diff-check, Terraform backend-disabled validate and recursive fmt passed; Terraform emitted only existing deprecation warnings. Full repository suite: 2294 passed, 27 unrelated Windows/CLI/credential failures, 56 skipped; not used as ApplicationV1 GO evidence.
+Runtime fixes in 5a67804 serialize low-level transactions, paginate export/delete/privacy application traversal, enforce version-conditioned delete batches and use UTC overdue dates. API/OpenAPI alignment in 5786cfd; follow-up/stale-delete and Moto metrics tests in 76848a1/e065a9f. No AWS, credentials, deployment, Apply/Destroy, Cognito, CloudFront, DNS, ACM, Mays-Orders or Mays-Jobsearch mutation. Handoff is integration-review ready only; live identity, S3/DynamoDB, retention, idempotency cleanup, session transfer and deployment gates remain open.
+Reports: docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-02A-TEST-ENV.md; docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-02B-REPOSITORY-RUNTIME.md; docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-02C-SECURITY-PRIVACY.md; docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-02D-API-METRICS.md; docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-02E-RIS-DEV-HANDOFF.md; docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-02-ABSCHLUSS.md
+
+[RIS-JOBSEARCH-APPLICATION-ORCH-03]
+Status: PR READY FOR CONTROLLED REVIEW — DEPLOYMENT BLOCKED
+Date: 2026-11-03
+Branch feature/ris-jobsearch-application-ext-01. GAP-05 hardened with configured PartnerProfileRepository ownership/documentId checks and fail-closed new document references. GAP-06 hardened with idempotency cleanup, IN_PROGRESS erasure marker, 100-action resumable child batches, stale-delete protection and typed feedback/interview/note validation. ApplicationV1: 48 passed / 0 skipped; API/OpenAPI: 47 passed / 301 subtests; security/auth/privacy: 18 passed. Full suite: 2300 passed, 27 Windows/CLI/unrelated environment failures, 56 skipped; every failure triaged and no ApplicationV1 regression found. PyCompile and diff-check passed. Terraform validation passed offline; recursive fmt reports an existing unrelated installer/projects/mays_order_builder/terraform/main.tf formatting failure and was not changed. No AWS, push, merge, deployment, Jobsearch or Mays-Orders mutation.
+Commits: ce9ef29, 006876d, 22d09fe
+Open external OIs: OI-07 session transfer, OI-08 BFF/delegation, OI-09 retention/backup governance, OI-10 live ris-dev evidence. Handoff is integration-review ready, not deployment-authorized.
+Reports: docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-03A-OWNERSHIP.md; docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-03B-CONCURRENCY-ERASURE.md; docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-03C-REGRESSION.md; docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-03D-INTEGRATION-GATES.md; docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-03E-PR-READINESS.md; docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-03-ABSCHLUSS.md
+
+[RIS-JOBSEARCH-APPLICATION-CONSOLIDATION-01]
+Status: FINAL TECHNICAL REVIEW PASS — PR #4 OPEN — MAIN MERGE AND DEPLOYMENT BLOCKED
+Date: 2026-11-03
+Branch feature/ris-jobsearch-application-ext-01 at final HEAD 3c5a9059313599c8d850df5bd136dd5be7bee535; origin/main remains 37782f8462f515e0d860ba1ba64e976c7e14b8b9 and merge-base is unchanged. Branch was published without force-push and PR #4 was created against main: https://github.com/maynowak/Mays-Recruiting-Intelligence-System/pull/4. GitHub reports state open, mergeable true, mergeable_state clean and zero registered check runs at review time. ApplicationV1: 48 passed / 0 skipped; API/Security/Privacy: 65 passed / 301 API subtests. Full suite remains 2300 passed / 27 Windows-CLI-or-unrelated failures / 56 skipped, with no RIS ApplicationV1 regression. Terraform validate passed offline and targeted RIS format passed; recursive format is NOT PASS because of the existing unrelated installer/projects/mays_order_builder/terraform/main.tf finding. OI-07 through OI-10 remain open. No AWS, deployment, Apply/Destroy, Cognito, CloudFront, DNS, Jobsearch or Mays-Orders mutation.
+Report: docs/reports/RIS-JOBSEARCH-APPLICATION-CONSOLIDATION-01.md
+
+[RIS-JOBSEARCH-APPLICATION-GAP05-CONSOLIDATION-02]
+Status: GAP-05 MERGE-GO — HISTORICAL STORAGE LIVE VERIFIED, APPLICATIONV1 OWNERSHIP VERIFIED LOCAL, COMBINED INTEGRATION OPEN
+Date: 2026-11-04
+GATE-14 report `docs/reports/GATE-14-SECURE-CV-STORAGE-01.md` at commit `2fb346e` is accepted as historical live evidence for the unchanged CV/S3 foundation only: synthetic two-tenant upload/download byte roundtrip, delete-to-404, foreign-tenant denial, private/encrypted/PAB storage, IAM and cleanup. ORCH-03A at `ce9ef29` and local ApplicationV1 tests verify configured ownership, documentId matching, user/tenant/partner/issuer isolation, metadata-only persistence and fail-closed missing ProfileRepository behavior. The combined configured ProfileRepository/ApplicationV1 HTTP/export chain remains partial/open and is not claimed as live. Reconciliation report: `docs/reports/RIS-JOBSEARCH-APPLICATION-GAP05-EVIDENCE-RECONCILIATION-02.md`. Local reconciliation suite: 95 passed / 301 API subtests; OpenAPI parse, compile and diff-check passed. Terraform was environment-blocked in the current invocation by Windows application-control policy; prior offline validation remains historical evidence. No AWS, deployment, Jobsearch, Mays-Orders, Cognito, CloudFront or DNS mutation.
+[RIS-JOBSEARCH-APPLICATION-GAP05-CONSOLIDATION-02-POST-MERGE]
+Status: MERGED — GAP-05 CODE MERGE-GO COMPLETED; LIVE INTEGRATION REMAINS OPEN
+Date: 2026-11-04
+PR #4 merged normally (not squash) into main with merge commit `3b05ab3ea87b25e2a034710bd4f479e0c25596a7`. Feature tip was `d27f0c3f1740bfd34eaecc169db63f3c7d3afa7d`; post-merge documentation commit `bd8267b96d61f5cb73b149dda767b12370593145` is now the current local/origin main HEAD. GAP-05 reconciliation report is `docs/reports/RIS-JOBSEARCH-APPLICATION-GAP05-EVIDENCE-RECONCILIATION-02.md`: GATE-14 is historical live CV/S3 foundation evidence, ORCH-03A is local ApplicationV1 ownership evidence, and combined ProfileRepository/ApplicationV1 HTTP/export evidence remains open. OI-07 through OI-10 remain open. Deployment remains BLOCKED. No AWS, deployment, Apply/Destroy, Cognito, CloudFront, DNS, Jobsearch or Mays-Orders mutation.

@@ -31,7 +31,8 @@ class ApplicationErasureExecutor:
     def run(self, context: ApplicationContext, *, cursor: dict[str, Any] | None = None,
             limit: int = 25) -> ApplicationErasureProgress:
         context.validate()
-        items, next_cursor = self.repository.list(context, limit=limit, cursor=cursor)
+        items, next_cursor = self.repository.list(
+            context, limit=limit, cursor=cursor, include_deleting=True)
         deleted = 0
         for item in items:
             try:

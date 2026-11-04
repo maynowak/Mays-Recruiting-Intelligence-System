@@ -102,6 +102,7 @@ class ApplicationE2EHarnessTests(unittest.TestCase):
         created = self.harness.create(1, idempotency_key="synthetic-idem-1")
         app_id = created["applicationId"]
         self.assertEqual("DRAFT", created["status"])
+        self.assertEqual("draft", created["stage"])
         self.assertEqual(1, created["version"])
         self.assertEqual(created, self.harness.repository.get(app_id, ctx))
 
@@ -116,18 +117,27 @@ class ApplicationE2EHarnessTests(unittest.TestCase):
         )
         self.assertEqual("synthetic-note", history["event"]["type"])
         letter = self.harness.repository.add_cover_letter(
-            app_id, "Synthetic cover letter only.", 3, ctx
+            app_id, "Synthetic cover letter only.", 4, ctx
+        )
+        structured_letter = self.harness.repository.add_cover_letter(
+            app_id,
+            {"jobId": "synthetic-job-updated-1", "content": "Generated draft", "source": "generated", "language": "en", "model": "test-model"},
+            5,
+            ctx,
         )
         exported = self.harness.repository.export(app_id, ctx)
         self.assertEqual(app_id, exported["application"]["applicationId"])
         # READY transition and the explicit history event are both retained.
         self.assertEqual(2, len(exported["history"]))
         self.assertEqual(letter["versionId"], exported["coverLetterVersions"][0]["versionId"])
+        self.assertEqual(structured_letter["versionId"], exported["coverLetterVersions"][1]["versionId"])
+        for identity_field in ("userId", "tenantId", "partnerApplicationId", "issuer"):
+            self.assertNotIn(identity_field, exported["application"])
         raw = json.dumps(exported, sort_keys=True, default=str)
         for forbidden in ("ownerKey", "credential", "Authorization", "Bearer", "secret"):
             self.assertNotIn(forbidden, raw)
 
-        self.harness.repository.delete(app_id, 3, ctx)
+        self.harness.repository.delete(app_id, 6, ctx)
         with self.assertRaises(ApplicationNotFound):
             self.harness.repository.get(app_id, ctx)
         items, _ = self.harness.repository.list(ctx)
@@ -146,6 +156,130 @@ class ApplicationE2EHarnessTests(unittest.TestCase):
             self.harness.repository.patch(
                 app_id, {"job": {"jobId": "synthetic-job-2b"}, "expectedVersion": 2}, ctx
             )
+
+    def test_details_follow_up_lifecycle_and_stale_delete_are_versioned(self):
+        ctx = self.harness.context()
+        app_id = self.harness.create(40)["applicationId"]
+        detailed = self.harness.repository.patch(app_id, {
+            "applicationDate": "2026-11-03T10:00:00Z",
+            "applicationChannel": "email",
+            "contact": {"name": "Contact", "email": "contact@example.test"},
+            "notes": "Initial note",
+            "salary": {"expectation": {"amount": 80000, "currency": "EUR", "period": "year"}},
+            "followUp": {"dueOn": "2026-11-10", "note": "Reminder", "status": "open"},
+            "expectedVersion": 1,
+        }, ctx)
+        self.assertEqual("draft", detailed["stage"])
+        self.assertEqual("open", detailed["followUp"]["status"])
+        completed = self.harness.repository.patch(app_id, {
+            "followUp": {"dueOn": "2026-11-10", "note": "Reminder", "status": "completed", "completedAt": "2026-11-03T11:00:00Z"},
+            "expectedVersion": 2,
+        }, ctx)
+        self.assertEqual("completed", completed["followUp"]["status"])
+        reopened = self.harness.repository.patch(app_id, {
+            "followUp": {"dueOn": "2026-11-10", "note": "Reminder", "status": "open"},
+            "expectedVersion": 3,
+        }, ctx)
+        self.assertNotIn("completedAt", reopened["followUp"])
+        removed = self.harness.repository.patch(app_id, {"followUp": None, "expectedVersion": 4}, ctx)
+        self.assertNotIn("followUp", removed)
+        with self.assertRaisesRegex(ApplicationConflict, "VERSION_CONFLICT"):
+            self.harness.repository.delete(app_id, 4, ctx)
+        self.harness.repository.delete(app_id, 5, ctx)
+
+    def test_metrics_runtime_traverses_owner_scoped_moto_pages(self):
+        ctx = self.harness.context()
+        draft = self.harness.create(41)
+        submitted = self.harness.create(42)
+        interview = self.harness.create(43)
+        self.harness.repository.status(submitted["applicationId"], "READY", 1, False, ctx)
+        self.harness.repository.status(submitted["applicationId"], "SUBMITTED", 2, True, ctx)
+        self.harness.repository.status(interview["applicationId"], "READY", 1, False, ctx)
+        self.harness.repository.status(interview["applicationId"], "SUBMITTED", 2, True, ctx)
+        self.harness.repository.status(interview["applicationId"], "interview", 3, False, ctx)
+        self.harness.repository.patch(interview["applicationId"], {
+            "followUp": {"dueOn": "2000-01-01", "status": "open"},
+            "expectedVersion": 4,
+        }, ctx)
+        metrics = self.harness.repository.metrics(ctx)
+        self.assertEqual(3, metrics["total"])
+        self.assertEqual(1, metrics["drafts"])
+        self.assertEqual(1, metrics["submitted"])
+        self.assertEqual(1, metrics["interviews"])
+        self.assertEqual(1, metrics["openFollowUps"])
+        self.assertEqual(1, metrics["overdueFollowUps"])
+
+    def test_delete_cleans_idempotency_record_for_reuse(self):
+        ctx = self.harness.context()
+        first = self.harness.create(44, idempotency_key="reusable-key")
+        self.harness.repository.delete(first["applicationId"], 1, ctx)
+        second = self.harness.create(45, idempotency_key="reusable-key")
+        self.assertNotEqual(first["applicationId"], second["applicationId"])
+        self.harness.repository.delete(second["applicationId"], 1, ctx)
+
+    def test_multi_batch_delete_resumes_after_intermediate_failure(self):
+        ctx = self.harness.context()
+        app = self.harness.create(46)
+        version = 1
+        for sequence in range(105):
+            self.harness.repository.add_history(app["applicationId"], {"type": "note", "sequence": sequence}, version, ctx)
+            version += 1
+        repo = self.harness.repository
+        original_transact = repo._transact
+        calls = {"count": 0}
+
+        def fail_on_second_batch(items):
+            calls["count"] += 1
+            if calls["count"] == 2:
+                raise RuntimeError("synthetic batch failure")
+            return original_transact(items)
+
+        repo._transact = fail_on_second_batch
+        with self.assertRaisesRegex(ApplicationConflict, "VERSION_CONFLICT"):
+            repo.delete(app["applicationId"], version, ctx)
+        repo._transact = original_transact
+        repo.delete(app["applicationId"], version, ctx)
+        with self.assertRaises(ApplicationNotFound):
+            repo.get(app["applicationId"], ctx)
+
+    def test_erasure_executor_sees_marked_application_after_partial_failure(self):
+        ctx = self.harness.context()
+        app = self.harness.create(47)
+        repo = self.harness.repository
+        original_transact = repo._transact
+        failed = {"value": False}
+
+        def fail_once(items):
+            if not failed["value"]:
+                failed["value"] = True
+                raise RuntimeError("synthetic erasure failure")
+            return original_transact(items)
+
+        repo._transact = fail_once
+        from agents.ecosystem.privacy_application_erasure import ApplicationErasureExecutor
+        progress = ApplicationErasureExecutor(repo).run(ctx, limit=10)
+        self.assertTrue(progress.pending)
+        repo._transact = original_transact
+        resumed = ApplicationErasureExecutor(repo).run(ctx, cursor=progress.cursor, limit=10)
+        self.assertFalse(resumed.pending)
+        with self.assertRaises(ApplicationNotFound):
+            repo.get(app["applicationId"], ctx)
+
+    def test_jobsearch_stage_roundtrip_preserves_legacy_lifecycle_and_history(self):
+        ctx = self.harness.context()
+        app_id = self.harness.create(4)["applicationId"]
+        submitted = self.harness.repository.status(app_id, "submitted", 1, True, ctx, "confirmed send")
+        self.assertEqual("SUBMITTED", submitted["status"])
+        self.assertEqual("submitted", submitted["stage"])
+        feedback = self.harness.repository.status(app_id, "feedback", 2, False, ctx)
+        self.assertEqual("SUBMITTED", feedback["status"])
+        self.assertEqual("feedback", feedback["stage"])
+        exported = self.harness.repository.export(app_id, ctx)
+        transitions = exported["history"]
+        self.assertEqual("draft", transitions[-2]["fromStage"])
+        self.assertEqual("submitted", transitions[-2]["toStage"])
+        self.assertEqual("submitted", transitions[-1]["fromStage"])
+        self.assertEqual("feedback", transitions[-1]["toStage"])
 
     def test_idempotency_and_payload_conflict(self):
         first = self.harness.create(3, idempotency_key="synthetic-idem-3")

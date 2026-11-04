@@ -4,7 +4,7 @@ import unittest
 try:
     import boto3
     from moto import mock_aws
-    from jobsearch.application_contract import ApplicationContext
+    from jobsearch.application_contract import ApplicationContext, ApplicationContractError
     from jobsearch.application_repository import ApplicationRepository, ApplicationConflict
 except ImportError:  # pragma: no cover
     boto3 = None
@@ -13,6 +13,31 @@ except ImportError:  # pragma: no cover
 
 @unittest.skipUnless(boto3, "boto3/moto unavailable")
 class ApplicationRepositoryTests(unittest.TestCase):
+    def test_document_and_legacy_reference_ownership_is_fail_closed(self):
+        class Resource:
+            resource_type = "CVDocument"
+            cv_id = "cv-owned"
+            document_id = "doc-owned"
+
+        class Profiles:
+            def get(self, resource_id, user_id, tenant_id, partner_app_id, issuer):
+                if resource_id == "cv-owned" and user_id == "user-a" and tenant_id == "tenant-a":
+                    return Resource()
+                return None
+
+        repo = object.__new__(ApplicationRepository)
+        repo.profile_repository = Profiles()
+        ctx = ApplicationContext("user-a", "tenant-a", "partner-a", "issuer-a")
+        repo._verify_cv_reference({"cvId": "cv-owned", "documentId": "doc-owned"}, ctx)
+        repo._verify_legacy_reference({"id": "cv-owned", "version": 1}, "cvRef", ctx)
+        with self.assertRaisesRegex(ApplicationContractError, "not owned"):
+            repo._verify_cv_reference({"cvId": "cv-owned"}, ApplicationContext("user-b", "tenant-a", "partner-a", "issuer-a"))
+        with self.assertRaisesRegex(ApplicationContractError, "not owned"):
+            repo._verify_cv_reference({"cvId": "cv-owned", "documentId": "doc-other"}, ctx)
+        repo.profile_repository = None
+        with self.assertRaisesRegex(ApplicationContractError, "cannot be verified"):
+            repo._verify_cv_reference({"cvId": "cv-owned"}, ctx)
+
     @mock_aws
     def test_scoped_idempotent_create_and_versioned_status(self):
         os.environ["AWS_DEFAULT_REGION"] = "eu-central-1"
@@ -47,13 +72,15 @@ class ApplicationRepositoryTests(unittest.TestCase):
         ids = [repo.create({"job": {"jobId": f"job-{n}"}}, ctx)["applicationId"] for n in range(3)]
         page, key = repo.list(ctx, limit=2)
         self.assertEqual(2, len(page))
-        token = repo.issue_cursor(key, user_id="u1", tenant_id="t1", partner_app_id="p1", issuer="https://issuer", scope="applications", resource_type="ApplicationV1", limit=2)
-        second_key = repo.resolve_cursor(token, user_id="u1", tenant_id="t1", partner_app_id="p1", issuer="https://issuer", scope="applications", resource_type="ApplicationV1", limit=2)
+        token = repo.issue_cursor(key, user_id="u1", tenant_id="t1", partner_app_id="p1", issuer="https://issuer", scope="applications", resource_type="ApplicationV1", limit=2, stage_filter="draft")
+        second_key = repo.resolve_cursor(token, user_id="u1", tenant_id="t1", partner_app_id="p1", issuer="https://issuer", scope="applications", resource_type="ApplicationV1", limit=2, stage_filter="draft")
         self.assertEqual(key, second_key)
         with self.assertRaises(ValueError):
             repo.resolve_cursor(token[:-1] + "0", user_id="u1", tenant_id="t1", partner_app_id="p1", issuer="https://issuer", scope="applications", resource_type="ApplicationV1", limit=2)
         with self.assertRaises(ValueError):
             repo.resolve_cursor(token, user_id="u2", tenant_id="t1", partner_app_id="p1", issuer="https://issuer", scope="applications", resource_type="ApplicationV1", limit=2)
+        with self.assertRaises(ValueError):
+            repo.resolve_cursor(token, user_id="u1", tenant_id="t1", partner_app_id="p1", issuer="https://issuer", scope="applications", resource_type="ApplicationV1", limit=2, stage_filter="submitted")
         page2, _ = repo.list(ctx, limit=2, cursor=second_key)
         self.assertEqual(1, len(page2))
         for foreign in (
@@ -199,7 +226,8 @@ class ApplicationUserScopeTests(unittest.TestCase):
         ctx = ApplicationContext("u1", "t1", "p1", "https://a")
         app = repo.create({"job": {"jobId": "a"}}, ctx)
         repo.add_history(app["applicationId"], {"type": "note"}, 1, ctx)
-        repo.add_cover_letter(app["applicationId"], "hello", 1, ctx)
+        # add_history now increments the application version.
+        repo.add_cover_letter(app["applicationId"], "hello", 2, ctx)
         count, pending = repo.delete_all_for_user("t1", "u1")
         self.assertEqual((1, False), (count, pending))
         row = repo.table.query(KeyConditionExpression=boto3.dynamodb.conditions.Key("applicationId").eq(app["applicationId"]))

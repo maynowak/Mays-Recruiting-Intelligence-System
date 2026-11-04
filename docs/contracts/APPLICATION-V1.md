@@ -17,6 +17,7 @@ the existing RIS partner namespace:
 |---|---|
 | create | `POST /v1/partner/me/applications` |
 | list | `GET /v1/partner/me/applications` |
+| metrics | `GET /v1/partner/me/applications/metrics` |
 | read | `GET /v1/partner/me/applications/{applicationId}` |
 | patch | `PATCH /v1/partner/me/applications/{applicationId}` |
 | status | `POST /v1/partner/me/applications/{applicationId}/status` |
@@ -41,10 +42,18 @@ transition, history append, export and delete is scoped by all five values.
   "schemaVersion": 1,
   "applicationId": "server-generated",
   "job": { "jobId": "source-specific", "source": "provider", "title": "", "company": "", "location": "" },
-  "profileRef": { "profileId": "existing-profile-id", "version": 1 },
-  "cvRef": { "cvId": "existing-cv-id", "version": 1 },
+  "profileRef": { "id": "existing-profile-id", "version": 1 },
+  "cvRef": { "id": "existing-cv-id", "version": 1 },
   "coverLetterVersionIds": [],
   "status": "DRAFT",
+  "stage": "draft",
+  "applicationDate": "ISO-8601",
+  "applicationChannel": "email",
+  "contact": { "name": "", "email": "", "phone": "" },
+  "notes": "",
+  "salary": { "expectation": { "amount": 80000, "currency": "EUR", "period": "year" } },
+  "followUp": { "dueOn": "2026-11-10", "status": "open", "note": "" },
+  "documents": { "coverLetterDraft": "", "coverLetterVersions": [], "cvReference": { "cvId": "cv-1" }, "documentStatus": "draft" },
   "submittedAt": null,
   "version": 1,
   "createdAt": "ISO-8601",
@@ -52,9 +61,18 @@ transition, history append, export and delete is scoped by all five values.
 }
 ```
 
-Allowed statuses are `DRAFT`, `READY`, `SUBMITTED`, `WITHDRAWN`, and
-`ARCHIVED`. `SUBMITTED` requires an explicit `confirm: true` request field;
-there are no automatic model or agent calls.
+The legacy `status` remains `DRAFT`, `READY`, `SUBMITTED`, `WITHDRAWN`, or
+`ARCHIVED`. The additive optional `stage` carries the lossless Jobsearch values
+`draft`, `submitted`, `feedback`, `interview`, `offer`, `rejected`, and
+`withdrawn`. The status route accepts exactly one of `status` or `stage`;
+`SUBMITTED` and `stage: submitted` require explicit `confirm: true`. Existing
+legacy records are not automatically migrated.
+
+Details and follow-ups are accepted by create/PATCH. `null` removes an optional
+field; an omitted field is unchanged during PATCH. `followUp.dueOn` is a real
+`YYYY-MM-DD` calendar date, `completed` requires `completedAt`, and follow-up
+changes do not alter status or stage. Document references contain metadata only;
+CV ownership is checked through the existing partner-profile repository.
 
 History and cover-letter versions contain metadata/text supplied explicitly by
 the authenticated client. CV raw bytes, access tokens, credentials and
@@ -67,8 +85,12 @@ presigned URLs are never stored in an application item.
 - Updates require `expectedVersion`; stale writes return `409 VERSION_CONFLICT`.
 - Status changes validate the state machine and append a history event in one
   DynamoDB transaction where supported.
+- Status/stage filters are mutually exclusive and signed into pagination
+  cursors.
 - Pagination uses a signed, scope-bound cursor; arbitrary DynamoDB keys are
   not accepted from clients.
+- `GET /v1/partner/me/applications/metrics` computes owner-scoped counts across
+  all list pages and is not a first-page approximation.
 - Foreign, missing, or cross-issuer IDs return the same `404 NOT_FOUND` shape
   to avoid resource enumeration.
 
