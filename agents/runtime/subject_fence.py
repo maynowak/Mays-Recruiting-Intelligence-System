@@ -53,7 +53,7 @@ def fence_item(*, user_id: str, tenant_id: str,
 def assert_fence_clear(table, *, user_id: str, tenant_id: str,
                        partner_application_id: str = "", issuer: str = None) -> None:
     try:
-        item = table.get_item(Key={"fenceKey": subject_fence_key(
+        item = table.get_item(Key={"workId": subject_fence_key(
             user_id=user_id, tenant_id=tenant_id,
             partner_application_id=partner_application_id, issuer=issuer or "")}).get("Item")
     except Exception as exc:

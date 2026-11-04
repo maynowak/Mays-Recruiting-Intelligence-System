@@ -17,7 +17,9 @@ class Table:
     def get_item(self, Key):
         if self.error:
             raise self.error
-        return {"Item": self.item} if self.item else {}
+        if self.item and Key.get("workId") == self.item.get("workId"):
+            return {"Item": self.item}
+        return {}
 
 
 def test_fence_key_is_stable_and_scope_bound():
@@ -33,8 +35,10 @@ def test_active_fence_blocks_admission():
 
 
 def test_corrupt_or_unavailable_fence_fails_closed():
+    corrupt = {"workId": subject_fence_key(user_id="u", tenant_id="t"),
+               "resourceType": "wrong", "schemaVersion": "1"}
     with pytest.raises(SubjectFenceUnavailable):
-        assert_fence_clear(Table({"workId": "wrong"}), user_id="u", tenant_id="t")
+        assert_fence_clear(Table(corrupt), user_id="u", tenant_id="t")
     with pytest.raises(SubjectFenceUnavailable):
         assert_fence_clear(Table(error=RuntimeError("store down")),
                            user_id="u", tenant_id="t")
