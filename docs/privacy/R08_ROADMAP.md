@@ -113,3 +113,9 @@ full-suite environment/legacy failures; no push, PR, merge, deployment, or
 Apply occurred. Gate B remains NO-GO.
 
 **RECOVERY-PREFLIGHT-12 (2026-11-04):** A disabled-by-default durable deletion-ledger repository, separate ledger table, scoped IAM and opt-in PITR configuration were locally implemented. The controlled review plan is 3 CREATE / 7 UPDATE / 0 DELETE / 0 REPLACE; Health actions remain absent. Local evidence is verified, but PITR activation, restore, reconciliation, migration, live SQS/DLQ and synthetic E2E remain blocked.
+
+**DEPLOYMENT-APPROVAL-13 (2026-11-04):** A fresh plan against the canonical
+DEV2 state reconfirmed the exact ten-resource scope: 3 CREATE / 7 UPDATE /
+0 DELETE / 0 REPLACE. The approval handoff remains BLOCKED because PITR,
+restore, migration, live queue safety and synthetic E2E/cleanup evidence are
+not complete. Gate B remains NO-GO.

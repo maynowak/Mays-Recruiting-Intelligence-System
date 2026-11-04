@@ -33,3 +33,8 @@ durable ledger, restore/reconciliation, live SQS/DLQ and synthetic E2E gates
 remain open; Gate B remains NO-GO.
 
 Phase-12 adds local durable-ledger/Moto evidence and an opt-in PITR plan. It does not add live restore, replay, retention, migration, SQS/DLQ or synthetic E2E evidence. RG-10 remains BLOCKED/RED, and Gate B remains NO-GO.
+
+Deployment-Approval-13 independently refreshed the backend and plan. The
+ten-resource scope remains free of deletes/replacements and protected-resource
+actions, but the missing live recovery, queue, migration, legal and synthetic
+cleanup evidence prevents approval. RG-10, RG-11 and Gate B remain blocked.

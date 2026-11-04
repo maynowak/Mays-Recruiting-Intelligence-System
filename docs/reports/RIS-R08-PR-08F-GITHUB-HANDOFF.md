@@ -34,3 +34,7 @@ Health actions), but concludes `DEV2 TEST DEPLOYMENT: BLOCKED`; it does not
 alter PR merge, Apply, deployment or production boundaries.
 
 Phase-12 is a later local-only change set: commits `3da8bdb` and `f0661b4` remain unpushed. Its reviewed plan is 3 CREATE / 7 UPDATE / 0 DELETE / 0 REPLACE, with no protected-resource actions. No PR modification, push or merge is authorized.
+
+Deployment-Approval-13 adds local-only approval evidence and a fresh plan
+register. The result is `DEV2 TEST DEPLOYMENT: BLOCKED`; no push, PR change,
+merge, Apply or deployment is authorized.

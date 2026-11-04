@@ -46,3 +46,9 @@ performed in this mission.
 ## Phase-12 reconciliation
 
 Phase 12 adds disabled-by-default PITR/ledger infrastructure and local restore evidence. The controlled review plan is 3 CREATE, 7 UPDATE, 0 DELETE, 0 REPLACE; Health-Lambda actions remain absent. DEV2 deployment remains BLOCKED and Gate B remains NO-GO.
+
+Deployment-Approval-13 refreshed the canonical state and generated a new
+review-only plan. State is serial 25 with 181 resources; the historical
+serial-17/zero-resource architecture note is stale and does not describe the
+current backend object. The exact ten-resource plan remains reviewable, but
+not approved for Apply.
