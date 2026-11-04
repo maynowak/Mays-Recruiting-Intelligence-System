@@ -36,8 +36,10 @@ GATE B: NO-GO FOR APPLY
 
 ## Test evidence
 
-- R08 privacy/erasure/receipt/API focused suite: **165 passed, 6 skipped**.
-- Application/API/privacy hardening subset: **79 passed, 301 API subtests**.
+- Combined R08/Application/API/privacy/erasure suite: **232 passed, 6 skipped,
+  301 API subtests**.
+- Earlier isolated hardening subsets: **79 passed, 301 API subtests** and
+  **165 passed, 6 skipped**.
 - Python compilation and `git diff --check`: **PASS**.
 - OpenAPI parse: **PASS**.
 - Skips are environment/dependency-gated and remain visible.
