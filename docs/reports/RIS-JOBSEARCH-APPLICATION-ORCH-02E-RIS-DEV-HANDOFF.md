@@ -15,7 +15,7 @@ or production rollout.
 | Details/PATCH | 48 ApplicationV1 tests; date, channel, contact, notes, salary, nullable PATCH and versions | Run authenticated API matrix |
 | Follow-ups | Moto lifecycle, UTC overdue, nullable update and stale-version tests | Verify timezone and UI mapping |
 | Metrics/pagination | Owner-scoped all-page algorithm, signed cursor and Moto metrics test | Verify scale, latency and concurrent mutation behavior |
-| Documents | Metadata-only documents, cover-letter versions, configured CV/profile ownership and documentId checks | Verify CV/profile fixture ownership, export shape and live object lifecycle |
+| Documents | GATE-14 historical CV/S3 live foundation; ApplicationV1 metadata-only documents, cover-letter versions, configured CV/profile ownership and documentId checks | Verify the new ApplicationV1 reference chain with a configured ProfileRepository fixture, authenticated HTTP/export and live object lifecycle |
 | Security | 18 boundary/privacy tests | Verify real JWT/partner credential isolation |
 | Delete/erasure | IN_PROGRESS marker, 100-action resumable batches, stale-delete guard, idempotency cleanup and executor resume test | Approve retention, backup/PITR semantics and user-visible erasure receipt |
 | Session transfer | No route implemented | Separate design/approval required |
@@ -45,3 +45,18 @@ Ownership for these gates is RIS-DEV/platform/privacy, not this local branch.
 
 Until each row has its named evidence and approval, the corresponding OI is
 OPEN and deployment remains BLOCKED.
+
+## GAP-05 evidence boundary
+
+`docs/reports/GATE-14-SECURE-CV-STORAGE-01.md` (commit `2fb346e`) is accepted
+as **LIVE VERIFIED HISTORICAL** evidence for the unchanged CV/S3 foundation:
+synthetic upload, byte-identical download, deletion, tenant isolation, private
+storage, encryption, public-access blocking, IAM and cleanup. It is not claimed
+as an ApplicationV1 live-reference test.
+
+`docs/reports/RIS-JOBSEARCH-APPLICATION-ORCH-03A-OWNERSHIP.md` (commit
+`ce9ef29`) is **VERIFIED LOCAL** evidence for ApplicationV1 ownership,
+documentId matching, tenant/partner/issuer isolation and fail-closed missing
+repository behavior. The combined configured ProfileRepository/ApplicationV1
+HTTP/export chain remains **PARTIAL / OPEN** and is tracked in
+`docs/reports/RIS-JOBSEARCH-APPLICATION-GAP05-EVIDENCE-RECONCILIATION-02.md`.
