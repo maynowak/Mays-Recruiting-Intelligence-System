@@ -59,6 +59,9 @@ ERASURE_CATEGORIES = (
     "privacyReceipts",
 )
 
+# Non-serializable capability reserved for the existing synthetic C1B fixture.
+LOCAL_SYNTHETIC_COMPLETION_TOKEN = object()
+
 _STATUS_TRANSITIONS = {
     STATUS_PENDING: frozenset({STATUS_RUNNING, STATUS_FAILED}),
     STATUS_RUNNING: frozenset({STATUS_RUNNING, STATUS_PARTIAL,
@@ -343,7 +346,8 @@ class ErasureOperationV1:
 
     def transition(self, target: str, *, now: str,
                    error_code: Optional[str] = None,
-                   required_categories: Optional[Iterable[str]] = None) -> "ErasureOperationV1":
+                   required_categories: Optional[Iterable[str]] = None,
+                   completion_token: object | None = None) -> "ErasureOperationV1":
         if target not in OPERATION_STATUSES or not self.can_transition_to(target):
             raise ErasureContractError("INVALID_STATUS_TRANSITION", "%s -> %s is not allowed" % (self.status, target))
         if target in (STATUS_PARTIAL, STATUS_FAILED) and not error_code:
@@ -358,6 +362,10 @@ class ErasureOperationV1:
                 raise ErasureContractError(
                     "INCOMPLETE_OPERATION",
                     "cannot complete without evidence for every required category")
+            if required != set(ERASURE_CATEGORIES) and completion_token is not LOCAL_SYNTHETIC_COMPLETION_TOKEN:
+                raise ErasureContractError(
+                    "UNAUTHORIZED_COMPLETION_SCOPE",
+                    "reduced completion scope is local synthetic only")
             if any(item.status not in (PROGRESS_COMPLETED, PROGRESS_SKIPPED)
                    for item in self.progress.values()):
                 raise ErasureContractError("INCOMPLETE_OPERATION", "cannot complete incomplete operation")

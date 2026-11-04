@@ -24,6 +24,7 @@ from agents.ecosystem.privacy_erasure_contract import (
     PROGRESS_PARTIAL,
     PROGRESS_SKIPPED,
     STATUS_COMPLETED,
+    LOCAL_SYNTHETIC_COMPLETION_TOKEN,
     STATUS_PARTIAL,
     STATUS_RUNNING,
 )
@@ -323,7 +324,8 @@ class DocumentErasureIntegration:
                     now=operation.updated_at or operation.created_at,
                     # This executor is an explicit synthetic local fixture;
                     # normal/runtime operations use the full required set.
-                    required_categories=operation.progress.keys())
+                    required_categories=operation.progress.keys(),
+                    completion_token=LOCAL_SYNTHETIC_COMPLETION_TOKEN)
                 operation = self.operations.update(
                     completed, expected_version=operation.version,
                     context=self._scope_context(operation))
