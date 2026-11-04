@@ -15,6 +15,11 @@ implemented and tested. Durable deletion-ledger persistence, actual PITR/
 restore, live SQS/DLQ/redrive evidence and production activation remain
 BLOCKED; no retention period was approved.
 
+**SECURITY-FINAL-REVIEW-06 (2026-11-04):** Worker fence, retry CAS, terminal
+failure handling, API cache headers and local ApplicationV1 resume contracts
+are locally verified. Public `/me/erasure` still lacks ApplicationV1 executor
+wiring; PR readiness and production remain BLOCKED. Gate B remains NO-GO.
+
 ## R08-A — User evidence journal
 
 ### R08-A1 — Durable journal repository (COMPLETE)

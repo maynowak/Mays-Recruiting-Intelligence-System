@@ -16,3 +16,8 @@
 | Deployment | Production or `ris-dev` apply | No activation | N/A | Gate B NO-GO | None | NO-GO | Multiple mandatory gates | Release owner |
 
 **Gate B remains NO-GO for Apply.**
+
+SECURITY-FINAL-REVIEW-06 adds a release blocker: the public `/me/erasure`
+handler does not invoke the ApplicationV1 erasure executor. Local runtime and
+Terraform source checks do not establish complete public erasure or production
+deployment.
