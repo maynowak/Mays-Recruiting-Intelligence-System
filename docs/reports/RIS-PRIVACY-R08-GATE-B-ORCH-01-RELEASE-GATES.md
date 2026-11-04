@@ -31,3 +31,5 @@ DEV2 Plan-Unblock-11 reclassified the lock records as non-active digest caches
 and removed unrelated Health artifact actions from the local plan. PITR,
 durable ledger, restore/reconciliation, live SQS/DLQ and synthetic E2E gates
 remain open; Gate B remains NO-GO.
+
+Phase-12 adds local durable-ledger/Moto evidence and an opt-in PITR plan. It does not add live restore, replay, retention, migration, SQS/DLQ or synthetic E2E evidence. RG-10 remains BLOCKED/RED, and Gate B remains NO-GO.

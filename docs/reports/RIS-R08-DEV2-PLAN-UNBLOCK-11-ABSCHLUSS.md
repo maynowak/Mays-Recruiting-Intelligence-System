@@ -42,3 +42,7 @@ wait for explicit PITR/recovery, live SQS/DLQ, synthetic identity/data-isolation
 cleanup and Apply authorizations. No AWS write, Apply/Destroy, state mutation,
 Lambda deployment, queue operation, restore, E2E call, push or PR change was
 performed in this mission.
+
+## Phase-12 reconciliation
+
+Phase 12 adds disabled-by-default PITR/ledger infrastructure and local restore evidence. The controlled review plan is 3 CREATE, 7 UPDATE, 0 DELETE, 0 REPLACE; Health-Lambda actions remain absent. DEV2 deployment remains BLOCKED and Gate B remains NO-GO.

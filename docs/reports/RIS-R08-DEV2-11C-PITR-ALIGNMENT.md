@@ -34,3 +34,7 @@ data available after restore without a durable replay authority.
 
 **PITR CONFIGURATION: BLOCKED / SEPARATE APPROVAL REQUIRED.** RG-10 remains
 RED/BLOCKED.
+
+## Phase-12 update
+
+Terraform now contains opt-in `r08_pitr_enabled=false` default for five R08 coordination tables and the separate deletion-ledger table. The review plan shows in-place PITR updates plus new ledger resources; no table replacement or deletion. This is configuration evidence, not activation, restore evidence, retention approval or erasure compliance.
