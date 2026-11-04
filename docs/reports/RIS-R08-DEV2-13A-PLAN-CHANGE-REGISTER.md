@@ -5,6 +5,9 @@ DEV2 backend with `r08_pitr_enabled=true`. Current state: serial 25, lineage
 `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, 181 resources. Plan result:
 **3 CREATE, 7 UPDATE, 0 DELETE, 0 REPLACE**.
 
+Saved plan SHA-256: `F37F9BF2A31D4A36B9797B6997AB321F0FABEA3F50EF30809D42E1AC63D42D45`.
+The plan is temporary review evidence and was not applied.
+
 | Terraform address | Action | Purpose | Before / after | Risk | Approval |
 |---|---|---|---|---|---|
 | `module.api.aws_apigatewayv2_route.applications_metrics` | CREATE | `GET /v1/partner/me/applications/metrics` to existing integration | absent -> JWT route on API `8apxb6fgne` | API exposure/contract review | separate approval |

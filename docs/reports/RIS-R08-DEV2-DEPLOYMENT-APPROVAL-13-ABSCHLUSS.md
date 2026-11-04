@@ -23,6 +23,10 @@ references provide dependency ordering for table/IAM/Lambda wiring, but not a
 transactional business cutover. Existing queue mappings remain and old
 messages have no live safety evidence.
 
+The temporary plan hash is recorded in 13A for a future maintainer to compare
+before any separately authorized Apply. A new plan is required after any
+configuration, state or bundle change.
+
 Final decision: **DEV2 TEST DEPLOYMENT: BLOCKED**. This is not an Apply
 authorization. No Apply, deployment, PITR activation, restore, mutating E2E,
 push or PR modification occurred.
