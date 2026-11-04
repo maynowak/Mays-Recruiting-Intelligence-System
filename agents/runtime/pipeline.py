@@ -323,6 +323,42 @@ def _ddb_client_item(value: Dict[str, Any]) -> Dict[str, Any]:
     return {key: serializer.serialize(item) for key, item in value.items()}
 
 
+def _final_fence_admission(table: Any, fence_table: Any,
+                           work: Dict[str, Any], attempt: int) -> None:
+    """Atomically re-check the subject fence immediately before execution."""
+    client = getattr(getattr(fence_table, "meta", None), "client", None)
+    table_name = getattr(fence_table, "name", None)
+    if client is None or not table_name:
+        raise SubjectFenceUnavailable("subject fence transaction is unavailable")
+    user_id = work.get("userId") or work.get("requestedBy") or ""
+    tenant_id = work.get("tenantId") or ""
+    fence_key = subject_fence_key(
+        user_id=user_id, tenant_id=tenant_id,
+        partner_application_id=work.get("partnerApplicationId", ""),
+        issuer=work.get("issuer", ""))
+    try:
+        client.transact_write_items(TransactItems=[
+            {"ConditionCheck": {
+                "TableName": table_name,
+                "Key": {"workId": {"S": fence_key}},
+                "ConditionExpression": "attribute_not_exists(workId)",
+            }},
+            {"Update": {
+                "TableName": table_name,
+                "Key": {"workId": {"S": work["workId"]}},
+                "UpdateExpression": "SET updatedAt = :updated",
+                "ConditionExpression": "#status = :running AND attempt_no = :attempt",
+                "ExpressionAttributeNames": {"#status": "status"},
+                "ExpressionAttributeValues": _ddb_client_item({
+                    ":updated": _utcnow(), ":running": "RUNNING", ":attempt": attempt}),
+            }},
+        ])
+    except Exception as exc:
+        if _is_conditional_failed(exc):
+            raise SubjectFenceBlocked("subject is fenced or execution lease is stale") from exc
+        raise SubjectFenceUnavailable("subject fence admission failed") from exc
+
+
 def _persist_result(table: Any, work_id: str, attempt: int, result: Dict[str, Any]) -> None:
     table.update_item(
         Key={"workId": work_id},
@@ -573,6 +609,8 @@ def process_record(
                 "duplicate": True, "suppressed": True, "attempt_no": attempt}
     if erasure_admission is not None:
         erasure_admission(work, "before_execution")
+    if require_subject_fence:
+        _final_fence_admission(table, subject_fence_table, work, attempt)
 
     engine = ExecutionEngine(agent_body=body)
     try:

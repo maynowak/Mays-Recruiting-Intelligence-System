@@ -94,16 +94,27 @@ class TransactionalFenceTable(FakeTable):
         def transact_write_items(self, TransactItems):
             check = TransactItems[0]["ConditionCheck"]
             key = check["Key"]["workId"]["S"]
-            put = TransactItems[1]["Put"]
-            work_id = put["Item"]["workId"]["S"]
-            if key in self.table.items or work_id in self.table.items:
+            put = TransactItems[1].get("Put")
+            update = TransactItems[1].get("Update")
+            work_id = (put["Item"]["workId"]["S"] if put
+                       else update["Key"]["workId"]["S"])
+            if key in self.table.items:
                 raise FakeTable.ConditionalFailed()
-            from boto3.dynamodb.types import TypeDeserializer
-            deserialize = TypeDeserializer()
-            self.table.items[work_id] = {
-                name: deserialize.deserialize(value)
-                for name, value in put["Item"].items()
-            }
+            if work_id in self.table.items and not update:
+                raise FakeTable.ConditionalFailed()
+            if put:
+                from boto3.dynamodb.types import TypeDeserializer
+                deserialize = TypeDeserializer()
+                self.table.items[work_id] = {
+                    name: deserialize.deserialize(value)
+                    for name, value in put["Item"].items()
+                }
+            else:
+                from boto3.dynamodb.types import TypeDeserializer
+                deserialize = TypeDeserializer()
+                item = self.table.items[work_id]
+                item["updatedAt"] = deserialize.deserialize(
+                    update["ExpressionAttributeValues"][":updated"])
 
     def __init__(self):
         super().__init__()
