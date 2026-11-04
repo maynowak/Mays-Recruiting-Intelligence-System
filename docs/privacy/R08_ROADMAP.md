@@ -17,8 +17,9 @@ BLOCKED; no retention period was approved.
 
 **SECURITY-FINAL-REVIEW-06 (2026-11-04):** Worker fence, retry CAS, terminal
 failure handling, API cache headers and local ApplicationV1 resume contracts
-are locally verified. Public `/me/erasure` still lacks ApplicationV1 executor
-wiring; PR readiness and production remain BLOCKED. Gate B remains NO-GO.
+are locally verified. SECURITY-07 wires the existing ApplicationV1 executor
+into public `/me/erasure`; PR readiness and production remain BLOCKED by live
+and legal gates. Gate B remains NO-GO.
 
 ## R08-A — User evidence journal
 
