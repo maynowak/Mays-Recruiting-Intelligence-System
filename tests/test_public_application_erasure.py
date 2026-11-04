@@ -23,6 +23,7 @@ def _event():
             "sub": "user-1", "custom:tenant_id": "tenant-1",
             "custom:partner_application_id": "partner-1",
             "iss": "https://issuer.example", "token_use": "access",
+            "client_id": "client-1",
         }}}},
     }
 
@@ -59,12 +60,17 @@ def test_public_erasure_constructs_application_executor(monkeypatch):
     import agents.ecosystem.credentials as credentials
     import agents.ecosystem.api_profiles as profiles
     import agents.ecosystem.privacy_application_erasure as app_erasure
+    import agents.ecosystem.partner_registry as partner_registry
     import jobsearch.application_repository as app_repo
     monkeypatch.setattr(legacy, "PrivacyErasure", Erasure)
     monkeypatch.setattr(credentials, "DynamoDBCredentialStore", Store)
     monkeypatch.setattr(profiles, "DynamoDBApiProfileStore", Store)
     monkeypatch.setattr(app_erasure, "ApplicationErasureExecutor", ApplicationExecutor)
     monkeypatch.setattr(app_repo, "ApplicationRepository", ApplicationRepository)
+    monkeypatch.setattr(partner_registry, "resolve_partner_application",
+                        lambda client_id: {"applicationId": "partner-1",
+                                           "tenantId": "tenant-1",
+                                           "status": "ACTIVE"})
 
     response = handler.handler(_event(), None)
     assert response["statusCode"] == 200

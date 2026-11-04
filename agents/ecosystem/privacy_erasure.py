@@ -219,11 +219,14 @@ class PrivacyErasure:
         return result
 
     def _erase_applications(self, result: ErasureResult) -> StepResult:
-        if self.application_erasure is None or self.application_context is None:
+        if self.application_erasure is None:
             # Legacy injected unit fixtures do not model ApplicationV1. The
             # public handler is fail-closed before construction and always
             # supplies this collaborator when ApplicationV1 is in scope.
             return StepResult("erase-applications", True, 0)
+        if self.application_context is None:
+            return StepResult("erase-applications", False, 0,
+                              "APPLICATION_AUTHORIZATION_CONTEXT_UNAVAILABLE")
         try:
             if (getattr(self.application_context, "user_id", None) != result.user_id
                     or getattr(self.application_context, "tenant_id", None) != result.tenant_id):

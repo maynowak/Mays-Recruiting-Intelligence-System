@@ -1275,6 +1275,7 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         from agents.ecosystem.privacy_erasure import (
             PrivacyErasure, ErasureExecutionUnavailable)
         from agents.ecosystem.privacy_application_erasure import ApplicationErasureExecutor
+        from agents.ecosystem.partner_registry import resolve_partner_application
         from jobsearch.application_contract import ApplicationContext
         from jobsearch.application_repository import ApplicationRepository
         from agents.ecosystem.credentials import DynamoDBCredentialStore
@@ -1313,16 +1314,22 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     dynamodb = _get_dynamodb()
     partner_application_id = user_context.get('partnerApplicationId')
     issuer = user_context.get('issuer')
-    if not partner_application_id or not issuer or not user_context.get('tenantId'):
-        return {
-            'statusCode': 503,
-            'body': json.dumps({'error': 'Erasure authorization context unavailable'})
-        }
+    application_context = None
+    if partner_application_id and issuer and user_context.get('tenantId'):
+        registry = resolve_partner_application(
+            user_context.get('clientId'))
+        if (not registry or registry.get('status') != 'ACTIVE'
+                or registry.get('applicationId') != partner_application_id
+                or registry.get('tenantId') != user_context.get('tenantId')):
+            return {
+                'statusCode': 403,
+                'body': json.dumps({'error': 'Erasure authorization context invalid'})
+            }
+        application_context = ApplicationContext(
+            user_context['userId'], user_context['tenantId'],
+            partner_application_id, issuer)
     application_repository = ApplicationRepository(
         table_name=os.environ.get("APPLICATIONS_TABLE"), dynamodb=dynamodb)
-    application_context = ApplicationContext(
-        user_context['userId'], user_context['tenantId'],
-        partner_application_id, issuer)
     erasure = PrivacyErasure(
         credential_store=DynamoDBCredentialStore(
             table_name=os.environ.get("CREDENTIALS_TABLE")),
