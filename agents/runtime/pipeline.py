@@ -53,6 +53,7 @@ from agents.ecosystem import health_sink
 from agents.runtime.subject_fence import (
     SubjectFenceBlocked,
     SubjectFenceUnavailable,
+    assert_fence_clear,
     subject_fence_key,
 )
 
@@ -264,6 +265,14 @@ def _register_processing(
                 raise SubjectFenceUnavailable("subject fence admission failed") from exc
             existing = table.get_item(Key={"workId": work["workId"]}).get("Item", {})
             if existing:
+                if existing.get("status") not in TERMINAL_DUPLICATE_STATES:
+                    assert_fence_clear(
+                        fence_table,
+                        user_id=user_id,
+                        tenant_id=work.get("tenantId", ""),
+                        partner_application_id=work.get("partnerApplicationId", ""),
+                        issuer=work.get("issuer", ""),
+                    )
                 return existing, True
             fence = fence_table.get_item(Key={
                 "workId": subject_fence_key(

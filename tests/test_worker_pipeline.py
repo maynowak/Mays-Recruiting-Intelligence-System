@@ -137,6 +137,23 @@ class TestWorkerPipeline(unittest.TestCase):
         self.assertNotIn("work-erased", table.items)
         self.assertEqual([], calls)
 
+    def test_production_admission_blocks_existing_inflight_row_after_fence(self):
+        table = TransactionalFenceTable()
+        registry, body = fresh_wiring()
+        item = work_item("work-inflight")
+        item["userId"] = "user-inflight"
+        table.items["work-inflight"] = {
+            "workId": "work-inflight", "userId": "user-inflight",
+            "tenantId": "tenant-test", "status": "RUNNING", "attempt_no": 1,
+        }
+        fenced = fence_item(user_id="user-inflight", tenant_id="tenant-test")
+        table.items[fenced["workId"]] = fenced
+
+        with self.assertRaises(SubjectFenceBlocked):
+            process_record(record(item), table=table, registry=registry,
+                           body=body, subject_fence_table=table,
+                           require_subject_fence=True)
+
     def test_production_admission_uses_atomic_fence_transaction_for_create(self):
         table = TransactionalFenceTable()
         registry, body = fresh_wiring()
