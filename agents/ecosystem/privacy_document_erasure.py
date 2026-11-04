@@ -320,7 +320,10 @@ class DocumentErasureIntegration:
             if self._local_operation_complete(operation):
                 completed = operation.transition(
                     STATUS_COMPLETED,
-                    now=operation.updated_at or operation.created_at)
+                    now=operation.updated_at or operation.created_at,
+                    # This executor is an explicit synthetic local fixture;
+                    # normal/runtime operations use the full required set.
+                    required_categories=operation.progress.keys())
                 operation = self.operations.update(
                     completed, expected_version=operation.version,
                     context=self._scope_context(operation))
