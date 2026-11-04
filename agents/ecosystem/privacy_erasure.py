@@ -50,6 +50,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
+from agents.runtime.subject_fence import fence_item
+
 logger = logging.getLogger(__name__)
 
 #: Work states that erasure transitions to CANCELLED. Everything else is
@@ -299,6 +301,25 @@ class PrivacyErasure:
     def _cancel_work(self, result: ErasureResult) -> StepResult:
         if self.work_table is None:
             return StepResult("cancel-non-terminal-work", True, 0)
+        try:
+            if not hasattr(self.work_table, "put_item"):
+                raise ErasureExecutionUnavailable("durable subject fence store unavailable")
+            context = self.execution_context
+            self.work_table.put_item(
+                Item=fence_item(
+                    user_id=result.user_id,
+                    tenant_id=result.tenant_id or "",
+                    partner_application_id=getattr(context, "partner_application_id", "") if context else "",
+                    issuer=getattr(context, "issuer", "") if context else "",
+                    operation_id=getattr(context, "operation_id", "") if context else ""),
+                ConditionExpression="attribute_not_exists(workId)")
+        except Exception as exc:
+            response = getattr(exc, "response", None)
+            if not (isinstance(response, dict)
+                    and response.get("Error", {}).get("Code") == "ConditionalCheckFailedException"):
+                logger.error("subject fence activation failed: %s", type(exc).__name__)
+                return StepResult("cancel-non-terminal-work", False, 0,
+                                  "SUBJECT_FENCE_UNAVAILABLE")
         try:
             response = self.work_table.query(
                 IndexName="gsi-user",

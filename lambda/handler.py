@@ -3088,9 +3088,29 @@ def _enqueue_agent_work(agent_id: str, capability: str,
     }
 
     table_name = os.environ.get('WORK_ITEMS_TABLE')
-    if table_name:
-        table = _get_dynamodb().Table(table_name)
-        table.put_item(Item=work_item)
+    if not table_name:
+        raise RuntimeError("durable subject fence store is not configured")
+    if not user_id or not tenant_id:
+        raise RuntimeError("verified subject and tenant are required for work admission")
+    table = _get_dynamodb().Table(table_name)
+    from agents.runtime.pipeline import _ddb_client_item
+    from agents.runtime.subject_fence import subject_fence_key
+    client = getattr(getattr(table, "meta", None), "client", None)
+    if client is None:
+        raise RuntimeError("durable subject fence transaction unavailable")
+    client.transact_write_items(TransactItems=[
+            {"ConditionCheck": {
+                "TableName": table_name,
+                "Key": {"workId": {"S": subject_fence_key(
+                    user_id=user_id or "", tenant_id=tenant_id or "")}},
+                "ConditionExpression": "attribute_not_exists(workId)",
+            }},
+            {"Put": {
+                "TableName": table_name,
+                "Item": _ddb_client_item(work_item),
+                "ConditionExpression": "attribute_not_exists(workId)",
+            }},
+    ])
 
     queue_url = os.environ.get('WORK_QUEUE_URL')
     if queue_url:
@@ -3419,9 +3439,12 @@ def _process_work_item(work_item: Dict[str, Any]) -> Dict[str, Any]:
 
     # Execution-Time-Entitlement-Re-check (Gate 08): Produktion injiziert
     # immer den DDB-Resolver (lazy, keine Import-Kosten ohne Nutzung).
+    work_table = _get_dynamodb().Table(os.environ.get("WORK_ITEMS_TABLE"))
     outcome = process_record(
         {'body': work_item},
-        entitlement_resolver=DynamoDBEntitlementResolver())
+        entitlement_resolver=DynamoDBEntitlementResolver(),
+        subject_fence_table=work_table,
+        require_subject_fence=True)
 
     success = outcome.get('status') == 'COMPLETED'
     result = {

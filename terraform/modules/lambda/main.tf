@@ -140,6 +140,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb_work" {
         Effect = "Allow"
         Action = [
           "dynamodb:PutItem",
+          "dynamodb:TransactWriteItems",
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
           "dynamodb:Query",
@@ -148,7 +149,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb_work" {
         ]
         Resource = [
           var.dynamodb_table_arn,
-          "${var.dynamodb_table_arn}/table/${var.dynamodb_table_arn}/*"
+          "${var.dynamodb_table_arn}/index/*"
         ]
       }
     ]

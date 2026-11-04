@@ -50,6 +50,11 @@ from agents.ecosystem.registry import (
 from agents.ecosystem.routing import AgentRouter as EcosystemRouter
 from agents.ecosystem.routing import ExecutionEngine
 from agents.ecosystem import health_sink
+from agents.runtime.subject_fence import (
+    SubjectFenceBlocked,
+    SubjectFenceUnavailable,
+    subject_fence_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +196,8 @@ def _register_processing(
     work: Dict[str, Any],
     envelope: ProcessingEnvelope,
     agent_id: str,
+    fence_table: Any = None,
+    require_fence: bool = False,
 ) -> Tuple[Dict[str, Any], bool]:
     """WorkItem registrieren (Conditional Write) oder Duplikat feststellen.
 
@@ -227,6 +234,46 @@ def _register_processing(
         "createdAt": now,
         "updatedAt": now,
     }
+    if require_fence:
+        if fence_table is None:
+            raise SubjectFenceUnavailable("subject fence is required")
+        client = getattr(getattr(fence_table, "meta", None), "client", None)
+        table_name = getattr(fence_table, "name", None)
+        if client is None or not table_name:
+            raise SubjectFenceUnavailable("subject fence transaction is unavailable")
+        try:
+            client.transact_write_items(TransactItems=[
+                {"ConditionCheck": {
+                    "TableName": table_name,
+                    "Key": {"workId": {"S": subject_fence_key(
+                        user_id=user_id,
+                        tenant_id=work.get("tenantId", ""),
+                        partner_application_id=work.get("partnerApplicationId", ""),
+                        issuer=work.get("issuer", ""))}},
+                    "ConditionExpression": "attribute_not_exists(workId)",
+                }},
+                {"Put": {
+                    "TableName": table_name,
+                    "Item": _ddb_client_item(item),
+                    "ConditionExpression": "attribute_not_exists(workId)",
+                }},
+            ])
+            return item, False
+        except Exception as exc:
+            if not _is_conditional_failed(exc):
+                raise SubjectFenceUnavailable("subject fence admission failed") from exc
+            existing = table.get_item(Key={"workId": work["workId"]}).get("Item", {})
+            if existing:
+                return existing, True
+            fence = fence_table.get_item(Key={
+                "workId": subject_fence_key(
+                    user_id=user_id,
+                    tenant_id=work.get("tenantId", ""),
+                    partner_application_id=work.get("partnerApplicationId", ""),
+                    issuer=work.get("issuer", ""))}).get("Item")
+            if fence:
+                raise SubjectFenceBlocked("subject is fenced by erasure") from exc
+            raise SubjectFenceUnavailable("subject fence state is unavailable") from exc
     try:
         table.put_item(
             Item=item,
@@ -255,6 +302,13 @@ def _to_dynamo(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_to_dynamo(v) for v in value]
     return value
+
+
+def _ddb_client_item(value: Dict[str, Any]) -> Dict[str, Any]:
+    """Serialize a Python item for the injected low-level DDB client."""
+    from boto3.dynamodb.types import TypeSerializer
+    serializer = TypeSerializer()
+    return {key: serializer.serialize(item) for key, item in value.items()}
 
 
 def _persist_result(table: Any, work_id: str, attempt: int, result: Dict[str, Any]) -> None:
@@ -324,6 +378,8 @@ def process_record(
     entitlement_resolver: Any = None,
     health_tracker: Any = None,
     erasure_admission: Any = None,
+    subject_fence_table: Any = None,
+    require_subject_fence: bool = False,
 ) -> Dict[str, Any]:
     """Einen SQS-Record durch den Runtime-Pfad fuehren (Worker-Einstieg).
 
@@ -392,7 +448,9 @@ def process_record(
             f"rejected={len(pipeline.rejected)})"
         )
 
-    item, is_duplicate = _register_processing(table, work, envelope, decision.agent_id)
+    item, is_duplicate = _register_processing(
+        table, work, envelope, decision.agent_id,
+        fence_table=subject_fence_table, require_fence=require_subject_fence)
     if is_duplicate:
         if item.get("status") in ERASURE_SUPPRESSED_STATES:
             logger.info("erasure-suppressed work message (workId=%s)", work["workId"])
