@@ -7,6 +7,13 @@ This document defines the backup and recovery architecture for the Ground Zero p
 **Version**: 1.0.0  
 **Status**: DESIGN DOCUMENTATION  
 
+**R08 reconciliation note (2026-11-04):** The PITR entries below describe a
+design target and must not be treated as current AWS evidence. The executable
+RIS Terraform inspected for this gate does not declare `point_in_time_recovery`
+for the listed tables, and no AWS read was performed. Current PITR, backup
+expiry and restore-reconciliation status is therefore **PARTIAL/BLOCKED** until
+an authorized read-only verification and deletion-ledger decision exist.
+
 ---
 
 ## Current State

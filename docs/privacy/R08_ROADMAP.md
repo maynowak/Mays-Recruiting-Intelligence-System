@@ -1,8 +1,12 @@
 # R08 Privacy Roadmap
 
-Status: **R08-A1 IMPLEMENTED** (journal repository + infrastructure, writes
-fail-closed). R08-G0 implemented the receipt contract and analysis; R08-A2/B/C/D
-are not started. No public privacy API yet.
+Status: **R08-A1 IMPLEMENTED / R08-B1-B2A VERIFIED LOCAL / R08-C VERIFIED LOCAL SYNTHETIC**.
+Receipt writes remain fail-closed. R08-G0 and R08-POLICY-01 provide technical
+decision packages, not legal approval. R08-A2 production emission, persistence-
+backed/live B verification, full R08-C execution, R08-D legal/cross-domain work
+and release remain blocked or review-required. This current status supersedes
+the older “B/C not started” wording below; historical gate reports remain
+unchanged and are interpreted through the current reconciliation report.
 
 ## R08-A — User evidence journal
 
