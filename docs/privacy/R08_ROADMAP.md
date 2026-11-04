@@ -92,3 +92,8 @@ R08-G0 (contract) -> R08-A1 (journal repository)
 R08-A1 is complete as an internal, fail-closed repository. A production privacy
 release remains blocked until retention/legal review, R08-A2 integration and
 R08-C/R08-D are complete.
+
+ORCH-PR-CONSOLIDATION-08 is locally consolidated and traceable. GitHub handoff
+is blocked by unavailable local GitHub tooling/authentication and documented
+full-suite environment/legacy failures; no push, PR, merge, deployment, or
+Apply occurred. Gate B remains NO-GO.
