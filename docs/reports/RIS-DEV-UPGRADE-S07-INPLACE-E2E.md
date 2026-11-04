@@ -216,3 +216,38 @@ Der Plan ist technisch einwandfrei (0 Delete/Replace, Schutzgüter unverändert,
 - Deployment: **nicht autorisiert**
 
 **STOP nach S07. Kein Apply, keine weiteren AWS-Änderungen, kein Push.**
+
+---
+
+## 16. Nachtrag: Pull von `origin/main` (2026-11-04)
+
+| Feld | Wert |
+|---|---|
+| Merge-Commit | `255b0cf` |
+| Divergenz vorher | 21 lokal voraus, 34 remote voraus |
+| Divergenz nachher | 22 lokal voraus, 0 zurück |
+| Konflikt | `jobsearch/application_repository.py` — `userKey` (unser GSI-Ansatz) vs. `stage` (Remote-Feld); beide übernommen |
+| Remote-Neuerungen | ApplicationV1 consolidation, `stage`, typisierte History-Events, Resume bei partieller Erasure, `GET /v1/partner/me/applications/metrics` |
+| Testanpassung | `add_history` erhöht jetzt `version`; Cover-Letter-Test nutzt `expected_version=2` |
+
+### Plan nach Pull
+
+| Aktion | Anzahl |
+|---|---:|
+| CREATE | **50** (35 Routen, 7 Tabellen, 8 IAM-Policies) |
+| UPDATE | 3 |
+| DELETE | 0 |
+| REPLACE | 0 |
+| MOVE | 54 |
+| DRIFT | 1 |
+
+Plan-SHA-256: `b6cd04445eb79812704ae7d6bb9e18da47661c3b285970fdde20e1dc21c7f9a9`
+State unverändert (serial 36). Schutzgüter weiterhin 0 aktive Änderungen.
+
+Neue Route: `GET /v1/partner/me/applications/metrics` (additiv, JWT).
+
+### Tests nach Pull
+
+**278 passed** (17 Dateien, moto 5.2.5). `terraform fmt`/`validate` PASS.
+
+**Gate-Entscheidung unverändert: B / NO-GO** — die zusätzliche Route verstärkt die personenbezogene Oberfläche; RG-09 bleibt offen.

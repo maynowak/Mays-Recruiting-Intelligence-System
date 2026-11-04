@@ -9343,6 +9343,17 @@ Findings:
 Report: docs/reports/RIS-DEV-UPGRADE-S07-INPLACE-E2E.md
 Next: RG-09/10/11 schließen, dann neuer Plan und Apply-Freigabe. STOP nach S07.
 
+[RIS-DEV-UPGRADE-S07-POSTPULL]
+Status: COMPLETE / NO-GO unverändert
+Date: 2026-11-04
+Findings:
+  - origin/main gemerged (255b0cf): 21 lokal voraus / 34 remote voraus -> 22 voraus / 0 zurück.
+  - Ein Konflikt in jobsearch/application_repository.py (userKey vs stage) semantisch gelöst; Remote brachte ApplicationV1 consolidation, typisierte History-Events, Erasure-Resume und die Route GET /v1/partner/me/applications/metrics.
+  - Test an neue Versionssemantik angepasst (add_history erhöht version); 278 passed, fmt/validate PASS.
+  - Neuer Plan SHA256 b6cd04445eb79812704ae7d6bb9e18da47661c3b285970fdde20e1dc21c7f9a9: 50 CREATE (35 Routen, 7 Tabellen, 8 IAM), 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE; State serial 36 unverändert.
+  - Gate B bleibt: zusätzliche personenbezogene Route, RG-09/10/11 offen.
+Report: docs/reports/RIS-DEV-UPGRADE-S07-INPLACE-E2E.md (§16)
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
