@@ -357,6 +357,10 @@ def _extract_user_context(event: Dict[str, Any]) -> Dict[str, Any]:
     context['audience'] = jwt_claims.get('aud')
     
     context['tokenUse'] = jwt_claims.get('token_use')
+    context['partnerApplicationId'] = (
+        jwt_claims.get('custom:partner_application_id')
+        or jwt_claims.get('partnerApplicationId'))
+    context['issuer'] = jwt_claims.get('iss')
     
     # Security fix 02: normalize, never split blindly. See
     # _normalize_groups — the authorizer stringifies array claims.
@@ -1270,6 +1274,9 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     try:
         from agents.ecosystem.privacy_erasure import (
             PrivacyErasure, ErasureExecutionUnavailable)
+        from agents.ecosystem.privacy_application_erasure import ApplicationErasureExecutor
+        from jobsearch.application_contract import ApplicationContext
+        from jobsearch.application_repository import ApplicationRepository
         from agents.ecosystem.credentials import DynamoDBCredentialStore
         from agents.ecosystem.api_profiles import DynamoDBApiProfileStore
     except Exception as e:
@@ -1284,6 +1291,7 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         ("API_PROFILES_TABLE", "API_PROFILES_TABLE"),
         ("WORK_ITEMS_TABLE", "WORK_ITEMS_TABLE"),
         ("USER_PROFILE_TABLE", "USER_PROFILE_TABLE"),
+        ("APPLICATIONS_TABLE", "APPLICATIONS_TABLE"),
     ) if not os.environ.get(env)]
     if missing:
         logger.warning("erasure stores unconfigured: %s", ",".join(missing))
@@ -1303,6 +1311,18 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return 0
 
     dynamodb = _get_dynamodb()
+    partner_application_id = user_context.get('partnerApplicationId')
+    issuer = user_context.get('issuer')
+    if not partner_application_id or not issuer or not user_context.get('tenantId'):
+        return {
+            'statusCode': 503,
+            'body': json.dumps({'error': 'Erasure authorization context unavailable'})
+        }
+    application_repository = ApplicationRepository(
+        table_name=os.environ.get("APPLICATIONS_TABLE"), dynamodb=dynamodb)
+    application_context = ApplicationContext(
+        user_context['userId'], user_context['tenantId'],
+        partner_application_id, issuer)
     erasure = PrivacyErasure(
         credential_store=DynamoDBCredentialStore(
             table_name=os.environ.get("CREDENTIALS_TABLE")),
@@ -1312,6 +1332,8 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         document_deleter=_delete_documents,
         user_profile_table=dynamodb.Table(
             os.environ.get("USER_PROFILE_TABLE")),
+        application_erasure=ApplicationErasureExecutor(application_repository),
+        application_context=application_context,
     )
 
     try:

@@ -107,6 +107,7 @@ class ErasureResult:
     credentials_revoked: int = 0
     profiles_revoked: int = 0
     work_cancelled: int = 0
+    applications_deleted: int = 0
     documents_deleted: int = 0
     profile_deleted: bool = False
 
@@ -118,6 +119,7 @@ class ErasureResult:
             "credentialsRevoked": self.credentials_revoked,
             "profilesRevoked": self.profiles_revoked,
             "workCancelled": self.work_cancelled,
+            "applicationsDeleted": self.applications_deleted,
             "documentsDeleted": self.documents_deleted,
             "profileDeleted": self.profile_deleted,
             "steps": [s.to_dict() for s in self.steps],
@@ -152,6 +154,8 @@ class PrivacyErasure:
                  clock: Callable[[], datetime] = _utcnow,
                  execution_context: Any = None,
                  mutation_executor: Any = None,
+                 application_erasure: Any = None,
+                 application_context: Any = None,
                  ) -> None:
         self.credentials = credential_store
         self.profiles = profile_store
@@ -162,6 +166,8 @@ class PrivacyErasure:
         self._clock = clock
         self.execution_context = execution_context
         self.mutation_executor = mutation_executor
+        self.application_erasure = application_erasure
+        self.application_context = application_context
 
     # ------------------------------------------------------------------
     def erase(self, user_id: str,
@@ -203,6 +209,7 @@ class PrivacyErasure:
         result.steps.append(self._revoke_profiles(result))
         # 3. Non-terminal work is cancelled, never deleted.
         result.steps.append(self._cancel_work(result))
+        result.steps.append(self._erase_applications(result))
         # 4. Documents owned by the platform for this user.
         result.steps.append(self._delete_documents(result))
         # 5. Profile row last.
@@ -210,6 +217,33 @@ class PrivacyErasure:
 
         result.complete = all(step.ok for step in result.steps)
         return result
+
+    def _erase_applications(self, result: ErasureResult) -> StepResult:
+        if self.application_erasure is None or self.application_context is None:
+            # Legacy injected unit fixtures do not model ApplicationV1. The
+            # public handler is fail-closed before construction and always
+            # supplies this collaborator when ApplicationV1 is in scope.
+            return StepResult("erase-applications", True, 0)
+        try:
+            cursor = None
+            deleted = 0
+            while True:
+                progress = self.application_erasure.run(
+                    self.application_context, cursor=cursor)
+                deleted += progress.deleted
+                if not progress.pending:
+                    break
+                if progress.cursor == cursor:
+                    raise ErasureExecutionUnavailable(
+                        "application erasure cursor did not advance")
+                cursor = progress.cursor
+            result.applications_deleted = deleted
+            return StepResult("erase-applications", True, deleted)
+        except Exception as exc:
+            result.applications_deleted = deleted
+            logger.error("application erasure failed: %s", type(exc).__name__)
+            return StepResult("erase-applications", False, deleted,
+                              "APPLICATION_ERASURE_FAILED")
 
     # ------------------------------------------------------------------
     def _revoke_credentials(self, result: ErasureResult) -> StepResult:
