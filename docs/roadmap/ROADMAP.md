@@ -1,5 +1,11 @@
 # Mays-RIS Roadmap (konsolidiert, Stand 2026-10-01)
 
+## R08 Security-05 status (2026-11-04)
+
+FIX-01 is verified locally with a durable subject fence and DynamoDB atomic
+create/erasure admission. Gate B remains NO-GO; live queue, restore, retention,
+legal, deployment, and production activation gates remain open.
+
 Keine Termine, keine Priorisierung als „beste Wahl" — technischer
 Abhängigkeitsstand. Abgeschlossene Gates werden nicht als offen dargestellt.
 
