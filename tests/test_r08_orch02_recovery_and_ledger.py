@@ -46,6 +46,9 @@ def test_ledger_rejects_foreign_scope_and_unknown_resource():
     with pytest.raises(DeletionLedgerError, match="UNKNOWN_RESOURCE_TYPE"):
         ledger.capture(operation_id="op-1", scope=SCOPE,
                        resource_type="SECRET", resource_ref="x")
+    with pytest.raises(DeletionLedgerError, match="LEDGER_CONFLICT"):
+        ledger.capture(operation_id="op-1", scope=SCOPE,
+                       resource_type="USER_PROFILE", resource_ref="different-profile")
 
 
 def test_restore_of_erased_resource_requires_reconciliation_without_mutation():
@@ -73,6 +76,9 @@ def test_recovery_checkpoint_is_conditional_and_promotion_is_fail_closed():
         repo.complete_phase("recovery-1", "REPLAY_DELETIONS",
                             now=NOW, expected_version=1)
     assert not current.promotion_eligible
+    with pytest.raises(RecoveryContractError, match="INVALID_PHASE_ORDER"):
+        repo.complete_phase("recovery-1", "PROMOTION_GATE",
+                            now=NOW, expected_version=current.version)
     with pytest.raises(RecoveryContractError, match="PROMOTION_REQUIRES_COMPLETED_PHASES"):
         RecoveryPlanV1(**{**plan().__dict__, "promotion_eligible": True})
 
@@ -81,4 +87,18 @@ def test_recovery_rejects_sensitive_snapshot_reference():
     with pytest.raises(RecoveryContractError, match="SENSITIVE_SOURCE_SNAPSHOT_REF"):
         RecoveryPlanV1(recovery_id="recovery-1", source_snapshot_ref="s3://bucket",
                        restore_point=NOW, deletion_ledger_ref="ledger-1",
+                       created_at=NOW, updated_at=NOW)
+
+
+def test_recovery_rejects_unknown_schema_version():
+    with pytest.raises(RecoveryContractError, match="UNSUPPORTED_SCHEMA_VERSION"):
+        RecoveryPlanV1(recovery_id="recovery-1", source_snapshot_ref="snapshot-1",
+                       restore_point=NOW, deletion_ledger_ref="ledger-1",
+                       created_at=NOW, updated_at=NOW, schema_version=2)
+
+
+def test_recovery_rejects_non_utc_restore_point_and_enforces_phase_order():
+    with pytest.raises(RecoveryContractError, match="INVALID_RESTORE_POINT"):
+        RecoveryPlanV1(recovery_id="recovery-1", source_snapshot_ref="snapshot-1",
+                       restore_point="not-a-time", deletion_ledger_ref="ledger-1",
                        created_at=NOW, updated_at=NOW)

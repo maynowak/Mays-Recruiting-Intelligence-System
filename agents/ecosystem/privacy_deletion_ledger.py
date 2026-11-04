@@ -53,9 +53,12 @@ class DeletionLedgerEntry:
     expected_state: str = EXPECTED_PRESENT
     state: str = EXPECTED_PRESENT
     version: int = 1
+    schema_version: int = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
         self.scope.validate()
+        if self.schema_version != SCHEMA_VERSION:
+            raise DeletionLedgerError("UNSUPPORTED_SCHEMA_VERSION")
         if not self.operation_id or not self.ledger_id:
             raise DeletionLedgerError("INVALID_LEDGER_ID")
         if self.resource_type not in KNOWN_RESOURCE_TYPES:
@@ -69,7 +72,7 @@ class DeletionLedgerEntry:
 
     def snapshot(self) -> dict:
         return {
-            "schemaVersion": SCHEMA_VERSION,
+            "schemaVersion": self.schema_version,
             "ledgerId": self.ledger_id,
             "operationId": self.operation_id,
             "userId": self.scope.user_id,
@@ -112,7 +115,7 @@ class LocalDeletionLedger:
         ledger_id = hashlib.sha256(
             f"{operation_id}|{scope.tenant_id}|{scope.user_id}|"
             f"{scope.partner_application_id}|{scope.issuer}|{scope.scope}|"
-            f"{resource_type}|{digest}".encode("utf-8")).hexdigest()
+            f"{resource_type}".encode("utf-8")).hexdigest()
         entry = DeletionLedgerEntry(
             ledger_id=ledger_id, operation_id=operation_id, scope=scope,
             resource_type=resource_type, resource_ref_digest=digest,

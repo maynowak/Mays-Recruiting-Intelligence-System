@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from typing import Mapping
 
 
@@ -40,8 +41,11 @@ class RecoveryCheckpointV1:
     attempt: int = 0
     version: int = 1
     updated_at: str = ""
+    schema_version: int = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
+        if self.schema_version != SCHEMA_VERSION:
+            raise RecoveryContractError("UNSUPPORTED_SCHEMA_VERSION")
         if self.phase not in PHASES or self.state not in CHECKPOINT_STATES:
             raise RecoveryContractError("INVALID_CHECKPOINT")
         if self.attempt < 0 or self.version < 1 or not self.updated_at:
@@ -65,8 +69,11 @@ class RecoveryPlanV1:
     target: str = "STAGING"
     phases: Mapping[str, RecoveryCheckpointV1] | None = None
     promotion_eligible: bool = False
+    schema_version: int = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
+        if self.schema_version != SCHEMA_VERSION:
+            raise RecoveryContractError("UNSUPPORTED_SCHEMA_VERSION")
         for value, name in ((self.recovery_id, "recovery_id"),
                             (self.source_snapshot_ref, "source_snapshot_ref"),
                             (self.deletion_ledger_ref, "deletion_ledger_ref")):
@@ -75,6 +82,12 @@ class RecoveryPlanV1:
             raise RecoveryContractError("INVALID_RECOVERY_TARGET_OR_STATUS")
         if self.version < 1 or not self.created_at or not self.updated_at:
             raise RecoveryContractError("INVALID_RECOVERY_VERSION")
+        try:
+            parsed_restore_point = datetime.fromisoformat(self.restore_point.replace("Z", "+00:00"))
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise RecoveryContractError("INVALID_RESTORE_POINT") from exc
+        if parsed_restore_point.tzinfo is None or parsed_restore_point.utcoffset() is None:
+            raise RecoveryContractError("INVALID_RESTORE_POINT")
         phases = self.phases or {}
         if any(key not in PHASES for key in phases) or any(
                 checkpoint.phase != key for key, checkpoint in phases.items()):
@@ -91,6 +104,11 @@ class RecoveryPlanV1:
         if phase not in PHASES:
             raise RecoveryContractError("INVALID_RECOVERY_PHASE")
         phases = dict(self.phases or {})
+        next_phase = next((candidate for candidate in PHASES
+                           if not (phases.get(candidate)
+                                   and phases[candidate].state == "COMPLETED")), None)
+        if phase != next_phase:
+            raise RecoveryContractError("INVALID_PHASE_ORDER")
         phases[phase] = RecoveryCheckpointV1(
             phase=phase, state="COMPLETED", cursor_ref=cursor_ref,
             attempt=(phases[phase].attempt + 1 if phase in phases else 1),
