@@ -581,10 +581,12 @@ def _application_cursor(event, repo, ctx, limit):
     if not raw:
         return None
     try:
+        params = event.get('queryStringParameters') or {}
         return repo.resolve_cursor(raw, user_id=ctx.user_id, tenant_id=ctx.tenant_id,
                                    partner_app_id=ctx.partner_application_id,
                                    issuer=ctx.issuer, scope='applications',
-                                   resource_type='ApplicationV1', limit=limit)
+                                   resource_type='ApplicationV1', limit=limit,
+                                   status_filter=params.get('status'), stage_filter=params.get('stage'))
     except Exception:
         raise ValueError('invalid cursor')
 
@@ -604,12 +606,18 @@ def _application_routes(event, context, method, path):
         if base and method == 'GET':
             params = event.get('queryStringParameters') or {}
             limit = int(params.get('limit', 50))
+            status_filter = params.get('status')
+            stage_filter = params.get('stage')
             cursor = _application_cursor(event, repo, ctx, limit)
-            items, next_key = repo.list(ctx, limit=limit, cursor=cursor)
+            items, next_key = repo.list(ctx, limit=limit, cursor=cursor,
+                                        status_filter=status_filter, stage_filter=stage_filter)
             next_cursor = repo.issue_cursor(next_key, user_id=ctx.user_id, tenant_id=ctx.tenant_id,
                                             partner_app_id=ctx.partner_application_id, issuer=ctx.issuer,
-                                            scope='applications', resource_type='ApplicationV1', limit=limit) if next_key else None
+                                            scope='applications', resource_type='ApplicationV1', limit=limit,
+                                            status_filter=status_filter, stage_filter=stage_filter) if next_key else None
             return _application_response(200, {'items': items, 'nextCursor': next_cursor})
+        if path == '/v1/partner/me/applications/metrics' and method == 'GET':
+            return _application_response(200, {'metrics': repo.metrics(ctx)})
         app_id = _application_id(event, path)
         suffix = path[len('/v1/partner/me/applications/' + app_id):].strip('/')
         if not suffix and method == 'GET':
@@ -619,16 +627,22 @@ def _application_routes(event, context, method, path):
         if not suffix and method == 'DELETE':
             body = _application_body(event) or {}
             repo.delete(app_id, int(body.get('expectedVersion', 0)), ctx)
-            return _application_response(204, {})
+            response = _application_response(204, {})
+            response.pop('body', None)
+            return response
         if suffix == 'status' and method == 'POST':
             body = _application_body(event) or {}
-            return _application_response(200, {'application': repo.status(app_id, body.get('status'), int(body.get('expectedVersion', 0)), bool(body.get('confirm')), ctx)})
+            if ('status' in body) == ('stage' in body):
+                return _application_response(422, 'Exactly one of status or stage is required', 'STATUS_SELECTOR_REQUIRED')
+            target = body.get('stage') if body.get('stage') is not None else body.get('status')
+            return _application_response(200, {'application': repo.status(app_id, target, int(body.get('expectedVersion', 0)), bool(body.get('confirm')), ctx, body.get('note'))})
         if suffix == 'history' and method == 'POST':
             body = _application_body(event) or {}
             return _application_response(201, {'history': repo.add_history(app_id, body.get('event'), int(body.get('expectedVersion', 0)), ctx)})
         if suffix == 'cover-letter-versions' and method == 'POST':
             body = _application_body(event) or {}
-            return _application_response(201, {'version': repo.add_cover_letter(app_id, body.get('text'), int(body.get('expectedVersion', 0)), ctx)})
+            version = body.get('version') if body.get('version') is not None else body.get('text')
+            return _application_response(201, {'version': repo.add_cover_letter(app_id, version, int(body.get('expectedVersion', 0)), ctx)})
         if suffix == 'export' and method == 'GET':
             return _application_response(200, repo.export(app_id, ctx))
         return _application_response(405, 'Method not allowed', 'METHOD_NOT_ALLOWED')
@@ -4000,10 +4014,15 @@ def _handle_privacy_inspect(event, context):
     try:
         from jobsearch.application_repository import ApplicationRepository
         app_repo = ApplicationRepository()
-        app_page, _ = app_repo.list(
-            __import__('jobsearch.application_contract', fromlist=['ApplicationContext']).ApplicationContext(
-                ctx['userId'], ctx['tenantId'], ctx['partnerApplicationId'], ctx['issuer']),
-            limit=limit)
+        app_ctx = __import__('jobsearch.application_contract', fromlist=['ApplicationContext']).ApplicationContext(
+            ctx['userId'], ctx['tenantId'], ctx['partnerApplicationId'], ctx['issuer'])
+        app_page = []
+        app_cursor = None
+        while True:
+            page, app_cursor = app_repo.list(app_ctx, limit=limit, cursor=app_cursor)
+            app_page.extend(page)
+            if not app_cursor:
+                break
         categories['applications'] = _privacy_category(
             name='ApplicationV1', purpose='authenticated application tracking',
             storage_status='stored' if app_page else 'no_data',
@@ -4197,9 +4216,14 @@ def _handle_privacy_export(event, context):
         from jobsearch.application_repository import ApplicationRepository
         from jobsearch.application_contract import ApplicationContext
         app_repo = ApplicationRepository()
-        app_page, _ = app_repo.list(
-            ApplicationContext(ctx['userId'], ctx['tenantId'], ctx['partnerApplicationId'], ctx['issuer']),
-            limit=limit)
+        app_ctx = ApplicationContext(ctx['userId'], ctx['tenantId'], ctx['partnerApplicationId'], ctx['issuer'])
+        app_page = []
+        app_cursor = None
+        while True:
+            page, app_cursor = app_repo.list(app_ctx, limit=limit, cursor=app_cursor)
+            app_page.extend(page)
+            if not app_cursor:
+                break
         applications = [app_repo.export(item['applicationId'], ApplicationContext(
             ctx['userId'], ctx['tenantId'], ctx['partnerApplicationId'], ctx['issuer']))
                         for item in app_page]

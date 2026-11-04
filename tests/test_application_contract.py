@@ -2,11 +2,22 @@ import unittest
 
 from jobsearch.application_contract import (
     ApplicationContractError, validate_create, validate_patch,
-    validate_transition,
+    validate_history_event, validate_transition,
 )
 
 
 class ApplicationContractTests(unittest.TestCase):
+    def test_typed_history_event_shapes(self):
+        self.assertEqual("feedback", validate_history_event({"kind": "feedback", "text": "Positive reply"})["kind"])
+        self.assertEqual("interview", validate_history_event({
+            "kind": "interview", "scheduledAt": "2026-11-10T09:00:00Z"
+        })["kind"])
+        self.assertEqual("note", validate_history_event({"kind": "note", "text": "Call"})["kind"])
+        with self.assertRaises(ApplicationContractError):
+            validate_history_event({"kind": "feedback"})
+        with self.assertRaises(ApplicationContractError):
+            validate_history_event({"kind": "interview", "scheduledAt": "not-a-date"})
+
     def test_identity_is_server_owned(self):
         with self.assertRaisesRegex(ApplicationContractError, "identity"):
             validate_create({"applicationId": "attacker", "job": {"jobId": "j1"}})
@@ -31,6 +42,35 @@ class ApplicationContractTests(unittest.TestCase):
     def test_stale_patch_is_rejected_by_contract(self):
         with self.assertRaises(ApplicationContractError):
             validate_patch({"job": {"jobId": "j1"}})
+
+    def test_details_and_follow_up_round_trip_with_nullable_patch_fields(self):
+        value = validate_create({
+            "job": {"jobId": "j1"},
+            "applicationDate": "2026-11-03T00:00:00Z",
+            "applicationChannel": "email",
+            "contact": {"name": "Hiring Contact", "email": "hiring@example.test", "phone": "+49 30 1"},
+            "notes": "Synthetic note",
+            "salary": {"expectation": {"amount": 80000, "currency": "EUR", "period": "year"}},
+            "followUp": {"dueOn": "2026-11-10", "note": "Send reminder", "status": "open"},
+        })
+        self.assertEqual("email", value["applicationChannel"])
+        self.assertEqual("2026-11-10", value["followUp"]["dueOn"])
+        patch = validate_patch({
+            "expectedVersion": 1,
+            "applicationDate": None,
+            "contact": None,
+            "salary": None,
+            "followUp": None,
+        })
+        self.assertIsNone(patch["followUp"])
+
+    def test_follow_up_calendar_and_completion_invariants(self):
+        with self.assertRaises(ApplicationContractError):
+            validate_create({"job": {"jobId": "j1"}, "followUp": {"dueOn": "2026-02-30", "status": "open"}})
+        with self.assertRaises(ApplicationContractError):
+            validate_create({"job": {"jobId": "j1"}, "followUp": {"dueOn": "2026-11-10", "status": "completed"}})
+        with self.assertRaises(ApplicationContractError):
+            validate_create({"job": {"jobId": "j1"}, "followUp": {"dueOn": "2026-11-10", "status": "open", "completedAt": "2026-11-03T00:00:00Z"}})
 
 
 if __name__ == "__main__":

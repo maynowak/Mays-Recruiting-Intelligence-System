@@ -42,7 +42,10 @@ derived from the local handoff attempt. It must not send `userId`, `tenantId`,
 7. On offline/failure, retain the session draft and expose a retry action.
 
 `SUBMITTED` is never inferred from a successful create. It requires the
-separate status call with `confirm: true` and the returned `expectedVersion`.
+separate status call with `status: "SUBMITTED"` or `stage: "submitted"`,
+`confirm: true`, and the returned `expectedVersion`. Jobsearch progression
+after submission uses the additive `stage` field; the legacy `status` remains
+available for older clients.
 
 ## End-to-end readiness matrix
 
@@ -58,5 +61,12 @@ separate status call with `confirm: true` and the returned `expectedVersion`.
 
 The handoff carries CV/profile references and versions, not files. Cover-letter
 versions are explicit text records with server-generated version IDs. The
-adapter treats `DRAFT`, `READY`, `SUBMITTED`, `WITHDRAWN`, and `ARCHIVED` as
-server-owned status values and handles `409 VERSION_CONFLICT` by re-reading.
+adapter treats the legacy lifecycle and additive Jobsearch `stage` as
+server-owned values and handles `409 VERSION_CONFLICT` by re-reading.
+
+Application details and follow-ups use the existing PATCH route with
+`expectedVersion`. Omitted fields remain unchanged; explicit `null` removes an
+optional field. The metrics route is
+`GET /v1/partner/me/applications/metrics` and returns complete owner-scoped
+counts across all cursor pages. CV references are metadata-only and RIS checks
+their ownership through the existing partner-profile repository.

@@ -2233,6 +2233,19 @@ paths:
         "403": { description: Partner boundary refused }
         "409": { description: Idempotency conflict }
         "422": { description: Invalid request }
+  /v1/partner/me/applications/metrics:
+    get:
+      tags: [Partner]
+      operationId: getApplicationMetrics
+      summary: Return complete owner-scoped ApplicationV1 metrics
+      x-infrastructure-governance: terraform-managed
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      responses:
+        "200": { description: Complete metrics across all application pages }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403": { description: Partner boundary refused }
+        "503": { $ref: "#/components/responses/ServerErrorString" }
   /v1/partner/me/applications/{applicationId}:
     parameters:
       - name: applicationId

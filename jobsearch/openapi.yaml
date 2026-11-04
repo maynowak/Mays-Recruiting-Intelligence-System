@@ -74,12 +74,107 @@ paths:
                 items:
                   $ref: '#/components/schemas/SourceInfo'
 
+  /v1/partner/me/applications:
+    post:
+      tags: [applications]
+      summary: Create an owner-scoped application
+      operationId: createApplication
+      security: [{JwtAuth: [], ApiCredential: []}]
+      requestBody:
+        required: true
+        content:
+          application/json: {schema: {$ref: '#/components/schemas/ApplicationCreate'}}
+      responses:
+        '201': {description: Created, content: {application/json: {schema: {$ref: '#/components/schemas/ApplicationEnvelope'}}}}
+        '409': {description: Idempotency or concurrency conflict, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+    get:
+      tags: [applications]
+      summary: List owner-scoped applications
+      operationId: listApplications
+      security: [{JwtAuth: [], ApiCredential: []}]
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 50}}
+        - {name: cursor, in: query, schema: {type: string}}
+        - {name: status, in: query, schema: {type: string}}
+        - {name: stage, in: query, schema: {type: string}}
+      responses:
+        '200': {description: Applications, content: {application/json: {schema: {$ref: '#/components/schemas/ApplicationList'}}}}
+  /v1/partner/me/applications/metrics:
+    get:
+      tags: [applications]
+      summary: Get owner-scoped application metrics
+      operationId: applicationMetrics
+      security: [{JwtAuth: [], ApiCredential: []}]
+      responses:
+        '200': {description: Metrics, content: {application/json: {schema: {$ref: '#/components/schemas/MetricsEnvelope'}}}}
+  /v1/partner/me/applications/{applicationId}:
+    parameters: [{name: applicationId, in: path, required: true, schema: {type: string}}]
+    get:
+      tags: [applications]
+      summary: Read an application
+      operationId: getApplication
+      security: [{JwtAuth: [], ApiCredential: []}]
+      responses: {'200': {description: Application, content: {application/json: {schema: {$ref: '#/components/schemas/ApplicationEnvelope'}}}}, '404': {description: Not found, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}}
+    patch:
+      tags: [applications]
+      summary: Patch an application
+      operationId: patchApplication
+      security: [{JwtAuth: [], ApiCredential: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ApplicationPatch'}}}}
+      responses: {'200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/ApplicationEnvelope'}}}}, '409': {description: Version conflict, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}}
+    delete:
+      tags: [applications]
+      summary: Delete an application
+      operationId: deleteApplication
+      security: [{JwtAuth: [], ApiCredential: []}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [expectedVersion], properties: {expectedVersion: {type: integer, minimum: 1}}}}}}
+      responses: {'204': {description: Deleted; no response body}, '409': {description: Version conflict, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}}
+  /v1/partner/me/applications/{applicationId}/status:
+    post:
+      tags: [applications]
+      summary: Change application status or stage
+      operationId: changeApplicationStatus
+      security: [{JwtAuth: [], ApiCredential: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/StatusChange'}}}}
+      responses: {'200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/ApplicationEnvelope'}}}}, '409': {description: Conflict, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}}
+  /v1/partner/me/applications/{applicationId}/history:
+    post:
+      tags: [applications]
+      summary: Append application history
+      operationId: appendApplicationHistory
+      security: [{JwtAuth: [], ApiCredential: []}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [event, expectedVersion], properties: {event: {$ref: '#/components/schemas/HistoryEvent'}, expectedVersion: {type: integer}}}}}}
+      responses: {'201': {description: History entry}, '409': {description: Conflict, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}}
+  /v1/partner/me/applications/{applicationId}/cover-letter-versions:
+    post:
+      tags: [applications]
+      summary: Add a cover-letter version
+      operationId: addCoverLetterVersion
+      security: [{JwtAuth: [], ApiCredential: []}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, expectedVersion], properties: {version: {$ref: '#/components/schemas/CoverLetterVersion'}, expectedVersion: {type: integer}}}}}}
+      responses: {'201': {description: Cover-letter version}, '409': {description: Conflict, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}}
+  /v1/partner/me/applications/{applicationId}/export:
+    get:
+      tags: [applications]
+      summary: Export an owner-scoped application
+      operationId: exportApplication
+      security: [{JwtAuth: [], ApiCredential: []}]
+      responses: {'200': {description: Export, content: {application/json: {schema: {$ref: '#/components/schemas/ApplicationExport'}}}}}
+
 components:
   securitySchemes:
     ApiKeyAuth:
       type: apiKey
       in: header
       name: X-API-Key
+    JwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiCredential:
+      type: apiKey
+      in: header
+      name: X-Api-Credential
 
   schemas:
     SearchRequest:
@@ -154,6 +249,75 @@ components:
       properties:
         error:
           type: object
+
+    ApplicationCreate:
+      type: object
+      required: [job]
+      properties:
+        job: {type: object, required: [jobId], properties: {jobId: {type: string}, source: {type: string}, title: {type: string}, company: {type: string}, location: {type: string}}}
+        profileRef: {$ref: '#/components/schemas/Reference'}
+        cvRef: {$ref: '#/components/schemas/Reference'}
+        documents: {$ref: '#/components/schemas/Documents'}
+        applicationDate: {type: string, format: date-time}
+        applicationChannel: {type: string}
+        contact: {type: object}
+        notes: {type: string}
+        salary: {type: object}
+        followUp: {type: object}
+        idempotencyKey: {type: string}
+    ApplicationPatch:
+      allOf:
+        - {$ref: '#/components/schemas/ApplicationCreate'}
+        - type: object
+          required: [expectedVersion]
+          properties: {expectedVersion: {type: integer, minimum: 1}}
+    Application:
+      type: object
+      required: [applicationId, job, status, version, createdAt, updatedAt]
+      properties:
+        applicationId: {type: string}
+        job: {type: object}
+        profileRef: {$ref: '#/components/schemas/Reference'}
+        cvRef: {$ref: '#/components/schemas/Reference'}
+        documents: {$ref: '#/components/schemas/Documents'}
+        status: {type: string, enum: [DRAFT, READY, SUBMITTED, WITHDRAWN, ARCHIVED]}
+        stage: {type: string, enum: [draft, submitted, feedback, interview, offer, rejected, withdrawn]}
+        version: {type: integer}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    ApplicationEnvelope:
+      type: object
+      required: [application]
+      properties: {application: {$ref: '#/components/schemas/Application'}}
+    ApplicationList:
+      type: object
+      properties: {items: {type: array, items: {$ref: '#/components/schemas/Application'}}, nextCursor: {type: string, nullable: true}}
+    MetricsEnvelope:
+      type: object
+      properties: {metrics: {type: object}}
+    ApplicationExport:
+      type: object
+      properties: {application: {$ref: '#/components/schemas/Application'}, history: {type: array, items: {type: object}}, coverLetterVersions: {type: array, items: {$ref: '#/components/schemas/CoverLetterVersion'}}}
+    Reference:
+      type: object
+      required: [id]
+      properties: {id: {type: string}, version: {type: integer}}
+    Documents:
+      type: object
+      properties: {coverLetterDraft: {type: string}, coverLetterVersions: {type: array, items: {$ref: '#/components/schemas/CoverLetterVersion'}}, cvReference: {type: object, properties: {cvId: {type: string}, documentId: {type: string}}}, documentStatus: {type: string}}
+    CoverLetterVersion:
+      type: object
+      required: [jobId, content, source]
+      properties: {versionId: {type: string}, jobId: {type: string}, content: {type: string}, source: {type: string, enum: [manual, generated, imported]}, language: {type: string, enum: [de, en]}, model: {type: string}}
+    HistoryEvent:
+      oneOf:
+        - {type: object, required: [kind, text], properties: {kind: {const: feedback}, text: {type: string}, id: {type: string}, at: {type: string, format: date-time}}}
+        - {type: object, required: [kind, scheduledAt], properties: {kind: {const: interview}, scheduledAt: {type: string, format: date-time}, note: {type: string}, id: {type: string}}}
+        - {type: object, required: [kind, text], properties: {kind: {const: note}, text: {type: string}, id: {type: string}, at: {type: string, format: date-time}}}
+    StatusChange:
+      type: object
+      required: [expectedVersion]
+      properties: {status: {type: string}, stage: {type: string}, expectedVersion: {type: integer}, confirm: {type: boolean}, note: {type: string}}
 
 security:
   - ApiKeyAuth: []
