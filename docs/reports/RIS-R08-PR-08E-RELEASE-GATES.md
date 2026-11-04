@@ -9,10 +9,10 @@
 | RG-11 SQS/DLQ evidence | OPEN/BLOCKED | no live redrive evidence |
 | R08-C productive erasure | BLOCKED | no activation/deployment |
 | Automation safety | PASS for feature push | workflow deploys only on `main` push |
-| PR Readiness | BLOCKED for handoff | no `gh`/GitHub auth; full suite red |
+| PR Readiness | READY for review / merge blocked | PR #5 created; full suite red for documented environment causes |
 | Main Merge | NOT AUTHORIZED | explicit boundary |
 | Gate B Apply | NO-GO | explicit release gate |
 | Production | BLOCKED | live/legal/recovery gates |
 
-The feature branch must not be pushed by this run because PR creation cannot
-be completed or verified in the current environment.
+The feature branch was pushed normally and PR #5 was created. Merge remains
+unauthorized; CI and human review are pending.
