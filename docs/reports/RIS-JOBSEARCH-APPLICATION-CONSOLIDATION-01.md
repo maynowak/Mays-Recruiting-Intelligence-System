@@ -3,8 +3,8 @@
 ## Decision
 
 ```text
-PR: OPEN FOR CONTROLLED REVIEW
-MAIN MERGE: BLOCKED UNTIL REVIEW / REQUIRED CHECKS
+PR: MERGED
+MAIN MERGE: COMPLETE
 RIS-DEV HANDOFF: READY FOR INTEGRATION REVIEW
 DEPLOYMENT: BLOCKED
 ```
@@ -24,7 +24,7 @@ DEPLOYMENT: BLOCKED
 | Export/Delete | Owner-scoped export and metadata deletion; no credential/S3-key duplication | Privacy/security tests; retention and backup semantics open | PARTIAL LOCAL | `006876d` |
 | API/OpenAPI/Terraform | Routes, envelopes, OpenAPI consistency, offline Terraform | 47 passed, 301 subtests; `terraform validate` PASS; recursive fmt blocked by existing Mays-Orders file | PASS WITH OPEN FORMAT FINDING | `5786cfd` |
 | Regression | Full-suite failures individually classified | 2300 passed / 27 environment- or unrelated failures / 56 skipped | NO RIS REGRESSION FOUND | `0efab92` |
-| GitHub PR | Branch published and PR opened against `main` | [PR #4](https://github.com/maynowak/Mays-Recruiting-Intelligence-System/pull/4); mergeable `true`, state `clean`, no checks registered yet | OPEN / REVIEW REQUIRED | — |
+| GitHub PR | Branch published and PR merged against `main` | [PR #4](https://github.com/maynowak/Mays-Recruiting-Intelligence-System/pull/4); normal merge commit `3b05ab3ea87b25e2a034710bd4f479e0c25596a7` | MERGED | — |
 
 ## Verification
 
@@ -37,8 +37,10 @@ DEPLOYMENT: BLOCKED
   report and are not reclassified as PASS.
 - Recursive Terraform formatting: **NOT PASS**. Existing failure is outside
   RIS scope at `installer/projects/mays_order_builder/terraform/main.tf`.
-- GitHub PR: **#4**, open; mergeability currently `clean`; required-check
-  status is not yet available (`0` check runs at review time).
+- GitHub PR: **#4**, merged normally; `origin/main` and local `main` now point
+  to `3b05ab3ea87b25e2a034710bd4f479e0c25596a7`. No required branch rules or
+  rulesets were configured, and no check runs were registered; this was
+  recorded as absence of CI evidence, not as a test PASS.
 
 ## Open gates
 
