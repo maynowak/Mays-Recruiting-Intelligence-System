@@ -146,11 +146,44 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Gate 10: Dispatch ohne KeyError (die alte Einzeiler-Bedingung warf bei
     # jedem API-Event ohne 'Records'-Key). v1-Payload: httpMethod/path;
     # SQS: Records-Liste.
-    if event.get('httpMethod'):
-        return _handle_api_event(event, context)
+    if event.get('httpMethod') or ((event.get('requestContext') or {}).get('http') or {}).get('method'):
+        return _handle_personal_api_boundary(event, context)
     if event.get('Records'):
         return _handle_sqs_event(event, context)
     return _handle_api_event(event, context)
+
+
+def _personal_api_path(path: str) -> bool:
+    """Return whether a Lambda-served path can contain subject data."""
+    return (
+        path in {"/me", "/agents"}
+        or path.startswith("/me/")
+        or path.startswith("/v1/partner/me/")
+    )
+
+
+def _finalize_personal_response(event: Dict[str, Any], response: Dict[str, Any]) -> Dict[str, Any]:
+    path = event.get("path") or ((event.get("requestContext") or {}).get("http") or {}).get("path", "/")
+    if not _personal_api_path(path) or not isinstance(response, dict):
+        return response
+    finalized = dict(response)
+    headers = dict(finalized.get("headers") or {})
+    headers["Cache-Control"] = "no-store, private"
+    finalized["headers"] = headers
+    return finalized
+
+
+def _handle_personal_api_boundary(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Finalize all subject-bearing API responses, including early failures."""
+    try:
+        response = _handle_api_event(event, context)
+    except Exception:
+        logger.exception("personal API request failed")
+        response = {
+            "statusCode": 500,
+            "body": json.dumps({"error": "Internal error"}),
+        }
+    return _finalize_personal_response(event, response)
 
 
 # Live-Einstieg der deployten Funktion (handler.lambda_handler).
