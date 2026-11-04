@@ -160,3 +160,26 @@ Nicht erfüllt: IAM-Grant ist nicht angewendet, Lambda kennt den ARN noch nicht,
 4. DEC-02 (Rotation) entscheiden.
 
 **STOP nach DEC-01. Kein Apply, keine weiteren AWS-Änderungen.**
+
+---
+
+## 12. Re-Verifikation 2026-11-04 (Auftragswiederholung)
+
+Der Auftrag wurde am 2026-11-03 erstmals ausgeführt (Commits `4988758`, `81094dc`). Bei der erneuten Ausführung am 2026-11-04 wurde **nichts neu angelegt und nichts überschrieben**.
+
+| Prüfung | Ergebnis |
+|---|---|
+| Secret vorhanden | ✅ `ris-dev/applications/cursor-hmac`, erstellt 2026-11-03 21:45:04 +01:00 |
+| ARN unverändert | ✅ `…-cuHjQ8` |
+| KMS / Rotation | AWS-managed, Rotation weiterhin aus |
+| LastChangedDate | unverändert (keine Wertänderung) |
+| Wert-Länge/Format | 64 Zeichen, keine Whitespaces |
+| Cursor-Roundtrip | ✅ |
+| Tampered / fremder Tenant / fremder User | ✅ abgelehnt |
+| State | serial 36, Version `3tey8lIH…` unverändert |
+| Neue AWS-Schreiboperation | **keine** |
+| Neuer Plan | `/tmp/opencode/ris-dev-dec01-recheck.tfplan`, SHA-256 `b6c03dec87fea23750010bfa567e3292fc18a6e28a2e849842731739352ccc6b` |
+| Planinhalt | 49 CREATE (inkl. `lambda_cursor_secret[0]`), 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 1 Drift |
+
+**Gate-Status unverändert: RG-07 PARTIAL** — IAM-Grant und Lambda-Env werden erst mit einem Apply wirksam; der Runtime-Test bleibt BLOCKED.
+

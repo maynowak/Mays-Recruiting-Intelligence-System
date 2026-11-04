@@ -9318,6 +9318,17 @@ Findings:
 Report: docs/reports/RIS-DEV-UPGRADE-DEC01-SECRET-PROVISION.md
 Next: Apply in separatem Auftrag, dann Runtime-Verifikation und RG-07 PASS. STOP nach DEC-01.
 
+[RIS-DEV-UPGRADE-DEC01-SECRET-PROVISION-01-RECHECK]
+Status: COMPLETE / RG-07 unverändert PARTIAL — keine neue AWS-Schreiboperation
+Date: 2026-11-04
+Findings:
+  - Auftragswiederholung: Secret ris-dev/applications/cursor-hmac existierte bereits (erstellt 2026-11-03), ARN ...-cuHjQ8 unverändert; keine Überschreibung, keine Rotation, keine neue AWS-Schreiboperation.
+  - Re-Verifikation: 64 Zeichen, AWS-managed KMS, Cursor-Roundtrip ok, tampered/fremder Tenant/fremder User abgelehnt.
+  - Neuer Plan SHA256 b6c03dec87fea23750010bfa567e3292fc18a6e28a2e849842731739352ccc6b: 49 CREATE (inkl. lambda_cursor_secret[0]), 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 1 Drift; State serial 36 unverändert.
+  - RG-07 bleibt PARTIAL: IAM-Grant und Lambda-Env erst nach Apply; Runtime-Test BLOCKED.
+Report: docs/reports/RIS-DEV-UPGRADE-DEC01-SECRET-PROVISION.md (§12)
+Next: unverändert Apply in separatem Auftrag. STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
