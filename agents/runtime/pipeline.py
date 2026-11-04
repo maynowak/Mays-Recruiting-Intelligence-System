@@ -61,6 +61,9 @@ REFERENCE_CAPABILITY = "reference.echo"
 REFERENCE_WORK_TYPE = "agent_reference_agent"
 
 TERMINAL_DUPLICATE_STATES = {"COMPLETED"}
+# Erasure cancellation is a terminal admission decision too.  A queued or
+# redelivered message must never turn CANCELLED back into RUNNING.
+ERASURE_SUPPRESSED_STATES = {"CANCELLED"}
 
 # Fehlercodes, die einen KONTROLLIERTEN Fehlschlag bedeuten (kein Retry:
 # die Nachricht wird konsumiert). Alle anderen Fehlertypen (unerwartete
@@ -369,6 +372,13 @@ def process_record(
 
     item, is_duplicate = _register_processing(table, work, envelope, decision.agent_id)
     if is_duplicate:
+        if item.get("status") in ERASURE_SUPPRESSED_STATES:
+            logger.info("erasure-suppressed work message (workId=%s)", work["workId"])
+            return {
+                "workId": work["workId"], "status": item.get("status"),
+                "duplicate": True, "suppressed": True,
+                "attempt_no": item.get("attempt_no", 1),
+            }
         if item.get("status") in TERMINAL_DUPLICATE_STATES:
             logger.info(
                 "Duplikat erkannt (workId=%s, status=%s): kein neuer AgentRun",
@@ -382,6 +392,8 @@ def process_record(
                 "attempt_no": item.get("attempt_no", 1),
                 "result_reference": item.get("result_reference"),
             }
+        if item.get("status") != "FAILED":
+            raise RuntimeError("WORK_ADMISSION_STATE_UNSAFE")
         resumed = _start_retry_attempt(table, item)
         item = resumed
 
