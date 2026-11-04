@@ -24,3 +24,7 @@ The later AWS DEV2 readiness discovery is local-only evidence and is not part
 of PR #5 because this mission forbids another push or PR modification. See
 `RIS-R08-DEV2-10A` through
 `RIS-R08-DEV2-E2E-READINESS-10-ABSCHLUSS.md`.
+
+For this controlled consolidation rerun, the local documentation commit is
+authorized to be pushed to the existing PR #5. This does not authorize merge,
+Apply, deployment or productive privacy activation.
