@@ -42,3 +42,8 @@ health-Lambda artifact updates are unrelated to the R08 runtime change and
 must be eliminated or explicitly approved. A normally locked plan must also be
 reproduced after the duplicate/legacy lock records are resolved by an
 authorized owner. No lock cleanup was attempted.
+
+Plan-Unblock-11 supersedes this historical plan: the two lock records are
+digest caches, and exact live Health baseline ZIPs at the State-recorded paths
+produce a controlled plan of 1 CREATE, 2 UPDATE, 0 DELETE, 0 REPLACE, with
+zero Health Lambda actions. See `RIS-R08-DEV2-11D-TERRAFORM-PLAN.md`.

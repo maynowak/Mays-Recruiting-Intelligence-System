@@ -28,3 +28,7 @@ of PR #5 because this mission forbids another push or PR modification. See
 For this controlled consolidation rerun, the local documentation commit is
 authorized to be pushed to the existing PR #5. This does not authorize merge,
 Apply, deployment or productive privacy activation.
+
+DEV2 Plan-Unblock-11 provides a cleaner local plan (1 CREATE / 2 UPDATE, no
+Health actions), but concludes `DEV2 TEST DEPLOYMENT: BLOCKED`; it does not
+alter PR merge, Apply, deployment or production boundaries.

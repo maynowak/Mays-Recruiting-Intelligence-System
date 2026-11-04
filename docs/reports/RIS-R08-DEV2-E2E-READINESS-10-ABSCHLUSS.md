@@ -34,3 +34,8 @@
 No AWS write, Terraform Apply/Destroy, state mutation, queue operation,
 DynamoDB mutation, Lambda update, E2E call, Git push or PR modification was
 performed by this mission.
+
+Plan-Unblock-11 supersedes the plan classification above: lock records are
+verified digest caches, Health actions are removed from the clean plan, and the
+new plan is 1 CREATE / 2 UPDATE / 0 DELETE / 0 REPLACE. Deployment nevertheless
+remains BLOCKED because PITR/recovery and live E2E approvals are still absent.

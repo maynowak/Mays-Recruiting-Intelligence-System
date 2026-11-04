@@ -26,3 +26,8 @@ DEV2 read-only discovery (DEV2-E2E-READINESS-10) verified the expected account,
 state and existing stack, but found duplicate backend lock records, disabled
 PITR and an Apply plan with unrelated health-Lambda updates. It adds no live
 evidence and does not change the Gate B NO-GO decision.
+
+DEV2 Plan-Unblock-11 reclassified the lock records as non-active digest caches
+and removed unrelated Health artifact actions from the local plan. PITR,
+durable ledger, restore/reconciliation, live SQS/DLQ and synthetic E2E gates
+remain open; Gate B remains NO-GO.

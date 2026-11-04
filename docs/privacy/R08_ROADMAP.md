@@ -27,6 +27,14 @@ diagnostic Terraform plan. DEV2 Apply remains BLOCKED by duplicate backend lock
 records, unrelated health-Lambda plan updates, disabled PITR and missing live
 E2E/recovery evidence. No AWS mutation occurred.
 
+**DEV2-PLAN-UNBLOCK-11 (2026-11-04):** Lock forensics verified that the two
+`ris-dev2-tf-lock` records are digest caches for the canonical and legacy S3
+states, not active locks. Exact live Health Lambda baseline packages removed
+both unrelated Health actions from the controlled plan. The resulting plan is
+1 CREATE / 2 UPDATE / 0 DELETE / 0 REPLACE, but DEV2 deployment remains
+BLOCKED because PITR/recovery, live SQS/DLQ and synthetic E2E approvals remain
+open.
+
 ## R08-A — User evidence journal
 
 ### R08-A1 — Durable journal repository (COMPLETE)
