@@ -60,7 +60,7 @@ REFERENCE_AGENT_ID = "reference_agent"
 REFERENCE_CAPABILITY = "reference.echo"
 REFERENCE_WORK_TYPE = "agent_reference_agent"
 
-TERMINAL_DUPLICATE_STATES = {"COMPLETED"}
+TERMINAL_DUPLICATE_STATES = {"COMPLETED", "CANCELLED", "DEAD_LETTER"}
 # Erasure cancellation is a terminal admission decision too.  A queued or
 # redelivered message must never turn CANCELLED back into RUNNING.
 ERASURE_SUPPRESSED_STATES = {"CANCELLED"}
@@ -173,6 +173,10 @@ class _ConditionalFailed(Exception):
     """Lokaler Marker fuer fehlgeschlagenen Conditional Write (Tests)."""
 
 
+class _RetryClaimLost(Exception):
+    """Another delivery won the conditional retry admission."""
+
+
 def _is_conditional_failed(exc: Exception) -> bool:
     if isinstance(exc, _ConditionalFailed):
         return True
@@ -267,12 +271,16 @@ def _persist_result(table: Any, work_id: str, attempt: int, result: Dict[str, An
     )
 
 
-def _persist_failure(table: Any, work_id: str, attempt: int, error: Dict[str, Any]) -> None:
+def _persist_failure(table: Any, work_id: str, attempt: int,
+                     error: Dict[str, Any], *, terminal: bool = False) -> None:
     table.update_item(
         Key={"workId": work_id},
         UpdateExpression="SET #status = :s, #error = :e, updatedAt = :u",
         ExpressionAttributeNames={"#status": "status", "#error": "error"},
-        ExpressionAttributeValues={":s": "FAILED", ":e": _to_dynamo(error), ":u": _utcnow()},
+        ExpressionAttributeValues={
+            ":s": "DEAD_LETTER" if terminal else "FAILED",
+            ":e": _to_dynamo(error), ":u": _utcnow(),
+        },
     )
 
 
@@ -280,21 +288,29 @@ def _start_retry_attempt(table: Any, existing: Dict[str, Any]) -> Dict[str, Any]
     """Bestehendes FAILED-Processing als neuer Attempt fortfuehren."""
     attempt = int(existing.get("attempt_no", 1)) + 1
     execution_id = str(uuid.uuid4())
-    table.update_item(
-        Key={"workId": existing["workId"]},
+    try:
+        table.update_item(
+            Key={"workId": existing["workId"]},
         UpdateExpression=(
             "SET #status = :s, attempt_no = :a, execution_id = :e, "
             "attempt_id = :aid, updatedAt = :u REMOVE #error"
         ),
         ExpressionAttributeNames={"#status": "status", "#error": "error"},
-        ExpressionAttributeValues={
-            ":s": "RUNNING",
-            ":a": attempt,
-            ":e": execution_id,
-            ":aid": f"{existing.get('processing_id', '')}#{attempt}",
-            ":u": _utcnow(),
-        },
-    )
+            ExpressionAttributeValues={
+                ":s": "RUNNING",
+                ":a": attempt,
+                ":e": execution_id,
+                ":aid": f"{existing.get('processing_id', '')}#{attempt}",
+                ":u": _utcnow(),
+                ":failed": "FAILED",
+                ":expectedAttempt": int(existing.get("attempt_no", 1)),
+            },
+            ConditionExpression="#status = :failed AND attempt_no = :expectedAttempt",
+        )
+    except Exception as exc:
+        if _is_conditional_failed(exc):
+            raise _RetryClaimLost from exc
+        raise
     resumed = dict(existing)
     resumed.update({"attempt_no": attempt, "execution_id": execution_id, "status": "RUNNING"})
     return resumed
@@ -307,6 +323,7 @@ def process_record(
     body: Any = None,
     entitlement_resolver: Any = None,
     health_tracker: Any = None,
+    erasure_admission: Any = None,
 ) -> Dict[str, Any]:
     """Einen SQS-Record durch den Runtime-Pfad fuehren (Worker-Einstieg).
 
@@ -345,6 +362,11 @@ def process_record(
 
     tenant_id = work.get("tenantId")
     work_id = work.get("workId")
+
+    if erasure_admission is not None:
+        # The production caller must inject a durable RIS fence. Test harnesses
+        # may omit it explicitly; omission never creates a durable claim here.
+        erasure_admission(work, "before_registration")
 
     table = table if table is not None else _resolve_table()
     registry, body = ensure_reference_agent(registry, body)
@@ -394,7 +416,12 @@ def process_record(
             }
         if item.get("status") != "FAILED":
             raise RuntimeError("WORK_ADMISSION_STATE_UNSAFE")
-        resumed = _start_retry_attempt(table, item)
+        try:
+            resumed = _start_retry_attempt(table, item)
+        except _RetryClaimLost:
+            return {"workId": work["workId"], "status": "RUNNING",
+                    "duplicate": True, "suppressed": True,
+                    "attempt_no": item.get("attempt_no", 1)}
         item = resumed
 
     attempt = int(item.get("attempt_no", 1))
@@ -449,14 +476,14 @@ def process_record(
             _persist_failure(
                 table, work["workId"], attempt,
                 {"message": f"Worker entitlement denied [{auth.reason}]",
-                 "type": "ENTITLEMENT_DENIED"})
+                 "type": "ENTITLEMENT_DENIED"}, terminal=True)
             logger.warning(
                 "worker entitlement DENIED (workId=%s, agent=%s, reason=%s, "
                 "attempt=%s)", work["workId"], decision.agent_id,
                 auth.reason, attempt)
             return {
                 "workId": work["workId"],
-                "status": "FAILED",
+                "status": "DEAD_LETTER",
                 "duplicate": False,
                 "attempt_no": attempt,
                 "agent_id": decision.agent_id,
@@ -464,6 +491,13 @@ def process_record(
                 "reason": auth.reason,
                 "result_reference": f"work:{work['workId']}:attempt:{attempt}",
             }
+
+    current = table.get_item(Key={"workId": work["workId"]}).get("Item")
+    if not current or current.get("status") != "RUNNING" or int(current.get("attempt_no", 1)) != attempt:
+        return {"workId": work["workId"], "status": current.get("status") if current else "CANCELLED",
+                "duplicate": True, "suppressed": True, "attempt_no": attempt}
+    if erasure_admission is not None:
+        erasure_admission(work, "before_execution")
 
     engine = ExecutionEngine(agent_body=body)
     try:
@@ -484,6 +518,7 @@ def process_record(
         )
         raise
 
+    terminal = False
     if not result.get("success", False):
         error = result.get("error", {"message": "Agent meldete Fehler"})
         _health("record_failure",
@@ -493,8 +528,9 @@ def process_record(
                 work_id=work_id,
                 agent_id=decision.agent_id,
                 attempt_id=str(attempt))
-        _persist_failure(table, work["workId"], attempt, error)
-        if isinstance(error, dict) and error.get("type") not in PERMANENT_ERROR_CODES:
+        terminal = isinstance(error, dict) and error.get("type") in PERMANENT_ERROR_CODES
+        _persist_failure(table, work["workId"], attempt, error, terminal=terminal)
+        if not terminal:
             # Unerwarteter Fehler -> Retry via SQS-Redelivery (neuer Attempt).
             raise RuntimeError(
                 f"Agent {decision.agent_id} fehlgeschlagen "
@@ -512,7 +548,7 @@ def process_record(
 
     return {
         "workId": work["workId"],
-        "status": "COMPLETED" if result.get("success", False) else "FAILED",
+        "status": "COMPLETED" if result.get("success", False) else ("DEAD_LETTER" if terminal else "FAILED"),
         "duplicate": False,
         "attempt_no": attempt,
         "agent_id": decision.agent_id,

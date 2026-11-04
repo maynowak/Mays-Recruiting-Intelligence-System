@@ -60,10 +60,14 @@ class FakeTable:
         return {"Item": dict(item)} if item else {}
 
     def update_item(self, Key, UpdateExpression, ExpressionAttributeNames=None,
-                    ExpressionAttributeValues=None):
+                    ExpressionAttributeValues=None, ConditionExpression=None):
         item = self.items[Key["workId"]]
         names = ExpressionAttributeNames or {}
         values = ExpressionAttributeValues or {}
+        if ConditionExpression == "#status = :failed AND attempt_no = :expectedAttempt":
+            if (item.get(names.get("#status", "#status")) != values[":failed"]
+                    or item.get("attempt_no") != values[":expectedAttempt"]):
+                raise FakeTable.ConditionalFailed()
         # minimaler Parser fuer die in pipeline.py verwendeten SET/REMOVE-Ausdruecke
         expr = UpdateExpression.split("REMOVE")[0].strip()
         set_part = expr[len("SET "):] if expr.startswith("SET ") else expr
@@ -80,6 +84,38 @@ def fresh_wiring():
 
 
 class TestWorkerPipeline(unittest.TestCase):
+    def test_terminal_dead_letter_is_suppressed(self):
+        table = FakeTable()
+        table.items["work-dead"] = {
+            "workId": "work-dead", "status": "DEAD_LETTER", "attempt_no": 1,
+        }
+        registry, body = fresh_wiring()
+        called = []
+        body.register_agent(capability="reference.echo",
+                            handler=lambda work: called.append(work))
+        out = process_record(record(work_item("work-dead")), table=table,
+                             registry=registry, body=body)
+        self.assertTrue(out["duplicate"])
+        self.assertEqual(out["status"], "DEAD_LETTER")
+        self.assertFalse(called)
+
+    def test_execution_fence_can_suppress_after_admission(self):
+        table = FakeTable()
+        registry, body = fresh_wiring()
+        called = []
+        body.register_agent(capability="reference.echo",
+                            handler=lambda work: called.append(work))
+
+        def fence(work, phase):
+            if phase == "before_execution":
+                raise RuntimeError("ERASURE_FREEZE_ACTIVE")
+
+        with self.assertRaises(RuntimeError):
+            process_record(record(work_item("work-fenced")), table=table,
+                           registry=registry, body=body,
+                           erasure_admission=fence)
+        self.assertFalse(called)
+
     def test_happy_path_selects_reference_agent_via_ecosystem(self):
         table = FakeTable()
         registry, body = fresh_wiring()
