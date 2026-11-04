@@ -542,7 +542,11 @@ def _application_response(status, payload=None, code=None):
     body = payload if isinstance(payload, dict) else {'error': payload or 'Application request failed'}
     if code:
         body['code'] = code
-    return {'statusCode': status, 'body': json.dumps(body, ensure_ascii=False)}
+    return {
+        'statusCode': status,
+        'headers': {'Cache-Control': 'no-store, private'},
+        'body': json.dumps(body, ensure_ascii=False),
+    }
 
 
 def _application_repo():
