@@ -13,7 +13,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from jobsearch.application_contract import ApplicationContext
-from jobsearch.application_repository import ApplicationConflict, ApplicationRepository
+from jobsearch.application_repository import (
+    ApplicationConflict,
+    ApplicationNotFound,
+    ApplicationRepository,
+)
 
 
 @dataclass(frozen=True)
@@ -38,7 +42,7 @@ class ApplicationErasureExecutor:
             try:
                 self.repository.delete(item["applicationId"], item["version"], context)
                 deleted += 1
-            except (ApplicationConflict, KeyError):
+            except (ApplicationConflict, ApplicationNotFound, KeyError):
                 # The orchestrator persists this cursor and retries the same
                 # page. A partial result is never reported as complete.
                 return ApplicationErasureProgress(

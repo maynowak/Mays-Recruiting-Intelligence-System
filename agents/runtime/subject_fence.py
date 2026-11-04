@@ -9,6 +9,7 @@ can change that state.
 from __future__ import annotations
 
 import hashlib
+import json
 
 
 FENCE_ACTIVE = "ACTIVE"
@@ -25,8 +26,9 @@ class SubjectFenceUnavailable(RuntimeError):
 
 def subject_fence_key(*, user_id: str, tenant_id: str,
                       partner_application_id: str = "", issuer: str = "") -> str:
-    material = "|".join((tenant_id or "", user_id or "",
-                         partner_application_id or "", issuer or ""))
+    material = json.dumps(
+        [tenant_id or "", user_id or "", partner_application_id or "", issuer or ""],
+        ensure_ascii=False, separators=(",", ":"))
     return "erasure-fence#" + hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 

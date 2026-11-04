@@ -83,6 +83,7 @@ PERMANENT_ERROR_CODES = frozenset({
     "ORDER_NOT_FOUND",
     "INVALID_TRANSITION",
     "CONFLICT",
+    "POST_UNKNOWN",
 })
 
 
@@ -212,6 +213,8 @@ def _register_processing(
     # invisible to any per-user lookup. `requestedBy` is accepted as a
     # fallback because _create_work writes only that field.
     user_id = work.get("userId") or work.get("requestedBy") or ""
+    if require_fence and (not user_id or not work.get("tenantId")):
+        raise SubjectFenceUnavailable("verified subject and tenant are required")
     item = {
         "workId": work["workId"],
         "tenantId": work.get("tenantId", ""),
@@ -330,7 +333,10 @@ def _persist_result(table: Any, work_id: str, attempt: int, result: Dict[str, An
             ":r": f"work:{work_id}:attempt:{attempt}",
             ":res": _to_dynamo(result),
             ":u": _utcnow(),
+            ":running": "RUNNING",
+            ":attempt": attempt,
         },
+        ConditionExpression="#status = :running AND attempt_no = :attempt",
     )
 
 
@@ -343,7 +349,9 @@ def _persist_failure(table: Any, work_id: str, attempt: int,
         ExpressionAttributeValues={
             ":s": "DEAD_LETTER" if terminal else "FAILED",
             ":e": _to_dynamo(error), ":u": _utcnow(),
+            ":running": "RUNNING", ":attempt": attempt,
         },
+        ConditionExpression="#status = :running AND attempt_no = :attempt",
     )
 
 

@@ -78,7 +78,8 @@ class FakeTable:
 
     def update_item(self, Key, UpdateExpression,
                     ExpressionAttributeNames=None,
-                    ExpressionAttributeValues=None):
+                    ExpressionAttributeValues=None,
+                    ConditionExpression=None):
         item = self.items[Key["workId"]]
         names = ExpressionAttributeNames or {}
         values = ExpressionAttributeValues or {}

@@ -108,7 +108,8 @@ class DocumentErasureIntegration:
                  s3_orchestrator: FencedS3ErasureOrchestrator,
                  phases: Any, adapter: FencedS3Adapter,
                  document_key: Optional[Callable[[Any, ErasureOperationV1], str]] = None,
-                 quiescence: Optional[S3QuiescenceCoordinator] = None):
+                  quiescence: Optional[S3QuiescenceCoordinator] = None,
+                  allow_synthetic_completion: bool = False):
         self.profile_executor = profile_executor
         self.profiles = profile_repository
         self.operations = operation_repository
@@ -117,6 +118,7 @@ class DocumentErasureIntegration:
         self.adapter = adapter
         self.document_key = document_key or self._default_key
         self.quiescence = quiescence
+        self.allow_synthetic_completion = allow_synthetic_completion
         self.last_s3_result: Optional[Dict[str, Any]] = None
 
     @staticmethod
@@ -318,7 +320,7 @@ class DocumentErasureIntegration:
             self.s3.adapter = previous_adapter
 
         if operation.status == STATUS_RUNNING:
-            if self._local_operation_complete(operation):
+            if self.allow_synthetic_completion and self._local_operation_complete(operation):
                 completed = operation.transition(
                     STATUS_COMPLETED,
                     now=operation.updated_at or operation.created_at,

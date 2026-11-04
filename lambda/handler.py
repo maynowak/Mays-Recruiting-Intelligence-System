@@ -1749,7 +1749,9 @@ def _partner_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Di
             tenant_id=context.get('tenantId'),
             user_id=context.get('userId'),
             agent_version=agent_version,
-            idempotency_key=data.get('idempotencyKey'))
+            idempotency_key=data.get('idempotencyKey'),
+            partner_application_id=context.get('partnerApplicationId'),
+            issuer=context.get('issuer'))
     except Exception:
         return {'statusCode': 500, 'body': json.dumps({'error': 'Failed to create work item'})}
 
@@ -1930,7 +1932,9 @@ Route: POST /v1/m2m/agents/{agentId}/execute
             tenant_id=context.get('tenantId'),
             user_id=context.get('userId'),
             agent_version=agent_version,
-            idempotency_key=data.get('idempotencyKey'))
+            idempotency_key=data.get('idempotencyKey'),
+            partner_application_id=context.get('partnerApplicationId'),
+            issuer=context.get('issuer'))
     except Exception:
         return {'statusCode': 500,
                 'body': json.dumps({'error': 'Failed to create work item'})}
@@ -3055,7 +3059,9 @@ def _enqueue_agent_work(agent_id: str, capability: str,
                         tenant_id: Optional[str],
                         user_id: Optional[str],
                         agent_version: str = '1.0.0',
-                        idempotency_key: Optional[str] = None
+                        idempotency_key: Optional[str] = None,
+                        partner_application_id: Optional[str] = None,
+                        issuer: Optional[str] = None
                         ) -> Dict[str, Any]:
     """Single execution contract: build the work item, persist, enqueue.
 
@@ -3073,6 +3079,8 @@ def _enqueue_agent_work(agent_id: str, capability: str,
         'type': f'agent_{agent_id}',
         'tenantId': tenant_id,
         'userId': user_id,
+        'partnerApplicationId': partner_application_id or '',
+        'issuer': issuer or '',
         'requestedBy': user_id,
         'agentId': agent_id,
         'capability': capability,
@@ -3102,7 +3110,9 @@ def _enqueue_agent_work(agent_id: str, capability: str,
             {"ConditionCheck": {
                 "TableName": table_name,
                 "Key": {"workId": {"S": subject_fence_key(
-                    user_id=user_id or "", tenant_id=tenant_id or "")}},
+                    user_id=user_id or "", tenant_id=tenant_id or "",
+                    partner_application_id=partner_application_id or "",
+                    issuer=issuer or "")}},
                 "ConditionExpression": "attribute_not_exists(workId)",
             }},
             {"Put": {
@@ -3182,7 +3192,9 @@ def _execute_agent(event: Dict[str, Any], context: Any, agent_id: Optional[str])
             tenant_id=user_context['tenantId'],
             user_id=user_context['userId'],
             agent_version=agent.get('version', '1.0.0'),
-            idempotency_key=body.get('idempotencyKey'))
+            idempotency_key=body.get('idempotencyKey'),
+            partner_application_id=user_context.get('partnerApplicationId'),
+            issuer=user_context.get('issuer'))
     except Exception as e:
         logger.error(f"Error creating work item: {e}")
         return {

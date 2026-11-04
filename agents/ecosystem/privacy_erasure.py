@@ -305,14 +305,22 @@ class PrivacyErasure:
             if not hasattr(self.work_table, "put_item"):
                 raise ErasureExecutionUnavailable("durable subject fence store unavailable")
             context = self.execution_context
-            self.work_table.put_item(
-                Item=fence_item(
-                    user_id=result.user_id,
-                    tenant_id=result.tenant_id or "",
-                    partner_application_id=getattr(context, "partner_application_id", "") if context else "",
-                    issuer=getattr(context, "issuer", "") if context else "",
-                    operation_id=getattr(context, "operation_id", "") if context else ""),
-                ConditionExpression="attribute_not_exists(workId)")
+            partner_id = getattr(context, "partner_application_id", "") if context else ""
+            issuer = getattr(context, "issuer", "") if context else ""
+            fence_contexts = [({}, "")]
+            if partner_id or issuer:
+                fence_contexts.append(({
+                    "partner_application_id": partner_id, "issuer": issuer,
+                }, "scoped"))
+            for scope, _label in fence_contexts:
+                self.work_table.put_item(
+                    Item=fence_item(
+                        user_id=result.user_id,
+                        tenant_id=result.tenant_id or "",
+                        partner_application_id=scope.get("partner_application_id", ""),
+                        issuer=scope.get("issuer", ""),
+                        operation_id=getattr(context, "operation_id", "") if context else ""),
+                    ConditionExpression="attribute_not_exists(workId)")
         except Exception as exc:
             response = getattr(exc, "response", None)
             if not (isinstance(response, dict)
@@ -366,11 +374,17 @@ class PrivacyErasure:
                     self.work_table.update_item(
                         Key={"workId": item["workId"]},
                         UpdateExpression="SET #s = :c, updatedAt = :u",
-                        ConditionExpression="attribute_exists(workId)",
+                        ConditionExpression=(
+                            "attribute_exists(workId) AND userId = :owner "
+                            "AND tenantId = :tenant AND #s = :oldStatus"),
                         ExpressionAttributeNames={"#s": "status"},
                         ExpressionAttributeValues={
                             ":c": CANCELLED_STATUS,
-                            ":u": self._clock().isoformat()},
+                            ":u": self._clock().isoformat(),
+                            ":owner": result.user_id,
+                            ":tenant": result.tenant_id,
+                            ":oldStatus": item["status"],
+                        },
                     )
                 cancelled += 1
             except Exception as exc:
