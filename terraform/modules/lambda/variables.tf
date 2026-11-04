@@ -223,6 +223,16 @@ variable "upload_cutover_table_arn" {
   type        = string
 }
 
+variable "deletion_ledger_table_name" {
+  description = "DynamoDB table name for durable R08 deletion evidence; runtime remains disabled by default."
+  type        = string
+}
+
+variable "deletion_ledger_table_arn" {
+  description = "DynamoDB table ARN for durable R08 deletion evidence."
+  type        = string
+}
+
 variable "tags" {
   description = "Additional tags for resources"
   type        = map(string)

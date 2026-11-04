@@ -359,6 +359,23 @@ resource "aws_iam_role_policy" "lambda_upload_ticket_ledger" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_deletion_ledger" {
+  name = "${var.project_name}-${var.environment}-lambda-deletion-ledger"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"]
+      Resource = [
+        var.deletion_ledger_table_arn,
+        "${var.deletion_ledger_table_arn}/index/*"
+      ]
+    }]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_upload_cutover" {
   name = "${var.project_name}-${var.environment}-lambda-upload-cutover"
   role = aws_iam_role.lambda_execution.id
@@ -585,6 +602,8 @@ resource "aws_lambda_function" "agent" {
       ERASURE_UPLOAD_CUTOVER_ENABLED       = "false"
       UPLOAD_TICKET_LEDGER_TABLE           = var.upload_ticket_ledger_table_name
       UPLOAD_CUTOVER_TABLE                 = var.upload_cutover_table_name
+      DELETION_LEDGER_ENABLED              = "false"
+      DELETION_LEDGER_TABLE                = var.deletion_ledger_table_name
       LOG_LEVEL                            = var.log_level
     }
   }
@@ -599,6 +618,7 @@ resource "aws_lambda_function" "agent" {
     aws_iam_role_policy.lambda_s3_erasure_phases,
     aws_iam_role_policy.lambda_upload_ticket_ledger,
     aws_iam_role_policy.lambda_upload_cutover,
+    aws_iam_role_policy.lambda_deletion_ledger,
     aws_iam_role_policy.lambda_dynamodb_product,
     aws_iam_role_policy.lambda_dynamodb_partner_registry,
     aws_iam_role_policy.lambda_documents,
