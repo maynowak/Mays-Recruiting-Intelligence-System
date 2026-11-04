@@ -99,6 +99,29 @@ class TestWorkerPipeline(unittest.TestCase):
         self.assertEqual(out["status"], "DEAD_LETTER")
         self.assertFalse(called)
 
+    def test_permanent_agent_error_is_terminal_and_not_retried(self):
+        table = FakeTable()
+        registry, body = fresh_wiring()
+        calls = []
+        from agents.ecosystem.registry import AgentDescriptor, AgentStatus
+        registry.register("permanent", AgentDescriptor(
+            agent_id="permanent", name="permanent", version="1.0.0",
+            status=AgentStatus.ACTIVE, capabilities=["permanent.cap"]))
+
+        def permanent(work):
+            calls.append(work["workId"])
+            return {"success": False, "error": {"type": "CONFLICT", "message": "no"}}
+
+        body.register_agent(capability="permanent.cap", handler=permanent)
+        body.register_agent(agent_id="permanent", handler=permanent)
+        item = work_item("work-permanent", capability="permanent.cap", agent_id="permanent")
+        first = process_record(record(item), table=table, registry=registry, body=body)
+        second = process_record(record(item, message_id="msg-2"), table=table,
+                                registry=registry, body=body)
+        self.assertEqual("DEAD_LETTER", first["status"])
+        self.assertEqual("DEAD_LETTER", second["status"])
+        self.assertEqual(["work-permanent"], calls)
+
     def test_execution_fence_can_suppress_after_admission(self):
         table = FakeTable()
         registry, body = fresh_wiring()
