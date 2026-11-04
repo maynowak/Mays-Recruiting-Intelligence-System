@@ -225,6 +225,10 @@ class PrivacyErasure:
             # supplies this collaborator when ApplicationV1 is in scope.
             return StepResult("erase-applications", True, 0)
         try:
+            if (getattr(self.application_context, "user_id", None) != result.user_id
+                    or getattr(self.application_context, "tenant_id", None) != result.tenant_id):
+                raise ErasureExecutionUnavailable(
+                    "application erasure context scope mismatch")
             cursor = None
             deleted = 0
             while True:
