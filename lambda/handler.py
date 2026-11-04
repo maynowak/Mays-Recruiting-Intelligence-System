@@ -1286,7 +1286,14 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             table_name=os.environ.get("API_PROFILES_TABLE")),
         work_table=dynamodb.Table(os.environ.get("WORK_ITEMS_TABLE")),
         document_deleter=_delete_documents,
-        application_deleter=_delete_applications,
+        # Application deletion is a destructive personal-data path. It stays
+        # disconnected until the data-protection owners enable it explicitly;
+        # the infrastructure being deployed is not an activation approval.
+        application_deleter=(
+            _delete_applications
+            if os.environ.get("ERASURE_APPLICATIONS_ENABLED", "false").strip().lower() == "true"
+            else None
+        ),
         user_profile_table=dynamodb.Table(
             os.environ.get("USER_PROFILE_TABLE")),
     )

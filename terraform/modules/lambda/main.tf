@@ -598,6 +598,9 @@ resource "aws_lambda_function" "agent" {
       ERASURE_S3_EXECUTION_ENABLED         = "false"
       ERASURE_S3_QUIESCENCE_ENABLED        = "false"
       ERASURE_WRITE_FREEZE_ENABLED         = "false"
+      # Application deletion stays disconnected until the data-protection
+      # decision (RG-09) explicitly enables it.
+      ERASURE_APPLICATIONS_ENABLED         = "false"
       ERASURE_UPLOAD_TICKET_LEDGER_ENABLED = "false"
       ERASURE_UPLOAD_CUTOVER_ENABLED       = "false"
       UPLOAD_TICKET_LEDGER_TABLE           = var.upload_ticket_ledger_table_name
