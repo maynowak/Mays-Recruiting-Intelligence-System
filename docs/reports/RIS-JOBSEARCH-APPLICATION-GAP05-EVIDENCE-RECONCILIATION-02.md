@@ -42,7 +42,8 @@ operation was performed for this reconciliation.
 
 - PR #4: **MERGED** — `https://github.com/maynowak/Mays-Recruiting-Intelligence-System/pull/4`
 - Normal merge commit: `3b05ab3ea87b25e2a034710bd4f479e0c25596a7`
-- `origin/main` and local `main`: `3b05ab3ea87b25e2a034710bd4f479e0c25596a7`
+- Merge commit: `3b05ab3ea87b25e2a034710bd4f479e0c25596a7`; post-merge
+  documentation HEAD on `main`: `bd8267b96d61f5cb73b149dda767b12370593145`
 - Feature tip before merge: `d27f0c3f1740bfd34eaecc169db63f3c7d3afa7d`
 - OI-07, OI-08, OI-09 and OI-10 remain open; this merge is not deployment
   approval.
