@@ -66,7 +66,14 @@ class FakeWorkTable:
         self.queried.append(IndexName)
         user_id = KeyConditionExpression._values[1]
         return {"Items": [dict(i) for i in self.items.values()
-                          if i.get("userId") == user_id]}
+                           if i.get("userId") == user_id]}
+
+    def put_item(self, Item, ConditionExpression=None):
+        if ConditionExpression and Item["workId"] in self.items:
+            class Conditional(Exception):
+                response = {"Error": {"Code": "ConditionalCheckFailedException"}}
+            raise Conditional()
+        self.items[Item["workId"]] = dict(Item)
 
     def update_item(self, Key, UpdateExpression, ConditionExpression=None,
                     ExpressionAttributeNames=None,

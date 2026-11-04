@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agents.agent_body import AgentBody
 from agents.ecosystem.registry import AgentRegistry
 from agents.runtime.pipeline import process_record
+from agents.runtime.subject_fence import SubjectFenceBlocked, fence_item
 
 
 def work_item(work_id="work-1", capability="reference.echo", agent_id="reference_agent",
@@ -79,11 +80,73 @@ class FakeTable:
             item.pop("error", None)
 
 
+class TransactionalFenceTable(FakeTable):
+    """Small low-level-DynamoDB seam for the production admission contract."""
+
+    class _Meta:
+        def __init__(self, client):
+            self.client = client
+
+    class Client:
+        def __init__(self, table):
+            self.table = table
+
+        def transact_write_items(self, TransactItems):
+            check = TransactItems[0]["ConditionCheck"]
+            key = check["Key"]["workId"]["S"]
+            put = TransactItems[1]["Put"]
+            work_id = put["Item"]["workId"]["S"]
+            if key in self.table.items or work_id in self.table.items:
+                raise FakeTable.ConditionalFailed()
+            from boto3.dynamodb.types import TypeDeserializer
+            deserialize = TypeDeserializer()
+            self.table.items[work_id] = {
+                name: deserialize.deserialize(value)
+                for name, value in put["Item"].items()
+            }
+
+    def __init__(self):
+        super().__init__()
+        self.name = "work-items"
+        self.meta = self._Meta(self.Client(self))
+
+
 def fresh_wiring():
     return AgentRegistry(), AgentBody()
 
 
 class TestWorkerPipeline(unittest.TestCase):
+    def test_production_admission_blocks_replay_after_fence_and_missing_row(self):
+        table = TransactionalFenceTable()
+        registry, body = fresh_wiring()
+        calls = []
+        body.register_agent(capability="reference.echo",
+                            handler=lambda work: calls.append(work))
+        item = work_item("work-erased")
+        item["userId"] = "user-erased"
+        table.items[fence_item(user_id="user-erased", tenant_id="tenant-test")
+                   ["workId"]] = fence_item(
+                       user_id="user-erased", tenant_id="tenant-test")
+
+        with self.assertRaises(SubjectFenceBlocked) as caught:
+            process_record(record(item), table=table, registry=registry,
+                           body=body, subject_fence_table=table,
+                           require_subject_fence=True)
+
+        self.assertIn("fenced", str(caught.exception))
+        self.assertNotIn("work-erased", table.items)
+        self.assertEqual([], calls)
+
+    def test_production_admission_uses_atomic_fence_transaction_for_create(self):
+        table = TransactionalFenceTable()
+        registry, body = fresh_wiring()
+        item = work_item("work-new")
+        item["userId"] = "user-new"
+        out = process_record(record(item), table=table, registry=registry,
+                             body=body, subject_fence_table=table,
+                             require_subject_fence=True)
+        self.assertEqual("COMPLETED", out["status"])
+        self.assertEqual("COMPLETED", table.items["work-new"]["status"])
     def test_terminal_dead_letter_is_suppressed(self):
         table = FakeTable()
         table.items["work-dead"] = {
