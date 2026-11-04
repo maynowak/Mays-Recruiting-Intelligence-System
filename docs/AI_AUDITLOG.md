@@ -9329,6 +9329,20 @@ Findings:
 Report: docs/reports/RIS-DEV-UPGRADE-DEC01-SECRET-PROVISION.md (§12)
 Next: unverändert Apply in separatem Auftrag. STOP.
 
+[RIS-DEV-UPGRADE-S07]
+Status: COMPLETE / NO-GO für Apply (Gate B) — Plan sauber, personenbezogene Endpunkte nicht freigegeben
+Date: 2026-11-04
+Git: main, Basis 259a19d, Commit cfb2685 (Erasure-Gate), Report-Commit folgt.
+Findings:
+  - Baseline unverändert: Account 240571105849, Workspace ris-dev, lineage 9cec61e5..., serial 36, 185 Ressourcen, 35 Routen, 6 RIS-Lambdas, 11 Tabellen.
+  - Schutzgüter-Snapshot: RIS-/Jobsearch-/Orders-Pools, Domains, 2 CloudFront, 2 OAC, ACM 0bfb2603..., DNS dsv3el0c1dn2, Jobsearch 302, RIS-Health 401 — alle unverändert.
+  - Neuer Plan SHA256 93fbd41c69ffb30251aa3e4343e03352b2357cc15ac499dc20dc5934c2348674: 49 CREATE, 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 1 Drift; keine aktive Änderung an Cognito/CloudFront/Orders.
+  - Defekt gefunden und behoben: Application-Erasure war ungated verdrahtet; jetzt ERASURE_APPLICATIONS_ENABLED=false default, Deleter nur bei true (Commit cfb2685, 18 Tests PASS).
+  - Gate-Entscheidung B: Apply erzeugt 7 Tabellen und 34 personenbezogene Endpunkte; RG-09 (Privacy/Legal) nicht freigegeben -> NO-GO.
+  - E2E: 2 PASS (Preservation-Snapshot, 401), 5 BLOCKED mangels Deployment, 1 NOT ACTIVATED.
+Report: docs/reports/RIS-DEV-UPGRADE-S07-INPLACE-E2E.md
+Next: RG-09/10/11 schließen, dann neuer Plan und Apply-Freigabe. STOP nach S07.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
