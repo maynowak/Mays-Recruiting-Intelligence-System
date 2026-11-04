@@ -21,3 +21,8 @@ SECURITY-07 locally wires the existing ApplicationV1 erasure executor into
 `/me/erasure`. Local runtime and Terraform source checks still do not establish
 production deployment, live recovery, queue redrive, retention, or legal
 readiness.
+
+DEV2 read-only discovery (DEV2-E2E-READINESS-10) verified the expected account,
+state and existing stack, but found duplicate backend lock records, disabled
+PITR and an Apply plan with unrelated health-Lambda updates. It adds no live
+evidence and does not change the Gate B NO-GO decision.

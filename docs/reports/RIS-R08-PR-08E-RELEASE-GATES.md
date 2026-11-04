@@ -16,3 +16,8 @@
 
 The feature branch was pushed normally and PR #5 was created. Merge remains
 unauthorized; CI and human review are pending.
+
+DEV2 readiness is separately documented in
+`RIS-R08-DEV2-E2E-READINESS-10-ABSCHLUSS.md`. AWS identity and state are
+verified, but DEV2 Apply remains blocked by duplicate lock records, unrelated
+health-Lambda updates, disabled PITR and unexecuted live E2E evidence.

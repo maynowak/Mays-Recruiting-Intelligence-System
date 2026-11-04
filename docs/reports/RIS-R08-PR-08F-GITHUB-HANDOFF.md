@@ -19,3 +19,8 @@ Reviewers must inspect the 29 documented local environment failures and preserve
 NO-GO/production-blocked gates. No workflow on a feature push performs Apply;
 the workflow's deploy condition is `github.ref == refs/heads/prod`, while its
 push trigger is restricted to `main`.
+
+The later AWS DEV2 readiness discovery is local-only evidence and is not part
+of PR #5 because this mission forbids another push or PR modification. See
+`RIS-R08-DEV2-10A` through
+`RIS-R08-DEV2-E2E-READINESS-10-ABSCHLUSS.md`.

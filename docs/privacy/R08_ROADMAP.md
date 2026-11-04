@@ -21,6 +21,12 @@ are locally verified. SECURITY-07 wires the existing ApplicationV1 executor
 into public `/me/erasure`; PR readiness and production remain BLOCKED by live
 and legal gates. Gate B remains NO-GO.
 
+**DEV2-E2E-READINESS-10 (2026-11-04):** AWS read-only discovery verified the
+`ris-dev2` account, state, Lambda/API/DynamoDB/SQS/CloudFront inventory and a
+diagnostic Terraform plan. DEV2 Apply remains BLOCKED by duplicate backend lock
+records, unrelated health-Lambda plan updates, disabled PITR and missing live
+E2E/recovery evidence. No AWS mutation occurred.
+
 ## R08-A — User evidence journal
 
 ### R08-A1 — Durable journal repository (COMPLETE)
