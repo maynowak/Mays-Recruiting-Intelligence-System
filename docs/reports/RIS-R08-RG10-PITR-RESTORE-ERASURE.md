@@ -1,6 +1,6 @@
 # RIS-R08-RG10 — PITR, Backup, Restore and Erasure
 
-## Result: RED / BLOCKED
+## Result: RED / BLOCKED — LOCAL ORCH-02 CONTRACTS ADDED
 
 No AWS access was performed. This assessment compares executable Terraform and
 local contracts only.
@@ -25,6 +25,9 @@ local contracts only.
    distinct future ledger. It is not an approved PrivacyReceipt retention
    period. Receipt retention remains `BLOCKED / REVIEW_REQUIRED` with journal
    writes disabled.
+6. ORCH-02 adds local-only `RecoveryPlanV1`, CAS checkpoints, opaque deletion
+   evidence and restore detection. These components do not claim PITR, durable
+   ledger persistence or live restore readiness.
 
 ## Local evidence
 

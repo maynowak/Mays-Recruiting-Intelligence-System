@@ -8,6 +8,13 @@ and release remain blocked or review-required. This current status supersedes
 the older “B/C not started” wording below; historical gate reports remain
 unchanged and are interpreted through the current reconciliation report.
 
+**ORCH-02 (2026-11-04):** Local-only versioned recovery/CAS contract, opaque
+deletion-ledger evidence, restore reappearance detection, fail-closed erasure
+completion checks and RIS worker cancellation admission hardening are
+implemented and tested. Durable deletion-ledger persistence, actual PITR/
+restore, live SQS/DLQ/redrive evidence and production activation remain
+BLOCKED; no retention period was approved.
+
 ## R08-A — User evidence journal
 
 ### R08-A1 — Durable journal repository (COMPLETE)

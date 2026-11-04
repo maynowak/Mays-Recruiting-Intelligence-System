@@ -71,3 +71,8 @@ GATE B: NO-GO FOR APPLY
 3. RIS-DEV proves current protected resources and authenticated live evidence.
 4. Mays-Orders owner resolves DLQ/redrive and stale-message erasure safety.
 5. Only after those gates: separate approval for any plan/apply or activation.
+
+ORCH-02 adds local-only recovery/CAS, opaque deletion-ledger evidence,
+restore-reappearance detection, complete-category completion gating and RIS
+worker cancellation admission safety. These safeguards do not establish live
+PITR, durable restore replay, current SQS/DLQ state or legal approval.

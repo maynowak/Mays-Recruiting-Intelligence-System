@@ -1,6 +1,6 @@
 # RIS-R08-RG11 — SQS Reconciliation
 
-## Result: VERIFIED LOCAL ONLY / LIVE AND ERASURE SAFETY OPEN
+## Result: LOCAL PLAN + RIS ADMISSION HARDENING / LIVE AND ERASURE SAFETY OPEN
 
 No AWS calls were made. No Mays-Orders files were changed. The RIS checkout has
 no authoritative literal `RG-11` Gate-B report. The current equivalent is the
@@ -32,6 +32,11 @@ The queue has no DLQ/redrive evidence, and erasure does not purge queued
 messages. A stale message could be processed after deletion; the referenced
 worker update path was not proven to reject a deleted subject/order under a
 race. This is a release blocker for privacy-safe asynchronous processing.
+
+ORCH-02 hardens the RIS worker admission path: `CANCELLED` duplicate work is
+suppressed before retry/execution, and retry promotion requires current
+`FAILED` status. This does not mutate or govern Mays-Orders queues and does not
+prove live DLQ/redrive behavior.
 
 ## Gate classification
 
