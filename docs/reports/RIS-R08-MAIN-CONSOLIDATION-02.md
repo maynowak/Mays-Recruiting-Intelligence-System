@@ -2,7 +2,7 @@
 
 ## Status
 
-**PR #5 MERGED — MAIN `e0a3fe4` — R08 IN MAIN VERIFIED — NO FORCE — NO AWS**
+**PR #5 MERGED — MERGE-COMMIT `e0a3fe4` — R08 IN MAIN VERIFIED — NO FORCE — NO AWS**
 
 ## 1. Merge-Readiness
 

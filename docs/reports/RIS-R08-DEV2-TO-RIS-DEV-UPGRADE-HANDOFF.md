@@ -6,7 +6,8 @@
 Der RIS-DEV-Upgrade-Plan ist vorbereitet; die Live-Inventur von
 `ris-dev` ist mit den vorhandenen Credentials BLOCKED. Kein Apply.**
 
-- GitHub `main`: `e0a3fe458b417eec22f87599f33d71dabb96dcba`
+- Merge-Commit auf `main`: `e0a3fe458b417eec22f87599f33d71dabb96dcba`
+  (danach separate Doku-Follow-up-Commits auf `main`)
 - PR #5: `merged` (Merge-Commit `e0a3fe4`)
 - DEV2 Terraform State: Serial **30**
 - DEV2 Lambda `CodeSha256`: `uGQX0tnPcIW0y1q6GtSaEPVEBjIDLqYrJzm2OX5wMEU=`
