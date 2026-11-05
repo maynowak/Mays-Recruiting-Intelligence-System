@@ -112,6 +112,12 @@ variable "applications_gsi_owner_arn" {
   type        = string
 }
 
+variable "partner_surface_enabled" {
+  description = "Aktiviert die Partner-/Personen-Oberflaeche (/v1/partner/me/*). Default AUS; Aktivierung ist eine Betreiberentscheidung, keine Deployment-Nebenwirkung."
+  type        = bool
+  default     = false
+}
+
 variable "applications_cursor_secret_arn" {
   description = "ARN of the Secrets Manager secret that holds the pagination HMAC key. ARN only; the value must never enter Terraform state, environment variables or logs. Empty = pagination stays fail-closed."
   type        = string

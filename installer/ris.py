@@ -499,6 +499,7 @@ PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
     "identity_custom_domain_certificate_arn",
     "api_cors_origins",
     "applications_cursor_secret_arn",
+    "partner_surface_enabled",
     "jobsearch_cognito_issuer",
     "jobsearch_cognito_client_id",
     "jobsearch_edge_cors_origins",
