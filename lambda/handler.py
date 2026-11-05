@@ -17,6 +17,7 @@ import sys
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Dict, Any, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -575,6 +576,22 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     }
 
 
+def _application_json_default(value):
+    """Serialize DynamoDB numbers without changing stored precision.
+
+    DynamoDB returns numbers as ``Decimal``. They stay Decimal in the
+    repository/store layer; only the HTTP projection converts them to JSON
+    numbers. Integral values become ints, fractional values become floats.
+    Any other unserializable type still fails closed.
+    """
+    if isinstance(value, Decimal):
+        if value == value.to_integral_value():
+            return int(value)
+        return float(value)
+    raise TypeError(
+        'Object of type %s is not JSON serializable' % type(value).__name__)
+
+
 def _application_response(status, payload=None, code=None):
     body = payload if isinstance(payload, dict) else {'error': payload or 'Application request failed'}
     if code:
@@ -582,7 +599,8 @@ def _application_response(status, payload=None, code=None):
     return {
         'statusCode': status,
         'headers': {'Cache-Control': 'no-store, private'},
-        'body': json.dumps(body, ensure_ascii=False),
+        'body': json.dumps(body, ensure_ascii=False,
+                           default=_application_json_default),
     }
 
 
