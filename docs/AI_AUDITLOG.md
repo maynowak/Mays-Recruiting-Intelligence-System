@@ -9454,6 +9454,20 @@ Findings:
 Report: docs/reports/M-RIS-LIVE-E2E-04.md
 Next: Vercel-Test-Env + BFF-Deployment separat; echte Daten erst nach RG-09. STOP.
 
+[RIS-R08-RIS-DEV-E2E-AUTH-READINESS-01]
+Status: COMPLETE / READY — eine Betreiberkonvention offen
+Date: 2026-11-05
+Findings:
+  - Baseline aktuell: main @ abd1fb0, State serial 41 / 243 Ressourcen; Auftragstext nannte 5ebefbd und 39/237 (veraltet).
+  - STS: arn:aws:iam::240571105849:user/Mayaws; Profil mayaws, Region eu-central-1.
+  - Trust-Anchor-Datei 600, Mapping Mayaws -> admin -> mays-jobsearch; RIS_ADMIN_AUTHORIZATION_FILE im Ausfuehrungskontext NICHT gesetzt (CLI akzeptiert alternativ --authorization-file).
+  - Partner mays-jobsearch ACTIVE, APIProfile ACTIVE, Credential ACTIVE bis 2027-11-05; Altpartner INACTIVE/REVOKED.
+  - PARTNER_SURFACE_ENABLED ist aktuell true (dauerhaft seit M-RIS-LIVE-E2E-04), nicht false wie im Auftragstext. Lokaler Nachweis der Sperrwirkung: 4 Gate-Tests PASS (503 fuer /v1/partner/me/*, bestehende Routen unberuehrt).
+  - Schutzgueter unveraendert: Pools/Domains, 2 CloudFront, 2 OAC, ACM ISSUED, DNS dsv3el0c1dn2, Kernel-Health 401.
+  - E2E lokal bereits PASS (M-RIS-LIVE-E2E-04); offen nur Vercel-Test-Env.
+Report: docs/reports/RIS-R08-RIS-DEV-E2E-AUTH-READINESS.md
+Next: RIS_ADMIN_AUTHORIZATION_FILE exportieren; danach keine weitere Analyse. STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
