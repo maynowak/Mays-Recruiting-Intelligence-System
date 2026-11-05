@@ -214,3 +214,31 @@ Verifiziert:
 - PITR weiterhin deaktiviert (Opt-in)
 - Zwei vorbestehende Upstream-Testfehler (nicht mergebedingt)
 - Partner-Surface-Aktivierung und E2E stehen aus
+
+---
+
+## 14. E2E-Durchführung (2026-11-05, freigegeben)
+
+Durchgeführt mit ausschließlich synthetischen Daten; keine echten Personen, CVs oder Bewerbungen.
+
+| Schritt | Ergebnis |
+|---|---|
+| Synthetischer Cognito-Nutzer (`e2e-r08-…@example.invalid`) | erstellt, per `admin_set_user_password` aktiviert |
+| Access-JWT via `USER_PASSWORD_AUTH` | erhalten (nicht gespeichert/ausgegeben) |
+| Partner-Surface temporär `true` (Lambda-Env) | aktiviert, danach **wieder `false`** |
+| `GET /v1/partner/me/applications/metrics` ohne JWT | **401** |
+| `GET …/metrics` mit gültigem JWT, ohne `X-Api-Credential` | **401** (Dual-Auth-Grenze greift) |
+| Plan nach Rückstellung | **0 aktive Änderungen** (alle no-op), Drift 38 berechnet |
+| Testnutzer gelöscht | ✅ (0 `e2e-r08`-Nutzer verblieben) |
+| Surface-Flag final | `false` ✅ |
+
+### Nicht durchgeführt (BLOCKED)
+
+| Test | Grund |
+|---|---|
+| Create/List/Detail/Patch/Metrics/Export/Delete | benötigt autorisierten Partner + Credential über `RIS_ADMIN_AUTHORIZATION_FILE` mit genehmigter Tenant-Zuordnung; nicht vorhanden und laut Playbook **nicht zu fingieren** |
+| Decimal `50000.5` / `60000.75` | setzt erfolgreichen Create voraus |
+| Cursor-Pagination | setzt List-Daten voraus |
+| Fremd-Tenant/Fremd-Client/revoked Credential | setzt provisionierte Testpartner voraus |
+
+Damit gilt: **Gateway-/JWT-Grenze VERIFIED RIS-DEV**, **ApplicationV1-CRUD BLOCKED** bis ein autorisierter Admin-Trust-Anchor mit Tenant bereitsteht.

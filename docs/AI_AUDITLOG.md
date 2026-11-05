@@ -9380,6 +9380,18 @@ Findings:
 Report: docs/reports/RIS-R08-RIS-DEV-UPGRADE-EXECUTION.md
 Next: separate Freigabe fuer Test-Aktivierung + synthetische Identitaet; danach Rueckstellung und Cleanup. STOP.
 
+[RIS-R08-RIS-DEV-E2E-01]
+Status: COMPLETE / E2E PARTIAL — Gateway/JWT verified, CRUD blocked (trust anchor)
+Date: 2026-11-05
+Findings:
+  - Freigegebener E2E: synthetischer Cognito-Nutzer in ojbmoiYGM erstellt, Access-JWT via USER_PASSWORD_AUTH, danach Nutzer geloescht.
+  - PARTNER_SURFACE_ENABLED temporaer true, danach false; final bestaetigt.
+  - Ohne JWT 401; mit gueltigem JWT ohne X-Api-Credential 401 -> Dual-Auth-Grenze greift.
+  - Post-E2E-Plan: 0 aktive Aenderungen (alle no-op), Drift 38 berechnet; State unveraendert.
+  - Create/List/Patch/Metrics/Export/Delete, Decimal- und Cursor-Tests BLOCKED: kein autorisierter RIS_ADMIN_AUTHORIZATION_FILE mit Tenant-Zuordnung; laut Playbook nicht zu fingieren.
+Report: docs/reports/RIS-R08-RIS-DEV-UPGRADE-EXECUTION.md (§14)
+Next: Trust-Anchor/Tenant fuer Testpartner bereitstellen, dann CRUD-E2E. STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
