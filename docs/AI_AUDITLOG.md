@@ -9354,6 +9354,20 @@ Findings:
   - Gate B bleibt: zusätzliche personenbezogene Route, RG-09/10/11 offen.
 Report: docs/reports/RIS-DEV-UPGRADE-S07-INPLACE-E2E.md (§16)
 
+[RIS-R08-RIS-DEV-UPGRADE-HANDSON-01]
+Status: COMPLETE / PLAN VERIFIED — APPLY AWAITING APPROVAL
+Date: 2026-11-05
+Findings:
+  - origin/main (c28c668, R08/PR #5) in main gemerged (1cb4fcc); einziger Konflikt terraform/.terraform.lock.hcl (beide h1-Hashes behalten). Alle lokalen Erweiterungen erhalten (userKey, gsi-user, Erasure-Resume, Metrics, Cursor-ARN, 54 Moves, Feature-Gates).
+  - Alle in der Aufgabe genannten Reports vorhanden (nach Merge).
+  - Baseline unverändert: Account 240571105849, Workspace ris-dev, lineage 9cec61e5..., serial 36, 185 Ressourcen.
+  - Preservation-Snapshot: Cognito-Pools/Clients/Domains, 2 CloudFront, 2 OAC, ACM 0bfb2603..., DNS dsv3el0c1dn2, Jobsearch 302, RIS-Health 401 — unverändert.
+  - R08 bringt kein Aktivierungs-Gate; kleinste Korrektur e609059: /v1/partner/me/* -> 503 ohne PARTNER_SURFACE_ENABLED=true; Terraform default false; 4 Tests PASS.
+  - Plan SHA256 449bf43b195dda5a4bd58b119b6e310ad13ed25d706873b4b5f2c0a6a0691759: 52 CREATE (8 Tabellen, 35 Routen, 9 IAM), 4 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 2 Drift; Schutzgüter 0 aktive Änderungen; State serial 36 unverändert.
+  - Zwei vorbestehende Testfehler auf origin/main reproduziert (nicht mergebedingt).
+Report: docs/reports/RIS-R08-RIS-DEV-UPGRADE-EXECUTION.md
+Next: Betreiberfreigabe für Plan-SHA; danach Apply + E2E. STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
