@@ -245,3 +245,20 @@ live verifiziert** behandeln.
 
 Registry-Release und Client-Reuse wurden für einen synthetischen Client live
 bestätigt; die echte-Client-Auflösung bleibt offen.
+
+## 11. Phase-26-Update — Deterministischer Partner-Resolver
+
+Der Resolver-Fix ist implementiert und getestet, aber noch **nicht deployt**:
+
+* die Client-Reservation ist autoritativ;
+* der Reservation-Owner wird strongly consistent gelesen;
+* nur ein ACTIVER Owner mit passendem Client/Tenant wird aufgelöst;
+* ohne Reservation ist genau ein ACTIVER Record erforderlich;
+* mehrere ACTIVE-Records oder Reservation-/Tenant-Widersprüche führen zu
+  fail-closed `None`;
+* historische INACTIVE-Records werden ignoriert, nicht gelöscht.
+
+Bis zum freigegebenen Deploy bleibt der echte Gateway-Positivtest mit
+Bruchwert blockiert. Jobsearch sollte in dieser Zeit keine neue Bindung auf
+denselben Client stützen und den Bruchwert-Gateway-Pfad weiterhin als nicht
+live verifiziert behandeln.
