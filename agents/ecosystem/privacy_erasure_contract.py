@@ -13,7 +13,7 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 
 SCHEMA_VERSION = 1
@@ -58,6 +58,9 @@ ERASURE_CATEGORIES = (
     "applications", "s3Versions", "systemRecords", "userProfile",
     "privacyReceipts",
 )
+
+# Non-serializable capability reserved for the existing synthetic C1B fixture.
+LOCAL_SYNTHETIC_COMPLETION_TOKEN = object()
 
 _STATUS_TRANSITIONS = {
     STATUS_PENDING: frozenset({STATUS_RUNNING, STATUS_FAILED}),
@@ -342,12 +345,27 @@ class ErasureOperationV1:
         return target in _STATUS_TRANSITIONS[self.status]
 
     def transition(self, target: str, *, now: str,
-                   error_code: Optional[str] = None) -> "ErasureOperationV1":
+                   error_code: Optional[str] = None,
+                   required_categories: Optional[Iterable[str]] = None,
+                   completion_token: object | None = None) -> "ErasureOperationV1":
         if target not in OPERATION_STATUSES or not self.can_transition_to(target):
             raise ErasureContractError("INVALID_STATUS_TRANSITION", "%s -> %s is not allowed" % (self.status, target))
         if target in (STATUS_PARTIAL, STATUS_FAILED) and not error_code:
             raise ErasureContractError("MISSING_ERROR", "partial/failed status needs errorCode")
         if target == STATUS_COMPLETED:
+            required = set(ERASURE_CATEGORIES if required_categories is None
+                           else required_categories)
+            if not required or not required.issubset(set(ERASURE_CATEGORIES)):
+                raise ErasureContractError("INVALID_REQUIRED_CATEGORIES",
+                                           "completion scope is invalid")
+            if set(self.progress) != required:
+                raise ErasureContractError(
+                    "INCOMPLETE_OPERATION",
+                    "cannot complete without evidence for every required category")
+            if required != set(ERASURE_CATEGORIES) and completion_token is not LOCAL_SYNTHETIC_COMPLETION_TOKEN:
+                raise ErasureContractError(
+                    "UNAUTHORIZED_COMPLETION_SCOPE",
+                    "reduced completion scope is local synthetic only")
             if any(item.status not in (PROGRESS_COMPLETED, PROGRESS_SKIPPED)
                    for item in self.progress.values()):
                 raise ErasureContractError("INCOMPLETE_OPERATION", "cannot complete incomplete operation")

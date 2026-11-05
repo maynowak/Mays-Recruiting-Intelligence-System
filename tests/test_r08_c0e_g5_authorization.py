@@ -105,6 +105,14 @@ class _RowsTable:
     def query(self, **_kwargs):
         return {"Items": [dict(item) for item in self.items]}
 
+    def put_item(self, Item, ConditionExpression=None):
+        if ConditionExpression and any(item.get("workId") == Item.get("workId")
+                                        for item in self.items):
+            class Conditional(Exception):
+                response = {"Error": {"Code": "ConditionalCheckFailedException"}}
+            raise Conditional()
+        self.items.append(dict(Item))
+
 
 class _CredentialStore(DynamoDBCredentialStore):
     def list_by_owner(self, owner_id):

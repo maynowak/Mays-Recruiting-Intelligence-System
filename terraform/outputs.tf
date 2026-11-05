@@ -30,6 +30,16 @@ output "dynamodb_privacy_receipts_table_arn" {
   value       = module.dynamodb.privacy_receipts_table_arn
 }
 
+output "dynamodb_deletion_ledger_table_name" {
+  description = "Name of the durable R08 deletion evidence table."
+  value       = module.dynamodb.deletion_ledger_table_name
+}
+
+output "dynamodb_deletion_ledger_table_arn" {
+  description = "ARN of the durable R08 deletion evidence table."
+  value       = module.dynamodb.deletion_ledger_table_arn
+}
+
 output "dynamodb_work_items_table_arn" {
   description = "ARN of the DynamoDB work items table."
   value       = module.dynamodb.work_items_table_arn

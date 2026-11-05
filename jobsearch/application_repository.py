@@ -13,6 +13,7 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any, Mapping
 
 try:
@@ -44,8 +45,17 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _json_default(value: Any) -> Any:
+    """Canonical JSON representation for DynamoDB-shaped values."""
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    raise TypeError(
+        'Object of type %s is not JSON serializable' % type(value).__name__)
+
+
 def _json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return json.dumps(value, sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=False, default=_json_default)
 
 
 class ApplicationRepository:
@@ -213,6 +223,11 @@ class ApplicationRepository:
                                    "ConditionExpression": "attribute_not_exists(applicationId)"}})
         try:
             self._transact(items)
+        except TypeError:
+            # A serialization/type error is a request error (422), never a
+            # storage conflict (409). The contract above rejects unsupported
+            # types before this point; this is defence in depth.
+            raise
         except Exception as exc:
             # An idempotent retry returns the original row after the conditional
             # conflict; other conditional conflicts are safe conflicts.
@@ -316,6 +331,10 @@ class ApplicationRepository:
         current.update(updates, version=current["version"] + 1, updatedAt=stamp)
         try:
             self.table.put_item(Item=current, ConditionExpression="version = :expected AND ownerKey = :owner", ExpressionAttributeValues={":expected": parsed["expectedVersion"], ":owner": self._scope(ctx)})
+        except TypeError:
+            # Type/serialization errors are request errors (422), not version
+            # conflicts (409).
+            raise
         except Exception as exc:
             raise ApplicationConflict("VERSION_CONFLICT") from exc
         return self._public(current)

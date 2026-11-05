@@ -272,13 +272,38 @@ def build_parser() -> argparse.ArgumentParser:
                          "action": "create",
                          "applicationId": args.applicationId})
             return 0
+        try:
+            actor = _actor(args, "create a partner application")
+        except credops_error() as exc:
+            return _deny(exc)
+
+        # The partner binding must use the tenant from the same operator trust
+        # anchor as APIProfile/Credential operations.  Do not accept a tenant
+        # supplied on the command line and do not bind an arbitrary profile:
+        # the existing domain read verifies visibility, ACTIVE status and the
+        # actor tenant before the registry transaction is reached.
+        try:
+            profile = _apiprofile_ops().show(
+                api_profile_id=args.apiProfileId,
+                actor=actor,
+                reason=args.reason,
+            )
+        except Exception as exc:
+            return _apiprofile_error("read APIProfile for partner binding", exc)
+        if not profile or profile.get("status") != "ACTIVE":
+            _deny_message("APIProfile is missing or not ACTIVE")
+            return 1
+        if profile.get("tenantId") != actor.get("actor_tenant"):
+            _deny_message("APIProfile tenant is outside the authorized scope")
+            return 1
+
         client = _get_dynamo_client(args)
         try:
             res = reg.create_partner_application(
                 application_id=args.applicationId,
                 cognito_client_id=args.cognitoClientId,
                 api_profile_id=args.apiProfileId,
-                tenant_id=args.tenantId,
+                tenant_id=actor["actor_tenant"],
                 table_name=_table_name(args, "partner-applications"),
                 dynamodb_client=client,
             )
@@ -292,7 +317,8 @@ def build_parser() -> argparse.ArgumentParser:
     create_p.add_argument("applicationId")
     create_p.add_argument("--cognitoClientId", required=True)
     create_p.add_argument("--apiProfileId", required=True)
-    create_p.add_argument("--tenantId", required=True)
+    create_p.add_argument("--reason", default=None)
+    create_p.add_argument("--authorization-file", default=None)
     create_p.set_defaults(func=_partner_cmd_create)
 
     def _partner_cmd_validate(args):
@@ -320,18 +346,60 @@ def build_parser() -> argparse.ArgumentParser:
     val_p.add_argument("applicationId")
     val_p.set_defaults(func=_partner_cmd_validate)
 
+    def _partner_release_blocked(args, actor, api_profile_id):
+        """Fail closed unless the profile and its grants are fully inactive."""
+        if not api_profile_id:
+            return True
+        ops = _apiprofile_ops()
+        profile = ops.show(
+            api_profile_id=api_profile_id,
+            actor=actor,
+            reason="partner reservation release dependency check",
+        )
+        if not profile or profile.get("status") == "ACTIVE":
+            return True
+        client = _get_dynamo_client(args)
+        for suffix, env_name in (("credentials", "CREDENTIALS_TABLE"),
+                                 ("entitlements", "ENTITLEMENTS_TABLE")):
+            table = os.getenv(env_name) or _table_name(args, suffix)
+            status = client.scan(
+                TableName=table,
+                FilterExpression="apiProfileId = :p AND #s = :a",
+                ExpressionAttributeNames={"#s": "status"},
+                ExpressionAttributeValues={":p": {"S": api_profile_id},
+                                           ":a": {"S": "ACTIVE"}},
+                Select="COUNT",
+            )
+            if status.get("Count", 0):
+                return True
+        return False
+
     def _partner_cmd_deactivate(args):
         if args.dry_run:
             _print_json({"dry_run": True,
                          "action": "deactivate",
-                         "applicationId": args.applicationId})
+                         "applicationId": args.applicationId,
+                         "releaseReservation": bool(
+                             getattr(args, "release_reservation", False))})
             return 0
+        try:
+            actor = _actor(args, "deactivate a partner application")
+        except credops_error() as exc:
+            return _deny(exc)
+        release = bool(getattr(args, "release_reservation", False))
+        checker = None
+        if release:
+            checker = lambda profile_id: _partner_release_blocked(
+                args, actor, profile_id)
         reg = _registry()
         try:
             res = reg.deactivate_partner_application(
                 args.applicationId,
                 table_name=_table_name(args, "partner-applications"),
                 dynamodb_client=_get_dynamo_client(args),
+                expected_tenant=actor["actor_tenant"],
+                release_reservation=release,
+                dependency_check=checker,
             )
             _print_json(res)
             return 0
@@ -341,6 +409,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     deact_p = partner_sub.add_parser("deactivate", help="Deactivate partner")
     deact_p.add_argument("applicationId")
+    deact_p.add_argument("--release-reservation", action="store_true",
+                         help="Release the client-ID reservation after a "
+                              "dependency check")
+    deact_p.add_argument("--authorization-file", default=None)
     deact_p.set_defaults(func=_partner_cmd_deactivate)
     
     ap = sub.add_parser("apiprofile", help="APIProfile management")

@@ -31,6 +31,12 @@ class ApplicationApiSecurityTests(unittest.TestCase):
         self.assertIn("ctx['partnerApplicationId']", section)
         self.assertIn("ctx['issuer']", section)
 
+    def test_application_responses_disable_caching(self):
+        start = HANDLER.index("def _application_response")
+        section = HANDLER[start:HANDLER.index("def _application_repo", start)]
+        self.assertIn("Cache-Control", section)
+        self.assertIn("no-store, private", section)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -50,6 +50,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
+from agents.runtime.subject_fence import fence_item
+
 logger = logging.getLogger(__name__)
 
 #: Work states that erasure transitions to CANCELLED. Everything else is
@@ -105,6 +107,7 @@ class ErasureResult:
     credentials_revoked: int = 0
     profiles_revoked: int = 0
     work_cancelled: int = 0
+    applications_deleted: int = 0
     documents_deleted: int = 0
     profile_deleted: bool = False
 
@@ -116,6 +119,7 @@ class ErasureResult:
             "credentialsRevoked": self.credentials_revoked,
             "profilesRevoked": self.profiles_revoked,
             "workCancelled": self.work_cancelled,
+            "applicationsDeleted": self.applications_deleted,
             "documentsDeleted": self.documents_deleted,
             "profileDeleted": self.profile_deleted,
             "steps": [s.to_dict() for s in self.steps],
@@ -150,6 +154,8 @@ class PrivacyErasure:
                  clock: Callable[[], datetime] = _utcnow,
                  execution_context: Any = None,
                  mutation_executor: Any = None,
+                 application_erasure: Any = None,
+                 application_context: Any = None,
                  ) -> None:
         self.credentials = credential_store
         self.profiles = profile_store
@@ -160,6 +166,8 @@ class PrivacyErasure:
         self._clock = clock
         self.execution_context = execution_context
         self.mutation_executor = mutation_executor
+        self.application_erasure = application_erasure
+        self.application_context = application_context
 
     # ------------------------------------------------------------------
     def erase(self, user_id: str,
@@ -201,6 +209,7 @@ class PrivacyErasure:
         result.steps.append(self._revoke_profiles(result))
         # 3. Non-terminal work is cancelled, never deleted.
         result.steps.append(self._cancel_work(result))
+        result.steps.append(self._erase_applications(result))
         # 4. Documents owned by the platform for this user.
         result.steps.append(self._delete_documents(result))
         # 5. Profile row last.
@@ -208,6 +217,40 @@ class PrivacyErasure:
 
         result.complete = all(step.ok for step in result.steps)
         return result
+
+    def _erase_applications(self, result: ErasureResult) -> StepResult:
+        if self.application_erasure is None:
+            # Legacy injected unit fixtures do not model ApplicationV1. The
+            # public handler is fail-closed before construction and always
+            # supplies this collaborator when ApplicationV1 is in scope.
+            return StepResult("erase-applications", True, 0)
+        if self.application_context is None:
+            return StepResult("erase-applications", False, 0,
+                              "APPLICATION_AUTHORIZATION_CONTEXT_UNAVAILABLE")
+        try:
+            if (getattr(self.application_context, "user_id", None) != result.user_id
+                    or getattr(self.application_context, "tenant_id", None) != result.tenant_id):
+                raise ErasureExecutionUnavailable(
+                    "application erasure context scope mismatch")
+            cursor = None
+            deleted = 0
+            while True:
+                progress = self.application_erasure.run(
+                    self.application_context, cursor=cursor)
+                deleted += progress.deleted
+                if not progress.pending:
+                    break
+                if progress.cursor == cursor:
+                    raise ErasureExecutionUnavailable(
+                        "application erasure cursor did not advance")
+                cursor = progress.cursor
+            result.applications_deleted = deleted
+            return StepResult("erase-applications", True, deleted)
+        except Exception as exc:
+            result.applications_deleted = deleted
+            logger.error("application erasure failed: %s", type(exc).__name__)
+            return StepResult("erase-applications", False, deleted,
+                              "APPLICATION_ERASURE_FAILED")
 
     # ------------------------------------------------------------------
     def _revoke_credentials(self, result: ErasureResult) -> StepResult:
@@ -300,6 +343,33 @@ class PrivacyErasure:
         if self.work_table is None:
             return StepResult("cancel-non-terminal-work", True, 0)
         try:
+            if not hasattr(self.work_table, "put_item"):
+                raise ErasureExecutionUnavailable("durable subject fence store unavailable")
+            context = self.execution_context
+            partner_id = getattr(context, "partner_application_id", "") if context else ""
+            issuer = getattr(context, "issuer", "") if context else ""
+            fence_contexts = [({}, "")]
+            if partner_id or issuer:
+                fence_contexts.append(({
+                    "partner_application_id": partner_id, "issuer": issuer,
+                }, "scoped"))
+            for scope, _label in fence_contexts:
+                self.work_table.put_item(
+                    Item=fence_item(
+                        user_id=result.user_id,
+                        tenant_id=result.tenant_id or "",
+                        partner_application_id=scope.get("partner_application_id", ""),
+                        issuer=scope.get("issuer", ""),
+                        operation_id=getattr(context, "operation_id", "") if context else ""),
+                    ConditionExpression="attribute_not_exists(workId)")
+        except Exception as exc:
+            response = getattr(exc, "response", None)
+            if not (isinstance(response, dict)
+                    and response.get("Error", {}).get("Code") == "ConditionalCheckFailedException"):
+                logger.error("subject fence activation failed: %s", type(exc).__name__)
+                return StepResult("cancel-non-terminal-work", False, 0,
+                                  "SUBJECT_FENCE_UNAVAILABLE")
+        try:
             response = self.work_table.query(
                 IndexName="gsi-user",
                 KeyConditionExpression=(
@@ -345,11 +415,17 @@ class PrivacyErasure:
                     self.work_table.update_item(
                         Key={"workId": item["workId"]},
                         UpdateExpression="SET #s = :c, updatedAt = :u",
-                        ConditionExpression="attribute_exists(workId)",
+                        ConditionExpression=(
+                            "attribute_exists(workId) AND userId = :owner "
+                            "AND tenantId = :tenant AND #s = :oldStatus"),
                         ExpressionAttributeNames={"#s": "status"},
                         ExpressionAttributeValues={
                             ":c": CANCELLED_STATUS,
-                            ":u": self._clock().isoformat()},
+                            ":u": self._clock().isoformat(),
+                            ":owner": result.user_id,
+                            ":tenant": result.tenant_id,
+                            ":oldStatus": item["status"],
+                        },
                     )
                 cancelled += 1
             except Exception as exc:

@@ -377,7 +377,8 @@ class ProfileOnlyErasureExecutor:
                                          operation.issuer)
         while True:
             items, next_cursor = self.applications.list(
-                app_context, limit=self.page_size, cursor=cursor)
+                app_context, limit=self.page_size, cursor=cursor,
+                include_deleting=True)
             for item in items:
                 self._require_context(operation, context)
                 try:

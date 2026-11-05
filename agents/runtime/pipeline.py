@@ -50,6 +50,12 @@ from agents.ecosystem.registry import (
 from agents.ecosystem.routing import AgentRouter as EcosystemRouter
 from agents.ecosystem.routing import ExecutionEngine
 from agents.ecosystem import health_sink
+from agents.runtime.subject_fence import (
+    SubjectFenceBlocked,
+    SubjectFenceUnavailable,
+    assert_fence_clear,
+    subject_fence_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +66,10 @@ REFERENCE_AGENT_ID = "reference_agent"
 REFERENCE_CAPABILITY = "reference.echo"
 REFERENCE_WORK_TYPE = "agent_reference_agent"
 
-TERMINAL_DUPLICATE_STATES = {"COMPLETED"}
+TERMINAL_DUPLICATE_STATES = {"COMPLETED", "CANCELLED", "DEAD_LETTER"}
+# Erasure cancellation is a terminal admission decision too.  A queued or
+# redelivered message must never turn CANCELLED back into RUNNING.
+ERASURE_SUPPRESSED_STATES = {"CANCELLED"}
 
 # Fehlercodes, die einen KONTROLLIERTEN Fehlschlag bedeuten (kein Retry:
 # die Nachricht wird konsumiert). Alle anderen Fehlertypen (unerwartete
@@ -74,6 +83,7 @@ PERMANENT_ERROR_CODES = frozenset({
     "ORDER_NOT_FOUND",
     "INVALID_TRANSITION",
     "CONFLICT",
+    "POST_UNKNOWN",
 })
 
 
@@ -170,6 +180,10 @@ class _ConditionalFailed(Exception):
     """Lokaler Marker fuer fehlgeschlagenen Conditional Write (Tests)."""
 
 
+class _RetryClaimLost(Exception):
+    """Another delivery won the conditional retry admission."""
+
+
 def _is_conditional_failed(exc: Exception) -> bool:
     if isinstance(exc, _ConditionalFailed):
         return True
@@ -184,6 +198,8 @@ def _register_processing(
     work: Dict[str, Any],
     envelope: ProcessingEnvelope,
     agent_id: str,
+    fence_table: Any = None,
+    require_fence: bool = False,
 ) -> Tuple[Dict[str, Any], bool]:
     """WorkItem registrieren (Conditional Write) oder Duplikat feststellen.
 
@@ -197,6 +213,8 @@ def _register_processing(
     # invisible to any per-user lookup. `requestedBy` is accepted as a
     # fallback because _create_work writes only that field.
     user_id = work.get("userId") or work.get("requestedBy") or ""
+    if require_fence and (not user_id or not work.get("tenantId")):
+        raise SubjectFenceUnavailable("verified subject and tenant are required")
     item = {
         "workId": work["workId"],
         "tenantId": work.get("tenantId", ""),
@@ -220,6 +238,54 @@ def _register_processing(
         "createdAt": now,
         "updatedAt": now,
     }
+    if require_fence:
+        if fence_table is None:
+            raise SubjectFenceUnavailable("subject fence is required")
+        client = getattr(getattr(fence_table, "meta", None), "client", None)
+        table_name = getattr(fence_table, "name", None)
+        if client is None or not table_name:
+            raise SubjectFenceUnavailable("subject fence transaction is unavailable")
+        try:
+            client.transact_write_items(TransactItems=[
+                {"ConditionCheck": {
+                    "TableName": table_name,
+                    "Key": {"workId": {"S": subject_fence_key(
+                        user_id=user_id,
+                        tenant_id=work.get("tenantId", ""),
+                        partner_application_id=work.get("partnerApplicationId", ""),
+                        issuer=work.get("issuer", ""))}},
+                    "ConditionExpression": "attribute_not_exists(workId)",
+                }},
+                {"Put": {
+                    "TableName": table_name,
+                    "Item": _ddb_client_item(item),
+                    "ConditionExpression": "attribute_not_exists(workId)",
+                }},
+            ])
+            return item, False
+        except Exception as exc:
+            if not _is_conditional_failed(exc):
+                raise SubjectFenceUnavailable("subject fence admission failed") from exc
+            existing = table.get_item(Key={"workId": work["workId"]}).get("Item", {})
+            if existing:
+                if existing.get("status") not in TERMINAL_DUPLICATE_STATES:
+                    assert_fence_clear(
+                        fence_table,
+                        user_id=user_id,
+                        tenant_id=work.get("tenantId", ""),
+                        partner_application_id=work.get("partnerApplicationId", ""),
+                        issuer=work.get("issuer", ""),
+                    )
+                return existing, True
+            fence = fence_table.get_item(Key={
+                "workId": subject_fence_key(
+                    user_id=user_id,
+                    tenant_id=work.get("tenantId", ""),
+                    partner_application_id=work.get("partnerApplicationId", ""),
+                    issuer=work.get("issuer", ""))}).get("Item")
+            if fence:
+                raise SubjectFenceBlocked("subject is fenced by erasure") from exc
+            raise SubjectFenceUnavailable("subject fence state is unavailable") from exc
     try:
         table.put_item(
             Item=item,
@@ -250,6 +316,49 @@ def _to_dynamo(value: Any) -> Any:
     return value
 
 
+def _ddb_client_item(value: Dict[str, Any]) -> Dict[str, Any]:
+    """Serialize a Python item for the injected low-level DDB client."""
+    from boto3.dynamodb.types import TypeSerializer
+    serializer = TypeSerializer()
+    return {key: serializer.serialize(item) for key, item in value.items()}
+
+
+def _final_fence_admission(table: Any, fence_table: Any,
+                           work: Dict[str, Any], attempt: int) -> None:
+    """Atomically re-check the subject fence immediately before execution."""
+    client = getattr(getattr(fence_table, "meta", None), "client", None)
+    table_name = getattr(fence_table, "name", None)
+    if client is None or not table_name:
+        raise SubjectFenceUnavailable("subject fence transaction is unavailable")
+    user_id = work.get("userId") or work.get("requestedBy") or ""
+    tenant_id = work.get("tenantId") or ""
+    fence_key = subject_fence_key(
+        user_id=user_id, tenant_id=tenant_id,
+        partner_application_id=work.get("partnerApplicationId", ""),
+        issuer=work.get("issuer", ""))
+    try:
+        client.transact_write_items(TransactItems=[
+            {"ConditionCheck": {
+                "TableName": table_name,
+                "Key": {"workId": {"S": fence_key}},
+                "ConditionExpression": "attribute_not_exists(workId)",
+            }},
+            {"Update": {
+                "TableName": table_name,
+                "Key": {"workId": {"S": work["workId"]}},
+                "UpdateExpression": "SET updatedAt = :updated",
+                "ConditionExpression": "#status = :running AND attempt_no = :attempt",
+                "ExpressionAttributeNames": {"#status": "status"},
+                "ExpressionAttributeValues": _ddb_client_item({
+                    ":updated": _utcnow(), ":running": "RUNNING", ":attempt": attempt}),
+            }},
+        ])
+    except Exception as exc:
+        if _is_conditional_failed(exc):
+            raise SubjectFenceBlocked("subject is fenced or execution lease is stale") from exc
+        raise SubjectFenceUnavailable("subject fence admission failed") from exc
+
+
 def _persist_result(table: Any, work_id: str, attempt: int, result: Dict[str, Any]) -> None:
     table.update_item(
         Key={"workId": work_id},
@@ -260,16 +369,25 @@ def _persist_result(table: Any, work_id: str, attempt: int, result: Dict[str, An
             ":r": f"work:{work_id}:attempt:{attempt}",
             ":res": _to_dynamo(result),
             ":u": _utcnow(),
+            ":running": "RUNNING",
+            ":attempt": attempt,
         },
+        ConditionExpression="#status = :running AND attempt_no = :attempt",
     )
 
 
-def _persist_failure(table: Any, work_id: str, attempt: int, error: Dict[str, Any]) -> None:
+def _persist_failure(table: Any, work_id: str, attempt: int,
+                     error: Dict[str, Any], *, terminal: bool = False) -> None:
     table.update_item(
         Key={"workId": work_id},
         UpdateExpression="SET #status = :s, #error = :e, updatedAt = :u",
         ExpressionAttributeNames={"#status": "status", "#error": "error"},
-        ExpressionAttributeValues={":s": "FAILED", ":e": _to_dynamo(error), ":u": _utcnow()},
+        ExpressionAttributeValues={
+            ":s": "DEAD_LETTER" if terminal else "FAILED",
+            ":e": _to_dynamo(error), ":u": _utcnow(),
+            ":running": "RUNNING", ":attempt": attempt,
+        },
+        ConditionExpression="#status = :running AND attempt_no = :attempt",
     )
 
 
@@ -277,21 +395,29 @@ def _start_retry_attempt(table: Any, existing: Dict[str, Any]) -> Dict[str, Any]
     """Bestehendes FAILED-Processing als neuer Attempt fortfuehren."""
     attempt = int(existing.get("attempt_no", 1)) + 1
     execution_id = str(uuid.uuid4())
-    table.update_item(
-        Key={"workId": existing["workId"]},
+    try:
+        table.update_item(
+            Key={"workId": existing["workId"]},
         UpdateExpression=(
             "SET #status = :s, attempt_no = :a, execution_id = :e, "
             "attempt_id = :aid, updatedAt = :u REMOVE #error"
         ),
         ExpressionAttributeNames={"#status": "status", "#error": "error"},
-        ExpressionAttributeValues={
-            ":s": "RUNNING",
-            ":a": attempt,
-            ":e": execution_id,
-            ":aid": f"{existing.get('processing_id', '')}#{attempt}",
-            ":u": _utcnow(),
-        },
-    )
+            ExpressionAttributeValues={
+                ":s": "RUNNING",
+                ":a": attempt,
+                ":e": execution_id,
+                ":aid": f"{existing.get('processing_id', '')}#{attempt}",
+                ":u": _utcnow(),
+                ":failed": "FAILED",
+                ":expectedAttempt": int(existing.get("attempt_no", 1)),
+            },
+            ConditionExpression="#status = :failed AND attempt_no = :expectedAttempt",
+        )
+    except Exception as exc:
+        if _is_conditional_failed(exc):
+            raise _RetryClaimLost from exc
+        raise
     resumed = dict(existing)
     resumed.update({"attempt_no": attempt, "execution_id": execution_id, "status": "RUNNING"})
     return resumed
@@ -304,6 +430,9 @@ def process_record(
     body: Any = None,
     entitlement_resolver: Any = None,
     health_tracker: Any = None,
+    erasure_admission: Any = None,
+    subject_fence_table: Any = None,
+    require_subject_fence: bool = False,
 ) -> Dict[str, Any]:
     """Einen SQS-Record durch den Runtime-Pfad fuehren (Worker-Einstieg).
 
@@ -343,6 +472,11 @@ def process_record(
     tenant_id = work.get("tenantId")
     work_id = work.get("workId")
 
+    if erasure_admission is not None:
+        # The production caller must inject a durable RIS fence. Test harnesses
+        # may omit it explicitly; omission never creates a durable claim here.
+        erasure_admission(work, "before_registration")
+
     table = table if table is not None else _resolve_table()
     registry, body = ensure_reference_agent(registry, body)
 
@@ -367,8 +501,17 @@ def process_record(
             f"rejected={len(pipeline.rejected)})"
         )
 
-    item, is_duplicate = _register_processing(table, work, envelope, decision.agent_id)
+    item, is_duplicate = _register_processing(
+        table, work, envelope, decision.agent_id,
+        fence_table=subject_fence_table, require_fence=require_subject_fence)
     if is_duplicate:
+        if item.get("status") in ERASURE_SUPPRESSED_STATES:
+            logger.info("erasure-suppressed work message (workId=%s)", work["workId"])
+            return {
+                "workId": work["workId"], "status": item.get("status"),
+                "duplicate": True, "suppressed": True,
+                "attempt_no": item.get("attempt_no", 1),
+            }
         if item.get("status") in TERMINAL_DUPLICATE_STATES:
             logger.info(
                 "Duplikat erkannt (workId=%s, status=%s): kein neuer AgentRun",
@@ -382,7 +525,14 @@ def process_record(
                 "attempt_no": item.get("attempt_no", 1),
                 "result_reference": item.get("result_reference"),
             }
-        resumed = _start_retry_attempt(table, item)
+        if item.get("status") != "FAILED":
+            raise RuntimeError("WORK_ADMISSION_STATE_UNSAFE")
+        try:
+            resumed = _start_retry_attempt(table, item)
+        except _RetryClaimLost:
+            return {"workId": work["workId"], "status": "RUNNING",
+                    "duplicate": True, "suppressed": True,
+                    "attempt_no": item.get("attempt_no", 1)}
         item = resumed
 
     attempt = int(item.get("attempt_no", 1))
@@ -437,14 +587,14 @@ def process_record(
             _persist_failure(
                 table, work["workId"], attempt,
                 {"message": f"Worker entitlement denied [{auth.reason}]",
-                 "type": "ENTITLEMENT_DENIED"})
+                 "type": "ENTITLEMENT_DENIED"}, terminal=True)
             logger.warning(
                 "worker entitlement DENIED (workId=%s, agent=%s, reason=%s, "
                 "attempt=%s)", work["workId"], decision.agent_id,
                 auth.reason, attempt)
             return {
                 "workId": work["workId"],
-                "status": "FAILED",
+                "status": "DEAD_LETTER",
                 "duplicate": False,
                 "attempt_no": attempt,
                 "agent_id": decision.agent_id,
@@ -452,6 +602,15 @@ def process_record(
                 "reason": auth.reason,
                 "result_reference": f"work:{work['workId']}:attempt:{attempt}",
             }
+
+    current = table.get_item(Key={"workId": work["workId"]}).get("Item")
+    if not current or current.get("status") != "RUNNING" or int(current.get("attempt_no", 1)) != attempt:
+        return {"workId": work["workId"], "status": current.get("status") if current else "CANCELLED",
+                "duplicate": True, "suppressed": True, "attempt_no": attempt}
+    if erasure_admission is not None:
+        erasure_admission(work, "before_execution")
+    if require_subject_fence:
+        _final_fence_admission(table, subject_fence_table, work, attempt)
 
     engine = ExecutionEngine(agent_body=body)
     try:
@@ -472,6 +631,7 @@ def process_record(
         )
         raise
 
+    terminal = False
     if not result.get("success", False):
         error = result.get("error", {"message": "Agent meldete Fehler"})
         _health("record_failure",
@@ -481,8 +641,9 @@ def process_record(
                 work_id=work_id,
                 agent_id=decision.agent_id,
                 attempt_id=str(attempt))
-        _persist_failure(table, work["workId"], attempt, error)
-        if isinstance(error, dict) and error.get("type") not in PERMANENT_ERROR_CODES:
+        terminal = isinstance(error, dict) and error.get("type") in PERMANENT_ERROR_CODES
+        _persist_failure(table, work["workId"], attempt, error, terminal=terminal)
+        if not terminal:
             # Unerwarteter Fehler -> Retry via SQS-Redelivery (neuer Attempt).
             raise RuntimeError(
                 f"Agent {decision.agent_id} fehlgeschlagen "
@@ -500,7 +661,7 @@ def process_record(
 
     return {
         "workId": work["workId"],
-        "status": "COMPLETED" if result.get("success", False) else "FAILED",
+        "status": "COMPLETED" if result.get("success", False) else ("DEAD_LETTER" if terminal else "FAILED"),
         "duplicate": False,
         "attempt_no": attempt,
         "agent_id": decision.agent_id,

@@ -1,7 +1,7 @@
 """Partner Application Registry – authoritative binding between Cognito M2M client and RIS APIProfile."""
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 class PartnerRegistryError(Exception):
     pass
@@ -68,6 +68,7 @@ def create_partner_application(
             'applicationId': {'S': CLIENT_RESERVATION_PREFIX + cognito_client_id},
             'cognitoClientId': {'S': cognito_client_id},
             'reservedForApplicationId': {'S': application_id},
+            'tenantId': {'S': tenant_id},
             'status': {'S': 'RESERVED'}
         }
 
@@ -101,12 +102,21 @@ def resolve_partner_application(
     table_name: Optional[str] = None,
     dynamodb_client: Optional[Any] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Resolve partner application by Cognito client_id.
+    """Resolve the unique ACTIVE partner application for a Cognito client ID.
 
-    Returns registry record dict or None if not found.
-    Queries DynamoDB partner-applications table by GSI gsi-client.
+    Deterministic rules (never query order):
 
-    Requires client_id to be present. Fails closed on errors.
+    1. If a ``CLIENT#<clientId>`` reservation exists, it is authoritative.
+       Only its ``reservedForApplicationId`` may be returned, and only when
+       that base record is ACTIVE, has the same ``cognitoClientId`` and (when
+       the reservation stores one) the same ``tenantId``.
+    2. Without a reservation, exactly one ACTIVE base record may exist for the
+       client. Zero or multiple ACTIVE records are not resolvable.
+    3. Historical INACTIVE records never block a valid ACTIVE binding.
+
+    GSI ``gsi-client`` is only a locator and is eventually consistent, so every
+    candidate is re-read from the base table with ``ConsistentRead=True``. Any
+    error fails closed with ``None``.
     """
     if not client_id:
         return None
@@ -121,18 +131,50 @@ def resolve_partner_application(
         else:
             dynamodb = dynamodb_client
 
-        # Step 1: locate the application via GSI gsi-client.
-        # GSI results for a client ID contain BOTH the application record and
-        # the "CLIENT#<clientId>" reservation item, so a single-item page would
-        # be non-deterministic. Page through until a real record is found.
-        #
-        # DynamoDB GSIs support EVENTUAL CONSISTENCY ONLY. ConsistentRead on a
-        # GSI query does not make the index current, so a deactivated partner
-        # can still appear here for the propagation window. That is exactly why
-        # this function does NOT trust the GSI result as authoritative - see
-        # step 2 below.
+        def unmarshal(value):
+            if 'S' in value:
+                return value['S']
+            if 'N' in value:
+                return int(value['N'])
+            return value
+
+        def get_attr(item, name):
+            raw = item.get(name)
+            if not isinstance(raw, dict) or not raw:
+                return None
+            return unmarshal(raw)
+
+        def get_base(application_id):
+            return dynamodb.get_item(
+                TableName=table_name,
+                Key={'applicationId': {'S': application_id}},
+                ConsistentRead=True,
+            ).get('Item')
+
+        reservation = get_base(CLIENT_RESERVATION_PREFIX + client_id)
+        reserved_for = None
+        if reservation is not None:
+            if get_attr(reservation, 'cognitoClientId') != client_id:
+                return None
+            reserved_for = get_attr(reservation, 'reservedForApplicationId')
+            if not reserved_for:
+                return None
+            owner = get_base(reserved_for)
+            if not owner:
+                return None
+            if get_attr(owner, 'cognitoClientId') != client_id:
+                return None
+            if get_attr(owner, 'status') != 'ACTIVE':
+                return None
+            reservation_tenant = get_attr(reservation, 'tenantId')
+            if reservation_tenant and reservation_tenant != get_attr(
+                    owner, 'tenantId'):
+                return None
+
+        # Collect every locator for this client. The reservation item is not a
+        # partner record and is skipped; the base reads below are authoritative.
         start_key = None
-        items = []
+        candidate_ids = set()
         while True:
             request: Dict[str, Any] = {
                 'TableName': table_name,
@@ -144,48 +186,38 @@ def resolve_partner_application(
             if start_key:
                 request['ExclusiveStartKey'] = start_key
             response = dynamodb.query(**request)
-            items.extend(response.get('Items', []))
+            for item in response.get('Items', []):
+                application_id = get_attr(item, 'applicationId')
+                if not application_id:
+                    continue
+                if application_id.startswith(CLIENT_RESERVATION_PREFIX):
+                    continue
+                candidate_ids.add(application_id)
             start_key = response.get('LastEvaluatedKey')
             if not start_key:
                 break
-        # Reservation items (PK = "CLIENT#<clientId>") share the cognitoClientId
-        # attribute and therefore also appear in gsi-client. Skip them so the
-        # caller always receives the real application record.
-        for item in items:
-            raw_id = item.get('applicationId', {})
-            if isinstance(raw_id, dict) and 'S' in raw_id:
-                if raw_id['S'].startswith(CLIENT_RESERVATION_PREFIX):
-                    continue
-            elif isinstance(raw_id, str) and raw_id.startswith(CLIENT_RESERVATION_PREFIX):
-                continue
-            # unmarshal and return
-            def unmarshal(v):
-                if 'S' in v:
-                    return v['S']
-                if 'N' in v:
-                    return int(v['N'])
-                return v
-            application_id = unmarshal(item.get('applicationId', {}))
 
-            # Step 2: re-read the application from the BASE table.
-            #
-            # The GSI result is only a locator. Because GSI reads are always
-            # eventually consistent, an application deactivated moments ago can
-            # still be returned here as ACTIVE. A base-table GetItem IS
-            # strongly consistent, so this second read is what actually makes
-            # revocation take effect immediately on the authorization hot path.
-            #
-            # If the base read disagrees with the index, the index is stale and
-            # the authoritative answer is "not resolvable".
-            authoritative = dynamodb.get_item(
-                TableName=table_name,
-                Key={'applicationId': {'S': application_id}},
-                ConsistentRead=True,
-            ).get('Item')
-            if not authoritative:
-                return None
-            return {k: unmarshal(v) for k, v in authoritative.items()}
-        return None
+        if reserved_for:
+            # Include the reservation owner even while the GSI is catching up.
+            candidate_ids.add(reserved_for)
+
+        active = {}
+        for application_id in candidate_ids:
+            item = get_base(application_id)
+            if not item:
+                continue
+            if get_attr(item, 'cognitoClientId') != client_id:
+                continue
+            if get_attr(item, 'status') != 'ACTIVE':
+                continue
+            active[application_id] = item
+
+        if len(active) != 1:
+            return None
+        resolved_id, resolved = next(iter(active.items()))
+        if reserved_for and resolved_id != reserved_for:
+            return None
+        return {k: unmarshal(v) for k, v in resolved.items()}
     except Exception:
         # Fail closed
         return None
@@ -242,18 +274,33 @@ def deactivate_partner_application(
     application_id: str,
     table_name: Optional[str] = None,
     dynamodb_client: Optional[Any] = None,
+    expected_tenant: Optional[str] = None,
+    release_reservation: bool = False,
+    dependency_check: Optional[Callable[[Optional[str]], bool]] = None,
 ) -> Dict[str, Any]:
     """Set a Partner Application to INACTIVE.
 
-    The client-ID reservation item is intentionally left in place so a
-    deactivated client ID can never be silently rebound to a different
-    application.
+    The historical partner record is never deleted: it remains as an INACTIVE
+    audit record. By default the client-ID reservation also remains, so a
+    deactivated client ID cannot be silently rebound.
+
+    ``release_reservation=True`` explicitly releases the client-ID reservation
+    so a new partner can bind the same client later. It requires a
+    ``dependency_check`` callable that receives the partner's ``apiProfileId``
+    and returns True when active credentials/entitlements (or another usage
+    dependency) still exist. Release is then refused. The reservation delete is
+    conditional on this application being its owner, so a concurrent rebind or
+    a foreign reservation is never released. The operation is idempotent: an
+    already-absent reservation is reported as released.
     """
     if not application_id:
         raise PartnerRegistryError("application_id required")
     if application_id.startswith(CLIENT_RESERVATION_PREFIX):
         raise PartnerRegistryError(
             "refusing to modify a client-ID reservation item")
+    if release_reservation and not callable(dependency_check):
+        raise PartnerRegistryError(
+            "dependency_check is required to release a reservation")
     try:
         if dynamodb_client is None:
             import boto3
@@ -264,16 +311,99 @@ def deactivate_partner_application(
         else:
             dynamodb = dynamodb_client
 
+        partner = dynamodb.get_item(
+            TableName=table_name,
+            Key={'applicationId': {'S': application_id}},
+            ConsistentRead=True,
+        ).get('Item')
+        if not partner:
+            raise PartnerRegistryError("partner application not found")
+
+        partner_tenant = partner.get('tenantId', {}).get('S')
+        if expected_tenant is not None:
+            if not expected_tenant:
+                raise PartnerRegistryError("expected_tenant must not be empty")
+            if partner_tenant != expected_tenant:
+                raise PartnerRegistryError("partner tenant scope mismatch")
+
+        client_id = partner.get('cognitoClientId', {}).get('S')
+        api_profile_id = partner.get('apiProfileId', {}).get('S')
+
+        if release_reservation:
+            if dependency_check(api_profile_id):
+                raise PartnerRegistryError(
+                    "active dependencies prevent reservation release")
+            if not client_id:
+                raise PartnerRegistryError(
+                    "partner has no cognitoClientId to release")
+            reservation_key = CLIENT_RESERVATION_PREFIX + client_id
+            reservation = dynamodb.get_item(
+                TableName=table_name,
+                Key={'applicationId': {'S': reservation_key}},
+                ConsistentRead=True,
+            ).get('Item')
+            if reservation:
+                owner = reservation.get(
+                    'reservedForApplicationId', {}).get('S')
+                if owner != application_id:
+                    raise PartnerRegistryError(
+                        "client reservation belongs to another application")
+
+        values = {':s': {'S': 'INACTIVE'}}
+        condition = 'attribute_exists(applicationId)'
+        if expected_tenant is not None:
+            values[':t'] = {'S': expected_tenant}
+            condition += ' AND tenantId = :t'
         dynamodb.update_item(
             TableName=table_name,
             Key={'applicationId': {'S': application_id}},
             UpdateExpression='SET #s = :s',
             ExpressionAttributeNames={'#s': 'status'},
-            ExpressionAttributeValues={':s': {'S': 'INACTIVE'}},
-            ConditionExpression='attribute_exists(applicationId)',
+            ExpressionAttributeValues=values,
+            ConditionExpression=condition,
             ReturnValues='ALL_NEW',
         )
-        return {'applicationId': application_id, 'status': 'INACTIVE'}
+
+        result = {'applicationId': application_id, 'status': 'INACTIVE'}
+        if release_reservation:
+            reservation_key = CLIENT_RESERVATION_PREFIX + client_id
+            released = False
+            try:
+                dynamodb.delete_item(
+                    TableName=table_name,
+                    Key={'applicationId': {'S': reservation_key}},
+                    ConditionExpression=(
+                        'reservedForApplicationId = :app AND '
+                        'cognitoClientId = :client AND #s = :reserved'
+                    ),
+                    ExpressionAttributeNames={'#s': 'status'},
+                    ExpressionAttributeValues={
+                        ':app': {'S': application_id},
+                        ':client': {'S': client_id},
+                        ':reserved': {'S': 'RESERVED'},
+                    },
+                )
+                released = True
+            except Exception:
+                current = dynamodb.get_item(
+                    TableName=table_name,
+                    Key={'applicationId': {'S': reservation_key}},
+                    ConsistentRead=True,
+                ).get('Item')
+                if current is None:
+                    released = True  # idempotent: already released
+                else:
+                    owner = current.get(
+                        'reservedForApplicationId', {}).get('S')
+                    if owner and owner != application_id:
+                        raise PartnerRegistryError(
+                            "client reservation belongs to another application")
+                    raise PartnerRegistryError(
+                        "failed to release client reservation")
+            result['reservationReleased'] = released
+        return result
+    except PartnerRegistryError:
+        raise
     except Exception as e:
         raise PartnerRegistryError(f"Failed to deactivate partner application: {e}")
 

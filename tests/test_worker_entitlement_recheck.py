@@ -78,7 +78,8 @@ class FakeTable:
 
     def update_item(self, Key, UpdateExpression,
                     ExpressionAttributeNames=None,
-                    ExpressionAttributeValues=None):
+                    ExpressionAttributeValues=None,
+                    ConditionExpression=None):
         item = self.items[Key["workId"]]
         names = ExpressionAttributeNames or {}
         values = ExpressionAttributeValues or {}
@@ -147,11 +148,11 @@ class TestPipelineRecheck(unittest.TestCase):
 
     def test_02_missing_denied_consumed(self):
         out, table = _run(_work(), DictResolver([]))
-        self.assertEqual(out["status"], "FAILED")
+        self.assertEqual(out["status"], "DEAD_LETTER")
         self.assertTrue(out.get("denied"))
         self.assertEqual(out.get("reason"), "no-entitlement")
         item = table.items["w-1"]
-        self.assertEqual(item["status"], "FAILED")
+        self.assertEqual(item["status"], "DEAD_LETTER")
         self.assertIn("ENTITLEMENT_DENIED",
                       json.dumps(item.get("error", {})))
 
