@@ -242,6 +242,7 @@ def deactivate_partner_application(
     application_id: str,
     table_name: Optional[str] = None,
     dynamodb_client: Optional[Any] = None,
+    expected_tenant: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Set a Partner Application to INACTIVE.
 
@@ -264,13 +265,20 @@ def deactivate_partner_application(
         else:
             dynamodb = dynamodb_client
 
+        values = {':s': {'S': 'INACTIVE'}}
+        condition = 'attribute_exists(applicationId)'
+        if expected_tenant is not None:
+            if not expected_tenant:
+                raise PartnerRegistryError("expected_tenant must not be empty")
+            values[':t'] = {'S': expected_tenant}
+            condition += ' AND tenantId = :t'
         dynamodb.update_item(
             TableName=table_name,
             Key={'applicationId': {'S': application_id}},
             UpdateExpression='SET #s = :s',
             ExpressionAttributeNames={'#s': 'status'},
-            ExpressionAttributeValues={':s': {'S': 'INACTIVE'}},
-            ConditionExpression='attribute_exists(applicationId)',
+            ExpressionAttributeValues=values,
+            ConditionExpression=condition,
             ReturnValues='ALL_NEW',
         )
         return {'applicationId': application_id, 'status': 'INACTIVE'}

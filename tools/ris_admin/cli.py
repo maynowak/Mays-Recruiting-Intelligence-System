@@ -353,7 +353,7 @@ def build_parser() -> argparse.ArgumentParser:
                          "applicationId": args.applicationId})
             return 0
         try:
-            _actor(args, "deactivate a partner application")
+            actor = _actor(args, "deactivate a partner application")
         except credops_error() as exc:
             return _deny(exc)
         reg = _registry()
@@ -362,6 +362,7 @@ def build_parser() -> argparse.ArgumentParser:
                 args.applicationId,
                 table_name=_table_name(args, "partner-applications"),
                 dynamodb_client=_get_dynamo_client(args),
+                expected_tenant=actor["actor_tenant"],
             )
             _print_json(res)
             return 0

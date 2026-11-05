@@ -98,3 +98,26 @@ def test_partner_create_passes_authorized_tenant_to_registry(tmp_path):
     call = create.call_args.kwargs
     assert call["tenant_id"] == TENANT
     assert call["dynamodb_client"] is fake_client
+
+
+def test_partner_deactivate_passes_authorized_tenant_to_registry():
+    parser = cli.build_parser()
+    args = parser.parse_args(["partner", "deactivate", "partner-19"])
+    registry = MagicMock()
+    registry.deactivate_partner_application.return_value = {
+        "applicationId": "partner-19", "status": "INACTIVE"}
+    fake_client = object()
+    auth_ops = types.SimpleNamespace(
+        resolve_admin_authorization=lambda *args, **kwargs: {
+            "actor_role": "admin", "actor_id": PRINCIPAL,
+            "actor_tenant": TENANT})
+    import agents.ecosystem.partner_registry as registry_module
+    with patch.object(cli, "_credential_ops", return_value=auth_ops), \
+            patch.object(cli, "_caller_arn", return_value=PRINCIPAL), \
+            patch.object(cli, "_get_dynamo_client", return_value=fake_client), \
+            patch.object(registry_module, "deactivate_partner_application",
+                         registry.deactivate_partner_application):
+        assert args.func(args) == 0
+    call = registry.deactivate_partner_application.call_args.kwargs
+    assert call["expected_tenant"] == TENANT
+    assert call["dynamodb_client"] is fake_client
