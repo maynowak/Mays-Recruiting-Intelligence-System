@@ -9416,6 +9416,18 @@ Findings:
 Report: docs/reports/RIS-PARTNER-MULTI-ISSUER-DESIGN-01.md
 Next: Terraform-Plan Variante B zur Freigabe; danach Partner/Credential/Vercel. STOP.
 
+[RIS-JOBSEARCH-PARTNER-GATEWAY-02]
+Status: COMPLETE / PLAN READY — kein Apply, keine Provisionierung
+Date: 2026-11-05
+Findings:
+  - Variante B umgesetzt: neues Modul terraform/modules/partner_edge mit eigener HTTP-API ris-dev-jobsearch-api, JWT-Authorizer (ZURSMpD2O / 5hb3...), 36 Partner-Routen, Stage, Lambda-Permission; gleiche Lambda, payload 2.0.
+  - Root-Variablen jobsearch_cognito_issuer/client_edge_cors; Overlay ris-dev gesetzt; Modul nur aktiv wenn Issuer+Client gesetzt.
+  - Plan SHA256 7ed69389323d3ead72e561a8d8435739dab5589cae1f2bf448de55bfc00c50c2: 41 CREATE (1 API, 1 Authorizer, 1 Integration, 36 Routen, 1 Stage, 1 Permission), 0 UPDATE, 0 DELETE, 0 REPLACE; 222 no-op; Drift 38 berechnet.
+  - Keine Kernel-Route exponiert, keine Bestandsressource veraendert; PARTNER_SURFACE_ENABLED bleibt false.
+  - Tests: 60 Overlay/Installer + 33 fokussierte Tests PASS; fmt/validate PASS.
+Report: docs/reports/RIS-JOBSEARCH-PARTNER-GATEWAY-02.md
+Next: Apply-Freigabe, dann Partner/Credential + Vercel. STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
