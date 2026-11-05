@@ -262,3 +262,42 @@ Bis zum freigegebenen Deploy bleibt der echte Gateway-Positivtest mit
 Bruchwert blockiert. Jobsearch sollte in dieser Zeit keine neue Bindung auf
 denselben Client stützen und den Bruchwert-Gateway-Pfad weiterhin als nicht
 live verifiziert behandeln.
+
+## 12. Phase-27-Update — Echter Gateway-E2E erfolgreich
+
+Der Resolver-Fix wurde deployt (`CodeSha256` `uGQX0tnPcIW0y1q6GtSaEPVEBjIDLqYrJzm2OX5wMEU=`)
+und der echte Gateway-/JWT-/Partner-E2E ist vollständig bestanden:
+
+| Test | Ergebnis |
+|---|---:|
+| Metrics | 200 |
+| Create `salary.amount=50000.5` | 201 |
+| List / Detail | 200 / 200 |
+| Patch `salary.amount=60000.75` | 200, Version 1 → 2 |
+| Export | 200 |
+| Delete | 204 |
+| Metrics nach Create / Delete | 1 / 0 |
+| Ungültiger Key | 401 |
+| Widerrufenes Credential | 403 |
+
+Die DynamoDB-Werte wurden exakt als `Decimal("50000.5")` und
+`Decimal("60000.75")` persistiert. Drei historische INACTIVE-Partner
+blockierten die neue ACTIVE-Bindung nicht. Release und anschließende
+Real-Client-Reuse wurden live bestätigt.
+
+**Jobsearch kann damit folgende Funktionen gegen RIS integrieren:**
+
+* Metrics lesen;
+* Application Create mit Dezimalgehältern;
+* List und Detail;
+* Patch mit `expectedVersion` und Dezimalgehältern;
+* Export;
+* Delete mit `expectedVersion`.
+
+Weiterhin **nicht live verifiziert**: mehrseitige Pagination, Status-/Stage-
+Übergänge, History/Cover-Letter-Versionen, Privacy-Inspect/Export, CV-/Profil-
+Routen, Token-Refresh/Rotation/MFA und Produktion.
+
+Der BFF muss `RIS_API_KEY` serverseitig halten, JWT und `X-Api-Credential`
+weiterreichen, `expectedVersion`/Cursor unverändert übernehmen und
+401/403/409/422/503 korrekt behandeln.
