@@ -9404,6 +9404,18 @@ Findings:
 Report: docs/reports/RIS-R08-RIS-DEV-UPGRADE-EXECUTION.md (§15)
 Next: offen nur Raw-Decimal-Inspektion und Fremd-Tenant-Fall; RIS_API_KEY in Vercel bleibt stale. STOP.
 
+[RIS-PARTNER-MULTI-ISSUER-DESIGN-01]
+Status: COMPLETE / DESIGN DECISION — Variante B empfohlen, keine Umsetzung
+Date: 2026-11-05
+Findings:
+  - Umstellung aller Partner-Routen auf einen Jobsearch-only JWT-Authorizer wurde nicht freigegeben; Anforderung ist Multi-Partner-Faehigkeit.
+  - Ist: API g6901and25 mit 2 JWT-Authorizern (ojbmoiYGM human/m2m), 36 Partner-Routen-Blöcke; API GW erlaubt nur einen Issuer pro Authorizer; keine JWT-Verifikation im Code, keine Krypto-Dependency.
+  - Variante A (Multi-Issuer-Lambda-Authorizer): hohe Erweiterbarkeit, aber eigener RS256-Code, Trust-Store, Cache/Rotation, Umbindung aller 36 Routen und wahrscheinliche Handler-Anpassung -> hohes Bestandsrisiko.
+  - Variante B (separate Jobsearch-Edge-API mit eigenem JWT-Authorizer, gleiche Lambda/Logik): ~41 Creates, 0 Aenderungen an Bestand, AWS-native Validierung, keine Logik-Duplikation -> empfohlen.
+  - Keine AWS-Mutation, kein Apply, keine Provisionierung, kein neuer Key.
+Report: docs/reports/RIS-PARTNER-MULTI-ISSUER-DESIGN-01.md
+Next: Terraform-Plan Variante B zur Freigabe; danach Partner/Credential/Vercel. STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
