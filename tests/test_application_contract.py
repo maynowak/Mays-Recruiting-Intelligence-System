@@ -1,4 +1,5 @@
 import unittest
+from decimal import Decimal
 
 from jobsearch.application_contract import (
     ApplicationContractError, validate_create, validate_patch,
@@ -63,6 +64,31 @@ class ApplicationContractTests(unittest.TestCase):
             "followUp": None,
         })
         self.assertIsNone(patch["followUp"])
+
+    def test_salary_amount_is_exact_decimal_and_rejects_invalid_values(self):
+        def salary(amount):
+            return {"expectation": {"amount": amount, "currency": "EUR",
+                                    "period": "year"}}
+
+        value = validate_create({"job": {"jobId": "j1"}, "salary": salary(50000)})
+        self.assertEqual(Decimal("50000"), value["salary"]["expectation"]["amount"])
+
+        value = validate_create({"job": {"jobId": "j1"}, "salary": salary(50000.5)})
+        self.assertEqual(Decimal("50000.5"), value["salary"]["expectation"]["amount"])
+
+        value = validate_create({"job": {"jobId": "j1"}, "salary": salary(0.1)})
+        self.assertEqual(Decimal("0.1"), value["salary"]["expectation"]["amount"])
+
+        patch = validate_patch({"expectedVersion": 1, "salary": salary(60000.75)})
+        self.assertEqual(Decimal("60000.75"), patch["salary"]["expectation"]["amount"])
+
+        for bad in (0, -1, float("nan"), float("inf"), float("-inf"),
+                    True, "50000", Decimal("NaN"), Decimal("Infinity")):
+            with self.assertRaises(ApplicationContractError):
+                validate_create({"job": {"jobId": "j1"}, "salary": salary(bad)})
+
+        with self.assertRaises(ApplicationContractError):
+            validate_create({"job": {"jobId": "j1"}, "salary": salary(10 ** 38)})
 
     def test_follow_up_calendar_and_completion_invariants(self):
         with self.assertRaises(ApplicationContractError):

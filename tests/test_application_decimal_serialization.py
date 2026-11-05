@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lambda"))
 
 import handler  # noqa: E402
+from jobsearch.application_repository import ApplicationConflict  # noqa: E402
 
 
 ROW = {
@@ -109,3 +110,34 @@ def test_unknown_unserializable_type_still_fails_closed():
         assert "not JSON serializable" in str(exc)
     else:
         raise AssertionError("unserializable values must not be silently dropped")
+
+
+class RaisingRepo:
+    def __init__(self, exc):
+        self.exc = exc
+
+    def create(self, data, ctx):
+        raise self.exc
+
+
+def _create_response(exc):
+    path = "/v1/partner/me/applications"
+    with patch.object(handler, "_application_ctx",
+                      return_value=(object(), None)), \
+            patch.object(handler, "_application_repo",
+                         return_value=RaisingRepo(exc)):
+        return handler._application_routes(
+            _event("POST", path, {"job": {"jobId": "job-1"}}), None,
+            "POST", path)
+
+
+def test_serialization_type_error_maps_to_422_not_409():
+    response = _create_response(TypeError("Float types are not supported"))
+    assert response["statusCode"] == 422
+    assert json.loads(response["body"])["code"] == "VALIDATION_ERROR"
+
+
+def test_real_version_conflict_still_maps_to_409():
+    response = _create_response(ApplicationConflict("VERSION_CONFLICT"))
+    assert response["statusCode"] == 409
+    assert json.loads(response["body"])["code"] == "VERSION_CONFLICT"

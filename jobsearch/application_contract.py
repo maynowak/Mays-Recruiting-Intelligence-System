@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any, Mapping
+
+# DynamoDB stores at most 38 significant digits. Salary amounts are validated
+# against that limit so a supported JSON number can never be truncated on the
+# way into persistence.
+MAX_SALARY_DIGITS = 38
 
 SCHEMA_VERSION = 1
 STATUSES = frozenset({"DRAFT", "READY", "SUBMITTED", "WITHDRAWN", "ARCHIVED"})
@@ -102,18 +109,41 @@ def validate_contact(value: Any) -> dict[str, str]:
     return result
 
 
+def _salary_amount(value: Any, field: str) -> Decimal:
+    """Convert a supported JSON number to an exact decimal.
+
+    Floats are converted through their shortest decimal representation
+    (``Decimal(str(value))``), never through the binary float value, so no
+    binary artifacts enter persistence. NaN, Infinity, non-numeric values and
+    values beyond DynamoDB's 38 significant digits are rejected.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)):
+        raise ApplicationContractError("INVALID_SALARY", f"{field}.amount is invalid")
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ApplicationContractError("INVALID_SALARY", f"{field}.amount is invalid")
+    try:
+        amount = value if isinstance(value, Decimal) else Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        raise ApplicationContractError("INVALID_SALARY", f"{field}.amount is invalid")
+    if not amount.is_finite() or amount <= 0:
+        raise ApplicationContractError("INVALID_SALARY", f"{field}.amount is invalid")
+    if len(amount.as_tuple().digits) > MAX_SALARY_DIGITS:
+        raise ApplicationContractError(
+            "INVALID_SALARY", f"{field}.amount precision is invalid")
+    return amount
+
+
 def validate_salary(value: Any, field: str = "salary") -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ApplicationContractError("INVALID_SALARY", f"{field} is invalid")
     if set(value) - {"amount", "currency", "period"}:
         raise ApplicationContractError("UNKNOWN_FIELD", f"unknown {field} field")
-    if not isinstance(value.get("amount"), (int, float)) or isinstance(value.get("amount"), bool) or value["amount"] <= 0:
-        raise ApplicationContractError("INVALID_SALARY", f"{field}.amount is invalid")
+    amount = _salary_amount(value.get("amount"), field)
     if not isinstance(value.get("currency"), str) or len(value["currency"]) != 3 or not value["currency"].isupper():
         raise ApplicationContractError("INVALID_SALARY", f"{field}.currency is invalid")
     if value.get("period") not in SALARY_PERIODS:
         raise ApplicationContractError("INVALID_SALARY", f"{field}.period is invalid")
-    return {"amount": value["amount"], "currency": value["currency"], "period": value["period"]}
+    return {"amount": amount, "currency": value["currency"], "period": value["period"]}
 
 
 def validate_salary_context(value: Any) -> dict[str, Any]:
