@@ -3,7 +3,7 @@
 - **Datum:** 2026-11-05
 - **Modus:** Git-Merge + lokale Gating-Korrektur + Plan; **kein Apply**
 - **Ziel:** `ris-dev` · `240571105849` · `eu-central-1`
-- **Status:** **PLAN VERIFIED — APPLY AWAITING EXPLICIT APPROVAL**
+- **Status:** **APPLIED (52/4/0/0) — E2E PARTIAL, Partner-Surface bewusst geschlossen**
 
 ---
 
@@ -165,3 +165,52 @@ Voraussetzung für E2E: temporäre, freigegebene Aktivierung von `PARTNER_SURFAC
 4. E2E mit synthetischen Daten, danach Cleanup und Gate-Rückstellung.
 
 **STOP — kein Apply ohne Freigabe.**
+
+
+---
+
+## 11. Apply-Ergebnis (2026-11-05, freigegeben)
+
+| Feld | Wert |
+|---|---|
+| Freigabe | ausdrücklich für Plan-SHA `449bf43b…` |
+| Artefakt-SHA vor Apply erneut geprüft | ✅ identisch |
+| Apply | `52 added, 4 changed, 0 destroyed` |
+| Workdir | isolierter ris-dev-Workdir, Workspace `ris-dev` |
+| State nachher | serial **39**, 237 Ressourcen, Lineage unverändert |
+| Lambda | `Active` / `Successful`, `CodeSha256` = Bundle-Hash `ylY9AN8i…` |
+| Tabellen | 18 `ris-dev-dev-*` (11 → 18) |
+| API-Routen | 70 (35 → 70), davon 10 Applications |
+
+Verifiziert:
+
+- `applications` ACTIVE mit **`gsi-owner` + `gsi-user`**, Keys `applicationId`/`entityKey`, PITR `DISABLED` (Opt-in nicht gesetzt)
+- `deletion-ledger` ACTIVE mit `gsi-operation`
+- Agent-Env: `PARTNER_SURFACE_ENABLED=false`, `ERASURE_APPLICATIONS_ENABLED=false`, `DELETION_LEDGER_ENABLED=false`, `RIS_CURSOR_SECRET_ARN` gesetzt, `APPLICATIONS_TABLE`/`DELETION_LEDGER_TABLE` gesetzt
+- IAM-Policy `ris-dev-dev-lambda-cursor-secret` vorhanden
+- Health `401`, Partner-Route ohne JWT `401` (Gateway-Authorizer)
+- Cognito unverändert, CloudFront unverändert, ACM `ISSUED`, DNS unverändert, Jobsearch-Auth `302`
+
+## 12. E2E-Matrix
+
+| Test | Ergebnis |
+|---|---|
+| CloudFront/Cognito/DNS Preservation (post) | **PASS** |
+| RIS-Health erreichbar (JWT erzwungen) | **PASS** (401) |
+| Unauthentifizierter Partner-Zugriff abgelehnt | **PASS** (401) |
+| Partner-Surface fail-closed bei Flut ohne JWT | **PASS** (Gateway blockt vor Lambda) |
+| Positive JWT-/Partner-E2E (Create/List/Patch/Metrics/Export/Delete) | **BLOCKED** — keine synthetische Identität, Surface geschlossen |
+| Decimal `50000.5`/`60000.75` auf ris-dev | **BLOCKED** (nicht deployed erreichbar) |
+| Cursor-Pagination auf ris-dev | **BLOCKED** (Surface geschlossen) |
+| Application-Erasure auf ris-dev | **NOT ACTIVATED** (`false`) |
+| Deletion-Ledger | **NOT ACTIVATED** (`false`) |
+| DEV2-Referenz-E2E | VERIFIED DEV2 (historisch) |
+
+**Positive E2E benötigt:** separate Freigabe zum temporären Setzen von `PARTNER_SURFACE_ENABLED=true` plus eine autorisierte synthetische Identität/Credential, danach Rückstellung auf `false` und Cleanup.
+
+## 13. Offene Punkte
+
+- RG-09/10/11 unverändert offen
+- PITR weiterhin deaktiviert (Opt-in)
+- Zwei vorbestehende Upstream-Testfehler (nicht mergebedingt)
+- Partner-Surface-Aktivierung und E2E stehen aus

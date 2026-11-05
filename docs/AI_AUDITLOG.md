@@ -9368,6 +9368,18 @@ Findings:
 Report: docs/reports/RIS-R08-RIS-DEV-UPGRADE-EXECUTION.md
 Next: Betreiberfreigabe für Plan-SHA; danach Apply + E2E. STOP.
 
+[RIS-R08-RIS-DEV-APPLY-01]
+Status: COMPLETE / APPLIED — E2E PARTIAL, Partner-Surface geschlossen
+Date: 2026-11-05
+Findings:
+  - Plan 449bf43b... nach ausdruecklicher Freigabe angewendet: 52 added, 4 changed, 0 destroyed; State serial 36 -> 39, 237 Ressourcen.
+  - Lambda Active/Successful, CodeSha256 ylY9AN8i... entspricht dem gebauten Bundle; Env-PARTNER_SURFACE_ENABLED/ERASURE_APPLICATIONS_ENABLED/DELETION_LEDGER_ENABLED alle false; RIS_CURSOR_SECRET_ARN gesetzt.
+  - applications ACTIVE mit gsi-owner+gsi-user, PITR DISABLED; deletion-ledger ACTIVE mit gsi-operation; 18 ris-dev-dev-Tabellen; 70 Routen (10 Applications).
+  - Preservation: Cognito, CloudFront, OAC, ACM, DNS unveraendert; Health 401; Partner-Route ohne JWT 401.
+  - Positive JWT-/Partner-E2E und Decimal-Tests BLOCKED: keine synthetische Identitaet, Surface bewusst geschlossen.
+Report: docs/reports/RIS-R08-RIS-DEV-UPGRADE-EXECUTION.md
+Next: separate Freigabe fuer Test-Aktivierung + synthetische Identitaet; danach Rueckstellung und Cleanup. STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
