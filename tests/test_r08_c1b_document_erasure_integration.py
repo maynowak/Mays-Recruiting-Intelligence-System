@@ -93,7 +93,7 @@ def make_integration(objects, *, fail=False, with_document=True,
     integration = DocumentErasureIntegration(
         profile_executor=profile_executor, profile_repository=profiles,
         operation_repository=store, s3_orchestrator=s3, phases=phases,
-        adapter=adapter)
+         adapter=adapter, allow_synthetic_completion=True)
     return integration, store, profiles, adapter, context
 
 

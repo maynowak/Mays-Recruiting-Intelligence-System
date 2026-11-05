@@ -178,7 +178,8 @@ class TestActiveBehaviorIntact(unittest.TestCase):
 
             def update_item(self, Key, UpdateExpression,
                             ExpressionAttributeNames=None,
-                            ExpressionAttributeValues=None):
+                            ExpressionAttributeValues=None,
+                            ConditionExpression=None):
                 pass
 
         table = FakeTable()

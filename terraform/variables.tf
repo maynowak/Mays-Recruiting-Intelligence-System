@@ -374,6 +374,12 @@ variable "table_config" {
   }
 }
 
+variable "r08_pitr_enabled" {
+  description = "Opt-in PITR for R08 recovery tables and durable deletion ledger; disabled by default."
+  type        = bool
+  default     = false
+}
+
 variable "lambda_config" {
   description = "Lambda function configuration"
   type = object({

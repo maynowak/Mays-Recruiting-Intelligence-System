@@ -17,6 +17,7 @@ import sys
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Dict, Any, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -146,11 +147,44 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Gate 10: Dispatch ohne KeyError (die alte Einzeiler-Bedingung warf bei
     # jedem API-Event ohne 'Records'-Key). v1-Payload: httpMethod/path;
     # SQS: Records-Liste.
-    if event.get('httpMethod'):
-        return _handle_api_event(event, context)
+    if event.get('httpMethod') or ((event.get('requestContext') or {}).get('http') or {}).get('method'):
+        return _handle_personal_api_boundary(event, context)
     if event.get('Records'):
         return _handle_sqs_event(event, context)
     return _handle_api_event(event, context)
+
+
+def _personal_api_path(path: str) -> bool:
+    """Return whether a Lambda-served path can contain subject data."""
+    return (
+        path in {"/me", "/agents"}
+        or path.startswith("/me/")
+        or path.startswith("/v1/partner/me/")
+    )
+
+
+def _finalize_personal_response(event: Dict[str, Any], response: Dict[str, Any]) -> Dict[str, Any]:
+    path = event.get("path") or ((event.get("requestContext") or {}).get("http") or {}).get("path", "/")
+    if not _personal_api_path(path) or not isinstance(response, dict):
+        return response
+    finalized = dict(response)
+    headers = dict(finalized.get("headers") or {})
+    headers["Cache-Control"] = "no-store, private"
+    finalized["headers"] = headers
+    return finalized
+
+
+def _handle_personal_api_boundary(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Finalize all subject-bearing API responses, including early failures."""
+    try:
+        response = _handle_api_event(event, context)
+    except Exception:
+        logger.exception("personal API request failed")
+        response = {
+            "statusCode": 500,
+            "body": json.dumps({"error": "Internal error"}),
+        }
+    return _finalize_personal_response(event, response)
 
 
 # Live-Einstieg der deployten Funktion (handler.lambda_handler).
@@ -324,6 +358,10 @@ def _extract_user_context(event: Dict[str, Any]) -> Dict[str, Any]:
     context['audience'] = jwt_claims.get('aud')
     
     context['tokenUse'] = jwt_claims.get('token_use')
+    context['partnerApplicationId'] = (
+        jwt_claims.get('custom:partner_application_id')
+        or jwt_claims.get('partnerApplicationId'))
+    context['issuer'] = jwt_claims.get('iss')
     
     # Security fix 02: normalize, never split blindly. See
     # _normalize_groups — the authorizer stringifies array claims.
@@ -538,11 +576,32 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     }
 
 
+def _application_json_default(value):
+    """Serialize DynamoDB numbers without changing stored precision.
+
+    DynamoDB returns numbers as ``Decimal``. They stay Decimal in the
+    repository/store layer; only the HTTP projection converts them to JSON
+    numbers. Integral values become ints, fractional values become floats.
+    Any other unserializable type still fails closed.
+    """
+    if isinstance(value, Decimal):
+        if value == value.to_integral_value():
+            return int(value)
+        return float(value)
+    raise TypeError(
+        'Object of type %s is not JSON serializable' % type(value).__name__)
+
+
 def _application_response(status, payload=None, code=None):
     body = payload if isinstance(payload, dict) else {'error': payload or 'Application request failed'}
     if code:
         body['code'] = code
-    return {'statusCode': status, 'body': json.dumps(body, ensure_ascii=False)}
+    return {
+        'statusCode': status,
+        'headers': {'Cache-Control': 'no-store, private'},
+        'body': json.dumps(body, ensure_ascii=False,
+                           default=_application_json_default),
+    }
 
 
 def _application_repo():
@@ -1233,6 +1292,10 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     try:
         from agents.ecosystem.privacy_erasure import (
             PrivacyErasure, ErasureExecutionUnavailable)
+        from agents.ecosystem.privacy_application_erasure import ApplicationErasureExecutor
+        from agents.ecosystem.partner_registry import resolve_partner_application
+        from jobsearch.application_contract import ApplicationContext
+        from jobsearch.application_repository import ApplicationRepository
         from agents.ecosystem.credentials import DynamoDBCredentialStore
         from agents.ecosystem.api_profiles import DynamoDBApiProfileStore
     except Exception as e:
@@ -1247,6 +1310,7 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         ("API_PROFILES_TABLE", "API_PROFILES_TABLE"),
         ("WORK_ITEMS_TABLE", "WORK_ITEMS_TABLE"),
         ("USER_PROFILE_TABLE", "USER_PROFILE_TABLE"),
+        ("APPLICATIONS_TABLE", "APPLICATIONS_TABLE"),
     ) if not os.environ.get(env)]
     if missing:
         logger.warning("erasure stores unconfigured: %s", ",".join(missing))
@@ -1293,6 +1357,24 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return 0
 
     dynamodb = _get_dynamodb()
+    partner_application_id = user_context.get('partnerApplicationId')
+    issuer = user_context.get('issuer')
+    application_context = None
+    if partner_application_id and issuer and user_context.get('tenantId'):
+        registry = resolve_partner_application(
+            user_context.get('clientId'))
+        if (not registry or registry.get('status') != 'ACTIVE'
+                or registry.get('applicationId') != partner_application_id
+                or registry.get('tenantId') != user_context.get('tenantId')):
+            return {
+                'statusCode': 403,
+                'body': json.dumps({'error': 'Erasure authorization context invalid'})
+            }
+        application_context = ApplicationContext(
+            user_context['userId'], user_context['tenantId'],
+            partner_application_id, issuer)
+    application_repository = ApplicationRepository(
+        table_name=os.environ.get("APPLICATIONS_TABLE"), dynamodb=dynamodb)
     erasure = PrivacyErasure(
         credential_store=DynamoDBCredentialStore(
             table_name=os.environ.get("CREDENTIALS_TABLE")),
@@ -1310,6 +1392,8 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         ),
         user_profile_table=dynamodb.Table(
             os.environ.get("USER_PROFILE_TABLE")),
+        application_erasure=ApplicationErasureExecutor(application_repository),
+        application_context=application_context,
     )
 
     try:
@@ -1747,7 +1831,9 @@ def _partner_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Di
             tenant_id=context.get('tenantId'),
             user_id=context.get('userId'),
             agent_version=agent_version,
-            idempotency_key=data.get('idempotencyKey'))
+            idempotency_key=data.get('idempotencyKey'),
+            partner_application_id=context.get('partnerApplicationId'),
+            issuer=context.get('issuer'))
     except Exception:
         return {'statusCode': 500, 'body': json.dumps({'error': 'Failed to create work item'})}
 
@@ -1928,7 +2014,9 @@ Route: POST /v1/m2m/agents/{agentId}/execute
             tenant_id=context.get('tenantId'),
             user_id=context.get('userId'),
             agent_version=agent_version,
-            idempotency_key=data.get('idempotencyKey'))
+            idempotency_key=data.get('idempotencyKey'),
+            partner_application_id=context.get('partnerApplicationId'),
+            issuer=context.get('issuer'))
     except Exception:
         return {'statusCode': 500,
                 'body': json.dumps({'error': 'Failed to create work item'})}
@@ -3053,7 +3141,9 @@ def _enqueue_agent_work(agent_id: str, capability: str,
                         tenant_id: Optional[str],
                         user_id: Optional[str],
                         agent_version: str = '1.0.0',
-                        idempotency_key: Optional[str] = None
+                        idempotency_key: Optional[str] = None,
+                        partner_application_id: Optional[str] = None,
+                        issuer: Optional[str] = None
                         ) -> Dict[str, Any]:
     """Single execution contract: build the work item, persist, enqueue.
 
@@ -3071,6 +3161,8 @@ def _enqueue_agent_work(agent_id: str, capability: str,
         'type': f'agent_{agent_id}',
         'tenantId': tenant_id,
         'userId': user_id,
+        'partnerApplicationId': partner_application_id or '',
+        'issuer': issuer or '',
         'requestedBy': user_id,
         'agentId': agent_id,
         'capability': capability,
@@ -3086,9 +3178,31 @@ def _enqueue_agent_work(agent_id: str, capability: str,
     }
 
     table_name = os.environ.get('WORK_ITEMS_TABLE')
-    if table_name:
-        table = _get_dynamodb().Table(table_name)
-        table.put_item(Item=work_item)
+    if not table_name:
+        raise RuntimeError("durable subject fence store is not configured")
+    if not user_id or not tenant_id:
+        raise RuntimeError("verified subject and tenant are required for work admission")
+    table = _get_dynamodb().Table(table_name)
+    from agents.runtime.pipeline import _ddb_client_item
+    from agents.runtime.subject_fence import subject_fence_key
+    client = getattr(getattr(table, "meta", None), "client", None)
+    if client is None:
+        raise RuntimeError("durable subject fence transaction unavailable")
+    client.transact_write_items(TransactItems=[
+            {"ConditionCheck": {
+                "TableName": table_name,
+                "Key": {"workId": {"S": subject_fence_key(
+                    user_id=user_id or "", tenant_id=tenant_id or "",
+                    partner_application_id=partner_application_id or "",
+                    issuer=issuer or "")}},
+                "ConditionExpression": "attribute_not_exists(workId)",
+            }},
+            {"Put": {
+                "TableName": table_name,
+                "Item": _ddb_client_item(work_item),
+                "ConditionExpression": "attribute_not_exists(workId)",
+            }},
+    ])
 
     queue_url = os.environ.get('WORK_QUEUE_URL')
     if queue_url:
@@ -3160,7 +3274,9 @@ def _execute_agent(event: Dict[str, Any], context: Any, agent_id: Optional[str])
             tenant_id=user_context['tenantId'],
             user_id=user_context['userId'],
             agent_version=agent.get('version', '1.0.0'),
-            idempotency_key=body.get('idempotencyKey'))
+            idempotency_key=body.get('idempotencyKey'),
+            partner_application_id=user_context.get('partnerApplicationId'),
+            issuer=user_context.get('issuer'))
     except Exception as e:
         logger.error(f"Error creating work item: {e}")
         return {
@@ -3417,9 +3533,12 @@ def _process_work_item(work_item: Dict[str, Any]) -> Dict[str, Any]:
 
     # Execution-Time-Entitlement-Re-check (Gate 08): Produktion injiziert
     # immer den DDB-Resolver (lazy, keine Import-Kosten ohne Nutzung).
+    work_table = _get_dynamodb().Table(os.environ.get("WORK_ITEMS_TABLE"))
     outcome = process_record(
         {'body': work_item},
-        entitlement_resolver=DynamoDBEntitlementResolver())
+        entitlement_resolver=DynamoDBEntitlementResolver(),
+        subject_fence_table=work_table,
+        require_subject_fence=True)
 
     success = outcome.get('status') == 'COMPLETED'
     result = {

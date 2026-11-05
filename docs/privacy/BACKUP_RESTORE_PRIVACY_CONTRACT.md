@@ -7,6 +7,12 @@
 - CloudWatch retention 30 days
 - Terraform state in S3 + DynamoDB lock
 
+> **Evidence boundary (R08-2026-11-04):** “PITR enabled per table” is a
+> contract/design requirement, not current live evidence. The executable RIS
+> Terraform inspected for RG-10 did not declare PITR blocks for the relevant
+> tables, and no AWS read was performed. Current PITR and backup expiry remain
+> `PARTIAL/BLOCKED` until authorized verification.
+
 ## Requirements
 A. Encryption at rest for all backups. AWS managed keys.
 B. Access restricted to IAM roles with MFA.
@@ -23,7 +29,7 @@ L. Backup expiry documented.
 M. Restoration tested quarterly.
 
 ## Deletion ledger
-Table `deletion-ledger` with deletionId, subjectType, subjectId, deletedAt, actor, reason, legalHoldUntil. Contains minimal identifiers, no secrets. Retention 7 years for audit.
+Table `deletion-ledger` with deletionId, subjectType, subjectId, deletedAt, actor, reason, legalHoldUntil. Contains minimal identifiers, no secrets. The seven-year period is a contract proposal requiring Privacy/Legal approval; it is not an implemented ledger and does not approve PrivacyReceipt retention.
 
 Restore procedure:
 1. Restore to staging.

@@ -16,6 +16,13 @@ explicit ownership and migration decision is approved separately:
 
 ## Current evidence status
 
+> Historical-note correction (2026-11-04): the serial-17/zero-resource
+> statement below is superseded for the current approval context. A fresh
+> read-only backend verification found serial 25, lineage
+> `a0bd361d-5cd1-a207-a8c0-e6888f0be082` and 181 resources at the same
+> canonical state key. The serial-17 statement remains historical evidence
+> only and must not be used as the current DEV2 baseline.
+
 The authoritative current Terraform object
 `s3://ris-dev2-tf-state-dev/env:/ris-dev2/dev/terraform.tfstate` is serial 17
 with zero resources. Historical versions show a prior installation and staged

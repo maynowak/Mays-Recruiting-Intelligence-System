@@ -1,5 +1,6 @@
 import os
 import unittest
+from decimal import Decimal
 
 try:
     import boto3
@@ -91,6 +92,40 @@ class ApplicationRepositoryTests(unittest.TestCase):
         ):
             with self.assertRaises(LookupError):
                 repo.get(ids[0], foreign)
+
+    @mock_aws
+    def test_fractional_salary_persists_as_decimal_and_stale_patch_is_409(self):
+        os.environ["AWS_DEFAULT_REGION"] = "eu-central-1"
+        os.environ["RIS_CURSOR_SECRET"] = "test-only-cursor-secret"
+        db = boto3.resource("dynamodb", region_name="eu-central-1")
+        db.create_table(TableName="applications", KeySchema=[{"AttributeName": "applicationId", "KeyType": "HASH"}, {"AttributeName": "entityKey", "KeyType": "RANGE"}], AttributeDefinitions=[{"AttributeName": "applicationId", "AttributeType": "S"}, {"AttributeName": "entityKey", "AttributeType": "S"}, {"AttributeName": "ownerKey", "AttributeType": "S"}, {"AttributeName": "updatedAt", "AttributeType": "S"}], GlobalSecondaryIndexes=[{"IndexName": "gsi-owner", "KeySchema": [{"AttributeName": "ownerKey", "KeyType": "HASH"}, {"AttributeName": "updatedAt", "KeyType": "RANGE"}], "Projection": {"ProjectionType": "ALL"}, "ProvisionedThroughput": {"ReadCapacityUnits": 1, "WriteCapacityUnits": 1}}], BillingMode="PAY_PER_REQUEST")
+        repo = ApplicationRepository("applications", db)
+        ctx = ApplicationContext("u1", "t1", "p1", "https://issuer")
+
+        created = repo.create({
+            "job": {"jobId": "job-1"},
+            "salary": {"expectation": {"amount": 50000.5,
+                                       "currency": "EUR", "period": "year"}},
+        }, ctx)
+        self.assertEqual(Decimal("50000.5"),
+                         created["salary"]["expectation"]["amount"])
+        raw = repo.table.get_item(Key={
+            "applicationId": created["applicationId"],
+            "entityKey": "META"}).get("Item")
+        self.assertIsInstance(raw["salary"]["expectation"]["amount"], Decimal)
+
+        patched = repo.patch(created["applicationId"], {
+            "expectedVersion": 1,
+            "salary": {"expectation": {"amount": 60000.75,
+                                       "currency": "EUR", "period": "year"}},
+        }, ctx)
+        self.assertEqual(2, patched["version"])
+        self.assertEqual(Decimal("60000.75"),
+                         patched["salary"]["expectation"]["amount"])
+
+        with self.assertRaises(ApplicationConflict):
+            repo.patch(created["applicationId"],
+                       {"expectedVersion": 1, "notes": "stale"}, ctx)
 
 
 if __name__ == "__main__":

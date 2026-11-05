@@ -83,10 +83,11 @@ module "sqs" {
 module "dynamodb" {
   source = "./modules/dynamodb"
 
-  project_name = var.project_name
-  environment  = var.environment
-  table_config = var.table_config
-  tags         = var.tags
+  project_name     = var.project_name
+  environment      = var.environment
+  table_config     = var.table_config
+  r08_pitr_enabled = var.r08_pitr_enabled
+  tags             = var.tags
 
   # B5: opt-in. Empty by default -> no foundation entitlement is provisioned.
   # Passed through so the dev workspace can supply the synthetic owner sub.
@@ -143,6 +144,8 @@ module "lambda" {
   upload_ticket_ledger_table_arn  = module.dynamodb.upload_ticket_ledger_table_arn
   upload_cutover_table_name       = module.dynamodb.upload_cutover_table_name
   upload_cutover_table_arn        = module.dynamodb.upload_cutover_table_arn
+  deletion_ledger_table_name      = module.dynamodb.deletion_ledger_table_name
+  deletion_ledger_table_arn       = module.dynamodb.deletion_ledger_table_arn
   user_profile_table_name         = module.dynamodb.user_profile_table_name
   agent_catalog_table_name        = module.dynamodb.agent_catalog_table_name
   entitlements_table_name         = module.dynamodb.entitlements_table_name

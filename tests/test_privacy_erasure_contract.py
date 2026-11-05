@@ -11,6 +11,7 @@ from agents.ecosystem.privacy_erasure_contract import (
     STATUS_COMPLETED,
     STATUS_PARTIAL,
     STATUS_RUNNING,
+    ERASURE_CATEGORIES,
     new_operation,
 )
 
@@ -90,7 +91,12 @@ def test_completed_is_terminal_and_progress_errors_require_resume():
     }
     current = operation(progress=completed_progress).transition(
         STATUS_RUNNING, now=NOW)
-    final = current.transition(STATUS_COMPLETED, now=NOW)
+    with pytest.raises(ErasureContractError, match="every required category"):
+        current.transition(STATUS_COMPLETED, now=NOW)
+    complete_all = {category: ErasureProgressV1(status="COMPLETED")
+                    for category in ERASURE_CATEGORIES}
+    final = operation(progress=complete_all).transition(STATUS_RUNNING, now=NOW).transition(
+        STATUS_COMPLETED, now=NOW)
     assert final.status == STATUS_COMPLETED
     with pytest.raises(ErasureContractError):
         final.transition(STATUS_RUNNING, now=NOW)

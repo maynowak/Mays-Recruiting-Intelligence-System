@@ -106,6 +106,26 @@ class FakeDynamoDB:
             self.items[pk]["status"] = dict(ExpressionAttributeValues[":s"])
             return {"Attributes": dict(self.items[pk])}
 
+    def delete_item(self, TableName, Key, ConditionExpression=None,
+                    ExpressionAttributeNames=None,
+                    ExpressionAttributeValues=None, ReturnValues=None):
+        with self.lock:
+            pk = Key["applicationId"]["S"]
+            item = self.items.get(pk)
+            if ConditionExpression:
+                if item is None:
+                    raise ConditionalCheckFailed("condition failed")
+                if item.get("reservedForApplicationId", {}).get("S") != \
+                        ExpressionAttributeValues[":app"]["S"]:
+                    raise ConditionalCheckFailed("owner mismatch")
+                if item.get("cognitoClientId", {}).get("S") != \
+                        ExpressionAttributeValues[":client"]["S"]:
+                    raise ConditionalCheckFailed("client mismatch")
+                if item.get("status", {}).get("S") != \
+                        ExpressionAttributeValues[":reserved"]["S"]:
+                    raise ConditionalCheckFailed("status mismatch")
+            self.items.pop(pk, None)
+
     def scan(self, TableName, ExclusiveStartKey=None):
         with self.lock:
             return {"Items": [dict(v) for v in self.items.values()]}
@@ -247,9 +267,10 @@ class TestRegistryUniqueness(unittest.TestCase):
         res = deactivate_partner_application("app-1", table_name=TBL,
                                              dynamodb_client=self.db)
         self.assertEqual(res["status"], "INACTIVE")
-        rec = resolve_partner_application("client-1", table_name=TBL,
-                                          dynamodb_client=self.db)
-        self.assertEqual(rec["status"], "INACTIVE")
+        # INACTIVE partners are never resolvable; the historical record remains
+        # in the registry for audit, but no caller can authorize with it.
+        self.assertIsNone(resolve_partner_application(
+            "client-1", table_name=TBL, dynamodb_client=self.db))
         # Reservation still blocks reuse of the same client ID.
         with self.assertRaises(PartnerRegistryError):
             self.create("app-2", "client-1")
@@ -263,6 +284,173 @@ class TestRegistryUniqueness(unittest.TestCase):
         with self.assertRaises(PartnerRegistryError):
             deactivate_partner_application("", table_name=TBL,
                                            dynamodb_client=self.db)
+
+    # --- reservation release -------------------------------------------
+    def _release(self, app_id, dependency_check=None, tenant=None):
+        return deactivate_partner_application(
+            app_id,
+            table_name=TBL,
+            dynamodb_client=self.db,
+            expected_tenant=tenant,
+            release_reservation=True,
+            dependency_check=dependency_check or (lambda profile_id: False),
+        )
+
+    def test_release_removes_reservation_but_preserves_partner_record(self):
+        self.create("app-1", "client-1")
+        seen = []
+        res = self._release("app-1", lambda pid: seen.append(pid) or False)
+        self.assertTrue(res["reservationReleased"])
+        self.assertEqual(["prof-1"], seen)
+        self.assertIn("app-1", self.db.items)
+        self.assertEqual(self.db.items["app-1"]["status"]["S"], "INACTIVE")
+        self.assertNotIn(CLIENT_RESERVATION_PREFIX + "client-1", self.db.items)
+
+    def test_release_is_idempotent(self):
+        self.create("app-1", "client-1")
+        self.assertTrue(self._release("app-1")["reservationReleased"])
+        self.assertTrue(self._release("app-1")["reservationReleased"])
+        self.assertEqual(self.db.items["app-1"]["status"]["S"], "INACTIVE")
+
+    def test_release_refused_when_dependencies_are_active(self):
+        self.create("app-1", "client-1")
+        with self.assertRaises(PartnerRegistryError):
+            self._release("app-1", lambda pid: True)
+        self.assertEqual(self.db.items["app-1"]["status"]["S"], "ACTIVE")
+        self.assertIn(CLIENT_RESERVATION_PREFIX + "client-1", self.db.items)
+
+    def test_release_requires_dependency_check(self):
+        self.create("app-1", "client-1")
+        with self.assertRaises(PartnerRegistryError):
+            deactivate_partner_application(
+                "app-1", table_name=TBL, dynamodb_client=self.db,
+                release_reservation=True)
+        self.assertIn(CLIENT_RESERVATION_PREFIX + "client-1", self.db.items)
+
+    def test_release_refuses_foreign_reservation(self):
+        self.create("app-1", "client-1")
+        self.create("app-2", "client-2")
+        self.db.items[CLIENT_RESERVATION_PREFIX + "client-1"][
+            "reservedForApplicationId"] = {"S": "app-2"}
+        with self.assertRaises(PartnerRegistryError):
+            self._release("app-1")
+        self.assertEqual(self.db.items["app-1"]["status"]["S"], "ACTIVE")
+        self.assertIn(CLIENT_RESERVATION_PREFIX + "client-1", self.db.items)
+
+    def test_release_rejects_tenant_mismatch_before_write(self):
+        self.create("app-1", "client-1", tenant="tenant-1")
+        with self.assertRaises(PartnerRegistryError):
+            self._release("app-1", tenant="tenant-2")
+        self.assertEqual(self.db.items["app-1"]["status"]["S"], "ACTIVE")
+        self.assertIn(CLIENT_RESERVATION_PREFIX + "client-1", self.db.items)
+
+    def test_concurrent_release_is_safe(self):
+        self.create("app-1", "client-1")
+        errors = []
+        barrier = threading.Barrier(6)
+
+        def worker():
+            barrier.wait()
+            try:
+                self._release("app-1")
+            except PartnerRegistryError as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual([], errors)
+        self.assertNotIn(CLIENT_RESERVATION_PREFIX + "client-1", self.db.items)
+
+    # --- deterministic resolver ---------------------------------------
+    def test_reservation_carries_tenant(self):
+        self.create("app-1", "client-1", tenant="tenant-1")
+        item = self.db.items[CLIENT_RESERVATION_PREFIX + "client-1"]
+        self.assertEqual(item["tenantId"]["S"], "tenant-1")
+
+    def test_resolver_prefers_current_owner_over_historical_inactive(self):
+        self.create("app-a", "client-1", profile="prof-a")
+        self._release("app-a")
+        self.create("app-b", "client-1", profile="prof-b")
+        rec = resolve_partner_application("client-1", table_name=TBL,
+                                          dynamodb_client=self.db)
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec["applicationId"], "app-b")
+        self.assertEqual(rec["status"], "ACTIVE")
+
+    def test_resolver_uses_owner_when_gsi_is_still_catching_up(self):
+        self.create("app-a", "client-1", profile="prof-a")
+        self._release("app-a")
+        self.create("app-b", "client-1", profile="prof-b")
+        stale = {
+            "applicationId": {"S": "app-a"},
+            "cognitoClientId": {"S": "client-1"},
+            "apiProfileId": {"S": "prof-a"},
+            "tenantId": {"S": "tenant-1"},
+            "status": {"S": "INACTIVE"},
+        }
+        self.db.query = lambda **kwargs: {"Items": [stale]}
+        rec = resolve_partner_application("client-1", table_name=TBL,
+                                          dynamodb_client=self.db)
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec["applicationId"], "app-b")
+
+    def test_resolver_without_reservation_uses_unique_active(self):
+        self.create("app-1", "client-1", profile="prof-1")
+        self.db.items.pop(CLIENT_RESERVATION_PREFIX + "client-1")
+        rec = resolve_partner_application("client-1", table_name=TBL,
+                                          dynamodb_client=self.db)
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec["applicationId"], "app-1")
+
+    def test_resolver_none_when_reservation_owner_is_inactive(self):
+        self.create("app-a", "client-1")
+        deactivate_partner_application("app-a", table_name=TBL,
+                                       dynamodb_client=self.db)
+        self.assertIsNone(resolve_partner_application(
+            "client-1", table_name=TBL, dynamodb_client=self.db))
+
+    def test_resolver_fails_closed_on_two_active_records(self):
+        self.create("app-a", "client-1", profile="prof-a")
+        self._release("app-a")
+        self.create("app-b", "client-1", profile="prof-b")
+        # Corrupt the historical row into a second ACTIVE binding.
+        self.db.items["app-a"]["status"] = {"S": "ACTIVE"}
+        self.assertIsNone(resolve_partner_application(
+            "client-1", table_name=TBL, dynamodb_client=self.db))
+
+    def test_resolver_fails_closed_on_reservation_tenant_mismatch(self):
+        self.create("app-a", "client-1", tenant="tenant-1")
+        self.db.items[CLIENT_RESERVATION_PREFIX + "client-1"][
+            "tenantId"] = {"S": "tenant-2"}
+        self.assertIsNone(resolve_partner_application(
+            "client-1", table_name=TBL, dynamodb_client=self.db))
+
+    def test_resolver_fails_closed_on_reservation_client_mismatch(self):
+        self.create("app-a", "client-1")
+        self.db.items[CLIENT_RESERVATION_PREFIX + "client-1"][
+            "cognitoClientId"] = {"S": "other-client"}
+        self.assertIsNone(resolve_partner_application(
+            "client-1", table_name=TBL, dynamodb_client=self.db))
+
+    def test_resolver_is_order_independent(self):
+        self.create("app-a", "client-1", profile="prof-a")
+        self._release("app-a")
+        self.create("app-b", "client-1", profile="prof-b")
+        original = self.db.query
+
+        def reversed_query(**kwargs):
+            out = original(**kwargs)
+            out["Items"] = list(reversed(out.get("Items", [])))
+            return out
+
+        self.db.query = reversed_query
+        rec = resolve_partner_application("client-1", table_name=TBL,
+                                          dynamodb_client=self.db)
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec["applicationId"], "app-b")
 
     # --- listing -------------------------------------------------------
     def test_list_excludes_reservation_items(self):
@@ -338,9 +526,8 @@ class TestRegistryUniqueness(unittest.TestCase):
         self.create("app-1", "client-1")
         deactivate_partner_application("app-1", table_name=TBL,
                                        dynamodb_client=self.db)
-        rec = resolve_partner_application("client-1", table_name=TBL,
-                                          dynamodb_client=self.db)
-        self.assertEqual(rec["status"], "INACTIVE")
+        self.assertIsNone(resolve_partner_application(
+            "client-1", table_name=TBL, dynamodb_client=self.db))
 
     def test_stale_index_cannot_authorize_a_deactivated_partner(self):
         """The load-bearing guarantee of this module, asserted on VALUES.
@@ -369,11 +556,9 @@ class TestRegistryUniqueness(unittest.TestCase):
                                        dynamodb_client=self.db)
         self.assertEqual(self.db.items["app-1"]["status"], {"S": "INACTIVE"})
 
-        rec = resolve_partner_application("client-1", table_name=TBL,
-                                          dynamodb_client=self.db)
-        self.assertIsNotNone(rec)
-        self.assertEqual(
-            rec["status"], "INACTIVE",
+        self.assertIsNone(
+            resolve_partner_application("client-1", table_name=TBL,
+                                        dynamodb_client=self.db),
             "resolver trusted the eventually-consistent GSI row instead of the "
             "authoritative base-table read; a deactivated partner would "
             "authorize")

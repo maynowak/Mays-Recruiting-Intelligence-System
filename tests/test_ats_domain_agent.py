@@ -72,7 +72,7 @@ class FakeTable:
         return {"Item": dict(item)} if item else {}
 
     def update_item(self, Key, UpdateExpression, ExpressionAttributeNames=None,
-                    ExpressionAttributeValues=None):
+                    ExpressionAttributeValues=None, ConditionExpression=None):
         item = self.items[Key["workId"]]
         names = ExpressionAttributeNames or {}
         values = ExpressionAttributeValues or {}

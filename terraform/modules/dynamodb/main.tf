@@ -297,6 +297,10 @@ resource "aws_dynamodb_table" "privacy_receipts" {
     projection_type = "ALL"
   }
 
+  point_in_time_recovery {
+    enabled = var.r08_pitr_enabled
+  }
+
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
@@ -313,6 +317,10 @@ resource "aws_dynamodb_table" "erasure_operations" {
     type = "S"
   }
 
+  point_in_time_recovery {
+    enabled = var.r08_pitr_enabled
+  }
+
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
@@ -326,6 +334,10 @@ resource "aws_dynamodb_table" "s3_erasure_phases" {
   attribute {
     name = "resourceId"
     type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = var.r08_pitr_enabled
   }
 
   tags = merge({ "Project" = var.project_name }, var.tags)
@@ -345,6 +357,10 @@ resource "aws_dynamodb_table" "upload_ticket_ledger" {
     type = "S"
   }
 
+  point_in_time_recovery {
+    enabled = var.r08_pitr_enabled
+  }
+
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
@@ -360,7 +376,43 @@ resource "aws_dynamodb_table" "upload_cutover" {
     type = "S"
   }
 
+  point_in_time_recovery {
+    enabled = var.r08_pitr_enabled
+  }
+
   tags = merge({ "Project" = var.project_name }, var.tags)
+}
+
+# R08-12: authoritative deletion evidence. This is separate from mutable
+# erasure operation state and upload-ticket lifecycle state. No TTL is used
+# until retention/legal-hold policy is approved.
+resource "aws_dynamodb_table" "deletion_ledger" {
+  name         = "${var.project_name}-${var.environment}-deletion-ledger"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "ledgerId"
+
+  attribute {
+    name = "ledgerId"
+    type = "S"
+  }
+
+  attribute {
+    name = "operationId"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "gsi-operation"
+    hash_key        = "operationId"
+    range_key       = "ledgerId"
+    projection_type = "ALL"
+  }
+
+  point_in_time_recovery {
+    enabled = var.r08_pitr_enabled
+  }
+
+  tags = merge({ "Project" = var.project_name, "Purpose" = "R08-deletion-evidence" }, var.tags)
 }
 
 output "work_items_table_name" {

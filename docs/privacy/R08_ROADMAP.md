@@ -1,8 +1,39 @@
 # R08 Privacy Roadmap
 
-Status: **R08-A1 IMPLEMENTED** (journal repository + infrastructure, writes
-fail-closed). R08-G0 implemented the receipt contract and analysis; R08-A2/B/C/D
-are not started. No public privacy API yet.
+Status: **R08-A1 IMPLEMENTED / R08-B1-B2A VERIFIED LOCAL / R08-C VERIFIED LOCAL SYNTHETIC**.
+Receipt writes remain fail-closed. R08-G0 and R08-POLICY-01 provide technical
+decision packages, not legal approval. R08-A2 production emission, persistence-
+backed/live B verification, full R08-C execution, R08-D legal/cross-domain work
+and release remain blocked or review-required. This current status supersedes
+the older “B/C not started” wording below; historical gate reports remain
+unchanged and are interpreted through the current reconciliation report.
+
+**ORCH-02 (2026-11-04):** Local-only versioned recovery/CAS contract, opaque
+deletion-ledger evidence, restore reappearance detection, fail-closed erasure
+completion checks and RIS worker cancellation admission hardening are
+implemented and tested. Durable deletion-ledger persistence, actual PITR/
+restore, live SQS/DLQ/redrive evidence and production activation remain
+BLOCKED; no retention period was approved.
+
+**SECURITY-FINAL-REVIEW-06 (2026-11-04):** Worker fence, retry CAS, terminal
+failure handling, API cache headers and local ApplicationV1 resume contracts
+are locally verified. SECURITY-07 wires the existing ApplicationV1 executor
+into public `/me/erasure`; PR readiness and production remain BLOCKED by live
+and legal gates. Gate B remains NO-GO.
+
+**DEV2-E2E-READINESS-10 (2026-11-04):** AWS read-only discovery verified the
+`ris-dev2` account, state, Lambda/API/DynamoDB/SQS/CloudFront inventory and a
+diagnostic Terraform plan. DEV2 Apply remains BLOCKED by duplicate backend lock
+records, unrelated health-Lambda plan updates, disabled PITR and missing live
+E2E/recovery evidence. No AWS mutation occurred.
+
+**DEV2-PLAN-UNBLOCK-11 (2026-11-04):** Lock forensics verified that the two
+`ris-dev2-tf-lock` records are digest caches for the canonical and legacy S3
+states, not active locks. Exact live Health Lambda baseline packages removed
+both unrelated Health actions from the controlled plan. The resulting plan is
+1 CREATE / 2 UPDATE / 0 DELETE / 0 REPLACE, but DEV2 deployment remains
+BLOCKED because PITR/recovery, live SQS/DLQ and synthetic E2E approvals remain
+open.
 
 ## R08-A — User evidence journal
 
@@ -75,3 +106,16 @@ R08-G0 (contract) -> R08-A1 (journal repository)
 R08-A1 is complete as an internal, fail-closed repository. A production privacy
 release remains blocked until retention/legal review, R08-A2 integration and
 R08-C/R08-D are complete.
+
+ORCH-PR-CONSOLIDATION-08 is locally consolidated and traceable. GitHub handoff
+is blocked by unavailable local GitHub tooling/authentication and documented
+full-suite environment/legacy failures; no push, PR, merge, deployment, or
+Apply occurred. Gate B remains NO-GO.
+
+**RECOVERY-PREFLIGHT-12 (2026-11-04):** A disabled-by-default durable deletion-ledger repository, separate ledger table, scoped IAM and opt-in PITR configuration were locally implemented. The controlled review plan is 3 CREATE / 7 UPDATE / 0 DELETE / 0 REPLACE; Health actions remain absent. Local evidence is verified, but PITR activation, restore, reconciliation, migration, live SQS/DLQ and synthetic E2E remain blocked.
+
+**DEPLOYMENT-APPROVAL-13 (2026-11-04):** A fresh plan against the canonical
+DEV2 state reconfirmed the exact ten-resource scope: 3 CREATE / 7 UPDATE /
+0 DELETE / 0 REPLACE. The approval handoff remains BLOCKED because PITR,
+restore, migration, live queue safety and synthetic E2E/cleanup evidence are
+not complete. Gate B remains NO-GO.

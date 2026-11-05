@@ -15,7 +15,8 @@ class ApplicationErasureTests(unittest.TestCase):
             def __init__(self):
                 self.items = [{"applicationId": "a1", "version": 1}]
 
-            def list(self, context, *, limit, cursor=None):
+            def list(self, context, *, limit, cursor=None, include_deleting=False):
+                self.include_deleting = include_deleting
                 return list(self.items), None
 
             def delete(self, application_id, expected_version, context):

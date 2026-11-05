@@ -4,6 +4,13 @@ Status: **SPECIFIED / REVIEW REQUIRED** for legal bases and retention.
 This inventory supersedes the shallow lists in `GDPR_DATA_INVENTORY.md` and
 `DATA_RETENTION_MATRIX.md` for the R07/R08 scope; those files remain as history.
 
+**R08 Gate-B reconciliation (2026-11-04):** R08-A1 is implemented locally
+with production writes disabled; R08-B1/B2A and R08-C synthetic flows are
+locally verified. Legal bases, approved retention, backup/PITR, restore
+reconciliation, full S3 version purge and live deployment remain open. The
+deletion-ledger seven-year statement in the backup contract is not a receipt
+retention approval and no implemented deletion ledger was found.
+
 | Category | Owner | Purpose | Legal basis | Storage | Retention | Export | Delete | Evidence | Gap |
 |---|---|---|---|---|---|---|---|---|---|
 | Cognito identity (sub, email, tenant claim, groups) | RIS | auth, tenant isolation | REVIEW REQUIRED | Cognito | account lifetime | admin/user export | Cognito admin delete + revoke tokens | server_verified | not in G5 erasure |

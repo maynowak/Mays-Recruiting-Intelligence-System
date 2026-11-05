@@ -93,6 +93,14 @@ output "upload_cutover_table_arn" {
   value = aws_dynamodb_table.upload_cutover.arn
 }
 
+output "deletion_ledger_table_name" {
+  value = aws_dynamodb_table.deletion_ledger.name
+}
+
+output "deletion_ledger_table_arn" {
+  value = aws_dynamodb_table.deletion_ledger.arn
+}
+
 # Partner Application Registry. The runtime Lambda resolves this table on every
 # authorized agent execution (agents/ecosystem/partner_registry.py reads
 # RIS_PARTNER_APPLICATIONS_TABLE); without it the registry lookup returns None

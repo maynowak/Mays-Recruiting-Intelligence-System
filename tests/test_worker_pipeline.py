@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agents.agent_body import AgentBody
 from agents.ecosystem.registry import AgentRegistry
 from agents.runtime.pipeline import process_record
+from agents.runtime.subject_fence import SubjectFenceBlocked, fence_item
 
 
 def work_item(work_id="work-1", capability="reference.echo", agent_id="reference_agent",
@@ -60,10 +61,14 @@ class FakeTable:
         return {"Item": dict(item)} if item else {}
 
     def update_item(self, Key, UpdateExpression, ExpressionAttributeNames=None,
-                    ExpressionAttributeValues=None):
+                    ExpressionAttributeValues=None, ConditionExpression=None):
         item = self.items[Key["workId"]]
         names = ExpressionAttributeNames or {}
         values = ExpressionAttributeValues or {}
+        if ConditionExpression == "#status = :failed AND attempt_no = :expectedAttempt":
+            if (item.get(names.get("#status", "#status")) != values[":failed"]
+                    or item.get("attempt_no") != values[":expectedAttempt"]):
+                raise FakeTable.ConditionalFailed()
         # minimaler Parser fuer die in pipeline.py verwendeten SET/REMOVE-Ausdruecke
         expr = UpdateExpression.split("REMOVE")[0].strip()
         set_part = expr[len("SET "):] if expr.startswith("SET ") else expr
@@ -75,11 +80,156 @@ class FakeTable:
             item.pop("error", None)
 
 
+class TransactionalFenceTable(FakeTable):
+    """Small low-level-DynamoDB seam for the production admission contract."""
+
+    class _Meta:
+        def __init__(self, client):
+            self.client = client
+
+    class Client:
+        def __init__(self, table):
+            self.table = table
+
+        def transact_write_items(self, TransactItems):
+            check = TransactItems[0]["ConditionCheck"]
+            key = check["Key"]["workId"]["S"]
+            put = TransactItems[1].get("Put")
+            update = TransactItems[1].get("Update")
+            work_id = (put["Item"]["workId"]["S"] if put
+                       else update["Key"]["workId"]["S"])
+            if key in self.table.items:
+                raise FakeTable.ConditionalFailed()
+            if work_id in self.table.items and not update:
+                raise FakeTable.ConditionalFailed()
+            if put:
+                from boto3.dynamodb.types import TypeDeserializer
+                deserialize = TypeDeserializer()
+                self.table.items[work_id] = {
+                    name: deserialize.deserialize(value)
+                    for name, value in put["Item"].items()
+                }
+            else:
+                from boto3.dynamodb.types import TypeDeserializer
+                deserialize = TypeDeserializer()
+                item = self.table.items[work_id]
+                item["updatedAt"] = deserialize.deserialize(
+                    update["ExpressionAttributeValues"][":updated"])
+
+    def __init__(self):
+        super().__init__()
+        self.name = "work-items"
+        self.meta = self._Meta(self.Client(self))
+
+
 def fresh_wiring():
     return AgentRegistry(), AgentBody()
 
 
 class TestWorkerPipeline(unittest.TestCase):
+    def test_production_admission_blocks_replay_after_fence_and_missing_row(self):
+        table = TransactionalFenceTable()
+        registry, body = fresh_wiring()
+        calls = []
+        body.register_agent(capability="reference.echo",
+                            handler=lambda work: calls.append(work))
+        item = work_item("work-erased")
+        item["userId"] = "user-erased"
+        table.items[fence_item(user_id="user-erased", tenant_id="tenant-test")
+                   ["workId"]] = fence_item(
+                       user_id="user-erased", tenant_id="tenant-test")
+
+        with self.assertRaises(SubjectFenceBlocked) as caught:
+            process_record(record(item), table=table, registry=registry,
+                           body=body, subject_fence_table=table,
+                           require_subject_fence=True)
+
+        self.assertIn("fenced", str(caught.exception))
+        self.assertNotIn("work-erased", table.items)
+        self.assertEqual([], calls)
+
+    def test_production_admission_blocks_existing_inflight_row_after_fence(self):
+        table = TransactionalFenceTable()
+        registry, body = fresh_wiring()
+        item = work_item("work-inflight")
+        item["userId"] = "user-inflight"
+        table.items["work-inflight"] = {
+            "workId": "work-inflight", "userId": "user-inflight",
+            "tenantId": "tenant-test", "status": "RUNNING", "attempt_no": 1,
+        }
+        fenced = fence_item(user_id="user-inflight", tenant_id="tenant-test")
+        table.items[fenced["workId"]] = fenced
+
+        with self.assertRaises(SubjectFenceBlocked):
+            process_record(record(item), table=table, registry=registry,
+                           body=body, subject_fence_table=table,
+                           require_subject_fence=True)
+
+    def test_production_admission_uses_atomic_fence_transaction_for_create(self):
+        table = TransactionalFenceTable()
+        registry, body = fresh_wiring()
+        item = work_item("work-new")
+        item["userId"] = "user-new"
+        out = process_record(record(item), table=table, registry=registry,
+                             body=body, subject_fence_table=table,
+                             require_subject_fence=True)
+        self.assertEqual("COMPLETED", out["status"])
+        self.assertEqual("COMPLETED", table.items["work-new"]["status"])
+    def test_terminal_dead_letter_is_suppressed(self):
+        table = FakeTable()
+        table.items["work-dead"] = {
+            "workId": "work-dead", "status": "DEAD_LETTER", "attempt_no": 1,
+        }
+        registry, body = fresh_wiring()
+        called = []
+        body.register_agent(capability="reference.echo",
+                            handler=lambda work: called.append(work))
+        out = process_record(record(work_item("work-dead")), table=table,
+                             registry=registry, body=body)
+        self.assertTrue(out["duplicate"])
+        self.assertEqual(out["status"], "DEAD_LETTER")
+        self.assertFalse(called)
+
+    def test_permanent_agent_error_is_terminal_and_not_retried(self):
+        table = FakeTable()
+        registry, body = fresh_wiring()
+        calls = []
+        from agents.ecosystem.registry import AgentDescriptor, AgentStatus
+        registry.register("permanent", AgentDescriptor(
+            agent_id="permanent", name="permanent", version="1.0.0",
+            status=AgentStatus.ACTIVE, capabilities=["permanent.cap"]))
+
+        def permanent(work):
+            calls.append(work["workId"])
+            return {"success": False, "error": {"type": "CONFLICT", "message": "no"}}
+
+        body.register_agent(capability="permanent.cap", handler=permanent)
+        body.register_agent(agent_id="permanent", handler=permanent)
+        item = work_item("work-permanent", capability="permanent.cap", agent_id="permanent")
+        first = process_record(record(item), table=table, registry=registry, body=body)
+        second = process_record(record(item, message_id="msg-2"), table=table,
+                                registry=registry, body=body)
+        self.assertEqual("DEAD_LETTER", first["status"])
+        self.assertEqual("DEAD_LETTER", second["status"])
+        self.assertEqual(["work-permanent"], calls)
+
+    def test_execution_fence_can_suppress_after_admission(self):
+        table = FakeTable()
+        registry, body = fresh_wiring()
+        called = []
+        body.register_agent(capability="reference.echo",
+                            handler=lambda work: called.append(work))
+
+        def fence(work, phase):
+            if phase == "before_execution":
+                raise RuntimeError("ERASURE_FREEZE_ACTIVE")
+
+        with self.assertRaises(RuntimeError):
+            process_record(record(work_item("work-fenced")), table=table,
+                           registry=registry, body=body,
+                           erasure_admission=fence)
+        self.assertFalse(called)
+
     def test_happy_path_selects_reference_agent_via_ecosystem(self):
         table = FakeTable()
         registry, body = fresh_wiring()
