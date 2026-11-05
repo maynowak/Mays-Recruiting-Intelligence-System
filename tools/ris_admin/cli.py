@@ -346,16 +346,51 @@ def build_parser() -> argparse.ArgumentParser:
     val_p.add_argument("applicationId")
     val_p.set_defaults(func=_partner_cmd_validate)
 
+    def _partner_release_blocked(args, actor, api_profile_id):
+        """Fail closed unless the profile and its grants are fully inactive."""
+        if not api_profile_id:
+            return True
+        ops = _apiprofile_ops()
+        profile = ops.show(
+            api_profile_id=api_profile_id,
+            actor=actor,
+            reason="partner reservation release dependency check",
+        )
+        if not profile or profile.get("status") == "ACTIVE":
+            return True
+        client = _get_dynamo_client(args)
+        for suffix, env_name in (("credentials", "CREDENTIALS_TABLE"),
+                                 ("entitlements", "ENTITLEMENTS_TABLE")):
+            table = os.getenv(env_name) or _table_name(args, suffix)
+            status = client.scan(
+                TableName=table,
+                FilterExpression="apiProfileId = :p AND #s = :a",
+                ExpressionAttributeNames={"#s": "status"},
+                ExpressionAttributeValues={":p": {"S": api_profile_id},
+                                           ":a": {"S": "ACTIVE"}},
+                Select="COUNT",
+            )
+            if status.get("Count", 0):
+                return True
+        return False
+
     def _partner_cmd_deactivate(args):
         if args.dry_run:
             _print_json({"dry_run": True,
                          "action": "deactivate",
-                         "applicationId": args.applicationId})
+                         "applicationId": args.applicationId,
+                         "releaseReservation": bool(
+                             getattr(args, "release_reservation", False))})
             return 0
         try:
             actor = _actor(args, "deactivate a partner application")
         except credops_error() as exc:
             return _deny(exc)
+        release = bool(getattr(args, "release_reservation", False))
+        checker = None
+        if release:
+            checker = lambda profile_id: _partner_release_blocked(
+                args, actor, profile_id)
         reg = _registry()
         try:
             res = reg.deactivate_partner_application(
@@ -363,6 +398,8 @@ def build_parser() -> argparse.ArgumentParser:
                 table_name=_table_name(args, "partner-applications"),
                 dynamodb_client=_get_dynamo_client(args),
                 expected_tenant=actor["actor_tenant"],
+                release_reservation=release,
+                dependency_check=checker,
             )
             _print_json(res)
             return 0
@@ -372,6 +409,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     deact_p = partner_sub.add_parser("deactivate", help="Deactivate partner")
     deact_p.add_argument("applicationId")
+    deact_p.add_argument("--release-reservation", action="store_true",
+                         help="Release the client-ID reservation after a "
+                              "dependency check")
     deact_p.add_argument("--authorization-file", default=None)
     deact_p.set_defaults(func=_partner_cmd_deactivate)
     

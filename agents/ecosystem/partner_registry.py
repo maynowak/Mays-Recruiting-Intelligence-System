@@ -1,7 +1,7 @@
 """Partner Application Registry – authoritative binding between Cognito M2M client and RIS APIProfile."""
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 class PartnerRegistryError(Exception):
     pass
@@ -243,18 +243,32 @@ def deactivate_partner_application(
     table_name: Optional[str] = None,
     dynamodb_client: Optional[Any] = None,
     expected_tenant: Optional[str] = None,
+    release_reservation: bool = False,
+    dependency_check: Optional[Callable[[Optional[str]], bool]] = None,
 ) -> Dict[str, Any]:
     """Set a Partner Application to INACTIVE.
 
-    The client-ID reservation item is intentionally left in place so a
-    deactivated client ID can never be silently rebound to a different
-    application.
+    The historical partner record is never deleted: it remains as an INACTIVE
+    audit record. By default the client-ID reservation also remains, so a
+    deactivated client ID cannot be silently rebound.
+
+    ``release_reservation=True`` explicitly releases the client-ID reservation
+    so a new partner can bind the same client later. It requires a
+    ``dependency_check`` callable that receives the partner's ``apiProfileId``
+    and returns True when active credentials/entitlements (or another usage
+    dependency) still exist. Release is then refused. The reservation delete is
+    conditional on this application being its owner, so a concurrent rebind or
+    a foreign reservation is never released. The operation is idempotent: an
+    already-absent reservation is reported as released.
     """
     if not application_id:
         raise PartnerRegistryError("application_id required")
     if application_id.startswith(CLIENT_RESERVATION_PREFIX):
         raise PartnerRegistryError(
             "refusing to modify a client-ID reservation item")
+    if release_reservation and not callable(dependency_check):
+        raise PartnerRegistryError(
+            "dependency_check is required to release a reservation")
     try:
         if dynamodb_client is None:
             import boto3
@@ -265,11 +279,47 @@ def deactivate_partner_application(
         else:
             dynamodb = dynamodb_client
 
-        values = {':s': {'S': 'INACTIVE'}}
-        condition = 'attribute_exists(applicationId)'
+        partner = dynamodb.get_item(
+            TableName=table_name,
+            Key={'applicationId': {'S': application_id}},
+            ConsistentRead=True,
+        ).get('Item')
+        if not partner:
+            raise PartnerRegistryError("partner application not found")
+
+        partner_tenant = partner.get('tenantId', {}).get('S')
         if expected_tenant is not None:
             if not expected_tenant:
                 raise PartnerRegistryError("expected_tenant must not be empty")
+            if partner_tenant != expected_tenant:
+                raise PartnerRegistryError("partner tenant scope mismatch")
+
+        client_id = partner.get('cognitoClientId', {}).get('S')
+        api_profile_id = partner.get('apiProfileId', {}).get('S')
+
+        if release_reservation:
+            if dependency_check(api_profile_id):
+                raise PartnerRegistryError(
+                    "active dependencies prevent reservation release")
+            if not client_id:
+                raise PartnerRegistryError(
+                    "partner has no cognitoClientId to release")
+            reservation_key = CLIENT_RESERVATION_PREFIX + client_id
+            reservation = dynamodb.get_item(
+                TableName=table_name,
+                Key={'applicationId': {'S': reservation_key}},
+                ConsistentRead=True,
+            ).get('Item')
+            if reservation:
+                owner = reservation.get(
+                    'reservedForApplicationId', {}).get('S')
+                if owner != application_id:
+                    raise PartnerRegistryError(
+                        "client reservation belongs to another application")
+
+        values = {':s': {'S': 'INACTIVE'}}
+        condition = 'attribute_exists(applicationId)'
+        if expected_tenant is not None:
             values[':t'] = {'S': expected_tenant}
             condition += ' AND tenantId = :t'
         dynamodb.update_item(
@@ -281,7 +331,47 @@ def deactivate_partner_application(
             ConditionExpression=condition,
             ReturnValues='ALL_NEW',
         )
-        return {'applicationId': application_id, 'status': 'INACTIVE'}
+
+        result = {'applicationId': application_id, 'status': 'INACTIVE'}
+        if release_reservation:
+            reservation_key = CLIENT_RESERVATION_PREFIX + client_id
+            released = False
+            try:
+                dynamodb.delete_item(
+                    TableName=table_name,
+                    Key={'applicationId': {'S': reservation_key}},
+                    ConditionExpression=(
+                        'reservedForApplicationId = :app AND '
+                        'cognitoClientId = :client AND #s = :reserved'
+                    ),
+                    ExpressionAttributeNames={'#s': 'status'},
+                    ExpressionAttributeValues={
+                        ':app': {'S': application_id},
+                        ':client': {'S': client_id},
+                        ':reserved': {'S': 'RESERVED'},
+                    },
+                )
+                released = True
+            except Exception:
+                current = dynamodb.get_item(
+                    TableName=table_name,
+                    Key={'applicationId': {'S': reservation_key}},
+                    ConsistentRead=True,
+                ).get('Item')
+                if current is None:
+                    released = True  # idempotent: already released
+                else:
+                    owner = current.get(
+                        'reservedForApplicationId', {}).get('S')
+                    if owner and owner != application_id:
+                        raise PartnerRegistryError(
+                            "client reservation belongs to another application")
+                    raise PartnerRegistryError(
+                        "failed to release client reservation")
+            result['reservationReleased'] = released
+        return result
+    except PartnerRegistryError:
+        raise
     except Exception as e:
         raise PartnerRegistryError(f"Failed to deactivate partner application: {e}")
 

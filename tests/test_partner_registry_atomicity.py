@@ -106,6 +106,26 @@ class FakeDynamoDB:
             self.items[pk]["status"] = dict(ExpressionAttributeValues[":s"])
             return {"Attributes": dict(self.items[pk])}
 
+    def delete_item(self, TableName, Key, ConditionExpression=None,
+                    ExpressionAttributeNames=None,
+                    ExpressionAttributeValues=None, ReturnValues=None):
+        with self.lock:
+            pk = Key["applicationId"]["S"]
+            item = self.items.get(pk)
+            if ConditionExpression:
+                if item is None:
+                    raise ConditionalCheckFailed("condition failed")
+                if item.get("reservedForApplicationId", {}).get("S") != \
+                        ExpressionAttributeValues[":app"]["S"]:
+                    raise ConditionalCheckFailed("owner mismatch")
+                if item.get("cognitoClientId", {}).get("S") != \
+                        ExpressionAttributeValues[":client"]["S"]:
+                    raise ConditionalCheckFailed("client mismatch")
+                if item.get("status", {}).get("S") != \
+                        ExpressionAttributeValues[":reserved"]["S"]:
+                    raise ConditionalCheckFailed("status mismatch")
+            self.items.pop(pk, None)
+
     def scan(self, TableName, ExclusiveStartKey=None):
         with self.lock:
             return {"Items": [dict(v) for v in self.items.values()]}
@@ -263,6 +283,85 @@ class TestRegistryUniqueness(unittest.TestCase):
         with self.assertRaises(PartnerRegistryError):
             deactivate_partner_application("", table_name=TBL,
                                            dynamodb_client=self.db)
+
+    # --- reservation release -------------------------------------------
+    def _release(self, app_id, dependency_check=None, tenant=None):
+        return deactivate_partner_application(
+            app_id,
+            table_name=TBL,
+            dynamodb_client=self.db,
+            expected_tenant=tenant,
+            release_reservation=True,
+            dependency_check=dependency_check or (lambda profile_id: False),
+        )
+
+    def test_release_removes_reservation_but_preserves_partner_record(self):
+        self.create("app-1", "client-1")
+        seen = []
+        res = self._release("app-1", lambda pid: seen.append(pid) or False)
+        self.assertTrue(res["reservationReleased"])
+        self.assertEqual(["prof-1"], seen)
+        self.assertIn("app-1", self.db.items)
+        self.assertEqual(self.db.items["app-1"]["status"]["S"], "INACTIVE")
+        self.assertNotIn(CLIENT_RESERVATION_PREFIX + "client-1", self.db.items)
+
+    def test_release_is_idempotent(self):
+        self.create("app-1", "client-1")
+        self.assertTrue(self._release("app-1")["reservationReleased"])
+        self.assertTrue(self._release("app-1")["reservationReleased"])
+        self.assertEqual(self.db.items["app-1"]["status"]["S"], "INACTIVE")
+
+    def test_release_refused_when_dependencies_are_active(self):
+        self.create("app-1", "client-1")
+        with self.assertRaises(PartnerRegistryError):
+            self._release("app-1", lambda pid: True)
+        self.assertEqual(self.db.items["app-1"]["status"]["S"], "ACTIVE")
+        self.assertIn(CLIENT_RESERVATION_PREFIX + "client-1", self.db.items)
+
+    def test_release_requires_dependency_check(self):
+        self.create("app-1", "client-1")
+        with self.assertRaises(PartnerRegistryError):
+            deactivate_partner_application(
+                "app-1", table_name=TBL, dynamodb_client=self.db,
+                release_reservation=True)
+        self.assertIn(CLIENT_RESERVATION_PREFIX + "client-1", self.db.items)
+
+    def test_release_refuses_foreign_reservation(self):
+        self.create("app-1", "client-1")
+        self.create("app-2", "client-2")
+        self.db.items[CLIENT_RESERVATION_PREFIX + "client-1"][
+            "reservedForApplicationId"] = {"S": "app-2"}
+        with self.assertRaises(PartnerRegistryError):
+            self._release("app-1")
+        self.assertEqual(self.db.items["app-1"]["status"]["S"], "ACTIVE")
+        self.assertIn(CLIENT_RESERVATION_PREFIX + "client-1", self.db.items)
+
+    def test_release_rejects_tenant_mismatch_before_write(self):
+        self.create("app-1", "client-1", tenant="tenant-1")
+        with self.assertRaises(PartnerRegistryError):
+            self._release("app-1", tenant="tenant-2")
+        self.assertEqual(self.db.items["app-1"]["status"]["S"], "ACTIVE")
+        self.assertIn(CLIENT_RESERVATION_PREFIX + "client-1", self.db.items)
+
+    def test_concurrent_release_is_safe(self):
+        self.create("app-1", "client-1")
+        errors = []
+        barrier = threading.Barrier(6)
+
+        def worker():
+            barrier.wait()
+            try:
+                self._release("app-1")
+            except PartnerRegistryError as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual([], errors)
+        self.assertNotIn(CLIENT_RESERVATION_PREFIX + "client-1", self.db.items)
 
     # --- listing -------------------------------------------------------
     def test_list_excludes_reservation_items(self):
