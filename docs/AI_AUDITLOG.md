@@ -9441,6 +9441,19 @@ Findings:
 Report: docs/reports/RIS-JOBSEARCH-LIVE-CONNECT-03.md
 Next: BFF + Vercel-Test-Env, Token via Browser/BFF, danach Surface-Freigabe (RG-09). STOP.
 
+[M-RIS-LIVE-E2E-04]
+Status: COMPLETE / E2E PASS — Surface dauerhaft aktiv
+Date: 2026-11-05
+Findings:
+  - Jobsearch-BFF existiert bereits weiterentwickelt (api/ris/applications.mjs + api/_lib/ris/*); lokaler Checkout auf feature/jm-ris-testuser-allowlist-reconciliation-01 @ 2382ab4, Commit 242c4c9 vorhanden. Keine zweite Implementierung erstellt.
+  - Wirkungsbereich geprueft: Flag oeffnet nur /v1/partner/me/*; Auth bleibt JWT + X-Api-Credential + ACTIVE-Partner + Profil + Tenant. Einziger ACTIVE-Partner ist mays-jobsearch; Kernel-Partner INACTIVE -> keine unautorisierte Oeffnung. Dauerhaft aktiviert.
+  - Umstellung auf Terraform-Variable partner_surface_enabled (Default false), Overlay true; Plan 1 Update, Apply 0 added/1 changed/0 destroyed.
+  - E2E via echtem PKCE-Login + lokalem BFF: metrics 200, create 201 (50000.5), list 200, detail 200, patch 200 v1->2, reload 200 (60000.75), export 200, delete 200, bad token 401.
+  - Cleanup: Applications 0, Testnutzer geloescht, Token-/User-Dateien entfernt, Harness beendet. Gateway, Partner, APIProfile, Credential bleiben.
+  - Nicht erfolgt: Vercel-Test-Env, Jobsearch-Deployment, RG-09-Freigabe fuer echte Daten.
+Report: docs/reports/M-RIS-LIVE-E2E-04.md
+Next: Vercel-Test-Env + BFF-Deployment separat; echte Daten erst nach RG-09. STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
