@@ -207,3 +207,41 @@ sind inaktiv und nicht für Jobsearch bestimmt.
 * Produktionsumgebung.
 
 Diese Funktionen dürfen nicht als live bestätigt bezeichnet werden.
+
+## 10. Phase-25-Update — Apply und Fractional Salary
+
+Der Plan `8B16A3F50321952A9BE674DD89DAA9755ADF8363388053D1C5A235905A7FE8C2`
+wurde angewendet:
+
+```text
+Apply:        0 added / 1 changed / 0 destroyed
+Lambda:       ris-dev2-dev-agent
+CodeSha256:   Q0o8VSGDONl44u4q33FRpG/u+4SMJhG6iNtU157hKno=
+```
+
+Am deployten Lambda live verifiziert:
+
+| Test | Ergebnis |
+|---|---:|
+| Create mit `salary.amount = 50000.5` | 201 |
+| Gespeicherter Wert | `Decimal("50000.5")`, exakt |
+| Patch mit `salary.amount = 60000.75` | 200 |
+| Version nach Patch | 1 → 2 |
+| Gespeicherter Wert nach Patch | `Decimal("60000.75")`, exakt |
+| List / Detail / Export / Metrics / Delete | 200/200/200/200/204 |
+| Ungültiges Credential | 401 |
+| Fremder Tenant / unbekannter Client | 403 |
+
+Einschränkung: Dieser Bruchwert-Test lief am **deployten Lambda** mit
+Authorizer-äquivalenten Claims, nicht über einen echten Cognito-Login. Der
+echte Gateway-/JWT-Positivtest mit Bruchwert ist weiterhin durch die
+historische Real-Client-GSI-Kollision blockiert; der letzte echte
+Gateway-Positivtest mit ganzzahligem Salary stammt aus Phase 23.
+
+Der Resolver-Fix, der bei mehreren historischen Records den Reservation-Owner
+oder den eindeutigen ACTIVE-Record bevorzugt, benötigt einen separaten Plan
+und Deploy. Bis dahin sollte Jobsearch den Bruchwert-Gateway-Pfad als **nicht
+live verifiziert** behandeln.
+
+Registry-Release und Client-Reuse wurden für einen synthetischen Client live
+bestätigt; die echte-Client-Auflösung bleibt offen.
