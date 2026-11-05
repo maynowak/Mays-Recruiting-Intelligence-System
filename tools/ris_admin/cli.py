@@ -272,13 +272,38 @@ def build_parser() -> argparse.ArgumentParser:
                          "action": "create",
                          "applicationId": args.applicationId})
             return 0
+        try:
+            actor = _actor(args, "create a partner application")
+        except credops_error() as exc:
+            return _deny(exc)
+
+        # The partner binding must use the tenant from the same operator trust
+        # anchor as APIProfile/Credential operations.  Do not accept a tenant
+        # supplied on the command line and do not bind an arbitrary profile:
+        # the existing domain read verifies visibility, ACTIVE status and the
+        # actor tenant before the registry transaction is reached.
+        try:
+            profile = _apiprofile_ops().show(
+                api_profile_id=args.apiProfileId,
+                actor=actor,
+                reason=args.reason,
+            )
+        except Exception as exc:
+            return _apiprofile_error("read APIProfile for partner binding", exc)
+        if not profile or profile.get("status") != "ACTIVE":
+            _deny_message("APIProfile is missing or not ACTIVE")
+            return 1
+        if profile.get("tenantId") != actor.get("actor_tenant"):
+            _deny_message("APIProfile tenant is outside the authorized scope")
+            return 1
+
         client = _get_dynamo_client(args)
         try:
             res = reg.create_partner_application(
                 application_id=args.applicationId,
                 cognito_client_id=args.cognitoClientId,
                 api_profile_id=args.apiProfileId,
-                tenant_id=args.tenantId,
+                tenant_id=actor["actor_tenant"],
                 table_name=_table_name(args, "partner-applications"),
                 dynamodb_client=client,
             )
@@ -292,7 +317,8 @@ def build_parser() -> argparse.ArgumentParser:
     create_p.add_argument("applicationId")
     create_p.add_argument("--cognitoClientId", required=True)
     create_p.add_argument("--apiProfileId", required=True)
-    create_p.add_argument("--tenantId", required=True)
+    create_p.add_argument("--reason", default=None)
+    create_p.add_argument("--authorization-file", default=None)
     create_p.set_defaults(func=_partner_cmd_create)
 
     def _partner_cmd_validate(args):
@@ -326,6 +352,10 @@ def build_parser() -> argparse.ArgumentParser:
                          "action": "deactivate",
                          "applicationId": args.applicationId})
             return 0
+        try:
+            _actor(args, "deactivate a partner application")
+        except credops_error() as exc:
+            return _deny(exc)
         reg = _registry()
         try:
             res = reg.deactivate_partner_application(
@@ -341,6 +371,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     deact_p = partner_sub.add_parser("deactivate", help="Deactivate partner")
     deact_p.add_argument("applicationId")
+    deact_p.add_argument("--authorization-file", default=None)
     deact_p.set_defaults(func=_partner_cmd_deactivate)
     
     ap = sub.add_parser("apiprofile", help="APIProfile management")
