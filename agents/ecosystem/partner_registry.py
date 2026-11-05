@@ -68,6 +68,7 @@ def create_partner_application(
             'applicationId': {'S': CLIENT_RESERVATION_PREFIX + cognito_client_id},
             'cognitoClientId': {'S': cognito_client_id},
             'reservedForApplicationId': {'S': application_id},
+            'tenantId': {'S': tenant_id},
             'status': {'S': 'RESERVED'}
         }
 
@@ -101,12 +102,21 @@ def resolve_partner_application(
     table_name: Optional[str] = None,
     dynamodb_client: Optional[Any] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Resolve partner application by Cognito client_id.
+    """Resolve the unique ACTIVE partner application for a Cognito client ID.
 
-    Returns registry record dict or None if not found.
-    Queries DynamoDB partner-applications table by GSI gsi-client.
+    Deterministic rules (never query order):
 
-    Requires client_id to be present. Fails closed on errors.
+    1. If a ``CLIENT#<clientId>`` reservation exists, it is authoritative.
+       Only its ``reservedForApplicationId`` may be returned, and only when
+       that base record is ACTIVE, has the same ``cognitoClientId`` and (when
+       the reservation stores one) the same ``tenantId``.
+    2. Without a reservation, exactly one ACTIVE base record may exist for the
+       client. Zero or multiple ACTIVE records are not resolvable.
+    3. Historical INACTIVE records never block a valid ACTIVE binding.
+
+    GSI ``gsi-client`` is only a locator and is eventually consistent, so every
+    candidate is re-read from the base table with ``ConsistentRead=True``. Any
+    error fails closed with ``None``.
     """
     if not client_id:
         return None
@@ -121,18 +131,50 @@ def resolve_partner_application(
         else:
             dynamodb = dynamodb_client
 
-        # Step 1: locate the application via GSI gsi-client.
-        # GSI results for a client ID contain BOTH the application record and
-        # the "CLIENT#<clientId>" reservation item, so a single-item page would
-        # be non-deterministic. Page through until a real record is found.
-        #
-        # DynamoDB GSIs support EVENTUAL CONSISTENCY ONLY. ConsistentRead on a
-        # GSI query does not make the index current, so a deactivated partner
-        # can still appear here for the propagation window. That is exactly why
-        # this function does NOT trust the GSI result as authoritative - see
-        # step 2 below.
+        def unmarshal(value):
+            if 'S' in value:
+                return value['S']
+            if 'N' in value:
+                return int(value['N'])
+            return value
+
+        def get_attr(item, name):
+            raw = item.get(name)
+            if not isinstance(raw, dict) or not raw:
+                return None
+            return unmarshal(raw)
+
+        def get_base(application_id):
+            return dynamodb.get_item(
+                TableName=table_name,
+                Key={'applicationId': {'S': application_id}},
+                ConsistentRead=True,
+            ).get('Item')
+
+        reservation = get_base(CLIENT_RESERVATION_PREFIX + client_id)
+        reserved_for = None
+        if reservation is not None:
+            if get_attr(reservation, 'cognitoClientId') != client_id:
+                return None
+            reserved_for = get_attr(reservation, 'reservedForApplicationId')
+            if not reserved_for:
+                return None
+            owner = get_base(reserved_for)
+            if not owner:
+                return None
+            if get_attr(owner, 'cognitoClientId') != client_id:
+                return None
+            if get_attr(owner, 'status') != 'ACTIVE':
+                return None
+            reservation_tenant = get_attr(reservation, 'tenantId')
+            if reservation_tenant and reservation_tenant != get_attr(
+                    owner, 'tenantId'):
+                return None
+
+        # Collect every locator for this client. The reservation item is not a
+        # partner record and is skipped; the base reads below are authoritative.
         start_key = None
-        items = []
+        candidate_ids = set()
         while True:
             request: Dict[str, Any] = {
                 'TableName': table_name,
@@ -144,48 +186,38 @@ def resolve_partner_application(
             if start_key:
                 request['ExclusiveStartKey'] = start_key
             response = dynamodb.query(**request)
-            items.extend(response.get('Items', []))
+            for item in response.get('Items', []):
+                application_id = get_attr(item, 'applicationId')
+                if not application_id:
+                    continue
+                if application_id.startswith(CLIENT_RESERVATION_PREFIX):
+                    continue
+                candidate_ids.add(application_id)
             start_key = response.get('LastEvaluatedKey')
             if not start_key:
                 break
-        # Reservation items (PK = "CLIENT#<clientId>") share the cognitoClientId
-        # attribute and therefore also appear in gsi-client. Skip them so the
-        # caller always receives the real application record.
-        for item in items:
-            raw_id = item.get('applicationId', {})
-            if isinstance(raw_id, dict) and 'S' in raw_id:
-                if raw_id['S'].startswith(CLIENT_RESERVATION_PREFIX):
-                    continue
-            elif isinstance(raw_id, str) and raw_id.startswith(CLIENT_RESERVATION_PREFIX):
-                continue
-            # unmarshal and return
-            def unmarshal(v):
-                if 'S' in v:
-                    return v['S']
-                if 'N' in v:
-                    return int(v['N'])
-                return v
-            application_id = unmarshal(item.get('applicationId', {}))
 
-            # Step 2: re-read the application from the BASE table.
-            #
-            # The GSI result is only a locator. Because GSI reads are always
-            # eventually consistent, an application deactivated moments ago can
-            # still be returned here as ACTIVE. A base-table GetItem IS
-            # strongly consistent, so this second read is what actually makes
-            # revocation take effect immediately on the authorization hot path.
-            #
-            # If the base read disagrees with the index, the index is stale and
-            # the authoritative answer is "not resolvable".
-            authoritative = dynamodb.get_item(
-                TableName=table_name,
-                Key={'applicationId': {'S': application_id}},
-                ConsistentRead=True,
-            ).get('Item')
-            if not authoritative:
-                return None
-            return {k: unmarshal(v) for k, v in authoritative.items()}
-        return None
+        if reserved_for:
+            # Include the reservation owner even while the GSI is catching up.
+            candidate_ids.add(reserved_for)
+
+        active = {}
+        for application_id in candidate_ids:
+            item = get_base(application_id)
+            if not item:
+                continue
+            if get_attr(item, 'cognitoClientId') != client_id:
+                continue
+            if get_attr(item, 'status') != 'ACTIVE':
+                continue
+            active[application_id] = item
+
+        if len(active) != 1:
+            return None
+        resolved_id, resolved = next(iter(active.items()))
+        if reserved_for and resolved_id != reserved_for:
+            return None
+        return {k: unmarshal(v) for k, v in resolved.items()}
     except Exception:
         # Fail closed
         return None
