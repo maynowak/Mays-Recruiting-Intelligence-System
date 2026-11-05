@@ -15,6 +15,10 @@
 
     "identity_custom_domain_enabled": "false",
 
+    "jobsearch_cognito_issuer": "https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_ZURSMpD2O",
+    "jobsearch_cognito_client_id": "5hb3f6dj5ialg77jf4blur9g6g",
+    "jobsearch_edge_cors_origins": "[\"http://localhost:5173\",\"https://mays-job-matcher.vercel.app\",\"https://www.mays-job-matcher.app\"]",
+
     "applications_cursor_secret_arn": "arn:aws:secretsmanager:eu-central-1:240571105849:secret:ris-dev/applications/cursor-hmac-cuHjQ8",
 
     "api_cors_origins": "[\"http://localhost:5173\",\"https://mays-job-matcher.vercel.app\",\"https://www.mays-job-matcher.app\"]"

@@ -342,6 +342,24 @@ variable "applications_cursor_secret_arn" {
   default     = ""
 }
 
+variable "jobsearch_cognito_issuer" {
+  description = "Issuer des Jobsearch-Partner-Pools fuer den isolierten Partner-Gateway. Leer = kein Partner-Gateway."
+  type        = string
+  default     = ""
+}
+
+variable "jobsearch_cognito_client_id" {
+  description = "App-Client des Jobsearch-Partners (Audience des Access-Tokens). Leer = kein Partner-Gateway."
+  type        = string
+  default     = ""
+}
+
+variable "jobsearch_edge_cors_origins" {
+  description = "Explizite CORS-Origins des Jobsearch-Partner-Gateways (kein Wildcard)."
+  type        = list(string)
+  default     = []
+}
+
 variable "api_cors_origins" {
   description = "Erlaubte CORS-Origins der RIS-HTTP-API (explizit, kein Wildcard)."
   type        = list(string)

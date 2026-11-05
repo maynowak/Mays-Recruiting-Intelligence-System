@@ -342,6 +342,23 @@ module "health_plane" {
 }
 
 # ---------------------------------------------------------------------------
+# Isolierter Partner-Gateway (Variante B): eigener Issuer, gleiche Lambda.
+# Nur aktiv, wenn Issuer und Client explizit konfiguriert sind.
+# ---------------------------------------------------------------------------
+module "jobsearch_edge" {
+  source = "./modules/partner_edge"
+  count  = var.jobsearch_cognito_issuer != "" && var.jobsearch_cognito_client_id != "" ? 1 : 0
+
+  project_name         = var.project_name
+  environment          = var.environment
+  lambda_function_name = module.lambda.function_name
+  lambda_invoke_arn    = module.lambda.invoke_arn
+  cognito_issuer       = var.jobsearch_cognito_issuer
+  cognito_client_id    = var.jobsearch_cognito_client_id
+  cors_origins         = var.jobsearch_edge_cors_origins
+}
+
+# ---------------------------------------------------------------------------
 # Module address reconciliation (RIS-DEV-UPGRADE-S04-A).
 #
 # The ris-dev state predates the count gates on these four module calls, so the
