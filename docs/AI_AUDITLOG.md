@@ -9428,6 +9428,19 @@ Findings:
 Report: docs/reports/RIS-JOBSEARCH-PARTNER-GATEWAY-02.md
 Next: Apply-Freigabe, dann Partner/Credential + Vercel. STOP.
 
+[RIS-JOBSEARCH-LIVE-CONNECT-03]
+Status: COMPLETE / GATEWAY LIVE + PARTNER ACTIVE — E2E-Tokenpfad BLOCKED
+Date: 2026-11-05
+Findings:
+  - Plan 7ed69389... nach allen Gates angewendet: 41 added, 0 changed, 0 destroyed; State serial 39 -> 40, 243 Bloecke (36 Routen als for_each-Instanzen).
+  - Neue API c7e9pdwe78 (ris-dev-jobsearch-api), JWT-Authorizer ZURSMpD2O/5hb3..., 36 Routen, Stage $default, Lambda-Permission nur auf diese API. Folge-Plan: 0 aktive Aenderungen.
+  - Kernel-API g6901and25 unveraendert (Health 401); Jobsearch-Pool/-Domain/DNS unveraendert.
+  - Partner mays-jobsearch ACTIVE (Tenant mays-jobsearch, Client 5hb3..., Reservation), APIProfile aprof_5197f49297884a94 ACTIVE, Credential cred_5bf0c5b37e4e4b0d ACTIVE bis 2027-11-05; Secret nur in 600er-Datei, nie ausgegeben.
+  - Negative Isolation: ohne Token 401, RIS-Pool-Token gegen Edge 401, unbekannte Route 404.
+  - Positive E2E BLOCKED: Jobsearch-Client erlaubt nur code-Flow (kein non-interaktiver Token); Surface-Flag bleibt false.
+Report: docs/reports/RIS-JOBSEARCH-LIVE-CONNECT-03.md
+Next: BFF + Vercel-Test-Env, Token via Browser/BFF, danach Surface-Freigabe (RG-09). STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
