@@ -242,3 +242,58 @@ Durchgeführt mit ausschließlich synthetischen Daten; keine echten Personen, CV
 | Fremd-Tenant/Fremd-Client/revoked Credential | setzt provisionierte Testpartner voraus |
 
 Damit gilt: **Gateway-/JWT-Grenze VERIFIED RIS-DEV**, **ApplicationV1-CRUD BLOCKED** bis ein autorisierter Admin-Trust-Anchor mit Tenant bereitsteht.
+
+---
+
+## 15. Trust-Anchor-Reparatur und CRUD-E2E (2026-11-05)
+
+### Anchor-Befund
+
+Die Datei `~/.ris/admin-authorization-dev2.json` war **nicht verwendbar**:
+
+| Problem | Vorher | Korrektur |
+|---|---|---|
+| Rechte | `664` (group-writable) → Guard lehnt ab | `600` |
+| Principal | `…/user/mayaws` ≠ STS `…/user/Mayaws` | exakter STS-ARN |
+| Tenant | `ris-dev2-e2e-20261105` (DEV2-Bezug) | `ris-dev-e2e-20261105` |
+
+### Partner-Bestand
+
+`partner-applications`, `api-profiles`, `credentials` waren auf `ris-dev` **komplett leer** — der frühere Partner existierte dort nicht (vermutlich DEV2 oder bereinigt). Wiederhergestellt über den autorisierten Lifecycle:
+
+- APIProfile `aprof_f645666045c94af4` (PENDING → ACTIVE)
+- Partner `ris-dev-e2e-20261105` (ACTIVE, Client `7ldh…`, Reservation `CLIENT#7ldh…`)
+- Credential `cred_ff7d82f142d74496` (ACTIVE, kurzlebig, Secret nur in owner-only Datei)
+
+### CRUD-E2E über den echten Gateway
+
+| Test | Ergebnis |
+|---|---|
+| A01 Metrics vor Create | **200** |
+| A02 Create (`salary.amount=50000.5`) | **201**, Version 1, Betrag exakt `50000.5` |
+| A04 List | **200** |
+| A05 Detail | **200** |
+| A06 Patch (`60000.75`, expectedVersion 1) | **200**, Version 1 → 2 |
+| A08 Export | **200** |
+| N1 Falsches Credential | **401** |
+| A09 Delete | **204** |
+| A10 Metrics nach Delete | **200** |
+
+Zuvor fehlgeschlagene Versuche scheiterten an zwei echten Ursachen: (a) Partner-Surface-Propagation (~15 s statt 8 s) und (b) der Handler verlangt **`token_use=access`**; ID-Tokens werden mit 401 abgelehnt.
+
+### Cleanup
+
+| Objekt | Endzustand |
+|---|---|
+| Credential `cred_ff7d82f142d74496` | **REVOKED** (Audit-Record bleibt) |
+| APIProfile `aprof_f645666045c94af4` | **REVOKED** |
+| Partner `ris-dev-e2e-20261105` | **INACTIVE** (Historie bleibt, Reservation bleibt) |
+| Applications | **0** (inkl. verwaistem Datensatz aus abgebrochenem Lauf) |
+| Cognito-Testnutzer | **gelöscht** |
+| `PARTNER_SURFACE_ENABLED` | **false** |
+| Credential-Datei `/tmp/opencode/…` | **gelöscht** |
+
+### Nicht durchgeführt
+
+- Raw-DynamoDB-Decimal-Inspektion vor dem Delete (API-Ebene exakt, `50000.5`/`60000.75`).
+- Fremd-Tenant-/Fremd-Client-Fälle: Access-Token trägt keinen `custom:tenant_id`; die Partner-Bindung wird serverseitig aus der Registry aufgelöst, ein fremder Tenant ist ohne zweite Partnerschaft nicht darstellbar.

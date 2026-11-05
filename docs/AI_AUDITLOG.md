@@ -9392,6 +9392,18 @@ Findings:
 Report: docs/reports/RIS-R08-RIS-DEV-UPGRADE-EXECUTION.md (§14)
 Next: Trust-Anchor/Tenant fuer Testpartner bereitstellen, dann CRUD-E2E. STOP.
 
+[RIS-R08-RIS-DEV-E2E-02]
+Status: COMPLETE / CRUD-E2E PASS, CLEANUP COMPLETE
+Date: 2026-11-05
+Findings:
+  - Trust-Anchor repariert: 664 -> 600, Principal exakt arn:aws:iam::240571105849:user/Mayaws, Tenant ris-dev-e2e-20261105.
+  - Partnerbestand auf ris-dev war leer; APIProfile, Partner und kurzlebiges Credential ueber den autorisierten Lifecycle neu angelegt.
+  - E2E ueber echten Gateway: metrics 200, create 201 (50000.5), list 200, detail 200, patch 200 v1->v2 (60000.75), export 200, bad credential 401, delete 204, metrics danach 200.
+  - Zwei echte Ursachen frueherer 401: Surface-Propagation (~15 s) und Handler verlangt token_use=access (ID-Token wird abgelehnt).
+  - Cleanup: Credential REVOKED, Profil REVOKED, Partner INACTIVE, Applications 0, Testnutzer geloescht, Surface false, Secret-Datei entfernt.
+Report: docs/reports/RIS-R08-RIS-DEV-UPGRADE-EXECUTION.md (§15)
+Next: offen nur Raw-Decimal-Inspektion und Fremd-Tenant-Fall; RIS_API_KEY in Vercel bleibt stale. STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
