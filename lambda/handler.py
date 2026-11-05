@@ -174,8 +174,26 @@ def _finalize_personal_response(event: Dict[str, Any], response: Dict[str, Any])
     return finalized
 
 
+def _partner_surface_enabled() -> bool:
+    """Explicit activation switch for the new partner/personal API surface.
+
+    Deploying the routes and tables is not an approval to process personal
+    data. Until the data-protection decision is signed off, every
+    /v1/partner/me/* request fails closed. Existing RIS routes (/me, /agents,
+    documents, orders) are not affected.
+    """
+    return os.environ.get("PARTNER_SURFACE_ENABLED", "false").strip().lower() == "true"
+
+
 def _handle_personal_api_boundary(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Finalize all subject-bearing API responses, including early failures."""
+    path = event.get("path") or ((event.get("requestContext") or {}).get("http") or {}).get("path", "/") or "/"
+    if path.startswith("/v1/partner/me/") and not _partner_surface_enabled():
+        response = {
+            "statusCode": 503,
+            "body": json.dumps({"error": "Partner surface not activated"}),
+        }
+        return _finalize_personal_response(event, response)
     try:
         response = _handle_api_event(event, context)
     except Exception:

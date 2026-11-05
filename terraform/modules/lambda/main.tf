@@ -624,6 +624,9 @@ resource "aws_lambda_function" "agent" {
       UPLOAD_TICKET_LEDGER_TABLE           = var.upload_ticket_ledger_table_name
       UPLOAD_CUTOVER_TABLE                 = var.upload_cutover_table_name
       DELETION_LEDGER_ENABLED              = "false"
+      # New partner/personal routes stay closed until the data-protection
+      # decision is signed off; deploying infrastructure is not approval.
+      PARTNER_SURFACE_ENABLED              = "false"
       DELETION_LEDGER_TABLE                = var.deletion_ledger_table_name
       LOG_LEVEL                            = var.log_level
     }
