@@ -86,6 +86,8 @@ python -m installer.build_mays_orders_module --clean
 
 `docs/architecture/`, `docs/api/`, `docs/ecosystem/`, `docs/roadmap/ROADMAP.md`,
 `docs/reports/` (Gate-Nachweise G0–G9 + Execution-Logs, bleiben erhalten).
+Wiederverwendbares DEV2-E2E-Runbook:
+[`docs/testing/RIS-DEV2-PARTNER-GATEWAY-E2E-PLAYBOOK.md`](docs/testing/RIS-DEV2-PARTNER-GATEWAY-E2E-PLAYBOOK.md).
 Ältere Architektur-Docs sind Historie — im Zweifel gelten Code + die drei
 kanonischen Dateien oben.
 
