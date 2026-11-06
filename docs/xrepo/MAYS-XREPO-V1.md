@@ -53,9 +53,31 @@ summary at most 500 characters. Unknown fields are rejected.
 `REWORK_REQUIRED`, `VERIFIED`, `COMPLETED`, `BLOCKED`.
 
 `IMPLEMENTATION_READY`, `VERIFIED`, and `COMPLETED` require at least one
-`commit` or `test` evidence item. `REWORK_REQUIRED` requires `commit`, `test`, or
-`issue` evidence. `BLOCKED` may be sent with no evidence. The sender still
-supplies `source.commit` for every event.
+`commit` evidence item whose URL matches `source.commit`; test-only evidence is
+not sufficient. `REWORK_REQUIRED` requires `commit` or `issue` evidence.
+`BLOCKED` may be sent with no evidence. The sender still supplies `source.commit`
+for every event.
+
+### Allowed status transitions
+
+The first applied event must be `REQUESTED` or `BLOCKED`. `BLOCKED` and
+`COMPLETED` are terminal.
+
+| From | Allowed next statuses |
+| --- | --- |
+| `REQUESTED` | `ACCEPTED`, `BLOCKED` |
+| `ACCEPTED` | `IMPLEMENTING`, `BLOCKED` |
+| `IMPLEMENTING` | `IMPLEMENTATION_READY`, `BLOCKED` |
+| `IMPLEMENTATION_READY` | `INTEGRATING`, `VERIFIED`, `REWORK_REQUIRED`, `BLOCKED` |
+| `INTEGRATING` | `VERIFIED`, `REWORK_REQUIRED`, `BLOCKED` |
+| `REWORK_REQUIRED` | `IMPLEMENTATION_READY`, `BLOCKED` |
+| `VERIFIED` | `COMPLETED`, `BLOCKED` |
+| `COMPLETED` | none |
+| `BLOCKED` | none |
+
+`COMPLETED` is therefore only possible after `VERIFIED`. At most three
+`REWORK_REQUIRED` events are applied per task; a fourth is rejected and the task
+must be set to `BLOCKED` for a human decision.
 
 ## Allowlist and source verification
 
@@ -69,17 +91,28 @@ The sender must pass `--expected-source`; the receiver must pass
 identity proof: the receiver verifies the source issue and commit through the
 source repository API before accepting an event. Evidence URLs must belong to
 the source repository; a `commit` evidence URL must match `source.commit`
-exactly.
+exactly. `issue` evidence is additionally verified through the source API.
+`test` and `document` evidence are repository-bound references; they are not
+executed and are not treated as independent test proof.
 
 ## Sequence and idempotency
 
 - Key: `taskId` + `eventId`.
 - Each task has a monotonically increasing `sequence`.
-- A repeated `eventId` is ignored (no second issue comment).
+- A repeated applied `eventId` is ignored (no second issue comment, no state change).
 - A lower `sequence` is logged as stale and does not overwrite state.
-- A different `eventId` at the same sequence is a conflict and fails closed.
-- Receiver comments carry `<!-- mays-xrepo:event:<eventId> -->` and
-  `<!-- mays-xrepo:state:<taskId>:<sequence> -->` markers. Do not hand-edit them.
+- A different `eventId` at the same sequence is a conflict; it is recorded once
+  as rejected and fails the workflow closed.
+- Invalid transitions and a fourth rework round are recorded as rejected and
+  fail closed. Rejection comments never carry a state marker.
+- A retry of an already rejected `eventId` is rejected without a second comment.
+- Applied comments carry `<!-- mays-xrepo:event:<eventId> -->` and
+  `<!-- mays-xrepo:state:<taskId>:<sequence>:<status> -->`.
+  Rejections carry `<!-- mays-xrepo:rejected:<eventId>:<reason> -->`.
+  Do not hand-edit these markers.
+- Only comments authored by `github-actions[bot]` are trusted as marker sources.
+- Legacy state markers without a status fail closed as `state_unreadable` and
+  require manual recovery.
 - `concurrency` in the receive workflow serializes events per `taskId`.
 
 ## Workflows
@@ -89,8 +122,9 @@ exactly.
   and calls the target's `repository_dispatch` endpoint.
 - `.github/workflows/xrepo-receive.yml` — triggered by
   `repository_dispatch: [mays_xrepo_v1]`, validates again, verifies the source
-  issue/commit, applies the idempotent issue update, and never executes payload
-  text as shell.
+  issue/commit and issue evidence, applies the idempotent issue update, records
+  stale/rejected events without state changes, and never executes payload text
+  as shell.
 
 ### Sender inputs
 
@@ -151,8 +185,13 @@ python3 scripts/xrepo/validate_event.py docs/xrepo/fixtures/valid-requested.json
 | wrong target | validator tests |
 | stale sequence | receiver state tests |
 | duplicate event | receiver state tests |
-| evidence absent | validator tests |
+| evidence absent / test-only evidence | validator tests |
 | retry cycle | receiver state tests |
+| allowed / rejected status transitions | receiver state tests |
+| `COMPLETED` only after `VERIFIED` | receiver state tests |
+| maximum three rework rounds | receiver state tests |
+| rejection markers and rejected retries | receiver state tests |
+| evidence repository/SHA/number binding | validator + receiver tests |
 | A → B → A | receiver state tests + documented E2E path |
 | live `repository_dispatch` | **E2E PENDING** until workflows are on both default branches and app credentials exist |
 

@@ -54,10 +54,12 @@ EVIDENCE_KEYS = frozenset({"kind", "url"})
 REQUIRE_EVIDENCE_STATUSES = frozenset(
     {"IMPLEMENTATION_READY", "VERIFIED", "COMPLETED", "REWORK_REQUIRED"}
 )
-REQUIRE_COMMIT_OR_TEST_STATUSES = frozenset(
+# A commit URL is anchored to the verified source SHA; test-only evidence is
+# not enough to claim an implementation or completion.
+REQUIRE_COMMIT_EVIDENCE_STATUSES = frozenset(
     {"IMPLEMENTATION_READY", "VERIFIED", "COMPLETED"}
 )
-REQUIRE_REWORK_EVIDENCE = frozenset({"commit", "test", "issue"})
+REQUIRE_REWORK_EVIDENCE = frozenset({"commit", "issue"})
 MAX_PAYLOAD_BYTES = 65_535
 MAX_EVIDENCE_ITEMS = 10
 MAX_SUMMARY_LENGTH = 500
@@ -66,13 +68,9 @@ EVENT_ID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 )
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
-REPO_PATH_PREFIXES = {
-    "commit": ("commit",),
-    "test": ("actions/runs", "blob", "tree", "pull"),
-    "issue": ("issues",),
-    "document": ("blob", "tree"),
-    "workflow": ("actions/runs", "blob", "tree"),
-}
+ISSUE_EVIDENCE_RE = re.compile(r"^issues/[1-9][0-9]*$")
+RUN_EVIDENCE_RE = re.compile(r"^actions/runs/[1-9][0-9]*$")
+DOCUMENT_EVIDENCE_RE = re.compile(r"^(blob|tree)/[^/].+$")
 
 
 class ValidationError(ValueError):
@@ -159,9 +157,18 @@ def _check_evidence_url(url: Any, source_repo: str, source_commit: str, kind: st
                 "invalid_evidence",
                 "commit evidence URL must match source repository and source commit",
             )
-    allowed_prefixes = REPO_PATH_PREFIXES.get(kind, ())
-    if not any(remainder == prefix or remainder.startswith(prefix + "/") for prefix in allowed_prefixes):
-        _fail("invalid_evidence", f"evidence kind {kind} has an unsupported URL path")
+        return url
+    if kind == "issue" and not ISSUE_EVIDENCE_RE.fullmatch(remainder):
+        _fail("invalid_evidence", "issue evidence must point to /issues/<number>")
+    if kind in {"test", "workflow"}:
+        if not (RUN_EVIDENCE_RE.fullmatch(remainder) or
+                (kind == "workflow" and DOCUMENT_EVIDENCE_RE.fullmatch(remainder))):
+            _fail(
+                "invalid_evidence",
+                "test/workflow evidence must point to a numeric actions run or a workflow file",
+            )
+    if kind == "document" and not DOCUMENT_EVIDENCE_RE.fullmatch(remainder):
+        _fail("invalid_evidence", "document evidence must point to /blob/ or /tree/")
     return url
 
 
@@ -247,10 +254,10 @@ def validate_event(
 
     if status in REQUIRE_EVIDENCE_STATUSES and not evidence:
         _fail("evidence_required", f"status {status} requires at least one evidence item")
-    if status in REQUIRE_COMMIT_OR_TEST_STATUSES and not any(
-        item["kind"] in {"commit", "test"} for item in evidence
+    if status in REQUIRE_COMMIT_EVIDENCE_STATUSES and not any(
+        item["kind"] == "commit" for item in evidence
     ):
-        _fail("evidence_required", f"status {status} requires commit or test evidence")
+        _fail("evidence_required", f"status {status} requires commit evidence")
     if status == "REWORK_REQUIRED" and not any(
         item["kind"] in REQUIRE_REWORK_EVIDENCE for item in evidence
     ):

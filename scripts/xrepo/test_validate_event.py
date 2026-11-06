@@ -162,6 +162,37 @@ class ValidatorTests(unittest.TestCase):
         event["evidence"][0]["url"] = f"https://github.com/{SOURCE_REPO}/issues/42"
         self.assert_invalid(event, "invalid_evidence")
 
+    def test_implementation_ready_requires_commit_evidence(self) -> None:
+        event = valid_event()
+        event["evidence"] = [
+            {
+                "kind": "test",
+                "url": f"https://github.com/{SOURCE_REPO}/actions/runs/12345",
+            }
+        ]
+        self.assert_invalid(event, "evidence_required")
+
+    def test_issue_evidence_requires_numeric_issue(self) -> None:
+        event = valid_event()
+        event["status"] = "REWORK_REQUIRED"
+        event["evidence"] = [
+            {
+                "kind": "issue",
+                "url": f"https://github.com/{SOURCE_REPO}/issues/not-a-number",
+            }
+        ]
+        self.assert_invalid(event, "invalid_evidence")
+
+    def test_actions_run_evidence_requires_numeric_run(self) -> None:
+        event = valid_event()
+        event["evidence"] = [
+            {
+                "kind": "test",
+                "url": f"https://github.com/{SOURCE_REPO}/actions/runs/not-a-run",
+            }
+        ]
+        self.assert_invalid(event, "invalid_evidence")
+
     def test_unsafe_summary_marker(self) -> None:
         event = valid_event()
         event["summary"] = "ok <!-- mays-xrepo:state -->"
