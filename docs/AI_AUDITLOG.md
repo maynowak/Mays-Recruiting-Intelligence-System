@@ -9468,6 +9468,20 @@ Findings:
 Report: docs/reports/RIS-R08-RIS-DEV-E2E-AUTH-READINESS.md
 Next: RIS_ADMIN_AUTHORIZATION_FILE exportieren; danach keine weitere Analyse. STOP.
 
+[RIS-PARTNER-USER-CONSENT-01]
+Status: COMPLETE / IMPLEMENTED / VERIFIED LOCAL / DEPLOYMENT PENDING
+Date: 2026-11-06
+Findings:
+  - Keine bestehende Consent-Implementierung; privacy_receipts bewusst nicht umgedeutet.
+  - Neuer Vertrag jobsearch/consent_contract.py: Zweck application-storage, noticeVersion 1.0, Zustaende NOT_GRANTED/GRANTED/WITHDRAWN/REGRANTED.
+  - Persistenz jobsearch/consent_repository.py: Tabelle consents, scopeKey tenant|partner|issuer|subject, PURPOSE# aktuell + EVENT# append-only, TransactWriteItems mit version-Condition, idempotentes Grant, 409 bei Konflikt.
+  - API: 4 Routen (GET/POST consents, POST withdraw, GET history) auf Kernel und Jobsearch-Edge; Dual-Auth unveraendert.
+  - Gate: 5 ApplicationV1-Schreibpfade (Create/Patch/Status/History/Cover-Letter) -> 403 CONSENT_REQUIRED bei aktivierter Enforcement; Lesen/Export/Delete ausgenommen; fail-closed; Rollout-Default false.
+  - Tests: 7 Repo + 7 Gate + 41 Auth/Contract/P20 PASS; fmt/validate PASS.
+  - Plan SHA256 94a8086dd94929ec81a82c181044b033ec4dbf9892bfa4543b0341a496b9f217: 10 CREATE (1 Tabelle, 8 Routen, 1 IAM), 1 UPDATE (Lambda Env), 0 DELETE/REPLACE; keine geschuetzten Aenderungen; kein Apply.
+Report: docs/reports/RIS-PARTNER-USER-CONSENT-01.md; Contract: docs/contracts/CONSENT-V1.md
+Next: Apply-Freigabe, Jobsearch-Consent-UI, dann Enforcement aktivieren. STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
