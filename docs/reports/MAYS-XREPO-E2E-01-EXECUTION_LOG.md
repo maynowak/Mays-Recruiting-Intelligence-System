@@ -48,7 +48,7 @@ The PR body still said `53/53`; that number was stale after the marker-trust har
 
 ### GitHub App readiness
 
-- `repos/{jobsearch,RIS}/actions/secrets` → `total_count: 0`.
+- `maynowak/{jobsearch,RIS}/actions/secrets` → `total_count: 0`.
 - No `XREPO_APP_ID` or `XREPO_APP_PRIVATE_KEY` is configured.
 - The current `gh` token is a user token (`maynowak`, scopes `gist`, `read:org`, `repo`, `workflow`). It cannot list GitHub App installations; `/user/installations` returns 403.
 - No app installation can be confirmed from this environment.
@@ -154,8 +154,8 @@ Destination issue updates use the receiver repository's own `GITHUB_TOKEN`
 
 ### Current state
 
-- `repos/maynowak/mays-jobsearch/actions/secrets` → `total_count: 0`.
-- `repos/maynowak/Mays-Recruiting-Intelligence-System/actions/secrets` → `total_count: 0`.
+- `maynowak/mays-jobsearch/actions/secrets` → `total_count: 0`.
+- `maynowak/Mays-Recruiting-Intelligence-System/actions/secrets` → `total_count: 0`.
 - No `XREPO_APP_ID` or `XREPO_APP_PRIVATE_KEY` is configured.
 - The available `gh` credential is a user token for `maynowak`; it cannot list GitHub App installations (`/user/installations` → 403). App installation is therefore unverified.
 - No secret values, tokens, or private keys were printed or stored.
