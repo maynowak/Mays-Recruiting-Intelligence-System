@@ -77,3 +77,12 @@ workflow YAML files parse, `git diff --check` clean, `LOCAL QA PASS`.
 ## Resume point
 
 Gate 05 local QA complete. Next: Gate 06 PR readiness and review.
+
+
+## MAYS-XREPO-E2E-01 re-run — 2026-11-06
+
+- HEAD: `5d49399` (`feat(xrepo): enforce status transitions and rework limits`)
+- Command: `./scripts/xrepo/run_local_qa.sh`
+- Result: **69/69 tests PASS**, **0 FAIL**, **0 SKIP**; JSON, workflow YAML, and `git diff --check` PASS.
+- Added coverage for: allowed/rejected status transitions, initial-status rules, `COMPLETED` only after `VERIFIED`, maximum three rework rounds, rejection markers, rejected-event retries, legacy state markers, issue-evidence verification, and commit-only evidence for implementation/completion claims.
+- No product code, Terraform, AWS, Cognito, CloudFront, Vercel configuration, or Mays-Orders change.
