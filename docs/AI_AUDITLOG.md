@@ -9482,6 +9482,17 @@ Findings:
 Report: docs/reports/RIS-PARTNER-USER-CONSENT-01.md; Contract: docs/contracts/CONSENT-V1.md
 Next: Apply-Freigabe, Jobsearch-Consent-UI, dann Enforcement aktivieren. STOP.
 
+[RIS-PARTNER-USER-CONSENT-02]
+Status: COMPLETE / INTEGRATION IMPLEMENTED / VERIFIED LOCAL / DEPLOYMENT PENDING
+Date: 2026-11-06
+Findings:
+  - Jobsearch (main f59aa4b) besitzt bereits Consent-UI + Applications-BFF; Anbindung ergaenzt: api/ris/consents.mjs (Status/Grant/Withdraw/History), risConsentConfig (Server besitzt noticeVersion), src/lib/risConsentApi.ts, StorageConsentLive hinter VITE_RIS_CONSENT_UI_ENABLED. 40 Tests + Build PASS.
+  - RIS b923f9b fuehrt Notice-Lifecycle DRAFT/APPROVED/ACTIVE/SUPERSEDED ein; application-storage/1.0 ist DRAFT, Jobsearch-Text 2026-11-04-draft-1 nicht automatisch 1.0. CONSENT_NOTICE_STATE_ENFORCED default false fuer synthetische Laeufe.
+  - Alter Plan 94a8086d... durch Bundle-Neubau ungueltig; neuer Plan 2a9e5aa8b42730ee71fd0bf67e26aa4e296bbe756f70a338d97f32965023cf7e: 10 CREATE (Tabelle, 8 Routen, IAM), 1 UPDATE (Lambda Env), 0 DELETE/REPLACE, geschuetzte Ressourcen 0 Aenderungen. Kein Apply.
+  - E2E lokal PASS (8 Schritte im Fix-Commit), Live-E2E BLOCKED: kein Apply, noticeVersion nicht ACTIVE, UI-Flag aus.
+Report: docs/reports/RIS-PARTNER-USER-CONSENT-02.md
+Next: neues Plan-Apply freigeben, Textversion rechtlich ACTIVE setzen, Jobsearch-UI-Flag + Vercel-Env. STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
