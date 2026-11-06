@@ -2,7 +2,7 @@
 
 - **Datum:** 2026-11-06
 - **Modus:** Integration + Plan; **kein Apply**
-- **Ergebnis:** **INTEGRATION IMPLEMENTED / VERIFIED LOCAL / DEPLOYMENT PENDING**
+- **Ergebnis:** **DEPLOYED / VERIFIED LIVE (Consent-Flow) — ApplicationV1-Gate PENDING**
 
 ---
 
@@ -131,3 +131,57 @@ Keine JWTs/Keys/CV-Inhalte in Consent-Daten; Identität serverseitig. Widerruf l
 | Datenschutz-Folgearbeiten | **DOCUMENTED** |
 
 **Keine unzutreffenden PASS-Angaben.**
+
+
+---
+
+## 11. Apply-Nachweis (2026-11-06)
+
+| Prüfung | Wert |
+|---|---|
+| Plan-SHA vor Apply | `2a9e5aa8…` erneut geprüft ✅ |
+| State vor Apply | serial 41, 243 Ressourcen |
+| Apply | **10 added, 1 changed, 0 destroyed** |
+| State nach Apply | serial **42**, 249 Ressourcen |
+| Folge-Plan | **0 aktive Änderungen** (273 no-op, 11 berechnete Drift-Einträge) |
+| Geschützte Ressourcen | 0 Änderungen |
+
+Live-Zustand:
+
+- Tabelle `ris-dev-dev-consents` **ACTIVE** (`scopeKey`/`entityKey`)
+- Lambda-Env: `CONSENTS_TABLE=ris-dev-dev-consents`, `APPLICATION_CONSENT_ENFORCED=false`, `PARTNER_SURFACE_ENABLED=true`
+- Vier Consent-Routen auf Kernel- und Edge-API erreichbar (ohne Token jeweils **401**)
+
+---
+
+## 12. Live-E2E über Jobsearch-BFF
+
+Synthetischer Jobsearch-Nutzer (PKCE-Login), BFF lokal mit den produktiven Modulen, `RIS_CONSENT_NOTICE_VERSION=1.0`:
+
+| Schritt | Ergebnis |
+|---|---|
+| Status initial | **200**, `NOT_GRANTED` |
+| Grant | **200**, `GRANTED`, `noticeVersion=1.0` |
+| Status danach | **200**, `GRANTED` |
+| Withdraw | **200**, `WITHDRAWN` |
+| Historie | **200**, Ereignisse `WITHDRAWN`, `GRANTED` |
+| Erneute Zustimmung | **200**, `GRANTED` |
+
+Cleanup: 4 Consent-Zeilen gelöscht, Testnutzer gelöscht, Tabelle wieder **0** Einträge, Harness beendet.
+
+**Nicht live getestet:** `403 CONSENT_REQUIRED` beim ApplicationV1-Schreiben, weil `APPLICATION_CONSENT_ENFORCED=false` (Integrationsphase). Der Nachweis existiert lokal (7 Gate-Tests) und wird nach Aktivierung live nachgeholt.
+
+---
+
+## 13. Finale Statusübersicht
+
+| Bereich | Status |
+|---|---|
+| RIS-Consent-Infrastruktur | **DEPLOYED** |
+| RIS-Consent-Endpunkte | **VERIFIED** (401 ohne Token, live erreichbar) |
+| Jobsearch-Consent-UI wiederverwendet | **VERIFIED LOCAL** (hinter UI-Flag) |
+| Jobsearch-BFF-Anbindung | **VERIFIED** (7 Tests + Live-Flow) |
+| Grant/Withdraw/History | **PASS (live, synthetisch)** |
+| ApplicationV1-Gate | **PENDING** (`false`) |
+| Synthetischer E2E | **PASS (Consent-Flow)**; Gate-403 offen |
+| Datenschutz-Folgearbeiten | **DOCUMENTED** |

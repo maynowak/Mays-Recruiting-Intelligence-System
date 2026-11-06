@@ -9493,6 +9493,18 @@ Findings:
 Report: docs/reports/RIS-PARTNER-USER-CONSENT-02.md
 Next: neues Plan-Apply freigeben, Textversion rechtlich ACTIVE setzen, Jobsearch-UI-Flag + Vercel-Env. STOP.
 
+[RIS-PARTNER-USER-CONSENT-02-APPLY]
+Status: COMPLETE / DEPLOYED / CONSENT-FLOW VERIFIED LIVE — Gate PENDING
+Date: 2026-11-06
+Findings:
+  - Plan 2a9e5aa8... nach erneuter Hash-/State-/Diff-Pruefung angewendet: 10 added, 1 changed, 0 destroyed; State serial 41 -> 42, 249 Ressourcen; Folge-Plan 0 aktive Aenderungen.
+  - Tabelle ris-dev-dev-consents ACTIVE; Lambda-Env CONSENTS_TABLE gesetzt, APPLICATION_CONSENT_ENFORCED=false, PARTNER_SURFACE_ENABLED=true; 4 Consent-Routen auf Kernel und Edge live (401 ohne Token).
+  - Live-E2E ueber Jobsearch-BFF mit synthetischem PKCE-Nutzer: Status NOT_GRANTED -> GRANTED (1.0) -> WITHDRAWN -> Historie (WITHDRAWN, GRANTED) -> Regrant GRANTED.
+  - Cleanup: 4 Consent-Zeilen und Testnutzer geloescht, Tabelle 0.
+  - Gate-403 live nicht getestet, da Enforcement false bleibt; lokal 7 Gate-Tests PASS.
+Report: docs/reports/RIS-PARTNER-USER-CONSENT-02.md (§11-13)
+Next: UI-Flag + Vercel-Env, noticeVersion ACTIVE, dann Enforcement-Plan. STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
