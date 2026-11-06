@@ -177,6 +177,23 @@ Both are open. The live runbook is in
 `docs/reports/MAYS-XREPO-ORCHESTRATION-01-E2E-READINESS.md` and remains blocked
 until rollout and app credentials are approved.
 
+## Future coding-agent adapter (not implemented in V1)
+
+A successful GitHub event is **not** an automated AI implementation. V1 only
+delivers a validated signal and records evidence references.
+
+A later adapter may sit behind a separately trusted runner and translate a
+validated event into an agent task. It must keep these boundaries:
+
+- consume the same allowlisted event schema, sequence, and evidence rules;
+- run outside the receiver workflow, with its own approval and least-privilege
+  boundary; never execute payload text as code or shell;
+- require human approval for merge, deployment, and any infrastructure action;
+- write back commit/test evidence URLs, never self-asserted PASS text;
+- stop at the same three-rework limit and fail closed.
+
+No adapter code is part of V1.
+
 ## Rollout / E2E status
 
 Local contract tests are implemented. The true dispatch E2E remains pending until
