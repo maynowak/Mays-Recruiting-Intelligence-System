@@ -167,6 +167,16 @@ python3 scripts/xrepo/validate_event.py docs/xrepo/fixtures/valid-requested.json
 - No automatic merge, branch deletion, deployment, Terraform, AWS, Cognito,
   CloudFront, Vercel, or Mays-Orders mutation is performed by this contract.
 
+## Controlled E2E issues
+
+- A/source: https://github.com/maynowak/mays-jobsearch/issues/3
+- B/destination: https://github.com/maynowak/Mays-Recruiting-Intelligence-System/issues/7
+- Task ID: `MAYS-XR-E2E-001`
+
+Both are open. The live runbook is in
+`docs/reports/MAYS-XREPO-ORCHESTRATION-01-E2E-READINESS.md` and remains blocked
+until rollout and app credentials are approved.
+
 ## Rollout / E2E status
 
 Local contract tests are implemented. The true dispatch E2E remains pending until
