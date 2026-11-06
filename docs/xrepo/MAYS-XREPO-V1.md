@@ -92,6 +92,27 @@ exactly.
   issue/commit, applies the idempotent issue update, and never executes payload
   text as shell.
 
+### Sender inputs
+
+`xrepo-send.yml` is manual only. It takes `target_repository`, `target_issue`,
+`task_id`, `status`, `source_issue`, `sequence`, `summary`, and optional
+`evidence_json`. `source.repository` is the repository running the workflow;
+`source.commit` is its `github.sha`. The sender verifies the source issue and
+the target issue before dispatching, and records the dispatch on the source
+issue only after the API call succeeds.
+
+Build an event locally with:
+
+```bash
+python3 scripts/xrepo/build_event.py \
+  --task-id MAYS-XR-001 --status REQUESTED \
+  --source-repository maynowak/mays-jobsearch \
+  --source-issue 117 --source-commit <40-char-sha> \
+  --target-repository maynowak/Mays-Recruiting-Intelligence-System \
+  --target-issue 42 --summary "Handoff requested." \
+  --evidence-json '[]' --sequence 1 --output event.json
+```
+
 ### Required repository secrets
 
 Set these in **both** repositories (Settings → Secrets and variables → Actions):

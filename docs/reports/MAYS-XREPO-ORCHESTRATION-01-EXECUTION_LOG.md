@@ -2,7 +2,7 @@
 
 ## 1. Current status
 
-`GATE 03 COMPLETE — GREEN (receiver); Gates 04–07 pending`
+`GATE 04 COMPLETE — GREEN (sender); Gates 05–07 pending`
 
 ## 2. Audit date/time
 
@@ -125,3 +125,17 @@ Gate 02 complete. Next: Gate 03 receiver plus idempotent issue-update tests.
 ## Updated resume point
 
 Gate 03 complete. Next: Gate 04 sender workflow.
+
+
+## Gate 04 — Sender
+
+- Status: `COMPLETE — GREEN`
+- Added `scripts/xrepo/build_event.py`: CLI builder with generated UUID v4, allowlist/target validation, evidence parsing, and canonical JSON output.
+- Added `scripts/xrepo/test_build_event.py`: 8 tests for valid builds, evidence requirements, source/target rejection, invalid status/commit, and CLI round-trip/failure.
+- Added `.github/workflows/xrepo-send.yml`: manual `workflow_dispatch`, source/target issue checks, local validation, explicit `BLOCKED FOR LIVE` without app secrets, least-privilege app token for `repository_dispatch`, and source-issue dispatch record.
+- Test command: `python3 -m unittest discover -s scripts/xrepo -p 'test_*.py'` → **53/53 PASS**.
+- No live dispatch. No product/infrastructure/existing workflow change.
+
+## Updated resume point
+
+Gate 04 complete. Next: Gate 05 local QA matrix and full verification.

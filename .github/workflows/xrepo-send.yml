@@ -1,0 +1,187 @@
+name: MAYS XRepo Send
+
+# Manual sender. Live dispatch requires the GitHub App secrets documented in
+# docs/xrepo/MAYS-XREPO-V1.md and a receiver workflow on the target default branch.
+on:
+  workflow_dispatch:
+    inputs:
+      target_repository:
+        description: "Allowlisted destination repository"
+        required: true
+        type: choice
+        options:
+          - maynowak/mays-jobsearch
+          - maynowak/Mays-Recruiting-Intelligence-System
+      target_issue:
+        description: "Destination issue number"
+        required: true
+        type: string
+      task_id:
+        description: "Task ID, e.g. MAYS-XR-001"
+        required: true
+        default: "MAYS-XR-001"
+        type: string
+      status:
+        description: "Protocol status"
+        required: true
+        type: choice
+        options:
+          - REQUESTED
+          - ACCEPTED
+          - IMPLEMENTING
+          - IMPLEMENTATION_READY
+          - INTEGRATING
+          - REWORK_REQUIRED
+          - VERIFIED
+          - COMPLETED
+          - BLOCKED
+      source_issue:
+        description: "Source issue number in this repository"
+        required: true
+        type: string
+      sequence:
+        description: "Monotonic sequence for this task"
+        required: true
+        default: "1"
+        type: string
+      summary:
+        description: "Short evidence-oriented status summary"
+        required: true
+        type: string
+      evidence_json:
+        description: 'JSON array of {kind,url}, e.g. [{"kind":"commit","url":"https://github.com/..."}]'
+        required: false
+        default: "[]"
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  send:
+    name: Validate and dispatch handoff event
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout sender repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build event
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          TASK_ID: ${{ inputs.task_id }}
+          STATUS: ${{ inputs.status }}
+          SOURCE_ISSUE: ${{ inputs.source_issue }}
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+          TARGET_ISSUE: ${{ inputs.target_issue }}
+          SUMMARY: ${{ inputs.summary }}
+          EVIDENCE_JSON: ${{ inputs.evidence_json }}
+          SEQUENCE: ${{ inputs.sequence }}
+        run: |
+          python scripts/xrepo/build_event.py \
+            --task-id "$TASK_ID" \
+            --status "$STATUS" \
+            --source-repository "$GITHUB_REPOSITORY" \
+            --source-issue "$SOURCE_ISSUE" \
+            --source-commit "$GITHUB_SHA" \
+            --target-repository "$TARGET_REPOSITORY" \
+            --target-issue "$TARGET_ISSUE" \
+            --summary "$SUMMARY" \
+            --evidence-json "$EVIDENCE_JSON" \
+            --sequence "$SEQUENCE" \
+            --output "$RUNNER_TEMP/event.json"
+
+      - name: Validate event locally
+        run: |
+          python scripts/xrepo/validate_event.py "$RUNNER_TEMP/event.json" \
+            --expected-source "$GITHUB_REPOSITORY"
+
+      - name: Verify source issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_ISSUE: ${{ inputs.source_issue }}
+        run: |
+          issue="$(gh api "repos/$GITHUB_REPOSITORY/issues/$SOURCE_ISSUE")"
+          if jq -e 'has("pull_request")' <<<"$issue" >/dev/null; then
+            echo "::error title=INVALID SOURCE::source_issue must be an issue, not a pull request"
+            exit 1
+          fi
+
+      - name: Check cross-repository app credentials
+        env:
+          XREPO_APP_ID: ${{ secrets.XREPO_APP_ID }}
+          XREPO_APP_PRIVATE_KEY: ${{ secrets.XREPO_APP_PRIVATE_KEY }}
+        run: |
+          if [ -z "$XREPO_APP_ID" ] || [ -z "$XREPO_APP_PRIVATE_KEY" ]; then
+            echo "::error title=BLOCKED FOR LIVE::XREPO_APP_ID or XREPO_APP_PRIVATE_KEY is missing"
+            exit 1
+          fi
+
+      - name: Resolve target repository name
+        id: target-repository
+        env:
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+        run: |
+          echo "name=${TARGET_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Create dispatch token
+        id: dispatch-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.XREPO_APP_ID }}
+          private-key: ${{ secrets.XREPO_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.target-repository.outputs.name }}
+          permission-contents: write
+          permission-issues: read
+
+      - name: Verify target issue
+        env:
+          GH_TOKEN: ${{ steps.dispatch-token.outputs.token }}
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+          TARGET_ISSUE: ${{ inputs.target_issue }}
+        run: |
+          issue="$(gh api "repos/$TARGET_REPOSITORY/issues/$TARGET_ISSUE")"
+          if jq -e 'has("pull_request")' <<<"$issue" >/dev/null; then
+            echo "::error title=INVALID TARGET::target_issue must be an issue, not a pull request"
+            exit 1
+          fi
+
+      - name: Dispatch event
+        env:
+          GH_TOKEN: ${{ steps.dispatch-token.outputs.token }}
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+        run: |
+          jq '{event_type:"mays_xrepo_v1", client_payload: .}' \
+            "$RUNNER_TEMP/event.json" > "$RUNNER_TEMP/dispatch.json"
+          gh api --method POST "repos/$TARGET_REPOSITORY/dispatches" \
+            --input "$RUNNER_TEMP/dispatch.json"
+
+      - name: Record dispatch on source issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_ISSUE: ${{ inputs.source_issue }}
+          TASK_ID: ${{ inputs.task_id }}
+          STATUS: ${{ inputs.status }}
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+          TARGET_ISSUE: ${{ inputs.target_issue }}
+          SEQUENCE: ${{ inputs.sequence }}
+        run: |
+          {
+            printf '### MAYS-XREPO-V1 dispatch sent\n\n'
+            printf -- '- Task: `%s`\n' "$TASK_ID"
+            printf -- '- Status: `%s`\n' "$STATUS"
+            printf -- '- Destination: `%s#%s`\n' "$TARGET_REPOSITORY" "$TARGET_ISSUE"
+            printf -- '- Sequence: `%s`\n' "$SEQUENCE"
+            printf '\nThe destination workflow is responsible for validation, source verification, and the idempotent issue update.\n'
+          } > "$RUNNER_TEMP/source-comment.md"
+          gh issue comment "$SOURCE_ISSUE" --repo "$GITHUB_REPOSITORY" \
+            --body-file "$RUNNER_TEMP/source-comment.md"
