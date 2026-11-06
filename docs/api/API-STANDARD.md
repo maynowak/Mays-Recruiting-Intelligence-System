@@ -115,8 +115,8 @@ Antwort 202: `{"workId": string, "status": string, "requestId": string}`
 | `POST /v1/partner/agents/{agentId}/execute` | JWT **+** `X-Api-Credential` | 202 | 401, 403, 500, 503 |
 | `GET /v1/partner/me/privacy/inspect` | JWT **+** `X-Api-Credential` | 200 (`COMPLETE`/`PARTIAL`, per-category cursors) | 400, 401, 403, 422, 503 |
 | `GET /v1/partner/me/privacy/export` | JWT **+** `X-Api-Credential` | 200 (versioned JSON, metadata/file status) | 401, 403, 422 |
-| `GET /v1/partner/me/consents` | JWT **+** `X-Api-Credential` | 200 (current status per purpose) | 401, 403, 422 |
-| `POST /v1/partner/me/consents` | JWT **+** `X-Api-Credential` | 200 (GRANTED, idempotent) | 401, 403, 422 |
+| `GET /v1/partner/me/consents` | JWT **+** `X-Api-Credential` | 200 (`items`, `catalog`, `externalRefs`; per-purpose status + `noticeState`) | 401, 403, 422 |
+| `POST /v1/partner/me/consents` | JWT **+** `X-Api-Credential` | 200 (GRANTED, idempotent) | 401, 403, 422 (`NOTICE_NOT_ACTIVE` bei fehlender Freigabe) |
 | `POST /v1/partner/me/consents/withdraw` | JWT **+** `X-Api-Credential` | 200 (WITHDRAWN) | 401, 403, 409, 422 |
 | `GET /v1/partner/me/consents/history` | JWT **+** `X-Api-Credential` | 200 (append-only events) | 401, 403, 422 |
 | `GET /v1/partner/me/manual-search-profiles` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 500, 503 |

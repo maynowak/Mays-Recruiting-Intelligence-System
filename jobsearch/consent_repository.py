@@ -116,7 +116,11 @@ class ConsentRepository:
               notice_version: str) -> dict[str, Any]:
         ctx.validate()
         purpose = validate_purpose(purpose)
-        version = validate_notice_version(purpose, notice_version)
+        # Identifier check only. State enforcement is applied once we know a
+        # new grant is actually being written, so repeating an existing grant
+        # stays idempotent even after its notice version became SUPERSEDED.
+        version = validate_notice_version(purpose, notice_version,
+                                          require_active=False)
         for _ in range(2):
             row = self._current(ctx, purpose)
             if (row and row.get("status") == STATUS_GRANTED
@@ -131,6 +135,10 @@ class ConsentRepository:
                 raise ConsentContractError(
                     "CONSENT_ALREADY_GRANTED",
                     "a different notice version is already granted")
+
+            # A brand-new or re-granted consent must not be recorded against a
+            # draft/superseded text when state enforcement is enabled.
+            version = validate_notice_version(purpose, version)
 
             stamp = _now()
             event = EVENT_REGRANTED if previous == STATUS_WITHDRAWN else EVENT_GRANTED
@@ -191,9 +199,12 @@ class ConsentRepository:
             raise ConsentContractError(
                 "NOT_GRANTED", "there is no active consent to withdraw")
 
-        version = validate_notice_version(purpose, notice_version) if notice_version \
+        version = validate_notice_version(purpose, notice_version,
+                                          require_active=False) if notice_version \
             else (row or {}).get("noticeVersion")
-        version = validate_notice_version(purpose, version)
+        # Withdrawal must stay possible even if the granted notice version is
+        # now draft-only or superseded; it never establishes a new consent.
+        version = validate_notice_version(purpose, version, require_active=False)
         stamp = _now()
         expected = int((row or {}).get("version") or 0)
         updated = dict(row or {})

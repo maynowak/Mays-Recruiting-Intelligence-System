@@ -6,17 +6,114 @@ partner context.
 
 Only ``application-storage`` is defined in V1. Additional purposes are added
 here deliberately, not accepted from clients.
+
+Notice versions have an explicit lifecycle. A version identifier is *not* a
+legal approval: a draft may be usable for technical/synthetic end-to-end runs
+while still being rejected for real processing.
+
+    DRAFT        text exists, not approved by the responsible body
+    APPROVED     approved, not yet offered to new users
+    ACTIVE       approved and offered to new users / accepted for new grants
+    SUPERSEDED   replaced by a newer version; existing grants stay valid
+
+Existing grants are never silently rewritten when a newer version appears.
+Re-consent under a new version is a separate product/legal decision.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
 
 SCHEMA_VERSION = 1
 
-#: Purpose -> accepted notice versions. A client-invented version is rejected.
+#: Purpose -> notice version identifiers the server understands for grants.
+#: A client-invented version is rejected with ``INVALID_NOTICE_VERSION``.
+#: Whether an understood version may actually be granted also depends on its
+#: lifecycle state (see :data:`NOTICE_REGISTRY` and
+#: :func:`notice_state_enforced`).
 CONSENT_PURPOSES = {
     "application-storage": frozenset({"1.0"}),
+}
+
+# --- notice version lifecycle -------------------------------------------
+NOTICE_DRAFT = "DRAFT"
+NOTICE_APPROVED = "APPROVED"
+NOTICE_ACTIVE = "ACTIVE"
+NOTICE_SUPERSEDED = "SUPERSEDED"
+NOTICE_STATES = frozenset(
+    {NOTICE_DRAFT, NOTICE_APPROVED, NOTICE_ACTIVE, NOTICE_SUPERSEDED})
+
+#: Only approved versions may be granted when state enforcement is on.
+GRANTABLE_NOTICE_STATES = frozenset({NOTICE_APPROVED, NOTICE_ACTIVE})
+
+#: States that imply the text has been approved at some point. ``SUPERSEDED``
+#: is an approved older version, not a draft.
+APPROVED_NOTICE_STATES = frozenset(
+    {NOTICE_APPROVED, NOTICE_ACTIVE, NOTICE_SUPERSEDED})
+
+
+@dataclass(frozen=True)
+class NoticeVersion:
+    """One declared notice version and its lifecycle state."""
+
+    purpose: str
+    version: str
+    state: str = NOTICE_DRAFT
+    label: str = ""
+    #: Reference to the legal-approval record. ``None`` means "not approved".
+    legal_approval_ref: str | None = None
+    supersedes: str | None = None
+    #: External identifiers that describe the same *purpose* but are not
+    #: automatically equivalent. Mapping requires a separate decision.
+    external_refs: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def approved(self) -> bool:
+        return self.state in APPROVED_NOTICE_STATES
+
+    @property
+    def grantable(self) -> bool:
+        return self.state in GRANTABLE_NOTICE_STATES
+
+    def payload(self) -> dict:
+        return {
+            "purpose": self.purpose,
+            "noticeVersion": self.version,
+            "noticeState": self.state,
+            "noticeApproved": self.approved,
+            "grantableWhenEnforced": self.grantable,
+            "legalApprovalRef": self.legal_approval_ref,
+            "supersedes": self.supersedes,
+            "externalRefs": dict(self.external_refs),
+        }
+
+
+#: Server-owned catalog. The identifiers below are technical; legal approval
+#: is tracked separately and is ``None`` until a real approval record exists.
+NOTICE_REGISTRY: dict[str, dict[str, NoticeVersion]] = {
+    "application-storage": {
+        "1.0": NoticeVersion(
+            purpose="application-storage",
+            version="1.0",
+            state=NOTICE_DRAFT,
+            label="RIS application-storage notice v1 (technical draft)",
+            legal_approval_ref=None,
+        ),
+    },
+}
+
+#: Partner-side identifiers that are *known* but deliberately not equivalent
+#: to a RIS notice version yet. ``2026-11-04-draft-1`` is a Jobsearch draft;
+#: renaming it must never turn it into an approved RIS version.
+EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
+    "application-storage": {
+        "2026-11-04-draft-1": {
+            "source": "mays-jobsearch",
+            "noticeState": NOTICE_DRAFT,
+            "noticeVersion": None,  # no equivalence until separately approved
+        },
+    },
 }
 
 STATUS_NOT_GRANTED = "NOT_GRANTED"
@@ -64,19 +161,83 @@ def validate_purpose(purpose: object) -> str:
     return purpose
 
 
-def validate_notice_version(purpose: str, version: object) -> str:
-    accepted = CONSENT_PURPOSES[validate_purpose(purpose)]
+def notice_state_enforced() -> bool:
+    """Whether only approved/active notice versions may be granted.
+
+    Default is ``false`` so the technical consent flow (and synthetic
+    end-to-end runs) keeps working while the notice text is still a draft.
+    Real processing must run with ``CONSENT_NOTICE_STATE_ENFORCED=true`` so a
+    draft can never be recorded as an approved consent.
+    """
+    return os.environ.get(
+        "CONSENT_NOTICE_STATE_ENFORCED", "false").strip().lower() == "true"
+
+
+def notice_version(purpose: str, version: object) -> NoticeVersion | None:
+    return NOTICE_REGISTRY.get(purpose, {}).get(version) \
+        if isinstance(version, str) else None
+
+
+def validate_notice_version(purpose: str, version: object, *,
+                            require_active: bool | None = None) -> str:
+    purpose = validate_purpose(purpose)
+    accepted = CONSENT_PURPOSES[purpose]
     if not isinstance(version, str) or version not in accepted:
         raise ConsentContractError(
             "INVALID_NOTICE_VERSION",
             "noticeVersion is not an accepted version for this purpose")
+    enforce = notice_state_enforced() if require_active is None else require_active
+    if enforce:
+        entry = notice_version(purpose, version)
+        if entry is None or entry.state not in GRANTABLE_NOTICE_STATES:
+            raise ConsentContractError(
+                "NOTICE_NOT_ACTIVE",
+                "noticeVersion is not approved for new consents")
     return version
+
+
+def _entry_payload(purpose: str, version: str | None) -> dict:
+    entry = notice_version(purpose, version)
+    if entry is None:
+        return {
+            "noticeState": None,
+            "noticeApproved": False,
+            "acceptedForNewGrant": False,
+        }
+    return {
+        "noticeState": entry.state,
+        "noticeApproved": entry.approved,
+        # A draft is technically accepted while state enforcement is off
+        # (synthetic/technical runs); with enforcement on only approved
+        # versions are accepted.
+        "acceptedForNewGrant": entry.grantable or not notice_state_enforced(),
+    }
+
+
+def catalog_payload(purpose: str) -> list[dict]:
+    """Declared notice versions for a purpose, with lifecycle state."""
+    purpose = validate_purpose(purpose)
+    out: list[dict] = []
+    for entry in NOTICE_REGISTRY.get(purpose, {}).values():
+        item = entry.payload()
+        item["acceptedForNewGrant"] = (
+            entry.grantable or not notice_state_enforced())
+        out.append(item)
+    return out
+
+
+def external_refs_payload(purpose: str) -> list[dict]:
+    purpose = validate_purpose(purpose)
+    return [
+        {"externalRef": ref, **meta}
+        for ref, meta in EXTERNAL_NOTICE_REFS.get(purpose, {}).items()
+    ]
 
 
 def status_payload(purpose: str, *, status: str, notice_version: str | None,
                    granted_at: str | None, withdrawn_at: str | None,
                    version: int = 0) -> dict:
-    return {
+    payload = {
         "schemaVersion": SCHEMA_VERSION,
         "purpose": purpose,
         "status": status,
@@ -85,3 +246,5 @@ def status_payload(purpose: str, *, status: str, notice_version: str | None,
         "withdrawnAt": withdrawn_at,
         "version": version,
     }
+    payload.update(_entry_payload(purpose, notice_version))
+    return payload

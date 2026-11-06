@@ -655,7 +655,8 @@ def _handle_consent_routes(event, context, method, path):
     if error:
         return error
     from jobsearch.consent_contract import (
-        CONSENT_PURPOSES, ConsentContractError, validate_purpose)
+        CONSENT_PURPOSES, ConsentContractError, catalog_payload,
+        external_refs_payload, validate_purpose)
     from jobsearch.consent_repository import ConsentConflict
     repo = _consent_repo()
     body = _application_body(event) or {}
@@ -665,7 +666,11 @@ def _handle_consent_routes(event, context, method, path):
             purpose = params.get('purpose')
             purposes = [validate_purpose(purpose)] if purpose else sorted(CONSENT_PURPOSES)
             return _application_response(200, {
-                'items': [repo.get(ctx, p) for p in purposes]})
+                'items': [repo.get(ctx, p) for p in purposes],
+                'catalog': [entry for p in purposes for entry in catalog_payload(p)],
+                'externalRefs': [entry for p in purposes
+                                 for entry in external_refs_payload(p)],
+            })
         if path == '/v1/partner/me/consents' and method == 'POST':
             result = repo.grant(ctx, body.get('purpose'), body.get('noticeVersion'))
             return _application_response(200, {'consent': result})

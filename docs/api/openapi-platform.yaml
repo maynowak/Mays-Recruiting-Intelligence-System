@@ -2301,6 +2301,95 @@ paths:
       x-infrastructure-governance: terraform-managed
       responses: { "200": { description: Structured export }, "404": { description: Not found } }
 
+  /v1/partner/me/consents:
+    get:
+      tags: [Partner, Consent]
+      operationId: listPartnerConsents
+      summary: Current storage-consent status plus the notice-version catalog
+      description: |
+        Server-derived identity; the caller can only choose a purpose. Every
+        item carries noticeState/noticeApproved so a draft text is never
+        presented as an approved consent. `catalog` lists known versions for
+        the purpose; `externalRefs` lists partner identifiers that are known
+        but not equivalent to a RIS notice version.
+      x-infrastructure-governance: terraform-managed
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: purpose
+          in: query
+          required: false
+          schema: { type: string, enum: [application-storage] }
+      responses:
+        "200": { description: Current status, catalog and external refs }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403": { description: Partner, tenant or credential boundary refused }
+        "422": { description: Unknown purpose }
+    post:
+      tags: [Partner, Consent]
+      operationId: grantPartnerConsent
+      summary: Grant storage consent for a purpose and notice version
+      description: |
+        Idempotent for an already-granted version. 422 NOTICE_NOT_ACTIVE when
+        state enforcement is on and the text is not approved for new grants.
+        A newer notice version never rewrites an existing grant.
+      x-infrastructure-governance: terraform-managed
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [purpose, noticeVersion] }
+      responses:
+        "200": { description: Consent granted (or unchanged) }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403": { description: Partner boundary refused }
+        "409": { description: Consent conflict }
+        "422": { description: Unknown purpose, invalid or inactive notice version }
+  /v1/partner/me/consents/withdraw:
+    post:
+      tags: [Partner, Consent]
+      operationId: withdrawPartnerConsent
+      summary: Withdraw the active storage consent
+      description: |
+        Always available regardless of notice lifecycle state. Reads, export
+        and deletion stay available after withdrawal.
+      x-infrastructure-governance: terraform-managed
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [purpose] }
+      responses:
+        "200": { description: Consent withdrawn }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403": { description: Partner boundary refused }
+        "409": { description: No active consent }
+        "422": { description: Unknown purpose }
+  /v1/partner/me/consents/history:
+    get:
+      tags: [Partner, Consent]
+      operationId: listPartnerConsentHistory
+      summary: Append-only consent event history
+      x-infrastructure-governance: terraform-managed
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: purpose
+          in: query
+          required: true
+          schema: { type: string, enum: [application-storage] }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200": { description: Events newest first }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403": { description: Partner boundary refused }
+        "422": { description: Unknown purpose or invalid limit }
+
 components:
   securitySchemes:
     cognitoJwt:
