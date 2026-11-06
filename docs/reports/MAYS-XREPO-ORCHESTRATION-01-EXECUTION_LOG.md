@@ -199,3 +199,11 @@ Audit complete. Next action requires explicit rollout approval: merge both PRs, 
 - Added `test_untrusted_comment_markers_are_ignored`.
 - Re-ran `./scripts/xrepo/run_local_qa.sh`: **54/54 tests PASS**, JSON/YAML/diff checks PASS.
 - This is a follow-up hardening commit after the draft PR; no product/infrastructure change.
+
+
+## Workspace path correction — 2026-11-06
+
+- Canonical working directory is now `/home/dci-student/projects/mays-xrepo-orchestration/repos/Mays-Recruiting-Intelligence-System`.
+- Gate 01 discovery originally ran in the external checkout `/home/dci-student/projects/Mays-Recruiting-Intelligent-System`. That checkout was returned to its original local `main` state and is no longer used for this task.
+- No branch was deleted; the feature branch is pushed to `origin` and checked out in this repository.
+- All further work and evidence must stay under `/home/dci-student/projects/mays-xrepo-orchestration`.

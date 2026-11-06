@@ -9412,3 +9412,8 @@ Created controlled test issues https://github.com/maynowak/mays-jobsearch/issues
 Status: RECEIVER MARKER TRUST HARDENED — 54/54 LOCAL TESTS PASS — E2E STILL BLOCKED
 Date: 2026-11-06
 Changed the receiver so only comments authored by `github-actions[bot]` can define event/state markers. A user-authored comment can no longer inject a high sequence or suppress a real event. Added `test_untrusted_comment_markers_are_ignored` and updated the local QA/E2E reports. `./scripts/xrepo/run_local_qa.sh` passed 54/54 tests with JSON/YAML/diff checks green. No live dispatch, merge, deployment, product, Terraform, AWS, Cognito, CloudFront, Vercel, Mays-Orders, or existing deploy workflow change. Live remains BLOCKED FOR LIVE pending default-branch rollout and app credentials.
+
+[MAYS-XREPO-ORCHESTRATION-01-WORKSPACE-CORRECTION]
+Status: CANONICAL WORKING DIRECTORY CORRECTED — NO FEATURE CHANGE
+Date: 2026-11-06
+The canonical working directory is now `/home/dci-student/projects/mays-xrepo-orchestration/repos/Mays-Recruiting-Intelligence-System`. Gate 01 discovery originally ran in the external checkout `/home/dci-student/projects/Mays-Recruiting-Intelligent-System`; that checkout was returned to its original local `main` state and is no longer used for this task. No branch was deleted, no force-push occurred, and the feature branch remains on `origin`. All further repository work must stay under `/home/dci-student/projects/mays-xrepo-orchestration`. Report: `docs/reports/MAYS-XREPO-ORCHESTRATION-01-EXECUTION_LOG.md`.
