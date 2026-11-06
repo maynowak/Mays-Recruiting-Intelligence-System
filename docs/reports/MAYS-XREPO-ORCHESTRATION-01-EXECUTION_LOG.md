@@ -2,7 +2,7 @@
 
 ## 1. Current status
 
-`GATE 01 COMPLETE — GREEN (discovery only)`
+`GATE 02 COMPLETE — GREEN (contract); Gates 03–07 pending`
 
 ## 2. Audit date/time
 
@@ -92,3 +92,21 @@ Proceed to Gate 02 (Contract): versioned schema, validator, fixtures, and tests.
 ## 16. Current resume point
 
 Gate 01 complete on `feature/mays-xrepo-orchestration-01` at base `c28c668`.
+
+
+## Gate 02 — Contract
+
+- Status: `COMPLETE — GREEN`
+- Added `docs/xrepo/MAYS-XREPO-V1.schema.json` (versioned JSON Schema, 9 fields, max 10 evidence items).
+- Added `scripts/xrepo/validate_event.py` (stdlib-only, fail-closed, 64 KiB limit, allowlist, source/target checks, evidence/source binding).
+- Added `scripts/xrepo/test_validate_event.py` with 27 tests.
+- Added fixtures under `docs/xrepo/fixtures/` for valid, spoofed-source, and evidence-absent events.
+- Added `docs/xrepo/MAYS-XREPO-V1.md` with statuses, sequence/idempotency rules, credential requirements, and the test matrix.
+- Test command: `python3 -m unittest scripts/xrepo/test_validate_event.py -v` → **27 tests OK**.
+- Schema/fixtures JSON parse check: **PASS**.
+- No live dispatch, no GitHub workflow change, no product/infrastructure change.
+- Remaining: receiver/sender workflows, issue-state tests, PRs, and E2E readiness.
+
+## Updated resume point
+
+Gate 02 complete. Next: Gate 03 receiver plus idempotent issue-update tests.
