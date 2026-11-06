@@ -516,6 +516,38 @@ resource "aws_apigatewayv2_route" "applications_metrics" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
+resource "aws_apigatewayv2_route" "consents_get" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/consents"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "consents_grant" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/partner/me/consents"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "consents_withdraw" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/partner/me/consents/withdraw"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "consents_history" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/consents/history"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
 resource "aws_apigatewayv2_route" "applications_create" {
   api_id             = aws_apigatewayv2_api.ris_api.id
   route_key          = "POST /v1/partner/me/applications"

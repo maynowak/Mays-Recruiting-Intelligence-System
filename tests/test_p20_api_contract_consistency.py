@@ -187,8 +187,8 @@ class TestTerraformRouteInventory(unittest.TestCase):
         eine stille Ruecknahme nicht durchgeht.
         """
         routes = terraform_routes()
-        self.assertEqual(70, len(routes))
-        self.assertEqual(66, sum(1 for v in routes.values()
+        self.assertEqual(74, len(routes))
+        self.assertEqual(70, sum(1 for v in routes.values()
                                  if v["target"] == "agent"))
         self.assertEqual(4, sum(1 for v in routes.values()
                                 if v["target"] == "orders"))
@@ -197,6 +197,10 @@ class TestTerraformRouteInventory(unittest.TestCase):
         self.assertIn("POST /me/erasure", routes)
         self.assertIn("GET /v1/partner/me/privacy/inspect", routes)
         self.assertIn("GET /v1/partner/me/privacy/export", routes)
+        self.assertIn("GET /v1/partner/me/consents", routes)
+        self.assertIn("POST /v1/partner/me/consents", routes)
+        self.assertIn("POST /v1/partner/me/consents/withdraw", routes)
+        self.assertIn("GET /v1/partner/me/consents/history", routes)
         for route in (
             "GET /v1/partner/me/manual-search-profiles",
             "POST /v1/partner/me/manual-search-profiles",

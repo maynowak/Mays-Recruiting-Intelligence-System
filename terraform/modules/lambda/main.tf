@@ -271,6 +271,25 @@ resource "aws_iam_role_policy" "lambda_dynamodb_applications" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_consents" {
+  name = "${var.project_name}-${var.environment}-lambda-dynamodb-consents"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:Query",
+        "dynamodb:TransactWriteItems"
+      ]
+      Resource = [var.consents_table_arn]
+    }]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_cursor_secret" {
   count = var.applications_cursor_secret_arn != "" ? 1 : 0
   name  = "${var.project_name}-${var.environment}-lambda-cursor-secret"
@@ -626,9 +645,11 @@ resource "aws_lambda_function" "agent" {
       DELETION_LEDGER_ENABLED              = "false"
       # New partner/personal routes stay closed until the data-protection
       # decision is signed off; deploying infrastructure is not approval.
-      PARTNER_SURFACE_ENABLED = var.partner_surface_enabled ? "true" : "false"
-      DELETION_LEDGER_TABLE   = var.deletion_ledger_table_name
-      LOG_LEVEL               = var.log_level
+      PARTNER_SURFACE_ENABLED      = var.partner_surface_enabled ? "true" : "false"
+      CONSENTS_TABLE               = var.consents_table_name
+      APPLICATION_CONSENT_ENFORCED = var.application_consent_enforced ? "true" : "false"
+      DELETION_LEDGER_TABLE        = var.deletion_ledger_table_name
+      LOG_LEVEL                    = var.log_level
     }
   }
 
@@ -647,6 +668,7 @@ resource "aws_lambda_function" "agent" {
     aws_iam_role_policy.lambda_dynamodb_partner_registry,
     aws_iam_role_policy.lambda_dynamodb_applications,
     aws_iam_role_policy.lambda_cursor_secret,
+    aws_iam_role_policy.lambda_consents,
     aws_iam_role_policy.lambda_documents,
     aws_iam_role_policy.lambda_s3,
     aws_iam_role_policy.lambda_logs,

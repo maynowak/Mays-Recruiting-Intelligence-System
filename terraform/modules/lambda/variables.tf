@@ -112,6 +112,22 @@ variable "applications_gsi_owner_arn" {
   type        = string
 }
 
+variable "consents_table_name" {
+  description = "DynamoDB table for partner consents."
+  type        = string
+}
+
+variable "consents_table_arn" {
+  description = "ARN of the partner consents table."
+  type        = string
+}
+
+variable "application_consent_enforced" {
+  description = "Enforce application-storage consent on ApplicationV1 writes. Default false until the partner ships its consent UI."
+  type        = bool
+  default     = false
+}
+
 variable "partner_surface_enabled" {
   description = "Aktiviert die Partner-/Personen-Oberflaeche (/v1/partner/me/*). Default AUS; Aktivierung ist eine Betreiberentscheidung, keine Deployment-Nebenwirkung."
   type        = bool

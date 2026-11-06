@@ -131,3 +131,11 @@ output "applications_table_arn" {
 output "applications_gsi_owner_arn" {
   value = "${aws_dynamodb_table.applications.arn}/index/gsi-owner"
 }
+
+output "consents_table_name" {
+  value = aws_dynamodb_table.consents.name
+}
+
+output "consents_table_arn" {
+  value = aws_dynamodb_table.consents.arn
+}

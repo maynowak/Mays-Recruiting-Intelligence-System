@@ -11,6 +11,9 @@ sys.path.insert(0, os.path.join(
 
 import handler  # noqa: E402
 
+# These tests exercise the partner boundary itself, not the surface rollout gate.
+os.environ.setdefault("PARTNER_SURFACE_ENABLED", "true")
+
 
 def _event(path="/v1/partner/me/applications", headers=None):
     return {

@@ -542,6 +542,31 @@ resource "aws_dynamodb_table" "partner_applications" {
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
+# Partner consent V1. Current state per purpose and append-only events share
+# one partition keyed by the verified scope; no TTL until retention is decided.
+resource "aws_dynamodb_table" "consents" {
+  name         = "${var.project_name}-${var.environment}-consents"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "scopeKey"
+  range_key    = "entityKey"
+
+  attribute {
+    name = "scopeKey"
+    type = "S"
+  }
+
+  attribute {
+    name = "entityKey"
+    type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = var.r08_pitr_enabled
+  }
+
+  tags = merge({ "Project" = var.project_name, "DataClass" = "consent-metadata" }, var.tags)
+}
+
 # ApplicationV1 persistence. The base item and immutable child records share a
 # partition; gsi-owner is the only user-facing access path and is always
 # queried with the complete server-derived owner scope.

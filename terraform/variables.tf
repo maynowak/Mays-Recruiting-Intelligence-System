@@ -342,6 +342,12 @@ variable "applications_cursor_secret_arn" {
   default     = ""
 }
 
+variable "application_consent_enforced" {
+  description = "Enforce application-storage consent on ApplicationV1 writes (Default AUS fuer den Rollout)."
+  type        = bool
+  default     = false
+}
+
 variable "partner_surface_enabled" {
   description = "Aktiviert die Partner-/Personen-Oberflaeche (Default AUS)."
   type        = bool
