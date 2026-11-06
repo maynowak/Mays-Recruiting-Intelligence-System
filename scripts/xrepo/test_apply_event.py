@@ -67,6 +67,7 @@ def event(
 def applied_comment(item: dict, received_at: str = "2026-11-06T00:00:00+00:00") -> dict:
     return {
         "body": render_comment(item, received_at=received_at, applied=True),
+        "user": {"login": "github-actions[bot]"},
     }
 
 
@@ -116,15 +117,28 @@ class DecisionTests(unittest.TestCase):
         comments = [
             {
                 "body": "<!-- mays-xrepo:event:11111111-1111-4111-8111-111111111111 -->\n"
-                "<!-- mays-xrepo:state:OTHER-TASK:9 -->"
+                "<!-- mays-xrepo:state:OTHER-TASK:9 -->",
+                "user": {"login": "github-actions[bot]"},
             },
             {
                 "body": "<!-- mays-xrepo:event:22222222-2222-4222-8222-222222222222 -->\n"
-                "<!-- mays-xrepo:state:MAYS-XR-001:2 -->"
+                "<!-- mays-xrepo:state:MAYS-XR-001:2 -->",
+                "user": {"login": "github-actions[bot]"},
             },
         ]
         self.assertEqual(last_sequence(comments, "MAYS-XR-001"), 2)
         self.assertIsNone(last_sequence(comments, "MAYS-XR-999"))
+
+    def test_untrusted_comment_markers_are_ignored(self) -> None:
+        comments = [
+            {
+                "body": "<!-- mays-xrepo:event:f4e87f3a-5ca5-4dca-a6c8-55d5d8f697a5 -->\n"
+                "<!-- mays-xrepo:state:MAYS-XR-001:99 -->",
+                "user": {"login": "attacker"},
+            }
+        ]
+        self.assertEqual(decide(event(), comments).action, "apply")
+        self.assertIsNone(last_sequence(comments, "MAYS-XR-001"))
 
     def test_retry_cycle(self) -> None:
         comments: list[dict] = []

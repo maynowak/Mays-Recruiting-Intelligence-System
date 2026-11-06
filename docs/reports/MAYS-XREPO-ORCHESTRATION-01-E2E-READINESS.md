@@ -85,6 +85,7 @@ three automatic rework rounds and mark `BLOCKED`.
 - A different `eventId` at the same sequence fails with a conflict.
 - `REWORK_REQUIRED` preserves the evidence/commit that triggered it.
 - `COMPLETED` only appears after `VERIFIED` and both issues are cross-linked.
+- Markers in user-authored comments are ignored; only `github-actions[bot]` markers count.
 - No payload text executes as a shell command.
 
 ## Recovery point

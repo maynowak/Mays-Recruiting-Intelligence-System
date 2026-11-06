@@ -190,3 +190,12 @@ Gate 06 complete. Next: Gate 07 E2E readiness. Live dispatch remains blocked unt
 ## Final resume point
 
 Audit complete. Next action requires explicit rollout approval: merge both PRs, install/approve the GitHub App, add the two secrets to both repositories, then execute the A→B→A runbook against issues #3/#7 and record real run IDs/comment URLs. Do not merge or dispatch without approval.
+
+
+## Post-gate hardening — 2026-11-06
+
+- Receiver state markers are now trusted only from `github-actions[bot]`.
+  User-authored comments cannot inject a high sequence or suppress an event.
+- Added `test_untrusted_comment_markers_are_ignored`.
+- Re-ran `./scripts/xrepo/run_local_qa.sh`: **54/54 tests PASS**, JSON/YAML/diff checks PASS.
+- This is a follow-up hardening commit after the draft PR; no product/infrastructure change.

@@ -27,6 +27,7 @@ from validate_event import ValidationError, load_event, validate_event  # noqa: 
 STATE_MARKER_RE = re.compile(
     r"<!-- mays-xrepo:state:([A-Z][A-Z0-9-]{2,63}):([0-9]+) -->"
 )
+TRUSTED_MARKER_AUTHORS = frozenset({"github-actions[bot]"})
 
 
 class ApplyError(RuntimeError):
@@ -62,9 +63,28 @@ def _comment_body(comment: Any) -> str:
     return ""
 
 
+def _is_trusted_marker(comment: Any) -> bool:
+    """Only bot-authored comments may define event/state markers.
+
+    Issue comment text is user-controlled. Without this check a third party
+    could inject a high sequence or an event marker and suppress real events.
+    """
+
+    if not isinstance(comment, dict):
+        return False
+    user = comment.get("user")
+    if not isinstance(user, dict):
+        return False
+    return user.get("login") in TRUSTED_MARKER_AUTHORS
+
+
+def _trusted_comments(comments: Iterable[Any]) -> Iterable[Any]:
+    return (comment for comment in comments if _is_trusted_marker(comment))
+
+
 def last_sequence(comments: Iterable[Any], task_id: str) -> int | None:
     highest: int | None = None
-    for comment in comments:
+    for comment in _trusted_comments(comments):
         for match in STATE_MARKER_RE.finditer(_comment_body(comment)):
             if match.group(1) != task_id:
                 continue
@@ -76,7 +96,7 @@ def last_sequence(comments: Iterable[Any], task_id: str) -> int | None:
 
 def has_event(comments: Iterable[Any], event_id: str) -> bool:
     marker = _event_marker(event_id)
-    return any(marker in _comment_body(comment) for comment in comments)
+    return any(marker in _comment_body(comment) for comment in _trusted_comments(comments))
 
 
 def decide(event: dict[str, Any], comments: Iterable[Any]) -> Decision:
