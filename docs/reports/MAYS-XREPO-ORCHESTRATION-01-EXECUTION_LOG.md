@@ -2,7 +2,7 @@
 
 ## 1. Current status
 
-`GATE 02 COMPLETE — GREEN (contract); Gates 03–07 pending`
+`GATE 03 COMPLETE — GREEN (receiver); Gates 04–07 pending`
 
 ## 2. Audit date/time
 
@@ -110,3 +110,18 @@ Gate 01 complete on `feature/mays-xrepo-orchestration-01` at base `c28c668`.
 ## Updated resume point
 
 Gate 02 complete. Next: Gate 03 receiver plus idempotent issue-update tests.
+
+
+## Gate 03 — Receiver
+
+- Status: `COMPLETE — GREEN`
+- Added `scripts/xrepo/apply_event.py`: source issue/commit verification, destination issue check, duplicate/stale/conflict decisions, idempotent Markdown comments, HTML escaping, no shell interpolation.
+- Added `scripts/xrepo/test_apply_event.py`: state, retry, stale, duplicate, conflict, A→B→A status chain, source verification, target verification, and no-shell posting tests.
+- Added `.github/workflows/xrepo-receive.yml`: `repository_dispatch` type `mays_xrepo_v1`, payload extraction via `jq`, re-validation, per-task concurrency, app token only for source reads, `GITHUB_TOKEN` for destination issue writes, explicit `BLOCKED FOR LIVE` when app secrets are absent.
+- Test command: `python3 -m unittest discover -s scripts/xrepo -p 'test_*.py'` → **45/45 PASS**; `py_compile` → **PASS**.
+- No live dispatch. The workflow is not on the default branch, so E2E remains pending.
+- No product/infrastructure/workflow outside the new receiver file was changed.
+
+## Updated resume point
+
+Gate 03 complete. Next: Gate 04 sender workflow.

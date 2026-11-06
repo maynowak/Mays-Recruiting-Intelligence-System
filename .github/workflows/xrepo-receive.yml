@@ -1,0 +1,76 @@
+name: MAYS XRepo Receive
+
+# The receiving workflow must exist on the default branch before GitHub can
+# deliver repository_dispatch events. Until then this file is E2E-pending.
+on:
+  repository_dispatch:
+    types: [mays_xrepo_v1]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: mays-xrepo-${{ github.event.client_payload.taskId }}
+  cancel-in-progress: false
+
+jobs:
+  receive:
+    name: Validate and apply handoff event
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout receiver repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Extract client payload
+        run: |
+          jq '.client_payload' "$GITHUB_EVENT_PATH" > "$RUNNER_TEMP/event.json"
+
+      - name: Validate event
+        run: |
+          python scripts/xrepo/validate_event.py "$RUNNER_TEMP/event.json" \
+            --expected-target "$GITHUB_REPOSITORY"
+
+      - name: Check cross-repository app credentials
+        env:
+          XREPO_APP_ID: ${{ secrets.XREPO_APP_ID }}
+          XREPO_APP_PRIVATE_KEY: ${{ secrets.XREPO_APP_PRIVATE_KEY }}
+        run: |
+          if [ -z "$XREPO_APP_ID" ] || [ -z "$XREPO_APP_PRIVATE_KEY" ]; then
+            echo "::error title=BLOCKED FOR LIVE::XREPO_APP_ID or XREPO_APP_PRIVATE_KEY is missing"
+            exit 1
+          fi
+
+      - name: Resolve source repository name
+        id: source-repository
+        env:
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.source.repository }}
+        run: |
+          echo "name=${SOURCE_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Create source read token
+        id: source-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.XREPO_APP_ID }}
+          private-key: ${{ secrets.XREPO_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.source-repository.outputs.name }}
+          permission-contents: read
+          permission-issues: read
+
+      - name: Verify source and apply idempotent issue update
+        env:
+          XREPO_SOURCE_TOKEN: ${{ steps.source-token.outputs.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python scripts/xrepo/apply_event.py "$RUNNER_TEMP/event.json" \
+            --expected-target "$GITHUB_REPOSITORY"
