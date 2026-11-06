@@ -1,0 +1,57 @@
+name: XRepo App Auth Smoke Test
+
+on:
+  push:
+    branches:
+      - test/xrepo-app-auth-smoke-01
+
+permissions:
+  contents: read
+
+jobs:
+  verify-app-auth:
+    name: Verify GitHub App installation token and permissions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Create installation token for both repositories
+        id: app
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.XREPO_APP_ID }}
+          private-key: ${{ secrets.XREPO_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: "mays-jobsearch,Mays-Recruiting-Intelligence-System"
+          permission-contents: write
+          permission-issues: read
+
+      - name: Verify installation repositories
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          set -euo pipefail
+          repos="$(gh api /installation/repositories --jq '[.repositories[].full_name] | sort | join(",")')"
+          echo "installation repositories: ${repos}"
+          test "${repos}" = "maynowak/Mays-Recruiting-Intelligence-System,maynowak/mays-jobsearch"
+
+      - name: Verify effective permissions
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          set -euo pipefail
+          perms="$(gh api /installation --jq '.permissions')"
+          echo "installation permissions: ${perms}"
+          echo "${perms}" | jq -e '.contents == "write" and .issues == "read" and .metadata == "read"'
+
+      - name: Verify both repositories are readable
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/maynowak/mays-jobsearch --jq '.full_name'
+          gh api repos/maynowak/Mays-Recruiting-Intelligence-System --jq '.full_name'
+
+      - name: Confirm no credential output
+        run: |
+          echo "App token and private key were not printed."
