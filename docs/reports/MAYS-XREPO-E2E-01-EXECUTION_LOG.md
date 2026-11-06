@@ -138,8 +138,109 @@ The PR body still said `53/53`; that number was stale after the marker-trust har
 - Jobsearch PR #2 remains unstable because of Vercel preview deployment failures after a successful build.
 - Test/document evidence is repository-bound but not independently executed; commit evidence is the authoritative implementation anchor.
 
-## 8. Steps E2E-01D/E/F
+## 8. Step E2E-01D — GitHub App readiness
 
-- E2E-01D GitHub App readiness: pending documentation below.
-- E2E-01E rollout gate: pending; no merge approval.
-- E2E-01F live test: `NOT EXECUTED`.
+### Required permissions (existing contract)
+
+| Scope | Permission | Purpose |
+| --- | --- | --- |
+| Target repository | Contents: write | `repository_dispatch` |
+| Target repository | Issues: read | target issue verification |
+| Source repository | Contents: read | source commit verification |
+| Source repository | Issues: read | source issue/evidence verification |
+
+Destination issue updates use the receiver repository's own `GITHUB_TOKEN`
+(`issues: write`). No PAT is used or created.
+
+### Current state
+
+- `repos/maynowak/mays-jobsearch/actions/secrets` → `total_count: 0`.
+- `repos/maynowak/Mays-Recruiting-Intelligence-System/actions/secrets` → `total_count: 0`.
+- No `XREPO_APP_ID` or `XREPO_APP_PRIVATE_KEY` is configured.
+- The available `gh` credential is a user token for `maynowak`; it cannot list GitHub App installations (`/user/installations` → 403). App installation is therefore unverified.
+- No secret values, tokens, or private keys were printed or stored.
+
+### Required setup steps
+
+1. Create or approve a least-privilege GitHub App with access to both repositories.
+2. Grant the permissions above only; do not grant account-wide permissions.
+3. Install the app on both repositories.
+4. Add `XREPO_APP_ID` and `XREPO_APP_PRIVATE_KEY` to both repositories' Actions secrets.
+5. Re-run the local preflight and confirm the app/secret readiness.
+6. Only then request the separate rollout approval.
+
+**Result: BLOCKED FOR LIVE.**
+
+## 9. Step E2E-01E — Rollout gate
+
+| Repo | PR | Draft | Mergeability | Checks | Merge allowed? |
+| --- | --- | --- | --- | --- | --- |
+| Jobsearch | #2 | yes | `MERGEABLE` / `UNSTABLE` | Vercel failures/pending | NO |
+| RIS | #6 | yes | `MERGEABLE` / `CLEAN` | none | NO |
+
+- No review approval is present.
+- Jobsearch PR #2 remains unstable because the Vercel preview deployment outputs fail after a successful build.
+- RIS PR #6 is technically clean, but the live prerequisites are missing.
+- **No merge was performed.** A successful local test is not a merge approval.
+- No AWS, Terraform, Cognito, CloudFront, Vercel production, or Mays-Orders change was made.
+
+**Result: NOT MERGE READY / AWAITING APPROVAL.**
+
+## 10. Step E2E-01F — Controlled live test
+
+`NOT EXECUTED`.
+
+Reasons:
+
+1. No explicit rollout approval.
+2. Workflows are not on the default branches.
+3. GitHub App secrets are absent.
+4. Jobsearch PR #2 is not stable due to Vercel preview failures.
+
+Expected sequence for the later controlled run:
+
+```text
+REQUESTED
+ACCEPTED
+IMPLEMENTING
+IMPLEMENTATION_READY
+INTEGRATING
+REWORK_REQUIRED
+IMPLEMENTATION_READY
+VERIFIED
+COMPLETED
+```
+
+The live run must use test issues jobsearch #3 and RIS #7 only, record actual
+GitHub run IDs, event IDs, commit SHAs, and issue-comment URLs, and verify
+duplicate/stale/conflict/recovery behavior. No live event was sent.
+
+## 11. Security findings
+
+- No secrets, tokens, private keys, PII, CVs, or candidate data were added to the repositories or reports.
+- The receiver trusts markers only from `github-actions[bot]`.
+- Issue evidence is verified through the source API; commit evidence is bound to the verified source SHA.
+- Test/document evidence is repository-bound but not executed; commit evidence is the authoritative implementation anchor.
+- No payload value is passed as a shell command.
+- No alternative PAT was created.
+
+## 12. Blocker and recovery point
+
+**Primary blocker:** missing GitHub App installation and `XREPO_APP_ID` /
+`XREPO_APP_PRIVATE_KEY`, plus the requirement for an explicit rollout approval.
+
+**Secondary blocker:** Jobsearch Vercel preview deployments fail in the output
+stage after a successful build (`dpl_54EYrEJHqN5Cu7N7uJjSQ31hnbmN`,
+`dpl_W1ndUvFfV6G7cTZK2ygG1RbzHGs6`).
+
+**Recovery point:** both draft PRs, the hardened tests, this report, the
+controlled issues #3/#7, and the local QA reports. Resume at E2E-01D setup or
+E2E-01E after approval.
+
+## 13. Final status
+
+`IMPLEMENTED / LOCAL VERIFIED / E2E NOT EXECUTED / BLOCKED FOR LIVE`
+
+Pre-live target: `E2E READY / AWAITING APPROVAL` is **not** reached because the
+app/secret prerequisite is missing. No merge, deployment, live dispatch, branch
+deletion, or infrastructure change was performed.
