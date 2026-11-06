@@ -133,6 +133,7 @@ destination issue and the app token only for source verification.
 ## Local checks
 
 ```bash
+./scripts/xrepo/run_local_qa.sh
 python3 -m unittest scripts/xrepo/test_validate_event.py -v
 python3 scripts/xrepo/validate_event.py docs/xrepo/fixtures/valid-requested.json \
   --expected-source maynowak/mays-jobsearch \

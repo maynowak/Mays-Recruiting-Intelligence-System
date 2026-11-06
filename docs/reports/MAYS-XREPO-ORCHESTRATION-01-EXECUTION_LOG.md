@@ -2,7 +2,7 @@
 
 ## 1. Current status
 
-`GATE 04 COMPLETE — GREEN (sender); Gates 05–07 pending`
+`GATE 05 COMPLETE — GREEN (local QA); Gates 06–07 pending`
 
 ## 2. Audit date/time
 
@@ -139,3 +139,17 @@ Gate 03 complete. Next: Gate 04 sender workflow.
 ## Updated resume point
 
 Gate 04 complete. Next: Gate 05 local QA matrix and full verification.
+
+
+## Gate 05 — Local QA
+
+- Status: `COMPLETE — GREEN (local)`
+- Added reproducible runner `scripts/xrepo/run_local_qa.sh` and detailed report `docs/reports/MAYS-XREPO-ORCHESTRATION-01-LOCAL-QA.md`.
+- Matrix covers: valid, invalid schema, spoofed source, unauthorized repository, wrong target, stale sequence, duplicate event, evidence absent, retry cycle, A→B→A state sequence, source verification, no-shell posting, and missing credentials.
+- Actual result: **53/53 tests PASS**, JSON parse PASS, workflow YAML parse PASS, `git diff --check` PASS.
+- Live `repository_dispatch` was **not** executed; E2E remains pending because the workflows are not on the default branches and app credentials are not configured.
+- No full product suite was run because no product code/API was changed; no Terraform/AWS/etc. was touched.
+
+## Updated resume point
+
+Gate 05 complete. Next: Gate 06 PR readiness.
