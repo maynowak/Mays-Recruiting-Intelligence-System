@@ -10178,7 +10178,30 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
 
 **Status:** `CONSENT TEXT READY FOR OPERATOR REVIEW` / `RIS-DEV DEPLOYMENT PREFLIGHT READY`
 
-- Approval packet updated with Candidate D (full Jobsearch text, version `application-storage-consent-2026-11-07-v1`, SHA-256 `2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953`), ApplicationV1 field mapping, and corrected finding: complete candidate exists, but no approval/legalApprovalRef/RIS 1.0 mapping.
-- Read-only RIS-DEV: account `240571105849`; `ris-dev-dev-agent` Active; `CONSENTS_TABLE=ris-dev-dev-consents`, `APPLICATIONS_TABLE=ris-dev-dev-applications`, `APPLICATION_CONSENT_ENFORCED=false`, `PARTNER_SURFACE_ENABLED=true`, `CONSENT_NOTICE_STATE_ENFORCED`/`CONSENT_PILOT_ALLOWLIST` absent; partner edge `c7e9pdwe78` and kernel `g6901and25` share the Lambda; tables ACTIVE; state serial 42/249 resources.
-- Bundle preflight: agent `a18f6abb...`, reader `e4058587...`; no plan/apply. Deployment must be scoped by `CONSENT_PILOT_ALLOWLIST`; global gates false; no Cognito/CloudFront/DNS/ACM changes in local diff.
-- No push/merge/deploy/apply/env/notice change; no live write. Report: `docs/reports/JM-RIS-STORAGE-PILOT-04-REPORT.md`.
+- Approval packet: Candidate D aufgenommen (vollstaendiger, wortgetreuer
+  ApplicationV1-Text, Version `application-storage-consent-2026-11-07-v1`,
+  SHA-256 `2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953`),
+  inkl. Feldzuordnung Text ↔ ApplicationV1; Befund korrigiert: ein
+  vollstaendiger Kandidat existiert, aber **DRAFT**, kein `legalApprovalRef`,
+  keine RIS-`1.0`-Zuordnung. Keine Freigabe.
+- Read-only RIS-DEV (Account `240571105849`, Profil `mayaws`):
+  `ris-dev-dev-agent` Active; `APPLICATIONS_TABLE=ris-dev-dev-applications`,
+  `CONSENTS_TABLE=ris-dev-dev-consents`, `APPLICATION_CONSENT_ENFORCED=false`,
+  `PARTNER_SURFACE_ENABLED=true`, `CONSENT_NOTICE_STATE_ENFORCED` und
+  `CONSENT_PILOT_ALLOWLIST` absent. `c7e9pdwe78` (`ris-dev-jobsearch-api`)
+  und `g6901and25` (`ris-dev-dev-api`) teilen dieselbe Lambda. Tables ACTIVE:
+  applications TTL **ENABLED** auf `expiresAt` (Repository schreibt kein
+  `expiresAt` → keine automatische Expiry), consents TTL **DISABLED**.
+  Terraform-State serial `42`, 249 Ressourcen; keine State-Mutation.
+- Bundle-Preflight (deterministisch, Bundles gitignored/nicht committet):
+  agent `a18f6abb87379d6f05f46e9ceedc64416e226e93f3f9e764ab14ec88f1205255`
+  (83 Dateien, 281295 Bytes), reader
+  `e405858718101db34a8d5c1237e36d41a47b7dceb8e0ebff8b01bd86d1c366e5`
+  (1 Datei, 4321 Bytes); zweiter Build identisch.
+- Deployment-Impact: eine Gate-Aenderung wirkt auf beide APIs, daher ist ein
+  Deployment nur scoped ueber `CONSENT_PILOT_ALLOWLIST` zulaessig; globale
+  Gates bleiben `false`. Bundle-Deployment/Plan/Apply und die Jobsearch-
+  Preview sind **getrennte** Freigaben; kein Plan/Apply/Deploy.
+- Keine Code-/Env-/Notice-/Deploy-/Apply-/Push-Aenderung und keine
+  Live-Persistenz-Behauptung. Report:
+  `docs/reports/JM-RIS-STORAGE-PILOT-04-REPORT.md`.
