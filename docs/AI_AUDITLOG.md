@@ -10250,3 +10250,12 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
 - No saved Terraform plan/apply/deploy: `CONSENT_PILOT_ALLOWLIST` needs an approved synthetic `<issuer>|<sub>`; pool `ZURSMpD2O` currently has no test user and no legalApprovalRef exists. No notice state change, no env mutation.
 - Required: operator/legal v2 approval + real legalApprovalRef; approved synthetic identity (or approval to create one); then plan review and exact bundled GO.
 - No push/merge/deploy/apply; no live persistence. Report: `docs/reports/JM-RIS-STORAGE-ONE-SHOT-05-REPORT.md`.
+
+## 2026-11-07 — JM-RIS-STORAGE-ONE-SHOT-05 — operator account decision
+
+**Status:** `BLOCKED — OPERATOR/LEGAL TEXT APPROVAL + LEGAL APPROVAL REFERENCE + VERIFIED OPERATOR IDENTITY REQUIRED`
+
+- Corrected operator decision: use production `www.mays-job-matcher.app` and the existing operator account; no new Cognito test user, no preview target.
+- The copied local browser profile had no active production session; verified operator `issuer|sub` is still unavailable for `CONSENT_PILOT_ALLOWLIST`. No tokens/cookies were read/printed.
+- No saved plan/apply/deploy/env/notice change; no push/merge. No legalApprovalRef exists.
+- Next: operator login/identity, v2 text approval + legalApprovalRef; then plan generation and bundled GO.

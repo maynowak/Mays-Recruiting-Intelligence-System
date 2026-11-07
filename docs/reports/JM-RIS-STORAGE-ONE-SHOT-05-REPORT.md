@@ -1,5 +1,5 @@
-> **RIS documentation copy.** Pre-apply blocker record only. No plan/apply,
-> deployment, env, notice or data mutation was performed.
+> **RIS documentation copy.** Operator-account production decision update.
+> No plan/apply, deployment, env, notice or data mutation was performed.
 
 # JM-RIS-STORAGE-ONE-SHOT-05-REPORT
 
@@ -7,16 +7,24 @@
 
 `BLOCKED`
 
+**Operator decision update:** the target is the existing
+`www.mays-job-matcher.app` production website and the existing operator
+account. No new Cognito test account will be created. A copied local browser
+profile had no active session (only the language preference); therefore the
+verified operator `iss`/`sub` is still unavailable. The operator must log in
+through the regular production login or provide the verified identity.
+
 **Blockers:**
 
 1. **No operator/legal approval and no real `legalApprovalRef`** for the
    ApplicationV1 consent text. The text is a candidate; notice `1.0` remains
    `DRAFT`. No agent may approve it.
-2. **No approved synthetic test identity** in the Jobsearch Cognito pool
-   `eu-central-1_ZURSMpD2O`. The pool currently has no test/synthetic users
-   (read-only filter). `CONSENT_PILOT_ALLOWLIST` therefore has no valid final
-   value, so a complete saved Terraform plan cannot be produced.
-3. **No bundled operator GO** `GO JM-RIS-STORAGE-ONE-SHOT-05 APPLY + DEPLOY + E2E`.
+2. **No verified operator identity** (`iss`/`sub`) for
+   `RIS_TEST_USER_ALLOWLIST` and `CONSENT_PILOT_ALLOWLIST`. The copied browser
+   profile was not logged in; no new Cognito user may be created under the
+   corrected decision.
+3. **No final saved Terraform plan** can be produced without that identity.
+4. **No bundled operator GO** `GO JM-RIS-STORAGE-ONE-SHOT-05 APPLY + DEPLOY + E2E`.
 
 No Terraform plan/apply, deployment, Vercel change, notice change, Cognito
 mutation, push or merge was performed. No live write test was executed.
@@ -92,19 +100,20 @@ The operator/legal reviewer must explicitly confirm:
 Then the notice must become `APPROVED`/`ACTIVE` with that reference. No agent
 may set it.
 
-### B. Synthetic test identity
+### B. Verified operator identity
 
-Provide either:
+Use the existing operator account. The operator must log in through the
+regular production login and provide the verified `issuer` + `sub` (no email as
+identity, no password/token disclosure), or allow the Commander to read the
+`iss`/`sub` from that logged-in browser session.
 
-- an existing dedicated synthetic `<issuer>|<sub>` from pool
-  `eu-central-1_ZURSMpD2O` (or another explicitly approved test pool), or
-- explicit approval to create one synthetic Cognito user in that pool and then
-  use its actual `sub` for both:
-  - Jobsearch `RIS_TEST_USER_ALLOWLIST`
-  - RIS `CONSENT_PILOT_ALLOWLIST`.
+The same exact `<issuer>|<sub>` must be configured in:
 
-The identity must not be a real user. The final plan cannot be generated with a
-placeholder.
+- Jobsearch `RIS_TEST_USER_ALLOWLIST`
+- RIS `CONSENT_PILOT_ALLOWLIST`.
+
+No new Cognito test user and no real third-party identity may be used. The
+final plan cannot be generated with a placeholder.
 
 ### C. Final bundled GO
 
@@ -117,7 +126,7 @@ GO JM-RIS-STORAGE-ONE-SHOT-05 APPLY + DEPLOY + E2E
 ## 4. Execution sequence after unblock
 
 1. Approve v2 text and set `legalApprovalRef`; notice `1.0` → `APPROVED`/`ACTIVE`.
-2. Create/provide the synthetic Cognito identity; record exact issuer + sub.
+2. Verify the existing operator account; record its exact issuer + sub.
 3. Build deterministic Lambda bundle; create saved Terraform plan with
    `CONSENT_PILOT_ALLOWLIST=<issuer>|<sub>`.
 4. Present exact plan (resource list, change count, plan hash) and bundled GO.
@@ -142,4 +151,4 @@ GO JM-RIS-STORAGE-ONE-SHOT-05 APPLY + DEPLOY + E2E
 
 ## 6. Final status
 
-`BLOCKED — OPERATOR/LEGAL TEXT APPROVAL, LEGAL APPROVAL REFERENCE, AND SYNTHETIC TEST IDENTITY REQUIRED`
+`BLOCKED — OPERATOR/LEGAL TEXT APPROVAL, LEGAL APPROVAL REFERENCE, AND VERIFIED OPERATOR IDENTITY REQUIRED`
