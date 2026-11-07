@@ -1,0 +1,18 @@
+{
+  "protocol": "MAYS-XREPO-V1",
+  "taskId": "MAYS-XR-001",
+  "eventId": "22222222-2222-4222-8222-222222222222",
+  "status": "IMPLEMENTATION_READY",
+  "source": {
+    "repository": "maynowak/Mays-Recruiting-Intelligence-System",
+    "issue": 42,
+    "commit": "0123456789abcdef0123456789abcdef01234567"
+  },
+  "destination": {
+    "repository": "maynowak/mays-jobsearch",
+    "issue": 117
+  },
+  "summary": "Implementation claimed without evidence.",
+  "evidence": [],
+  "sequence": 5
+}

@@ -1,0 +1,27 @@
+{
+  "protocol": "MAYS-XREPO-V1",
+  "taskId": "MAYS-XR-001",
+  "eventId": "9a7c2d41-6b3e-4f80-9c1d-2e3f4a5b6c7d",
+  "status": "IMPLEMENTATION_READY",
+  "source": {
+    "repository": "maynowak/Mays-Recruiting-Intelligence-System",
+    "issue": 42,
+    "commit": "0123456789abcdef0123456789abcdef01234567"
+  },
+  "destination": {
+    "repository": "maynowak/mays-jobsearch",
+    "issue": 117
+  },
+  "summary": "Receiver validator and tests implemented locally; no live dispatch claimed.",
+  "evidence": [
+    {
+      "kind": "commit",
+      "url": "https://github.com/maynowak/Mays-Recruiting-Intelligence-System/commit/0123456789abcdef0123456789abcdef01234567"
+    },
+    {
+      "kind": "test",
+      "url": "https://github.com/maynowak/Mays-Recruiting-Intelligence-System/actions/runs/1234567890"
+    }
+  ],
+  "sequence": 3
+}

@@ -1,0 +1,23 @@
+{
+  "protocol": "MAYS-XREPO-V1",
+  "taskId": "MAYS-XR-001",
+  "eventId": "f4e87f3a-5ca5-4dca-a6c8-55d5d8f697a5",
+  "status": "REQUESTED",
+  "source": {
+    "repository": "maynowak/mays-jobsearch",
+    "issue": 117,
+    "commit": "0123456789abcdef0123456789abcdef01234567"
+  },
+  "destination": {
+    "repository": "maynowak/Mays-Recruiting-Intelligence-System",
+    "issue": 42
+  },
+  "summary": "Contract handoff requested; acceptance criteria attached to the source issue.",
+  "evidence": [
+    {
+      "kind": "issue",
+      "url": "https://github.com/maynowak/mays-jobsearch/issues/117"
+    }
+  ],
+  "sequence": 1
+}

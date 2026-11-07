@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mays-xrepo:v1:schema",
+  "title": "MAYS-XREPO-V1 Event",
+  "description": "Versioned cross-repository handoff event. The sender validates this shape before repository_dispatch; the receiver validates it again before any issue update.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "taskId",
+    "eventId",
+    "status",
+    "source",
+    "destination",
+    "summary",
+    "evidence",
+    "sequence"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "MAYS-XREPO-V1"
+    },
+    "taskId": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,63}$"
+    },
+    "eventId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "status": {
+      "enum": [
+        "REQUESTED",
+        "ACCEPTED",
+        "IMPLEMENTING",
+        "IMPLEMENTATION_READY",
+        "INTEGRATING",
+        "REWORK_REQUIRED",
+        "VERIFIED",
+        "COMPLETED",
+        "BLOCKED"
+      ]
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "destination": {
+      "$ref": "#/$defs/destination"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "evidence": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "$ref": "#/$defs/evidence"
+      }
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "IMPLEMENTATION_READY",
+              "VERIFIED",
+              "COMPLETED",
+              "REWORK_REQUIRED"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "evidence": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "repository": {
+      "type": "string",
+      "enum": [
+        "maynowak/mays-jobsearch",
+        "maynowak/Mays-Recruiting-Intelligence-System"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "issue",
+        "commit"
+      ],
+      "properties": {
+        "repository": {
+          "$ref": "#/$defs/repository"
+        },
+        "issue": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "destination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "issue"
+      ],
+      "properties": {
+        "repository": {
+          "$ref": "#/$defs/repository"
+        },
+        "issue": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "url"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "commit",
+            "test",
+            "issue",
+            "document",
+            "workflow"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/"
+        }
+      }
+    }
+  }
+}
