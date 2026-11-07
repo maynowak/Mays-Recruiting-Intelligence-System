@@ -13,7 +13,7 @@ agents).
 | Side | Branch | Commit |
 | --- | --- | --- |
 | RIS | `feature/jm-ris-storage-activation-01` | `7032e82` |
-| Jobsearch | `feature/jm-ris-storage-activation-01` | code `9eecf83` (v3 text; docs include the same commit) |
+| Jobsearch | `feature/jm-ris-storage-activation-01` | code `5ac025f` (v4 text; docs include the same commit) |
 
 > This packet does **not** approve anything. No notice state is changed, no
 > `legalApprovalRef` is set, no flag is enabled, nothing is deployed.
@@ -34,10 +34,11 @@ agents).
 3. **A complete candidate declaration now exists, but no operator/legal
    approval, `legalApprovalRef`, or RIS `1.0` mapping exists.** Candidate D
    (§3.4, Jobsearch `src/lib/applicationStorageConsent.ts` /
-   `api/_lib/ris/consentText.mjs`, commit `9eecf83`) is a full first-person
-   declaration for ApplicationV1 (v3), including an explicit Art. 9
-   special-category consent. It is labelled `DRAFT`, is not approved and is not
-   mapped to RIS notice `1.0`. The previous v2/v1 texts are historical and
+   `api/_lib/ris/consentText.mjs`, commit `5ac025f`) is a full first-person
+   declaration for ApplicationV1 (v4), including an explicit Art. 9
+   special-category consent (incl. Sexualleben/sexuelle Orientierung) with a
+   no-inference statement. It is labelled `DRAFT`, is not approved and is not
+   mapped to RIS notice `1.0`. The previous v3/v2/v1 texts are historical and
    superseded.
 4. The RIS processing-purpose and retention matrices
    (`RIS-JOBSEARCH-PROCESSING-PURPOSES-V1.md`,
@@ -57,8 +58,9 @@ agents).
 | --- | --- | --- | --- |
 | RIS purpose | `application-storage` | — | — |
 | RIS notice version | `application-storage` / `1.0` | `DRAFT`, `legalApprovalRef = null` | — |
-| Jobsearch ApplicationV1 text version | `application-storage-consent-2026-11-07-v3` | `DRAFT` (candidate, §3.4) | **none** |
-| Jobsearch ApplicationV1 text SHA-256 | `696f9e66d8098b2dce56a93418ba598145b669934662e2b52d9a332731517668` | — | — |
+| Jobsearch ApplicationV1 text version | `application-storage-consent-2026-11-07-v4` | `DRAFT` (candidate, §3.4) | **none** |
+| Jobsearch ApplicationV1 text SHA-256 | `8722aed9fa78e5ee49c2b5e5a031bfd53a7109bf625dfb0e0c99743fd82443c7` | — | — |
+| Jobsearch historical text version (v3) | `application-storage-consent-2026-11-07-v3` | `DRAFT`, superseded by v4 | **none** |
 | Jobsearch historical text version (v2) | `application-storage-consent-2026-11-07-v2` | `DRAFT`, superseded by v3 | **none** |
 | Jobsearch historical text version (v1) | `application-storage-consent-2026-11-07-v1` | `DRAFT`, superseded by v2 | **none** |
 | Jobsearch legacy text version | `STORAGE_CONSENT_TEXT_VERSION = "2026-11-04-draft-1"` | DRAFT | **none** |
@@ -66,14 +68,14 @@ agents).
 
 Sources: `jobsearch/consent_contract.py` (`NOTICE_REGISTRY`,
 `EXTERNAL_NOTICE_REFS`); Jobsearch `src/lib/applicationStorageConsent.ts` and
-`api/_lib/ris/consentText.mjs` at commit `9eecf83`.
+`api/_lib/ris/consentText.mjs` at commit `5ac025f`.
 
-`application-storage-consent-2026-11-07-v3` is current. The earlier
-`application-storage-consent-2026-11-07-v2` and `...-v1` remain
-historical/superseded, and `2026-11-04-draft-1` remains a legacy draft. All are
-known to RIS as external references but are never accepted as a
-`noticeVersion`. Renaming an identifier, or matching a hash, is not an approval.
-A mapping to `1.0` requires a separate, documented operator/legal decision.
+`application-storage-consent-2026-11-07-v4` is current. The earlier
+`...-v3`, `...-v2` and `...-v1` remain historical/superseded, and
+`2026-11-04-draft-1` remains a legacy draft. All are known to RIS as external
+references but are never accepted as a `noticeVersion`. Renaming an identifier,
+or matching a hash, is not an approval. A mapping to `1.0` requires a separate,
+documented operator/legal decision. Only v4 can back an Art. 9 consent.
 
 ---
 
@@ -224,25 +226,25 @@ From `src/i18n.tsx` (`privacyStorage.*`, DE):
 | `privacyStorage.actions.withdraw` | `Einwilligung widerrufen` |
 
 Candidate D is rendered verbatim above the consent button at Jobsearch
-`9eecf83` (v3); the grant button is the affirmative act after the declaration.
-Candidates A–C remain supporting/context material. v2/v1 are historical and
+`5ac025f` (v4); the grant button is the affirmative act after the declaration.
+Candidates A–C remain supporting/context material. v3/v2/v1 are historical and
 superseded.
 
-### 3.4 Candidate D — complete ApplicationV1 declaration (candidate, v3)
+### 3.4 Candidate D — complete ApplicationV1 declaration (candidate, v4)
 
-Source: `src/lib/applicationStorageConsent.ts` (Jobsearch commit `9eecf83`),
+Source: `src/lib/applicationStorageConsent.ts` (Jobsearch commit `5ac025f`),
 canonical text = the nine paragraphs below joined with `\n\n` (UTF-8).
 
 | Field | Value |
 | --- | --- |
-| Text version | `application-storage-consent-2026-11-07-v3` |
-| SHA-256 | `696f9e66d8098b2dce56a93418ba598145b669934662e2b52d9a332731517668` |
-| Supersedes | `...-v2` and `...-v1` (historical, never approved) |
+| Text version | `application-storage-consent-2026-11-07-v4` |
+| SHA-256 | `8722aed9fa78e5ee49c2b5e5a031bfd53a7109bf625dfb0e0c99743fd82443c7` |
+| Supersedes | `...-v3`, `...-v2` and `...-v1` (historical, never approved) |
 | Intended RIS notice | `application-storage` / `1.0` |
 | State | **`DRAFT` — not approved** |
 | `legalApprovalRef` | **none** (RIS notice `1.0` still `null`) |
 | RIS ↔ Jobsearch mapping | **none** |
-| Art. 9 categories | `health`, `religious_or_philosophical_beliefs`, `trade_union_membership`, `political_opinions`, `sexual_orientation`, `biometric_data`, `genetic_data`, `racial_or_ethnic_origin` |
+| Art. 9 categories | `health`, `religious_or_philosophical_beliefs`, `trade_union_membership`, `political_opinions`, `sexual_orientation`, `sex_life`, `biometric_data`, `genetic_data`, `racial_or_ethnic_origin` |
 | Stored proof (RIS) | `specialCategoriesConsent`, `specialCategories`, `externalTextVersion`, `externalTextSha256` |
 | Privacy-policy reference inside text | v1.1, 7 November 2026 |
 | BFF gate | `RIS_CONSENT_TEXT_VERSION` / `RIS_CONSENT_TEXT_SHA256` / `RIS_CONSENT_TEXT_STATE`; only exact version+hash with `APPROVED` opens a grant |
@@ -253,7 +255,7 @@ canonical text = the nine paragraphs below joined with `\n\n` (UTF-8).
 >
 > Nicht gespeichert werden durch diese Einwilligung: PDF-Dateien, im Browser ausgelesene CV-Texte, KI-Prompts oder Provider-Nutzlasten. Verweise auf CV- und Suchprofile verweisen nur auf die jeweilige Ressource und enthalten keine Dokumentkopie.
 >
-> Ich willige ausdrücklich nach Art. 9 Abs. 2 lit. a DSGVO ein, dass besondere Kategorien personenbezogener Daten, die in meinen Bewerbungsunterlagen oder Bewerbungsdaten enthalten sind, gespeichert werden, soweit ich diese Angaben selbst bereitstelle. Das betrifft insbesondere Gesundheitsdaten, Angaben zu religiösen oder weltanschaulichen Überzeugungen, die Gewerkschaftszugehörigkeit, politische Meinungen, die sexuelle Orientierung, biometrische Daten, genetische Daten sowie Angaben zur rassischen oder ethnischen Herkunft. Diese ausdrückliche Einwilligung ist freiwillig und kann jederzeit mit Wirkung für die Zukunft widerrufen werden; sie ist nicht Voraussetzung für die übrigen Bewerbungsfunktionen.
+> Ich willige ausdrücklich nach Art. 9 Abs. 2 lit. a DSGVO ein, dass besondere Kategorien personenbezogener Daten, die in meinen Bewerbungsunterlagen oder Bewerbungsdaten enthalten sind, gespeichert werden, soweit ich diese Angaben selbst bereitstelle. Das betrifft insbesondere Gesundheitsdaten, Angaben zu religiösen oder weltanschaulichen Überzeugungen, die Gewerkschaftszugehörigkeit, politische Meinungen, das Sexualleben und die sexuelle Orientierung, biometrische Daten, genetische Daten sowie Angaben zur rassischen oder ethnischen Herkunft. Diese ausdrückliche Einwilligung ist freiwillig, erfordert keine Zuordnung zu einer bestimmten Kategorie und keine Offenlegung, ob solche Daten überhaupt vorliegen, und kann jederzeit mit Wirkung für die Zukunft widerrufen werden; sie ist nicht Voraussetzung für die übrigen Bewerbungsfunktionen. Eine automatische Kategorisierung oder Ableitung von Geschlecht, Geschlechtsidentität oder sexueller Orientierung findet nicht statt.
 >
 > Der Zweck der Speicherung ist ausschließlich der spätere Abruf, die Änderung, der Export und die Löschung der ausgewählten Bewerbungsdaten durch mich.
 >
@@ -267,13 +269,13 @@ canonical text = the nine paragraphs below joined with `\n\n` (UTF-8).
 
 **Note:** This is a candidate. It is not approved, not mapped to RIS `1.0`
 and must not be presented as approved until an operator/legal approval records
-the text, the mapping and a real `legalApprovalRef`. v2/v1 (`...-v2` hash
-`232c…a0ca`, `...-v1` hash `2615…9953`) remain historical/superseded and were
-never approved. The RIS backend stores the explicit Art. 9 proof
-(`specialCategoriesConsent`, `specialCategories`, `externalTextVersion`,
-`externalTextSha256`); an Art. 9 consent requires the current v3 text pair
-(`422 EXTERNAL_TEXT_REQUIRED_FOR_SPECIAL_CATEGORIES` if missing,
-`422 EXTERNAL_TEXT_NOT_ART9` for a historical text).
+the text, the mapping and a real `legalApprovalRef`. v3/v2/v1 (`...-v3` hash
+`696f…7668`, `...-v2` hash `232c…a0ca`, `...-v1` hash `2615…9953`) remain
+historical/superseded and were never approved. The RIS backend stores the
+explicit Art. 9 proof (`specialCategoriesConsent`, `specialCategories`,
+`externalTextVersion`, `externalTextSha256`); an Art. 9 consent requires the
+current v4 text pair (`422 EXTERNAL_TEXT_REQUIRED_FOR_SPECIAL_CATEGORIES` if
+missing, `422 EXTERNAL_TEXT_NOT_ART9` for a historical text).
 
 ---
 
@@ -326,11 +328,13 @@ document copy.
 
 Caveats for the operator:
 
-- v3 adds an explicit Art. 9(2)(a) consent paragraph and the eight stable
-  category codes. The RIS backend stores and validates that proof
-  (`specialCategoriesConsent`, `specialCategories`, `externalTextVersion`,
-  `externalTextSha256`); it does not infer it from the notice.
-- v3 explicitly names „der Bewerbungsstatus, Statusänderungen und der
+- v4 adds an explicit Art. 9(2)(a) consent paragraph covering
+  „Sexualleben und sexuelle Orientierung“, the `sex_life` category and an
+  explicit no-inference statement; the stable set has nine codes. The RIS
+  backend stores and validates that proof (`specialCategoriesConsent`,
+  `specialCategories`, `externalTextVersion`, `externalTextSha256`); it does
+  not infer it from the notice.
+- v4 explicitly names „der Bewerbungsstatus, Statusänderungen und der
   Statusverlauf“, closing the earlier status/`statusHistory` wording gap.
 - `documents.coverLetterVersions[].model` (model identifier) is part of
   „Anschreiben-Versionen“ metadata; explicit naming is a wording decision.

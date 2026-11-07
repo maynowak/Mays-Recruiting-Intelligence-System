@@ -2552,6 +2552,7 @@ components:
         - trade_union_membership
         - political_opinions
         - sexual_orientation
+        - sex_life
         - biometric_data
         - genetic_data
         - racial_or_ethnic_origin
@@ -2580,7 +2581,7 @@ components:
         externalTextVersion:
           type: string
           nullable: true
-          description: Known partner text version (for example application-storage-consent-2026-11-07-v3).
+          description: Known partner text version (for example application-storage-consent-2026-11-07-v4).
         externalTextSha256:
           type: string
           nullable: true
@@ -2610,7 +2611,7 @@ components:
           nullable: true
           description: >-
             Known partner text. For Art. 9 consent it must be
-            application-storage-consent-2026-11-07-v3 (or a later
+            application-storage-consent-2026-11-07-v4 (or a later
             Art. 9-capable text); browser-supplied values are not trusted by
             the BFF.
         externalTextSha256:

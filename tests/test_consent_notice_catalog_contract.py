@@ -328,8 +328,11 @@ class GrantAndWithdrawGateTests(unittest.TestCase):
 class ApplicationStorageTextRefTests(unittest.TestCase):
     """The Jobsearch consent-text candidates are known but not equivalent."""
 
-    TEXT_REF = "application-storage-consent-2026-11-07-v3"
+    TEXT_REF = "application-storage-consent-2026-11-07-v4"
     TEXT_SHA256 = (
+        "8722aed9fa78e5ee49c2b5e5a031bfd53a7109bf625dfb0e0c99743fd82443c7")
+    V3_REF = "application-storage-consent-2026-11-07-v3"
+    V3_SHA256 = (
         "696f9e66d8098b2dce56a93418ba598145b669934662e2b52d9a332731517668")
     V2_REF = "application-storage-consent-2026-11-07-v2"
     V2_SHA256 = (
@@ -341,32 +344,35 @@ class ApplicationStorageTextRefTests(unittest.TestCase):
     def _refs(self):
         return {r["externalRef"]: r for r in external_refs_payload(PURPOSE)}
 
-    def test_current_v3_ref_is_draft_and_deliberately_unmapped(self):
+    def test_current_v4_ref_is_draft_and_deliberately_unmapped(self):
         entry = self._refs()[self.TEXT_REF]
         self.assertEqual("mays-jobsearch", entry["source"])
         self.assertEqual(NOTICE_DRAFT, entry["noticeState"])
         self.assertIsNone(entry["noticeVersion"])
         self.assertEqual(self.TEXT_SHA256, entry["textSha256"])
 
-    def test_historical_v2_and_v1_stay_draft_and_chain_supersession(self):
+    def test_historical_v3_v2_v1_stay_draft_and_chain_supersession(self):
         refs = self._refs()
+        v3 = refs[self.V3_REF]
         v2 = refs[self.V2_REF]
         v1 = refs[self.V1_REF]
-        for entry in (v2, v1):
+        for entry in (v3, v2, v1):
             self.assertEqual("mays-jobsearch", entry["source"])
             # Never approved, so never reported as SUPERSEDED.
             self.assertEqual(NOTICE_DRAFT, entry["noticeState"])
             self.assertIsNone(entry["noticeVersion"])
+        self.assertEqual(self.V3_SHA256, v3["textSha256"])
         self.assertEqual(self.V2_SHA256, v2["textSha256"])
         self.assertEqual(self.V1_SHA256, v1["textSha256"])
-        self.assertEqual(self.TEXT_REF, v2["supersededBy"])
+        self.assertEqual(self.TEXT_REF, v3["supersededBy"])
+        self.assertEqual(self.V3_REF, v2["supersededBy"])
         self.assertEqual(self.V2_REF, v1["supersededBy"])
 
     @unittest.skipUnless(boto3, "boto3/moto unavailable")
     @mock_aws
     def test_text_refs_are_never_accepted_as_a_notice_version(self):
         repo = _table()
-        for ref in (self.TEXT_REF, self.V2_REF, self.V1_REF):
+        for ref in (self.TEXT_REF, self.V3_REF, self.V2_REF, self.V1_REF):
             with self.assertRaises(ConsentContractError) as caught:
                 repo.grant(CTX, PURPOSE, ref)
             self.assertEqual("INVALID_NOTICE_VERSION", caught.exception.code)

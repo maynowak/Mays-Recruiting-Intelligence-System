@@ -10451,3 +10451,45 @@ nur die expliziten Commit-Zuordnungen:
 Unveraendert: Notice `application-storage/1.0` bleibt `DRAFT`,
 `legalApprovalRef=null`; kein Plan/Apply/Deploy/Push, keine Env-/Flag-/Notice-
 Aenderung, keine Live-Persistenz- oder Freigabe-Behauptung.
+
+## 2026-11-07 — JM-RIS-STORAGE-PILOT-05 — Consent v4 Backend (Sexualleben/sex_life)
+
+**Status:** `V4 PROOF IMPLEMENTED LOCAL / NOTICE STILL DRAFT / NO APPROVAL`
+
+- Jobsearch `5ac025f`: Text **v4** `application-storage-consent-2026-11-07-v4`,
+  SHA-256 `8722aed9fa78e5ee49c2b5e5a031bfd53a7109bf625dfb0e0c99743fd82443c7`.
+  Der Art.-9-Absatz nennt jetzt „Sexualleben und sexuelle Orientierung“,
+  bleibt freiwillig, verlangt keine Selbstkategorisierung und stellt klar,
+  dass keine automatische Kategorisierung/Ableitung von Geschlecht,
+  Geschlechtsidentitaet oder sexueller Orientierung stattfindet.
+- Kategorien: `sex_life` nach `sexual_orientation` ergaenzt (9 Codes:
+  health, religious_or_philosophical_beliefs, trade_union_membership,
+  political_opinions, sexual_orientation, sex_life, biometric_data,
+  genetic_data, racial_or_ethnic_origin) in `SPECIAL_CATEGORY_ORDER` /
+  `SPECIAL_CATEGORY_CODES`.
+- Art.-9-Pin: `ART9_EXTERNAL_TEXT_VERSION`/`ART9_EXTERNAL_TEXT_SHA256` auf v4
+  und den neuen Hash gesetzt — **nur v4** ist Art.-9-faehig; v1–v3 bleiben
+  historisch und werden fuer Art.-9-Consent mit `EXTERNAL_TEXT_NOT_ART9`
+  abgelehnt.
+- External Refs: v4 neu registriert (Quelle `mays-jobsearch`, DRAFT,
+  `noticeVersion: None`, exakter Hash); v3 ist `supersededBy: ...v4`, v2
+  `supersededBy: ...v3`, v1 `supersededBy: ...v2`; alle bleiben DRAFT und
+  werden nie als `noticeVersion` akzeptiert.
+- Tests: `tests/test_consent_special_categories.py` auf 9 Kategorien und v4
+  aktualisiert (v4 fuer Art. 9 akzeptiert, v2/v3 abgelehnt, v4-Repeat
+  idempotent, Widerruf behaelt Proof, neuer Text/Scope -> RECONSENT_REQUIRED);
+  `tests/test_consent_notice_catalog_contract.py` prueft v4 aktuell sowie die
+  Supersession-Kette v3->v4->v3->v2->v1.
+  `pytest tests/test_consent_special_categories.py
+  tests/test_consent_notice_catalog_contract.py
+  tests/test_consent_pilot_allowlist.py -q` = **74 passed**; angrenzende
+  OpenAPI-/Consent-Suiten **50 passed**; `terraform fmt -check -recursive`
+  exit 0.
+- Doku: Mapping-Dokument, Approval-Paket Candidate D und OpenAPI
+  (`ConsentSpecialCategory` inkl. `sex_life`) auf v4/neuen Hash aktualisiert;
+  Art.-9-Textbindung nennt v4.
+- **Keine Freigabe / keine Aktivierung:** Notice `1.0` bleibt `DRAFT`,
+  `legalApprovalRef=null`, keine RIS-`1.0`-Zuordnung, keine Env-/Flag-/Notice-
+  Aenderung, kein Plan/Apply/Deploy/Push, keine Live-Persistenz-Behauptung.
+  Verbleibender Blocker: Operator-/Legal-Freigabe inkl. finaler Art.-9-Pruefung
+  und echtem `legalApprovalRef`.

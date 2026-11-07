@@ -128,9 +128,20 @@ EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
             ),
             "supersededBy": "application-storage-consent-2026-11-07-v2",
         },
-        # Current ApplicationV1 consent text candidate (Jobsearch v3, commit
-        # 9eecf83, explicit Art. 9 special-category consent). The hash pins the
-        # exact text; the mapping to RIS 1.0 is NOT approved and stays DRAFT.
+        # Current ApplicationV1 consent text candidate (Jobsearch v4, commit
+        # 5ac025f, explicit Art. 9 special-category consent incl. sex life and
+        # no inference). The hash pins the exact text; the mapping to RIS 1.0
+        # is NOT approved and stays DRAFT.
+        "application-storage-consent-2026-11-07-v4": {
+            "source": "mays-jobsearch",
+            "noticeState": NOTICE_DRAFT,
+            "noticeVersion": None,  # no equivalence until separately approved
+            "textSha256": (
+                "8722aed9fa78e5ee49c2b5e5a031bfd53a7109bf625dfb0e0c99743fd82443c7"
+            ),
+        },
+        # Historical v3 (Jobsearch 9eecf83), replaced by v4. Only v4 is
+        # Art. 9-capable.
         "application-storage-consent-2026-11-07-v3": {
             "source": "mays-jobsearch",
             "noticeState": NOTICE_DRAFT,
@@ -138,6 +149,7 @@ EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
             "textSha256": (
                 "696f9e66d8098b2dce56a93418ba598145b669934662e2b52d9a332731517668"
             ),
+            "supersededBy": "application-storage-consent-2026-11-07-v4",
         },
         # Historical v2 (Jobsearch 47f73c4), replaced by v3.
         "application-storage-consent-2026-11-07-v2": {
@@ -169,6 +181,7 @@ SPECIAL_CATEGORY_ORDER = (
     "trade_union_membership",
     "political_opinions",
     "sexual_orientation",
+    "sex_life",
     "biometric_data",
     "genetic_data",
     "racial_or_ethnic_origin",
@@ -178,9 +191,9 @@ SPECIAL_CATEGORY_CODES = frozenset(SPECIAL_CATEGORY_ORDER)
 #: External text that is allowed to carry an explicit Art. 9 consent. A
 #: historical text may be recorded for a non-Art. 9 grant but must never be
 #: accepted as proof for special categories.
-ART9_EXTERNAL_TEXT_VERSION = "application-storage-consent-2026-11-07-v3"
+ART9_EXTERNAL_TEXT_VERSION = "application-storage-consent-2026-11-07-v4"
 ART9_EXTERNAL_TEXT_SHA256 = (
-    "696f9e66d8098b2dce56a93418ba598145b669934662e2b52d9a332731517668"
+    "8722aed9fa78e5ee49c2b5e5a031bfd53a7109bf625dfb0e0c99743fd82443c7"
 )
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")

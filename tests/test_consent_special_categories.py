@@ -1,7 +1,7 @@
 """ApplicationV1 consent proof: Art. 9 categories and external text identity.
 
-Companion to the Jobsearch v3 consent text
-``application-storage-consent-2026-11-07-v3``. The RIS backend must store an
+Companion to the Jobsearch v4 consent text
+``application-storage-consent-2026-11-07-v4``. The RIS backend must store an
 explicit, verifiable proof: user consent for special categories, the exact
 category subset, and the external text version/hash. The proof is never
 inferred from the notice version and never upgraded silently.
@@ -47,6 +47,8 @@ PURPOSE = "application-storage"
 VERSION = "1.0"
 LEGAL_REF = "SYNTHETIC-LEGAL-REF-NOT-REAL"
 
+V4 = "application-storage-consent-2026-11-07-v4"
+V4_SHA256 = "8722aed9fa78e5ee49c2b5e5a031bfd53a7109bf625dfb0e0c99743fd82443c7"
 V3 = "application-storage-consent-2026-11-07-v3"
 V3_SHA256 = "696f9e66d8098b2dce56a93418ba598145b669934662e2b52d9a332731517668"
 V2 = "application-storage-consent-2026-11-07-v2"
@@ -58,6 +60,7 @@ CATEGORIES = [
     "trade_union_membership",
     "political_opinions",
     "sexual_orientation",
+    "sex_life",
     "biometric_data",
     "genetic_data",
     "racial_or_ethnic_origin",
@@ -81,8 +84,8 @@ def _table(name="consents"):
     return ConsentRepository(name, db)
 
 
-def _grant(repo, *, categories=CATEGORIES, consent=True, version=V3,
-           sha256=V3_SHA256, sub="u1", enforce=None):
+def _grant(repo, *, categories=CATEGORIES, consent=True, version=V4,
+           sha256=V4_SHA256, sub="u1", enforce=None):
     return repo.grant(
         _ctx(sub), PURPOSE, VERSION,
         enforce_notice_state=enforce,
@@ -94,7 +97,7 @@ def _grant(repo, *, categories=CATEGORIES, consent=True, version=V3,
 
 
 class SpecialCategoryValidationTests(unittest.TestCase):
-    def test_all_codes_are_the_stable_v3_set(self):
+    def test_all_codes_are_the_stable_v4_set(self):
         self.assertEqual(frozenset(CATEGORIES), SPECIAL_CATEGORY_CODES)
         self.assertEqual(tuple(CATEGORIES), tuple(SPECIAL_CATEGORY_ORDER))
 
@@ -141,7 +144,9 @@ class SpecialCategoryValidationTests(unittest.TestCase):
 
 
 class ExternalTextValidationTests(unittest.TestCase):
-    def test_v3_and_historical_v2_are_known_with_exact_hash(self):
+    def test_v4_and_historical_refs_are_known_with_exact_hash(self):
+        self.assertEqual((V4, V4_SHA256),
+                         validate_external_text(PURPOSE, V4, V4_SHA256))
         self.assertEqual((V3, V3_SHA256),
                          validate_external_text(PURPOSE, V3, V3_SHA256))
         self.assertEqual((V2, V2_SHA256),
@@ -153,8 +158,8 @@ class ExternalTextValidationTests(unittest.TestCase):
 
     def test_partial_or_malformed_pair_is_rejected(self):
         for version, digest in (
-                (V3, None), (None, V3_SHA256), ("", V3_SHA256),
-                (V3, ""), (V3, "not-a-hash")):
+                (V4, None), (None, V4_SHA256), ("", V4_SHA256),
+                (V4, ""), (V4, "not-a-hash")):
             with self.assertRaises(ConsentContractError) as caught:
                 validate_external_text(PURPOSE, version, digest)
             self.assertEqual("INVALID_EXTERNAL_TEXT", caught.exception.code)
@@ -162,16 +167,16 @@ class ExternalTextValidationTests(unittest.TestCase):
     def test_unknown_version_is_rejected(self):
         with self.assertRaises(ConsentContractError) as caught:
             validate_external_text(PURPOSE, "application-storage-consent-x",
-                                   V3_SHA256)
+                                   V4_SHA256)
         self.assertEqual("UNKNOWN_EXTERNAL_TEXT_VERSION",
                          caught.exception.code)
 
     def test_hash_mismatch_and_unpinned_ref_are_rejected(self):
         with self.assertRaises(ConsentContractError) as caught:
-            validate_external_text(PURPOSE, V3, V2_SHA256)
+            validate_external_text(PURPOSE, V4, V2_SHA256)
         self.assertEqual("EXTERNAL_TEXT_HASH_MISMATCH", caught.exception.code)
         with self.assertRaises(ConsentContractError) as caught:
-            validate_external_text(PURPOSE, "2026-11-04-draft-1", V3_SHA256)
+            validate_external_text(PURPOSE, "2026-11-04-draft-1", V4_SHA256)
         self.assertEqual("EXTERNAL_TEXT_HASH_MISMATCH", caught.exception.code)
 
 
@@ -188,7 +193,7 @@ class Art9TextBindingTests(unittest.TestCase):
 
     def test_true_without_text_pair_is_rejected(self):
         for version, digest in (
-                (None, None), ("", ""), (V3, None), (None, V3_SHA256)):
+                (None, None), ("", ""), (V4, None), (None, V4_SHA256)):
             with self.assertRaises(ConsentContractError) as caught:
                 self._proof(True, ["health"], version, digest)
             self.assertEqual(
@@ -200,9 +205,14 @@ class Art9TextBindingTests(unittest.TestCase):
             self._proof(True, ["health"], V2, V2_SHA256)
         self.assertEqual("EXTERNAL_TEXT_NOT_ART9", caught.exception.code)
 
-    def test_true_with_v3_text_is_accepted(self):
+    def test_true_with_historical_v3_text_is_not_art9(self):
+        with self.assertRaises(ConsentContractError) as caught:
+            self._proof(True, ["health"], V3, V3_SHA256)
+        self.assertEqual("EXTERNAL_TEXT_NOT_ART9", caught.exception.code)
+
+    def test_true_with_v4_text_is_accepted(self):
         consent, categories, version, digest = self._proof(
-            True, ["health", "genetic_data"], V3, V3_SHA256)
+            True, ["health", "genetic_data"], V4, V4_SHA256)
         self.assertTrue(consent)
         self.assertEqual(["health", "genetic_data"], categories)
         self.assertEqual(ART9_EXTERNAL_TEXT_VERSION, version)
@@ -222,25 +232,25 @@ class Art9TextBindingTests(unittest.TestCase):
 @unittest.skipUnless(boto3, "boto3/moto unavailable")
 class GrantProofPersistenceTests(unittest.TestCase):
     @mock_aws
-    def test_v3_grant_stores_proof_in_status_and_history(self):
+    def test_v4_grant_stores_proof_in_status_and_history(self):
         repo = _table()
         granted = _grant(repo, categories=CATEGORIES)
         self.assertEqual(STATUS_GRANTED, granted["status"])
-        self.assertEqual(V3, granted["externalTextVersion"])
-        self.assertEqual(V3_SHA256, granted["externalTextSha256"])
+        self.assertEqual(V4, granted["externalTextVersion"])
+        self.assertEqual(V4_SHA256, granted["externalTextSha256"])
         self.assertTrue(granted["specialCategoriesConsent"])
         self.assertEqual(CATEGORIES, granted["specialCategories"])
 
         status = repo.get(_ctx(), PURPOSE)
-        self.assertEqual(V3, status["externalTextVersion"])
-        self.assertEqual(V3_SHA256, status["externalTextSha256"])
+        self.assertEqual(V4, status["externalTextVersion"])
+        self.assertEqual(V4_SHA256, status["externalTextSha256"])
         self.assertTrue(status["specialCategoriesConsent"])
         self.assertEqual(CATEGORIES, status["specialCategories"])
 
         events, _ = repo.history(_ctx(), PURPOSE)
         self.assertEqual(1, len(events))
-        self.assertEqual(V3, events[0]["externalTextVersion"])
-        self.assertEqual(V3_SHA256, events[0]["externalTextSha256"])
+        self.assertEqual(V4, events[0]["externalTextVersion"])
+        self.assertEqual(V4_SHA256, events[0]["externalTextSha256"])
         self.assertTrue(events[0]["specialCategoriesConsent"])
         self.assertEqual(CATEGORIES, events[0]["specialCategories"])
 
@@ -269,8 +279,8 @@ class GrantProofPersistenceTests(unittest.TestCase):
             dict(consent=True, categories=[]),
             dict(consent=True, categories=["health", "salary"]),
             dict(consent=True, categories=["health"], version="unknown",
-                 sha256=V3_SHA256),
-            dict(consent=True, categories=["health"], version=V3,
+                 sha256=V4_SHA256),
+            dict(consent=True, categories=["health"], version=V4,
                  sha256=V2_SHA256),
         ]
         for kwargs in cases:
@@ -284,7 +294,7 @@ class GrantProofPersistenceTests(unittest.TestCase):
     @mock_aws
     def test_art9_consent_requires_the_external_text_pair(self):
         repo = _table()
-        for version, digest in ((None, None), (V3, None), (None, V3_SHA256)):
+        for version, digest in ((None, None), (V4, None), (None, V4_SHA256)):
             with self.assertRaises(ConsentContractError) as caught:
                 _grant(repo, categories=["health"], version=version,
                        sha256=digest)
@@ -295,22 +305,25 @@ class GrantProofPersistenceTests(unittest.TestCase):
                          repo.get(_ctx(), PURPOSE)["status"])
 
     @mock_aws
-    def test_art9_consent_rejects_historical_v2_text(self):
+    def test_art9_consent_rejects_historical_text(self):
         repo = _table()
-        with self.assertRaises(ConsentContractError) as caught:
-            _grant(repo, categories=["health"], version=V2, sha256=V2_SHA256)
-        self.assertEqual("EXTERNAL_TEXT_NOT_ART9", caught.exception.code)
+        for version, digest in ((V2, V2_SHA256), (V3, V3_SHA256)):
+            with self.assertRaises(ConsentContractError) as caught:
+                _grant(repo, categories=["health"], version=version,
+                       sha256=digest)
+            self.assertEqual("EXTERNAL_TEXT_NOT_ART9",
+                             caught.exception.code)
         self.assertEqual(STATUS_NOT_GRANTED,
                          repo.get(_ctx(), PURPOSE)["status"])
         events, _ = repo.history(_ctx(), PURPOSE)
         self.assertEqual([], events)
 
     @mock_aws
-    def test_art9_grant_with_v3_text_is_accepted(self):
+    def test_art9_grant_with_v4_text_is_accepted(self):
         granted = _grant(_table(), categories=["health"])
         self.assertTrue(granted["specialCategoriesConsent"])
-        self.assertEqual(V3, granted["externalTextVersion"])
-        self.assertEqual(V3_SHA256, granted["externalTextSha256"])
+        self.assertEqual(V4, granted["externalTextVersion"])
+        self.assertEqual(V4_SHA256, granted["externalTextSha256"])
 
     @mock_aws
     def test_repeat_with_same_proof_is_idempotent(self):
@@ -322,38 +335,38 @@ class GrantProofPersistenceTests(unittest.TestCase):
         self.assertEqual(1, len(events))
 
     @mock_aws
-    def test_existing_v3_grant_rejects_v2_art9_request(self):
+    def test_existing_v4_grant_rejects_v3_art9_request(self):
         repo = _table()
         _grant(repo, categories=["health"])
         with self.assertRaises(ConsentContractError) as caught:
-            _grant(repo, categories=["health"], version=V2, sha256=V2_SHA256)
+            _grant(repo, categories=["health"], version=V3, sha256=V3_SHA256)
         self.assertEqual("EXTERNAL_TEXT_NOT_ART9", caught.exception.code)
         status = repo.get(_ctx(), PURPOSE)
-        self.assertEqual(V3, status["externalTextVersion"])
-        self.assertEqual(V3_SHA256, status["externalTextSha256"])
+        self.assertEqual(V4, status["externalTextVersion"])
+        self.assertEqual(V4_SHA256, status["externalTextSha256"])
 
     @mock_aws
     def test_different_valid_text_scope_requires_reconsent(self):
-        v4 = "application-storage-consent-2026-11-07-v4"
-        v4_sha = "a" * 64
+        v5 = "application-storage-consent-2026-11-07-v5"
+        v5_sha = "a" * 64
         repo = _table()
         _grant(repo, categories=["health"])
         with patch.dict(
                 consent_contract.EXTERNAL_NOTICE_REFS[PURPOSE],
-                {v4: {"source": "mays-jobsearch",
+                {v5: {"source": "mays-jobsearch",
                       "noticeState": NOTICE_DRAFT,
                       "noticeVersion": None,
-                      "textSha256": v4_sha}}), \
+                      "textSha256": v5_sha}}), \
                 patch.object(consent_contract,
-                             "ART9_EXTERNAL_TEXT_VERSION", v4), \
+                             "ART9_EXTERNAL_TEXT_VERSION", v5), \
                 patch.object(consent_contract,
-                             "ART9_EXTERNAL_TEXT_SHA256", v4_sha):
+                             "ART9_EXTERNAL_TEXT_SHA256", v5_sha):
             with self.assertRaises(ConsentContractError) as caught:
-                _grant(repo, categories=["health"], version=v4,
-                       sha256=v4_sha)
+                _grant(repo, categories=["health"], version=v5,
+                       sha256=v5_sha)
         self.assertEqual("RECONSENT_REQUIRED", caught.exception.code)
         status = repo.get(_ctx(), PURPOSE)
-        self.assertEqual(V3, status["externalTextVersion"])
+        self.assertEqual(V4, status["externalTextVersion"])
         self.assertEqual(1, status["version"])
 
     @mock_aws
@@ -374,18 +387,18 @@ class GrantProofPersistenceTests(unittest.TestCase):
         self.assertEqual(STATUS_WITHDRAWN, withdrawn["status"])
         self.assertTrue(withdrawn["specialCategoriesConsent"])
         self.assertEqual(["health"], withdrawn["specialCategories"])
-        self.assertEqual(V3, withdrawn["externalTextVersion"])
-        self.assertEqual(V3_SHA256, withdrawn["externalTextSha256"])
+        self.assertEqual(V4, withdrawn["externalTextVersion"])
+        self.assertEqual(V4_SHA256, withdrawn["externalTextSha256"])
 
         events, _ = repo.history(_ctx(), PURPOSE)
         self.assertEqual(["WITHDRAWN", "GRANTED"], [e["event"] for e in events])
         for event in events:
-            self.assertEqual(V3, event["externalTextVersion"])
+            self.assertEqual(V4, event["externalTextVersion"])
             self.assertEqual(["health"], event["specialCategories"])
 
         regranted = _grant(repo, categories=["health", "genetic_data"])
         self.assertEqual(3, regranted["version"])
-        self.assertEqual(V3, regranted["externalTextVersion"])
+        self.assertEqual(V4, regranted["externalTextVersion"])
         self.assertEqual(["health", "genetic_data"],
                          regranted["specialCategories"])
 
@@ -402,8 +415,8 @@ class HandlerProofWiringTests(unittest.TestCase):
                         "noticeVersion": notice_version, "version": 1,
                         "specialCategoriesConsent": True,
                         "specialCategories": CATEGORIES,
-                        "externalTextVersion": V3,
-                        "externalTextSha256": V3_SHA256}
+                        "externalTextVersion": V4,
+                        "externalTextSha256": V4_SHA256}
 
         event = {"httpMethod": "POST", "path": "/v1/partner/me/consents",
                  "headers": {}, "queryStringParameters": None,
@@ -418,14 +431,14 @@ class HandlerProofWiringTests(unittest.TestCase):
             "purpose": PURPOSE, "noticeVersion": VERSION,
             "specialCategoriesConsent": True,
             "specialCategories": CATEGORIES,
-            "externalTextVersion": V3,
-            "externalTextSha256": V3_SHA256,
+            "externalTextVersion": V4,
+            "externalTextSha256": V4_SHA256,
         })
         self.assertEqual(200, response["statusCode"])
         self.assertTrue(recorded["special_categories_consent"])
         self.assertEqual(CATEGORIES, recorded["special_categories"])
-        self.assertEqual(V3, recorded["external_text_version"])
-        self.assertEqual(V3_SHA256, recorded["external_text_sha256"])
+        self.assertEqual(V4, recorded["external_text_version"])
+        self.assertEqual(V4_SHA256, recorded["external_text_sha256"])
 
     def test_post_defaults_to_no_special_consent(self):
         _, recorded = self._post({"purpose": PURPOSE, "noticeVersion": VERSION})
@@ -459,15 +472,15 @@ class HandlerProofWiringTests(unittest.TestCase):
                         "noticeVersion": VERSION, "version": 1,
                         "specialCategoriesConsent": True,
                         "specialCategories": CATEGORIES,
-                        "externalTextVersion": V3,
-                        "externalTextSha256": V3_SHA256}
+                        "externalTextVersion": V4,
+                        "externalTextSha256": V4_SHA256}
 
             def history(self, ctx, purpose, **kwargs):
                 return ([{"event": "GRANTED",
                           "specialCategoriesConsent": True,
                           "specialCategories": CATEGORIES,
-                          "externalTextVersion": V3,
-                          "externalTextSha256": V3_SHA256}], None)
+                          "externalTextVersion": V4,
+                          "externalTextSha256": V4_SHA256}], None)
 
         get_event = {"httpMethod": "GET", "path": "/v1/partner/me/consents",
                      "headers": {}, "queryStringParameters": {"purpose": PURPOSE},
@@ -484,10 +497,10 @@ class HandlerProofWiringTests(unittest.TestCase):
             hist_response = handler._handle_consent_routes(
                 hist_event, None, "GET", "/v1/partner/me/consents/history")
         item = json.loads(get_response["body"])["items"][0]
-        self.assertEqual(V3, item["externalTextVersion"])
+        self.assertEqual(V4, item["externalTextVersion"])
         self.assertEqual(CATEGORIES, item["specialCategories"])
         event = json.loads(hist_response["body"])["items"][0]
-        self.assertEqual(V3_SHA256, event["externalTextSha256"])
+        self.assertEqual(V4_SHA256, event["externalTextSha256"])
 
 
 @unittest.skipUnless(boto3 and mock_aws, "boto3/moto unavailable")
@@ -567,8 +580,8 @@ class ProofAfterWithdrawalApplicationRightsTests(unittest.TestCase):
                 enforce_notice_state=True,
                 special_categories_consent=True,
                 special_categories=["health"],
-                external_text_version=V3,
-                external_text_sha256=V3_SHA256)
+                external_text_version=V4,
+                external_text_sha256=V4_SHA256)
             self.assertTrue(granted["specialCategoriesConsent"])
             self.assertIsNone(self._handler_gate())
             app_id = self.harness.create(synthetic_create(1))["applicationId"]
@@ -577,7 +590,7 @@ class ProofAfterWithdrawalApplicationRightsTests(unittest.TestCase):
             self.assertEqual(STATUS_WITHDRAWN, withdrawn["status"])
             self.assertTrue(withdrawn["specialCategoriesConsent"])
             self.assertEqual(["health"], withdrawn["specialCategories"])
-            self.assertEqual(V3_SHA256, withdrawn["externalTextSha256"])
+            self.assertEqual(V4_SHA256, withdrawn["externalTextSha256"])
 
             denied = self._handler_gate()
             self.assertEqual(403, denied["statusCode"])
@@ -597,8 +610,8 @@ class ProofAfterWithdrawalApplicationRightsTests(unittest.TestCase):
             self.assertEqual(["WITHDRAWN", "GRANTED"],
                              [e["event"] for e in events])
             for event in events:
-                self.assertEqual(V3, event["externalTextVersion"])
-                self.assertEqual(V3_SHA256, event["externalTextSha256"])
+                self.assertEqual(V4, event["externalTextVersion"])
+                self.assertEqual(V4_SHA256, event["externalTextSha256"])
                 self.assertTrue(event["specialCategoriesConsent"])
 
 
