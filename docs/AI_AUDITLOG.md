@@ -10142,3 +10142,34 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
 - Tests: 69 passed final focused; 84/124 wider; terraform fmt/validate PASS; Jobsearch 55/55 BFF + 14/14 UI/text; full Jobsearch second run 1574 passed / 5 skipped.
 - Mapping: Jobsearch text `application-storage-consent-2026-11-07-v1`, SHA-256 `2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953`; RIS notice `1.0` remains DRAFT with `legalApprovalRef=null`; external ref known but `noticeVersion=None`.
 - No push/merge/deploy/apply/env/notice change; no live persistence. Report: `docs/reports/JM-RIS-STORAGE-PILOT-03-REPORT.md`.
+
+## 2026-11-07 — APPLICATION-STORAGE-1.0 Approval Packet Update (Candidate D)
+
+**Status:** `DOCUMENTATION ONLY — NO APPROVAL, NO ACTIVATION`
+
+- Basis: RIS `7032e82`; Jobsearch code `115ea57`, docs `26e6edd`.
+- `docs/reports/APPLICATION-STORAGE-1.0-APPROVAL-PACKET.md` aktualisiert:
+  - **Candidate D** mit dem vollstaendigen, wortgetreuen 8-Absatz-Text aus
+    `src/lib/applicationStorageConsent.ts` (Commit `115ea57`) aufgenommen.
+    Textversion `application-storage-consent-2026-11-07-v1`, SHA-256
+    `2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953`,
+    intendierte RIS-Notice `application-storage/1.0`, State `DRAFT`,
+    kein `legalApprovalRef`, keine Zuordnung.
+  - Critical Finding neu formuliert: ein vollstaendiger Kandidat existiert,
+    aber **keine** Operator-/Legal-Freigabe, kein `legalApprovalRef` und keine
+    RIS-`1.0`-Zuordnung.
+  - Feldzuordnung Candidate D ↔ ApplicationV1 ergaenzt (Job-Referenz,
+    Anschreiben/Versionen, Dokumentstatus, CV-/Suchprofil-Verweise,
+    Bewerbungsdatum/-kanal, Kontakt, Notizen, Gehalt, Wiedervorlage, Historie).
+    `status`/`statusHistory` sind durch "meine Bewerbungen"/
+    "Verlaufsereignisse" abgedeckt; eine explizite Nennung waere eine
+    Formulierungsentscheidung vor der Freigabe.
+  - Baselines auf RIS `7032e82` und Jobsearch `115ea57`/`26e6edd` aktualisiert.
+  - Offene Rechtsentscheidungen (Art. 9, Controller/Processor, Retention,
+    Empfaenger, Mapping, `legalApprovalRef`) unveraendert.
+- Integrity-Check: alle 8 Absaetze wurden programmatisch wortgetreu gegen
+  `applicationStorageConsent.ts` (`115ea57`) geprueft (8/8, keine Abweichung).
+- **Keine Aktivierung:** Notice `1.0` bleibt `DRAFT`, `legalApprovalRef=null`,
+  keine Flags/Env/Terraform-/AWS-/Cognito-Aenderung, kein Push/Merge/Deploy/
+  Apply, keine Jobsearch-Datei editiert. Keine Live-Persistenz-Behauptung.
+- `git diff --check` ohne Befund.

@@ -12,8 +12,8 @@ agents).
 
 | Side | Branch | Commit |
 | --- | --- | --- |
-| RIS | `feature/jm-ris-storage-activation-01` | `e217e5b` |
-| Jobsearch | `feature/jm-ris-storage-activation-01` | `04f00f4` (code `b8074a0`; later commits docs-only) |
+| RIS | `feature/jm-ris-storage-activation-01` | `7032e82` |
+| Jobsearch | `feature/jm-ris-storage-activation-01` | code `115ea57`, docs `26e6edd` |
 
 > This packet does **not** approve anything. No notice state is changed, no
 > `legalApprovalRef` is set, no flag is enabled, nothing is deployed.
@@ -27,14 +27,16 @@ agents).
    veröffentlichen"** and covers **Profil-, CV- und Suchprofildaten**, not
    ApplicationV1 application/cover-letter storage. It cannot serve as the
    application-storage consent notice as-is.
-2. The Jobsearch public policy **§9** (`public/legal/datenschutz.md`, v1.1,
-   2026-11-07) and the Jobsearch UI strings are the only existing
-   application-storage notice **candidates**, but they are a privacy
-   *notice/description*, not a first-person consent declaration.
-3. **No complete, legally approved application-storage consent declaration
-   exists.** There is no text that states what the user is consenting to, in
-   consent form, for ApplicationV1. The UI currently shows a status, a link and
-   a button; it does not display a consent declaration.
+2. Supporting material exists in the Jobsearch public policy **§9**
+   (`public/legal/datenschutz.md`, v1.1, 2026-11-07) and the Jobsearch UI
+   strings; both are privacy *notice/description* material, not by themselves
+   the consent declaration.
+3. **A complete candidate declaration now exists, but no operator/legal
+   approval, `legalApprovalRef`, or RIS `1.0` mapping exists.** Candidate D
+   (§3.4, Jobsearch `src/lib/applicationStorageConsent.ts` /
+   `api/_lib/ris/consentText.mjs`, commit `115ea57`) is a full first-person
+   declaration for ApplicationV1. It is labelled `DRAFT`, is not approved and
+   is not mapped to RIS notice `1.0`.
 4. The RIS processing-purpose and retention matrices
    (`RIS-JOBSEARCH-PROCESSING-PURPOSES-V1.md`,
    `RIS-JOBSEARCH-RETENTION-POLICY-V1.md`) contain **no ApplicationV1
@@ -53,15 +55,20 @@ agents).
 | --- | --- | --- | --- |
 | RIS purpose | `application-storage` | — | — |
 | RIS notice version | `application-storage` / `1.0` | `DRAFT`, `legalApprovalRef = null` | — |
-| Jobsearch text version | `STORAGE_CONSENT_TEXT_VERSION = "2026-11-04-draft-1"` | DRAFT | **none** |
-| Jobsearch privacy-notice version | `STORAGE_CONSENT_PRIVACY_NOTICE_VERSION = "2026-11-04-draft-1"` | DRAFT | **none** |
+| Jobsearch ApplicationV1 text version | `application-storage-consent-2026-11-07-v1` | `DRAFT` (candidate, §3.4) | **none** |
+| Jobsearch ApplicationV1 text SHA-256 | `2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953` | — | — |
+| Jobsearch legacy text version | `STORAGE_CONSENT_TEXT_VERSION = "2026-11-04-draft-1"` | DRAFT | **none** |
+| Jobsearch legacy privacy-notice version | `STORAGE_CONSENT_PRIVACY_NOTICE_VERSION = "2026-11-04-draft-1"` | DRAFT | **none** |
 
-Source: `jobsearch/consent_contract.py:35-37, 94-104, 109-117`;
-`src/lib/storageConsent.ts:13-15` (Jobsearch).
+Sources: `jobsearch/consent_contract.py` (`NOTICE_REGISTRY`,
+`EXTERNAL_NOTICE_REFS`); Jobsearch `src/lib/applicationStorageConsent.ts` and
+`api/_lib/ris/consentText.mjs` at commit `115ea57`.
 
-`2026-11-04-draft-1` is known to RIS as an external reference but is never
-accepted as a `noticeVersion`. Renaming an identifier is not an approval. A
-mapping to `1.0` requires a separate, documented legal decision.
+Both `2026-11-04-draft-1` and
+`application-storage-consent-2026-11-07-v1` are known to RIS as external
+references but are never accepted as a `noticeVersion`. Renaming an identifier,
+or matching a hash, is not an approval. A mapping to `1.0` requires a separate,
+documented operator/legal decision.
 
 ---
 
@@ -211,8 +218,45 @@ From `src/i18n.tsx` (`privacyStorage.*`, DE):
 | `privacyStorage.rightsText` | `Ein späterer Widerruf muss serverseitig registriert werden und die abhängigen optionalen Verarbeitungen wirksam unterbinden. Ein Widerruf ist nicht automatisch eine sofortige Löschung, soweit gesetzliche Aufbewahrungspflichten gelten.` |
 | `privacyStorage.actions.withdraw` | `Einwilligung widerrufen` |
 
-No consent declaration text is rendered in the grant flow. The grant button is
-the only affirmative act.
+Candidate D is rendered verbatim above the consent button at Jobsearch
+`115ea57`; the grant button is the affirmative act after the declaration.
+Candidates A–C remain supporting/context material.
+
+### 3.4 Candidate D — complete ApplicationV1 declaration (candidate)
+
+Source: `src/lib/applicationStorageConsent.ts` (Jobsearch commit `115ea57`),
+canonical text = the eight paragraphs below joined with `\n\n` (UTF-8).
+
+| Field | Value |
+| --- | --- |
+| Text version | `application-storage-consent-2026-11-07-v1` |
+| SHA-256 | `2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953` |
+| Intended RIS notice | `application-storage` / `1.0` |
+| State | **`DRAFT` — not approved** |
+| `legalApprovalRef` | **none** (RIS notice `1.0` still `null`) |
+| RIS ↔ Jobsearch mapping | **none** |
+| Privacy-policy reference inside text | v1.1, 7 November 2026 |
+| BFF gate | `RIS_CONSENT_TEXT_VERSION` / `RIS_CONSENT_TEXT_SHA256` / `RIS_CONSENT_TEXT_STATE`; only exact version+hash with `APPROVED` opens a grant |
+
+> Ich willige ein, dass der RIS-Speicherdienst meine Bewerbungsdaten im nachfolgend beschriebenen Umfang dauerhaft speichert, damit ich sie später abrufen, bearbeiten, exportieren und löschen kann. Diese Einwilligung gilt ergänzend zu den Datenschutzhinweisen unter /datenschutz (Datenschutzrichtlinie Version 1.1 vom 7. November 2026) und ersetzt diese nicht.
+>
+> Gespeichert werden: meine Bewerbungen mit Stellenbezug (jobId, Titel, Unternehmen, Ort, Quelle und URL), meine Anschreiben und Anschreiben-Versionen, der Dokumentstatus, Verweise auf ausgewählte CV- und Suchprofile sowie Bewerbungsdatum und -kanal, Kontaktangaben, Notizen, Gehaltsvorstellung und -angebot, Wiedervorlagen und Verlaufsereignisse (Feedback, Interview, Notizen).
+>
+> Nicht gespeichert werden durch diese Einwilligung: PDF-Dateien, im Browser ausgelesene CV-Texte, KI-Prompts oder Provider-Nutzlasten. Verweise auf CV- und Suchprofile verweisen nur auf die jeweilige Ressource und enthalten keine Dokumentkopie.
+>
+> Der Zweck der Speicherung ist ausschließlich der spätere Abruf, die Änderung, der Export und die Löschung der ausgewählten Bewerbungsdaten durch mich.
+>
+> RIS ist der Speicherdienst; die Daten liegen in der bestehenden RIS-/AWS-Infrastruktur. Diese Einwilligung betrifft keine KI-Analyse und keine Übermittlung an KI- oder sonstige Provider. Eine Einwilligung in eine KI-Verarbeitung ist nicht Teil dieser Erklärung und wird durch sie nicht erteilt.
+>
+> Mit dieser Einwilligung wird die dauerhafte Speicherung der genannten Daten für mein angemeldetes Konto freigeschaltet. Ohne diese Einwilligung bleiben die abhängigen Speicherfunktionen gesperrt.
+>
+> Ich kann diese Einwilligung jederzeit mit Wirkung für die Zukunft widerrufen. Der Widerruf blockiert neue abhängige Schreibzugriffe. Bereits gespeicherte Daten bleiben im Rahmen der bestehenden Rechte lesbar, exportierbar und löschbar; der Widerruf ist nicht automatisch eine sofortige physische Löschung.
+>
+> Für ApplicationV1 ist derzeit keine pauschale Aufbewahrungsfrist freigegeben. Gespeicherte Bewerbungen bleiben bestehen, bis ich sie lösche. Sicherungen, Protokolle und gesetzliche Aufbewahrungspflichten können eine Löschung verzögern oder begrenzen.
+
+**Note:** This is a candidate. It is not approved, not mapped to RIS `1.0`
+and must not be presented as approved until an operator/legal approval records
+the text, the mapping and a real `legalApprovalRef`.
 
 ---
 
@@ -246,6 +290,39 @@ Server-owned identity fields (`applicationId`, `ownerId`, `userId`, `tenantId`,
 **Not stored by this flow:** PDF file bytes, CV text extracted in the browser,
 AI prompts/provider payloads. `documents.cvReference` is a reference, not a
 document copy.
+
+### 4.1 Candidate D text ↔ ApplicationV1 field mapping
+
+| Candidate D phrase (verbatim) | ApplicationV1 field(s) | Note |
+| --- | --- | --- |
+| „meine Bewerbungen mit Stellenbezug (jobId, Titel, Unternehmen, Ort, Quelle und URL)“ | `job.jobId`, `job.source`, `job.title`, `job.company`, `job.location`, `job.url` | Exact job snapshot |
+| „meine Anschreiben und Anschreiben-Versionen“ | `documents.coverLetterDraft`, `documents.coverLetterVersions[]` (`versionId`, `jobId`, `createdAt`, `content`, `source`, `language`, `model`) | Version content; `model` is stored metadata |
+| „der Dokumentstatus“ | `documents.documentStatus` (`missing`/`draft`/`ready`) | Metadata |
+| „Verweise auf ausgewählte CV- und Suchprofile“ | `documents.cvReference` (`cvId`, optional `documentId`, `label`); `cvRef`, `profileRef` (`id`, `version`) | References only; no PDF bytes/hash |
+| „Bewerbungsdatum und -kanal“ | `applicationDate`, `applicationChannel` | Application metadata |
+| „Kontaktangaben“ | `contact` | May contain third-party data |
+| „Notizen“ | `notes`, history `note` | Free text |
+| „Gehaltsvorstellung und -angebot“ | `salary.expectation`, `salary.offer` (`amount`, `currency`, `period`) | Personal data |
+| „Wiedervorlagen“ | `followUp` (`dueOn`, `note`, `status`, `completedAt`) | Reminder data |
+| „Verlaufsereignisse (Feedback, Interview, Notizen)“ | history events (`kind` `feedback`/`interview`/`note`, `text`, `scheduledAt`, `note`) | Append-only timeline |
+
+Caveats for the operator:
+
+- The ApplicationV1 `status`
+  (`DRAFT`/`READY`/`SUBMITTED`/`WITHDRAWN`/`ARCHIVED`) and `statusHistory` are
+  not named literally. They are covered by „meine Bewerbungen“ and
+  „Verlaufsereignisse“; if the operator wants them named explicitly, that is a
+  **wording decision before approval**.
+- `documents.coverLetterVersions[].model` (model identifier) is part of
+  „Anschreiben-Versionen“ metadata; explicit naming is likewise a wording
+  decision.
+- `idempotencyKey`, cursors and other technical guard records are not consent
+  data and are not part of the declaration; they are covered by the separate
+  processing-purpose/retention review (P-08), which remains open.
+- Server-owned identity fields (`applicationId`, `ownerId`, `userId`,
+  `tenantId`, `partnerApplicationId`, `issuer`) are derived from the signed-in
+  account and are covered by „für mein angemeldetes Konto“; they are never
+  accepted from the client.
 
 ---
 
@@ -348,6 +425,6 @@ closed and no real write can be granted.
 - It does not approve, publish or activate notice `1.0`.
 - It does not set `legalApprovalRef`, change `NOTICE_REGISTRY`, or change any
   flag, environment, Terraform value or deployment.
-- It does not claim that candidate A, B or C is legally sufficient.
+- It does not claim that candidate A, B, C or D is legally sufficient.
 - It does not claim live persistence; all technical statements are repository
   and local-test facts.
