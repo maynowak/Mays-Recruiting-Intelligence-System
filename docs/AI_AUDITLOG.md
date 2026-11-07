@@ -9888,3 +9888,44 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
 - Reports/Assets:
   `docs/reports/JM-RIS-PRIVACY-RG09-PRODUCTION-RELEASE-04-REPORT.md`,
   `docs/reports/assets/JM-RIS-PRIVACY-RG09-PRODUCTION-RELEASE-04/`.
+
+## 2026-11-07 — JM-RIS-STORAGE-ACTIVATION-01 (RIS-Vertragspruefung)
+
+**Status:** `CONTRACT VERIFIED LOCAL` / `REWORK_REQUIRED fuer Jobsearch` /
+`NO ACTIVATION`
+
+- Session: RIS-Subagent im isolierten Worktree
+  `worktrees/ris-storage-activation-01`, Branch
+  `feature/jm-ris-storage-activation-01`; Basis `612429a`. Nichts gepusht,
+  gemerged oder deployt.
+- Geprueft wurde der Jobsearch-Gate-Commit `324ad18` gegen den tatsaechlichen
+  RIS-Vertrag: `GET /v1/partner/me/consents` liefert immer ein Top-Level-
+  `catalog`-Array (pro `purpose` gefiltert; unbekannter Zweck = 404
+  `UNKNOWN_PURPOSE`); der POST-Grant-Response enthaelt **kein** `catalog`.
+  Zustaende sind exakt `DRAFT|APPROVED|ACTIVE|SUPERSEDED`; grantbar
+  (`GRANTABLE_NOTICE_STATES`) sind `APPROVED` und `ACTIVE`, nicht nur `ACTIVE`.
+  `noticeApproved`/`acceptedForNewGrant` sind strikte Booleans;
+  `acceptedForNewGrant` ist bei `CONSENT_NOTICE_STATE_ENFORCED=false` auch fuer
+  `DRAFT` und `SUPERSEDED` **true** (technische Laeufe), taugt also nicht als
+  alleiniger Gate-Ersatz. `application-storage/1.0` bleibt `DRAFT` mit
+  `legalApprovalRef=null` und ist unabhaengig von Datenschutz-policy v1.1.
+- Befund: Jobsearchs `ACTIVE`-only-Gate blockiert ein vertragskonform
+  grantbares `APPROVED` (fail-safe, aber Vertragsabweichung) und die A→B-Doku
+  behauptet faelschlich `acceptedForNewGrant=false` fuer `DRAFT`. Zusaetzlicher
+  Aktivierungsblocker: `CONSENT_NOTICE_STATE_ENFORCED` ist **nicht** in
+  Terraform verdrahtet (Default `false`), die serverseitige Defence-in-Depth
+  ist im Deployment also inaktiv.
+- Tests (real, moto, lokal):
+  `tests/test_consent_notice_catalog_contract.py` neu mit 16 Tests;
+  `pytest tests/test_consent_notice_lifecycle.py
+  tests/test_consent_notice_catalog_contract.py tests/test_consent_gate.py
+  tests/test_consent_e2e_joint.py tests/test_consent_repository.py -q`
+  = **40 passed**; fokussierte Application-Tests = **39 passed**.
+- **Keine Aktivierung:** `APPLICATION_CONSENT_ENFORCED` und
+  `CONSENT_NOTICE_STATE_ENFORCED` bleiben unveraendert (false/nicht gesetzt),
+  Notice `1.0` bleibt `DRAFT`, kein Terraform/AWS/Cognito/CloudFront/Secrets,
+  keine Env-Aenderung, keine Jobsearch-Datei editiert. Keine Live-Persistenz-
+  Behauptung; nur lokale Tests.
+- Evidenz:
+  `docs/reports/agent-evidence/JM-RIS-STORAGE-ACTIVATION-01-ris-contract-verification.md`,
+  `tests/test_consent_notice_catalog_contract.py`.
