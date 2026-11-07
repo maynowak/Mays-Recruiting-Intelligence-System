@@ -10259,3 +10259,46 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
 - The copied local browser profile had no active production session; verified operator `issuer|sub` is still unavailable for `CONSENT_PILOT_ALLOWLIST`. No tokens/cookies were read/printed.
 - No saved plan/apply/deploy/env/notice change; no push/merge. No legalApprovalRef exists.
 - Next: operator login/identity, v2 text approval + legalApprovalRef; then plan generation and bundled GO.
+
+## 2026-11-07 — JM-RIS-STORAGE-PILOT-05 Phase C Review (Jobsearch 65737dd)
+
+**Status:** `READ-ONLY REVIEW — PASS` / `NO ACTIVATION, NO LIVE PERSISTENCE`
+
+- Geprueft (read-only, Jobsearch `65737dd`, Parent `b4f335a`):
+  `src/lib/applications/remoteCapability.ts`, `remoteCapability.test.ts`,
+  `src/App.tsx` (Capability-Probe und Remote-Switch), `docs/DEPLOYMENT.md`
+  sowie die BFF-Allowlist (`api/_lib/ris/consentsHandler.mjs`,
+  `api/_lib/ris/config.mjs`).
+- BFF-Allowlist bestaetigt: `consentsHandler.mjs:85-86` prueft
+  `isAllowedTestUser(identity, cfg)` **vor** jeder Routen-Dispatch (auch GET)
+  und liefert `403 test_user_not_allowed`; `config.mjs` verweigert leere oder
+  fehlende Allowlist fail-closed. Der 403-Pfad ist im gemeinsamen Helper durch
+  `tests/api/ris-applications.test.mjs` (leere Allowlist, fremder `sub`,
+  Issuer-Bindung) abgedeckt; **Hinweis:** `tests/api/ris-consents.test.mjs`
+  hat keinen eigenen 403-Fall (nicht-blockierende Testluecke, Code-Pfad
+  identisch und unbedingt).
+- Client-Gate bestaetigt: `checkRisRemoteApplicationAccess()` probt
+  `GET /api/ris/consents`; fehlender Token, 401/403/503, Netzwerk-/sonstige
+  Fehler und malformed Antworten ergeben `false` → Session-Modus.
+  `isRemoteCapabilityForProfile()` bindet die Capability an den exakten
+  `iss + sub`-Profilkey. `App.tsx` aktiviert das Remote-Repository nur bei
+  `VITE_RIS_APPLICATION_STORAGE_ENABLED` **und** bestaetigter Capability fuer
+  den aktuellen Key; Probe nur bei verifizierter Anmeldung mit Token; bei
+  Logout/Identitaetswechsel wird die Capability verworfen und der
+  Session-Repository-Zustand neu erzeugt. Keine Client-Allowlist, keine
+  Issuer/Sub-Liste im Browser, kein automatischer Session-Transfer
+  (`applicationMigration` bleibt hinter `VITE_RIS_APPLICATION_MIGRATION_MOCK`).
+- Keine unbefugten Aenderungen: Diff `b4f335a..65737dd` nur `src/App.tsx`,
+  `src/lib/applications/remoteCapability*.ts`, `docs/DEPLOYMENT.md`,
+  `docs/AI_AUDITLOG.md`; keine Terraform-/Env-/Vercel-/Secret-/Workflow-Datei,
+  kein Push (Branch ohne Upstream), kein Deploy, keine RIS-Datei editiert.
+  Keine Live-Persistenz- oder Notice-Freigabe behauptet.
+- Exakte Testausgabe (Jobsearch, read-only ausgefuehrt):
+  `npx vitest run src/lib/applications/remoteCapability.test.ts
+  tests/api/ris-consents.test.mjs` = **2 Dateien / 46 Tests PASS**.
+- Residualrisiken (nicht blockierend): (a) direkter 403-Allowlist-Test fuer
+  `/api/ris/consents` fehlt; (b) Capability wird einmal pro Identitaet geprobt —
+  eine serverseitige Allowlist-Aenderung mitten in der Sitzung wird erst beim
+  naechsten fehlschlagenden Request wirksam (Server bleibt Autoritaet, kein
+  Datenleck); (c) Remote-Modus haengt jetzt zusaetzlich am erreichbaren
+  Consent-BFF (fail-closed auf Session); (d) keine Live-/Deploy-Evidenz.
