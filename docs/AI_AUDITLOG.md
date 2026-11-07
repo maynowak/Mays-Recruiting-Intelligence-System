@@ -9929,3 +9929,13 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
 - Evidenz:
   `docs/reports/agent-evidence/JM-RIS-STORAGE-ACTIVATION-01-ris-contract-verification.md`,
   `tests/test_consent_notice_catalog_contract.py`.
+
+## 2026-11-07 — JM-RIS-STORAGE-ACTIVATION-01 — final consolidation (RIS documentation)
+
+**Status:** `APPLICATION STORAGE TECHNICALLY VERIFIED` / `PARTIALLY READY — CONTROLLED TEST-USER ACTIVATION BLOCKED`
+
+- RIS contract commit `54d6a77`: catalogue shape/state/flag tests and A→B evidence. Jobsearch implementation commits `324ad18`/`b8074a0`.
+- Verified: top-level `catalog` on GET, `DRAFT|APPROVED|ACTIVE|SUPERSEDED`, `GRANTABLE_NOTICE_STATES={APPROVED,ACTIVE}`, strict booleans, DRAFT/SUPERSEDED unsafe with enforcement off, withdrawal in every state, `APPLICATION_CONSENT_ENFORCED` covers five write paths and leaves reads/export/delete available.
+- Current notice `application-storage/1.0` is DRAFT with `legalApprovalRef=null`; primary activation blocker. `CONSENT_NOTICE_STATE_ENFORCED` is not wired in Terraform; `APPLICATION_CONSENT_ENFORCED` remains false. No activation or live persistence test.
+- Agent sessions: RIS `ses_e49a08eb7ffe8RltsM98S9VTQq`, Jobsearch `ses_e49a66ef3ffeCeeSQhQhNwNnqs`; final cross-reviews PASS. Tests: RIS selected 79 passed; Jobsearch full 1562 passed / 5 skipped.
+- No push/merge/deploy/env/secret/Terraform/AWS/Cognito change. Report: `docs/reports/JM-RIS-STORAGE-ACTIVATION-01-REPORT.md`.
