@@ -134,6 +134,12 @@ variable "consent_notice_state_enforced" {
   default     = false
 }
 
+variable "consent_pilot_allowlist" {
+  description = "Comma/newline separated <issuer>|<sub> synthetic pilot identities. Empty means no scoped pilot identity. Non-secret configuration, never a credential."
+  type        = string
+  default     = ""
+}
+
 variable "partner_surface_enabled" {
   description = "Aktiviert die Partner-/Personen-Oberflaeche (/v1/partner/me/*). Default AUS; Aktivierung ist eine Betreiberentscheidung, keine Deployment-Nebenwirkung."
   type        = bool

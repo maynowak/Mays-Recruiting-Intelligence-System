@@ -113,7 +113,17 @@ class ConsentRepository:
 
     # -- writes --------------------------------------------------------
     def grant(self, ctx: ConsentContext, purpose: str,
-              notice_version: str) -> dict[str, Any]:
+              notice_version: str,
+              enforce_notice_state: bool | None = None) -> dict[str, Any]:
+        """Record a grant.
+
+        ``enforce_notice_state`` is the caller's effective enforcement
+        decision (global flag OR a scoped pilot identity). ``None`` keeps the
+        previous behavior of reading ``CONSENT_NOTICE_STATE_ENFORCED`` from the
+        environment. It only affects a *new* or *regranted* consent; an
+        idempotent repeat of an existing grant is validated by identifier
+        only.
+        """
         ctx.validate()
         purpose = validate_purpose(purpose)
         # Identifier check only. State enforcement is applied once we know a
@@ -138,7 +148,8 @@ class ConsentRepository:
 
             # A brand-new or re-granted consent must not be recorded against a
             # draft/superseded text when state enforcement is enabled.
-            version = validate_notice_version(purpose, version)
+            version = validate_notice_version(
+                purpose, version, require_active=enforce_notice_state)
 
             stamp = _now()
             event = EVENT_REGRANTED if previous == STATUS_WITHDRAWN else EVENT_GRANTED

@@ -172,6 +172,7 @@ module "lambda" {
   partner_surface_enabled             = var.partner_surface_enabled
   application_consent_enforced        = var.application_consent_enforced
   consent_notice_state_enforced       = var.consent_notice_state_enforced
+  consent_pilot_allowlist             = var.consent_pilot_allowlist
   applications_gsi_owner_arn          = module.dynamodb.applications_gsi_owner_arn
   s3_bucket_arn                       = aws_s3_bucket.data.arn
   documents_bucket_name               = module.documents.bucket_name

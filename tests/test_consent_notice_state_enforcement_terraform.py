@@ -26,6 +26,53 @@ def variable_block(text, name):
     return match.group(1) if match else ""
 
 
+class ConsentPilotAllowlistTests(unittest.TestCase):
+    """Scoped pilot identity list: non-secret, empty by default, wired."""
+
+    def setUp(self):
+        self.root_variables = read("variables.tf")
+        self.module_variables = read("modules/lambda/variables.tf")
+        self.module_main = read("modules/lambda/main.tf")
+        self.root_main = read("main.tf")
+
+    def test_root_variable_is_string_default_empty(self):
+        block = variable_block(self.root_variables, "consent_pilot_allowlist")
+        self.assertTrue(block, "root variable is missing")
+        self.assertRegex(block, r"type\s*=\s*string")
+        self.assertRegex(block, r'default\s*=\s*""')
+
+    def test_module_variable_is_string_default_empty(self):
+        block = variable_block(
+            self.module_variables, "consent_pilot_allowlist")
+        self.assertTrue(block, "module variable is missing")
+        self.assertRegex(block, r"type\s*=\s*string")
+        self.assertRegex(block, r'default\s*=\s*""')
+
+    def test_module_environment_wires_the_allowlist(self):
+        self.assertRegex(
+            self.module_main,
+            r"CONSENT_PILOT_ALLOWLIST\s*=\s*"
+            r"var\.consent_pilot_allowlist")
+
+    def test_module_environment_has_no_hardcoded_identity(self):
+        self.assertNotRegex(
+            self.module_main,
+            r'CONSENT_PILOT_ALLOWLIST\s*=\s*"[^"]+"')
+
+    def test_root_passes_the_allowlist_to_the_lambda_module(self):
+        self.assertRegex(
+            self.root_main,
+            r"consent_pilot_allowlist\s*=\s*"
+            r"var\.consent_pilot_allowlist")
+
+    def test_project_configs_do_not_set_the_pilot_allowlist(self):
+        for name in ("ris-dev.json", "ris-dev2.json"):
+            path = os.path.join(ROOT, "installer", "project-configs", name)
+            with open(path, "r", encoding="utf-8") as fh:
+                text = fh.read()
+            self.assertNotIn("consent_pilot_allowlist", text, name)
+
+
 class RootVariablesTests(unittest.TestCase):
     def setUp(self):
         self.variables = read("variables.tf")

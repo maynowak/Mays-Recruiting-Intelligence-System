@@ -36,7 +36,8 @@ try:
         GRANTABLE_NOTICE_STATES, NOTICE_ACTIVE, NOTICE_APPROVED,
         NOTICE_DRAFT, NOTICE_STATES, NOTICE_SUPERSEDED, STATUS_GRANTED,
         STATUS_NOT_GRANTED, STATUS_WITHDRAWN, ConsentContext,
-        ConsentContractError, NoticeVersion, catalog_payload, notice_version,
+        ConsentContractError, NoticeVersion, catalog_payload,
+        external_refs_payload, notice_version,
     )
     from jobsearch.consent_repository import ConsentRepository
 except ImportError:  # pragma: no cover - dependency-free fallback
@@ -158,7 +159,8 @@ class CatalogShapeTests(unittest.TestCase):
         import handler
 
         class _Repo:
-            def grant(self, ctx, purpose, notice_version):
+            def grant(self, ctx, purpose, notice_version,
+                      enforce_notice_state=None):
                 return {"purpose": purpose, "status": STATUS_GRANTED,
                         "noticeVersion": notice_version, "version": 1}
 
@@ -321,6 +323,31 @@ class GrantAndWithdrawGateTests(unittest.TestCase):
         self.assertEqual(STATUS_GRANTED, status["status"])
         self.assertEqual(VERSION, status["noticeVersion"])
         self.assertEqual(NOTICE_DRAFT, status["noticeState"])
+
+
+class ApplicationStorageTextRefTests(unittest.TestCase):
+    """The Jobsearch consent-text candidate is known but not equivalent."""
+
+    TEXT_REF = "application-storage-consent-2026-11-07-v1"
+    TEXT_SHA256 = (
+        "2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953")
+
+    def test_text_ref_is_draft_and_deliberately_unmapped(self):
+        refs = {r["externalRef"]: r
+                for r in external_refs_payload(PURPOSE)}
+        entry = refs[self.TEXT_REF]
+        self.assertEqual("mays-jobsearch", entry["source"])
+        self.assertEqual(NOTICE_DRAFT, entry["noticeState"])
+        self.assertIsNone(entry["noticeVersion"])
+        self.assertEqual(self.TEXT_SHA256, entry["textSha256"])
+
+    @unittest.skipUnless(boto3, "boto3/moto unavailable")
+    @mock_aws
+    def test_text_ref_is_never_accepted_as_a_notice_version(self):
+        repo = _table()
+        with self.assertRaises(ConsentContractError) as caught:
+            repo.grant(CTX, PURPOSE, self.TEXT_REF)
+        self.assertEqual("INVALID_NOTICE_VERSION", caught.exception.code)
 
 
 if __name__ == "__main__":

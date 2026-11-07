@@ -634,6 +634,59 @@ def _consent_enforced() -> bool:
     return os.environ.get("APPLICATION_CONSENT_ENFORCED", "false").strip().lower() == "true"
 
 
+def _consent_pilot_identities() -> frozenset[tuple[str, str]]:
+    """Synthetic pilot identities from ``CONSENT_PILOT_ALLOWLIST``.
+
+    Format: comma- or newline-separated ``<issuer>|<sub>``. The value is
+    non-secret configuration (no credential), empty/unset means "no pilot
+    identities". Malformed entries are ignored, so a broken value can only
+    disable the pilot scope, never widen it.
+    """
+    raw = os.environ.get("CONSENT_PILOT_ALLOWLIST", "")
+    identities: set[tuple[str, str]] = set()
+    for entry in raw.replace(",", "\n").splitlines():
+        entry = entry.strip()
+        if not entry or "|" not in entry:
+            continue
+        issuer, _, subject = entry.partition("|")
+        issuer = issuer.strip().rstrip("/")
+        subject = subject.strip()
+        if issuer and subject:
+            identities.add((issuer, subject))
+    return frozenset(identities)
+
+
+def _is_consent_pilot_identity(issuer: object, sub: object) -> bool:
+    """Exact normalized issuer + sub match against the pilot allowlist."""
+    if not isinstance(issuer, str) or not isinstance(sub, str):
+        return False
+    normalized = (issuer.strip().rstrip("/"), sub.strip())
+    return normalized in _consent_pilot_identities()
+
+
+def _consent_enforced_for(ctx: Any) -> bool:
+    """Effective ApplicationV1 write gate for one identity.
+
+    Global ``APPLICATION_CONSENT_ENFORCED=true`` keeps its meaning; a listed
+    pilot identity is additionally gated without changing the global rollout
+    for the shared partner edge.
+    """
+    return _consent_enforced() or _is_consent_pilot_identity(
+        getattr(ctx, "issuer", None), getattr(ctx, "user_id", None))
+
+
+def _consent_notice_state_enforced_for(ctx: Any) -> bool:
+    """Effective notice-lifecycle enforcement for one identity.
+
+    Mirrors ``_consent_enforced_for``: global flag OR pilot identity. The
+    global default stays ``false``; pilot new/regranted grants must still
+    reject DRAFT/SUPERSEDED notices.
+    """
+    from jobsearch.consent_contract import notice_state_enforced
+    return notice_state_enforced() or _is_consent_pilot_identity(
+        getattr(ctx, "issuer", None), getattr(ctx, "user_id", None))
+
+
 def _consent_ctx(event):
     from jobsearch.consent_contract import ConsentContext
     ctx, error = _partner_profile_context(event)
@@ -672,7 +725,9 @@ def _handle_consent_routes(event, context, method, path):
                                  for entry in external_refs_payload(p)],
             })
         if path == '/v1/partner/me/consents' and method == 'POST':
-            result = repo.grant(ctx, body.get('purpose'), body.get('noticeVersion'))
+            result = repo.grant(
+                ctx, body.get('purpose'), body.get('noticeVersion'),
+                enforce_notice_state=_consent_notice_state_enforced_for(ctx))
             return _application_response(200, {'consent': result})
         if path == '/v1/partner/me/consents/withdraw' and method == 'POST':
             result = repo.withdraw(ctx, body.get('purpose'), body.get('noticeVersion'))
@@ -696,8 +751,13 @@ def _handle_consent_routes(event, context, method, path):
 
 
 def _application_consent_error(ctx):
-    """Return an error response when storage consent is enforced and absent."""
-    if not _consent_enforced():
+    """Return an error response when storage consent is enforced and absent.
+
+    The effective gate is global ``APPLICATION_CONSENT_ENFORCED=true`` OR a
+    listed ``CONSENT_PILOT_ALLOWLIST`` identity. Non-pilot identities keep the
+    previous global-only behavior, so the shared partner edge is unchanged.
+    """
+    if not _consent_enforced_for(ctx):
         return None
     from jobsearch.consent_contract import ConsentContext
     consent_ctx = ConsentContext(

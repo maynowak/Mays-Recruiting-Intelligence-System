@@ -10008,3 +10008,72 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
 - Approval packet finding: no complete, legally approved ApplicationV1 consent declaration exists; RIS draft covers profile/CV, Jobsearch policy §9/§10 is a privacy notice, no UI declaration. Notice `1.0` stays DRAFT.
 - Environment: read-only AWS confirmed `ris-dev-dev-agent` active and `ris-dev-jobsearch-api` (`c7e9pdwe78`); `ris-dev2-dev-agent` absent in account 240571105849. `ris-dev` is shared partner edge and must not be switched. Smallest safe alternative: dedicated `ris-storage-pilot`/`test` workspace or verified `ris-dev2`.
 - Final docs commit: this commit. No push/merge/deploy/apply/env/secret/notice change; no live persistence. Report: `docs/reports/JM-RIS-STORAGE-PILOT-02-REPORT.md`.
+
+## 2026-11-07 — JM-RIS-STORAGE-PILOT-03 (scoped ris-dev pilot, notice mapping)
+
+**Status:** `SCOPED PILOT IMPLEMENTED LOCAL / NO ACTIVATION / NO APPLY`
+
+- Basis: Branch `feature/jm-ris-storage-activation-01`, Baseline `8e6578b`.
+  Kein Push, Merge, Deploy, Apply, keine Live-Env-/Secret-/Notice-State-
+  Aenderung. Bindendes Ziel ist `ris-dev`; `ris-dev2` wurde nicht untersucht
+  und kein neuer Workspace angelegt.
+- Scoped Activation: neue Env `CONSENT_PILOT_ALLOWLIST` (komma-/newline-
+  getrennt `<issuer>|<sub>`, leer = keine Pilot-Identitaet, nicht geheim).
+  `lambda/handler.py` normalisiert Issuer (trim, trailing slash) und Sub exakt,
+  ignoriert malformed Eintraege und bietet
+  `_consent_enforced_for(ctx)` = global `APPLICATION_CONSENT_ENFORCED` ODER
+  Pilot-Identitaet sowie `_consent_notice_state_enforced_for(ctx)` = global
+  `CONSENT_NOTICE_STATE_ENFORCED` ODER Pilot-Identitaet.
+  `_application_consent_error(ctx)` nutzt den effektiven Gate: Pilot-
+  Identitaeten werden auch bei global `false` mit `403 CONSENT_REQUIRED`
+  geblockt; Nicht-Pilot-Identitaeten behalten das bisherige Verhalten.
+  `PARTNER_SURFACE_ENABLED` unveraendert.
+- Repository: `ConsentRepository.grant(..., enforce_notice_state=None)` mit
+  neuem optionalen Parameter; `None` liest weiter die globale Env. Der
+  Handler uebergibt den effektiven Wert. Neue/Regrant-Grants von Pilot-
+  Identitaeten lehnen `DRAFT`/`SUPERSEDED` mit `NOTICE_NOT_ACTIVE` (422) ab;
+  idempotente Wiederholungen und Widerruf bleiben unveraendert.
+- Terraform: `consent_pilot_allowlist` (string, default `""`) in Root und
+  Lambda-Modul, Env `CONSENT_PILOT_ALLOWLIST`, Weitergabe in
+  `terraform/main.tf`. Alle Gate-Defaults bleiben `false`/leer; keine
+  Projekt-Config setzt den Wert.
+- Mapping: `EXTERNAL_NOTICE_REFS["application-storage"]` kennt jetzt
+  `application-storage-consent-2026-11-07-v1` (Quelle `mays-jobsearch`,
+  `DRAFT`, `noticeVersion: None`, `textSha256
+  2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953`).
+  Es ist bekannt, aber **nicht** gleichwertig zu RIS `1.0`; eine Zuordnung
+  erfordert eine dokumentierte Operator-/Legal-Freigabe. RIS-Notice `1.0`
+  bleibt `DRAFT`, `legalApprovalRef` bleibt `null`.
+- Mapping-Doku: `docs/reports/APPLICATION-STORAGE-1.0-NOTICE-MAPPING.md`
+  (Identitaeten, Lifecycle, Vorschlags-Mapping, Verifikation).
+- Jobsearch-Text-Review (Commit `2b4b520`, read-only): **PASS**. Der Text
+  deckt Datenkategorien, Zweck, RIS-Rolle, Widerruf, Retention/Erasure und
+  die Trennung von KI-Einwilligung ab; er erfindet keine Rechtsgrundlage,
+  keine Retention-Frist und keine Transfergarantie. Offen bleibt die
+  rechtliche Art.-9-Pruefung fuer Freitext (Anschreiben/Notizen/Kontakt) —
+  bereits im Approval-Paket als Entscheidung gefuehrt, kein Textfehler.
+- Tests (lokal, moto):
+  `tests/test_consent_pilot_allowlist.py` neu (Allowlist-Parsing, effektive
+  Gates, Handler-Gate, Grant-Wiring, scoped Repository-Grant, synthetischer
+  ACTIVE-Pilot-Flow) und Mapping-Tests im Katalog-Contract; Terraform-Statik
+  um `consent_pilot_allowlist` erweitert.
+  `pytest ... 8 Consent-/Pilot-Dateien -q` = **84 passed**;
+  erweitert mit Application-/Plan-Input-Contracts = **124 passed**.
+- Terraform: `terraform fmt -check -recursive` exit 0;
+  `terraform init -backend=false` + `terraform validate` in temporaerer Kopie
+  (`/tmp/opencode/tf-validate-pilot3`) = **Success! The configuration is
+  valid** (nur vorbestehende `hash_key`-Warnungen). Kein Plan, kein Apply.
+- Exakter nicht-geheimer `ris-dev`-Env-Plan (nicht angewendet):
+  `CONSENT_PILOT_ALLOWLIST=<issuer>|<synthetic sub>`; global
+  `APPLICATION_CONSENT_ENFORCED=false`; global
+  `CONSENT_NOTICE_STATE_ENFORCED=false`; Notice `1.0` bleibt `DRAFT` bis zur
+  Operator-Freigabe.
+- Scope-Hinweis: die Allowlist bindet nur `issuer|sub`, nicht Partner/Tenant.
+  Die eingetragene Identitaet muss eine dedizierte synthetische Testidentitaet
+  sein, kein realer Nutzer; sie wirkt fuer alle Partner-Apps derselben
+  Cognito-Identitaet.
+- **Keine Aktivierung:** keine Live-Env-, AWS-, Cognito-, CloudFront-, DNS-,
+  ACM-, Terraform-Apply- oder Notice-State-Aenderung; keine Live-Persistenz-
+  Behauptung. Nur lokale Tests und statische Terraform-Pruefung.
+- Evidenz: `tests/test_consent_pilot_allowlist.py`,
+  `docs/reports/APPLICATION-STORAGE-1.0-NOTICE-MAPPING.md`.

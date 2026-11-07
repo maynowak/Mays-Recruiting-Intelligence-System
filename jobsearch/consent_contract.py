@@ -104,14 +104,26 @@ NOTICE_REGISTRY: dict[str, dict[str, NoticeVersion]] = {
 }
 
 #: Partner-side identifiers that are *known* but deliberately not equivalent
-#: to a RIS notice version yet. ``2026-11-04-draft-1`` is a Jobsearch draft;
-#: renaming it must never turn it into an approved RIS version.
+#: to a RIS notice version yet. ``2026-11-04-draft-1`` and
+#: ``application-storage-consent-2026-11-07-v1`` are Jobsearch drafts; renaming
+#: or hashing them must never turn them into an approved RIS version.
 EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
     "application-storage": {
         "2026-11-04-draft-1": {
             "source": "mays-jobsearch",
             "noticeState": NOTICE_DRAFT,
             "noticeVersion": None,  # no equivalence until separately approved
+        },
+        # Canonical ApplicationV1 consent text candidate (Jobsearch commit
+        # 2b4b520). The hash pins the exact text; the mapping to RIS 1.0 is
+        # NOT approved and stays DRAFT.
+        "application-storage-consent-2026-11-07-v1": {
+            "source": "mays-jobsearch",
+            "noticeState": NOTICE_DRAFT,
+            "noticeVersion": None,  # no equivalence until separately approved
+            "textSha256": (
+                "2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953"
+            ),
         },
     },
 }
