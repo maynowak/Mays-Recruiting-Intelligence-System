@@ -13,7 +13,7 @@ agents).
 | Side | Branch | Commit |
 | --- | --- | --- |
 | RIS | `feature/jm-ris-storage-activation-01` | `e217e5b` |
-| Jobsearch | `feature/jm-ris-storage-activation-01` | `b8074a0` |
+| Jobsearch | `feature/jm-ris-storage-activation-01` | `04f00f4` (code `b8074a0`; later commits docs-only) |
 
 > This packet does **not** approve anything. No notice state is changed, no
 > `legalApprovalRef` is set, no flag is enabled, nothing is deployed.

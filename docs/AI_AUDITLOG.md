@@ -9998,3 +9998,13 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
   `docs/reports/JM-RIS-STORAGE-PILOT-02-ENVIRONMENT-ANALYSIS.md`,
   `tests/test_consent_active_notice_pilot.py`,
   `tests/test_consent_notice_state_enforcement_terraform.py`.
+
+## 2026-11-07 — JM-RIS-STORAGE-PILOT-02 — final consolidation
+
+**Status:** `STORAGE PILOT TECHNICALLY READY (LOCAL)` / `BLOCKED FOR LIVE PILOT`
+
+- RIS commit `81634d8`: Terraform wiring for `CONSENT_NOTICE_STATE_ENFORCED` (root/module, default false), synthetic ACTIVE-notice E2E, approval packet, environment analysis.
+- Tests: 55 passed focused; 91 passed wider; `terraform fmt -check` PASS; `terraform init -backend=false`/`validate` PASS (27 pre-existing warnings). No plan/apply/AWS mutation.
+- Approval packet finding: no complete, legally approved ApplicationV1 consent declaration exists; RIS draft covers profile/CV, Jobsearch policy §9/§10 is a privacy notice, no UI declaration. Notice `1.0` stays DRAFT.
+- Environment: read-only AWS confirmed `ris-dev-dev-agent` active and `ris-dev-jobsearch-api` (`c7e9pdwe78`); `ris-dev2-dev-agent` absent in account 240571105849. `ris-dev` is shared partner edge and must not be switched. Smallest safe alternative: dedicated `ris-storage-pilot`/`test` workspace or verified `ris-dev2`.
+- Final docs commit: this commit. No push/merge/deploy/apply/env/secret/notice change; no live persistence. Report: `docs/reports/JM-RIS-STORAGE-PILOT-02-REPORT.md`.
