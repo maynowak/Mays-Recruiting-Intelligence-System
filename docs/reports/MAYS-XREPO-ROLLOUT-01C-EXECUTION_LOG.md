@@ -101,15 +101,18 @@ be investigated separately.
 
 ## 5. Remaining blockers / recommendation
 
-- Jobsearch PR #2 remains a draft and `MERGEABLE`/`UNSTABLE` because of Vercel
-  preview output failures.
-- RIS PR #6 remains a draft and `MERGEABLE`/`CLEAN`, with no review approval.
+- Jobsearch PR #2 is now `CONFLICTING`/`DIRTY`: `origin/main` advanced from
+  `7a3d2ea` to `a2225c4` after the earlier checks. It was already unstable due
+  to Vercel preview output failures.
+- RIS PR #6 is now `CONFLICTING`/`DIRTY`: `origin/main` advanced from `c28c668`
+  to `fdc6fc9`. No merge was attempted.
 - No merge, deployment, live dispatch, issue change, secret output, or permission
   expansion was performed.
 - Recommendation: the GitHub App authentication is technically verified. Before
-  a controlled rollout, resolve or explicitly accept the Vercel preview failure,
-  then obtain the separate rollout/merge approval. Do not merge based on this
-  smoke test alone.
+  a controlled rollout, reconcile both feature branches with the current
+  `origin/main` (normal merge, no force-push), resolve or explicitly accept the
+  Vercel preview failure, then obtain the separate rollout/merge approval. Do
+  not merge based on this smoke test alone.
 
 ## 6. Recovery point
 
@@ -125,3 +128,17 @@ be investigated separately.
 
 `PASS` for GitHub App authentication. Rollout remains `BLOCKED` pending the
 Vercel/approval gates; no merge or live dispatch is authorized.
+
+
+## 8. Post-run repository drift
+
+After the successful smoke test, both remote default branches advanced:
+
+| Repo | Previous `origin/main` | Current `origin/main` | PR state |
+| --- | --- | --- | --- |
+| Jobsearch | `7a3d2ea` | `a2225c4` | #2 `CONFLICTING` / `DIRTY` |
+| RIS | `c28c668` | `fdc6fc9` | #6 `CONFLICTING` / `DIRTY` |
+
+This drift is unrelated to the app-authentication proof. No merge, rebase,
+force-push, or conflict resolution was performed. The feature branches must be
+reconciled with the new `origin/main` in a separately approved rollout step.
