@@ -10205,3 +10205,39 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
 - Keine Code-/Env-/Notice-/Deploy-/Apply-/Push-Aenderung und keine
   Live-Persistenz-Behauptung. Report:
   `docs/reports/JM-RIS-STORAGE-PILOT-04-REPORT.md`.
+
+## 2026-11-07 — JM-RIS-STORAGE-PILOT-05 — Phase A mapping update (consent text v2)
+
+**Status:** `MAPPING UPDATED LOCAL / STILL DRAFT / NO APPROVAL`
+
+- Jobsearch `47f73c4` hat den ApplicationV1-Einwilligungstext auf **v2**
+  angehoben: Version `application-storage-consent-2026-11-07-v2`, SHA-256
+  `232cc8206261b5d14f7a269f63a58320f76eea435a65f7e039b25c62d26da0ca`.
+  Neu explizit genannt: Bewerbungsstatus, Statusänderungen und Statusverlauf
+  (`status`/`statusHistory`). v1
+  (`application-storage-consent-2026-11-07-v1`, `2615314738…9953`) bleibt
+  historisch und ist durch v2 ersetzt.
+- RIS `EXTERNAL_NOTICE_REFS["application-storage"]`: v2 mit Quelle
+  `mays-jobsearch`, `noticeState=DRAFT`, `noticeVersion=None` und exaktem
+  `textSha256` ergaenzt. v1 bleibt als historischer Eintrag mit
+  `noticeState=DRAFT`, `noticeVersion=None`, `textSha256` und
+  `supersededBy=...v2` erhalten. v1 wird bewusst **nicht** als `SUPERSEDED`
+  gefuehrt, weil das eine fruehere Freigabe implizieren wuerde.
+- Doku aktualisiert: `docs/reports/APPLICATION-STORAGE-1.0-NOTICE-MAPPING.md`
+  (v2 aktuell, v1 historisch, externe Refs, Vorschlags-Mapping) und
+  `docs/reports/APPLICATION-STORAGE-1.0-APPROVAL-PACKET.md` (Candidate D v2
+  mit wortgetreuem Text und neuem Hash, Statusfelder in der Feldzuordnung,
+  v1-Hinweis, Baseline Jobsearch `47f73c4`).
+- Tests: `tests/test_consent_notice_catalog_contract.py` prueft v2
+  bekannt/DRAFT/None/exakter Hash und v1 historisch mit `supersededBy`; beide
+  werden nie als `noticeVersion` akzeptiert.
+  `PYTHONPATH=/tmp/opencode/pydeps python3 -m pytest
+  tests/test_consent_notice_catalog_contract.py
+  tests/test_consent_pilot_allowlist.py
+  tests/test_consent_notice_state_enforcement_terraform.py -q`
+  = **56 passed**; `terraform fmt -check -recursive` exit 0.
+- **Keine Freigabe / keine Aktivierung:** Notice `1.0` bleibt `DRAFT`,
+  `legalApprovalRef=null`, keine RIS-`1.0`-Zuordnung, kein Plan/Apply/Deploy,
+  keine Env-/Flag-/Notice-State-Aenderung, kein Push. Kein Terraform-Plan
+  erstellt, weil synthetische Testidentitaet und Operator-Freigabe fehlen.
+  Keine Live-Persistenz-Behauptung.

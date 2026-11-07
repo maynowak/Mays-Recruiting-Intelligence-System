@@ -13,7 +13,7 @@ agents).
 | Side | Branch | Commit |
 | --- | --- | --- |
 | RIS | `feature/jm-ris-storage-activation-01` | `7032e82` |
-| Jobsearch | `feature/jm-ris-storage-activation-01` | code `115ea57`, docs `26e6edd` |
+| Jobsearch | `feature/jm-ris-storage-activation-01` | code `47f73c4` (v2 text; docs include the same commit) |
 
 > This packet does **not** approve anything. No notice state is changed, no
 > `legalApprovalRef` is set, no flag is enabled, nothing is deployed.
@@ -34,9 +34,10 @@ agents).
 3. **A complete candidate declaration now exists, but no operator/legal
    approval, `legalApprovalRef`, or RIS `1.0` mapping exists.** Candidate D
    (§3.4, Jobsearch `src/lib/applicationStorageConsent.ts` /
-   `api/_lib/ris/consentText.mjs`, commit `115ea57`) is a full first-person
-   declaration for ApplicationV1. It is labelled `DRAFT`, is not approved and
-   is not mapped to RIS notice `1.0`.
+   `api/_lib/ris/consentText.mjs`, commit `47f73c4`) is a full first-person
+   declaration for ApplicationV1 (v2). It is labelled `DRAFT`, is not approved
+   and is not mapped to RIS notice `1.0`. The previous v1 text is historical
+   and superseded.
 4. The RIS processing-purpose and retention matrices
    (`RIS-JOBSEARCH-PROCESSING-PURPOSES-V1.md`,
    `RIS-JOBSEARCH-RETENTION-POLICY-V1.md`) contain **no ApplicationV1
@@ -55,17 +56,19 @@ agents).
 | --- | --- | --- | --- |
 | RIS purpose | `application-storage` | — | — |
 | RIS notice version | `application-storage` / `1.0` | `DRAFT`, `legalApprovalRef = null` | — |
-| Jobsearch ApplicationV1 text version | `application-storage-consent-2026-11-07-v1` | `DRAFT` (candidate, §3.4) | **none** |
-| Jobsearch ApplicationV1 text SHA-256 | `2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953` | — | — |
+| Jobsearch ApplicationV1 text version | `application-storage-consent-2026-11-07-v2` | `DRAFT` (candidate, §3.4) | **none** |
+| Jobsearch ApplicationV1 text SHA-256 | `232cc8206261b5d14f7a269f63a58320f76eea435a65f7e039b25c62d26da0ca` | — | — |
+| Jobsearch historical text version (v1) | `application-storage-consent-2026-11-07-v1` | `DRAFT`, superseded by v2 | **none** |
 | Jobsearch legacy text version | `STORAGE_CONSENT_TEXT_VERSION = "2026-11-04-draft-1"` | DRAFT | **none** |
 | Jobsearch legacy privacy-notice version | `STORAGE_CONSENT_PRIVACY_NOTICE_VERSION = "2026-11-04-draft-1"` | DRAFT | **none** |
 
 Sources: `jobsearch/consent_contract.py` (`NOTICE_REGISTRY`,
 `EXTERNAL_NOTICE_REFS`); Jobsearch `src/lib/applicationStorageConsent.ts` and
-`api/_lib/ris/consentText.mjs` at commit `115ea57`.
+`api/_lib/ris/consentText.mjs` at commit `47f73c4`.
 
-Both `2026-11-04-draft-1` and
-`application-storage-consent-2026-11-07-v1` are known to RIS as external
+`application-storage-consent-2026-11-07-v2` is current. The earlier
+`application-storage-consent-2026-11-07-v1` remains historical/superseded and
+`2026-11-04-draft-1` remains a legacy draft. All are known to RIS as external
 references but are never accepted as a `noticeVersion`. Renaming an identifier,
 or matching a hash, is not an approval. A mapping to `1.0` requires a separate,
 documented operator/legal decision.
@@ -219,18 +222,20 @@ From `src/i18n.tsx` (`privacyStorage.*`, DE):
 | `privacyStorage.actions.withdraw` | `Einwilligung widerrufen` |
 
 Candidate D is rendered verbatim above the consent button at Jobsearch
-`115ea57`; the grant button is the affirmative act after the declaration.
-Candidates A–C remain supporting/context material.
+`47f73c4` (v2); the grant button is the affirmative act after the declaration.
+Candidates A–C remain supporting/context material. v1 is historical and
+superseded by v2.
 
-### 3.4 Candidate D — complete ApplicationV1 declaration (candidate)
+### 3.4 Candidate D — complete ApplicationV1 declaration (candidate, v2)
 
-Source: `src/lib/applicationStorageConsent.ts` (Jobsearch commit `115ea57`),
+Source: `src/lib/applicationStorageConsent.ts` (Jobsearch commit `47f73c4`),
 canonical text = the eight paragraphs below joined with `\n\n` (UTF-8).
 
 | Field | Value |
 | --- | --- |
-| Text version | `application-storage-consent-2026-11-07-v1` |
-| SHA-256 | `2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953` |
+| Text version | `application-storage-consent-2026-11-07-v2` |
+| SHA-256 | `232cc8206261b5d14f7a269f63a58320f76eea435a65f7e039b25c62d26da0ca` |
+| Supersedes | `application-storage-consent-2026-11-07-v1` (historical, never approved) |
 | Intended RIS notice | `application-storage` / `1.0` |
 | State | **`DRAFT` — not approved** |
 | `legalApprovalRef` | **none** (RIS notice `1.0` still `null`) |
@@ -240,7 +245,7 @@ canonical text = the eight paragraphs below joined with `\n\n` (UTF-8).
 
 > Ich willige ein, dass der RIS-Speicherdienst meine Bewerbungsdaten im nachfolgend beschriebenen Umfang dauerhaft speichert, damit ich sie später abrufen, bearbeiten, exportieren und löschen kann. Diese Einwilligung gilt ergänzend zu den Datenschutzhinweisen unter /datenschutz (Datenschutzrichtlinie Version 1.1 vom 7. November 2026) und ersetzt diese nicht.
 >
-> Gespeichert werden: meine Bewerbungen mit Stellenbezug (jobId, Titel, Unternehmen, Ort, Quelle und URL), meine Anschreiben und Anschreiben-Versionen, der Dokumentstatus, Verweise auf ausgewählte CV- und Suchprofile sowie Bewerbungsdatum und -kanal, Kontaktangaben, Notizen, Gehaltsvorstellung und -angebot, Wiedervorlagen und Verlaufsereignisse (Feedback, Interview, Notizen).
+> Gespeichert werden: meine Bewerbungen mit Stellenbezug (jobId, Titel, Unternehmen, Ort, Quelle und URL), meine Anschreiben und Anschreiben-Versionen, der Dokumentstatus, der Bewerbungsstatus, Statusänderungen und der Statusverlauf, Verweise auf ausgewählte CV- und Suchprofile sowie Bewerbungsdatum und -kanal, Kontaktangaben, Notizen, Gehaltsvorstellung und -angebot, Wiedervorlagen und Verlaufsereignisse (Feedback, Interview, Notizen).
 >
 > Nicht gespeichert werden durch diese Einwilligung: PDF-Dateien, im Browser ausgelesene CV-Texte, KI-Prompts oder Provider-Nutzlasten. Verweise auf CV- und Suchprofile verweisen nur auf die jeweilige Ressource und enthalten keine Dokumentkopie.
 >
@@ -256,7 +261,9 @@ canonical text = the eight paragraphs below joined with `\n\n` (UTF-8).
 
 **Note:** This is a candidate. It is not approved, not mapped to RIS `1.0`
 and must not be presented as approved until an operator/legal approval records
-the text, the mapping and a real `legalApprovalRef`.
+the text, the mapping and a real `legalApprovalRef`. v1
+(`application-storage-consent-2026-11-07-v1`, hash `2615…9953`) remains
+historical/superseded and was never approved.
 
 ---
 
@@ -298,6 +305,7 @@ document copy.
 | „meine Bewerbungen mit Stellenbezug (jobId, Titel, Unternehmen, Ort, Quelle und URL)“ | `job.jobId`, `job.source`, `job.title`, `job.company`, `job.location`, `job.url` | Exact job snapshot |
 | „meine Anschreiben und Anschreiben-Versionen“ | `documents.coverLetterDraft`, `documents.coverLetterVersions[]` (`versionId`, `jobId`, `createdAt`, `content`, `source`, `language`, `model`) | Version content; `model` is stored metadata |
 | „der Dokumentstatus“ | `documents.documentStatus` (`missing`/`draft`/`ready`) | Metadata |
+| „der Bewerbungsstatus, Statusänderungen und der Statusverlauf“ | `status` (`DRAFT`/`READY`/`SUBMITTED`/`WITHDRAWN`/`ARCHIVED`), `statusHistory` | Now named explicitly in v2 |
 | „Verweise auf ausgewählte CV- und Suchprofile“ | `documents.cvReference` (`cvId`, optional `documentId`, `label`); `cvRef`, `profileRef` (`id`, `version`) | References only; no PDF bytes/hash |
 | „Bewerbungsdatum und -kanal“ | `applicationDate`, `applicationChannel` | Application metadata |
 | „Kontaktangaben“ | `contact` | May contain third-party data |
@@ -308,14 +316,12 @@ document copy.
 
 Caveats for the operator:
 
-- The ApplicationV1 `status`
-  (`DRAFT`/`READY`/`SUBMITTED`/`WITHDRAWN`/`ARCHIVED`) and `statusHistory` are
-  not named literally. They are covered by „meine Bewerbungen“ and
-  „Verlaufsereignisse“; if the operator wants them named explicitly, that is a
-  **wording decision before approval**.
+- v2 explicitly names „der Bewerbungsstatus, Statusänderungen und der
+  Statusverlauf“, closing the earlier status/`statusHistory` wording gap. No
+  further wording decision is required for those fields; the legal assessment
+  still applies.
 - `documents.coverLetterVersions[].model` (model identifier) is part of
-  „Anschreiben-Versionen“ metadata; explicit naming is likewise a wording
-  decision.
+  „Anschreiben-Versionen“ metadata; explicit naming is a wording decision.
 - `idempotencyKey`, cursors and other technical guard records are not consent
   data and are not part of the declaration; they are covered by the separate
   processing-purpose/retention review (P-08), which remains open.

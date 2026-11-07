@@ -326,28 +326,42 @@ class GrantAndWithdrawGateTests(unittest.TestCase):
 
 
 class ApplicationStorageTextRefTests(unittest.TestCase):
-    """The Jobsearch consent-text candidate is known but not equivalent."""
+    """The Jobsearch consent-text candidates are known but not equivalent."""
 
-    TEXT_REF = "application-storage-consent-2026-11-07-v1"
+    TEXT_REF = "application-storage-consent-2026-11-07-v2"
     TEXT_SHA256 = (
+        "232cc8206261b5d14f7a269f63a58320f76eea435a65f7e039b25c62d26da0ca")
+    V1_REF = "application-storage-consent-2026-11-07-v1"
+    V1_SHA256 = (
         "2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953")
 
-    def test_text_ref_is_draft_and_deliberately_unmapped(self):
-        refs = {r["externalRef"]: r
-                for r in external_refs_payload(PURPOSE)}
-        entry = refs[self.TEXT_REF]
+    def _refs(self):
+        return {r["externalRef"]: r for r in external_refs_payload(PURPOSE)}
+
+    def test_current_v2_ref_is_draft_and_deliberately_unmapped(self):
+        entry = self._refs()[self.TEXT_REF]
         self.assertEqual("mays-jobsearch", entry["source"])
         self.assertEqual(NOTICE_DRAFT, entry["noticeState"])
         self.assertIsNone(entry["noticeVersion"])
         self.assertEqual(self.TEXT_SHA256, entry["textSha256"])
 
+    def test_historical_v1_ref_stays_draft_and_marks_supersession(self):
+        entry = self._refs()[self.V1_REF]
+        self.assertEqual("mays-jobsearch", entry["source"])
+        # v1 was never approved, so it must not be reported as SUPERSEDED.
+        self.assertEqual(NOTICE_DRAFT, entry["noticeState"])
+        self.assertIsNone(entry["noticeVersion"])
+        self.assertEqual(self.V1_SHA256, entry["textSha256"])
+        self.assertEqual(self.TEXT_REF, entry["supersededBy"])
+
     @unittest.skipUnless(boto3, "boto3/moto unavailable")
     @mock_aws
-    def test_text_ref_is_never_accepted_as_a_notice_version(self):
+    def test_text_refs_are_never_accepted_as_a_notice_version(self):
         repo = _table()
-        with self.assertRaises(ConsentContractError) as caught:
-            repo.grant(CTX, PURPOSE, self.TEXT_REF)
-        self.assertEqual("INVALID_NOTICE_VERSION", caught.exception.code)
+        for ref in (self.TEXT_REF, self.V1_REF):
+            with self.assertRaises(ConsentContractError) as caught:
+                repo.grant(CTX, PURPOSE, ref)
+            self.assertEqual("INVALID_NOTICE_VERSION", caught.exception.code)
 
 
 if __name__ == "__main__":

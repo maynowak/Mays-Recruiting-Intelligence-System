@@ -104,9 +104,9 @@ NOTICE_REGISTRY: dict[str, dict[str, NoticeVersion]] = {
 }
 
 #: Partner-side identifiers that are *known* but deliberately not equivalent
-#: to a RIS notice version yet. ``2026-11-04-draft-1`` and
-#: ``application-storage-consent-2026-11-07-v1`` are Jobsearch drafts; renaming
-#: or hashing them must never turn them into an approved RIS version.
+#: to a RIS notice version yet. ``2026-11-04-draft-1`` and the
+#: ``application-storage-consent-*`` text candidates are Jobsearch drafts;
+#: renaming or hashing them must never turn them into an approved RIS version.
 EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
     "application-storage": {
         "2026-11-04-draft-1": {
@@ -114,15 +114,28 @@ EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
             "noticeState": NOTICE_DRAFT,
             "noticeVersion": None,  # no equivalence until separately approved
         },
-        # Canonical ApplicationV1 consent text candidate (Jobsearch commit
-        # 2b4b520). The hash pins the exact text; the mapping to RIS 1.0 is
-        # NOT approved and stays DRAFT.
+        # Historical ApplicationV1 text candidate (Jobsearch v1). It was never
+        # approved and was replaced by v2; it deliberately stays DRAFT (not
+        # SUPERSEDED, which would imply a prior approval) and is recorded as
+        # superseded for traceability only.
         "application-storage-consent-2026-11-07-v1": {
             "source": "mays-jobsearch",
             "noticeState": NOTICE_DRAFT,
             "noticeVersion": None,  # no equivalence until separately approved
             "textSha256": (
                 "2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953"
+            ),
+            "supersededBy": "application-storage-consent-2026-11-07-v2",
+        },
+        # Current ApplicationV1 consent text candidate (Jobsearch v2, commit
+        # 47f73c4). The hash pins the exact text; the mapping to RIS 1.0 is
+        # NOT approved and stays DRAFT.
+        "application-storage-consent-2026-11-07-v2": {
+            "source": "mays-jobsearch",
+            "noticeState": NOTICE_DRAFT,
+            "noticeVersion": None,  # no equivalence until separately approved
+            "textSha256": (
+                "232cc8206261b5d14f7a269f63a58320f76eea435a65f7e039b25c62d26da0ca"
             ),
         },
     },
