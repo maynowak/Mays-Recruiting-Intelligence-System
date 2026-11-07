@@ -645,11 +645,12 @@ resource "aws_lambda_function" "agent" {
       DELETION_LEDGER_ENABLED              = "false"
       # New partner/personal routes stay closed until the data-protection
       # decision is signed off; deploying infrastructure is not approval.
-      PARTNER_SURFACE_ENABLED      = var.partner_surface_enabled ? "true" : "false"
-      CONSENTS_TABLE               = var.consents_table_name
-      APPLICATION_CONSENT_ENFORCED = var.application_consent_enforced ? "true" : "false"
-      DELETION_LEDGER_TABLE        = var.deletion_ledger_table_name
-      LOG_LEVEL                    = var.log_level
+      PARTNER_SURFACE_ENABLED       = var.partner_surface_enabled ? "true" : "false"
+      CONSENTS_TABLE                = var.consents_table_name
+      APPLICATION_CONSENT_ENFORCED  = var.application_consent_enforced ? "true" : "false"
+      CONSENT_NOTICE_STATE_ENFORCED = var.consent_notice_state_enforced ? "true" : "false"
+      DELETION_LEDGER_TABLE         = var.deletion_ledger_table_name
+      LOG_LEVEL                     = var.log_level
     }
   }
 

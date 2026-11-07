@@ -348,6 +348,12 @@ variable "application_consent_enforced" {
   default     = false
 }
 
+variable "consent_notice_state_enforced" {
+  description = "Reject new consent grants for non-grantable notice states (DRAFT/SUPERSEDED) in the Lambda runtime (Default AUS; separate activation gate)."
+  type        = bool
+  default     = false
+}
+
 variable "partner_surface_enabled" {
   description = "Aktiviert die Partner-/Personen-Oberflaeche (Default AUS)."
   type        = bool

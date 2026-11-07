@@ -9939,3 +9939,62 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
 - Current notice `application-storage/1.0` is DRAFT with `legalApprovalRef=null`; primary activation blocker. `CONSENT_NOTICE_STATE_ENFORCED` is not wired in Terraform; `APPLICATION_CONSENT_ENFORCED` remains false. No activation or live persistence test.
 - Agent sessions: RIS `ses_e49a08eb7ffe8RltsM98S9VTQq`, Jobsearch `ses_e49a66ef3ffeCeeSQhQhNwNnqs`; final cross-reviews PASS. Tests: RIS selected 79 passed; Jobsearch full 1562 passed / 5 skipped.
 - No push/merge/deploy/env/secret/Terraform/AWS/Cognito change. Report: `docs/reports/JM-RIS-STORAGE-ACTIVATION-01-REPORT.md`.
+
+## 2026-11-07 — JM-RIS-STORAGE-PILOT-02 (Approval-Paket, Terraform-Wiring, aktive-Notice-E2E, Umgebungsanalyse)
+
+**Status:** `APPROVAL PACKET DRAFT / TERRAFORM WIRING VERIFIED LOCAL / NO ACTIVATION`
+
+- Basis: Branch `feature/jm-ris-storage-activation-01`, Baseline `e217e5b`,
+  Worktree `worktrees/ris-storage-activation-01`. Kein Push, Merge, Deploy,
+  Apply, keine Secret-Erstellung, keine Notice-Freigabe.
+- Approval-Paket: `docs/reports/APPLICATION-STORAGE-1.0-APPROVAL-PACKET.md`
+  erstellt. Es zitiert ausschliesslich bestehende Texte (RIS-Entwurf
+  `RIS-JOBSEARCH-PRIVACY-NOTICE-DRAFT-V1.md`, Jobsearch-Policy v1.1 §9/§10,
+  exakte UI-/i18n-Strings) und erfindet keine Rechtsformulierung. Zentraler
+  Befund: Der RIS-Entwurf ist als "Arbeitsentwurf — nicht juristisch
+  freigegeben" markiert und deckt Profil-/CV-/Suchprofildaten ab, nicht
+  ApplicationV1; Policy §9 und die UI-Strings sind Anzeige-/Hinweistexte, keine
+  Einwilligungserklaerung. Es existiert **keine** vollstaendige, rechtlich
+  freigegebene Application-Storage-Einwilligungserklaerung; die RIS-Purpose-
+  und Retention-Matrizen haben keine ApplicationV1-Zeile. Versionen:
+  RIS `application-storage/1.0` (DRAFT, `legalApprovalRef=null`), Jobsearch
+  `2026-11-04-draft-1`, Mapping = keine.
+- Terraform-Wiring (Default weiterhin fail-closed):
+  `consent_notice_state_enforced` als Root- und Modul-Variable (bool,
+  default `false`), Modul-Env
+  `CONSENT_NOTICE_STATE_ENFORCED = var.consent_notice_state_enforced ? "true" : "false"`,
+  Weitergabe in `terraform/main.tf`. `APPLICATION_CONSENT_ENFORCED` bleibt
+  unveraendert default `false`. Keine Projekt-Config (`ris-dev`, `ris-dev2`)
+  setzt die Flags.
+- Tests (neu, lokal, moto):
+  `tests/test_consent_active_notice_pilot.py` (aktive Notice + beide Gates:
+  kein Consent -> 403, Grant -> Create/Update erlaubt, Withdraw -> neuer Write
+  403, Read/Export/Delete weiter erlaubt, DRAFT/SUPERSEDED nicht grantbar,
+  APPROVED/ACTIVE grantbar, Isolation) und
+  `tests/test_consent_notice_state_enforcement_terraform.py` (statische
+  Terraform-Pruefung). Ergebnis:
+  `pytest ... 10 Dateien -q` = **91 passed**; davon die Consent-/Terraform-
+  Dateien **55 passed**.
+- Terraform: `terraform fmt -check -recursive` exit 0;
+  `terraform init -backend=false` + `terraform validate` in einer temporaeren
+  Kopie (`/tmp`, nicht im Repo) = **Success! The configuration is valid**
+  (nur vorbestehende `hash_key`-Deprecation-Warnungen). Kein Plan, kein Apply.
+- Umgebungsanalyse: `docs/reports/JM-RIS-STORAGE-PILOT-02-ENVIRONMENT-ANALYSIS.md`.
+  Read-only verifiziert: Account `240571105849` (mayaws);
+  `ris-dev-dev-agent` mit `CONSENTS_TABLE=ris-dev-dev-consents`,
+  `APPLICATION_CONSENT_ENFORCED=false`, `PARTNER_SURFACE_ENABLED=true`,
+  `CONSENT_NOTICE_STATE_ENFORCED` absent; `ris-dev2-dev-agent` in diesem Account
+  nicht vorhanden; API `c7e9pdwe78` = `ris-dev-jobsearch-api`,
+  `g6901and25` = `ris-dev-dev-api`. `ris-dev` ist mit der
+  Jobsearch-Partner-Edge geteilt und **kein** isolierter Pilot; empfohlen ist
+  ein eigener Workspace `ris-storage-pilot`/`test` (eigener State, Prefix,
+  Lambda, API, synthetische Identitaet) mit separatem GO. Keine Flags geflippt.
+- **Keine Aktivierung:** Notice `1.0` bleibt `DRAFT`, `legalApprovalRef` bleibt
+  `null`, `CONSENT_NOTICE_STATE_ENFORCED` und `APPLICATION_CONSENT_ENFORCED`
+  bleiben `false`/unwirksam; keine AWS-/Cognito-/CloudFront-/DNS-/ACM-Aenderung,
+  keine Env-Aenderung, keine Jobsearch-Datei editiert. Keine Live-Persistenz-
+  Behauptung; nur lokale Tests und read-only AWS-Abfragen.
+- Evidenz: `docs/reports/APPLICATION-STORAGE-1.0-APPROVAL-PACKET.md`,
+  `docs/reports/JM-RIS-STORAGE-PILOT-02-ENVIRONMENT-ANALYSIS.md`,
+  `tests/test_consent_active_notice_pilot.py`,
+  `tests/test_consent_notice_state_enforcement_terraform.py`.
