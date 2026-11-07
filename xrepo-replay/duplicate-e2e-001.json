@@ -1,0 +1,21 @@
+{
+  "event_type": "mays_xrepo_v1",
+  "client_payload": {
+    "protocol": "MAYS-XREPO-V1",
+    "taskId": "MAYS-XR-E2E-001",
+    "eventId": "43b693d9-e94b-416b-b94b-786d2e64d6dc",
+    "status": "REQUESTED",
+    "source": {
+      "repository": "maynowak/mays-jobsearch",
+      "issue": 3,
+      "commit": "4e2b64013c096fecf830147f17659068ef876aa7"
+    },
+    "destination": {
+      "repository": "maynowak/Mays-Recruiting-Intelligence-System",
+      "issue": 7
+    },
+    "summary": "Bidirectional transport test A->B; no product data.",
+    "evidence": [],
+    "sequence": 1
+  }
+}

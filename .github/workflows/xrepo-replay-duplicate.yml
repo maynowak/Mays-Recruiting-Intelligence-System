@@ -1,0 +1,41 @@
+name: XRepo Duplicate Replay
+
+# Isolated test branch only. Replays the exact E2E-001 event (same eventId)
+# to verify receiver idempotency. No token is printed.
+on:
+  push:
+    branches:
+      - test/xrepo-e2e-replay-01
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    name: Replay exact event for duplicate detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout replay branch
+        uses: actions/checkout@v4
+
+      - name: Create app token for target repository
+        id: app
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.XREPO_APP_ID }}
+          private-key: ${{ secrets.XREPO_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: "Mays-Recruiting-Intelligence-System"
+          permission-contents: write
+          permission-issues: read
+
+      - name: Replay exact payload
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          gh api --method POST \
+            repos/maynowak/Mays-Recruiting-Intelligence-System/dispatches \
+            --input xrepo-replay/duplicate-e2e-001.json
+          echo "Exact duplicate payload dispatched; token was not printed."
