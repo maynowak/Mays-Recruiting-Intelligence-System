@@ -10347,3 +10347,50 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
   Aenderung, kein Push/Merge/Deploy/Apply, keine Live-Persistenz-Behauptung.
   Verbleibender Blocker: Operator-/Legal-Freigabe inkl. finaler Art.-9-Pruefung
   und echtem `legalApprovalRef`.
+
+## 2026-11-07 — JM-RIS-STORAGE-PILOT-05 Consent v3 Review (Jobsearch 9eecf83)
+
+**Status:** `READ-ONLY REVIEW — PASS` / `NO APPROVAL, NO LIVE PERSISTENCE`
+
+- Geprueft (read-only, Jobsearch `9eecf83`): v3-Text, Art.-9-Checkbox,
+  `src/lib/risConsentApi.ts`, `api/_lib/ris/consentsHandler.mjs`,
+  `api/_lib/ris/consentText.mjs`, UI-Tests und BFF-Tests.
+- Text v3 bestaetigt: Version `application-storage-consent-2026-11-07-v3`,
+  SHA-256 `696f9e66d8098b2dce56a93418ba598145b669934662e2b52d9a332731517668`
+  (Client und BFF identisch, `storageConsent.test.ts` verifiziert). Der Text
+  enthaelt einen klaren Absatz „Ich willige ausdruecklich nach Art. 9 Abs. 2
+  lit. a DSGVO ein ...“ mit allen acht Kategorien (Gesundheit, religioese/
+  weltanschauliche Ueberzeugungen, Gewerkschaft, politische Meinungen,
+  sexuelle Orientierung, biometrisch, genetisch, rassisch/ethnisch); die
+  Einwilligung ist als freiwillig und separat widerruflich beschrieben.
+- Checkbox: separate `<label>`/`<input type="checkbox">`, State startet
+  `false` (unchecked). Grant-Button ist deaktiviert, bis Checkbox **und**
+  serverseitige Notice-/Textfreigabe (`grantAllowed`, `textMappingMatches`,
+  `textServerApproved`) vorliegen. Tests bestaetigen Default-unchecked,
+  disabled, enable erst nach Klick.
+- BFF: Browser sendet nur `{purpose, specialCategoriesConsent:boolean}` —
+  keine Version, kein Hash, keine Kategorien. Der Handler weist
+  fehlendes/falsches/„string“-Consent mit `422
+  special_categories_consent_required` ab und sendet die acht Kategorien,
+  `externalTextVersion`/`externalTextSha256` ausschliesslich aus der
+  serverseitigen Config. Der Client-`noticeVersion`-Override (`9.9`) wird
+  ignoriert.
+- Proof-Anzeige: nur backend-bestaetigte Felder (`consent.specialCategories*`,
+  `externalText*`) und nur im GRANTED-Zustand; fehlende Felder werden
+  fail-closed als `false`/`[]`/`null` gemappt. Widerruf unveraendert und nicht
+  an die Checkbox gekoppelt.
+- Keine unbefugten Aenderungen: Diff `65737dd..9eecf83` nur `api/`, `src/`,
+  `tests/`, `docs/`; keine Terraform-/Env-/Vercel-/Secret-/Workflow-Datei,
+  Branch ohne Upstream (nicht gepusht), keine RIS-Datei editiert. Keine
+  Approval-/Live-Persistenz-Behauptung (Status „IMPLEMENTED LOCALLY — NOT
+  DEPLOYED, NO LIVE PERSISTENCE“).
+- Exakte Testausgabe (Jobsearch, read-only):
+  `npx vitest run src/lib/storageConsent.test.ts
+  src/components/StorageConsentLive.test.tsx tests/api/ris-consents.test.mjs
+  tests/api/ris-routing.test.mjs` = **4 Dateien / 68 Tests PASS**.
+- Residualrisiken (nicht blockierend): (a) die Checkbox bleibt nach einem
+  Widerruf innerhalb derselben gemounteten UI markiert; ein Regrant waere mit
+  einem Klick moeglich, ohne dass die Checkbox erneut gesetzt wird — empfohlen
+  ist ein Reset bei Statuswechsel (die Server-Proof-Pflicht bleibt bestehen);
+  (b) die UI bietet nur die volle Acht-Kategorien-Liste, keine Teilmenge
+  (Backend unterstuetzt Teilmengen); (c) keine Live-/Deploy-Evidenz.
