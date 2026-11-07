@@ -1,0 +1,57 @@
+{
+  "task_id": "JM-RIS-PRIVACY-RG09-ALIGNMENT-01",
+  "agent_role": "ris-agent",
+  "session_id": "ses_e49e9b94bffeeqW6GiCOn1Pseq",
+  "verdict": "PASS",
+  "findings": [
+    {
+      "severity": "info",
+      "detail": "Section 9 (ApplicationV1) correctly states that durable storage is technically prepared but not active by default, and that it requires both release and a valid purpose-bound consent. This matches the RIS fact that it is gated/inactive by default and requires server-side consent."
+    },
+    {
+      "severity": "info",
+      "detail": "Section 9 and Section 10 correctly describe consent as NOT_GRANTED/GRANTED/WITHDRAWN, versioned and purpose-bound, with a history that can be viewed. They state that withdrawal stops new dependent writes, that existing data stays readable, exportable and deletable, and that withdrawal is not immediate physical deletion. This matches the Consent V1 facts."
+    },
+    {
+      "severity": "info",
+      "detail": "Section 10 says a version identifier alone is not legal approval, and Section 1 and Section 3 treat optional functions as inactive until the legal basis and retention are settled. This is consistent with notice version 1.0 being DRAFT and not legally approved. The document does not claim legal approval anywhere."
+    },
+    {
+      "severity": "info",
+      "detail": "Section 11 lists only the six aggregate counts (total, drafts, submitted, interviews, open and overdue follow-ups) and states that no CV content, cover letters, prompts, credentials or application IDs are included. It also states that the metrics are derived only from the user's own applications and that extensions require separate review. This matches the RG-09 facts, including the pending legal and retention review."
+    },
+    {
+      "severity": "info",
+      "detail": "Section 16 states that no blanket approved retention period exists for optional application, profile and document data, that backups, S3 versions and logs can have their own periods, and that account deletion starts a controlled process without proving physical deletion of all versions, backups or logs. This matches the privacy inventory: no blanket TTL, residual copies survive erasure, and full physical deletion is not proven. The open retention items are explicitly marked as pending, which is acceptable."
+    },
+    {
+      "severity": "low",
+      "detail": "Section 16 does not name privacy receipts or the consent history as a retention item that is still under review. The retention REVIEW REQUIRED status for privacy receipts is covered only by the generic wording on logs and residual periods. This is a completeness gap, not a contradiction, so it does not require rework. Adding an explicit pending item would be a cleaner match to the inventory."
+    },
+    {
+      "severity": "info",
+      "detail": "Section 8 states that identity is handled through the Cognito-based account, with email and technical user ID processed. It does not treat email as the identity key, which is consistent with the verified JWT iss+sub plus partner-credential model."
+    },
+    {
+      "severity": "info",
+      "detail": "Some statements cannot be verified from the supplied facts and are not contradicted by them: the absence of a server-side profile cache for new CV profile requests, the set of active providers such as OpenRouter, Eden AI, Redis/Upstash and Resend, and the eu-central-1 region. The document already hedges these with configuration-dependent wording, so no rework is required on that basis."
+    },
+    {
+      "severity": "info",
+      "detail": "Section 12 explicitly states that no blanket automatic deletion period is proven for alert records and that activation is conditional on settling the configuration, the sign-in method, the unsubscribe mechanism, the legal basis and the retention period. These are explicitly pending legal items, which the review instructions accept."
+    }
+  ],
+  "checks": [
+    "ApplicationV1 is described as prepared but inactive by default and gated behind release plus server-side consent (Sections 3, 9)",
+    "Consent states NOT_GRANTED/GRANTED/WITHDRAWN, versioning, history and idempotent re-consent are described consistently (Sections 9, 10)",
+    "Withdrawal is described as stopping new dependent writes only, with existing data still readable, exportable and deletable and no implied immediate physical deletion (Sections 9, 16, 18)",
+    "Notice version is not presented as legally approved; version identifier alone is stated not to be legal approval (Section 10)",
+    "RG-09 metrics are limited to the six aggregate counts with no CV, application ID or prompt content, and extensions require review (Section 11)",
+    "Partner/profile retention is stated as having no blanket approved period; S3 versions, backups and logs are stated as surviving erasure; physical deletion is not claimed (Section 16)",
+    "Identity is not based on email alone; account identity is described through the Cognito-based account (Section 8)",
+    "Pending legal and retention items for alerts, retention and third-country transfers are explicitly marked as pending and are acceptable (Sections 12, 15, 16)",
+    "No concrete contradiction with the supplied RIS facts was found; one low-severity completeness gap regarding privacy receipts retention was noted"
+  ],
+  "source_log": "/home/dci-student/projects/mays-xrepo-orchestration/.agent-runs/ris-privacy-review-haiku-1794056274.jsonl",
+  "timestamp": "2026-11-07T13:58:10+0100"
+}
