@@ -10241,3 +10241,12 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
   keine Env-/Flag-/Notice-State-Aenderung, kein Push. Kein Terraform-Plan
   erstellt, weil synthetische Testidentitaet und Operator-Freigabe fehlen.
   Keine Live-Persistenz-Behauptung.
+
+## 2026-11-07 — JM-RIS-STORAGE-ONE-SHOT-05 — blocked pre-apply
+
+**Status:** `BLOCKED — OPERATOR/LEGAL TEXT APPROVAL + LEGAL APPROVAL REFERENCE + SYNTHETIC TEST IDENTITY REQUIRED`
+
+- RIS mapping `aefae0f`: consent v2 `application-storage-consent-2026-11-07-v2`, SHA-256 `232cc8206261b5d14f7a269f63a58320f76eea435a65f7e039b25c62d26da0ca`, external ref DRAFT/noticeVersion None; v1 historical/superseded; tests 56 passed.
+- No saved Terraform plan/apply/deploy: `CONSENT_PILOT_ALLOWLIST` needs an approved synthetic `<issuer>|<sub>`; pool `ZURSMpD2O` currently has no test user and no legalApprovalRef exists. No notice state change, no env mutation.
+- Required: operator/legal v2 approval + real legalApprovalRef; approved synthetic identity (or approval to create one); then plan review and exact bundled GO.
+- No push/merge/deploy/apply; no live persistence. Report: `docs/reports/JM-RIS-STORAGE-ONE-SHOT-05-REPORT.md`.
