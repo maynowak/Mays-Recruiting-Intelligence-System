@@ -10173,3 +10173,12 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
   keine Flags/Env/Terraform-/AWS-/Cognito-Aenderung, kein Push/Merge/Deploy/
   Apply, keine Jobsearch-Datei editiert. Keine Live-Persistenz-Behauptung.
 - `git diff --check` ohne Befund.
+
+## 2026-11-07 — JM-RIS-STORAGE-PILOT-04 — preflight and approval packet
+
+**Status:** `CONSENT TEXT READY FOR OPERATOR REVIEW` / `RIS-DEV DEPLOYMENT PREFLIGHT READY`
+
+- Approval packet updated with Candidate D (full Jobsearch text, version `application-storage-consent-2026-11-07-v1`, SHA-256 `2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953`), ApplicationV1 field mapping, and corrected finding: complete candidate exists, but no approval/legalApprovalRef/RIS 1.0 mapping.
+- Read-only RIS-DEV: account `240571105849`; `ris-dev-dev-agent` Active; `CONSENTS_TABLE=ris-dev-dev-consents`, `APPLICATIONS_TABLE=ris-dev-dev-applications`, `APPLICATION_CONSENT_ENFORCED=false`, `PARTNER_SURFACE_ENABLED=true`, `CONSENT_NOTICE_STATE_ENFORCED`/`CONSENT_PILOT_ALLOWLIST` absent; partner edge `c7e9pdwe78` and kernel `g6901and25` share the Lambda; tables ACTIVE; state serial 42/249 resources.
+- Bundle preflight: agent `a18f6abb...`, reader `e4058587...`; no plan/apply. Deployment must be scoped by `CONSENT_PILOT_ALLOWLIST`; global gates false; no Cognito/CloudFront/DNS/ACM changes in local diff.
+- No push/merge/deploy/apply/env/notice change; no live write. Report: `docs/reports/JM-RIS-STORAGE-PILOT-04-REPORT.md`.
