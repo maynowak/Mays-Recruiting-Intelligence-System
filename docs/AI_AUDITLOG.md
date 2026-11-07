@@ -10132,3 +10132,13 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
   Art.-9-Pruefung; (b) scoped Pilot braucht Deployment des `37503a9`-Bundles
   und `CONSENT_PILOT_ALLOWLIST` per separatem GO; (c) keine Live-Persistenz
   nachgewiesen.
+
+## 2026-11-07 — JM-RIS-STORAGE-PILOT-03 — final consolidation
+
+**Status:** `APPLICATION STORAGE READY FOR RIS-DEV E2E` (not executed; operator approval/deployment pending)
+
+- Commits: `37503a9` (scoped `CONSENT_PILOT_ALLOWLIST`, effective gates, mapping/external ref), `50b18f5` (auditlog + Jobsearch review), this final docs commit.
+- Scope: global `APPLICATION_CONSENT_ENFORCED=false`, global `CONSENT_NOTICE_STATE_ENFORCED=false`; only listed `<issuer>|<sub>` identity is gated. `CONSENT_PILOT_ALLOWLIST` default empty; Terraform code only, no apply.
+- Tests: 69 passed final focused; 84/124 wider; terraform fmt/validate PASS; Jobsearch 55/55 BFF + 14/14 UI/text; full Jobsearch second run 1574 passed / 5 skipped.
+- Mapping: Jobsearch text `application-storage-consent-2026-11-07-v1`, SHA-256 `2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953`; RIS notice `1.0` remains DRAFT with `legalApprovalRef=null`; external ref known but `noticeVersion=None`.
+- No push/merge/deploy/apply/env/notice change; no live persistence. Report: `docs/reports/JM-RIS-STORAGE-PILOT-03-REPORT.md`.
