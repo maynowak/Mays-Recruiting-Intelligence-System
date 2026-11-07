@@ -1,0 +1,155 @@
+{
+  "commit": "509d12bf02d7959e783dc77d92a7f073a00509c4",
+  "http": {
+    "jobmatcher": {
+      "/datenschutz": {
+        "status": 200,
+        "finalUrl": "https://www.mays-job-matcher.app/datenschutz",
+        "version11": false,
+        "internalNote": false,
+        "hasPre": false
+      },
+      "/legal/datenschutz.md": {
+        "status": 200,
+        "finalUrl": "https://www.mays-job-matcher.app/legal/datenschutz.md",
+        "version11": true,
+        "internalNote": false,
+        "hasPre": false
+      },
+      "/legal/datenschutz.html": {
+        "status": 200,
+        "finalUrl": "https://www.mays-job-matcher.app/legal/datenschutz.html",
+        "version11": true,
+        "internalNote": false,
+        "hasPre": false
+      },
+      "/datenschutzprinzipien": {
+        "status": 200,
+        "finalUrl": "https://www.mays-job-matcher.app/datenschutzprinzipien",
+        "version11": false,
+        "internalNote": false,
+        "hasPre": true
+      }
+    },
+    "jobsearch": {
+      "/datenschutz": {
+        "status": 200,
+        "finalUrl": "https://mays-jobsearch.vercel.app/datenschutz",
+        "version11": false,
+        "internalNote": false,
+        "hasPre": false
+      },
+      "/legal/datenschutz.md": {
+        "status": 200,
+        "finalUrl": "https://mays-jobsearch.vercel.app/legal/datenschutz.md",
+        "version11": true,
+        "internalNote": false,
+        "hasPre": false
+      },
+      "/legal/datenschutz.html": {
+        "status": 200,
+        "finalUrl": "https://mays-jobsearch.vercel.app/legal/datenschutz.html",
+        "version11": true,
+        "internalNote": false,
+        "hasPre": false
+      },
+      "/datenschutzprinzipien": {
+        "status": 200,
+        "finalUrl": "https://mays-jobsearch.vercel.app/datenschutzprinzipien",
+        "version11": false,
+        "internalNote": false,
+        "hasPre": true
+      }
+    }
+  },
+  "browser": {
+    "jobmatcher": {
+      "desktop": {
+        "status": 200,
+        "url": "https://www.mays-job-matcher.app/datenschutz",
+        "title": "May's Job Matcher",
+        "version11": true,
+        "internalNote": false,
+        "h1": 1,
+        "h2": 1,
+        "h3": 19,
+        "paragraphs": 38,
+        "footerLinks": [
+          "Impressum",
+          "Datenschutz",
+          "Datenschutzprinzipien",
+          "Arbeitnow",
+          "Arbeitsagentur"
+        ],
+        "overflow": false,
+        "footerNavigation": {
+          "url": "https://www.mays-job-matcher.app/datenschutzprinzipien",
+          "title": "Datenschutzprinzipien"
+        }
+      },
+      "mobile": {
+        "status": 200,
+        "url": "https://www.mays-job-matcher.app/datenschutz",
+        "title": "May's Job Matcher",
+        "version11": true,
+        "internalNote": false,
+        "h1": 1,
+        "h2": 1,
+        "h3": 19,
+        "paragraphs": 38,
+        "footerLinks": [
+          "Impressum",
+          "Datenschutz",
+          "Datenschutzprinzipien",
+          "Arbeitnow",
+          "Arbeitsagentur"
+        ],
+        "overflow": false
+      }
+    },
+    "jobsearch": {
+      "desktop": {
+        "status": 200,
+        "url": "https://mays-jobsearch.vercel.app/datenschutz",
+        "title": "May's Job Matcher",
+        "version11": true,
+        "internalNote": false,
+        "h1": 1,
+        "h2": 1,
+        "h3": 19,
+        "paragraphs": 38,
+        "footerLinks": [
+          "Impressum",
+          "Datenschutz",
+          "Datenschutzprinzipien",
+          "Arbeitnow",
+          "Arbeitsagentur"
+        ],
+        "overflow": false,
+        "footerNavigation": {
+          "url": "https://mays-jobsearch.vercel.app/datenschutzprinzipien",
+          "title": "Datenschutzprinzipien"
+        }
+      },
+      "mobile": {
+        "status": 200,
+        "url": "https://mays-jobsearch.vercel.app/datenschutz",
+        "title": "May's Job Matcher",
+        "version11": true,
+        "internalNote": false,
+        "h1": 1,
+        "h2": 1,
+        "h3": 19,
+        "paragraphs": 38,
+        "footerLinks": [
+          "Impressum",
+          "Datenschutz",
+          "Datenschutzprinzipien",
+          "Arbeitnow",
+          "Arbeitsagentur"
+        ],
+        "overflow": false
+      }
+    }
+  }
+}

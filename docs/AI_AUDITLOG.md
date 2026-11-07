@@ -9864,3 +9864,27 @@ Next: noticeVersion ACTIVE + Enforcement-Plan; danach echte Nutzerfreigabe (RG-0
 Status: READY FOR CONTROLLED PUSH — LOCAL RECONCILIATION COMPLETE — NO PUSH
 Date: 2026-11-07
 Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in both repositories using normal merges (no rebase/force-push): Jobsearch `0ab510a` + `origin/main` `a2225c4` → `bd2c406`; RIS `2bcfd77` + `origin/main` `fdc6fc9` → `654db0a`. Only `docs/AI_AUDITLOG.md` conflicted; both sides were kept in full. Change surface vs main is limited to xrepo workflows/scripts/docs/reports and the audit log; no product/API/Terraform change. `./scripts/xrepo/run_local_qa.sh` passed 69/69 tests with 0 FAIL/0 SKIP in both repositories; JSON/YAML/diff checks passed. Vercel root cause: `exceeded_serverless_functions_per_deployment` at `patchBuild` (Hobby max 12), not a build error; main fix `40356e6`, production deployment `dpl_uAqHQqbs3yDYY6gkqqx3xaoA843Y` at `a2225c4` READY with 12 functions, and the reconciled branch includes the fix. Preview re-run not executed because no push/deployment. Existing app-auth evidence `42272286516` reused; secrets/workflows unchanged. No push, merge, deployment, live dispatch, infrastructure change, or branch deletion. Report: `docs/reports/MAYS-XREPO-ROLLOUT-01D-INTEGRATION-REPORT.md`.
+
+## 2026-11-07 — JM-RIS-PRIVACY-RG09-PRODUCTION-RELEASE-04 (Dokumentation)
+
+**Status:** `PRIVACY V1.1 PRODUCTION VERIFIED` (Jobsearch; RIS-Dokumentation)
+
+- Der Release wurde ausschliesslich in `maynowak/mays-jobsearch` durchgefuehrt:
+  PR #4, Merge-Commit `2aed1c3a31cd6b91ebf2e4174e0c3353cffc2181`, Merge von
+  `adfe23f` nach `main` (`4e2b640`).
+- Production-Deployments: `dpl_HEzi1SxsVN7jgajq3EehyEEX21q6`
+  (`mays-jobsearch`) und `dpl_yAmFr8JxrY2G4qis6g82hbGVB85x`
+  (`mays-job-matcher`), beide READY/Production am Merge-Commit. Spaetere
+  Docs-Deployments: `dpl_ErxptQ4pekt4XwqJE5c88BPGdMo2` /
+  `dpl_3Q2macRBLvnf7vxeCr88CrarLqUk` am Dokumentations-Commit `509d12b`.
+- Produktion HTTP 200 fuer `/datenschutz`, `/legal/datenschutz.md`,
+  `/legal/datenschutz.html`, `/datenschutzprinzipien` auf
+  `www.mays-job-matcher.app` und `mays-jobsearch.vercel.app`; Version 1.1,
+  semantische HTML-Fassung, kein interner Vermerk, Footer-Navigation PASS,
+  Desktop/Mobil ohne Overflow, kein Login.
+- Keine RIS-Aenderung: kein RIS-Deployment, keine RIS-Produkt-/API-/Terraform-
+  /AWS-/Cognito-Aenderung, keine Consent- oder ApplicationV1-Aktivierung, keine
+  Secrets. Der bestehende `ci-cd.yml`-Zero-Job-Effekt bleibt unveraendert.
+- Reports/Assets:
+  `docs/reports/JM-RIS-PRIVACY-RG09-PRODUCTION-RELEASE-04-REPORT.md`,
+  `docs/reports/assets/JM-RIS-PRIVACY-RG09-PRODUCTION-RELEASE-04/`.
