@@ -10077,3 +10077,58 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
   Behauptung. Nur lokale Tests und statische Terraform-Pruefung.
 - Evidenz: `tests/test_consent_pilot_allowlist.py`,
   `docs/reports/APPLICATION-STORAGE-1.0-NOTICE-MAPPING.md`.
+
+## 2026-11-07 — JM-RIS-STORAGE-PILOT-03 Final Review (Jobsearch 2b4b520 / 115ea57)
+
+**Status:** `RIS SCOPED PILOT IMPLEMENTED LOCAL` / `JOBSEARCH TEXT REVIEW PASS` / `NO ACTIVATION`
+
+- RIS-Stand: Commit `37503a9` auf `feature/jm-ris-storage-activation-01`.
+  Enthaelt den scoped `ris-dev`-Pilot: `CONSENT_PILOT_ALLOWLIST`
+  (`<issuer>|<sub>`, leer = keine Identitaet), effektive Gates
+  `APPLICATION_CONSENT_ENFORCED`/`CONSENT_NOTICE_STATE_ENFORCED` = global ODER
+  Pilot-Identitaet, `ConsentRepository.grant(enforce_notice_state=...)`,
+  Terraform `consent_pilot_allowlist` (string, default `""`) in Root + Modul und
+  Env `CONSENT_PILOT_ALLOWLIST`. Alle Gate-Defaults bleiben false/leer.
+  Mapping: `EXTERNAL_NOTICE_REFS["application-storage"]` kennt
+  `application-storage-consent-2026-11-07-v1` (Quelle `mays-jobsearch`,
+  DRAFT, `noticeVersion: None`); RIS `application-storage/1.0` bleibt `DRAFT`,
+  `legalApprovalRef=null`. Doku:
+  `docs/reports/APPLICATION-STORAGE-1.0-NOTICE-MAPPING.md`.
+  Tests: 84 passed (Consent/Pilot/Terraform) bzw. 124 passed (erweitert);
+  `terraform fmt -check -recursive` exit 0; `terraform init -backend=false` +
+  `validate` in temporaerer Kopie = Success (nur vorbestehende Warnungen).
+- Jobsearch-Review (read-only, Commits `2b4b520` + `115ea57`): **PASS**.
+  - Vollstaendige ApplicationV1-Einwilligungserklaerung (8 Absaetze) vor dem
+    Zustimmungs-Button; kanonische Textversion
+    `application-storage-consent-2026-11-07-v1`, SHA-256
+    `2615314738ca991f232314529d0bd473585758b4d1dd4b780f29bcc4c5289953`
+    (Client und BFF identisch, Jobsearch-Test verifiziert).
+  - BFF-Text-Gate: `RIS_CONSENT_TEXT_VERSION`/`RIS_CONSENT_TEXT_SHA256`/
+    `RIS_CONSENT_TEXT_STATE`; nur exakt passende Version+Hash mit State
+    `APPROVED` oeffnet; fehlende Zuordnung, Mismatch und `DRAFT` liefern
+    fail-closed (`consent_text_not_configured`/`_mismatch`/`_not_approved`,
+    503/409). POST prueft Notice **und** Text erneut vor dem RIS-Grant;
+    Widerruf bleibt unabhaengig davon moeglich.
+  - UI: Server-Textstatus ist autoritativ (`Textstatus: …`), der Client-DRAFT
+    wird bei serverseitiger Freigabe nicht mehr als Status widersprochen,
+    sondern nur bei fehlender Freigabe als "Text-Kandidat" gekennzeichnet;
+    Mismatch/DRAFT/fehlende Zuordnung sperren den Button; Widerruf bleibt.
+  - Keine unbefugten Aenderungen: Diff `5daa99a..115ea57` nur `api/`, `src/`,
+    `tests/`, `docs/`; keine Terraform-/Env-/Vercel-/Secret-/Workflow-Datei;
+    Branch ohne Upstream (nicht gepusht).
+  - **Notice bleibt `DRAFT`, Text nicht freigegeben.** Der Text ist ein
+    Kandidat fuer die Operator-/Legal-Freigabe; keine Freigabe durch Agenten.
+- Exakte Testausgaben (Jobsearch, read-only ausgefuehrt):
+  `npx vitest run tests/api/ris-consents.test.mjs tests/api/ris-routing.test.mjs
+  tests/api/ris-config-separation.test.mjs` = **3 Dateien / 55 Tests PASS**;
+  `npx vitest run src/components/StorageConsentLive.test.tsx
+  src/lib/storageConsent.test.ts` = **2 Dateien / 14 Tests PASS**.
+- Kein Push, Merge, Deploy, Apply, keine Live-Env-, Secret-, Cognito-,
+  CloudFront-, DNS-, ACM- oder Notice-State-Aenderung; keine Jobsearch-Datei
+  editiert. Keine Live-Persistenz-Behauptung; nur lokale Tests und statische
+  Terraform-Pruefung.
+- Residualblocker: (a) keine rechtlich freigegebene ApplicationV1-
+  Einwilligung/Notice (`1.0` DRAFT, `legalApprovalRef=null`), inkl. offener
+  Art.-9-Pruefung; (b) scoped Pilot braucht Deployment des `37503a9`-Bundles
+  und `CONSENT_PILOT_ALLOWLIST` per separatem GO; (c) keine Live-Persistenz
+  nachgewiesen.
