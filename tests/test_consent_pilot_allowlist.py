@@ -181,7 +181,7 @@ class HandlerGrantWiringTests(unittest.TestCase):
 
         class _Repo:
             def grant(self, ctx, purpose, notice_version,
-                      enforce_notice_state=None):
+                      enforce_notice_state=None, **kwargs):
                 calls.append(enforce_notice_state)
                 return {"purpose": purpose, "status": STATUS_GRANTED,
                         "noticeVersion": notice_version, "version": 1}

@@ -2320,7 +2320,23 @@ paths:
           required: false
           schema: { type: string, enum: [application-storage] }
       responses:
-        "200": { description: Current status, catalog and external refs }
+        "200":
+          description: Current status, catalog and external refs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, catalog, externalRefs]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/ConsentStatusItem" }
+                  catalog:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                  externalRefs:
+                    type: array
+                    items: { type: object, additionalProperties: true }
         "401": { $ref: "#/components/responses/UnauthorizedString" }
         "403": { description: Partner, tenant or credential boundary refused }
         "422": { description: Unknown purpose }
@@ -2329,9 +2345,13 @@ paths:
       operationId: grantPartnerConsent
       summary: Grant storage consent for a purpose and notice version
       description: |
-        Idempotent for an already-granted version. 422 NOTICE_NOT_ACTIVE when
-        state enforcement is on and the text is not approved for new grants.
-        A newer notice version never rewrites an existing grant.
+        Idempotent for an already-granted version **and** the same stored proof
+        (external text version/hash and special-category scope). 422
+        NOTICE_NOT_ACTIVE when state enforcement is on and the text is not
+        approved for new grants. 422 for invalid/missing proof. 409
+        RECONSENT_REQUIRED when an existing grant carries a different proof; the
+        old consent is never silently rewritten. A newer notice version never
+        rewrites an existing grant.
       x-infrastructure-governance: terraform-managed
       parameters:
         - $ref: "#/components/parameters/ApiCredential"
@@ -2339,13 +2359,21 @@ paths:
         required: true
         content:
           application/json:
-            schema: { type: object, required: [purpose, noticeVersion] }
+            schema: { $ref: "#/components/schemas/ConsentGrantRequest" }
       responses:
-        "200": { description: Consent granted (or unchanged) }
+        "200":
+          description: Consent granted (or unchanged)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [consent]
+                properties:
+                  consent: { $ref: "#/components/schemas/ConsentStatusItem" }
         "401": { $ref: "#/components/responses/UnauthorizedString" }
         "403": { description: Partner boundary refused }
-        "409": { description: Consent conflict }
-        "422": { description: Unknown purpose, invalid or inactive notice version }
+        "409": { description: Consent conflict (RECONSENT_REQUIRED) }
+        "422": { description: Unknown purpose, invalid/inactive notice version or invalid proof }
   /v1/partner/me/consents/withdraw:
     post:
       tags: [Partner, Consent]
@@ -2385,7 +2413,18 @@ paths:
           required: false
           schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
       responses:
-        "200": { description: Events newest first }
+        "200":
+          description: Events newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/ConsentHistoryEvent" }
+                  nextCursor: { type: boolean }
         "401": { $ref: "#/components/responses/UnauthorizedString" }
         "403": { description: Partner boundary refused }
         "422": { description: Unknown purpose or invalid limit }
@@ -2504,6 +2543,103 @@ components:
             details: { type: object, additionalProperties: true }
 
     # --- domain objects -------------------------------------------------
+    ConsentSpecialCategory:
+      type: string
+      description: Stable Art. 9 special-category code.
+      enum:
+        - health
+        - religious_or_philosophical_beliefs
+        - trade_union_membership
+        - political_opinions
+        - sexual_orientation
+        - biometric_data
+        - genetic_data
+        - racial_or_ethnic_origin
+
+    ConsentProof:
+      type: object
+      title: Stored consent proof
+      description: >-
+        Proof captured with a consent grant. The external text is a partner
+        identifier pin, never a RIS notice version. Missing proof on legacy
+        rows reports false/empty/null.
+      required:
+        - specialCategoriesConsent
+        - specialCategories
+        - externalTextVersion
+        - externalTextSha256
+      properties:
+        specialCategoriesConsent:
+          type: boolean
+          description: Explicit Art. 9 consent. True requires a non-empty category subset.
+        specialCategories:
+          type: array
+          description: Allowed Art. 9 codes in canonical order; empty without consent.
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/ConsentSpecialCategory" }
+        externalTextVersion:
+          type: string
+          nullable: true
+          description: Known partner text version (for example application-storage-consent-2026-11-07-v3).
+        externalTextSha256:
+          type: string
+          nullable: true
+          pattern: "^[0-9a-f]{64}$"
+          description: Exact SHA-256 pin of the partner text.
+
+    ConsentGrantRequest:
+      type: object
+      required: [purpose, noticeVersion]
+      properties:
+        purpose: { type: string, enum: [application-storage] }
+        noticeVersion: { type: string, enum: ["1.0"] }
+        specialCategoriesConsent:
+          type: boolean
+          default: false
+          description: Explicit Art. 9 consent; the server-owned category list is required when true.
+        specialCategories:
+          type: array
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/ConsentSpecialCategory" }
+        externalTextVersion:
+          type: string
+          nullable: true
+          description: Must be a known partner text; browser-supplied values are not trusted by the BFF.
+        externalTextSha256:
+          type: string
+          nullable: true
+          pattern: "^[0-9a-f]{64}$"
+
+    ConsentStatusItem:
+      allOf:
+        - $ref: "#/components/schemas/ConsentProof"
+        - type: object
+          required: [schemaVersion, purpose, status, noticeVersion, version]
+          properties:
+            schemaVersion: { type: integer, enum: [1] }
+            purpose: { type: string, enum: [application-storage] }
+            status: { type: string, enum: [NOT_GRANTED, GRANTED, WITHDRAWN] }
+            noticeVersion: { type: string, nullable: true }
+            noticeState: { type: string, nullable: true }
+            noticeApproved: { type: boolean }
+            acceptedForNewGrant: { type: boolean }
+            grantedAt: { type: string, nullable: true }
+            withdrawnAt: { type: string, nullable: true }
+            version: { type: integer, minimum: 0 }
+
+    ConsentHistoryEvent:
+      allOf:
+        - $ref: "#/components/schemas/ConsentProof"
+        - type: object
+          required: [eventId, purpose, event, status, occurredAt]
+          properties:
+            eventId: { type: string }
+            purpose: { type: string, enum: [application-storage] }
+            event: { type: string, enum: [GRANTED, WITHDRAWN, REGRANTED] }
+            status: { type: string, enum: [GRANTED, WITHDRAWN] }
+            noticeVersion: { type: string, nullable: true }
+            occurredAt: { type: string }
+
     HealthResponse:
       type: object
       required: [status, service, version, environment]

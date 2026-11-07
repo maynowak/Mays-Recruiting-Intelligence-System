@@ -727,7 +727,12 @@ def _handle_consent_routes(event, context, method, path):
         if path == '/v1/partner/me/consents' and method == 'POST':
             result = repo.grant(
                 ctx, body.get('purpose'), body.get('noticeVersion'),
-                enforce_notice_state=_consent_notice_state_enforced_for(ctx))
+                enforce_notice_state=_consent_notice_state_enforced_for(ctx),
+                special_categories_consent=body.get(
+                    'specialCategoriesConsent', False),
+                special_categories=body.get('specialCategories'),
+                external_text_version=body.get('externalTextVersion'),
+                external_text_sha256=body.get('externalTextSha256'))
             return _application_response(200, {'consent': result})
         if path == '/v1/partner/me/consents/withdraw' and method == 'POST':
             result = repo.withdraw(ctx, body.get('purpose'), body.get('noticeVersion'))
@@ -741,7 +746,12 @@ def _handle_consent_routes(event, context, method, path):
                 'nextCursor': next_key is not None})
         return _application_response(405, 'Method not allowed', 'METHOD_NOT_ALLOWED')
     except ConsentContractError as exc:
-        status = 404 if exc.code == 'UNKNOWN_PURPOSE' else 422
+        if exc.code == 'UNKNOWN_PURPOSE':
+            status = 404
+        elif exc.code == 'RECONSENT_REQUIRED':
+            status = 409
+        else:
+            status = 422
         return _application_response(status, str(exc), exc.code)
     except ConsentConflict as exc:
         return _application_response(409, 'Consent conflict', 'CONFLICT')

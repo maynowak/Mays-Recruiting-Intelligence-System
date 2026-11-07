@@ -10302,3 +10302,48 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
   naechsten fehlschlagenden Request wirksam (Server bleibt Autoritaet, kein
   Datenleck); (c) Remote-Modus haengt jetzt zusaetzlich am erreichbaren
   Consent-BFF (fail-closed auf Session); (d) keine Live-/Deploy-Evidenz.
+
+## 2026-11-07 — JM-RIS-STORAGE-PILOT-05 — Consent v3 Backend (Art. 9 proof)
+
+**Status:** `V3 PROOF IMPLEMENTED LOCAL / NOTICE STILL DRAFT / NO APPROVAL`
+
+- Jobsearch `9eecf83`: Text **v3** `application-storage-consent-2026-11-07-v3`,
+  SHA-256 `696f9e66d8098b2dce56a93418ba598145b669934662e2b52d9a332731517668`,
+  mit explizitem Art.-9(2)(a)-Absatz und acht stabilen Kategorien. Das BFF
+  sendet beim Grant `specialCategoriesConsent`, `specialCategories`,
+  `externalTextVersion`, `externalTextSha256` (serverseitig; Browser kann sie
+  nicht waehlen).
+- Vertrag (`jobsearch/consent_contract.py`): `SPECIAL_CATEGORY_ORDER` /
+  `SPECIAL_CATEGORY_CODES` (acht Codes), `validate_special_category_consent`
+  (True verlangt nicht-leere, eindeutige Teilmenge; False verlangt leere Liste;
+  Nicht-Boolean/Unbekannt/Duplikat fail-closed) und `validate_external_text`
+  (bekannter Ref + exakter SHA-256; unbekannt/Teil-Paar/Mismatch fail-closed).
+  `EXTERNAL_NOTICE_REFS` kennt v3 (DRAFT, `noticeVersion: None`, exakter Hash);
+  v2 ist `supersededBy: ...v3`, v1 `supersededBy: ...v2`, beide bleiben DRAFT.
+  `status_payload` liefert zusaetzlich `specialCategoriesConsent`,
+  `specialCategories`, `externalTextVersion`, `externalTextSha256`.
+- Repository (`jobsearch/consent_repository.py`): `grant(...)` nimmt die vier
+  Proof-Felder, validiert vor jedem Write, persistiert sie auf dem aktuellen
+  Row **und** jedem append-only History-Event und gibt sie im Status zurueck.
+  Idempotent nur bei identischem Notice + Textversion/-hash + Kategorien +
+  Consent; abweichender Text/Scope fuer einen bestehenden Grant liefert
+  `RECONSENT_REQUIRED` (409) und ueberschreibt nichts. Widerruf erhaelt den
+  Proof; Regrant nach Widerruf ist mit neuem Text erlaubt.
+- Handler (`lambda/handler.py`): POST reicht die vier Felder durch,
+  `RECONSENT_REQUIRED` wird auf **409** gemappt; GET-Status und History liefern
+  den Proof. Widerruf bleibt unabhaengig und erlaubt.
+- OpenAPI (`docs/api/openapi-platform.yaml`): neue Schemas
+  `ConsentSpecialCategory`, `ConsentProof`, `ConsentGrantRequest`,
+  `ConsentStatusItem`, `ConsentHistoryEvent`; Consent-Pfade referenzieren sie.
+  Doku: Mapping-Dokument und Approval-Paket auf Candidate D **v3** (voller
+  Text inkl. Art.-9-Absatz, neuer Hash, v2/v1 superseded) aktualisiert.
+- Tests: `tests/test_consent_special_categories.py` neu (**24 passed**) fuer
+  Validierung, Persistenz, Idempotenz/Reconsent, Widerruf mit Proof und
+  Read/Export/Delete nach Widerruf. Kombiniert mit Consent-/Pilot-/OpenAPI-
+  Suiten **135 passed**; Application-/P20-/Project-Config-Fokus **77 passed**;
+  `terraform fmt -check -recursive` exit 0. Kein Plan/Apply.
+- **Keine Freigabe / keine Aktivierung:** Notice `1.0` bleibt `DRAFT`,
+  `legalApprovalRef=null`, keine RIS-`1.0`-Zuordnung, keine Env-/Flag-/Notice-
+  Aenderung, kein Push/Merge/Deploy/Apply, keine Live-Persistenz-Behauptung.
+  Verbleibender Blocker: Operator-/Legal-Freigabe inkl. finaler Art.-9-Pruefung
+  und echtem `legalApprovalRef`.

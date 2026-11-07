@@ -23,6 +23,7 @@ Re-consent under a new version is a separate product/legal decision.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 
 SCHEMA_VERSION = 1
@@ -127,9 +128,18 @@ EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
             ),
             "supersededBy": "application-storage-consent-2026-11-07-v2",
         },
-        # Current ApplicationV1 consent text candidate (Jobsearch v2, commit
-        # 47f73c4). The hash pins the exact text; the mapping to RIS 1.0 is
-        # NOT approved and stays DRAFT.
+        # Current ApplicationV1 consent text candidate (Jobsearch v3, commit
+        # 9eecf83, explicit Art. 9 special-category consent). The hash pins the
+        # exact text; the mapping to RIS 1.0 is NOT approved and stays DRAFT.
+        "application-storage-consent-2026-11-07-v3": {
+            "source": "mays-jobsearch",
+            "noticeState": NOTICE_DRAFT,
+            "noticeVersion": None,  # no equivalence until separately approved
+            "textSha256": (
+                "696f9e66d8098b2dce56a93418ba598145b669934662e2b52d9a332731517668"
+            ),
+        },
+        # Historical v2 (Jobsearch 47f73c4), replaced by v3.
         "application-storage-consent-2026-11-07-v2": {
             "source": "mays-jobsearch",
             "noticeState": NOTICE_DRAFT,
@@ -137,6 +147,7 @@ EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
             "textSha256": (
                 "232cc8206261b5d14f7a269f63a58320f76eea435a65f7e039b25c62d26da0ca"
             ),
+            "supersededBy": "application-storage-consent-2026-11-07-v3",
         },
     },
 }
@@ -149,6 +160,22 @@ STORED_STATUSES = frozenset({STATUS_GRANTED, STATUS_WITHDRAWN})
 EVENT_GRANTED = "GRANTED"
 EVENT_WITHDRAWN = "WITHDRAWN"
 EVENT_REGRANTED = "REGRANTED"
+
+#: Stable Art. 9 special-category codes. The tuple order is the canonical order
+#: used in the stored proof; the frozenset is the validation allowlist.
+SPECIAL_CATEGORY_ORDER = (
+    "health",
+    "religious_or_philosophical_beliefs",
+    "trade_union_membership",
+    "political_opinions",
+    "sexual_orientation",
+    "biometric_data",
+    "genetic_data",
+    "racial_or_ethnic_origin",
+)
+SPECIAL_CATEGORY_CODES = frozenset(SPECIAL_CATEGORY_ORDER)
+
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class ConsentContractError(ValueError):
@@ -221,6 +248,79 @@ def validate_notice_version(purpose: str, version: object, *,
     return version
 
 
+def validate_special_category_consent(
+        consent: object, categories: object) -> tuple[bool, list[str]]:
+    """Validate the explicit Art. 9 consent and its category subset.
+
+    ``True`` requires a non-empty, duplicate-free subset of
+    :data:`SPECIAL_CATEGORY_CODES`; ``False`` requires that no categories are
+    claimed. Anything else fails closed. The returned list is in canonical
+    order so the stored proof is deterministic.
+    """
+    if not isinstance(consent, bool):
+        raise ConsentContractError(
+            "INVALID_SPECIAL_CATEGORY_CONSENT",
+            "specialCategoriesConsent must be a boolean")
+    if consent is False:
+        if categories not in (None, []):
+            raise ConsentContractError(
+                "SPECIAL_CATEGORIES_WITHOUT_CONSENT",
+                "specialCategories requires explicit consent")
+        return False, []
+    if not isinstance(categories, (list, tuple)) or not categories:
+        raise ConsentContractError(
+            "SPECIAL_CATEGORIES_REQUIRED",
+            "explicit consent requires a non-empty category list")
+    seen: set[str] = set()
+    for value in categories:
+        if not isinstance(value, str) or value not in SPECIAL_CATEGORY_CODES:
+            raise ConsentContractError(
+                "UNKNOWN_SPECIAL_CATEGORY",
+                "specialCategories contains an unknown code")
+        if value in seen:
+            raise ConsentContractError(
+                "DUPLICATE_SPECIAL_CATEGORY",
+                "specialCategories contains a duplicate code")
+        seen.add(value)
+    return True, [code for code in SPECIAL_CATEGORY_ORDER if code in seen]
+
+
+def validate_external_text(purpose: str, version: object, sha256: object,
+                           ) -> tuple[str | None, str | None]:
+    """Validate an optional external text proof against the known refs.
+
+    Both fields must be present together. The version must be a known external
+    reference for the purpose and the hash must exactly match its pinned
+    ``textSha256``. The external text is proof only; it never becomes a RIS
+    ``noticeVersion``.
+    """
+    purpose = validate_purpose(purpose)
+    if version is None and sha256 is None:
+        return None, None
+    if not isinstance(version, str) or not version.strip() \
+            or not isinstance(sha256, str):
+        raise ConsentContractError(
+            "INVALID_EXTERNAL_TEXT",
+            "externalTextVersion and externalTextSha256 must be provided together")
+    version = version.strip()
+    digest = sha256.strip().lower()
+    if not _SHA256_RE.match(digest):
+        raise ConsentContractError(
+            "INVALID_EXTERNAL_TEXT",
+            "externalTextSha256 is not a SHA-256 hex digest")
+    entry = EXTERNAL_NOTICE_REFS.get(purpose, {}).get(version)
+    if entry is None:
+        raise ConsentContractError(
+            "UNKNOWN_EXTERNAL_TEXT_VERSION",
+            "externalTextVersion is not a known partner text")
+    pinned = str(entry.get("textSha256") or "").strip().lower()
+    if not pinned or pinned != digest:
+        raise ConsentContractError(
+            "EXTERNAL_TEXT_HASH_MISMATCH",
+            "externalTextSha256 does not match the pinned text")
+    return version, digest
+
+
 def _entry_payload(purpose: str, version: str | None) -> dict:
     entry = notice_version(purpose, version)
     if entry is None:
@@ -261,7 +361,11 @@ def external_refs_payload(purpose: str) -> list[dict]:
 
 def status_payload(purpose: str, *, status: str, notice_version: str | None,
                    granted_at: str | None, withdrawn_at: str | None,
-                   version: int = 0) -> dict:
+                   version: int = 0,
+                   special_categories_consent: bool = False,
+                   special_categories: object = None,
+                   external_text_version: str | None = None,
+                   external_text_sha256: str | None = None) -> dict:
     payload = {
         "schemaVersion": SCHEMA_VERSION,
         "purpose": purpose,
@@ -270,6 +374,15 @@ def status_payload(purpose: str, *, status: str, notice_version: str | None,
         "grantedAt": granted_at,
         "withdrawnAt": withdrawn_at,
         "version": version,
+        # Stored consent proof. Legacy rows without proof report the
+        # fail-closed defaults; they are never inferred from the notice.
+        "specialCategoriesConsent": special_categories_consent is True,
+        "specialCategories": [
+            value for value in (special_categories or [])
+            if isinstance(value, str)
+        ],
+        "externalTextVersion": external_text_version,
+        "externalTextSha256": external_text_sha256,
     }
     payload.update(_entry_payload(purpose, notice_version))
     return payload
