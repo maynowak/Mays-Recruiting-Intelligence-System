@@ -10394,3 +10394,40 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
   ist ein Reset bei Statuswechsel (die Server-Proof-Pflicht bleibt bestehen);
   (b) die UI bietet nur die volle Acht-Kategorien-Liste, keine Teilmenge
   (Backend unterstuetzt Teilmengen); (c) keine Live-/Deploy-Evidenz.
+
+## 2026-11-07 — JM-RIS-STORAGE-PILOT-05 — Art. 9 Text Binding Fix
+
+**Status:** `ART9 PROOF RULE HARDENED LOCAL / NOTICE STILL DRAFT / NO APPROVAL`
+
+- Fix aus dem v3-Review: `specialCategoriesConsent=True` verlangt jetzt
+  zwingend **beide** Felder `externalTextVersion` und `externalTextSha256`
+  sowie den **aktuellen Art.-9-faehigen Text**
+  `application-storage-consent-2026-11-07-v3` mit Hash
+  `696f9e66d8098b2dce56a93418ba598145b669934662e2b52d9a332731517668`.
+  Ein historischer v2-Text kann keine Art.-9-Einwilligung belegen.
+- Neue Vertragspruefung `validate_consent_proof()` (plus Konstanten
+  `ART9_EXTERNAL_TEXT_VERSION`/`ART9_EXTERNAL_TEXT_SHA256`); das Repository
+  nutzt sie statt der getrennten Validatoren. Klare 422-Codes:
+  `EXTERNAL_TEXT_REQUIRED_FOR_SPECIAL_CATEGORIES` (fehlendes/partielles Paar)
+  und `EXTERNAL_TEXT_NOT_ART9` (historischer Text). `False` ohne Text bleibt
+  erlaubt (kein Art.-9-Proof); ein Nicht-Art.-9-Grant darf weiterhin einen
+  bekannten historischen Text zur Nachvollziehbarkeit tragen. Unbekannter
+  Text/Hash-Mismatch bleiben `UNKNOWN_EXTERNAL_TEXT_VERSION`/
+  `EXTERNAL_TEXT_HASH_MISMATCH`; ein anderer gueltiger Text/Scope fuer einen
+  bestehenden Grant bleibt `RECONSENT_REQUIRED` (409).
+- Tests (`tests/test_consent_special_categories.py`): true ohne Paar und
+  partielles Paar -> REQUIRED; true mit v2 -> NOT_ART9 (Validator und
+  Repository, kein Row/Event); true mit v3 -> akzeptiert; false ohne Text ->
+  akzeptiert; v3-Repeat idempotent; bestehender v3-Grant + v2 -> NOT_ART9;
+  anderer gueltiger Text (v4-Fixture) -> RECONSENT_REQUIRED; Widerruf behaelt
+  Proof, Regrant mit v3 und neuer Kategorie-Teilmenge erlaubt.
+- Doku: Mapping-Dokument (§2.1), Approval-Paket Candidate D und OpenAPI
+  (`ConsentGrantRequest`) um die Art.-9-Textbindung ergaenzt.
+- Tests gesamt:
+  `pytest tests/test_consent_special_categories.py
+  tests/test_consent_notice_catalog_contract.py -q` = **52 passed**;
+  mit OpenAPI-Governance = **78 passed**; `terraform fmt -check -recursive`
+  exit 0.
+- **Keine Freigabe / keine Aktivierung:** Notice `1.0` bleibt `DRAFT`,
+  `legalApprovalRef=null`, keine Env-/Flag-/Notice-/Terraform-Aenderung, kein
+  Plan/Apply/Deploy/Push, keine Live-Persistenz-Behauptung.

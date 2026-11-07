@@ -33,8 +33,7 @@ from jobsearch.consent_contract import (
     EVENT_GRANTED, EVENT_REGRANTED, EVENT_WITHDRAWN,
     STATUS_GRANTED, STATUS_NOT_GRANTED, STATUS_WITHDRAWN,
     ConsentContext, ConsentContractError, status_payload,
-    validate_external_text, validate_notice_version, validate_purpose,
-    validate_special_category_consent,
+    validate_consent_proof, validate_notice_version, validate_purpose,
 )
 
 
@@ -160,10 +159,13 @@ class ConsentRepository:
         """
         ctx.validate()
         purpose = validate_purpose(purpose)
-        consent, categories = validate_special_category_consent(
-            special_categories_consent, special_categories)
-        external_version, external_sha256 = validate_external_text(
-            purpose, external_text_version, external_text_sha256)
+        consent, categories, external_version, external_sha256 = (
+            validate_consent_proof(
+                purpose,
+                special_categories_consent=special_categories_consent,
+                special_categories=special_categories,
+                external_text_version=external_text_version,
+                external_text_sha256=external_text_sha256))
         # Identifier check only. State enforcement is applied once we know a
         # new grant is actually being written, so repeating an existing grant
         # stays idempotent even after its notice version became SUPERSEDED.

@@ -2596,7 +2596,11 @@ components:
         specialCategoriesConsent:
           type: boolean
           default: false
-          description: Explicit Art. 9 consent; the server-owned category list is required when true.
+          description: >-
+            Explicit Art. 9 consent. True requires the server-owned category
+            list and the current Art. 9-capable external text version/hash;
+            missing text is 422 EXTERNAL_TEXT_REQUIRED_FOR_SPECIAL_CATEGORIES
+            and a historical text is 422 EXTERNAL_TEXT_NOT_ART9.
         specialCategories:
           type: array
           uniqueItems: true
@@ -2604,7 +2608,11 @@ components:
         externalTextVersion:
           type: string
           nullable: true
-          description: Must be a known partner text; browser-supplied values are not trusted by the BFF.
+          description: >-
+            Known partner text. For Art. 9 consent it must be
+            application-storage-consent-2026-11-07-v3 (or a later
+            Art. 9-capable text); browser-supplied values are not trusted by
+            the BFF.
         externalTextSha256:
           type: string
           nullable: true

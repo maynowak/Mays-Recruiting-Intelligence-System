@@ -271,7 +271,9 @@ the text, the mapping and a real `legalApprovalRef`. v2/v1 (`...-v2` hash
 `232c…a0ca`, `...-v1` hash `2615…9953`) remain historical/superseded and were
 never approved. The RIS backend stores the explicit Art. 9 proof
 (`specialCategoriesConsent`, `specialCategories`, `externalTextVersion`,
-`externalTextSha256`) and rejects missing, unknown or mismatched proof.
+`externalTextSha256`); an Art. 9 consent requires the current v3 text pair
+(`422 EXTERNAL_TEXT_REQUIRED_FOR_SPECIAL_CATEGORIES` if missing,
+`422 EXTERNAL_TEXT_NOT_ART9` for a historical text).
 
 ---
 

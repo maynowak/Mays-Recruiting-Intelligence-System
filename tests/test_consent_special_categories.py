@@ -20,10 +20,11 @@ try:
     from moto import mock_aws
     from jobsearch import consent_contract
     from jobsearch.consent_contract import (
+        ART9_EXTERNAL_TEXT_SHA256, ART9_EXTERNAL_TEXT_VERSION,
         NOTICE_ACTIVE, NOTICE_DRAFT, NOTICE_SUPERSEDED, SPECIAL_CATEGORY_CODES,
         SPECIAL_CATEGORY_ORDER, STATUS_GRANTED, STATUS_NOT_GRANTED,
         STATUS_WITHDRAWN, ConsentContext, ConsentContractError,
-        notice_version, validate_external_text,
+        notice_version, validate_consent_proof, validate_external_text,
         validate_special_category_consent,
     )
     from jobsearch.consent_repository import ConsentRepository
@@ -174,6 +175,50 @@ class ExternalTextValidationTests(unittest.TestCase):
         self.assertEqual("EXTERNAL_TEXT_HASH_MISMATCH", caught.exception.code)
 
 
+class Art9TextBindingTests(unittest.TestCase):
+    """Special-category consent requires the current Art. 9 text."""
+
+    def _proof(self, consent, categories, version, digest):
+        return validate_consent_proof(
+            PURPOSE,
+            special_categories_consent=consent,
+            special_categories=categories,
+            external_text_version=version,
+            external_text_sha256=digest)
+
+    def test_true_without_text_pair_is_rejected(self):
+        for version, digest in (
+                (None, None), ("", ""), (V3, None), (None, V3_SHA256)):
+            with self.assertRaises(ConsentContractError) as caught:
+                self._proof(True, ["health"], version, digest)
+            self.assertEqual(
+                "EXTERNAL_TEXT_REQUIRED_FOR_SPECIAL_CATEGORIES",
+                caught.exception.code)
+
+    def test_true_with_historical_v2_text_is_not_art9(self):
+        with self.assertRaises(ConsentContractError) as caught:
+            self._proof(True, ["health"], V2, V2_SHA256)
+        self.assertEqual("EXTERNAL_TEXT_NOT_ART9", caught.exception.code)
+
+    def test_true_with_v3_text_is_accepted(self):
+        consent, categories, version, digest = self._proof(
+            True, ["health", "genetic_data"], V3, V3_SHA256)
+        self.assertTrue(consent)
+        self.assertEqual(["health", "genetic_data"], categories)
+        self.assertEqual(ART9_EXTERNAL_TEXT_VERSION, version)
+        self.assertEqual(ART9_EXTERNAL_TEXT_SHA256, digest)
+
+    def test_false_without_text_is_accepted(self):
+        self.assertEqual(
+            (False, [], None, None),
+            self._proof(False, None, None, None))
+
+    def test_false_with_historical_text_keeps_legacy_compatibility(self):
+        self.assertEqual(
+            (False, [], V2, V2_SHA256),
+            self._proof(False, [], V2, V2_SHA256))
+
+
 @unittest.skipUnless(boto3, "boto3/moto unavailable")
 class GrantProofPersistenceTests(unittest.TestCase):
     @mock_aws
@@ -237,24 +282,78 @@ class GrantProofPersistenceTests(unittest.TestCase):
         self.assertEqual([], events)
 
     @mock_aws
+    def test_art9_consent_requires_the_external_text_pair(self):
+        repo = _table()
+        for version, digest in ((None, None), (V3, None), (None, V3_SHA256)):
+            with self.assertRaises(ConsentContractError) as caught:
+                _grant(repo, categories=["health"], version=version,
+                       sha256=digest)
+            self.assertEqual(
+                "EXTERNAL_TEXT_REQUIRED_FOR_SPECIAL_CATEGORIES",
+                caught.exception.code)
+        self.assertEqual(STATUS_NOT_GRANTED,
+                         repo.get(_ctx(), PURPOSE)["status"])
+
+    @mock_aws
+    def test_art9_consent_rejects_historical_v2_text(self):
+        repo = _table()
+        with self.assertRaises(ConsentContractError) as caught:
+            _grant(repo, categories=["health"], version=V2, sha256=V2_SHA256)
+        self.assertEqual("EXTERNAL_TEXT_NOT_ART9", caught.exception.code)
+        self.assertEqual(STATUS_NOT_GRANTED,
+                         repo.get(_ctx(), PURPOSE)["status"])
+        events, _ = repo.history(_ctx(), PURPOSE)
+        self.assertEqual([], events)
+
+    @mock_aws
+    def test_art9_grant_with_v3_text_is_accepted(self):
+        granted = _grant(_table(), categories=["health"])
+        self.assertTrue(granted["specialCategoriesConsent"])
+        self.assertEqual(V3, granted["externalTextVersion"])
+        self.assertEqual(V3_SHA256, granted["externalTextSha256"])
+
+    @mock_aws
     def test_repeat_with_same_proof_is_idempotent(self):
         repo = _table()
-        _grant(repo)  # defaults to v3 + all categories
+        _grant(repo)
         again = _grant(repo)
         self.assertEqual(1, again["version"])
         events, _ = repo.history(_ctx(), PURPOSE)
         self.assertEqual(1, len(events))
 
     @mock_aws
-    def test_different_text_for_existing_grant_requires_reconsent(self):
+    def test_existing_v3_grant_rejects_v2_art9_request(self):
         repo = _table()
-        _grant(repo)
+        _grant(repo, categories=["health"])
         with self.assertRaises(ConsentContractError) as caught:
-            _grant(repo, version=V2, sha256=V2_SHA256)
-        self.assertEqual("RECONSENT_REQUIRED", caught.exception.code)
+            _grant(repo, categories=["health"], version=V2, sha256=V2_SHA256)
+        self.assertEqual("EXTERNAL_TEXT_NOT_ART9", caught.exception.code)
         status = repo.get(_ctx(), PURPOSE)
         self.assertEqual(V3, status["externalTextVersion"])
         self.assertEqual(V3_SHA256, status["externalTextSha256"])
+
+    @mock_aws
+    def test_different_valid_text_scope_requires_reconsent(self):
+        v4 = "application-storage-consent-2026-11-07-v4"
+        v4_sha = "a" * 64
+        repo = _table()
+        _grant(repo, categories=["health"])
+        with patch.dict(
+                consent_contract.EXTERNAL_NOTICE_REFS[PURPOSE],
+                {v4: {"source": "mays-jobsearch",
+                      "noticeState": NOTICE_DRAFT,
+                      "noticeVersion": None,
+                      "textSha256": v4_sha}}), \
+                patch.object(consent_contract,
+                             "ART9_EXTERNAL_TEXT_VERSION", v4), \
+                patch.object(consent_contract,
+                             "ART9_EXTERNAL_TEXT_SHA256", v4_sha):
+            with self.assertRaises(ConsentContractError) as caught:
+                _grant(repo, categories=["health"], version=v4,
+                       sha256=v4_sha)
+        self.assertEqual("RECONSENT_REQUIRED", caught.exception.code)
+        status = repo.get(_ctx(), PURPOSE)
+        self.assertEqual(V3, status["externalTextVersion"])
         self.assertEqual(1, status["version"])
 
     @mock_aws
@@ -284,10 +383,11 @@ class GrantProofPersistenceTests(unittest.TestCase):
             self.assertEqual(V3, event["externalTextVersion"])
             self.assertEqual(["health"], event["specialCategories"])
 
-        regranted = _grant(repo, categories=["health"],
-                           version=V2, sha256=V2_SHA256)
+        regranted = _grant(repo, categories=["health", "genetic_data"])
         self.assertEqual(3, regranted["version"])
-        self.assertEqual(V2, regranted["externalTextVersion"])
+        self.assertEqual(V3, regranted["externalTextVersion"])
+        self.assertEqual(["health", "genetic_data"],
+                         regranted["specialCategories"])
 
 
 class HandlerProofWiringTests(unittest.TestCase):

@@ -105,10 +105,16 @@ A v3 grant stores, on the current row and every append-only history event:
 
 The backend rejects true consent without categories, categories without
 consent, unknown/duplicate categories, unknown external text versions, partial
-pairs and hash mismatches. A repeat with the same proof is idempotent; a
-different text or category scope for an existing grant returns `409
-RECONSENT_REQUIRED` and never rewrites the stored proof. Withdrawal preserves
-the proof.
+pairs and hash mismatches. An explicit Art. 9 consent additionally requires the
+**current Art. 9-capable text** (`...-v3` and its exact hash):
+
+- missing text pair → `422 EXTERNAL_TEXT_REQUIRED_FOR_SPECIAL_CATEGORIES`;
+- historical text (for example `...-v2`) → `422 EXTERNAL_TEXT_NOT_ART9`.
+
+A non-Art. 9 grant may still carry a historical text for traceability (or no
+text at all). A repeat with the same proof is idempotent; a different valid
+text or category scope for an existing grant returns `409 RECONSENT_REQUIRED`
+and never rewrites the stored proof. Withdrawal preserves the proof.
 
 ## 3. Lifecycle states
 

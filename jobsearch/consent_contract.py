@@ -175,6 +175,14 @@ SPECIAL_CATEGORY_ORDER = (
 )
 SPECIAL_CATEGORY_CODES = frozenset(SPECIAL_CATEGORY_ORDER)
 
+#: External text that is allowed to carry an explicit Art. 9 consent. A
+#: historical text may be recorded for a non-Art. 9 grant but must never be
+#: accepted as proof for special categories.
+ART9_EXTERNAL_TEXT_VERSION = "application-storage-consent-2026-11-07-v3"
+ART9_EXTERNAL_TEXT_SHA256 = (
+    "696f9e66d8098b2dce56a93418ba598145b669934662e2b52d9a332731517668"
+)
+
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -319,6 +327,44 @@ def validate_external_text(purpose: str, version: object, sha256: object,
             "EXTERNAL_TEXT_HASH_MISMATCH",
             "externalTextSha256 does not match the pinned text")
     return version, digest
+
+
+def validate_consent_proof(
+        purpose: str, *, special_categories_consent: object,
+        special_categories: object, external_text_version: object,
+        external_text_sha256: object,
+) -> tuple[bool, list[str], str | None, str | None]:
+    """Validate the full grant proof, including the Art. 9 text binding.
+
+    An explicit Art. 9 consent requires the **current** Art. 9-capable text
+    (version and hash). A historical text may be recorded for a non-Art. 9
+    grant, but it can never back special-category consent.
+    """
+    consent, categories = validate_special_category_consent(
+        special_categories_consent, special_categories)
+    if consent:
+        if external_text_version is None or external_text_sha256 is None \
+                or not str(external_text_version).strip() \
+                or not str(external_text_sha256).strip():
+            raise ConsentContractError(
+                "EXTERNAL_TEXT_REQUIRED_FOR_SPECIAL_CATEGORIES",
+                "explicit Art. 9 consent requires the external text version "
+                "and SHA-256")
+        version, digest = validate_external_text(
+            purpose, external_text_version, external_text_sha256)
+        if version != ART9_EXTERNAL_TEXT_VERSION:
+            raise ConsentContractError(
+                "EXTERNAL_TEXT_NOT_ART9",
+                "only the current Art. 9-capable text may carry "
+                "special-category consent")
+        if digest != ART9_EXTERNAL_TEXT_SHA256:
+            raise ConsentContractError(
+                "EXTERNAL_TEXT_NOT_ART9",
+                "the external text hash is not the current Art. 9 text")
+        return consent, categories, version, digest
+    version, digest = validate_external_text(
+        purpose, external_text_version, external_text_sha256)
+    return consent, categories, version, digest
 
 
 def _entry_payload(purpose: str, version: str | None) -> dict:
