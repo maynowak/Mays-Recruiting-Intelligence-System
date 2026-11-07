@@ -10431,3 +10431,23 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
 - **Keine Freigabe / keine Aktivierung:** Notice `1.0` bleibt `DRAFT`,
   `legalApprovalRef=null`, keine Env-/Flag-/Notice-/Terraform-Aenderung, kein
   Plan/Apply/Deploy/Push, keine Live-Persistenz-Behauptung.
+
+### PILOT-05 Consent v3 — completeness addendum (commit references)
+
+Die drei vorstehenden PILOT-05-Eintraege sind inhaltlich vollstaendig; hier
+nur die expliziten Commit-Zuordnungen:
+
+- `2301aee` — RIS Consent-v3-Backend: `specialCategoriesConsent`,
+  `specialCategories`, `externalTextVersion`, `externalTextSha256` in
+  Vertrag, Repository (Row + History + Status), Handler und OpenAPI;
+  Tests 24/135/77, `terraform fmt` exit 0.
+- `e3acddf` — RIS-Auditlog-Commit des Read-only-Reviews von Jobsearch
+  `9eecf83`: Verdict **PASS**, 4 Dateien / 68 Tests; Residualhinweis
+  Checkbox-Reset nach Widerruf.
+- `3ed915b` — Proof-Coupling-Fix: Art.-9-Consent verlangt aktuellen v3-Text
+  (`EXTERNAL_TEXT_REQUIRED_FOR_SPECIAL_CATEGORIES` /
+  `EXTERNAL_TEXT_NOT_ART9`), Tests 52 bzw. 78, `terraform fmt` exit 0.
+
+Unveraendert: Notice `application-storage/1.0` bleibt `DRAFT`,
+`legalApprovalRef=null`; kein Plan/Apply/Deploy/Push, keine Env-/Flag-/Notice-
+Aenderung, keine Live-Persistenz- oder Freigabe-Behauptung.
