@@ -174,8 +174,26 @@ def _finalize_personal_response(event: Dict[str, Any], response: Dict[str, Any])
     return finalized
 
 
+def _partner_surface_enabled() -> bool:
+    """Explicit activation switch for the new partner/personal API surface.
+
+    Deploying the routes and tables is not an approval to process personal
+    data. Until the data-protection decision is signed off, every
+    /v1/partner/me/* request fails closed. Existing RIS routes (/me, /agents,
+    documents, orders) are not affected.
+    """
+    return os.environ.get("PARTNER_SURFACE_ENABLED", "false").strip().lower() == "true"
+
+
 def _handle_personal_api_boundary(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Finalize all subject-bearing API responses, including early failures."""
+    path = event.get("path") or ((event.get("requestContext") or {}).get("http") or {}).get("path", "/") or "/"
+    if path.startswith("/v1/partner/me/") and not _partner_surface_enabled():
+        response = {
+            "statusCode": 503,
+            "body": json.dumps({"error": "Partner surface not activated"}),
+        }
+        return _finalize_personal_response(event, response)
     try:
         response = _handle_api_event(event, context)
     except Exception:
@@ -562,6 +580,8 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # R06: partner ATS search profiles (ATSSearchProfileV1 CRUD).
         return _partner_storage_guard(
             _handle_partner_ats_routes, event, context, method, path)
+    elif path == '/v1/partner/me/consents' or path.startswith('/v1/partner/me/consents/'):
+        return _handle_consent_routes(event, context, method, path)
     elif path == '/v1/partner/me/applications' or path.startswith('/v1/partner/me/applications/'):
         # ApplicationV1 uses the existing authenticated partner boundary. It
         # never invokes an agent/model and never accepts client identity.
@@ -602,6 +622,97 @@ def _application_response(status, payload=None, code=None):
         'body': json.dumps(body, ensure_ascii=False,
                            default=_application_json_default),
     }
+
+
+def _consent_enforced() -> bool:
+    """Rollout switch for the ApplicationV1 storage consent gate.
+
+    Default is off so an existing installation keeps working until the partner
+    ships its consent UI; enabling it makes writes fail closed without a
+    GRANTED ``application-storage`` consent.
+    """
+    return os.environ.get("APPLICATION_CONSENT_ENFORCED", "false").strip().lower() == "true"
+
+
+def _consent_ctx(event):
+    from jobsearch.consent_contract import ConsentContext
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return None, error
+    return ConsentContext(
+        user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+        partner_application_id=ctx['partnerApplicationId'],
+        issuer=ctx['issuer']), None
+
+
+def _consent_repo():
+    from jobsearch.consent_repository import ConsentRepository
+    return ConsentRepository()
+
+
+def _handle_consent_routes(event, context, method, path):
+    ctx, error = _consent_ctx(event)
+    if error:
+        return error
+    from jobsearch.consent_contract import (
+        CONSENT_PURPOSES, ConsentContractError, catalog_payload,
+        external_refs_payload, validate_purpose)
+    from jobsearch.consent_repository import ConsentConflict
+    repo = _consent_repo()
+    body = _application_body(event) or {}
+    params = event.get('queryStringParameters') or {}
+    try:
+        if path == '/v1/partner/me/consents' and method == 'GET':
+            purpose = params.get('purpose')
+            purposes = [validate_purpose(purpose)] if purpose else sorted(CONSENT_PURPOSES)
+            return _application_response(200, {
+                'items': [repo.get(ctx, p) for p in purposes],
+                'catalog': [entry for p in purposes for entry in catalog_payload(p)],
+                'externalRefs': [entry for p in purposes
+                                 for entry in external_refs_payload(p)],
+            })
+        if path == '/v1/partner/me/consents' and method == 'POST':
+            result = repo.grant(ctx, body.get('purpose'), body.get('noticeVersion'))
+            return _application_response(200, {'consent': result})
+        if path == '/v1/partner/me/consents/withdraw' and method == 'POST':
+            result = repo.withdraw(ctx, body.get('purpose'), body.get('noticeVersion'))
+            return _application_response(200, {'consent': result})
+        if path == '/v1/partner/me/consents/history' and method == 'GET':
+            purpose = validate_purpose(params.get('purpose'))
+            limit = int(params.get('limit', 50))
+            items, next_key = repo.history(ctx, purpose, limit=limit)
+            return _application_response(200, {
+                'items': items,
+                'nextCursor': next_key is not None})
+        return _application_response(405, 'Method not allowed', 'METHOD_NOT_ALLOWED')
+    except ConsentContractError as exc:
+        status = 404 if exc.code == 'UNKNOWN_PURPOSE' else 422
+        return _application_response(status, str(exc), exc.code)
+    except ConsentConflict as exc:
+        return _application_response(409, 'Consent conflict', 'CONFLICT')
+    except Exception:
+        logger.exception('consent request failed')
+        return _application_response(500, 'Consent request failed', 'CONSENT_FAILED')
+
+
+def _application_consent_error(ctx):
+    """Return an error response when storage consent is enforced and absent."""
+    if not _consent_enforced():
+        return None
+    from jobsearch.consent_contract import ConsentContext
+    consent_ctx = ConsentContext(
+        user_id=ctx.user_id, tenant_id=ctx.tenant_id,
+        partner_application_id=ctx.partner_application_id,
+        issuer=ctx.issuer)
+    try:
+        allowed = _consent_repo().has_consent(consent_ctx, 'application-storage')
+    except Exception:
+        logger.exception('consent check failed')
+        allowed = False
+    if allowed:
+        return None
+    return _application_response(
+        403, 'Storage consent is required', 'CONSENT_REQUIRED')
 
 
 def _application_repo():
@@ -660,6 +771,9 @@ def _application_routes(event, context, method, path):
     try:
         base = path == '/v1/partner/me/applications'
         if base and method == 'POST':
+            denied = _application_consent_error(ctx)
+            if denied:
+                return denied
             result = repo.create(_application_body(event), ctx)
             return _application_response(201, {'application': result})
         if base and method == 'GET':
@@ -682,6 +796,9 @@ def _application_routes(event, context, method, path):
         if not suffix and method == 'GET':
             return _application_response(200, {'application': repo.get(app_id, ctx)})
         if not suffix and method == 'PATCH':
+            denied = _application_consent_error(ctx)
+            if denied:
+                return denied
             return _application_response(200, {'application': repo.patch(app_id, _application_body(event), ctx)})
         if not suffix and method == 'DELETE':
             body = _application_body(event) or {}
@@ -690,15 +807,24 @@ def _application_routes(event, context, method, path):
             response.pop('body', None)
             return response
         if suffix == 'status' and method == 'POST':
+            denied = _application_consent_error(ctx)
+            if denied:
+                return denied
             body = _application_body(event) or {}
             if ('status' in body) == ('stage' in body):
                 return _application_response(422, 'Exactly one of status or stage is required', 'STATUS_SELECTOR_REQUIRED')
             target = body.get('stage') if body.get('stage') is not None else body.get('status')
             return _application_response(200, {'application': repo.status(app_id, target, int(body.get('expectedVersion', 0)), bool(body.get('confirm')), ctx, body.get('note'))})
         if suffix == 'history' and method == 'POST':
+            denied = _application_consent_error(ctx)
+            if denied:
+                return denied
             body = _application_body(event) or {}
             return _application_response(201, {'history': repo.add_history(app_id, body.get('event'), int(body.get('expectedVersion', 0)), ctx)})
         if suffix == 'cover-letter-versions' and method == 'POST':
+            denied = _application_consent_error(ctx)
+            if denied:
+                return denied
             body = _application_body(event) or {}
             version = body.get('version') if body.get('version') is not None else body.get('text')
             return _application_response(201, {'version': repo.add_cover_letter(app_id, version, int(body.get('expectedVersion', 0)), ctx)})
@@ -1319,6 +1445,33 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'Erasure temporarily unavailable'})
         }
 
+    def _delete_applications(user_id: str, tenant_id: Optional[str]) -> tuple:
+        """Delete ApplicationV1 rows for the erased user across partners.
+
+        Identity-scoped: the repository resolves candidates through gsi-user
+        on tenant|user and deletes each application under its stored
+        ownerKey. Missing or conflicting tenant context fails closed by
+        reporting the phase as still pending.
+        """
+        if not os.environ.get("APPLICATIONS_TABLE"):
+            return 0, False
+        resolved = tenant_id
+        if not resolved:
+            resolved, conflict = _resolve_tenant(user_context)
+            if conflict or not resolved:
+                return 0, True
+        from jobsearch.application_repository import ApplicationRepository
+        repo = ApplicationRepository()
+        total = 0
+        # Bounded resume: each pass deletes one page. A remaining page keeps
+        # the erasure result incomplete instead of claiming success.
+        for _ in range(20):
+            deleted, pending = repo.delete_all_for_user(resolved, user_id)
+            total += deleted
+            if not pending:
+                return total, False
+        return total, True
+
     def _delete_documents(user_id: str) -> int:
         """Delete every document object the platform holds for this user."""
         try:
@@ -1355,6 +1508,14 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             table_name=os.environ.get("API_PROFILES_TABLE")),
         work_table=dynamodb.Table(os.environ.get("WORK_ITEMS_TABLE")),
         document_deleter=_delete_documents,
+        # Application deletion is a destructive personal-data path. It stays
+        # disconnected until the data-protection owners enable it explicitly;
+        # the infrastructure being deployed is not an activation approval.
+        application_deleter=(
+            _delete_applications
+            if os.environ.get("ERASURE_APPLICATIONS_ENABLED", "false").strip().lower() == "true"
+            else None
+        ),
         user_profile_table=dynamodb.Table(
             os.environ.get("USER_PROFILE_TABLE")),
         application_erasure=ApplicationErasureExecutor(application_repository),

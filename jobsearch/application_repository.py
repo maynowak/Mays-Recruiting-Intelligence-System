@@ -58,6 +58,41 @@ def _json(value: Any) -> str:
                       ensure_ascii=False, default=_json_default)
 
 
+_SECRET_CACHE: dict[str, bytes] = {}
+
+
+def _cursor_secret() -> bytes:
+    """Return the HMAC key, preferring a runtime secret over plain env.
+
+    Resolution order:
+      1. ``RIS_CURSOR_SECRET`` (tests/local only; never set in Terraform)
+      2. ``RIS_CURSOR_SECRET_ARN`` -> Secrets Manager ``GetSecretValue``
+    Missing or unreadable configuration fails closed: no static fallback.
+    The value is cached per ARN for the life of the process and never logged.
+    """
+    raw = os.environ.get("RIS_CURSOR_SECRET")
+    if raw:
+        return raw.encode()
+    arn = os.environ.get("RIS_CURSOR_SECRET_ARN")
+    if not arn:
+        raise RuntimeError("cursor secret is not configured")
+    cached = _SECRET_CACHE.get(arn)
+    if cached is not None:
+        return cached
+    if boto3 is None:
+        raise RuntimeError("cursor secret is unavailable")
+    try:
+        payload = boto3.client("secretsmanager").get_secret_value(SecretId=arn)
+    except Exception as exc:
+        raise RuntimeError("cursor secret is unavailable") from exc
+    value = payload.get("SecretString")
+    if not value:
+        raise RuntimeError("cursor secret is empty")
+    data = value.encode()
+    _SECRET_CACHE[arn] = data
+    return data
+
+
 class ApplicationRepository:
     def __init__(self, table_name: str | None = None, dynamodb: Any = None,
                  profile_repository: Any = None):
@@ -82,6 +117,18 @@ class ApplicationRepository:
     def _scope(ctx: ApplicationContext) -> str:
         ctx.validate()
         return "|".join((ctx.tenant_id, ctx.user_id, ctx.partner_application_id, ctx.issuer))
+
+    @staticmethod
+    def _user_key(tenant_id: str, user_id: str) -> str:
+        """Server-derived key for the user-scoped index.
+
+        Deliberately excludes partner and issuer: erasure must reach every
+        application of the user inside one tenant, regardless of which
+        partner application or issuer created it.
+        """
+        if not tenant_id or not user_id:
+            raise ValueError("tenant_id and user_id are required")
+        return tenant_id + "|" + user_id
 
     @staticmethod
     def _transaction_item(item: dict[str, Any]) -> dict[str, Any]:
@@ -111,10 +158,7 @@ class ApplicationRepository:
 
     @staticmethod
     def _cursor_secret() -> bytes:
-        secret = os.environ.get("RIS_CURSOR_SECRET")
-        if not secret:
-            raise RuntimeError("RIS_CURSOR_SECRET is required for pagination")
-        return secret.encode()
+        return _cursor_secret()
 
     def issue_cursor(self, key: dict[str, Any], *, user_id: str, tenant_id: str,
                      partner_app_id: str | None, issuer: str | None,
@@ -207,7 +251,9 @@ class ApplicationRepository:
             **parsed, "schemaVersion": 1, "applicationId": app_id, "entityKey": "META",
             "entityType": "META", "userId": ctx.user_id, "tenantId": ctx.tenant_id,
             "partnerApplicationId": ctx.partner_application_id, "issuer": ctx.issuer,
-            "ownerKey": self._scope(ctx), "status": "DRAFT", "version": 1,
+            "ownerKey": self._scope(ctx),
+            "userKey": self._user_key(ctx.tenant_id, ctx.user_id),
+            "status": "DRAFT", "version": 1,
             "stage": "draft", "createdAt": stamp, "updatedAt": stamp, "submittedAt": None,
         }
         items = [{"Put": {"TableName": self.table_name, "Item": row,
@@ -447,6 +493,70 @@ class ApplicationRepository:
         history = [{k: v for k, v in x.items() if k not in {"ownerKey", "entityType", "entityKey"}} for x in children if x.get("entityType") == "HISTORY"]
         versions = [{k: v for k, v in x.items() if k not in {"ownerKey", "entityType", "entityKey", "text"}} for x in children if x.get("entityType") == "COVER_LETTER"]
         return {"application": self._public(app), "history": history, "coverLetterVersions": versions, "documents": self._public(app).get("documents", {})}
+
+    def _list_raw_by_user(self, tenant_id: str, user_id: str, *,
+                          limit: int = 25, cursor: dict[str, Any] | None = None,
+                          ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+        if not 1 <= limit <= 100:
+            raise ApplicationContractError("INVALID_LIMIT", "limit is invalid")
+        kwargs: dict[str, Any] = {
+            "IndexName": "gsi-user",
+            "KeyConditionExpression": Key("userKey").eq(self._user_key(tenant_id, user_id)),
+            "Limit": limit,
+            "ScanIndexForward": False,
+        }
+        if cursor:
+            kwargs["ExclusiveStartKey"] = cursor
+        result = self.table.query(**kwargs)
+        return [x for x in result.get("Items", []) if x.get("entityType") == "META"], result.get("LastEvaluatedKey")
+
+    def list_by_user(self, tenant_id: str, user_id: str, *,
+                     limit: int = 25, cursor: dict[str, Any] | None = None,
+                     ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+        """List every application of one user inside one tenant.
+
+        Uses gsi-user, so applications created under different partner
+        applications or issuers are included. Only META rows carry userKey;
+        child rows never appear in this index.
+        """
+        items, next_cursor = self._list_raw_by_user(tenant_id, user_id,
+                                                   limit=limit, cursor=cursor)
+        return [self._public(x) for x in items], next_cursor
+
+    def delete_all_for_user(self, tenant_id: str, user_id: str, *,
+                            limit: int = 25) -> tuple[int, bool]:
+        """Delete one page of a user's applications across partners.
+
+        Returns (deleted, pending). ``pending`` means another page must be
+        processed; the caller (erasure orchestrator) keeps the run incomplete
+        until it receives pending=False. Deletion is per application and
+        unconditionally scoped by the stored ownerKey, so a concurrent writer
+        cannot make the delete cross an ownership boundary.
+        """
+        items, next_cursor = self._list_raw_by_user(tenant_id, user_id, limit=limit)
+        deleted = 0
+        for item in items:
+            owner_key = item.get("ownerKey")
+            if not owner_key:
+                raise ApplicationConflict("application owner is missing")
+            self._delete_application_partition(item["applicationId"], owner_key)
+            deleted += 1
+        return deleted, bool(next_cursor)
+
+    def _delete_application_partition(self, application_id: str, owner_key: str) -> None:
+        children = self.table.query(
+            KeyConditionExpression=Key("applicationId").eq(application_id),
+            ConsistentRead=True,
+        ).get("Items", [])
+        self._transact([
+            {"Delete": {
+                "TableName": self.table_name,
+                "Key": {"applicationId": x["applicationId"], "entityKey": x["entityKey"]},
+                "ConditionExpression": "ownerKey = :owner",
+                "ExpressionAttributeValues": {":owner": owner_key},
+            }}
+            for x in children
+        ])
 
     def delete(self, application_id: str, expected_version: int, ctx: ApplicationContext) -> None:
         current = self._owned(application_id, ctx, allow_deleting=True)

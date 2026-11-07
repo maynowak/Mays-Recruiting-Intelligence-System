@@ -1,5 +1,5 @@
 {
-  "_comment": "Site-specific Terraform input variables for the permanent dev install 'ris-dev'. Loaded automatically by the installer when project_name == ris-dev (see installer/ris.py load_project_config). No secrets. Explicit values only, no CORS wildcards.",
+  "_comment": "Site-specific Terraform input variables for the permanent dev install 'ris-dev'. Loaded automatically by the installer when project_name == ris-dev (see installer/ris.py load_project_config). No secrets. Explicit values only, no CORS wildcards. Jobsearch production auth stays on its dedicated pool eu-central-1_ZURSMpD2O; auth.mays-job-matcher.app is not owned by the RIS kernel pool.",
   "_schema": {
     "project_name": "must equal the directory/file name; guards against workspace/config mismatch",
     "terraform_vars": "key=value map forwarded to terraform as ordinary -var entries"
@@ -13,9 +13,15 @@
     "identity_oauth_callback_urls": "[\"http://localhost:5173/auth/callback\",\"https://mays-job-matcher.vercel.app/auth/callback\",\"https://www.mays-job-matcher.app/auth/callback\"]",
     "identity_oauth_logout_urls": "[\"http://localhost:5173/\",\"https://mays-job-matcher.vercel.app/\",\"https://www.mays-job-matcher.app/\"]",
 
-    "identity_custom_domain_enabled": "true",
-    "identity_custom_domain": "auth.mays-job-matcher.app",
-    "identity_custom_domain_certificate_arn": "arn:aws:acm:us-east-1:240571105849:certificate/0bfb2603-a919-4b06-b4b9-da246c4edf75",
+    "identity_custom_domain_enabled": "false",
+
+    "partner_surface_enabled": "true",
+
+    "jobsearch_cognito_issuer": "https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_ZURSMpD2O",
+    "jobsearch_cognito_client_id": "5hb3f6dj5ialg77jf4blur9g6g",
+    "jobsearch_edge_cors_origins": "[\"http://localhost:5173\",\"https://mays-job-matcher.vercel.app\",\"https://www.mays-job-matcher.app\"]",
+
+    "applications_cursor_secret_arn": "arn:aws:secretsmanager:eu-central-1:240571105849:secret:ris-dev/applications/cursor-hmac-cuHjQ8",
 
     "api_cors_origins": "[\"http://localhost:5173\",\"https://mays-job-matcher.vercel.app\",\"https://www.mays-job-matcher.app\"]"
   }

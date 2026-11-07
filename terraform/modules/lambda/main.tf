@@ -271,6 +271,40 @@ resource "aws_iam_role_policy" "lambda_dynamodb_applications" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_consents" {
+  name = "${var.project_name}-${var.environment}-lambda-dynamodb-consents"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:Query",
+        "dynamodb:TransactWriteItems"
+      ]
+      Resource = [var.consents_table_arn]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_cursor_secret" {
+  count = var.applications_cursor_secret_arn != "" ? 1 : 0
+  name  = "${var.project_name}-${var.environment}-lambda-cursor-secret"
+  role  = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = [var.applications_cursor_secret_arn]
+    }]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_privacy_receipts" {
   name = "${var.project_name}-${var.environment}-lambda-dynamodb-privacy-receipts"
   role = aws_iam_role.lambda_execution.id
@@ -576,6 +610,9 @@ resource "aws_lambda_function" "agent" {
       JOBSEARCH_TABLE       = var.jobsearch_table_name
       PARTNER_PROFILE_TABLE = var.partner_profiles_table_name
       APPLICATIONS_TABLE    = var.applications_table_name
+      # ARN only. Empty means no secret is provisioned and pagination
+      # fails closed instead of falling back to a static key.
+      RIS_CURSOR_SECRET_ARN = var.applications_cursor_secret_arn
       DOCUMENTS_BUCKET      = var.documents_bucket_name
       API_PROFILES_TABLE    = var.api_profiles_table_name
       OFFERS_TABLE          = var.offers_table_name
@@ -598,13 +635,21 @@ resource "aws_lambda_function" "agent" {
       ERASURE_S3_EXECUTION_ENABLED         = "false"
       ERASURE_S3_QUIESCENCE_ENABLED        = "false"
       ERASURE_WRITE_FREEZE_ENABLED         = "false"
+      # Application deletion stays disconnected until the data-protection
+      # decision (RG-09) explicitly enables it.
+      ERASURE_APPLICATIONS_ENABLED         = "false"
       ERASURE_UPLOAD_TICKET_LEDGER_ENABLED = "false"
       ERASURE_UPLOAD_CUTOVER_ENABLED       = "false"
       UPLOAD_TICKET_LEDGER_TABLE           = var.upload_ticket_ledger_table_name
       UPLOAD_CUTOVER_TABLE                 = var.upload_cutover_table_name
       DELETION_LEDGER_ENABLED              = "false"
-      DELETION_LEDGER_TABLE                = var.deletion_ledger_table_name
-      LOG_LEVEL                            = var.log_level
+      # New partner/personal routes stay closed until the data-protection
+      # decision is signed off; deploying infrastructure is not approval.
+      PARTNER_SURFACE_ENABLED      = var.partner_surface_enabled ? "true" : "false"
+      CONSENTS_TABLE               = var.consents_table_name
+      APPLICATION_CONSENT_ENFORCED = var.application_consent_enforced ? "true" : "false"
+      DELETION_LEDGER_TABLE        = var.deletion_ledger_table_name
+      LOG_LEVEL                    = var.log_level
     }
   }
 
@@ -621,6 +666,9 @@ resource "aws_lambda_function" "agent" {
     aws_iam_role_policy.lambda_deletion_ledger,
     aws_iam_role_policy.lambda_dynamodb_product,
     aws_iam_role_policy.lambda_dynamodb_partner_registry,
+    aws_iam_role_policy.lambda_dynamodb_applications,
+    aws_iam_role_policy.lambda_cursor_secret,
+    aws_iam_role_policy.lambda_consents,
     aws_iam_role_policy.lambda_documents,
     aws_iam_role_policy.lambda_s3,
     aws_iam_role_policy.lambda_logs,

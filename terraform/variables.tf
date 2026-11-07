@@ -336,6 +336,42 @@ variable "identity_custom_domain_certificate_arn" {
 
 # CORS fuer die Browser-Frontends der Jobsearch-UI. Explizite Origins,
 # KEIN Wildcard. Leer = CORS aus (Bestandsverhalten, kein Diff).
+variable "applications_cursor_secret_arn" {
+  description = "ARN of the Secrets Manager secret holding the ApplicationV1 pagination HMAC key. Only the ARN is configured; the secret value must never be stored in Terraform, git or reports. Empty keeps pagination fail-closed."
+  type        = string
+  default     = ""
+}
+
+variable "application_consent_enforced" {
+  description = "Enforce application-storage consent on ApplicationV1 writes (Default AUS fuer den Rollout)."
+  type        = bool
+  default     = false
+}
+
+variable "partner_surface_enabled" {
+  description = "Aktiviert die Partner-/Personen-Oberflaeche (Default AUS)."
+  type        = bool
+  default     = false
+}
+
+variable "jobsearch_cognito_issuer" {
+  description = "Issuer des Jobsearch-Partner-Pools fuer den isolierten Partner-Gateway. Leer = kein Partner-Gateway."
+  type        = string
+  default     = ""
+}
+
+variable "jobsearch_cognito_client_id" {
+  description = "App-Client des Jobsearch-Partners (Audience des Access-Tokens). Leer = kein Partner-Gateway."
+  type        = string
+  default     = ""
+}
+
+variable "jobsearch_edge_cors_origins" {
+  description = "Explizite CORS-Origins des Jobsearch-Partner-Gateways (kein Wildcard)."
+  type        = list(string)
+  default     = []
+}
+
 variable "api_cors_origins" {
   description = "Erlaubte CORS-Origins der RIS-HTTP-API (explizit, kein Wildcard)."
   type        = list(string)

@@ -112,6 +112,34 @@ variable "applications_gsi_owner_arn" {
   type        = string
 }
 
+variable "consents_table_name" {
+  description = "DynamoDB table for partner consents."
+  type        = string
+}
+
+variable "consents_table_arn" {
+  description = "ARN of the partner consents table."
+  type        = string
+}
+
+variable "application_consent_enforced" {
+  description = "Enforce application-storage consent on ApplicationV1 writes. Default false until the partner ships its consent UI."
+  type        = bool
+  default     = false
+}
+
+variable "partner_surface_enabled" {
+  description = "Aktiviert die Partner-/Personen-Oberflaeche (/v1/partner/me/*). Default AUS; Aktivierung ist eine Betreiberentscheidung, keine Deployment-Nebenwirkung."
+  type        = bool
+  default     = false
+}
+
+variable "applications_cursor_secret_arn" {
+  description = "ARN of the Secrets Manager secret that holds the pagination HMAC key. ARN only; the value must never enter Terraform state, environment variables or logs. Empty = pagination stays fail-closed."
+  type        = string
+  default     = ""
+}
+
 variable "user_profile_table_arn" {
   description = "DynamoDB table ARN for user profiles"
   type        = string

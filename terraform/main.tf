@@ -166,6 +166,11 @@ module "lambda" {
   partner_applications_table_arn      = module.dynamodb.partner_applications_table_arn
   partner_applications_gsi_client_arn = module.dynamodb.partner_applications_gsi_client_arn
   applications_table_arn              = module.dynamodb.applications_table_arn
+  consents_table_name                 = module.dynamodb.consents_table_name
+  consents_table_arn                  = module.dynamodb.consents_table_arn
+  applications_cursor_secret_arn      = var.applications_cursor_secret_arn
+  partner_surface_enabled             = var.partner_surface_enabled
+  application_consent_enforced        = var.application_consent_enforced
   applications_gsi_owner_arn          = module.dynamodb.applications_gsi_owner_arn
   s3_bucket_arn                       = aws_s3_bucket.data.arn
   documents_bucket_name               = module.documents.bucket_name
@@ -340,3 +345,51 @@ module "health_plane" {
   log_retention_days = var.lambda_config.log_retention_days
 }
 
+# ---------------------------------------------------------------------------
+# Isolierter Partner-Gateway (Variante B): eigener Issuer, gleiche Lambda.
+# Nur aktiv, wenn Issuer und Client explizit konfiguriert sind.
+# ---------------------------------------------------------------------------
+module "jobsearch_edge" {
+  source = "./modules/partner_edge"
+  count  = var.jobsearch_cognito_issuer != "" && var.jobsearch_cognito_client_id != "" ? 1 : 0
+
+  project_name         = var.project_name
+  environment          = var.environment
+  lambda_function_name = module.lambda.function_name
+  lambda_invoke_arn    = module.lambda.invoke_arn
+  cognito_issuer       = var.jobsearch_cognito_issuer
+  cognito_client_id    = var.jobsearch_cognito_client_id
+  cors_origins         = var.jobsearch_edge_cors_origins
+}
+
+# ---------------------------------------------------------------------------
+# Module address reconciliation (RIS-DEV-UPGRADE-S04-A).
+#
+# The ris-dev state predates the count gates on these four module calls, so the
+# resources are stored under unindexed addresses while the configuration now
+# instantiates them as index [0]. Without these declarations Terraform plans a
+# destroy+create of the whole module (Cognito pool, orders stack, reader,
+# monitoring) instead of continuing to manage the same AWS resources.
+#
+# These blocks change addresses only. They add no resource, no attribute and no
+# permission; the target instance must exist in the applied state (count = 1).
+# ---------------------------------------------------------------------------
+moved {
+  from = module.cognito
+  to   = module.cognito[0]
+}
+
+moved {
+  from = module.mays_orders
+  to   = module.mays_orders[0]
+}
+
+moved {
+  from = module.orders_reader
+  to   = module.orders_reader[0]
+}
+
+moved {
+  from = module.monitoring_orders
+  to   = module.monitoring_orders[0]
+}

@@ -23,6 +23,14 @@ class ApplicationApiSecurityTests(unittest.TestCase):
         self.assertNotIn("AgentBody", section)
         self.assertNotIn("boto3.client('cognito", section.lower())
 
+    def test_application_erasure_activation_flag_defaults_off(self):
+        from pathlib import Path
+        lambda_tf = (Path(__file__).resolve().parents[1] / "terraform" / "modules"
+                     / "lambda" / "main.tf").read_text(encoding="utf-8")
+        self.assertRegex(lambda_tf, r'ERASURE_APPLICATIONS_ENABLED\s+= "false"')
+        self.assertIn('ERASURE_APPLICATIONS_ENABLED", "false"', HANDLER)
+        self.assertIn("application_deleter=(", HANDLER)
+
     def test_identity_is_derived_not_read_from_request(self):
         start = HANDLER.index("def _application_ctx")
         section = HANDLER[start:HANDLER.index("def _application_body", start)]

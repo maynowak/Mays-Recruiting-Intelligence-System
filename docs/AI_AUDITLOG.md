@@ -1,3 +1,41 @@
+[JM-GOOGLE-LOGIN-READINESS-01]
+Current status: COMPLETE / RED (NOT READY, read-only Audit)
+Audit date/time: 2026-10-31 21:48–21:52 UTC
+Current Git branch and HEAD: main, c49eb2b37ab3d629eeee224084045a9659c59705
+Audit scope: Google-Login-Bereitschaft für mays-job-matcher.app am dedizierten produktiven Jobsearch-Pool prüfen; keine Mutation.
+Actual findings:
+  - OIDC-/PKCE-/Callback-/Custom-Domain-Basis ist GREEN.
+  - Produktiver Pool eu-central-1_ZURSMpD2O hat keinen Google IdP; App Client 5hb3f6dj5ialg77jf4blur9g6g erlaubt nur COGNITO.
+  - Live `identity_provider=Google` ergibt `Login option is not available`.
+  - Google OAuth Client/Secret, Consent Screen, Redirect `/oauth2/idpresponse`, dedizierter IaC-Pfad, Account-Linking-/Profilentscheidung und Live-E2E fehlen bzw. sind nicht belegt.
+  - Vorhandene RIS-Terraform-Google-Foundation gehört zum Kernelpool ojbmoiYGM und darf nicht für den dedizierten Jobsearch-Pool aktiviert werden.
+Classification: RED — NOT READY.
+Tests: gezielte Auth-Suite 13 passed; npm build PASS; keine AWS/Vercel/Google/Terraform-Mutation.
+Evidence / report: docs/reports/JM-GOOGLE-LOGIN-READINESS-01-EXECUTION_LOG.md
+Current resume point: Produkt-/Security-Freigabe und dedizierter Jobsearch-IdP/IaC-Pfad erforderlich.
+
+[JM-RIS-AUTH-POOL-REPAIR-01]
+Current status: COMPLETE / GREEN
+Audit date/time: 2026-10-31 20:49–21:30 UTC
+Current Git branch and HEAD: main, c49eb2b37ab3d629eeee224084045a9659c59705
+Audit scope: Fehlerhaften Merge→Apply (`project_name=mays-ris` im Workspace `ris-dev`) rekonstruieren und korrigieren; leere falsche States entfernen; produktive Jobsearch-Poolgrenze erhalten; `auth.mays-job-matcher.app` am bestehenden dedizierten Jobsearch-Pool wiederherstellen.
+Actual findings:
+  - Der Apply am 31.10. nutzte `project_name=mays-ris`, Custom Domain false und ersetzte 104 Ressourcen statt `ris-dev` nur zu upgraden.
+  - Restore auf `ris-dev` abgeschlossen; Backend enthält nur `env:/ris-dev/dev/terraform.tfstate`; finaler Terraform-Plan: No changes.
+  - Jobsearch blieb unverändert auf Pool eu-central-1_ZURSMpD2O / Client 5hb3f6dj5ialg77jf4blur9g6g; keine Vercel- oder Jobsearch-Code-Änderung.
+  - Custom Domain auth.mays-job-matcher.app wieder ACTIVE am dedizierten Jobsearch-Pool; CNAME dsv3el0c1dn2.cloudfront.net; OIDC-Discovery und HTTPS 302 verifiziert.
+  - Neue Schutzregel: Produktive Site-Pools/-Domains dürfen bei Upgrades nur nach ausdrücklicher Bestätigung der betroffenen Site und des Zielpools migriert, entfernt oder umgehängt werden.
+Evidence / file references:
+  - docs/reports/JM-RIS-AUTH-POOL-REPAIR-01-EXECUTION_LOG.md
+  - AGENTS.md
+  - installer/project-configs/ris-dev.json
+  - tests/test_project_config_overlay.py
+Classification: GREEN (Browser-E2E mit echtem Nutzer optional/offen)
+Terraform checks: Restore/Recovery Apply abgeschlossen; final plan No changes; validate PASS; fmt-check PASS.
+Tests: 22 task-spezifische Tests PASS; Vollsuite 1669 passed, 11 skipped, 2 bestehende Installer-Testfehler.
+Git status: Task-Änderungen plus fremdes untracked docs/reports/TF-APPLY-CONTROLLED-2026-10-31.md (unverändert).
+Current resume point: Task abgeschlossen; Review/Commit optional.
+
 [
   MO-RIS-DEV2-S07-DEPENDENCY-CONSOLIDATION-2026]
   Current status: COMPLETE (Dependency consolidation: orders-service deps mapped, historical reports consolidated, no AWS, no Plan/Apply)
@@ -9119,6 +9157,354 @@ Evidence: 453 passed + 297 subtests; packaging 6 passed/2 explicit mayaws-creden
 GitHub PR could not be opened because gh is unavailable and browser is unauthenticated. PR URL documented; no PR number, CI or merge success claimed.
 Report: docs/reports/RIS-BRANCH-CONSOLIDATION-01-ABSCHLUSSBERICHT.md
 
+[RIS-DEV-UPGRADE-S01]
+Status: COMPLETE / S01 GREEN — Upgrade-Readiness RED
+Date: 2026-11-03
+Baseline: main @ 37782f8 (Merge PR #3, ApplicationV1 Persistence). Local main was 182 commits behind origin/main and was fast-forwarded before analysis.
+Scope: Read-only evidence consolidation for the ris-dev upgrade against ris-dev2. No AWS access, no Terraform plan/apply, no changes to other repositories.
+Method: four parallel read-only subagents (DEV2 reports, ApplicationV1 code, Terraform contracts, protected infrastructure).
+Findings:
+  - No belegtes In-Place-Upgrade: ris-dev2 wurde als Greenfield in Account 262370457690 installiert (160 Ressourcen); DEPLOY-01 sagt explizit "IN-PLACE UPGRADE VERIFIED — NO".
+  - ApplicationV1 ist additive auf main: applications-Tabelle + gsi-owner, 9 JWT-Routen, 1 IAM-Policy, APPLICATIONS_TABLE; 33 lokale Tests, kein positiver Live-E2E.
+  - Zehn ApplicationV1-Lücken dokumentiert, u. a. Erasure löscht Applications nicht, RIS_CURSOR_SECRET fehlt, Delete nicht versionskonditional.
+  - Terraform-Delta: orders_lifecycle default managed (dev2: disabled), identity_m2m_enabled default true (dev2: false), Custom-Domain-Flip.
+  - Hard-Stop-Liste für Cognito, Domains, CloudFront, ACM, DNS, State-Backend dokumentiert.
+  - Der Domain-Konflikt im ris-dev-Overlay wurde vor diesem Commit behoben (Commit 4140fbc).
+Gaps: kein S09-Report, fehlende S05/S06/S08-Evidenzverzeichnisse, kein positiver Auth-E2E, Serial-24→25-Apply unbelegt.
+Report: docs/reports/RIS-DEV-UPGRADE-S01-EVIDENCE-CONSOLIDATION.md
+Next: S02 nur auf ausdrücklichen Auftrag; Prüfaufträge S02-A…S02-G im Report.
+STOP after S01 — S02 nicht gestartet.
+
+[RIS-DEV-UPGRADE-S02]
+Status: COMPLETE / GREEN — Upgrade-Delta dokumentiert, keine Mutation
+Date: 2026-11-03 17:05 UTC
+Git: main, HEAD vor Auftrag 64cc38f (2 lokale Commits vor origin/main), Account 240571105849, Profil mayaws, Region eu-central-1.
+Scope: READ-ONLY Target Discovery für das In-place-Upgrade von ris-dev. Kein Plan, kein Apply, kein Destroy, keine AWS-Mutation, keine fremde Datei verändert.
+Findings:
+  - State eindeutig ris-dev: Bucket mays-ris-tf-state-dev, Key env:/ris-dev/dev/terraform.tfstate, Lineage 9cec61e5-c036-1ad5-6ae4-8b48a50122a4, serial 36, 185 Ressourcen, TF 1.16.1.
+  - API g6901and25 hat 35 Live-Routen; 33 der 65 deklarierten Routen fehlen (Applications, CVs, Search Profiles, Manual Profiles, Privacy).
+  - DynamoDB: 10 Kernel-Tabellen live, 7 fehlen (partner-profiles, privacy-receipts, erasure-operations, s3-erasure-phases, upload-ticket-ledger, upload-cutover, applications).
+  - Lambda ris-dev-dev-agent ohne APPLICATIONS_TABLE und ohne RIS_CURSOR_SECRET; Orders vollständig eingebunden.
+  - Cognito: RIS-Pool ojbmoiYGM mit Prefix-Domain ris-dev-dev; Jobsearch-Pool ZURSMpD2O mit auth.mays-job-matcher.app; ACM-Cert wird von CloudFront in fremdem Account 590490809858 benutzt (E13K7HSK6ZHXP2).
+  - CloudFront: E1IP0DIEAXAZPY (RIS health, keine Aliases) + fremde E1R3BHTJNMC6XW; OACs entsprechend; keine Route53-Zone.
+  - Fremde/verwaiste Ressourcen: Lambda devmemo-permission-test, Disabled ESM mays-ris-b-dev-agent, E2E-CF/OAC — unberührt.
+  - Prognose additiv: +7 Tabellen, +33 Routen, +1 IAM-Policy, +2 Env-Keys, 1 Lambda-Update; Cognito/CloudFront/DNS/ACM/Orders NONE.
+Blockers: RIS_CURSOR_SECRET fehlt; Application-Erasure nicht verdrahtet; Orders-SQS Principal=* extern offen; PITR deaktiviert.
+Report: docs/reports/RIS-DEV-UPGRADE-S02-TARGET-DISCOVERY.md
+Next: S03 Plan-Erstellung, S04 Apply-Gate. STOP nach S02.
+
+[RIS-DEV-UPGRADE-S03]
+Status: COMPLETE / RED — NO-GO für S04
+Date: 2026-11-03 17:40 UTC
+Git: main, HEAD bei Beginn d205bb2, neue Commits 5a73c66 und 9bfa37d, Report-Commit folgt.
+Scope: Release-Vorbereitung und geschützter Terraform-Plan für ris-dev. Kein Apply, keine AWS-Mutation.
+Findings:
+  - Installer-Pfadfehler behoben: terraform_vars() leitete das Repo-Root eine Ebene zu hoch ab; Plan war dadurch blockiert (9bfa37d, 37 Installer-Tests PASS).
+  - IAM-Reihenfolge ergänzt: lambda_dynamodb_applications in depends_on der Agent-Lambda (5a73c66).
+  - Plan erstellt: SHA256 e5d3b28d8ea0836ac78721a628d61129908cdedecaa40a7f78861ceccf45f4dd, 102 CREATE / 5 UPDATE / 54 DELETE / 0 REPLACE / 3 READ, 1 Drift.
+  - Ursache: main führt count für module.cognito, orders_reader, mays_orders, monitoring_orders ein; State hat unindizierte Adressen -> Terraform plant Destroy+Create ganzer Module.
+  - Betroffen: RIS-Cognito (Pool, 2 Clients, Domain, 7 Gruppen), Orders-Stack (22), Orders-Reader (10), Monitoring (7).
+  - Zusätzlich erwartet: 7 Tabellen, 33 Routen, 7 IAM-Policies, Lambda-Update.
+  - State unverändert: serial 36, Version 3tey8lIHFnMBSsaWeFErDer8a2BucoCK.
+  - Erasure weiterhin nicht produktiv verdrahtet: BLOCKED.
+  - RIS_CURSOR_SECRET nicht provisioniert; Klartext-Env nicht freigabefähig: BLOCKED.
+Tests: 119 passed/2 skipped fokussiert; 37 Installer-Tests; fmt/init/validate PASS.
+Report: docs/reports/RIS-DEV-UPGRADE-S03-RELEASE-PLAN.md
+Next: Modul-Adressmigration separat freigeben; danach neuer Plan mit 0 Deletes an geschützten Ressourcen. STOP nach S03.
+
+[RIS-DEV-UPGRADE-S04-A]
+Status: COMPLETE / GREEN für S04-A — keine Deployment-Freigabe
+Date: 2026-11-03 18:10 UTC
+Git: main, Basis 4ccbcd4, Commit db0c0c2 (moved blocks), Report-Commit folgt.
+Scope: Deklarative Adressmigration der vier count-indizierten Module; Plan-only, kein Apply.
+Findings:
+  - Ursache der 54 Deletes war ausschließlich die Adressinkompatibilität module.X -> module.X[0].
+  - Vier moved-Blöcke ergänzt (cognito, mays_orders, orders_reader, monitoring_orders); 1:1-Zuordnung über IDs belegt.
+  - Neuer Plan SHA256 3bb88eddc75055cbb9a1861368344c42eda0037f4d8b0e04caee07e220c5c5af: 0 DELETE, 0 REPLACE, 48 CREATE, 3 UPDATE, 54 MOVE (alle no-op), 1 informativer Computed-Drift.
+  - Creates: 34 Routen, 7 Tabellen, 7 IAM-Policies. Updates: Lambda-Code/Env, 2 IAM-Policies.
+  - Cognito/Orders/CloudFront/DNS/ACM: 0 Änderungen. State unverändert (serial 36, Version 3tey8lIH...).
+  - Tests: 51 Contract-Tests PASS; fmt/validate PASS.
+Remaining: RIS_CURSOR_SECRET, Application-Erasure, Orders-SQS Principal=*, PITR-Entscheidung.
+Report: docs/reports/RIS-DEV-UPGRADE-S04A-MODULE-ADDRESS-RECONCILIATION.md
+Next: Blocker schließen, Plan neu erzeugen. STOP nach S04-A.
+
+[RIS-DEV-UPGRADE-S04-B]
+Status: COMPLETE / YELLOW — kein Deployment
+Date: 2026-11-03 19:29 UTC
+Git: main, Basis 3b32a76, Commit 8e42e6c (Cursor-Secret), Report-Commit folgt.
+Findings:
+  - Cursor-Secret: HMAC-Key kommt jetzt aus Secrets Manager über RIS_CURSOR_SECRET_ARN (Prozess-Cache, fail-closed); Terraform liefert nur den ARN, bedingte GetSecretValue-Policy; kein Secret erzeugt, kein Klartext in State/Env/Logs.
+  - Application-Erasure: BLOCKED — /me/erasure nutzt PrivacyErasure ohne Applications; user-weite Löschung bräuchte gsi-user auf tenant|user plus Schreibpfad; Rechtsfreigabe offen; moto lokal nicht installierbar (PEP 668/kein venv) -> keine Integrationstests.
+  - PITR: 10 von 11 bestehenden Tabellen DISABLED, ris-dev-mays-orders ENABLED; 7 neue Tabellen ohne PITR im Modul. Empfehlungsmatrix erstellt, keine Änderung.
+  - Orders-SQS: Principal "*" ohne Conditions inkl. Receive/Delete (generiertes Modul sqs/main.tf:29-40). Kein anonymer Internetzugriff (SigV4), aber Cross-Account offen. Risiko HOCH; Korrektur beim Eigentümer.
+  - Neuer Plan SHA256 5fd68662754b5d1f1eb6e8aa9598f7acc32a93a655a9f2f269b1b4815ce71da6: 48 CREATE, 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 1 informativer Drift; State serial 36 unverändert.
+  - Tests: 217 passed, 8 skipped; fmt/validate PASS; Bundle reproduzierbar (SHA256 0ed0d4df...).
+Report: docs/reports/RIS-DEV-UPGRADE-S04B-RELEASE-BLOCKERS.md
+Next: Secret-Provisionierung, Erasure-GSI/Rechtsfreigabe, PITR-Entscheidung, SQS-Korrektur. STOP nach S04-B.
+
+[RIS-DEV-UPGRADE-S05]
+Status: COMPLETE / YELLOW — kein Deployment
+Date: 2026-11-03
+Git: main, Basis 7a8e27d, Commit 8535646 (Erasure), Report-Commit folgt.
+Findings:
+  - Erasure-GSI implementiert: userKey = tenant|user auf META, gsi-user; delete_all_for_user löscht partnerübergreifend innerhalb eines Tenants, autorisiert weiterhin über ownerKey.
+  - PrivacyErasure um optionalen delete-applications-Schritt erweitert (no-op ohne Deleter); Handler verdrahtet mit fail-closed bei fehlendem Tenant; pending bleibt incomplete.
+  - Tests: 267 passed (17 Dateien) mit moto 5.2.5 aus /tmp/opencode/pylibs; venv systemseitig blockiert (ensurepip fehlt).
+  - Cursor-Secret-Rotation dokumentiert: alte Cursor werden ungültig, Cache pro Prozess; optionaler zweiter ARN als nicht implementierte Option.
+  - PITR: 10/11 bestehende Tabellen DISABLED; Entscheidungsmatrix für 7 neue Tabellen; keine Änderung.
+  - Orders-SQS: Principal "*" ohne Conditions, Cross-Account offen; minimaler Policy-Vorschlag für Eigentümer.
+  - Neuer Plan SHA256 6908f4aff3e75c567d27321f8a5261df059ae6fba43a5fe2d818dba1ea0d059a: 48 CREATE (applications mit gsi-owner+gsi-user), 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 1 Drift; State serial 36 unverändert.
+Report: docs/reports/RIS-DEV-UPGRADE-S05-SECURITY-ERASURE-RECOVERY.md
+Next: Secret-Anlage, Datenschutzfreigabe, PITR-Entscheidung, SQS-Korrektur. STOP nach S05.
+
+[RIS-DEV-UPGRADE-S06]
+Status: COMPLETE / NO-GO — Deployment nicht autorisiert
+Date: 2026-11-03
+Git: main, HEAD 364769f, Report-Commit folgt. Keine Codeänderung.
+Baseline: Account 240571105849, Workspace ris-dev, Lineage 9cec61e5..., serial 36, 185 Ressourcen.
+Findings:
+  - Neuer Plan SHA256 6ccb94fef6cd97547a3207d2dfa1ec79ff0e37c3df9496c4b1cbe37800c6e5fe: 48 CREATE, 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 54 no-op, 1 Drift.
+  - Schutzgüter: RIS/Jobsearch Cognito, Domains, CloudFront, DNS/ACM, Orders: 0 Änderungen.
+  - Cursor-Secret BLOCKED: kein Secret im Account, ARN leer; Provisionierungsanleitung dokumentiert.
+  - Erasure technisch PASS (267 Tests, gsi-user, partnerübergreifend, idempotent, pending-Semantik); rechtlich BLOCKED.
+  - PITR BLOCKED: 10 bestehende Tabellen DISABLED, 7 neue ohne PITR; Entscheidungsmatrix erstellt.
+  - Orders-SQS BLOCKED: Principal "*" ohne Conditions inkl. Receive/Delete; Handoff-Vorschlag erstellt.
+  - Regression 267 passed; Bundle SHA256 c30556483979768ac861b8af260955a77e32308d519c4ecdc5f8c2fcef4df8f3, reproduzierbar.
+Gates: RG-01..06, 08, 12..14 PASS; RG-07/09/10/11 BLOCKED; RG-15 NO-GO.
+Report: docs/reports/RIS-DEV-UPGRADE-S06-FINAL-RELEASE-GATES.md
+Next: S07 nur nach Schließen der vier Gates. STOP nach S06.
+
+[RIS-DEV-UPGRADE-S06-R]
+Status: COMPLETE / NO-GO — Blocker entscheidungsreif, keine Freigabe
+Date: 2026-11-03
+Git: main, HEAD ab2aa40, Docs-Commit folgt. Keine Code-/Terraform-Änderung.
+Findings:
+  - Cursor-Secret: Vertrag, Namensvorschlag, IAM/KMS, Rotation, Provisionierungs- und Rollback-Anleitung dokumentiert -> READY FOR AUTHORIZED PROVISIONING; Gate bleibt BLOCKED bis Anlage+Verify.
+  - Privacy: 14 Erasure-/Repository-Tests erneut PASS (kein Erfolg ohne Deleter, pending bleibt incomplete, Tenant/User-Isolation, Idempotenz); Entscheidungsvorlage mit 7 Feldern und Verantwortlichen; RG-09 BLOCKED.
+  - PITR: Tabelle je Ressource mit Empfehlung; getrennter Change-Scope (neue Creates vs 10 Bestands-Updates) vorbereitet, nicht angewendet wegen Kollision mit offener Löschfrist; RG-10 BLOCKED.
+  - Orders-SQS: Handoff mit Soll-Policy (2 Rollen-ARNs, aws:SourceAccount), Negativtest und Rollback erstellt; RG-11 BLOCKED.
+  - Neuer Plan SHA256 4dc294738be7d1dd61ac10272fa08fd268094006b3a6f4504d57ab1d89c7f511: 48 CREATE, 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 1 Drift; State serial 36 unverändert.
+Report: docs/reports/RIS-DEV-UPGRADE-S06R-REMEDIATION.md; Handoff: docs/reports/RIS-DEV-UPGRADE-S06R-ORDERS-SQS-HANDOFF.md
+Next: S07 nach Schließen von RG-07/09/10/11. STOP nach S06-R.
+
+[RIS-DEV-UPGRADE-S06R-DECISION-CLOSURE-01]
+Status: COMPLETE / BLOCKED — DECISIONS PENDING, keine Freigabe erteilt
+Date: 2026-11-03
+Git: main, HEAD 62ae32f, Docs-Commit folgt. Keine Code-/Terraform-/AWS-Änderung.
+Findings:
+  - Decision Register mit DEC-01..DEC-11 erstellt: 8 AWAITING APPROVAL, 1 PROPOSED, 2 BLOCKED, 0 APPROVED/IMPLEMENTED/VERIFIED.
+  - RG-07 BLOCKED: Secret fehlt weiterhin; Provisionierungsauftrag mit Guard, Kollisionsprüfung, Verify und Recovery vorbereitet, aber nicht ausgeführt.
+  - RG-09 BLOCKED: technische Erasure-Nachweise PASS (14 Tests), rechtliche Entscheidungen (Rollen, Rechtsgrundlage, Fristen, DSFA) offen.
+  - RG-10 BLOCKED: PITR-Entscheidung je 18 Ressourcen AWAITING APPROVAL; Change-Scope getrennt, nicht angewendet.
+  - RG-11 BLOCKED: SQS-Soll-Policy und Negativtest im Handoff; Eigentümerfreigabe oder Risikoakzeptanz fehlt.
+  - Baseline unverändert: State serial 36, Version 3tey8lIH..., 185 Ressourcen; 15 lokale Commits vor origin/main (kein Push).
+  - Keine neuen Terraform-Pläne erzwungen; letzter Plan 4dc29473... bleibt historische Evidence.
+Reports: docs/reports/RIS-DEV-UPGRADE-S06R-DECISION-REGISTER.md, docs/reports/RIS-DEV-UPGRADE-S06R-DECISION-CLOSURE-01.md
+Next: Freigaben einholen; danach Secret/PITR/SQS umsetzen und neuen Plan erzeugen. STOP.
+
+[RIS-DEV-UPGRADE-DEC01-SECRET-PROVISION-01]
+Status: COMPLETE / RG-07 PARTIAL — Secret angelegt, IAM-Grant noch nicht angewendet
+Date: 2026-11-03
+Git: main, Basis 30fa171, Commit 4988758 (Overlay/Guard), Report-Commit folgt.
+Scope: autorisierte Secrets-Manager-Anlage (nur ein Secret) + Plan; kein Apply.
+Findings:
+  - Benutzerfreigabe lag vor der Schreiboperation vor; keine Ableitung aus alten Reports.
+  - Secret ris-dev/applications/cursor-hmac existierte nicht (keine Kollision) und wurde angelegt: ARN arn:aws:secretsmanager:eu-central-1:240571105849:secret:ris-dev/applications/cursor-hmac-cuHjQ8, SecretString 64 Zeichen, AWS-managed KMS, Rotation aus.
+  - Wert nie ausgegeben; Erzeugung und Schreiben im selben Prozess.
+  - Lokaler Krypto-Test über ARN: issue/resolve ok; tampered, fremder Tenant und fremder User abgelehnt.
+  - Overlay referenziert nur den ARN; Guard erlaubt _arn-Referenzen, verbietet weiter werttragende Secret-Keys; 60 Tests PASS.
+  - Neuer Plan SHA256 f779d778a104d6b5bf54a6fab5b4a884daef409cd20262552718e5f54577668b: 49 CREATE (48 + lambda_cursor_secret[0]), 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 1 Drift; State serial 36 unverändert.
+  - RG-07 PARTIAL: IAM-Grant und Lambda-Env erst nach Apply wirksam; Runtime-Test BLOCKED; Negativtest ohne Fremdrolle nicht durchgeführt.
+Report: docs/reports/RIS-DEV-UPGRADE-DEC01-SECRET-PROVISION.md
+Next: Apply in separatem Auftrag, dann Runtime-Verifikation und RG-07 PASS. STOP nach DEC-01.
+
+[RIS-DEV-UPGRADE-DEC01-SECRET-PROVISION-01-RECHECK]
+Status: COMPLETE / RG-07 unverändert PARTIAL — keine neue AWS-Schreiboperation
+Date: 2026-11-04
+Findings:
+  - Auftragswiederholung: Secret ris-dev/applications/cursor-hmac existierte bereits (erstellt 2026-11-03), ARN ...-cuHjQ8 unverändert; keine Überschreibung, keine Rotation, keine neue AWS-Schreiboperation.
+  - Re-Verifikation: 64 Zeichen, AWS-managed KMS, Cursor-Roundtrip ok, tampered/fremder Tenant/fremder User abgelehnt.
+  - Neuer Plan SHA256 b6c03dec87fea23750010bfa567e3292fc18a6e28a2e849842731739352ccc6b: 49 CREATE (inkl. lambda_cursor_secret[0]), 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 1 Drift; State serial 36 unverändert.
+  - RG-07 bleibt PARTIAL: IAM-Grant und Lambda-Env erst nach Apply; Runtime-Test BLOCKED.
+Report: docs/reports/RIS-DEV-UPGRADE-DEC01-SECRET-PROVISION.md (§12)
+Next: unverändert Apply in separatem Auftrag. STOP.
+
+[RIS-DEV-UPGRADE-S07]
+Status: COMPLETE / NO-GO für Apply (Gate B) — Plan sauber, personenbezogene Endpunkte nicht freigegeben
+Date: 2026-11-04
+Git: main, Basis 259a19d, Commit cfb2685 (Erasure-Gate), Report-Commit folgt.
+Findings:
+  - Baseline unverändert: Account 240571105849, Workspace ris-dev, lineage 9cec61e5..., serial 36, 185 Ressourcen, 35 Routen, 6 RIS-Lambdas, 11 Tabellen.
+  - Schutzgüter-Snapshot: RIS-/Jobsearch-/Orders-Pools, Domains, 2 CloudFront, 2 OAC, ACM 0bfb2603..., DNS dsv3el0c1dn2, Jobsearch 302, RIS-Health 401 — alle unverändert.
+  - Neuer Plan SHA256 93fbd41c69ffb30251aa3e4343e03352b2357cc15ac499dc20dc5934c2348674: 49 CREATE, 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 1 Drift; keine aktive Änderung an Cognito/CloudFront/Orders.
+  - Defekt gefunden und behoben: Application-Erasure war ungated verdrahtet; jetzt ERASURE_APPLICATIONS_ENABLED=false default, Deleter nur bei true (Commit cfb2685, 18 Tests PASS).
+  - Gate-Entscheidung B: Apply erzeugt 7 Tabellen und 34 personenbezogene Endpunkte; RG-09 (Privacy/Legal) nicht freigegeben -> NO-GO.
+  - E2E: 2 PASS (Preservation-Snapshot, 401), 5 BLOCKED mangels Deployment, 1 NOT ACTIVATED.
+Report: docs/reports/RIS-DEV-UPGRADE-S07-INPLACE-E2E.md
+Next: RG-09/10/11 schließen, dann neuer Plan und Apply-Freigabe. STOP nach S07.
+
+[RIS-DEV-UPGRADE-S07-POSTPULL]
+Status: COMPLETE / NO-GO unverändert
+Date: 2026-11-04
+Findings:
+  - origin/main gemerged (255b0cf): 21 lokal voraus / 34 remote voraus -> 22 voraus / 0 zurück.
+  - Ein Konflikt in jobsearch/application_repository.py (userKey vs stage) semantisch gelöst; Remote brachte ApplicationV1 consolidation, typisierte History-Events, Erasure-Resume und die Route GET /v1/partner/me/applications/metrics.
+  - Test an neue Versionssemantik angepasst (add_history erhöht version); 278 passed, fmt/validate PASS.
+  - Neuer Plan SHA256 b6cd04445eb79812704ae7d6bb9e18da47661c3b285970fdde20e1dc21c7f9a9: 50 CREATE (35 Routen, 7 Tabellen, 8 IAM), 3 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE; State serial 36 unverändert.
+  - Gate B bleibt: zusätzliche personenbezogene Route, RG-09/10/11 offen.
+Report: docs/reports/RIS-DEV-UPGRADE-S07-INPLACE-E2E.md (§16)
+
+[RIS-R08-RIS-DEV-UPGRADE-HANDSON-01]
+Status: COMPLETE / PLAN VERIFIED — APPLY AWAITING APPROVAL
+Date: 2026-11-05
+Findings:
+  - origin/main (c28c668, R08/PR #5) in main gemerged (1cb4fcc); einziger Konflikt terraform/.terraform.lock.hcl (beide h1-Hashes behalten). Alle lokalen Erweiterungen erhalten (userKey, gsi-user, Erasure-Resume, Metrics, Cursor-ARN, 54 Moves, Feature-Gates).
+  - Alle in der Aufgabe genannten Reports vorhanden (nach Merge).
+  - Baseline unverändert: Account 240571105849, Workspace ris-dev, lineage 9cec61e5..., serial 36, 185 Ressourcen.
+  - Preservation-Snapshot: Cognito-Pools/Clients/Domains, 2 CloudFront, 2 OAC, ACM 0bfb2603..., DNS dsv3el0c1dn2, Jobsearch 302, RIS-Health 401 — unverändert.
+  - R08 bringt kein Aktivierungs-Gate; kleinste Korrektur e609059: /v1/partner/me/* -> 503 ohne PARTNER_SURFACE_ENABLED=true; Terraform default false; 4 Tests PASS.
+  - Plan SHA256 449bf43b195dda5a4bd58b119b6e310ad13ed25d706873b4b5f2c0a6a0691759: 52 CREATE (8 Tabellen, 35 Routen, 9 IAM), 4 UPDATE, 0 DELETE, 0 REPLACE, 54 MOVE, 2 Drift; Schutzgüter 0 aktive Änderungen; State serial 36 unverändert.
+  - Zwei vorbestehende Testfehler auf origin/main reproduziert (nicht mergebedingt).
+Report: docs/reports/RIS-R08-RIS-DEV-UPGRADE-EXECUTION.md
+Next: Betreiberfreigabe für Plan-SHA; danach Apply + E2E. STOP.
+
+[RIS-R08-RIS-DEV-APPLY-01]
+Status: COMPLETE / APPLIED — E2E PARTIAL, Partner-Surface geschlossen
+Date: 2026-11-05
+Findings:
+  - Plan 449bf43b... nach ausdruecklicher Freigabe angewendet: 52 added, 4 changed, 0 destroyed; State serial 36 -> 39, 237 Ressourcen.
+  - Lambda Active/Successful, CodeSha256 ylY9AN8i... entspricht dem gebauten Bundle; Env-PARTNER_SURFACE_ENABLED/ERASURE_APPLICATIONS_ENABLED/DELETION_LEDGER_ENABLED alle false; RIS_CURSOR_SECRET_ARN gesetzt.
+  - applications ACTIVE mit gsi-owner+gsi-user, PITR DISABLED; deletion-ledger ACTIVE mit gsi-operation; 18 ris-dev-dev-Tabellen; 70 Routen (10 Applications).
+  - Preservation: Cognito, CloudFront, OAC, ACM, DNS unveraendert; Health 401; Partner-Route ohne JWT 401.
+  - Positive JWT-/Partner-E2E und Decimal-Tests BLOCKED: keine synthetische Identitaet, Surface bewusst geschlossen.
+Report: docs/reports/RIS-R08-RIS-DEV-UPGRADE-EXECUTION.md
+Next: separate Freigabe fuer Test-Aktivierung + synthetische Identitaet; danach Rueckstellung und Cleanup. STOP.
+
+[RIS-R08-RIS-DEV-E2E-01]
+Status: COMPLETE / E2E PARTIAL — Gateway/JWT verified, CRUD blocked (trust anchor)
+Date: 2026-11-05
+Findings:
+  - Freigegebener E2E: synthetischer Cognito-Nutzer in ojbmoiYGM erstellt, Access-JWT via USER_PASSWORD_AUTH, danach Nutzer geloescht.
+  - PARTNER_SURFACE_ENABLED temporaer true, danach false; final bestaetigt.
+  - Ohne JWT 401; mit gueltigem JWT ohne X-Api-Credential 401 -> Dual-Auth-Grenze greift.
+  - Post-E2E-Plan: 0 aktive Aenderungen (alle no-op), Drift 38 berechnet; State unveraendert.
+  - Create/List/Patch/Metrics/Export/Delete, Decimal- und Cursor-Tests BLOCKED: kein autorisierter RIS_ADMIN_AUTHORIZATION_FILE mit Tenant-Zuordnung; laut Playbook nicht zu fingieren.
+Report: docs/reports/RIS-R08-RIS-DEV-UPGRADE-EXECUTION.md (§14)
+Next: Trust-Anchor/Tenant fuer Testpartner bereitstellen, dann CRUD-E2E. STOP.
+
+[RIS-R08-RIS-DEV-E2E-02]
+Status: COMPLETE / CRUD-E2E PASS, CLEANUP COMPLETE
+Date: 2026-11-05
+Findings:
+  - Trust-Anchor repariert: 664 -> 600, Principal exakt arn:aws:iam::240571105849:user/Mayaws, Tenant ris-dev-e2e-20261105.
+  - Partnerbestand auf ris-dev war leer; APIProfile, Partner und kurzlebiges Credential ueber den autorisierten Lifecycle neu angelegt.
+  - E2E ueber echten Gateway: metrics 200, create 201 (50000.5), list 200, detail 200, patch 200 v1->v2 (60000.75), export 200, bad credential 401, delete 204, metrics danach 200.
+  - Zwei echte Ursachen frueherer 401: Surface-Propagation (~15 s) und Handler verlangt token_use=access (ID-Token wird abgelehnt).
+  - Cleanup: Credential REVOKED, Profil REVOKED, Partner INACTIVE, Applications 0, Testnutzer geloescht, Surface false, Secret-Datei entfernt.
+Report: docs/reports/RIS-R08-RIS-DEV-UPGRADE-EXECUTION.md (§15)
+Next: offen nur Raw-Decimal-Inspektion und Fremd-Tenant-Fall; RIS_API_KEY in Vercel bleibt stale. STOP.
+
+[RIS-PARTNER-MULTI-ISSUER-DESIGN-01]
+Status: COMPLETE / DESIGN DECISION — Variante B empfohlen, keine Umsetzung
+Date: 2026-11-05
+Findings:
+  - Umstellung aller Partner-Routen auf einen Jobsearch-only JWT-Authorizer wurde nicht freigegeben; Anforderung ist Multi-Partner-Faehigkeit.
+  - Ist: API g6901and25 mit 2 JWT-Authorizern (ojbmoiYGM human/m2m), 36 Partner-Routen-Blöcke; API GW erlaubt nur einen Issuer pro Authorizer; keine JWT-Verifikation im Code, keine Krypto-Dependency.
+  - Variante A (Multi-Issuer-Lambda-Authorizer): hohe Erweiterbarkeit, aber eigener RS256-Code, Trust-Store, Cache/Rotation, Umbindung aller 36 Routen und wahrscheinliche Handler-Anpassung -> hohes Bestandsrisiko.
+  - Variante B (separate Jobsearch-Edge-API mit eigenem JWT-Authorizer, gleiche Lambda/Logik): ~41 Creates, 0 Aenderungen an Bestand, AWS-native Validierung, keine Logik-Duplikation -> empfohlen.
+  - Keine AWS-Mutation, kein Apply, keine Provisionierung, kein neuer Key.
+Report: docs/reports/RIS-PARTNER-MULTI-ISSUER-DESIGN-01.md
+Next: Terraform-Plan Variante B zur Freigabe; danach Partner/Credential/Vercel. STOP.
+
+[RIS-JOBSEARCH-PARTNER-GATEWAY-02]
+Status: COMPLETE / PLAN READY — kein Apply, keine Provisionierung
+Date: 2026-11-05
+Findings:
+  - Variante B umgesetzt: neues Modul terraform/modules/partner_edge mit eigener HTTP-API ris-dev-jobsearch-api, JWT-Authorizer (ZURSMpD2O / 5hb3...), 36 Partner-Routen, Stage, Lambda-Permission; gleiche Lambda, payload 2.0.
+  - Root-Variablen jobsearch_cognito_issuer/client_edge_cors; Overlay ris-dev gesetzt; Modul nur aktiv wenn Issuer+Client gesetzt.
+  - Plan SHA256 7ed69389323d3ead72e561a8d8435739dab5589cae1f2bf448de55bfc00c50c2: 41 CREATE (1 API, 1 Authorizer, 1 Integration, 36 Routen, 1 Stage, 1 Permission), 0 UPDATE, 0 DELETE, 0 REPLACE; 222 no-op; Drift 38 berechnet.
+  - Keine Kernel-Route exponiert, keine Bestandsressource veraendert; PARTNER_SURFACE_ENABLED bleibt false.
+  - Tests: 60 Overlay/Installer + 33 fokussierte Tests PASS; fmt/validate PASS.
+Report: docs/reports/RIS-JOBSEARCH-PARTNER-GATEWAY-02.md
+Next: Apply-Freigabe, dann Partner/Credential + Vercel. STOP.
+
+[RIS-JOBSEARCH-LIVE-CONNECT-03]
+Status: COMPLETE / GATEWAY LIVE + PARTNER ACTIVE — E2E-Tokenpfad BLOCKED
+Date: 2026-11-05
+Findings:
+  - Plan 7ed69389... nach allen Gates angewendet: 41 added, 0 changed, 0 destroyed; State serial 39 -> 40, 243 Bloecke (36 Routen als for_each-Instanzen).
+  - Neue API c7e9pdwe78 (ris-dev-jobsearch-api), JWT-Authorizer ZURSMpD2O/5hb3..., 36 Routen, Stage $default, Lambda-Permission nur auf diese API. Folge-Plan: 0 aktive Aenderungen.
+  - Kernel-API g6901and25 unveraendert (Health 401); Jobsearch-Pool/-Domain/DNS unveraendert.
+  - Partner mays-jobsearch ACTIVE (Tenant mays-jobsearch, Client 5hb3..., Reservation), APIProfile aprof_5197f49297884a94 ACTIVE, Credential cred_5bf0c5b37e4e4b0d ACTIVE bis 2027-11-05; Secret nur in 600er-Datei, nie ausgegeben.
+  - Negative Isolation: ohne Token 401, RIS-Pool-Token gegen Edge 401, unbekannte Route 404.
+  - Positive E2E BLOCKED: Jobsearch-Client erlaubt nur code-Flow (kein non-interaktiver Token); Surface-Flag bleibt false.
+Report: docs/reports/RIS-JOBSEARCH-LIVE-CONNECT-03.md
+Next: BFF + Vercel-Test-Env, Token via Browser/BFF, danach Surface-Freigabe (RG-09). STOP.
+
+[M-RIS-LIVE-E2E-04]
+Status: COMPLETE / E2E PASS — Surface dauerhaft aktiv
+Date: 2026-11-05
+Findings:
+  - Jobsearch-BFF existiert bereits weiterentwickelt (api/ris/applications.mjs + api/_lib/ris/*); lokaler Checkout auf feature/jm-ris-testuser-allowlist-reconciliation-01 @ 2382ab4, Commit 242c4c9 vorhanden. Keine zweite Implementierung erstellt.
+  - Wirkungsbereich geprueft: Flag oeffnet nur /v1/partner/me/*; Auth bleibt JWT + X-Api-Credential + ACTIVE-Partner + Profil + Tenant. Einziger ACTIVE-Partner ist mays-jobsearch; Kernel-Partner INACTIVE -> keine unautorisierte Oeffnung. Dauerhaft aktiviert.
+  - Umstellung auf Terraform-Variable partner_surface_enabled (Default false), Overlay true; Plan 1 Update, Apply 0 added/1 changed/0 destroyed.
+  - E2E via echtem PKCE-Login + lokalem BFF: metrics 200, create 201 (50000.5), list 200, detail 200, patch 200 v1->2, reload 200 (60000.75), export 200, delete 200, bad token 401.
+  - Cleanup: Applications 0, Testnutzer geloescht, Token-/User-Dateien entfernt, Harness beendet. Gateway, Partner, APIProfile, Credential bleiben.
+  - Nicht erfolgt: Vercel-Test-Env, Jobsearch-Deployment, RG-09-Freigabe fuer echte Daten.
+Report: docs/reports/M-RIS-LIVE-E2E-04.md
+Next: Vercel-Test-Env + BFF-Deployment separat; echte Daten erst nach RG-09. STOP.
+
+[RIS-R08-RIS-DEV-E2E-AUTH-READINESS-01]
+Status: COMPLETE / READY — eine Betreiberkonvention offen
+Date: 2026-11-05
+Findings:
+  - Baseline aktuell: main @ abd1fb0, State serial 41 / 243 Ressourcen; Auftragstext nannte 5ebefbd und 39/237 (veraltet).
+  - STS: arn:aws:iam::240571105849:user/Mayaws; Profil mayaws, Region eu-central-1.
+  - Trust-Anchor-Datei 600, Mapping Mayaws -> admin -> mays-jobsearch; RIS_ADMIN_AUTHORIZATION_FILE im Ausfuehrungskontext NICHT gesetzt (CLI akzeptiert alternativ --authorization-file).
+  - Partner mays-jobsearch ACTIVE, APIProfile ACTIVE, Credential ACTIVE bis 2027-11-05; Altpartner INACTIVE/REVOKED.
+  - PARTNER_SURFACE_ENABLED ist aktuell true (dauerhaft seit M-RIS-LIVE-E2E-04), nicht false wie im Auftragstext. Lokaler Nachweis der Sperrwirkung: 4 Gate-Tests PASS (503 fuer /v1/partner/me/*, bestehende Routen unberuehrt).
+  - Schutzgueter unveraendert: Pools/Domains, 2 CloudFront, 2 OAC, ACM ISSUED, DNS dsv3el0c1dn2, Kernel-Health 401.
+  - E2E lokal bereits PASS (M-RIS-LIVE-E2E-04); offen nur Vercel-Test-Env.
+Report: docs/reports/RIS-R08-RIS-DEV-E2E-AUTH-READINESS.md
+Next: RIS_ADMIN_AUTHORIZATION_FILE exportieren; danach keine weitere Analyse. STOP.
+
+[RIS-PARTNER-USER-CONSENT-01]
+Status: COMPLETE / IMPLEMENTED / VERIFIED LOCAL / DEPLOYMENT PENDING
+Date: 2026-11-06
+Findings:
+  - Keine bestehende Consent-Implementierung; privacy_receipts bewusst nicht umgedeutet.
+  - Neuer Vertrag jobsearch/consent_contract.py: Zweck application-storage, noticeVersion 1.0, Zustaende NOT_GRANTED/GRANTED/WITHDRAWN/REGRANTED.
+  - Persistenz jobsearch/consent_repository.py: Tabelle consents, scopeKey tenant|partner|issuer|subject, PURPOSE# aktuell + EVENT# append-only, TransactWriteItems mit version-Condition, idempotentes Grant, 409 bei Konflikt.
+  - API: 4 Routen (GET/POST consents, POST withdraw, GET history) auf Kernel und Jobsearch-Edge; Dual-Auth unveraendert.
+  - Gate: 5 ApplicationV1-Schreibpfade (Create/Patch/Status/History/Cover-Letter) -> 403 CONSENT_REQUIRED bei aktivierter Enforcement; Lesen/Export/Delete ausgenommen; fail-closed; Rollout-Default false.
+  - Tests: 7 Repo + 7 Gate + 41 Auth/Contract/P20 PASS; fmt/validate PASS.
+  - Plan SHA256 94a8086dd94929ec81a82c181044b033ec4dbf9892bfa4543b0341a496b9f217: 10 CREATE (1 Tabelle, 8 Routen, 1 IAM), 1 UPDATE (Lambda Env), 0 DELETE/REPLACE; keine geschuetzten Aenderungen; kein Apply.
+Report: docs/reports/RIS-PARTNER-USER-CONSENT-01.md; Contract: docs/contracts/CONSENT-V1.md
+Next: Apply-Freigabe, Jobsearch-Consent-UI, dann Enforcement aktivieren. STOP.
+
+[RIS-PARTNER-USER-CONSENT-02]
+Status: COMPLETE / INTEGRATION IMPLEMENTED / VERIFIED LOCAL / DEPLOYMENT PENDING
+Date: 2026-11-06
+Findings:
+  - Jobsearch (main f59aa4b) besitzt bereits Consent-UI + Applications-BFF; Anbindung ergaenzt: api/ris/consents.mjs (Status/Grant/Withdraw/History), risConsentConfig (Server besitzt noticeVersion), src/lib/risConsentApi.ts, StorageConsentLive hinter VITE_RIS_CONSENT_UI_ENABLED. 40 Tests + Build PASS.
+  - RIS b923f9b fuehrt Notice-Lifecycle DRAFT/APPROVED/ACTIVE/SUPERSEDED ein; application-storage/1.0 ist DRAFT, Jobsearch-Text 2026-11-04-draft-1 nicht automatisch 1.0. CONSENT_NOTICE_STATE_ENFORCED default false fuer synthetische Laeufe.
+  - Alter Plan 94a8086d... durch Bundle-Neubau ungueltig; neuer Plan 2a9e5aa8b42730ee71fd0bf67e26aa4e296bbe756f70a338d97f32965023cf7e: 10 CREATE (Tabelle, 8 Routen, IAM), 1 UPDATE (Lambda Env), 0 DELETE/REPLACE, geschuetzte Ressourcen 0 Aenderungen. Kein Apply.
+  - E2E lokal PASS (8 Schritte im Fix-Commit), Live-E2E BLOCKED: kein Apply, noticeVersion nicht ACTIVE, UI-Flag aus.
+Report: docs/reports/RIS-PARTNER-USER-CONSENT-02.md
+Next: neues Plan-Apply freigeben, Textversion rechtlich ACTIVE setzen, Jobsearch-UI-Flag + Vercel-Env. STOP.
+
+[RIS-PARTNER-USER-CONSENT-02-APPLY]
+Status: COMPLETE / DEPLOYED / CONSENT-FLOW VERIFIED LIVE — Gate PENDING
+Date: 2026-11-06
+Findings:
+  - Plan 2a9e5aa8... nach erneuter Hash-/State-/Diff-Pruefung angewendet: 10 added, 1 changed, 0 destroyed; State serial 41 -> 42, 249 Ressourcen; Folge-Plan 0 aktive Aenderungen.
+  - Tabelle ris-dev-dev-consents ACTIVE; Lambda-Env CONSENTS_TABLE gesetzt, APPLICATION_CONSENT_ENFORCED=false, PARTNER_SURFACE_ENABLED=true; 4 Consent-Routen auf Kernel und Edge live (401 ohne Token).
+  - Live-E2E ueber Jobsearch-BFF mit synthetischem PKCE-Nutzer: Status NOT_GRANTED -> GRANTED (1.0) -> WITHDRAWN -> Historie (WITHDRAWN, GRANTED) -> Regrant GRANTED.
+  - Cleanup: 4 Consent-Zeilen und Testnutzer geloescht, Tabelle 0.
+  - Gate-403 live nicht getestet, da Enforcement false bleibt; lokal 7 Gate-Tests PASS.
+Report: docs/reports/RIS-PARTNER-USER-CONSENT-02.md (§11-13)
+Next: UI-Flag + Vercel-Env, noticeVersion ACTIVE, dann Enforcement-Plan. STOP.
+
 [RIS-BRANCH-CONSOLIDATION-01F-RETRY-CORRECTION]
 Status: PR OPEN — MERGE BLOCKED
 Date: 2026-11-03
@@ -9457,3 +9843,19 @@ Created and pushed `test/xrepo-app-auth-smoke-01` in RIS (commits `36e54db`, `13
 Status: APP AUTH PASS — PRS NOW CONFLICTING AFTER MAIN ADVANCE
 Date: 2026-11-06/07
 Post-run fetch shows `origin/main` advanced in both repositories: Jobsearch `7a3d2ea` → `a2225c4`, RIS `c28c668` → `fdc6fc9`. Consequently PR #2 and PR #6 are now `CONFLICTING`/`DIRTY`. This is unrelated to the app-authentication proof. No merge, rebase, force-push, or conflict resolution was performed. The smoke test remains PASS (run `42272286516`). Feature branches must be reconciled with the new default branches in a separately approved rollout step.
+[JM-RIS-CONSENT-RECONCILIATION-01]
+Status: NOTICE-VERSION LIFECYCLE IMPLEMENTED — JOINT E2E PASS LOCAL — OPENAPI CLOSED — NO APPLY
+Date: 2026-11-06
+Reconciled the RIS consent contract with the Jobsearch draft notice. Analysis: RIS `application-storage/1.0` and Jobsearch `2026-11-04-draft-1` are both DRAFT and are not equivalent; no legal approval exists for either. Implementation: `jobsearch/consent_contract.py` now has an explicit `DRAFT/APPROVED/ACTIVE/SUPERSEDED` registry (`NOTICE_REGISTRY`), `legalApprovalRef` (null for `1.0`), external-ref catalog (`2026-11-04-draft-1` known but never accepted), and `CONSENT_NOTICE_STATE_ENFORCED` (default false = technical grants; true = only APPROVED/ACTIVE, otherwise `422 NOTICE_NOT_ACTIVE`). `jobsearch/consent_repository.py` enforces the state only for new/regranted consents, keeps a repeat grant of a superseded version idempotent, and always allows withdrawal; existing grants are never rewritten. `GET /v1/partner/me/consents` now returns additive `catalog` and `externalRefs` plus per-item `noticeState/noticeApproved/acceptedForNewGrant`. The four consent routes were added to `docs/api/openapi-platform.yaml` (they were live but undocumented), which turns the three previously red OpenAPI governance tests green. New local joint E2E (`tests/consent_e2e_harness.py`, `tests/test_consent_e2e_joint.py`) runs the eight-step synthetic scenario through the real repositories and the real handler gate: no-consent 403, grant, create, withdraw, patch 403, read/export/delete still allowed, regrant, complete history — all PASS, plus user/tenant isolation. New lifecycle tests (`tests/test_consent_notice_lifecycle.py`, 8 passed). Focused suites: 96 passed. Full suite: 2424 passed, 56 skipped, 2 failed — both pre-existing and reproduced in a clean `HEAD` worktree (`test_health_plane_integration` entitlement-degradation, `test_platform_handlers` agent execute: "durable subject fence store is not configured"); the credential random-secret test is flaky. Agent bundle rebuilt deterministically (83 files, SHA-256 `efcdcf25a846801006712ddc6f077b48d85ce68e5140d2a9969f7f440c44122a`), reader unchanged in layout. Because the Lambda source hash changed, the older pinned consent plan (`94a8086d…`) is no longer valid; a NEW plan must be reviewed and separately approved. No Terraform file, resource topology, Cognito/CloudFront/DNS/ACM, `ris-dev` or AWS mutation occurred; `APPLICATION_CONSENT_ENFORCED` stays false. Verdicts: `GO — TECHNICAL CONSENT INTEGRATION`, `NO GO — AUTOMATIC LEGAL APPROVAL OF NOTICE VERSION 1.0`. Report: `docs/reports/JM-RIS-CONSENT-RECONCILIATION-01.md`.
+
+[RIS-PARTNER-USER-CONSENT-02-PROD-E2E]
+Status: COMPLETE / PRODUCTION CONSENT FLOW PASS (synthetic, allowlisted)
+Date: 2026-11-07
+Findings:
+  - Jobsearch production deployment fixed: 13 Functions auf Hobby-Limit -> Konsolidierung in router (12); Deployment 6e7rcjrz0 Ready.
+  - Vercel Production-Env gesetzt (nur Namen dokumentiert): RIS_APPLICATION_STORAGE_ENABLED, RIS_API_BASE_URL (c7e9pdwe78), RIS_COGNITO_ISSUER/CLIENT_ID, RIS_PARTNER_CREDENTIAL (neuer mays-jobsearch-Key), RIS_CONSENT_SERVICE_ENABLED, RIS_CONSENT_NOTICE_VERSION=1.0, RIS_TEST_USER_ALLOWLIST, VITE_RIS_CONSENT_UI_ENABLED; stale RIS_API_KEY entfernt.
+  - Live: Site 200, Login 302, beide BFF-Routen ohne Token 401 (vorher 503).
+  - Produktions-E2E mit synthetischem PKCE-Nutzer: NOT_GRANTED -> GRANTED (1.0) -> WITHDRAWN -> History [WITHDRAWN, GRANTED] -> REGRANT GRANTED.
+  - Cleanup: 4 Consent-Zeilen + Testnutzer geloescht, Tabelle 0.
+  - APPLICATION_CONSENT_ENFORCED bleibt false; Zugriff nur fuer allowlisteten Testnutzer.
+Next: noticeVersion ACTIVE + Enforcement-Plan; danach echte Nutzerfreigabe (RG-09). STOP.

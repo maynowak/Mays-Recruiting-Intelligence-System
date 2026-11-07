@@ -108,3 +108,9 @@ as if it were RIS infrastructure.
   `UserProfile` fields without updating the contract.
 - Documents use presigned URLs and tenant/user-scoped keys; do not put PII in
   object keys or commit secrets/config credentials.
+- Production auth is isolated per site: `mays-job-matcher.app` uses its
+  dedicated Jobsearch pool `eu-central-1_ZURSMpD2O` (client
+  `5hb3f6dj5ialg77jf4blur9g6g`, custom domain `auth.mays-job-matcher.app`), not
+  the RIS kernel pool. Never migrate, replace, detach, or re-point a production
+  site's pool, client, or domain as a side effect of an upgrade; that requires
+  an explicit scope naming the site and the target pool.

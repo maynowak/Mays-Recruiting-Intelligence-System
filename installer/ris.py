@@ -498,6 +498,11 @@ PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
     "identity_custom_domain",
     "identity_custom_domain_certificate_arn",
     "api_cors_origins",
+    "applications_cursor_secret_arn",
+    "partner_surface_enabled",
+    "jobsearch_cognito_issuer",
+    "jobsearch_cognito_client_id",
+    "jobsearch_edge_cors_origins",
 })
 
 
@@ -562,7 +567,10 @@ def load_project_config(
                 f"(allowed: {sorted(PROJECT_CONFIG_ALLOWED_KEYS)})"
             )
         lowered = key.lower()
-        if any(marker in lowered for marker in PROJECT_CONFIG_FORBIDDEN_KEY_MARKERS):
+        # ARNs are references, never secret values. Allow them so a secret can
+        # be wired by ARN while value-bearing keys stay forbidden.
+        if (any(marker in lowered for marker in PROJECT_CONFIG_FORBIDDEN_KEY_MARKERS)
+                and not lowered.endswith("_arn")):
             raise ValueError(
                 f"project config {config_path}: key {key!r} looks like a "
                 f"secret and must not be committed"
@@ -1110,8 +1118,11 @@ class RisInstallContext:
         # the overlay is named for -- load_project_config is fail-closed.
         merged = dict(load_project_config(self.project_name))
         merged.update(self.extra_vars or {})
-        # Provide absolute paths for lambda zips (required for isolated workdirs)
-        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(self.terraform_dir)))
+        # Provide absolute paths for lambda zips (required for isolated workdirs).
+        # Repo root is the parent of the terraform directory; deriving it from
+        # the parent of the *relative* path resolves one level too high and
+        # produced paths like /home/<user>/projects/lambda/... (plan blocker).
+        repo_root = os.path.dirname(os.path.abspath(self.terraform_dir))
         orders_reader_zip = os.path.join(repo_root, "lambda", "dist", "orders-reader.zip")
         health_writer_zip = os.path.join(repo_root, "lambda", "dist", "health-writer.zip")
         health_publisher_zip = os.path.join(repo_root, "lambda", "dist", "health-publisher.zip")
