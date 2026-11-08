@@ -10865,3 +10865,23 @@ missing commit pointers:
   reload/edit/delete, withdraw/regrant and 403 write-block; synthetic data
   cleaned; consent left WITHDRAWN.
 - P3 account-erasure boundary remains open for general rollout.
+
+## 2026-11-08 — SEARCH-PROFILE-STORAGE-03 ABSCHLUSS
+
+**Status:** `LIVE E2E VERIFIED — PRODUCTION LIMITED PILOT`
+
+- Production: `https://www.mays-job-matcher.app`, Deployment `dpl_ufUcAnWNGMEeHkXeLsW2df4eHwPz`.
+- RIS: State Serial **49**, Lambda `ris-dev-dev-agent` Active,
+  `j6eiYk09A8cF9idJBqklzGFaSafDMq+Bsara634PzUI=`,
+  `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED=true`.
+- Consent: `search-profile-storage/1.0` `APPROVED`,
+  Ref `JM-SEARCH-PROFILE-STORAGE-V1-2026-11-08`,
+  Text `search-profile-storage-consent-2026-11-08-v2`,
+  SHA-256 `75919c8bc219c938bdd2452a8bf02955997d1336ba2ca716bc691dd54eaa7ef6`.
+- Real-Browser-E2E: manuell/CV/ATS erstellt, bearbeitet, Reload, wiedergefunden,
+  gelöscht; Consent Withdraw/Regrant; 403-Schreibsperre; Lesen/Löschen erlaubt.
+- Cleanup: synthetische Profile/CV entfernt, Consent `WITHDRAWN`, Preview-
+  Deployments/Preview-Env entfernt, Session-Datei gelöscht.
+- Offen für allgemeinen Rollout: P3 Account-Erasure umfasst keine Partner-
+  Suchprofile.
+- Commits: Jobsearch `8dacb93`/`217cce8`; RIS `60bc72d`/`d3459e2`.
