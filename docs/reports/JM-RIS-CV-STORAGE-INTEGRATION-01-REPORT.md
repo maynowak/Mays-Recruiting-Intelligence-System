@@ -6,6 +6,8 @@
 
 `PRODUCTION E2E NOT EXECUTED — CV NOTICE DRAFT / CORS PLAN + APPLY + RELEASE APPROVAL REQUIRED`
 
+`RELEASE PREPARATION — AWAITING OPERATOR APPROVAL OF THE EXACT CV CONSENT TEXT`
+
 The existing encrypted RIS document store and the existing partner CV
 document routes were reused. No new storage architecture, no Terraform apply,
 no AWS mutation, no Vercel deployment, no ApplicationV1 change and no general
@@ -68,6 +70,9 @@ user enablement were performed.
 - `lambda/handler.py`
   - Added `CV_STORAGE_CONSENT_ENFORCED` (default false) and
     `_cv_storage_consent_error`.
+  - The existing `CONSENT_PILOT_ALLOWLIST` is an additional server-side
+    boundary: non-listed identities receive `CV_STORAGE_PILOT_NOT_ALLOWED` for
+    durable CV writes when the allowlist is non-empty.
   - New CV create/upload/complete/update writes require `cv-storage` consent
     when enforced; list/get/download/delete remain available after withdrawal.
 - Terraform
@@ -117,7 +122,9 @@ Focused CV/consent/API tests:
 - `test_cv_storage_consent_gate.py`, `test_cv_storage_consent_route.py`,
   `test_partner_cv_document_api.py`, consent catalog/special-category/
   repository, and API contract consistency:
-  **132 tests PASS**.
+  **134 tests PASS**. The gate now also covers the pilot allowlist:
+  pilot identity allowed, non-pilot denied, consent-required write denial,
+  read/delete allowed, and no global flag by default.
 - `terraform fmt -check -recursive`: PASS.
 - `terraform init -backend=false` + `terraform validate`: PASS (warnings only).
 - Full suite: **2531 passed / 56 skipped / 6 failed**. The remaining failures
@@ -131,17 +138,27 @@ Focused CV/consent/API tests:
 
 ### Terraform plan (read-only)
 
-- Plan file: `/tmp/opencode/ris-cv-storage-01-clean.tfplan`
-- SHA-256: `f1c16c25856e05f558b0a284a2c87460b53d8375e7c47d68e3eea0b53d09ed49`
+- Pre-approval technical plan:
+  `/tmp/opencode/ris-cv-storage-01-preapproval.tfplan`
+- SHA-256: `5986eadd20e6a4c93a9016a889cec73abd40727da0fd6c0c3a53965c62c145e0`
 - State serial `43`, lineage `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`
 - Changes: **1 to add (documents S3 CORS), 1 to change (agent Lambda code +
-  `CV_STORAGE_CONSENT_ENFORCED=false`), 0 to destroy**.
+  `CV_STORAGE_CONSENT_ENFORCED=false`), 0 to destroy**. This is not the final
+  activation plan; the final plan will set the actual CV gate to `true` after
+  text approval and will be regenerated with its own SHA-256.
 - With explicit `mays_orders_lambda_execution_boundary`, the Mays-Orders worker
   boundary is NO-OP. Without it, the plan shows an out-of-scope boundary
   removal and must not be applied.
 - Plan is saved for review; **no apply**.
 
-## 6. Blockers before production
+## 6. Approval packet
+
+`docs/reports/JM-RIS-CV-STORAGE-CONSENT-V1-APPROVAL-PACKET.md` contains the
+full German text, version, SHA-256, purpose mapping, gate behavior, baseline
+comparison and the request for the operator's explicit approval. Final plan
+and notice approval remain pending.
+
+## 7. Blockers before production
 
 1. **CV consent notice is DRAFT** (`cv-storage/1.0`, no
    `legalApprovalRef`). The BFF correctly refuses grants until the notice is
@@ -159,7 +176,7 @@ Focused CV/consent/API tests:
 5. RIS `CV_STORAGE_CONSENT_ENFORCED=true` requires a separate reviewed plan.
 6. Production E2E is not executed; no `PRODUCTION VERIFIED` status is claimed.
 
-## 7. Deployment / rollback plan
+## 8. Deployment / rollback plan
 
 After a separate release GO:
 
@@ -177,7 +194,7 @@ After a separate release GO:
    consent history as part of a rollback; preserve existing data and use the
    existing deletion path.
 
-## 8. Commits
+## 9. Commits
 
 Jobsearch branch `feature/jm-ris-cv-storage-integration-01`:
 
@@ -188,6 +205,7 @@ RIS branch `feature/jm-ris-cv-storage-integration-01`:
 
 - `216e061` — `feat(cv): add cv-storage consent and browser CORS plan`
 - `1316647` — `test(consent): cover the separate cv-storage purpose`
+- `ce55f32` — `fix(cv): scope durable CV writes to the pilot identity`
 - report/audit commit in this branch.
 
 No push, merge, deployment, Terraform apply or AWS mutation.

@@ -10656,3 +10656,30 @@ missing commit pointers:
   deployment, Terraform apply, AWS mutation, Cognito/CloudFront/DNS/ACM or
   Mays-Orders change. Report:
   `docs/reports/JM-RIS-CV-STORAGE-INTEGRATION-01-REPORT.md`.
+
+## 2026-11-08 — JM-RIS-CV-STORAGE-INTEGRATION-01 — release preparation / pilot gate
+
+**Typ:** Release preparation / Security gate / Baseline comparison / Audit
+**Status:** `AWAITING OPERATOR APPROVAL OF CV TEXT — NO APPLY/DEPLOY/PUSH`
+
+- Exact CV text `cv-storage-consent-2026-11-08-v1`, SHA-256
+  `2fe65fd158a3a2953cf3869ff864aae626971012d68cfb8849db84e04579d036`;
+  notice `cv-storage/1.0` remains DRAFT with no legal ref.
+- Added server-side pilot restriction: when `CONSENT_PILOT_ALLOWLIST` is
+  non-empty, non-listed identities receive `CV_STORAGE_PILOT_NOT_ALLOWED` for
+  durable CV writes. The confirmed operator identity remains the only scoped
+  pilot identity. `CV_STORAGE_CONSENT_ENFORCED` still defaults false; reads/
+  downloads/deletes remain allowed.
+- Verified the six RIS suite failures on unchanged baseline `1d951b2` in a
+  separate worktree and on current HEAD: same six failures, no CV/consent
+  regression. Focused CV/consent/API tests: **134 PASS**.
+- Pre-approval technical plan with final gate code but enforcement false:
+  `/tmp/opencode/ris-cv-storage-01-preapproval.tfplan`, SHA-256
+  `5986eadd20e6a4c93a9016a889cec73abd40727da0fd6c0c3a53965c62c145e0`,
+  state serial 43: 1 add (S3 CORS), 1 change (agent Lambda/env), 0 destroy.
+  Explicit Mays-Orders boundary ARN is NO-OP.
+- Approval packet:
+  `docs/reports/JM-RIS-CV-STORAGE-CONSENT-V1-APPROVAL-PACKET.md`. After
+  explicit text approval, the RIS notice will be set APPROVED with the real
+  `legalApprovalRef`; the final activation plan with `CV_STORAGE_CONSENT_ENFORCED=true`
+  will then be generated and reviewed. No apply, push, merge or deployment.
