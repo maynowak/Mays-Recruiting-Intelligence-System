@@ -10568,3 +10568,24 @@ Aenderung, keine Live-Persistenz- oder Freigabe-Behauptung.
 - Final plan `/tmp/opencode/ris-dev-one-shot-05-v4-final.tfplan` SHA-256 `d9689931cab89181ec9262407b85dd37ec107f8ae5db32d1241163a6a0a6d532`; state serial 42/lineage `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`; 272 no-op, 1 update (agent Lambda), 0 delete/replace.
 - Orders SQS policy/IAM boundary, health/reader, Cognito/CloudFront/DNS/ACM/DynamoDB/API routes NO-OP. Temporary Mays-Orders revision `c1dcca2`; explicit boundary variable.
 - No apply/deploy/push; no live persistence. GO required: `GO JM-RIS-STORAGE-ONE-SHOT-05 APPLY + DEPLOY + E2E`.
+
+### ONE-SHOT-05 — completeness addendum (commit and plan cross-reference)
+
+The entries above are complete in substance; this addendum only adds the
+missing commit pointers:
+
+- `6bfb71f` — RIS commit that set `application-storage/1.0` to `APPROVED`
+  (not `ACTIVE`) with `legalApprovalRef=JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`
+  (date 2026-11-08, body Betreiberin May's Job Matcher) and mapped the v4 text
+  (`8722aed9…43c7`) to `1.0`; v1–v3 remain historical DRAFT/superseded.
+- `2a2d007` — RIS final-plan/docs commit on top of `6bfb71f`.
+- Final plan SHA-256 `d9689931cab89181ec9262407b85dd37ec107f8ae5db32d1241163a6a0a6d532`:
+  272 no-op, 1 update (`module.lambda.aws_lambda_function.agent`), 0 delete,
+  0 replace; state serial 42.
+- Temporary Mays-Orders revision `c1dcca2` with explicit
+  `mays_orders_lambda_execution_boundary`; Orders SQS queue policy and IAM
+  boundary are NO-OP in the plan.
+- No apply/deploy/push and no live persistence. Open and not falsely confirmed:
+  full account deletion, consent-history retention, DPA/transfer checks;
+  notice is APPROVED for the limited beta pilot, not `ACTIVE` and not general
+  availability. Apply/deploy/E2E still require the separate bundled GO.
