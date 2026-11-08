@@ -47,6 +47,10 @@ UI showed `Status: erteilt (Textversion 1.0)` and
 `Textstatus: rechtlich freigegeben (APPROVED)`. This timing/state display is
 covered by the UI fix below.
 
+Transient observation: one immediate post-E2E `GET /api/ris/consents` returned
+**503**; three immediate retries returned **200** with the same GRANTED/APPROVED
+state. No persistent consent-service failure was observed.
+
 ## 3. Synthetic production E2E
 
 All data was synthetic and visibly labelled as such. No real applicant data was

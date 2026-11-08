@@ -10608,6 +10608,9 @@ missing commit pointers:
   status, notice state/version, external text version/hash, special-category
   proof). No new RIS endpoint, field, notice, environment, Terraform, state or
   deployment change is required.
+- Transient observation: one immediate post-E2E consent read returned 503;
+  three immediate retries returned 200 with the same GRANTED/APPROVED state.
+  No persistent consent-service failure remained.
 - No RIS source, Terraform, state, notice, `legalApprovalRef`, environment or
   deployment was changed by this review. Notice remains `APPROVED` for the
   limited pilot, not `ACTIVE`; full account deletion, consent-history
