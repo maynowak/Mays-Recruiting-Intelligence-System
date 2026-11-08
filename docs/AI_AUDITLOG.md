@@ -10833,3 +10833,19 @@ missing commit pointers:
   state serial 46; 0 add/1 change/0 destroy; only agent Lambda update adding
   `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED=false`.
 - No apply, deploy, push, preview URL or live E2E.
+
+## 2026-11-08 — SEARCH-PROFILE-STORAGE-03 RIS apply
+
+**Typ:** Deployment
+**Status:** `RIS DEPLOYED — JOBSEARCH PREVIEW BLOCKED`
+
+- Applied saved plan `d6cfcda99a73dacf6ed44f111c42f719f8c401dcea6d7edb82caf9bfd1e2576a`:
+  0 add/1 change/0 destroy; state serial **47**.
+- Lambda Active, code `pStIe5JG66TGF6PyltAmLJQ/0yKSgoWI6H7AmrAKwHU=`,
+  `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED=false`.
+- Notice `search-profile-storage/1.0` live as `APPROVED` with
+  `legalApprovalRef=JM-SEARCH-PROFILE-STORAGE-V1-2026-11-08`.
+- Enforcement plan `53bcc0a09c9a878d4ca90e65c75fba1a9219084d181b9eac2544f5c33908e5a9`
+  prepared, not applied.
+- Jobsearch preview/live E2E blocked by missing Preview RIS env, missing
+  Cognito preview callback and missing credentials/session. No Vercel mutation.
