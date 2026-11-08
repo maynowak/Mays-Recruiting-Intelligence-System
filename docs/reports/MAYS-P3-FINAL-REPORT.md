@@ -41,13 +41,16 @@ Implemented and locally verified, **not deployed**:
 - Partial/incomplete RIS lifecycle results are shown as incomplete; no
   physical S3/backup/PITR purge is claimed.
 
-Jobsearch commit: `e060606`.
+Jobsearch commit: `e060606`; browser test/evidence in
+`tests/e2e/account-erasure.mjs` and
+`docs/reports/assets/MAYS-P3-FINAL/account-erasure-ui.png`.
 
 ## 3. Tests actually executed
 
 | Suite | Result |
 | --- | --- |
 | Jobsearch BFF/router/client/consent suites | **32 passed** |
+| Jobsearch local browser E2E for account-erasure UI | **PASS** (mocked BFF; no real deletion) |
 | Jobsearch production build | **PASS** |
 | RIS P3 erasure suite | **14 passed** |
 | RIS privacy/erasure focused set | **104 passed** |

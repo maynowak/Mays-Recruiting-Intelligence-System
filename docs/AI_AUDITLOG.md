@@ -10969,3 +10969,15 @@ missing commit pointers:
 - No AWS/Terraform change, deployment, push or merge in this step. S3/version/
   backup/PITR limits remain open.
 - Report: `docs/reports/MAYS-P3-FINAL-REPORT.md`.
+
+## 2026-11-08 — MAYS-P3-FINAL browser UI evidence
+
+**Typ:** Cross-repo browser E2E evidence
+**Status:** `LOCAL UI E2E PASS — DESTRUCTIVE E2E STILL PENDING`
+
+- Jobsearch local Chromium E2E for the opt-in account-erasure UI passed with a
+  synthetic OIDC session and a mocked `/api/ris/erasure` response. No real
+  account/RIS/AWS data was deleted.
+- Evidence: `docs/reports/assets/MAYS-P3-FINAL/account-erasure-ui.png`.
+- The destructive production E2E remains blocked pending an approved isolated
+  synthetic identity/dataset and a Jobsearch deployment approval.
