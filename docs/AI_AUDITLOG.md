@@ -10589,3 +10589,29 @@ missing commit pointers:
   full account deletion, consent-history retention, DPA/transfer checks;
   notice is APPROVED for the limited beta pilot, not `ACTIVE` and not general
   availability. Apply/deploy/E2E still require the separate bundled GO.
+
+## 2026-11-08 — Jobsearch ApplicationV1 E2E / UI status fix — RIS contract review
+
+**Typ:** Cross-repository review / Audit (no RIS code change)
+**Status:** `JOBSEARCH UI STATUS FIX REVIEWED AGAINST RIS CONSENT CONTRACT — NO RIS CHANGE`
+
+- Live production Jobsearch E2E was executed against the existing RIS-DEV
+  consent contract with synthetic application data only. `GET`
+  `/api/ris/consents` returned `GRANTED`, notice `1.0`, `noticeState=APPROVED`,
+  `textState=APPROVED`, v4 text `application-storage-consent-2026-11-07-v4`
+  and SHA-256 `8722aed9…43c7`, Art. 9 consent `true` with the nine canonical
+  categories. No token, cookie or credential was logged.
+- After consent withdrawal, the application write path returned `403`; read and
+  export remained available; deletion succeeded and the synthetic application
+  was removed. The operator consent was regranted and left granted.
+- The reviewed Jobsearch UI change uses only existing RIS fields (consent
+  status, notice state/version, external text version/hash, special-category
+  proof). No new RIS endpoint, field, notice, environment, Terraform, state or
+  deployment change is required.
+- No RIS source, Terraform, state, notice, `legalApprovalRef`, environment or
+  deployment was changed by this review. Notice remains `APPROVED` for the
+  limited pilot, not `ACTIVE`; full account deletion, consent-history
+  retention and DPA/transfer checks remain open.
+- Evidence: Jobsearch
+  `docs/reports/JM-RIS-STORAGE-ONE-SHOT-05-E2E-AND-UI-STATUS-REPORT.md` (copy
+  also retained in the workspace and RIS reports directory).
