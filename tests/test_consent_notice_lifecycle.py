@@ -187,7 +187,7 @@ class ConsentStatusResponseShapeTests(unittest.TestCase):
                 event, None, "GET", "/v1/partner/me/consents")
         body = json.loads(response["body"])
         self.assertEqual(
-            ["application-storage", "cv-storage"],
+            ["application-storage", "cv-storage", "search-profile-storage"],
             [item["purpose"] for item in body["items"]],
         )
         self.assertEqual(VERSION, body["catalog"][0]["noticeVersion"])

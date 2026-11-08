@@ -39,6 +39,9 @@ CONSENT_PURPOSES = {
     # ApplicationV1 consent. The notice is a technical candidate until the
     # operator/legal approval is recorded.
     "cv-storage": frozenset({"1.0"}),
+    # Separate durable search-profile purpose: manual, CV-search and ATS
+    # profiles. Technical candidate only until the operator approves the text.
+    "search-profile-storage": frozenset({"1.0"}),
 }
 
 # --- notice version lifecycle -------------------------------------------
@@ -115,6 +118,15 @@ NOTICE_REGISTRY: dict[str, dict[str, NoticeVersion]] = {
             legal_approval_ref="JM-CV-STORAGE-V1-BETA-2026-11-08",
         ),
     },
+    "search-profile-storage": {
+        "1.0": NoticeVersion(
+            purpose="search-profile-storage",
+            version="1.0",
+            state=NOTICE_DRAFT,
+            label="RIS search-profile-storage notice v1 (technical candidate, no legal approval)",
+            legal_approval_ref=None,
+        ),
+    },
 }
 
 #: Partner-side identifiers that are *known* to RIS. Historical refs stay
@@ -181,6 +193,16 @@ EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
             "noticeVersion": "1.0",
             "textSha256": (
                 "2fe65fd158a3a2953cf3869ff864aae626971012d68cfb8849db84e04579d036"
+            ),
+        },
+    },
+    "search-profile-storage": {
+        "search-profile-storage-consent-2026-11-08-v1": {
+            "source": "mays-jobsearch",
+            "noticeState": NOTICE_DRAFT,
+            "noticeVersion": None,
+            "textSha256": (
+                "926d1b9bbeefac4b97a5c51e3b6e6c1ed33a3affc3698e07456132be39b0f0f8"
             ),
         },
     },

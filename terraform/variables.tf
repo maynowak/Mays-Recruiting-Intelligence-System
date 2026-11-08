@@ -365,6 +365,12 @@ variable "cv_storage_consent_enforced" {
   default     = false
 }
 
+variable "search_profile_storage_consent_enforced" {
+  description = "Enforce search-profile-storage consent on manual, CV-search and ATS-profile create/update writes. Reads and deletion stay available. Default false while the notice is DRAFT."
+  type        = bool
+  default     = false
+}
+
 variable "consent_notice_state_enforced" {
   description = "Reject new consent grants for non-grantable notice states (DRAFT/SUPERSEDED) in the Lambda runtime (Default AUS; separate activation gate)."
   type        = bool

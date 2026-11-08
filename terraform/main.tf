@@ -172,6 +172,7 @@ module "lambda" {
   partner_surface_enabled             = var.partner_surface_enabled
   application_consent_enforced        = var.application_consent_enforced
   cv_storage_consent_enforced         = var.cv_storage_consent_enforced
+  search_profile_storage_consent_enforced = var.search_profile_storage_consent_enforced
   consent_notice_state_enforced       = var.consent_notice_state_enforced
   consent_pilot_allowlist             = var.consent_pilot_allowlist
   applications_gsi_owner_arn          = module.dynamodb.applications_gsi_owner_arn

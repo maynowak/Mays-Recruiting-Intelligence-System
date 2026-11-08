@@ -10747,3 +10747,22 @@ missing commit pointers:
 - No real applicant data, no general enablement, no new consent version.
   Remaining open: full account erasure, final retention/physical purge, DPA
   review. Report: `docs/reports/JM-RIS-CV-STORAGE-INTEGRATION-01-REPORT.md`.
+
+## 2026-11-08 — Search-profile storage purpose + write gate (DRAFT)
+
+**Typ:** Consent contract / Server gate / Tests
+**Status:** `IMPLEMENTED LOCAL — NOTICE DRAFT — GATE DEFAULT OFF`
+
+- Added `search-profile-storage` purpose and RIS notice `1.0` as `DRAFT`
+  with `legalApprovalRef=null` (no invented approval).
+- Registered partner text `search-profile-storage-consent-2026-11-08-v1`
+  (SHA-256 `926d1b9bbeefac4b97a5c51e3b6e6c1ed33a3affc3698e07456132be39b0f0f8`)
+  as DRAFT/unmapped.
+- Added `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED` (default `false`) and
+  Terraform wiring in root + lambda module.
+- Gate applies to manual, CV-search and ATS-profile POST/PUT/PATCH; list/get
+  and delete remain available after withdrawal, matching the CV gate.
+- Pilot allowlist is enforced independently of the rollout flag.
+- Tests: 169 passed across consent, gate, manual/CV/ATS profile and Terraform
+  wiring suites.
+- No apply, deploy, activation or real user data.

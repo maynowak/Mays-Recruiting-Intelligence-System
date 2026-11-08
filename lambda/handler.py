@@ -565,12 +565,12 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _partner_execute_agent(event, _machine_agent_id(path.replace('/v1/partner/agents/', '/v1/m2m/agents/')))
     elif path == '/v1/partner/me/manual-search-profiles':
         # R03: partner manual search profile CRUD (human JWT + RIS credential).
-        return _partner_storage_guard(
+        return _search_profile_storage_guard(
             _handle_manual_profile_collection, event, context, method)
     elif path.startswith('/v1/partner/me/manual-search-profiles/'):
         params = event.get('pathParameters') or {}
         profile_id = params.get('profileId') or path[len('/v1/partner/me/manual-search-profiles/'):].split('?')[0]
-        return _partner_storage_guard(
+        return _search_profile_storage_guard(
             _handle_manual_profile_item, event, context, method, profile_id)
     elif path == '/v1/partner/me/cvs' or path.startswith('/v1/partner/me/cvs/'):
         # R04: partner CV metadata + secure document lifecycle.
@@ -578,7 +578,7 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             _handle_partner_cv_routes, event, context, method, path)
     elif path.startswith('/v1/partner/me/search-profiles/'):
         # R06: partner ATS search profiles (ATSSearchProfileV1 CRUD).
-        return _partner_storage_guard(
+        return _search_profile_storage_guard(
             _handle_partner_ats_routes, event, context, method, path)
     elif path == '/v1/partner/me/consents' or path.startswith('/v1/partner/me/consents/'):
         return _handle_consent_routes(event, context, method, path)
@@ -5223,6 +5223,57 @@ def _cv_get_owned(ctx, cv_id):
     return repo, (cv if isinstance(cv, CVDocument) else None)
 
 
+def _search_profile_storage_consent_enforced() -> bool:
+    """Rollout switch for durable search-profile writes.
+
+    Default is off while the technical candidate is prepared. When enabled,
+    manual, CV-search and ATS-profile create/update operations require a
+    GRANTED ``search-profile-storage`` consent. List/get/delete remain
+    available.
+    """
+    return os.environ.get(
+        "SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED", "false").strip().lower() == "true"
+
+
+def _search_profile_storage_consent_error(ctx):
+    if _consent_pilot_identities() and not _is_consent_pilot_identity(
+            ctx.get('issuer'), ctx.get('userId')):
+        return _cv_error(
+            403, 'Search-profile storage is restricted to the pilot identity',
+            code='SEARCH_PROFILE_STORAGE_PILOT_NOT_ALLOWED')
+    if not _search_profile_storage_consent_enforced():
+        return None
+    from jobsearch.consent_contract import ConsentContext
+    consent_ctx = ConsentContext(
+        user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+        partner_application_id=ctx.get('partnerApplicationId'),
+        issuer=ctx.get('issuer'))
+    try:
+        allowed = _consent_repo().has_consent(
+            consent_ctx, 'search-profile-storage')
+    except Exception:
+        logger.exception('search-profile storage consent check failed')
+        allowed = False
+    if allowed:
+        return None
+    return _cv_error(
+        403, 'Search-profile storage consent required',
+        code='SEARCH_PROFILE_STORAGE_CONSENT_REQUIRED')
+
+
+def _search_profile_storage_guard(call, event, *args):
+    """Apply the search-profile consent gate to mutating routes only."""
+    method = str(event.get('httpMethod') or '').upper()
+    if method in {'POST', 'PUT', 'PATCH'}:
+        ctx, error = _partner_profile_context(event)
+        if error:
+            return error
+        denied = _search_profile_storage_consent_error(ctx)
+        if denied:
+            return denied
+    return _partner_storage_guard(call, event, *args)
+
+
 def _cv_storage_consent_enforced() -> bool:
     """Rollout switch for the separate durable-CV storage consent gate.
 
@@ -5277,6 +5328,10 @@ def _handle_partner_cv_routes(event, context, method, path):
         if denied:
             return denied
     if len(parts) >= 2 and parts[1] == 'search-profiles':
+        if method in {'POST', 'PUT', 'PATCH'}:
+            denied = _search_profile_storage_consent_error(ctx)
+            if denied:
+                return denied
         cv_id = parts[0]
         if len(parts) == 2:
             return _cv_search_profile_collection(event, ctx, method, cv_id)

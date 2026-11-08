@@ -134,6 +134,12 @@ variable "cv_storage_consent_enforced" {
   default     = false
 }
 
+variable "search_profile_storage_consent_enforced" {
+  description = "Enforce search-profile-storage consent on manual, CV-search and ATS-profile create/update writes. Default false while the notice is DRAFT."
+  type        = bool
+  default     = false
+}
+
 variable "consent_notice_state_enforced" {
   description = "Enforce the consent notice lifecycle state for new grants (DRAFT/SUPERSEDED rejected). Default false; enable only after the notice is legally approved."
   type        = bool

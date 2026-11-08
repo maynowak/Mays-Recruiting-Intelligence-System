@@ -650,6 +650,7 @@ resource "aws_lambda_function" "agent" {
       CONSENTS_TABLE                = var.consents_table_name
       APPLICATION_CONSENT_ENFORCED  = var.application_consent_enforced ? "true" : "false"
       CV_STORAGE_CONSENT_ENFORCED   = var.cv_storage_consent_enforced ? "true" : "false"
+      SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED = var.search_profile_storage_consent_enforced ? "true" : "false"
       CONSENT_NOTICE_STATE_ENFORCED = var.consent_notice_state_enforced ? "true" : "false"
       CONSENT_PILOT_ALLOWLIST       = var.consent_pilot_allowlist
       DELETION_LEDGER_TABLE         = var.deletion_ledger_table_name
