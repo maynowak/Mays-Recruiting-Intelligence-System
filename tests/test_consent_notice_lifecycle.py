@@ -186,7 +186,10 @@ class ConsentStatusResponseShapeTests(unittest.TestCase):
             response = handler._handle_consent_routes(
                 event, None, "GET", "/v1/partner/me/consents")
         body = json.loads(response["body"])
-        self.assertEqual(1, len(body["items"]))
+        self.assertEqual(
+            ["application-storage", "cv-storage"],
+            [item["purpose"] for item in body["items"]],
+        )
         self.assertEqual(VERSION, body["catalog"][0]["noticeVersion"])
         self.assertEqual(NOTICE_APPROVED, body["catalog"][0]["noticeState"])
         self.assertEqual("JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08",
