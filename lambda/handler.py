@@ -1489,6 +1489,7 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         from agents.ecosystem.privacy_erasure import (
             PrivacyErasure, ErasureExecutionUnavailable)
         from agents.ecosystem.privacy_application_erasure import ApplicationErasureExecutor
+        from agents.ecosystem.privacy_profile_erasure import AccountSearchProfileErasure
         from agents.ecosystem.partner_registry import resolve_partner_application
         from jobsearch.application_contract import ApplicationContext
         from jobsearch.application_repository import ApplicationRepository
@@ -1507,6 +1508,7 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         ("WORK_ITEMS_TABLE", "WORK_ITEMS_TABLE"),
         ("USER_PROFILE_TABLE", "USER_PROFILE_TABLE"),
         ("APPLICATIONS_TABLE", "APPLICATIONS_TABLE"),
+        ("PARTNER_PROFILE_TABLE", "PARTNER_PROFILE_TABLE"),
     ) if not os.environ.get(env)]
     if missing:
         logger.warning("erasure stores unconfigured: %s", ",".join(missing))
@@ -1546,7 +1548,7 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         """Delete every document object the platform holds for this user."""
         try:
             import documents
-            return documents.delete_all_for_user(user_id)
+            return documents.delete_all_for_user_report(user_id=user_id)
         except Exception as exc:
             logger.warning("document purge unavailable for %s: %s",
                            user_id, exc)
@@ -1571,6 +1573,10 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             partner_application_id, issuer)
     application_repository = ApplicationRepository(
         table_name=os.environ.get("APPLICATIONS_TABLE"), dynamodb=dynamodb)
+    partner_profile_erasure = None
+    if partner_application_id and issuer and user_context.get('tenantId'):
+        partner_profile_erasure = AccountSearchProfileErasure(
+            _manual_profile_repo())
     erasure = PrivacyErasure(
         credential_store=DynamoDBCredentialStore(
             table_name=os.environ.get("CREDENTIALS_TABLE")),
@@ -1590,11 +1596,15 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             os.environ.get("USER_PROFILE_TABLE")),
         application_erasure=ApplicationErasureExecutor(application_repository),
         application_context=application_context,
+        partner_profile_erasure=partner_profile_erasure,
     )
 
     try:
-        result = erasure.erase(user_context['userId'],
-                               tenant_id=user_context.get('tenantId'))
+        result = erasure.erase(
+            user_context['userId'],
+            tenant_id=user_context.get('tenantId'),
+            partner_application_id=partner_application_id,
+            issuer=issuer)
     except ErasureExecutionUnavailable:
         return {
             'statusCode': 503,

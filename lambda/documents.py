@@ -198,32 +198,31 @@ def delete_document(s3: Any = None, tenant_id: str = "",
     return True
 
 
-def delete_all_for_user(s3: Any = None, user_id: str = "") -> int:
-    """Alle Dokumentobjekte eines Users loeschen (G5-Erasure).
+def delete_all_for_user_report(s3: Any = None, user_id: str = "") -> tuple[int, bool]:
+    """Delete all documents for a user and report whether any work remains.
 
-    Schluessel sind tenant-scoped (``tenant/{t}/users/{sub}/documents/...``),
-    die Tenant-ID steht aber nicht im Objekt-Key selbst. Deshalb wird ueber
-    das praefix-Suffix ``/users/{user_id}/documents/`` gefiltert -- der
-    userId ist ein Cognito-Sub und damit tenant-uebergreifend eindeutig.
-
-    Bewusst additiv: gibt die Zahl geloeschter Objekte zurueck und wirft
-    nicht, damit ein Teilerfolg als Teilerfolg berichtet wird statt die
-    gesamte Erasure zu blockieren.
+    Returns ``(deleted, pending)``. ``pending`` is true on any S3 list/delete
+    failure or truncation without a continuation token. Existing callers keep
+    using :func:`delete_all_for_user`, which returns only the count.
     """
     if not user_id:
-        return 0
-    client = s3 if s3 is not None else _s3_client()
-    bucket = _bucket()
+        return 0, False
+    try:
+        client = s3 if s3 is not None else _s3_client()
+        bucket = _bucket()
+    except Exception:
+        return 0, True
     suffix = f"/users/{user_id}/documents/"
     token: Optional[str] = None
     deleted = 0
+    pending = False
     while True:
         kwargs = {"Bucket": bucket, "ContinuationToken": token} if token \
             else {"Bucket": bucket}
         try:
             response = client.list_objects_v2(**kwargs)
         except Exception:
-            return deleted
+            return deleted, True
         contents = response.get("Contents", []) or []
         for obj in contents:
             key = obj.get("Key", "")
@@ -234,15 +233,21 @@ def delete_all_for_user(s3: Any = None, user_id: str = "") -> int:
                 client.delete_object(Bucket=bucket, Key=key)
                 deleted += 1
             except Exception:
-                continue
+                pending = True
         if not response.get("IsTruncated"):
-            return deleted
+            return deleted, pending
         token = response.get("NextContinuationToken")
         if not token:
-            return deleted
+            return deleted, True
+
+
+def delete_all_for_user(s3: Any = None, user_id: str = "") -> int:
+    """Delete all document objects for a user (compatibility wrapper)."""
+    return delete_all_for_user_report(s3=s3, user_id=user_id)[0]
 
 
 __all__ = ["presign_upload", "presign_download", "head_document",
            "delete_document", "delete_document_report",
-           "delete_all_for_user", "build_key", "new_doc_id",
+           "delete_all_for_user", "delete_all_for_user_report",
+           "build_key", "new_doc_id",
            "UPLOAD_EXPIRY_SECONDS", "ALLOWED_CONTENT_TYPES"]
