@@ -2,42 +2,46 @@
 
 ## Result
 
-`LOCAL IMPLEMENTED — TESTS GREEN — NOT DEPLOYED`
+`PRODUCTION E2E VERIFIED — CV STORAGE PILOT ACTIVE FOR THE CONFIRMED OPERATOR`
 
-`STOPPED AFTER PRODUCTION SMOKE — CV LIST LIMIT BUG — ROLLED BACK`
+No general user enablement. The existing encrypted RIS document store and
+partner CV routes were reused; no new storage architecture and no
+ApplicationV1 change.
 
-`PRODUCTION E2E NOT EXECUTED — NO SYNTHETIC CV DATA CREATED`
+Production deployment: `dpl_5C27DWhDpLT74tbyubbr4mNibCPo` at Build `c3da077`,
+aliased to `https://www.mays-job-matcher.app`.
 
-The existing encrypted RIS document store and the existing partner CV
-document routes were reused. No new storage architecture, no Terraform apply,
-no AWS mutation, no Vercel deployment, no ApplicationV1 change and no general
-user enablement were performed.
+## 0. Production release, incident fixes and E2E
 
-## 0. Production incident and rollback (2026-11-08)
+The first production smoke exposed a client pagination bug: the persistent CV
+list requested `limit=100`, while RIS caps CV list pagination at `50`; the UI
+therefore showed the list error. That release was stopped and the previous
+known-good frontend was promoted. A second smoke then exposed a missing IAM
+action for the repository's delete reservation: `dynamodb:ConditionCheckItem`.
+The action was added for the partner-profile table only; no new resource,
+policy widening or Mays-Orders change.
 
-- Final plan `cd099de482abe851b1bad1a3defa5c3d4ac93811e06a73df1174e4431beac3a3`
-  applied: 1 add (S3 CORS), 1 change (agent Lambda +
-  `CV_STORAGE_CONSENT_ENFORCED=true`), 0 destroy; state serial 44.
-- Jobsearch PR #7 merged as `d55c52c365d70e12cfd76ebf171599437cea8795`;
-  production deployment `dpl_NJHrVbn4vXG6MxoKXVqEP95s91MR` was aliased to
-  `www.mays-job-matcher.app`.
-- During the first authenticated CV smoke, the persistent CV list failed with
-  `Die Lebenslauf-Daten sind ungültig.` Direct BFF checks showed:
-  `GET /api/ris/cvs?limit=100` -> 422, while `limit=50` and no limit -> 200.
-  Root cause: the browser list client requested `limit=100`, but the existing
-  RIS CV list maximum is `50`.
-- Because this blocked the core CV list, production was **STOPPED** and the
-  previous known-good Jobsearch deployments were promoted:
-  `dpl_8rGdfH7yXiExiEWsgTRGSc7XBr3T` (`www`) and
-  `dpl_LK9t9ikfH2ERDit1M3Z8NprFz4u4` (secondary), both at Build `0951198`.
-  Verified: footer `0951198`, no CV mode button, CV flags disabled for future
-  builds. No synthetic CV was uploaded and no consent was granted.
-- Local non-deployed hotfix: `1449751` changes the browser list limit to `50`
-  and adds a regression assertion. Tests 14/14 and build PASS. It needs a
-  separate release approval; no push/deploy.
-- RIS infrastructure change remains applied and is backward-compatible; the
-  previous frontend does not call CV routes. No ApplicationV1/Mays-Orders
-  change.
+After both fixes:
+
+- Jobsearch PR #8 merged as `c3da077908f72c2fd483279613c10e8a59119d37`.
+- Production deployment `dpl_5C27DWhDpLT74tbyubbr4mNibCPo`, Build `c3da077`,
+  `www` alias, READY.
+- CV consent granted with notice `cv-storage/1.0` `APPROVED`.
+- Synthetic PDF uploaded: `pending → ready`; direct S3 PUT 200; complete 200.
+- Browser closed and operator re-authenticated; CV and ApplicationV1
+  reference were still present.
+- Download after restart: 13,569 bytes, SHA-256
+  `365ac570ea6da87f1631b05d043824982147410a645b6fae7e661d845cbf4f6c`,
+  identical to the source.
+- ApplicationV1 selection stored `cvId` + `documentId`.
+- CV consent withdrawal: 200 `WITHDRAWN`.
+- Post-withdrawal create: 403 `CV_STORAGE_CONSENT_REQUIRED`.
+- List and download remained 200; deletion returned 200 with a delete marker
+  (`physicalPurge: false`).
+- Synthetic application deleted (200, list count 0).
+- CV consent regranted; CV list count 0. Session mode remains functional.
+- The final CV was deleted with a delete marker; older S3 versions are not
+  claimed to be physically purged.
 
 ## 1. Discovery — what already existed
 
@@ -162,20 +166,22 @@ Focused CV/consent/API tests:
   The one CV/consent-related full-suite expectation was updated for the new
   second purpose and passes.
 
-### Terraform plan (read-only)
+### Terraform application (evidence)
 
-- Final activation plan:
-  `/tmp/opencode/ris-cv-storage-01-final.tfplan`
-- SHA-256: `cd099de482abe851b1bad1a3defa5c3d4ac93811e06a73df1174e4431beac3a3`
-- State serial `43`, lineage `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`
-- Changes: **1 add (documents S3 CORS), 1 change (agent Lambda code +
-  `CV_STORAGE_CONSENT_ENFORCED=true`), 0 destroy**.
-- Explicit Mays-Orders boundary ARN: NO-OP. Pre-approval plan
-  `5986eadd…` is superseded.
-- With explicit `mays_orders_lambda_execution_boundary`, the Mays-Orders worker
-  boundary is NO-OP. Without it, the plan shows an out-of-scope boundary
-  removal and must not be applied.
-- Plan is saved for review; **no apply**.
+- Initial approved activation plan
+  `cd099de482abe851b1bad1a3defa5c3d4ac93811e06a73df1174e4431beac3a3`
+  applied: 1 add (S3 CORS), 1 change (agent Lambda +
+  `CV_STORAGE_CONSENT_ENFORCED=true`), 0 destroy; state serial 44.
+- Diagnostic Lambda-only plan
+  `d4cd9ea68c1fe138c0fe60aaa78838273e49360883e5a4222392f849911784a9`
+  applied: 1 change, 0 destroy.
+- IAM-only fix plan
+  `c60c01de9fffb2e61208a3e6722792ba6306c59f6d1e454e10349396fe7abe69`
+  applied: 1 change (`dynamodb:ConditionCheckItem` on the partner-profile
+  policy), 0 add, 0 destroy.
+- Final state serial `46`, lineage
+  `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`; explicit Mays-Orders boundary
+  remained unchanged. No new AWS resources.
 
 ## 6. Approval packet
 
@@ -184,53 +190,45 @@ full German text, version, SHA-256, purpose mapping, gate behavior, baseline
 comparison and the request for the operator's explicit approval. Final plan
 and notice approval remain pending.
 
-## 7. Blockers before production
+## 7. Remaining open points
 
-1. **CORS plan/apply** is required for browser presigned PUT. Final plan has
-   1 add / 1 change / 0 delete; apply is not authorized.
-2. RIS Lambda deploy of the consent/CV gate and Jobsearch BFF deployment are
-   required; neither was performed.
-3. Jobsearch production env must include only after the apply/deploy GO:
-   `RIS_CV_STORAGE_ENABLED=true`,
-   `RIS_CV_CONSENT_NOTICE_VERSION=1.0`,
-   `RIS_CV_CONSENT_TEXT_VERSION=cv-storage-consent-2026-11-08-v1`,
-   `RIS_CV_CONSENT_TEXT_SHA256=2fe65fd1…d036`,
-   `RIS_CV_CONSENT_TEXT_STATE=APPROVED`, `VITE_RIS_CV_STORAGE_ENABLED=true`.
-4. Production E2E is not executed; no `PRODUCTION VERIFIED` status is claimed.
-5. The approved scope is PDF only; RIS upload tickets and BFF reject non-PDF
-   CV uploads. Final retention and physical-deletion questions remain open.
+- Full account deletion / ApplicationV1 account erasure.
+- Final retention period and physical deletion of older S3 versions.
+- DPA/transfer review for AWS/Vercel.
+- General rollout approval beyond the confirmed operator pilot.
+- No new consent version or general enablement is included.
 
-## 8. Deployment / rollback plan
+## 8. Deployment / rollback
 
-After a separate release GO:
+Active production: `dpl_5C27DWhDpLT74tbyubbr4mNibCPo` (`c3da077`) on
+`https://www.mays-job-matcher.app`; Vercel CV flags are enabled only for the
+operator pilot.
 
-1. Review and apply the clean plan with the explicit Mays-Orders boundary
-   variable; verify 1 add / 1 change / 0 destroy and no protected-resource
-   drift.
-2. Set the CV consent text/notice envs only after approval; enable
-   `CV_STORAGE_CONSENT_ENFORCED=true` in a separate reviewed plan.
-3. Deploy RIS Lambda and Jobsearch production; run the acceptance E2E:
-   grant CV consent → upload synthetic PDF → logout/login → list → download →
-   select for an application → delete → verify session mode still works.
-4. Rollback frontend by disabling `VITE_RIS_CV_STORAGE_ENABLED` and redeploying
-   the previous known-good Jobsearch deployment. Disable
-   `RIS_CV_STORAGE_ENABLED` to stop new writes. Do not delete RIS documents or
-   consent history as part of a rollback; preserve existing data and use the
-   existing deletion path.
+Rollback if needed:
+
+1. Disable `VITE_RIS_CV_STORAGE_ENABLED` and promote the previous known-good
+   Jobsearch deployment `dpl_8rGdfH7yXiExiEWsgTRGSc7XBr3T` (Build `0951198`).
+2. Disable `RIS_CV_STORAGE_ENABLED` to stop new CV BFF calls.
+3. Do not delete CV documents or consent history as part of rollback; use the
+   existing delete path.
+4. No ApplicationV1/Mays-Orders rollback is required.
 
 ## 9. Commits
 
 Jobsearch branch `feature/jm-ris-cv-storage-integration-01`:
 
-- `59964a3` — `feat(cv): add durable RIS CV storage`
-- report/audit commit in this branch.
+- `59964a3` — base CV storage implementation
+- `ec6f01f` — PDF-only CV uploads
+- `1449751` — list limit 50
+- `19372b7` — CV capacity aligned to 10
+- merged through PR #8 as `c3da077`
 
 RIS branch `feature/jm-ris-cv-storage-integration-01`:
 
-- `216e061` — `feat(cv): add cv-storage consent and browser CORS plan`
-- `1316647` — `test(consent): cover the separate cv-storage purpose`
-- `ce55f32` — `fix(cv): scope durable CV writes to the pilot identity`
-- `998144b` — approval packet
-- report/audit commit in this branch.
+- `216e061` — CV consent/CORS
+- `ce55f32` — pilot identity scoping
+- `edbf698` — notice approval/PDF-only
+- IAM `ConditionCheckItem` fix and diagnostic logging in the final local
+  incident commit; applied via the plans above.
 
-No push, merge, deployment, Terraform apply or AWS mutation.
+No general rollout or new consent version.

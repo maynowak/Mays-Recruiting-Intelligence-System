@@ -10729,3 +10729,21 @@ missing commit pointers:
   executed; no `PRODUCTION VERIFIED` claim.
 - Local non-deployed Jobsearch hotfix `1449751` (limit 50 + test) requires
   separate release approval.
+
+## 2026-11-08 — JM-RIS-CV-STORAGE-INTEGRATION-01 — production E2E verified
+
+**Typ:** Production E2E / IAM incident fix / Audit
+**Status:** `PRODUCTION E2E VERIFIED — OPERATOR PILOT ACTIVE`
+
+- Initial approved plan applied: 1 add S3 CORS, 1 change agent Lambda, 0
+  destroy; diagnostic Lambda plan and IAM-only fix plan applied; final state
+  serial 46. Final IAM change adds only `dynamodb:ConditionCheckItem` to the
+  partner-profile policy. Mays-Orders boundary unchanged; no new resources.
+- Production E2E with synthetic PDF: consent grant, upload/complete, browser
+  close/re-login, list, download hash match, ApplicationV1 cvReference,
+  withdrawal, write-block 403, read/download 200, delete 200 (delete marker,
+  `physicalPurge=false`), synthetic application delete, regrant. CV list and
+  application list both 0 after cleanup. Session mode remains functional.
+- No real applicant data, no general enablement, no new consent version.
+  Remaining open: full account erasure, final retention/physical purge, DPA
+  review. Report: `docs/reports/JM-RIS-CV-STORAGE-INTEGRATION-01-REPORT.md`.
