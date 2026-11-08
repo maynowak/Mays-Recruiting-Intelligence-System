@@ -110,9 +110,9 @@ NOTICE_REGISTRY: dict[str, dict[str, NoticeVersion]] = {
         "1.0": NoticeVersion(
             purpose="cv-storage",
             version="1.0",
-            state=NOTICE_DRAFT,
-            label="RIS cv-storage notice v1 (technical candidate, no legal approval)",
-            legal_approval_ref=None,
+            state=NOTICE_APPROVED,
+            label="RIS cv-storage notice v1 (operator-approved limited beta pilot)",
+            legal_approval_ref="JM-CV-STORAGE-V1-BETA-2026-11-08",
         ),
     },
 }
@@ -177,8 +177,8 @@ EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
     "cv-storage": {
         "cv-storage-consent-2026-11-08-v1": {
             "source": "mays-jobsearch",
-            "noticeState": NOTICE_DRAFT,
-            "noticeVersion": None,  # no equivalence until separately approved
+            "noticeState": NOTICE_APPROVED,
+            "noticeVersion": "1.0",
             "textSha256": (
                 "2fe65fd158a3a2953cf3869ff864aae626971012d68cfb8849db84e04579d036"
             ),

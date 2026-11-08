@@ -133,6 +133,24 @@ def test_cv_storage_rejects_application_art9_text():
         )
 
 
+def test_cv_notice_is_operator_approved_for_limited_pilot():
+    from jobsearch.consent_contract import (
+        NOTICE_APPROVED,
+        NOTICE_REGISTRY,
+        EXTERNAL_NOTICE_REFS,
+    )
+    notice = NOTICE_REGISTRY["cv-storage"]["1.0"]
+    assert notice.state == NOTICE_APPROVED
+    assert notice.legal_approval_ref == "JM-CV-STORAGE-V1-BETA-2026-11-08"
+    assert notice.approved is True
+    external = EXTERNAL_NOTICE_REFS["cv-storage"]["cv-storage-consent-2026-11-08-v1"]
+    assert external["noticeState"] == NOTICE_APPROVED
+    assert external["noticeVersion"] == "1.0"
+    assert external["textSha256"] == (
+        "2fe65fd158a3a2953cf3869ff864aae626971012d68cfb8849db84e04579d036"
+    )
+
+
 def test_cv_consent_terraform_wiring_defaults_off():
     variables = (ROOT / "terraform" / "variables.tf").read_text(encoding="utf-8")
     module_variables = (ROOT / "terraform" / "modules" / "lambda" / "variables.tf").read_text(

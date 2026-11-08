@@ -5602,8 +5602,11 @@ def _cv_upload_ticket(event, ctx, cv_id):
 
     data = _cv_body(event) or {}
     content_type = data.get('contentType') or existing.content_type
-    if content_type not in ALLOWED_CONTENT_TYPES:
-        return _cv_error(422, 'contentType is required and must be allowed')
+    # The approved CV consent covers PDF only. Do not widen the document
+    # allowlist to CV uploads even though the generic document endpoint allows
+    # other content types.
+    if content_type != 'application/pdf':
+        return _cv_error(422, 'contentType must be application/pdf')
 
     document_id = existing.document_id or new_doc_id()
     now = datetime.now(timezone.utc).isoformat()
