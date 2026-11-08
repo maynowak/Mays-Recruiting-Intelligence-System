@@ -133,7 +133,7 @@ npx vitest run \
 npm run build
 ```
 
-Result: **58 tests passed** and **production build passed** (`tsc -b && vite
+Result: **60 tests passed** and **production build passed** (`tsc -b && vite
 build`).
 
 Full Jobsearch suite: **1593 passed, 5 skipped, 9 failed**. The failures are in
@@ -168,8 +168,10 @@ unrelated CV-builder PDF timing; the new targeted suites are green.
 
 ## 8. Commit references
 
-- RIS: `fc32aad` — `feat(profiles): add search-profile consent purpose and write gate`
-- Jobsearch: `4811a23` — `feat(profiles): add persistent search-profile BFF and UI`
+- RIS gate: `fc32aad` — `feat(profiles): add search-profile consent purpose and write gate`
+- RIS final local head: `05492f9` (format/test/docs follow-ups; no apply)
+- Jobsearch BFF/UI: `4811a23` — `feat(profiles): add persistent search-profile BFF and UI`
+- Jobsearch final local head: `f9b1ae7` (edit support, routing tests, docs)
 - Jobsearch consent candidate: `b22a851` — `docs(profiles): add search-profile consent candidate`
 
 No push, merge, apply or deploy was performed.
