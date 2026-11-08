@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import base64
 import json
-from dataclasses import replace
+import logging
+import uuid
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Tuple
 
 from agents.ecosystem.privacy_erasure_contract import (
@@ -25,12 +27,16 @@ from agents.ecosystem.privacy_erasure_contract import (
     PROGRESS_COMPLETED,
     PROGRESS_PARTIAL,
     PROGRESS_RUNNING,
+    PROGRESS_SKIPPED,
     STATUS_COMPLETED,
     STATUS_FAILED,
     STATUS_PENDING,
     STATUS_PARTIAL,
     STATUS_RUNNING,
+    new_operation,
 )
+
+logger = logging.getLogger(__name__)
 
 
 PROFILE_CATEGORIES = (
@@ -229,6 +235,8 @@ class ProfileOnlyErasureExecutor:
                     attempt=checkpoint.attempt, updated_at=operation.updated_at)
                 return self._progress(operation, category,
                     status=PROGRESS_COMPLETED, affected=affected, checkpoint=checkpoint)
+            if next_cursor == cursor:
+                raise ProfileErasureError("pagination cursor did not advance")
             cursor = next_cursor
             checkpoint = ErasureCheckpointV1(
                 phase=category, state=CHECKPOINT_IN_PROGRESS,
@@ -505,5 +513,130 @@ class ProfileOnlyErasureExecutor:
             raise ProfileErasureError(str(exc)) from exc
 
 
+
+
+@dataclass(frozen=True)
+class SearchProfileErasureResult:
+    """Outcome of the account-erasure search-profile phase."""
+
+    ok: bool
+    deleted: int
+    counts: Dict[str, int]
+    error: Optional[str] = None
+
+
+class _TransientOperationRepository:
+    """Minimal checkpoint sink for one account-erasure invocation.
+
+    Account erasure is idempotent and re-lists remaining resources on retry.
+    A durable operation is intentionally not created here; the existing C1A
+    executor still performs the category ordering, pagination, identity
+    scoping and version-conditioned deletes.
+    """
+
+    def __init__(self, operation: ErasureOperationV1):
+        self.operation = operation
+
+    def save_checkpoint(self, _operation_id, category, progress, *,
+                        expected_version, context):
+        if expected_version != self.operation.version:
+            raise ProfileErasureConflict(CHECKPOINT_CONFLICT)
+        progress_map = dict(self.operation.progress)
+        progress_map[category] = progress
+        self.operation = replace(self.operation, progress=progress_map,
+                                 version=self.operation.version + 1)
+        return self.operation
+
+    def update(self, operation, *, expected_version, context):
+        if expected_version != self.operation.version:
+            raise ProfileErasureConflict(CHECKPOINT_CONFLICT)
+        self.operation = operation
+        return operation
+
+    def resume(self, _operation_id, *, context):
+        self.operation = replace(self.operation, status=STATUS_RUNNING,
+                                 version=self.operation.version + 1)
+        return self.operation
+
+
+class AccountSearchProfileErasure:
+    """Delete the three persisted partner profile categories for one identity.
+
+    Reuses ``ProfileOnlyErasureExecutor`` (R08-C1A) rather than introducing a
+    second deletion engine. The executor deletes ATS profiles first, then CV
+    search profiles, then manual profiles. CVDocument/S3 and user-profile
+    phases remain owned by ``PrivacyErasure``; this adapter only reports the
+    three search-profile categories.
+    """
+
+    def __init__(self, profile_repository: Any, *, page_size: int = 50):
+        if not isinstance(page_size, int) or isinstance(page_size, bool) or page_size < 1:
+            raise ValueError("page_size must be positive")
+        self.profiles = profile_repository
+        self.page_size = page_size
+
+    @staticmethod
+    def _identity(user_id: str, tenant_id: str,
+                  partner_application_id: str, issuer: str) -> bool:
+        return all(isinstance(value, str) and value.strip()
+                   for value in (user_id, tenant_id,
+                                 partner_application_id, issuer))
+
+    def erase(self, *, user_id: str, tenant_id: str,
+              partner_application_id: str,
+              issuer: str) -> SearchProfileErasureResult:
+        empty = {"atsSearchProfiles": 0, "cvSearchProfiles": 0,
+                 "manualSearchProfiles": 0}
+        if not self._identity(user_id, tenant_id, partner_application_id,
+                               issuer):
+            return SearchProfileErasureResult(
+                False, 0, empty, "SEARCH_PROFILE_IDENTITY_CONTEXT_REQUIRED")
+        if getattr(self.profiles, "table", object()) is None:
+            return SearchProfileErasureResult(
+                False, 0, empty, "SEARCH_PROFILE_STORAGE_UNAVAILABLE")
+        operation_id = "acct-" + uuid.uuid4().hex
+        operation = new_operation(
+            operation_id=operation_id,
+            idempotency_key=operation_id,
+            user_id=user_id, tenant_id=tenant_id,
+            partner_application_id=partner_application_id,
+            issuer=issuer, scope=OPERATION_SCOPE_USER)
+        operation = replace(operation, status=STATUS_RUNNING)
+        context = ErasureExecutionContextV1(
+            operation_id=operation_id, user_id=user_id,
+            tenant_id=tenant_id,
+            partner_application_id=partner_application_id,
+            issuer=issuer, scope=OPERATION_SCOPE_USER,
+            operation_version=operation.version, freeze_version=1)
+        store = _TransientOperationRepository(operation)
+        executor = ProfileOnlyErasureExecutor(
+            profile_repository=self.profiles,
+            operation_repository=store,
+            page_size=self.page_size)
+        error = None
+        try:
+            executor.run(operation, context)
+        except ProfileErasureConflict:
+            error = CONCURRENT_MUTATION
+        except Exception as exc:
+            logger.error("account search-profile erasure failed: %s",
+                         type(exc).__name__)
+            error = "SEARCH_PROFILE_ERASURE_FAILED"
+        final = store.operation
+        counts = {
+            name: final.progress.get(name, ErasureProgressV1()).affected
+            for name in empty
+        }
+        deleted = sum(counts.values())
+        ok = error is None and all(
+            final.progress.get(name, ErasureProgressV1()).status
+            in (PROGRESS_COMPLETED, PROGRESS_SKIPPED)
+            for name in empty)
+        if not ok and error is None:
+            error = "SEARCH_PROFILE_ERASURE_PENDING"
+        return SearchProfileErasureResult(ok, deleted, counts, error)
+
+
 __all__ = ["ProfileOnlyErasureExecutor", "ProfileErasureError",
-           "ProfileErasureConflict", "ProfileErasureBlocked", "DOCUMENT_PENDING"]
+           "ProfileErasureConflict", "ProfileErasureBlocked", "DOCUMENT_PENDING",
+           "AccountSearchProfileErasure", "SearchProfileErasureResult"]

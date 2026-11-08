@@ -6,6 +6,7 @@ Guards the minimal, state-compatible fixes:
 - no global ignore or boundary weakening is introduced.
 """
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,5 +41,9 @@ def test_orders_boundary_is_explicit_and_optional():
 
 def test_no_global_gate_changes_in_reconciliation():
     main = read("modules/lambda/main.tf")
-    assert 'APPLICATION_CONSENT_ENFORCED  = var.application_consent_enforced ? "true" : "false"' in main
-    assert 'CONSENT_NOTICE_STATE_ENFORCED = var.consent_notice_state_enforced ? "true" : "false"' in main
+    assert re.search(
+        r'APPLICATION_CONSENT_ENFORCED\s*=\s*var\.application_consent_enforced\s*\?\s*"true"\s*:\s*"false"',
+        main)
+    assert re.search(
+        r'CONSENT_NOTICE_STATE_ENFORCED\s*=\s*var\.consent_notice_state_enforced\s*\?\s*"true"\s*:\s*"false"',
+        main)

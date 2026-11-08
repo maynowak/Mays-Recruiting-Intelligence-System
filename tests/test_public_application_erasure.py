@@ -30,7 +30,8 @@ def _event():
 
 def test_public_erasure_constructs_application_executor(monkeypatch):
     for name in ("CREDENTIALS_TABLE", "API_PROFILES_TABLE", "WORK_ITEMS_TABLE",
-                 "USER_PROFILE_TABLE", "APPLICATIONS_TABLE"):
+                 "USER_PROFILE_TABLE", "APPLICATIONS_TABLE",
+                 "PARTNER_PROFILE_TABLE"):
         monkeypatch.setenv(name, name.lower())
     monkeypatch.setattr(handler, "_get_dynamodb", lambda: _Ddb())
     captured = {}
@@ -51,7 +52,7 @@ def test_public_erasure_constructs_application_executor(monkeypatch):
         def __init__(self, **kwargs):
             captured.update(kwargs)
 
-        def erase(self, user_id, tenant_id=None):
+        def erase(self, user_id, tenant_id=None, **kwargs):
             return SimpleNamespace(complete=True, to_dict=lambda: {
                 "userId": user_id, "tenantId": tenant_id, "complete": True,
                 "steps": []})
