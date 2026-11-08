@@ -5236,6 +5236,14 @@ def _cv_storage_consent_enforced() -> bool:
 
 
 def _cv_storage_consent_error(ctx):
+    # The pilot is scoped to the existing confirmed operator identity set.
+    # An empty allowlist keeps local/development behavior unchanged; a
+    # configured allowlist is an additional server-side access boundary.
+    if _consent_pilot_identities() and not _is_consent_pilot_identity(
+            ctx.get('issuer'), ctx.get('userId')):
+        return _cv_error(
+            403, 'CV storage is restricted to the pilot identity',
+            code='CV_STORAGE_PILOT_NOT_ALLOWED')
     if not _cv_storage_consent_enforced():
         return None
     from jobsearch.consent_contract import ConsentContext

@@ -67,6 +67,35 @@ def test_cv_gate_fails_closed_when_store_is_unavailable(monkeypatch):
     assert response is not None and response["statusCode"] == 403
 
 
+def test_cv_gate_restricts_writes_to_the_pilot_identity(monkeypatch):
+    monkeypatch.setenv(
+        "CONSENT_PILOT_ALLOWLIST",
+        "https://issuer.example|user-1",
+    )
+    monkeypatch.setenv("CV_STORAGE_CONSENT_ENFORCED", "true")
+    monkeypatch.setattr(handler, "_consent_repo", lambda: _Repo(True))
+    assert handler._cv_storage_consent_error(CTX) is None
+
+    other = dict(CTX, userId="user-2")
+    response = handler._cv_storage_consent_error(other)
+    assert response is not None
+    assert response["statusCode"] == 403
+    assert "CV_STORAGE_PILOT_NOT_ALLOWED" in response["body"]
+
+
+def test_cv_gate_rejects_non_pilot_even_without_global_gate(monkeypatch):
+    monkeypatch.setenv(
+        "CONSENT_PILOT_ALLOWLIST",
+        "https://issuer.example|user-1",
+    )
+    monkeypatch.delenv("CV_STORAGE_CONSENT_ENFORCED", raising=False)
+    monkeypatch.setattr(handler, "_consent_repo", lambda: _Repo(True))
+    response = handler._cv_storage_consent_error(dict(CTX, userId="user-2"))
+    assert response is not None
+    assert response["statusCode"] == 403
+    assert "CV_STORAGE_PILOT_NOT_ALLOWED" in response["body"]
+
+
 def test_cv_gate_is_separate_from_application_consent():
     source = (ROOT / "lambda" / "handler.py").read_text(encoding="utf-8")
     assert "CV_STORAGE_CONSENT_ENFORCED" in source
