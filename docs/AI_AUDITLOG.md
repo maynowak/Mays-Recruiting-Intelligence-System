@@ -10932,3 +10932,25 @@ missing commit pointers:
   full 2551 PASS, 17 skipped, 16 pre-existing unrelated failures; terraform
   validate/fmt PASS.
 - No apply, push, merge or deployment. GO is readiness only.
+
+## 2026-11-08 — RIS-ACCOUNT-ERASURE-SEARCH-PROFILES-03
+
+**Typ:** Controlled deployment / Post-deploy verification
+**Status:** `DEPLOYED / POST-DEPLOY VERIFIED`
+
+- Applied exactly `/tmp/opencode/ris-dev-account-erasure-02.tfplan`
+  SHA-256 `277c3206809309acbdc5fdcd4b2c91d4d8344851c2cc320f298fed475d3dbcba`;
+  0 add / 1 change / 0 destroy / 0 replace.
+- State serial 49 → **50**; lineage unchanged; 250 resources.
+- Lambda `ris-dev-dev-agent` Active, code
+  `j6eiYk09A8cF9idJBqklzGFaSafDMq+Bsara634PzUI=` →
+  `/oB1onGisdIHu9/J1RMp80Ti7t8ooGl28yiLRD6BLIE=`.
+- Environment unchanged; erasure flags remain disabled/unchanged as listed in
+  the report. `PARTNER_PROFILE_TABLE` present; IAM partner-table delete/
+  transact permissions verified; table active.
+- Non-destructive smoke: protected health/consent routes return 401 without
+  token, no 5xx; no delete/erasure/CV/application operation executed.
+- State diff only the agent Lambda; Cognito, CloudFront, Route53, ACM, Orders,
+  API Gateway, S3, DynamoDB and Partner Edge unchanged.
+- No push, merge, rollback or additional Terraform change. Jobsearch erasure UI
+  remains unwired; full S3/document/PITR erasure not claimed.
