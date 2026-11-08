@@ -25,6 +25,15 @@ from jobsearch.consent_contract import (  # noqa: E402
     NOTICE_DRAFT,
     NOTICE_REGISTRY,
 )
+try:
+    import boto3
+    from moto import mock_aws
+    from jobsearch.consent_contract import ConsentContext
+    from jobsearch.consent_repository import ConsentRepository
+except ImportError:  # pragma: no cover
+    boto3 = None
+    mock_aws = lambda fn: fn
+
 from tests.test_partner_ats_profiles_api import AtsHarness  # noqa: E402
 from tests.test_partner_cv_search_profiles_api import CvSpHarness  # noqa: E402
 from tests.test_partner_manual_profiles_api import Harness  # noqa: E402
@@ -125,3 +134,79 @@ class TestTerraformWiring:
             assert "default     = false" in source
         assert "SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED" in module
         assert "search_profile_storage_consent_enforced" in root
+
+
+class _LifecycleRepo:
+    """Synthetic grant/withdraw/regrant state for the gate test."""
+
+    def __init__(self):
+        self.status = "NOT_GRANTED"
+
+    def grant(self):
+        self.status = "GRANTED"
+
+    def withdraw(self):
+        self.status = "WITHDRAWN"
+
+    def has_consent(self, ctx, purpose):
+        assert purpose == "search-profile-storage"
+        return self.status == "GRANTED"
+
+
+class TestGrantWithdrawRegrant:
+    def test_writes_are_blocked_after_withdrawal_and_allowed_again_after_regrant(self, monkeypatch):
+        monkeypatch.setenv("SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED", "true")
+        repo = _LifecycleRepo()
+        monkeypatch.setattr(handler, "_consent_repo", lambda: repo)
+
+        repo.grant()
+        assert handler._search_profile_storage_consent_error(
+            {"userId": "u1", "tenantId": "t1", "partnerApplicationId": "p1",
+             "issuer": "https://issuer"}
+        ) is None
+
+        repo.withdraw()
+        denied = handler._search_profile_storage_consent_error(
+            {"userId": "u1", "tenantId": "t1", "partnerApplicationId": "p1",
+             "issuer": "https://issuer"}
+        )
+        assert denied is not None and denied["statusCode"] == 403
+        assert "SEARCH_PROFILE_STORAGE_CONSENT_REQUIRED" in denied["body"]
+
+        repo.grant()
+        assert handler._search_profile_storage_consent_error(
+            {"userId": "u1", "tenantId": "t1", "partnerApplicationId": "p1",
+             "issuer": "https://issuer"}
+        ) is None
+
+
+class TestDraftConsentLifecycle:
+    def test_grant_withdraw_regrant_with_the_draft_notice(self):
+        if not boto3:
+            import pytest
+            pytest.skip("boto3/moto unavailable")
+        with mock_aws():
+            db = boto3.resource("dynamodb", region_name="eu-central-1")
+            db.create_table(
+                TableName="consents",
+                KeySchema=[{"AttributeName": "scopeKey", "KeyType": "HASH"},
+                           {"AttributeName": "entityKey", "KeyType": "RANGE"}],
+                AttributeDefinitions=[
+                    {"AttributeName": "scopeKey", "AttributeType": "S"},
+                    {"AttributeName": "entityKey", "AttributeType": "S"},
+                ],
+                BillingMode="PAY_PER_REQUEST",
+            )
+            repo = ConsentRepository("consents", db)
+            ctx = ConsentContext("u1", "t1", "p1", "https://issuer")
+            with patch.dict(os.environ, {"CONSENT_NOTICE_STATE_ENFORCED": "false"}):
+                granted = repo.grant(ctx, "search-profile-storage", "1.0")
+                assert granted["status"] == "GRANTED"
+                assert granted["noticeState"] == NOTICE_DRAFT
+                assert repo.has_consent(ctx, "search-profile-storage") is True
+                withdrawn = repo.withdraw(ctx, "search-profile-storage")
+                assert withdrawn["status"] == "WITHDRAWN"
+                assert repo.has_consent(ctx, "search-profile-storage") is False
+                regranted = repo.grant(ctx, "search-profile-storage", "1.0")
+                assert regranted["status"] == "GRANTED"
+                assert repo.has_consent(ctx, "search-profile-storage") is True
