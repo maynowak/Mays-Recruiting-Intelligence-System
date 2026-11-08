@@ -10493,3 +10493,13 @@ Aenderung, keine Live-Persistenz- oder Freigabe-Behauptung.
   Aenderung, kein Plan/Apply/Deploy/Push, keine Live-Persistenz-Behauptung.
   Verbleibender Blocker: Operator-/Legal-Freigabe inkl. finaler Art.-9-Pruefung
   und echtem `legalApprovalRef`.
+
+## 2026-11-08 — JM-RIS-STORAGE-ONE-SHOT-05 — RIS-DEV plan STOP
+
+**Status:** `BLOCKED BEFORE APPLY — PLAN CONTAINS OUT-OF-SCOPE CHANGES`
+
+- Saved plan SHA-256 `392d107478a391fe02a4527a28581cf115a8acfa2a71ce34b322b3260087393a`; state serial 42/lineage `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`; Terraform 1.16.1.
+- Expected agent Lambda update; unexpected health/reader filename updates, SQS queue policy delete, Orders worker IAM permissions-boundary removal. STOP before apply.
+- No Cognito/CloudFront/DNS/ACM/DynamoDB/API-route changes in plan; protected resources unchanged in plan.
+- Consent v4 `application-storage-consent-2026-11-07-v4` / `8722aed9...` remains DRAFT/no legalApprovalRef; no apply/deploy/push/live persistence.
+- Report: `docs/reports/JM-RIS-STORAGE-ONE-SHOT-05-PLAN-STOP.md`.
