@@ -171,6 +171,7 @@ module "lambda" {
   applications_cursor_secret_arn      = var.applications_cursor_secret_arn
   partner_surface_enabled             = var.partner_surface_enabled
   application_consent_enforced        = var.application_consent_enforced
+  cv_storage_consent_enforced         = var.cv_storage_consent_enforced
   consent_notice_state_enforced       = var.consent_notice_state_enforced
   consent_pilot_allowlist             = var.consent_pilot_allowlist
   applications_gsi_owner_arn          = module.dynamodb.applications_gsi_owner_arn

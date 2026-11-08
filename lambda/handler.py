@@ -5223,12 +5223,51 @@ def _cv_get_owned(ctx, cv_id):
     return repo, (cv if isinstance(cv, CVDocument) else None)
 
 
+def _cv_storage_consent_enforced() -> bool:
+    """Rollout switch for the separate durable-CV storage consent gate.
+
+    Default is off for local/synthetic work. When enabled, new CV writes
+    (create, upload, complete, update) fail closed without a GRANTED
+    ``cv-storage`` consent. Reads, downloads and deletion stay available so a
+    withdrawal never traps the user's existing data.
+    """
+    return os.environ.get(
+        "CV_STORAGE_CONSENT_ENFORCED", "false").strip().lower() == "true"
+
+
+def _cv_storage_consent_error(ctx):
+    if not _cv_storage_consent_enforced():
+        return None
+    from jobsearch.consent_contract import ConsentContext
+    consent_ctx = ConsentContext(
+        user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+        partner_application_id=ctx.get('partnerApplicationId'),
+        issuer=ctx.get('issuer'))
+    try:
+        allowed = _consent_repo().has_consent(consent_ctx, 'cv-storage')
+    except Exception:
+        logger.exception('cv storage consent check failed')
+        allowed = False
+    if allowed:
+        return None
+    return _cv_error(
+        403, 'CV storage consent required', code='CV_STORAGE_CONSENT_REQUIRED')
+
+
 def _handle_partner_cv_routes(event, context, method, path):
     ctx, error = _partner_profile_context(event)
     if error:
         return error
     rest = path[len(_CV_COLLECTION):].strip('/')
     parts = [p for p in rest.split('/') if p]
+    # Search-profile writes are a separate profile domain. The CV document
+    # lifecycle (create/upload/complete/update) is gated by cv-storage; delete,
+    # list and download remain available after withdrawal.
+    if method in {'POST', 'PATCH'} and not (
+            len(parts) >= 2 and parts[1] == 'search-profiles'):
+        denied = _cv_storage_consent_error(ctx)
+        if denied:
+            return denied
     if len(parts) >= 2 and parts[1] == 'search-profiles':
         cv_id = parts[0]
         if len(parts) == 2:

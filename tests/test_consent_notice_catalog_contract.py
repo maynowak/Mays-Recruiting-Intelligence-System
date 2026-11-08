@@ -137,7 +137,7 @@ class CatalogShapeTests(unittest.TestCase):
         self.assertEqual([PURPOSE],
                          [i["purpose"] for i in single["items"]])
         self.assertEqual(
-            sorted([PURPOSE, OTHER_PURPOSE]),
+            sorted([PURPOSE, "cv-storage", OTHER_PURPOSE]),
             sorted([e["purpose"] for e in everything["catalog"]]))
 
     def test_unknown_purpose_fails_closed_instead_of_returning_an_empty_catalog(self):

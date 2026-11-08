@@ -2318,7 +2318,7 @@ paths:
         - name: purpose
           in: query
           required: false
-          schema: { type: string, enum: [application-storage] }
+          schema: { type: string, enum: [application-storage, cv-storage] }
       responses:
         "200":
           description: Current status, catalog and external refs
@@ -2407,7 +2407,7 @@ paths:
         - name: purpose
           in: query
           required: true
-          schema: { type: string, enum: [application-storage] }
+          schema: { type: string, enum: [application-storage, cv-storage] }
         - name: limit
           in: query
           required: false
@@ -2592,7 +2592,7 @@ components:
       type: object
       required: [purpose, noticeVersion]
       properties:
-        purpose: { type: string, enum: [application-storage] }
+        purpose: { type: string, enum: [application-storage, cv-storage] }
         noticeVersion: { type: string, enum: ["1.0"] }
         specialCategoriesConsent:
           type: boolean
@@ -2626,7 +2626,7 @@ components:
           required: [schemaVersion, purpose, status, noticeVersion, version]
           properties:
             schemaVersion: { type: integer, enum: [1] }
-            purpose: { type: string, enum: [application-storage] }
+            purpose: { type: string, enum: [application-storage, cv-storage] }
             status: { type: string, enum: [NOT_GRANTED, GRANTED, WITHDRAWN] }
             noticeVersion: { type: string, nullable: true }
             noticeState: { type: string, nullable: true }
@@ -2643,7 +2643,7 @@ components:
           required: [eventId, purpose, event, status, occurredAt]
           properties:
             eventId: { type: string }
-            purpose: { type: string, enum: [application-storage] }
+            purpose: { type: string, enum: [application-storage, cv-storage] }
             event: { type: string, enum: [GRANTED, WITHDRAWN, REGRANTED] }
             status: { type: string, enum: [GRANTED, WITHDRAWN] }
             noticeVersion: { type: string, nullable: true }

@@ -1,7 +1,7 @@
 # Partner Consent V1 — API-Vertrag (Handoff für Mays-Jobsearch)
 
 **Status:** implementiert, lokal verifiziert, **nicht deployt**;
-Notice `application-storage/1.0` `APPROVED` für den begrenzten Beta-Pilot
+Notice `application-storage/1.0` `APPROVED` für den begrenzten Beta-Pilot; separater `cv-storage/1.0` ist nur technischer DRAFT-Kandidat.
 (`JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`), kein allgemeiner Rollout
 **Gilt für:** `mays-jobsearch` und weitere Partner
 **Basis:** RIS-Partner-Gateway (`c7e9pdwe78`) bzw. Kernel-API, gleiche Lambda
@@ -91,7 +91,7 @@ GET /v1/partner/me/consents?purpose=application-storage
 { "items": [ { "purpose": "application-storage", "status": "GRANTED", "noticeVersion": "1.0", "grantedAt": "…", "withdrawnAt": null, "version": 1, "schemaVersion": 1 } ] }
 ```
 
-Ohne `purpose` werden alle bekannten Zwecke geliefert (aktuell nur `application-storage`).
+Ohne `purpose` werden alle bekannten Zwecke geliefert (`application-storage`, `cv-storage`).
 
 ---
 
@@ -129,6 +129,7 @@ Ereignisse: `GRANTED`, `WITHDRAWN`, `REGRANTED`. Append-only, neueste zuerst.
 | Purpose | Bekannte `noticeVersion` | Lifecycle-State | Rechtliche Freigabe |
 |---|---|---|---|
 | `application-storage` | `1.0` | `APPROVED` | `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08` (limited beta pilot, 2026-11-08) |
+| `cv-storage` | `1.0` | `DRAFT` | — (technical candidate; no production approval) |
 
 Die Freigabe gilt **nur** für den begrenzten ApplicationV1-Beta-Pilot, nicht für
 einen allgemeinen Rollout. Eine frei erfundene Version wird mit

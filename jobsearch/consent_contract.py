@@ -35,6 +35,10 @@ SCHEMA_VERSION = 1
 #: :func:`notice_state_enforced`).
 CONSENT_PURPOSES = {
     "application-storage": frozenset({"1.0"}),
+    # Separate purpose: durable CV-PDF storage is not covered by the
+    # ApplicationV1 consent. The notice is a technical candidate until the
+    # operator/legal approval is recorded.
+    "cv-storage": frozenset({"1.0"}),
 }
 
 # --- notice version lifecycle -------------------------------------------
@@ -102,6 +106,15 @@ NOTICE_REGISTRY: dict[str, dict[str, NoticeVersion]] = {
             legal_approval_ref="JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08",
         ),
     },
+    "cv-storage": {
+        "1.0": NoticeVersion(
+            purpose="cv-storage",
+            version="1.0",
+            state=NOTICE_DRAFT,
+            label="RIS cv-storage notice v1 (technical candidate, no legal approval)",
+            legal_approval_ref=None,
+        ),
+    },
 }
 
 #: Partner-side identifiers that are *known* to RIS. Historical refs stay
@@ -161,6 +174,16 @@ EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
             "supersededBy": "application-storage-consent-2026-11-07-v3",
         },
     },
+    "cv-storage": {
+        "cv-storage-consent-2026-11-08-v1": {
+            "source": "mays-jobsearch",
+            "noticeState": NOTICE_DRAFT,
+            "noticeVersion": None,  # no equivalence until separately approved
+            "textSha256": (
+                "2fe65fd158a3a2953cf3869ff864aae626971012d68cfb8849db84e04579d036"
+            ),
+        },
+    },
 }
 
 STATUS_NOT_GRANTED = "NOT_GRANTED"
@@ -194,6 +217,15 @@ ART9_EXTERNAL_TEXT_VERSION = "application-storage-consent-2026-11-07-v4"
 ART9_EXTERNAL_TEXT_SHA256 = (
     "8722aed9fa78e5ee49c2b5e5a031bfd53a7109bf625dfb0e0c99743fd82443c7"
 )
+#: Purpose-specific Art. 9-capable external texts. Keeping the current
+#: ApplicationV1 constants above preserves the existing contract while the
+#: separate CV-storage purpose gets its own approved text identity.
+ART9_EXTERNAL_TEXTS: dict[tuple[str, str], str] = {
+    ("application-storage", ART9_EXTERNAL_TEXT_VERSION): ART9_EXTERNAL_TEXT_SHA256,
+    ("cv-storage", "cv-storage-consent-2026-11-08-v1"): (
+        "2fe65fd158a3a2953cf3869ff864aae626971012d68cfb8849db84e04579d036"
+    ),
+}
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -364,15 +396,21 @@ def validate_consent_proof(
                 "and SHA-256")
         version, digest = validate_external_text(
             purpose, external_text_version, external_text_sha256)
-        if version != ART9_EXTERNAL_TEXT_VERSION:
+        expected_hash = ART9_EXTERNAL_TEXTS.get((purpose, version))
+        if (expected_hash is None and purpose == "application-storage"
+                and version == ART9_EXTERNAL_TEXT_VERSION):
+            # Preserve the existing, patchable ApplicationV1 constants for
+            # compatibility with the historical contract tests.
+            expected_hash = ART9_EXTERNAL_TEXT_SHA256
+        if expected_hash is None:
             raise ConsentContractError(
                 "EXTERNAL_TEXT_NOT_ART9",
-                "only the current Art. 9-capable text may carry "
+                "only a purpose-specific Art. 9-capable text may carry "
                 "special-category consent")
-        if digest != ART9_EXTERNAL_TEXT_SHA256:
+        if digest != expected_hash:
             raise ConsentContractError(
                 "EXTERNAL_TEXT_NOT_ART9",
-                "the external text hash is not the current Art. 9 text")
+                "the external text hash is not the purpose Art. 9 text")
         return consent, categories, version, digest
     version, digest = validate_external_text(
         purpose, external_text_version, external_text_sha256)

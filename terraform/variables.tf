@@ -359,6 +359,12 @@ variable "application_consent_enforced" {
   default     = false
 }
 
+variable "cv_storage_consent_enforced" {
+  description = "Enforce cv-storage consent on durable CV create/upload/update writes. Reads, downloads and deletion stay available. Default false until explicitly enabled for the CV pilot."
+  type        = bool
+  default     = false
+}
+
 variable "consent_notice_state_enforced" {
   description = "Reject new consent grants for non-grantable notice states (DRAFT/SUPERSEDED) in the Lambda runtime (Default AUS; separate activation gate)."
   type        = bool

@@ -128,6 +128,12 @@ variable "application_consent_enforced" {
   default     = false
 }
 
+variable "cv_storage_consent_enforced" {
+  description = "Enforce cv-storage consent on durable CV create/upload/update writes. Default false until the CV storage notice is approved and explicitly enabled."
+  type        = bool
+  default     = false
+}
+
 variable "consent_notice_state_enforced" {
   description = "Enforce the consent notice lifecycle state for new grants (DRAFT/SUPERSEDED rejected). Default false; enable only after the notice is legally approved."
   type        = bool
