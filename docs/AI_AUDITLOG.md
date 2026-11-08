@@ -10766,3 +10766,16 @@ missing commit pointers:
 - Tests: 169 passed across consent, gate, manual/CV/ATS profile and Terraform
   wiring suites.
 - No apply, deploy, activation or real user data.
+
+## 2026-11-08 — Search-profile storage integration evidence
+
+**Typ:** Cross-repo integration / Verification
+**Status:** `IMPLEMENTED / VERIFIED LOCAL / READY FOR DEPLOYMENT REVIEW`
+
+- RIS gate + DRAFT notice committed as `fc32aad`.
+- Jobsearch BFF/adapters/UI committed as `4811a23`; consent candidate
+  `b22a851`.
+- Report: `docs/reports/SEARCH-PROFILE-STORAGE-01-REPORT.md`.
+- RIS targeted verification: 208 passed. Jobsearch targeted verification:
+  58 passed; production build passed.
+- No push, merge, AWS apply or Vercel deployment; no real-user activation.
