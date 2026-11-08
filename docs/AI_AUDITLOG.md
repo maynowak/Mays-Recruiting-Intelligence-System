@@ -10683,3 +10683,27 @@ missing commit pointers:
   explicit text approval, the RIS notice will be set APPROVED with the real
   `legalApprovalRef`; the final activation plan with `CV_STORAGE_CONSENT_ENFORCED=true`
   will then be generated and reviewed. No apply, push, merge or deployment.
+
+## 2026-11-08 — JM-RIS-CV-STORAGE-INTEGRATION-01 — approval / final activation plan
+
+**Typ:** Release approval / Notice lifecycle / Final plan / Audit
+**Status:** `CV NOTICE APPROVED — FINAL PLAN READY — NO APPLY`
+
+- Operator approval recorded: `cv-storage-consent-2026-11-08-v1`, SHA-256
+  `2fe65fd158a3a2953cf3869ff864aae626971012d68cfb8849db84e04579d036`,
+  notice `cv-storage/1.0` `APPROVED`, date 2026-11-08, body
+  `Betreiberin May's Job Matcher`, `legalApprovalRef=JM-CV-STORAGE-V1-BETA-2026-11-08`.
+  External notice ref now maps to `1.0`.
+- CV storage accepts PDF only: RIS upload ticket rejects non-PDF types;
+  create/update/complete already enforced PDF; general document allowlist
+  unchanged. BFF rejects non-PDF upload tickets.
+- `installer/project-configs/ris-dev.json` now carries
+  `cv_storage_consent_enforced=true` for the pilot. Gate remains scoped by
+  `CONSENT_PILOT_ALLOWLIST`; list/get/download/delete remain available.
+- Final plan `/tmp/opencode/ris-cv-storage-01-final.tfplan`, SHA-256
+  `cd099de482abe851b1bad1a3defa5c3d4ac93811e06a73df1174e4431beac3a3`,
+  state serial 43: 1 add (S3 CORS), 1 change (agent Lambda code +
+  `CV_STORAGE_CONSENT_ENFORCED=true`), 0 destroy. Explicit Mays-Orders
+  boundary NO-OP; ApplicationV1 unchanged.
+- No apply, push, merge or deployment. Report:
+  `docs/reports/JM-RIS-CV-STORAGE-INTEGRATION-01-REPORT.md`.

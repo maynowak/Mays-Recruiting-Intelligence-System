@@ -4,9 +4,9 @@
 
 `LOCAL IMPLEMENTED — TESTS GREEN — NOT DEPLOYED`
 
-`PRODUCTION E2E NOT EXECUTED — CV NOTICE DRAFT / CORS PLAN + APPLY + RELEASE APPROVAL REQUIRED`
+`CV TEXT OPERATOR-APPROVED — FINAL PLAN READY FOR APPLY/DEPLOY GO`
 
-`RELEASE PREPARATION — AWAITING OPERATOR APPROVAL OF THE EXACT CV CONSENT TEXT`
+`PRODUCTION E2E NOT EXECUTED — APPLY/DEPLOY/RELEASE NOT YET AUTHORIZED`
 
 The existing encrypted RIS document store and the existing partner CV
 document routes were reused. No new storage architecture, no Terraform apply,
@@ -55,14 +55,14 @@ user enablement were performed.
 | Application selection | ApplicationV1 document tab offers `Dauerhaft gespeicherte Lebensläufe` and stores `{cvId, documentId, label, cvSource:"uploaded"}`. |
 | Delete | RIS DELETE (versioned bucket; delete marker, no physical purge claim) and UI confirmation. |
 | Session mode | Existing session CV upload/process flow remains available and is the default. |
-| Separate consent | New `cv-storage` purpose and separate `cv-storage/1.0` notice candidate; not coupled to ApplicationV1 consent. |
+| Separate consent | New `cv-storage` purpose and `cv-storage/1.0` notice APPROVED for the limited beta pilot; not coupled to ApplicationV1 consent. |
 | CV / builder separation | Builder profiles remain separate; persistent PDFs are labelled as stored documents, not editable builder profiles. |
 
 ## 3. RIS changes
 
 - `jobsearch/consent_contract.py`
-  - Added `cv-storage` purpose and `cv-storage/1.0` notice `DRAFT` with no
-    legal approval reference.
+  - Added `cv-storage` purpose and `cv-storage/1.0` notice `APPROVED` with
+    `legalApprovalRef=JM-CV-STORAGE-V1-BETA-2026-11-08` (limited beta pilot).
   - Added external text ref `cv-storage-consent-2026-11-08-v1`, SHA-256
     `2fe65fd158a3a2953cf3869ff864aae626971012d68cfb8849db84e04579d036`.
   - Added purpose-specific Art. 9 text mapping; ApplicationV1 v4 remains the
@@ -81,7 +81,7 @@ user enablement were performed.
   - Added private-bucket S3 CORS for the exact production origin
     `https://www.mays-job-matcher.app`, methods PUT/GET/HEAD, `ETag` exposure,
     max age 900s. No public bucket access, no policy widening.
-- OpenAPI/contract docs updated with the second purpose and DRAFT notice.
+- OpenAPI/contract docs updated with the second purpose and approved limited-pilot notice.
 
 ## 4. Jobsearch changes
 
@@ -138,14 +138,14 @@ Focused CV/consent/API tests:
 
 ### Terraform plan (read-only)
 
-- Pre-approval technical plan:
-  `/tmp/opencode/ris-cv-storage-01-preapproval.tfplan`
-- SHA-256: `5986eadd20e6a4c93a9016a889cec73abd40727da0fd6c0c3a53965c62c145e0`
+- Final activation plan:
+  `/tmp/opencode/ris-cv-storage-01-final.tfplan`
+- SHA-256: `cd099de482abe851b1bad1a3defa5c3d4ac93811e06a73df1174e4431beac3a3`
 - State serial `43`, lineage `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`
-- Changes: **1 to add (documents S3 CORS), 1 to change (agent Lambda code +
-  `CV_STORAGE_CONSENT_ENFORCED=false`), 0 to destroy**. This is not the final
-  activation plan; the final plan will set the actual CV gate to `true` after
-  text approval and will be regenerated with its own SHA-256.
+- Changes: **1 add (documents S3 CORS), 1 change (agent Lambda code +
+  `CV_STORAGE_CONSENT_ENFORCED=true`), 0 destroy**.
+- Explicit Mays-Orders boundary ARN: NO-OP. Pre-approval plan
+  `5986eadd…` is superseded.
 - With explicit `mays_orders_lambda_execution_boundary`, the Mays-Orders worker
   boundary is NO-OP. Without it, the plan shows an out-of-scope boundary
   removal and must not be applied.
@@ -160,21 +160,19 @@ and notice approval remain pending.
 
 ## 7. Blockers before production
 
-1. **CV consent notice is DRAFT** (`cv-storage/1.0`, no
-   `legalApprovalRef`). The BFF correctly refuses grants until the notice is
-   approved/active and the CV text mapping is configured as `APPROVED`.
-2. **CORS plan/apply** is required for browser presigned PUT. Current clean
-   plan has 1 add / 1 change / 0 delete; apply is not approved.
-3. RIS Lambda deploy of the consent/CV gate and Jobsearch BFF deployment are
+1. **CORS plan/apply** is required for browser presigned PUT. Final plan has
+   1 add / 1 change / 0 delete; apply is not authorized.
+2. RIS Lambda deploy of the consent/CV gate and Jobsearch BFF deployment are
    required; neither was performed.
-4. Jobsearch production env must include only after approval:
+3. Jobsearch production env must include only after the apply/deploy GO:
    `RIS_CV_STORAGE_ENABLED=true`,
    `RIS_CV_CONSENT_NOTICE_VERSION=1.0`,
    `RIS_CV_CONSENT_TEXT_VERSION=cv-storage-consent-2026-11-08-v1`,
    `RIS_CV_CONSENT_TEXT_SHA256=2fe65fd1…d036`,
    `RIS_CV_CONSENT_TEXT_STATE=APPROVED`, `VITE_RIS_CV_STORAGE_ENABLED=true`.
-5. RIS `CV_STORAGE_CONSENT_ENFORCED=true` requires a separate reviewed plan.
-6. Production E2E is not executed; no `PRODUCTION VERIFIED` status is claimed.
+4. Production E2E is not executed; no `PRODUCTION VERIFIED` status is claimed.
+5. The approved scope is PDF only; RIS upload tickets and BFF reject non-PDF
+   CV uploads. Final retention and physical-deletion questions remain open.
 
 ## 8. Deployment / rollback plan
 
@@ -206,6 +204,7 @@ RIS branch `feature/jm-ris-cv-storage-integration-01`:
 - `216e061` — `feat(cv): add cv-storage consent and browser CORS plan`
 - `1316647` — `test(consent): cover the separate cv-storage purpose`
 - `ce55f32` — `fix(cv): scope durable CV writes to the pilot identity`
+- `998144b` — approval packet
 - report/audit commit in this branch.
 
 No push, merge, deployment, Terraform apply or AWS mutation.

@@ -2,10 +2,13 @@
 
 ## Status
 
-`AWAITING OPERATOR APPROVAL OF THE FINAL CV CONSENT TEXT`
+`OPERATOR APPROVED — LIMITED BETA PILOT — FINAL PLAN READY FOR GO`
 
-No new text version was created. No Terraform apply, AWS mutation, push,
-merge or production deployment was performed.
+Operator approval date `2026-11-08`, approval body
+`Betreiberin May's Job Matcher`, `legalApprovalRef`
+`JM-CV-STORAGE-V1-BETA-2026-11-08`. No new text version was created. No
+Terraform apply, AWS mutation, push, merge or production deployment was
+performed.
 
 ## 1. Exact text
 
@@ -14,8 +17,10 @@ merge or production deployment was performed.
 | Version | `cv-storage-consent-2026-11-08-v1` |
 | SHA-256 | `2fe65fd158a3a2953cf3869ff864aae626971012d68cfb8849db84e04579d036` |
 | RIS notice | `cv-storage/1.0` |
-| Current notice state | `DRAFT` |
-| Current `legalApprovalRef` | `null` |
+| Notice state | `APPROVED` |
+| `legalApprovalRef` | `JM-CV-STORAGE-V1-BETA-2026-11-08` |
+| Approval date | `2026-11-08` |
+| Approval body | Betreiberin May's Job Matcher |
 | Privacy policy reference | `/datenschutz`, version `1.1`, 2026-11-07 |
 | Purpose | `cv-storage` (separate from `application-storage`) |
 
@@ -100,26 +105,25 @@ The only infrastructure additions are:
    `PUT/GET/HEAD`, headers `*`, exposed `ETag`, max age 900s. No public bucket
    access and no bucket-policy widening.
 2. `module.lambda.aws_lambda_function.agent` — new CV gate code plus
-   `CV_STORAGE_CONSENT_ENFORCED` env (current pre-approval plan shows `false`).
+   `CV_STORAGE_CONSENT_ENFORCED=true` for the pilot.
 
 With the explicit
 `mays_orders_lambda_execution_boundary=arn:aws:iam::240571105849:policy/Mays-Orders-Lambda-Execution-Boundary`,
 the Mays-Orders worker permissions boundary is NO-OP. Without that variable,
 the plan proposes an out-of-scope boundary removal and must not be applied.
 
-Pre-approval technical plan (not the final activation plan):
+Final activation plan:
 
-- `/tmp/opencode/ris-cv-storage-01-preapproval.tfplan`
-- SHA-256 `5986eadd20e6a4c93a9016a889cec73abd40727da0fd6c0c3a53965c62c145e0`
+- `/tmp/opencode/ris-cv-storage-01-final.tfplan`
+- SHA-256 `cd099de482abe851b1bad1a3defa5c3d4ac93811e06a73df1174e4431beac3a3`
 - state serial `43`, lineage `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`
-- **1 add, 1 change, 0 destroy**.
-
-After text approval, the final plan will additionally set the actual CV gate
-to `true`; it will be regenerated and presented with its own SHA-256.
+- **1 add (CORS), 1 change (agent Lambda code + `CV_STORAGE_CONSENT_ENFORCED=true`), 0 destroy**
+- Explicit Mays-Orders boundary ARN: NO-OP; ApplicationV1 unchanged.
+- The pre-approval plan `5986eadd…` is superseded by this final plan.
 
 ## 6. Planned Vercel Production configuration
 
-Only after approval and a separate release GO:
+For the separate apply/deploy GO:
 
 ```text
 RIS_CV_STORAGE_ENABLED=true
@@ -143,16 +147,19 @@ restricted to the confirmed operator identity.
   list/get/download/delete behavior remains available.
 - No ApplicationV1 or Mays-Orders rollback is required.
 
-## 8. Approval requested
+## 8. Approval record and next gate
 
-Please approve explicitly:
+Approved by the operator on `2026-11-08`:
 
-1. the exact text above as `cv-storage-consent-2026-11-08-v1` with SHA-256
+1. exact text `cv-storage-consent-2026-11-08-v1` with SHA-256
    `2fe65fd158a3a2953cf3869ff864aae626971012d68cfb8849db84e04579d036`;
-2. the RIS notice `cv-storage/1.0` state `APPROVED` or `ACTIVE`;
-3. the `legalApprovalRef` value, approval date and approval body.
+2. RIS notice `cv-storage/1.0` state `APPROVED`;
+3. `legalApprovalRef=JM-CV-STORAGE-V1-BETA-2026-11-08`, approval body
+   `Betreiberin May's Job Matcher`.
 
-After that approval I will prepare the RIS notice with the real reference,
-regenerate the final Terraform plan with the actual CV gate enabled, and
-present the final plan SHA-256, Vercel configuration and rollback plan. No
-apply, push, merge or deployment will occur without the next explicit GO.
+Scope: limited beta pilot, only the confirmed operator identity. No general
+user enablement. Open points on final retention and physical deletion are
+not resolved by this approval.
+
+The final plan is ready. No apply, push, merge or deployment occurs without
+the next explicit apply/deployment GO.

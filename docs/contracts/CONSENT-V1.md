@@ -1,7 +1,7 @@
 # Partner Consent V1 — API-Vertrag (Handoff für Mays-Jobsearch)
 
 **Status:** implementiert, lokal verifiziert, **nicht deployt**;
-Notice `application-storage/1.0` `APPROVED` für den begrenzten Beta-Pilot; separater `cv-storage/1.0` ist nur technischer DRAFT-Kandidat.
+Notice `application-storage/1.0` `APPROVED` für den begrenzten Beta-Pilot; separater `cv-storage/1.0` ist `APPROVED` für den begrenzten CV-Beta-Pilot (`JM-CV-STORAGE-V1-BETA-2026-11-08`).
 (`JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`), kein allgemeiner Rollout
 **Gilt für:** `mays-jobsearch` und weitere Partner
 **Basis:** RIS-Partner-Gateway (`c7e9pdwe78`) bzw. Kernel-API, gleiche Lambda
@@ -129,7 +129,7 @@ Ereignisse: `GRANTED`, `WITHDRAWN`, `REGRANTED`. Append-only, neueste zuerst.
 | Purpose | Bekannte `noticeVersion` | Lifecycle-State | Rechtliche Freigabe |
 |---|---|---|---|
 | `application-storage` | `1.0` | `APPROVED` | `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08` (limited beta pilot, 2026-11-08) |
-| `cv-storage` | `1.0` | `DRAFT` | — (technical candidate; no production approval) |
+| `cv-storage` | `1.0` | `APPROVED` | `JM-CV-STORAGE-V1-BETA-2026-11-08` (limited beta pilot, 2026-11-08) |
 
 Die Freigabe gilt **nur** für den begrenzten ApplicationV1-Beta-Pilot, nicht für
 einen allgemeinen Rollout. Eine frei erfundene Version wird mit
