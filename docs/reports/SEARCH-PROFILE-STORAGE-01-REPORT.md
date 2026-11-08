@@ -2,8 +2,8 @@
 
 **Status:** `IMPLEMENTED / VERIFIED LOCAL / READY FOR DEPLOYMENT REVIEW`
 
-**Date:** 2026-11-08  
-**Architecture decision:** Option A confirmed  
+**Date:** 2026-11-08
+**Architecture decision:** Option A confirmed
 **Activation:** not performed; no AWS apply, no Vercel deployment, no real-user data
 
 ## 1. Scope

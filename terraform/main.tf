@@ -155,33 +155,33 @@ module "lambda" {
   # Partner Application Registry: resolved on every authorized partner and
   # M2M execution. Without this env var the registry lookup returns None and
   # both routes fail closed with 403.
-  partner_applications_table_name     = module.dynamodb.partner_applications_table_name
-  applications_table_name             = module.dynamodb.applications_table_name
-  user_profile_table_arn              = module.dynamodb.user_profile_table_arn
-  agent_catalog_table_arn             = module.dynamodb.agent_catalog_table_arn
-  entitlements_table_arn              = module.dynamodb.entitlements_table_arn
-  api_profiles_table_arn              = module.dynamodb.api_profiles_table_arn
-  offers_table_arn                    = module.dynamodb.offers_table_arn
-  credentials_table_arn               = module.dynamodb.credentials_table_arn
-  partner_applications_table_arn      = module.dynamodb.partner_applications_table_arn
-  partner_applications_gsi_client_arn = module.dynamodb.partner_applications_gsi_client_arn
-  applications_table_arn              = module.dynamodb.applications_table_arn
-  consents_table_name                 = module.dynamodb.consents_table_name
-  consents_table_arn                  = module.dynamodb.consents_table_arn
-  applications_cursor_secret_arn      = var.applications_cursor_secret_arn
-  partner_surface_enabled             = var.partner_surface_enabled
-  application_consent_enforced        = var.application_consent_enforced
-  cv_storage_consent_enforced         = var.cv_storage_consent_enforced
+  partner_applications_table_name         = module.dynamodb.partner_applications_table_name
+  applications_table_name                 = module.dynamodb.applications_table_name
+  user_profile_table_arn                  = module.dynamodb.user_profile_table_arn
+  agent_catalog_table_arn                 = module.dynamodb.agent_catalog_table_arn
+  entitlements_table_arn                  = module.dynamodb.entitlements_table_arn
+  api_profiles_table_arn                  = module.dynamodb.api_profiles_table_arn
+  offers_table_arn                        = module.dynamodb.offers_table_arn
+  credentials_table_arn                   = module.dynamodb.credentials_table_arn
+  partner_applications_table_arn          = module.dynamodb.partner_applications_table_arn
+  partner_applications_gsi_client_arn     = module.dynamodb.partner_applications_gsi_client_arn
+  applications_table_arn                  = module.dynamodb.applications_table_arn
+  consents_table_name                     = module.dynamodb.consents_table_name
+  consents_table_arn                      = module.dynamodb.consents_table_arn
+  applications_cursor_secret_arn          = var.applications_cursor_secret_arn
+  partner_surface_enabled                 = var.partner_surface_enabled
+  application_consent_enforced            = var.application_consent_enforced
+  cv_storage_consent_enforced             = var.cv_storage_consent_enforced
   search_profile_storage_consent_enforced = var.search_profile_storage_consent_enforced
-  consent_notice_state_enforced       = var.consent_notice_state_enforced
-  consent_pilot_allowlist             = var.consent_pilot_allowlist
-  applications_gsi_owner_arn          = module.dynamodb.applications_gsi_owner_arn
-  s3_bucket_arn                       = aws_s3_bucket.data.arn
-  documents_bucket_name               = module.documents.bucket_name
-  documents_bucket_arn                = module.documents.bucket_arn
-  sqs_queue_arn                       = module.sqs.work_queue_arn
-  work_queue_url                      = module.sqs.work_queue_url
-  tags                                = var.tags
+  consent_notice_state_enforced           = var.consent_notice_state_enforced
+  consent_pilot_allowlist                 = var.consent_pilot_allowlist
+  applications_gsi_owner_arn              = module.dynamodb.applications_gsi_owner_arn
+  s3_bucket_arn                           = aws_s3_bucket.data.arn
+  documents_bucket_name                   = module.documents.bucket_name
+  documents_bucket_arn                    = module.documents.bucket_arn
+  sqs_queue_arn                           = module.sqs.work_queue_arn
+  work_queue_url                          = module.sqs.work_queue_url
+  tags                                    = var.tags
 }
 
 # Gate 4 — eigene Order-Fassade (orders_reader) auf unserer API.
