@@ -5263,7 +5263,12 @@ def _search_profile_storage_consent_error(ctx):
 
 def _search_profile_storage_guard(call, event, *args):
     """Apply the search-profile consent gate to mutating routes only."""
-    method = str(event.get('httpMethod') or '').upper()
+    http_ctx = ((event.get('requestContext') or {}).get('http') or {})
+    route_key = str(event.get('routeKey') or '')
+    route_method = route_key.split(' ', 1)[0] if ' ' in route_key else ''
+    method = str(
+        event.get('httpMethod') or http_ctx.get('method') or route_method or ''
+    ).upper()
     if method in {'POST', 'PUT', 'PATCH'}:
         ctx, error = _partner_profile_context(event)
         if error:

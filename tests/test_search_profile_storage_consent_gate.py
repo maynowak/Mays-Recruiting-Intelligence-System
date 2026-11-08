@@ -210,3 +210,20 @@ class TestDraftConsentLifecycle:
                 regranted = repo.grant(ctx, "search-profile-storage", "1.0")
                 assert regranted["status"] == "GRANTED"
                 assert repo.has_consent(ctx, "search-profile-storage") is True
+
+
+class TestApiGatewayV2Gate:
+    def test_v2_event_method_is_detected(self, monkeypatch):
+        monkeypatch.setenv("SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED", "true")
+        monkeypatch.setattr(handler, "_consent_repo", lambda: _Consent(False))
+        ctx = {"userId": "u1", "tenantId": "t1",
+               "partnerApplicationId": "p1", "issuer": "https://issuer"}
+        monkeypatch.setattr(handler, "_partner_profile_context", lambda event: (ctx, None))
+
+        def call(*args):
+            raise AssertionError("handler must not run when the gate denies")
+
+        response = handler._search_profile_storage_guard(
+            call, {"requestContext": {"http": {"method": "POST"}}}, None, "POST")
+        assert response is not None and response["statusCode"] == 403
+        assert "SEARCH_PROFILE_STORAGE_CONSENT_REQUIRED" in response["body"]
