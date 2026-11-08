@@ -1,10 +1,10 @@
 # SEARCH-PROFILE-STORAGE-03 — Final Consent Packet
 
-**Status:** `AWAITING FINAL OPERATOR CONFIRMATION — NOTICE REMAINS DRAFT`  
+**Status:** `CONFIRMED — NOTICE APPROVED FOR LIMITED PILOT`  
 **Date:** 2026-11-08
 
-No notice change, apply, deployment or live E2E was performed. This packet is
-the single confirmation request for the corrected text.
+Confirmed by the operator; see `SEARCH-PROFILE-STORAGE-03-APPROVAL-RECORD.md`.
+No apply, deployment or live E2E was performed.
 
 ## 1. Final text
 

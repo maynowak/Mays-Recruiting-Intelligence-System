@@ -10816,3 +10816,20 @@ missing commit pointers:
   invalid because the Lambda code hash changed.
 - P3 account-erasure boundary remains open for a later general rollout.
 - No apply, deploy, push, notice activation or live E2E.
+
+## 2026-11-08 — SEARCH-PROFILE-STORAGE-03 notice approval
+
+**Typ:** Consent contract / Operator approval / Terraform plan
+**Status:** `NOTICE APPROVED — READY FOR APPLY REVIEW — NO APPLY`
+
+- `search-profile-storage/1.0` set to `APPROVED` with
+  `legalApprovalRef=JM-SEARCH-PROFILE-STORAGE-V1-2026-11-08`; approval date
+  `2026-11-08`, body Betreiberin May’s Job Matcher.
+- Partner text `search-profile-storage-consent-2026-11-08-v2` mapped to notice
+  `1.0`, SHA-256
+  `75919c8bc219c938bdd2452a8bf02955997d1336ba2ca716bc691dd54eaa7ef6`.
+- New plan `/tmp/opencode/ris-dev-search-profile-04.tfplan`, SHA-256
+  `d6cfcda99a73dacf6ed44f111c42f719f8c401dcea6d7edb82caf9bfd1e2576a`;
+  state serial 46; 0 add/1 change/0 destroy; only agent Lambda update adding
+  `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED=false`.
+- No apply, deploy, push, preview URL or live E2E.

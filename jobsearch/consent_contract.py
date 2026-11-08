@@ -122,9 +122,9 @@ NOTICE_REGISTRY: dict[str, dict[str, NoticeVersion]] = {
         "1.0": NoticeVersion(
             purpose="search-profile-storage",
             version="1.0",
-            state=NOTICE_DRAFT,
-            label="RIS search-profile-storage notice v1 (technical candidate, no legal approval)",
-            legal_approval_ref=None,
+            state=NOTICE_APPROVED,
+            label="RIS search-profile-storage notice v1 (operator-approved limited pilot)",
+            legal_approval_ref="JM-SEARCH-PROFILE-STORAGE-V1-2026-11-08",
         ),
     },
 }
@@ -199,8 +199,8 @@ EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
     "search-profile-storage": {
         "search-profile-storage-consent-2026-11-08-v2": {
             "source": "mays-jobsearch",
-            "noticeState": NOTICE_DRAFT,
-            "noticeVersion": None,
+            "noticeState": NOTICE_APPROVED,
+            "noticeVersion": "1.0",
             "textSha256": (
                 "75919c8bc219c938bdd2452a8bf02955997d1336ba2ca716bc691dd54eaa7ef6"
             ),

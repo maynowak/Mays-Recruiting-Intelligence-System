@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "lambda"))
 import handler  # noqa: E402
 from jobsearch.consent_contract import (  # noqa: E402
     EXTERNAL_NOTICE_REFS,
-    NOTICE_DRAFT,
+    NOTICE_APPROVED,
     NOTICE_REGISTRY,
 )
 try:
@@ -53,17 +53,17 @@ class _Consent:
 
 
 class TestNoticeCandidate:
-    def test_notice_is_draft_and_has_no_invented_legal_approval(self):
+    def test_notice_is_approved_for_the_limited_pilot(self):
         notice = NOTICE_REGISTRY["search-profile-storage"]["1.0"]
-        assert notice.state == NOTICE_DRAFT
-        assert notice.legal_approval_ref is None
-        assert notice.approved is False
+        assert notice.state == NOTICE_APPROVED
+        assert notice.legal_approval_ref == "JM-SEARCH-PROFILE-STORAGE-V1-2026-11-08"
+        assert notice.approved is True
 
-    def test_partner_text_is_known_but_not_mapped_to_the_ris_version(self):
+    def test_partner_text_is_mapped_to_the_ris_version(self):
         ref = EXTERNAL_NOTICE_REFS["search-profile-storage"][TEXT_VERSION]
         assert ref["source"] == "mays-jobsearch"
-        assert ref["noticeState"] == NOTICE_DRAFT
-        assert ref["noticeVersion"] is None
+        assert ref["noticeState"] == NOTICE_APPROVED
+        assert ref["noticeVersion"] == "1.0"
         assert ref["textSha256"] == TEXT_SHA256
 
 
@@ -202,7 +202,7 @@ class TestDraftConsentLifecycle:
             with patch.dict(os.environ, {"CONSENT_NOTICE_STATE_ENFORCED": "false"}):
                 granted = repo.grant(ctx, "search-profile-storage", "1.0")
                 assert granted["status"] == "GRANTED"
-                assert granted["noticeState"] == NOTICE_DRAFT
+                assert granted["noticeState"] == NOTICE_APPROVED
                 assert repo.has_consent(ctx, "search-profile-storage") is True
                 withdrawn = repo.withdraw(ctx, "search-profile-storage")
                 assert withdrawn["status"] == "WITHDRAWN"

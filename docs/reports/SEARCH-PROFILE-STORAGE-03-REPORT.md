@@ -1,6 +1,6 @@
 # SEARCH-PROFILE-STORAGE-03 — Connect & Release Status
 
-**Status:** `READY FOR FINAL TEXT CONFIRMATION + APPLY/DEPLOY GO`  
+**Status:** `NOTICE APPROVED — READY FOR APPLY REVIEW`  
 **Live E2E:** `NOT EXECUTED`  
 **Date:** 2026-11-08
 
@@ -15,10 +15,10 @@ operator confirms the final text.
 | --- | --- |
 | Consent text | `search-profile-storage-consent-2026-11-08-v2` |
 | SHA-256 | `75919c8bc219c938bdd2452a8bf02955997d1336ba2ca716bc691dd54eaa7ef6` |
-| RIS notice | `search-profile-storage/1.0` — `DRAFT` |
-| `legalApprovalRef` | `null` |
+| RIS notice | `search-profile-storage/1.0` — **`APPROVED`** |
+| `legalApprovalRef` | `JM-SEARCH-PROFILE-STORAGE-V1-2026-11-08` |
+| Approval date / body | `2026-11-08` / Betreiberin May’s Job Matcher |
 | Privacy policy | v1.2, 2026-11-08 |
-| Proposed approval ref | `JM-SEARCH-PROFILE-STORAGE-V1-2026-11-08` — not yet approved |
 
 P1: Datenschutzerklärung §9 now describes search-profile storage as a separate
 `search-profile-storage` purpose, not covered by ApplicationV1, stored in
@@ -39,21 +39,22 @@ No erasure redesign was performed.
 
 ## 2. New Terraform plan
 
-The old plan `d94550010417d964fc9c3e5c94259a3eb8b692995f9bac41edd023c12bfcdc14`
-is **invalid** because the RIS consent text changed and therefore the Lambda
-code hash changed.
+The old plans `d94550010417d964fc9c3e5c94259a3eb8b692995f9bac41edd023c12bfcdc14`
+(v1) and `9c6924e990f1029afdb1aa08b38e12bd9e744054eb3fe01b50f356f6028d6271`
+(pre-approval v2/DRAFT) are **superseded**. The notice is now APPROVED, so a
+fresh plan was made.
 
 | Field | Value |
 | --- | --- |
-| Plan file | `/tmp/opencode/ris-dev-search-profile-03.tfplan` |
-| Plan SHA-256 | `9c6924e990f1029afdb1aa08b38e12bd9e744054eb3fe01b50f356f6028d6271` |
-| Plan JSON | `/tmp/opencode/ris-dev-search-profile-03-plan.json` |
+| Plan file | `/tmp/opencode/ris-dev-search-profile-04.tfplan` |
+| Plan SHA-256 | `d6cfcda99a73dacf6ed44f111c42f719f8c401dcea6d7edb82caf9bfd1e2576a` |
+| Plan JSON | `/tmp/opencode/ris-dev-search-profile-04-plan.json` |
 | Terraform | `1.16.1` |
 | State | `mays-ris-tf-state-dev` / `env:/ris-dev/dev/terraform.tfstate` |
 | State serial / lineage | `46` / `9cec61e5-c036-1ad5-6ae4-8b48a50122a4` |
 | Changes | **0 add, 1 change, 0 destroy, 0 replace** |
 | Active change | `module.lambda.aws_lambda_function.agent` UPDATE |
-| Code hash | `EUSPzucGkHqwcazIch3ny4oCshvwjbFxJP8Hhe48QRc=` → `gl6tIdxgZonvpfq0y+W+c5oSO5fIbHX8DyPwPMRevtY=` |
+| Code hash | `EUSPzucGkHqwcazIch3ny4oCshvwjbFxJP8Hhe48QRc=` → `pStIe5JG66TGF6PyltAmLJQ/0yKSgoWI6H7AmrAKwHU=` |
 | Env delta | add `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED=false` |
 
 No Cognito, CloudFront, DNS, ACM, Mays-Orders, DynamoDB, API Gateway, S3,
@@ -88,9 +89,7 @@ health-plane or partner-edge change. No state write; serial remained 46.
 
 ## 5. Blocking gates
 
-- **Final text confirmation** of v2 hash and policy v1.2 — not yet given.
-- **Notice approval** with a real `legalApprovalRef` — not yet given.
-- **Apply GO** for the saved plan — not yet given.
+- **Apply GO** for plan `d6cfcda99a73dacf6ed44f111c42f719f8c401dcea6d7edb82caf9bfd1e2576a` — not yet given.
 - **Vercel preview/deployment GO** — not yet given.
 - **Enforcement=true GO** for the 403 test — not yet given.
 
@@ -99,7 +98,7 @@ persistence claim was made.
 
 ## 6. Definition of Done
 
-The final DoD (`LIVE E2E VERIFIED`) is **not claimed** because the required
-approval gates above have not been explicitly granted. Once they are, the
-prepared sequence in this report and the existing synthetic E2E runbook can be
-executed without further architecture work.
+The final DoD (`LIVE E2E VERIFIED`) is **not claimed** because the apply,
+deployment and enforcement gates above have not been explicitly granted. The
+notice text itself is now approved. Once the apply/preview GO is granted, the
+prepared sequence can be executed without further architecture work.
