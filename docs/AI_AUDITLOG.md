@@ -10618,3 +10618,41 @@ missing commit pointers:
 - Evidence: Jobsearch
   `docs/reports/JM-RIS-STORAGE-ONE-SHOT-05-E2E-AND-UI-STATUS-REPORT.md` (copy
   also retained in the workspace and RIS reports directory).
+
+## 2026-11-08 — JM-RIS-CV-STORAGE-INTEGRATION-01 — CV storage consent + CORS plan
+
+**Typ:** Implementation / Consent contract / Infrastructure plan / Audit
+**Status:** `LOCAL IMPLEMENTED — TESTS GREEN — NOT DEPLOYED` /
+`PLAN READY — APPLY NOT AUTHORIZED`
+
+- Baseline: RIS `1d951b2`, Jobsearch `1553a5a`; branch
+  `feature/jm-ris-cv-storage-integration-01`.
+- Existing RIS CV/document API and private S3 storage were reused. Added the
+  separate `cv-storage` purpose, `cv-storage/1.0` notice (DRAFT, no
+  `legalApprovalRef`), external text
+  `cv-storage-consent-2026-11-08-v1` with SHA-256
+  `2fe65fd158a3a2953cf3869ff864aae626971012d68cfb8849db84e04579d036`, and
+  purpose-specific Art. 9 proof mapping. ApplicationV1 v4 is unchanged.
+- `CV_STORAGE_CONSENT_ENFORCED` defaults false. When enabled, CV
+  create/upload/complete/update require `cv-storage`; list/get/download/delete
+  remain available after withdrawal. Terraform root/module wiring added with
+  default false.
+- Added private documents-bucket CORS for `https://www.mays-job-matcher.app`
+  (PUT/GET/HEAD, ETag, 900s). No public access, no bucket-policy widening.
+- Focused tests: `test_cv_storage_consent_gate.py`,
+  `test_cv_storage_consent_route.py`, CV document API, consent catalog/
+  special-category/repository and API contract consistency = **132 PASS**;
+  `terraform fmt -check -recursive` PASS; `terraform validate` PASS.
+- Full suite: 2531 passed / 56 skipped / 6 unrelated known failures outside
+  the CV/consent surface. The consent catalog expectation was updated for the
+  second purpose.
+- Clean read-only plan `/tmp/opencode/ris-cv-storage-01-clean.tfplan`,
+  SHA-256 `f1c16c25856e05f558b0a284a2c87460b53d8375e7c47d68e3eea0b53d09ed49`,
+  state serial 43 / lineage `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`:
+  1 add (S3 CORS), 1 change (agent Lambda code + env), 0 destroy. The explicit
+  Mays-Orders boundary ARN keeps the Orders worker boundary NO-OP.
+- Blockers: CV notice DRAFT/no legal approval; plan apply not authorized;
+  Lambda deploy not performed; production E2E not executed. No push, merge,
+  deployment, Terraform apply, AWS mutation, Cognito/CloudFront/DNS/ACM or
+  Mays-Orders change. Report:
+  `docs/reports/JM-RIS-CV-STORAGE-INTEGRATION-01-REPORT.md`.
