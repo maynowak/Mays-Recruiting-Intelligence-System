@@ -10954,3 +10954,18 @@ missing commit pointers:
   API Gateway, S3, DynamoDB and Partner Edge unchanged.
 - No push, merge, rollback or additional Terraform change. Jobsearch erasure UI
   remains unwired; full S3/document/PITR erasure not claimed.
+
+## 2026-11-08 — MAYS-P3-FINAL cross-repo handoff
+
+**Typ:** Cross-repo account erasure / E2E readiness
+**Status:** `BLOCKED — DESTRUCTIVE SYNTHETIC ERASURE E2E + JOBSEARCH DEPLOYMENT PENDING`
+
+- RIS P3 remains DEPLOYED / POST-DEPLOY VERIFIED at state serial 50, Lambda
+  `/oB1onGisdIHu9/J1RMp80Ti7t8ooGl28yiLRD6BLIE=`.
+- Jobsearch now has the BFF/UI wiring for the existing `POST /me/erasure`
+  (commit `e060606`), disabled by default and not deployed.
+- No destructive production E2E: no approved isolated synthetic identity/
+  dataset; no real operator data deleted.
+- No AWS/Terraform change, deployment, push or merge in this step. S3/version/
+  backup/PITR limits remain open.
+- Report: `docs/reports/MAYS-P3-FINAL-REPORT.md`.
