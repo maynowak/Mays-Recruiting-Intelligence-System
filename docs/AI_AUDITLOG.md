@@ -10707,3 +10707,25 @@ missing commit pointers:
   boundary NO-OP; ApplicationV1 unchanged.
 - No apply, push, merge or deployment. Report:
   `docs/reports/JM-RIS-CV-STORAGE-INTEGRATION-01-REPORT.md`.
+
+## 2026-11-08 — JM-RIS-CV-STORAGE-INTEGRATION-01 — production attempt STOP / rollback
+
+**Typ:** Production incident / RIS compatibility / Audit
+**Status:** `RIS APPLIED — JOBSEARCH ROLLED BACK — E2E NOT EXECUTED`
+
+- Final plan `cd099de482abe851b1bad1a3defa5c3d4ac93811e06a73df1174e4431beac3a3`
+  applied: 1 add (S3 CORS), 1 change (agent Lambda +
+  `CV_STORAGE_CONSENT_ENFORCED=true`), 0 destroy; state serial 44. S3 CORS and
+  Lambda env/code verified; pilot allowlist remains operator-only; Mays-Orders
+  boundary unchanged.
+- Jobsearch production deployment `dpl_NJHrVbn4vXG6MxoKXVqEP95s91MR`
+  (`d55c52c`) exposed a client list-limit bug: `/api/ris/cvs?limit=100`
+  returned 422 because RIS caps CV list at 50. No CV consent was granted and
+  no synthetic CV was uploaded.
+- Jobsearch was rolled back to Build `0951198`
+  (`dpl_8rGdfH7yXiExiEWsgTRGSc7XBr3T` / `dpl_LK9t9ikfH2ERDit1M3Z8NprFz4u4`);
+  Vercel CV flags disabled for future builds. RIS remains applied and is
+  backward-compatible; no further AWS/Terraform change. Production E2E not
+  executed; no `PRODUCTION VERIFIED` claim.
+- Local non-deployed Jobsearch hotfix `1449751` (limit 50 + test) requires
+  separate release approval.

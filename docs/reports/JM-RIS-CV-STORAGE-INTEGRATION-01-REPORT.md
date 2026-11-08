@@ -4,14 +4,40 @@
 
 `LOCAL IMPLEMENTED — TESTS GREEN — NOT DEPLOYED`
 
-`CV TEXT OPERATOR-APPROVED — FINAL PLAN READY FOR APPLY/DEPLOY GO`
+`STOPPED AFTER PRODUCTION SMOKE — CV LIST LIMIT BUG — ROLLED BACK`
 
-`PRODUCTION E2E NOT EXECUTED — APPLY/DEPLOY/RELEASE NOT YET AUTHORIZED`
+`PRODUCTION E2E NOT EXECUTED — NO SYNTHETIC CV DATA CREATED`
 
 The existing encrypted RIS document store and the existing partner CV
 document routes were reused. No new storage architecture, no Terraform apply,
 no AWS mutation, no Vercel deployment, no ApplicationV1 change and no general
 user enablement were performed.
+
+## 0. Production incident and rollback (2026-11-08)
+
+- Final plan `cd099de482abe851b1bad1a3defa5c3d4ac93811e06a73df1174e4431beac3a3`
+  applied: 1 add (S3 CORS), 1 change (agent Lambda +
+  `CV_STORAGE_CONSENT_ENFORCED=true`), 0 destroy; state serial 44.
+- Jobsearch PR #7 merged as `d55c52c365d70e12cfd76ebf171599437cea8795`;
+  production deployment `dpl_NJHrVbn4vXG6MxoKXVqEP95s91MR` was aliased to
+  `www.mays-job-matcher.app`.
+- During the first authenticated CV smoke, the persistent CV list failed with
+  `Die Lebenslauf-Daten sind ungültig.` Direct BFF checks showed:
+  `GET /api/ris/cvs?limit=100` -> 422, while `limit=50` and no limit -> 200.
+  Root cause: the browser list client requested `limit=100`, but the existing
+  RIS CV list maximum is `50`.
+- Because this blocked the core CV list, production was **STOPPED** and the
+  previous known-good Jobsearch deployments were promoted:
+  `dpl_8rGdfH7yXiExiEWsgTRGSc7XBr3T` (`www`) and
+  `dpl_LK9t9ikfH2ERDit1M3Z8NprFz4u4` (secondary), both at Build `0951198`.
+  Verified: footer `0951198`, no CV mode button, CV flags disabled for future
+  builds. No synthetic CV was uploaded and no consent was granted.
+- Local non-deployed hotfix: `1449751` changes the browser list limit to `50`
+  and adds a regression assertion. Tests 14/14 and build PASS. It needs a
+  separate release approval; no push/deploy.
+- RIS infrastructure change remains applied and is backward-compatible; the
+  previous frontend does not call CV routes. No ApplicationV1/Mays-Orders
+  change.
 
 ## 1. Discovery — what already existed
 
