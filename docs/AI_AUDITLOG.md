@@ -10559,3 +10559,12 @@ Aenderung, keine Live-Persistenz- oder Freigabe-Behauptung.
   `false`; `CONSENT_NOTICE_STATE_ENFORCED` nur scoped per Pilot-Allowlist.
 - Verbleibende Blocker: Deployment/Plan-GO, Pilot-Allowlist, und die offenen
   Punkte zu Kontoloeschung/Consent-History/DPA-Transfer.
+
+## 2026-11-08 — JM-RIS-STORAGE-ONE-SHOT-05 — FINAL PLAN (RIS)
+
+**Status:** `RIS-DEV TERRAFORM PLAN CLEAN — READY FOR FINAL REVIEW` / `APPROVED FOR LIMITED BETA PILOT`
+
+- Operator approval: v4 `application-storage-consent-2026-11-07-v4`, SHA-256 `8722aed9fa78e5ee49c2b5e5a031bfd53a7109bf625dfb0e0c99743fd82443c7`, date `2026-11-08`, body `Betreiberin May's Job Matcher`, ref `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`; notice `APPROVED` (not ACTIVE), limited pilot only.
+- Final plan `/tmp/opencode/ris-dev-one-shot-05-v4-final.tfplan` SHA-256 `d9689931cab89181ec9262407b85dd37ec107f8ae5db32d1241163a6a0a6d532`; state serial 42/lineage `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`; 272 no-op, 1 update (agent Lambda), 0 delete/replace.
+- Orders SQS policy/IAM boundary, health/reader, Cognito/CloudFront/DNS/ACM/DynamoDB/API routes NO-OP. Temporary Mays-Orders revision `c1dcca2`; explicit boundary variable.
+- No apply/deploy/push; no live persistence. GO required: `GO JM-RIS-STORAGE-ONE-SHOT-05 APPLY + DEPLOY + E2E`.
