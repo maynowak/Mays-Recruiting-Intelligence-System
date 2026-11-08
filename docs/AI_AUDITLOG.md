@@ -10513,3 +10513,14 @@ Aenderung, keine Live-Persistenz- oder Freigabe-Behauptung.
 - No Terraform/state/AWS/Orders change was performed. Generated module built locally and gitignored; tracked stub restored.
 - Required: separate approved Mays-Orders module revision/compatibility decision preserving queue policy and boundary, then new clean plan, then consent v4 approval/legalApprovalRef and bundled GO.
 - Report: `docs/reports/RIS-DEV-TF-PLAN-RECONCILIATION-06-REPORT.md`.
+
+## 2026-11-08 — RIS-DEV-TF-PLAN-RECONCILIATION-06 — CLEAN PLAN
+
+**Status:** `RIS-DEV TERRAFORM PLAN CLEAN — READY FOR REVIEW`
+
+- Temporary state-compatible Mays-Orders module revision `c1dcca2` (contains existing SQS queue policy; F-03 remains separate remediation). Explicit root variable `mays_orders_lambda_execution_boundary` (default null) passes the existing boundary ARN in the plan; no hardcoded ARN committed.
+- Health writer/publisher and orders reader get narrow `ignore_changes = [filename]`; orders reader `source_code_hash` remains active. No global ignores.
+- New saved plan `/tmp/opencode/ris-dev-one-shot-05-v4-clean.tfplan`, SHA-256 `92264620c4f438aee48945778ccbe4a5f5035a8412d7279570bb44cca0e570da`, state serial 42/lineage `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`.
+- Changes: 272 no-op, 1 update (`module.lambda.aws_lambda_function.agent`), 0 delete, 0 replace. Orders SQS policy, IAM boundary, health/reader, Cognito/CloudFront/DNS/ACM/DynamoDB/API routes NO-OP.
+- Static test `tests/test_terraform_plan_reconciliation_06.py`: 3 passed. No apply/deploy/push; consent v4 remains DRAFT/no legalApprovalRef.
+- Report: `docs/reports/RIS-DEV-TF-PLAN-RECONCILIATION-06-REPORT.md`.

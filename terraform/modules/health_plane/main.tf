@@ -39,6 +39,10 @@ resource "aws_lambda_function" "health_writer" {
   runtime       = "python3.14"
   filename      = var.writer_zip_path
   timeout       = 30
+
+  # Artifact paths are checkout-specific; source_code_hash is not used by this
+  # function, so only the path is ignored. The deployed code is not changed.
+  lifecycle { ignore_changes = [filename] }
 }
 
 # Verwaltete Log-Groups: ohne diese erzeugt der Lambda-Dienst die Gruppe beim
@@ -80,6 +84,10 @@ resource "aws_lambda_function" "health_publisher" {
   runtime       = "python3.14"
   filename      = var.publisher_zip_path
   timeout       = 30
+
+  # Artifact paths are checkout-specific; source_code_hash is not used by this
+  # function, so only the path is ignored. The deployed code is not changed.
+  lifecycle { ignore_changes = [filename] }
   environment {
     variables = {
       HEALTH_PRIVATE_BUCKET = aws_s3_bucket.health_state.bucket

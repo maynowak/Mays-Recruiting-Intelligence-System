@@ -2,11 +2,12 @@
 
 ## Result
 
-`BLOCKED — MAYS-ORDERS MODULE CONTRACT MISMATCH`
+`RIS-DEV TERRAFORM PLAN CLEAN — READY FOR REVIEW`
 
-The rejected plan was **not applied**. A clean plan containing only
-`module.lambda.aws_lambda_function.agent UPDATE` cannot be produced safely
-without a separate Mays-Orders contract/module decision.
+The previous plan was rejected and not applied. After the authorized temporary
+Mays-Orders compatibility decision, a new saved plan contains **only**
+`module.lambda.aws_lambda_function.agent UPDATE`: 272 no-op, 1 update,
+0 deletes, 0 replacements. No apply/deployment/push was performed.
 
 ## 1. Rejected plan
 
@@ -147,3 +148,63 @@ removed the boundary; it must never be applied.
 `BLOCKED — MAYS-ORDERS MODULE CONTRACT MISMATCH`
 
 No live persistence, deployment, or notice activation is claimed.
+
+
+---
+
+## Reconciliation result — clean plan
+
+| Field | Value |
+| --- | --- |
+| New plan file | `/tmp/opencode/ris-dev-one-shot-05-v4-clean.tfplan` |
+| New plan SHA-256 | `92264620c4f438aee48945778ccbe4a5f5035a8412d7279570bb44cca0e570da` |
+| Terraform | `1.16.1` |
+| State serial / lineage | `42` / `9cec61e5-c036-1ad5-6ae4-8b48a50122a4` |
+| Changes | **272 no-op, 1 update, 0 delete, 0 replace** |
+| Apply | **not executed** |
+
+### Active change
+
+`module.lambda.aws_lambda_function.agent` — `UPDATE`
+
+- `source_code_hash`: `783PJahGgBAGcS3cbwd7SNhc5o5RQNKplp9/RAxEEio=` →
+  `WEl8n14qkyTQezjOq5yyTuhZO8DInnmC/a++wJN7cMM=`
+- `CONSENT_NOTICE_STATE_ENFORCED`: absent → `false`
+- `CONSENT_PILOT_ALLOWLIST`: absent →
+  `https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_ZURSMpD2O|2344d8d2-f0e1-70a4-a1ff-1b7a6c843558`
+- Global gates remain unchanged/false; notice remains DRAFT.
+
+All other resources are **NO-OP**, including:
+Orders SQS queue policy, Orders worker IAM role/boundary, health publisher,
+health writer, orders reader, Cognito, CloudFront, DNS/Route53, ACM, DynamoDB,
+API Gateway and partner edge.
+
+### Fixes applied
+
+1. **Temporary Mays-Orders module compatibility:** used the last pre-F-03
+   module revision `c1dcca2` (contains the existing SQS queue policy). This is
+   explicitly temporary; F-03 remains a separate remediation item.
+2. **Explicit IAM boundary:** added root variable
+   `mays_orders_lambda_execution_boundary` (default null) and passed it to the
+   Mays-Orders module. The clean plan used the existing ARN
+   `arn:aws:iam::240571105849:policy/Mays-Orders-Lambda-Execution-Boundary`.
+   No hardcoded ARN was committed.
+3. **Lambda path drift:** added narrow `lifecycle { ignore_changes = [filename] }`
+   to health writer/publisher and orders reader. `source_code_hash` remains
+   active for the orders reader; the health functions have no source hash to
+   preserve. No global ignore was added.
+4. Static guard test `tests/test_terraform_plan_reconciliation_06.py` covers
+   these constraints and passes.
+
+### Remaining approvals
+
+1. Consent v4 text/notice approval and real `legalApprovalRef` — still open.
+2. Final review of this clean plan and bundled apply/deploy/E2E GO.
+3. F-03/SQS-policy and IAM-boundary modernization as a separate Mays-Orders
+   remediation, not this pilot.
+
+### Final status
+
+`RIS-DEV TERRAFORM PLAN CLEAN — READY FOR REVIEW`
+
+No apply, deployment, push/merge, notice activation, or live-persistence claim.

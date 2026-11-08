@@ -143,6 +143,17 @@ variable "external_cognito_domain" {
   default     = ""
 }
 
+variable "mays_orders_lambda_execution_boundary" {
+  description = "Optional IAM permissions boundary ARN for the existing Mays-Orders SQS worker role. Null preserves module default; set explicitly to retain an existing deployed boundary."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.mays_orders_lambda_execution_boundary == null || can(regex("^arn:aws:iam::[0-9]{12}:policy/", var.mays_orders_lambda_execution_boundary))
+    error_message = "mays_orders_lambda_execution_boundary must be null or a valid IAM policy ARN."
+  }
+}
+
 variable "orders_lifecycle" {
   description = "Orders lifecycle: managed, external, or disabled."
   type        = string

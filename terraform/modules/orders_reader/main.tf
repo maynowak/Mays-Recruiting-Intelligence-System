@@ -81,6 +81,10 @@ resource "aws_lambda_function" "reader" {
   filename         = var.filename
   source_code_hash = filebase64sha256(var.filename)
 
+  # The absolute artifact path is checkout-specific; source_code_hash remains
+  # authoritative, so real code changes still trigger an update.
+  lifecycle { ignore_changes = [filename] }
+
   environment {
     variables = {
       ORDERS_TABLE         = var.orders_table_name

@@ -207,12 +207,13 @@ module "orders_reader" {
 
 # Mays-Orders as Terraform-Module (Orders-Service)
 module "mays_orders" {
-  count              = local.orders_managed ? 1 : 0
-  source             = "./modules/mays_orders"
-  project_name       = "${var.project_name}-mays-orders"
-  tags               = var.tags
-  monitoring_enabled = var.monitoring_enabled
-  log_retention_days = var.lambda_config.log_retention_days
+  count                     = local.orders_managed ? 1 : 0
+  source                    = "./modules/mays_orders"
+  project_name              = "${var.project_name}-mays-orders"
+  tags                      = var.tags
+  monitoring_enabled        = var.monitoring_enabled
+  log_retention_days        = var.lambda_config.log_retention_days
+  lambda_execution_boundary = var.mays_orders_lambda_execution_boundary
   # external_cognito = null  # MANAGED (Default) oder EXTERNAL
 }
 # Observability-Foundation: CloudWatch (Runtime) + CloudTrail (Audit),
