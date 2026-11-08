@@ -10779,3 +10779,22 @@ missing commit pointers:
 - RIS targeted verification: 208 passed. Jobsearch targeted verification:
   58 passed; production build passed.
 - No push, merge, AWS apply or Vercel deployment; no real-user activation.
+
+## 2026-11-08 — SEARCH-PROFILE-STORAGE-02 deployment preparation
+
+**Typ:** Privacy alignment / Terraform plan / Deployment review
+**Status:** `READY FOR NOTICE APPROVAL + DEPLOYMENT REVIEW — NO MUTATION`
+
+- New RIS-DEV plan reviewed:
+  `/tmp/opencode/ris-dev-search-profile-02.tfplan`,
+  SHA-256 `d94550010417d964fc9c3e5c94259a3eb8b692995f9bac41edd023c12bfcdc14`;
+  state serial 46 / lineage `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`;
+  **0 add, 1 change, 0 destroy, 0 replace**.
+- Only active change: `module.lambda.aws_lambda_function.agent` update; adds
+  `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED=false`. No API/table/edge change.
+- Live read-only checks: partner profile table TTL enabled, PITR disabled, no
+  backups; consent table TTL/PITR disabled; Lambda active with CV gate true and
+  application gate false.
+- Privacy alignment findings P1–P5 recorded; notice remains DRAFT with
+  `legalApprovalRef=null`. No policy edit, apply, deploy, push or real data.
+- Deployment order and synthetic E2E runbook prepared.
