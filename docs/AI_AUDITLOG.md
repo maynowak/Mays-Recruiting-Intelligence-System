@@ -10503,3 +10503,13 @@ Aenderung, keine Live-Persistenz- oder Freigabe-Behauptung.
 - No Cognito/CloudFront/DNS/ACM/DynamoDB/API-route changes in plan; protected resources unchanged in plan.
 - Consent v4 `application-storage-consent-2026-11-07-v4` / `8722aed9...` remains DRAFT/no legalApprovalRef; no apply/deploy/push/live persistence.
 - Report: `docs/reports/JM-RIS-STORAGE-ONE-SHOT-05-PLAN-STOP.md`.
+
+## 2026-11-08 — RIS-DEV-TF-PLAN-RECONCILIATION-06
+
+**Status:** `BLOCKED — MAYS-ORDERS MODULE CONTRACT MISMATCH`
+
+- Rejected plan SHA-256 `392d107478a391fe02a4527a28581cf115a8acfa2a71ce34b322b3260087393a`; state serial 42/lineage `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`; no apply.
+- Causes: health/reader absolute artifact-path drift; current Mays-Orders builder pin removed the deployed SQS queue policy (`a2fb385`); worker IAM permissions boundary missing from desired config (module default null/root does not pass it).
+- No Terraform/state/AWS/Orders change was performed. Generated module built locally and gitignored; tracked stub restored.
+- Required: separate approved Mays-Orders module revision/compatibility decision preserving queue policy and boundary, then new clean plan, then consent v4 approval/legalApprovalRef and bundled GO.
+- Report: `docs/reports/RIS-DEV-TF-PLAN-RECONCILIATION-06-REPORT.md`.
