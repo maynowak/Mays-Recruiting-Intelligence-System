@@ -10,7 +10,7 @@ Actual findings:
   - Google OAuth Client/Secret, Consent Screen, Redirect `/oauth2/idpresponse`, dedizierter IaC-Pfad, Account-Linking-/Profilentscheidung und Live-E2E fehlen bzw. sind nicht belegt.
   - Vorhandene RIS-Terraform-Google-Foundation gehört zum Kernelpool ojbmoiYGM und darf nicht für den dedizierten Jobsearch-Pool aktiviert werden.
 Classification: RED — NOT READY.
-Tests: gezielte Auth-Suite 13 passed; npm build PASS; keine AWS/Vercel/Google/Terraform-Mutation.
+Tests: gezielte Auth-Suite 14 passed; npm build PASS; keine AWS/Vercel/Google/Terraform-Mutation.
 Evidence / report: docs/reports/JM-GOOGLE-LOGIN-READINESS-01-EXECUTION_LOG.md
 Current resume point: Produkt-/Security-Freigabe und dedizierter Jobsearch-IdP/IaC-Pfad erforderlich.
 
@@ -1257,7 +1257,7 @@ NON-DESTRUCTIVE VERIFICATION:
 
 TESTS:
   targeted G5 (erasure+lifecycle+profile)  54 passed
-  AWS live contract                        13 passed (8/8 live)
+  AWS live contract                        14 passed (8/8 live)
   route + OpenAPI governance               47 passed
   FULL 1192 collected / 1184 passed / 0 failed / 8 skipped / 236 warnings
 
@@ -5512,7 +5512,7 @@ VERIFIED WITH THE REAL CLI:
     and is not offered as a component scope
 
 TESTS: 8 new (TestComponentStateConsolidation), 28 in the file,
-  suite 1513 passed / 0 failed / 9 skipped.
+  suite 1514 passed / 0 failed / 9 skipped.
   Computes prefixes instead of asserting strings: the Orders prefix keeps the
   canonical shape and contains exactly one prefix marker, RIS and Orders
   prefixes never overlap, the component prefix is unique per component, and
@@ -10902,7 +10902,7 @@ missing commit pointers:
   `delete_all_for_user_report` reports `(deleted, pending)`.
 - Handler requires `PARTNER_PROFILE_TABLE` and passes the verified partner
   context. Privacy inspect/export already included all three profile types.
-- Tests: new 13-test suite PASS; focused privacy/profile suites 103 PASS;
+- Tests: new 14-test suite PASS; focused privacy/profile suites 103 PASS;
   full RIS suite 2550 PASS, 17 skipped, 16 pre-existing unrelated failures.
 - Jobsearch still has only the disabled erasure placeholder and does not call
   `/me/erasure`; no new UI/client was added. This remains a cross-repo follow-up.

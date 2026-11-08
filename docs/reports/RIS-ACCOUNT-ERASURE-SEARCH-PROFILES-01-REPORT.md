@@ -85,7 +85,7 @@ phases.
 
 ```bash
 pytest -q tests/test_account_search_profile_erasure.py
-# 13 passed
+# 14 passed
 
 pytest -q \
   tests/test_privacy_erasure_security.py \

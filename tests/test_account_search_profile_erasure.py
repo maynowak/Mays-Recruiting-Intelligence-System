@@ -204,6 +204,26 @@ class AccountSearchProfileErasureTests(unittest.TestCase):
         self.assertEqual("SEARCH_PROFILE_STORAGE_UNAVAILABLE", result.error)
 
 
+class PrivacyErasureRealAdapterTests(unittest.TestCase):
+    def test_real_adapter_is_used_by_the_account_lifecycle(self):
+        repo = Repo([
+            profile("ats1", "ATSSearchProfile", ats_profile_id="ats1", search_profile_id="sp1"),
+            profile("sp1", "CVSearchProfile", search_profile_id="sp1", cv_id="cv1"),
+            profile("man1", "ManualSearchProfile", manual_profile_id="man1"),
+        ])
+        result = PrivacyErasure(
+            partner_profile_erasure=AccountSearchProfileErasure(repo)
+        ).erase("u1", "t1", partner_application_id="p1",
+                 issuer="issuer")
+        step = next(s for s in result.steps
+                    if s.step == "erase-partner-search-profiles")
+        self.assertTrue(step.ok, step.error)
+        self.assertEqual(3, step.affected)
+        self.assertEqual(3, result.search_profiles_deleted)
+        self.assertTrue(result.complete)
+        self.assertEqual({}, repo.items)
+
+
 class HandlerWiringTests(unittest.TestCase):
     def test_erasure_handler_constructs_and_passes_partner_profile_erasure(self):
         source = (ROOT / "lambda" / "handler.py").read_text(encoding="utf-8")
