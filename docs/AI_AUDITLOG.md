@@ -10909,3 +10909,26 @@ missing commit pointers:
 - No AWS apply/deploy, global erasure flag, Cognito/CloudFront/DNS/ACM or
   Mays-Orders change. No physical backup/PITR purge claimed.
 - Commit: `30668ff`.
+
+## 2026-11-08 — RIS-ACCOUNT-ERASURE-SEARCH-PROFILES-02
+
+**Typ:** Deployment readiness / Terraform plan
+**Status:** `DEPLOYMENT READY / GO — NO APPLY`
+
+- Baseline: branch `feature/jm-ris-cv-storage-integration-01`, HEAD
+  `624d48c`; P3 implementation `30668ff`; working tree clean.
+- AWS `240571105849` / `eu-central-1` / `mayaws`; Terraform workspace
+  `ris-dev`; state serial **49**, lineage
+  `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`.
+- Runtime: `PARTNER_PROFILE_TABLE=ris-dev-dev-partner-profiles`; IAM already
+  grants DeleteItem/TransactWriteItems; existing erasure flags unchanged.
+- Deterministic bundle SHA-256
+  `fe8075a271a2b1d207bbdfc9d51329f344e2eedf28a06976f3288b443e812c81`.
+- Plan `/tmp/opencode/ris-dev-account-erasure-02.tfplan`, SHA-256
+  `277c3206809309acbdc5fdcd4b2c91d4d8344851c2cc320f298fed475d3dbcba`;
+  0 add / 1 change / 0 destroy / 0 replace; only agent Lambda code update,
+  environment delta none.
+- Tests: P3 14 PASS; focused privacy 104 PASS; partner regression 146 PASS;
+  full 2551 PASS, 17 skipped, 16 pre-existing unrelated failures; terraform
+  validate/fmt PASS.
+- No apply, push, merge or deployment. GO is readiness only.
