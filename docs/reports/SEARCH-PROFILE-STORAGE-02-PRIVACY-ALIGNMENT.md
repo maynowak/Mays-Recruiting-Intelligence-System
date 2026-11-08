@@ -1,3 +1,6 @@
+> **SUPERSEDED by `SEARCH-PROFILE-STORAGE-03-REPORT.md` / v2 packet.**
+> Kept for history; the v1 hash and plan `d945...` are not deployable.
+
 # SEARCH-PROFILE-STORAGE-02 — Privacy Alignment Review
 
 **Status:** `READY FOR NOTICE APPROVAL — 3 OPERATOR DECISIONS REQUIRED`

@@ -197,12 +197,12 @@ EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
         },
     },
     "search-profile-storage": {
-        "search-profile-storage-consent-2026-11-08-v1": {
+        "search-profile-storage-consent-2026-11-08-v2": {
             "source": "mays-jobsearch",
             "noticeState": NOTICE_DRAFT,
             "noticeVersion": None,
             "textSha256": (
-                "926d1b9bbeefac4b97a5c51e3b6e6c1ed33a3affc3698e07456132be39b0f0f8"
+                "75919c8bc219c938bdd2452a8bf02955997d1336ba2ca716bc691dd54eaa7ef6"
             ),
         },
     },

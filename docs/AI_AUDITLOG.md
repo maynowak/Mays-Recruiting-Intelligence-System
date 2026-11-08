@@ -10798,3 +10798,21 @@ missing commit pointers:
 - Privacy alignment findings P1–P5 recorded; notice remains DRAFT with
   `legalApprovalRef=null`. No policy edit, apply, deploy, push or real data.
 - Deployment order and synthetic E2E runbook prepared.
+
+## 2026-11-08 — SEARCH-PROFILE-STORAGE-03 final text correction
+
+**Typ:** Consent contract / Terraform plan
+**Status:** `AWAITING FINAL OPERATOR CONFIRMATION — NOTICE DRAFT — NO APPLY`
+
+- Registered partner text `search-profile-storage-consent-2026-11-08-v2`,
+  SHA-256 `75919c8bc219c938bdd2452a8bf02955997d1336ba2ca716bc691dd54eaa7ef6`;
+  notice `search-profile-storage/1.0` remains `DRAFT` with
+  `legalApprovalRef=null`.
+- New plan `/tmp/opencode/ris-dev-search-profile-03.tfplan`, SHA-256
+  `9c6924e990f1029afdb1aa08b38e12bd9e744054eb3fe01b50f356f6028d6271`;
+  state serial 46; **0 add, 1 change, 0 destroy**; only
+  `module.lambda.aws_lambda_function.agent` update with
+  `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED=false`. Old plan `d945...` is
+  invalid because the Lambda code hash changed.
+- P3 account-erasure boundary remains open for a later general rollout.
+- No apply, deploy, push, notice activation or live E2E.
