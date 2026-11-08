@@ -10849,3 +10849,19 @@ missing commit pointers:
   prepared, not applied.
 - Jobsearch preview/live E2E blocked by missing Preview RIS env, missing
   Cognito preview callback and missing credentials/session. No Vercel mutation.
+
+## 2026-11-08 — SEARCH-PROFILE-STORAGE-03 LIVE E2E VERIFIED
+
+**Typ:** Production limited pilot / Live browser E2E
+**Status:** `LIVE E2E VERIFIED — PRODUCTION LIMITED PILOT`
+
+- State serial **49**; Lambda Active at
+  `j6eiYk09A8cF9idJBqklzGFaSafDMq+Bsara634PzUI=`;
+  `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED=true`.
+- Applied plans `d6cfcda…`, `53bcc0a…`, `09ce68b…`; no other resources changed.
+- Production Jobsearch deployment `dpl_ufUcAnWNGMEeHkXeLsW2df4eHwPz` at
+  `https://www.mays-job-matcher.app`.
+- Real-session browser E2E passed for manual, CV-search and ATS profiles,
+  reload/edit/delete, withdraw/regrant and 403 write-block; synthetic data
+  cleaned; consent left WITHDRAWN.
+- P3 account-erasure boundary remains open for general rollout.

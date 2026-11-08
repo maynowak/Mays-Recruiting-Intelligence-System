@@ -1,7 +1,7 @@
 # SEARCH-PROFILE-STORAGE-03 — Connect & Release Status
 
-**Status:** `RIS DEPLOYED — JOBSEARCH PREVIEW BLOCKED — LIVE E2E NOT EXECUTED`  
-**Live E2E:** `BLOCKED — CREDENTIALS/SESSION + PREVIEW CALLBACK UNAVAILABLE`  
+**Status:** `LIVE E2E VERIFIED — PRODUCTION LIMITED PILOT`  
+**Live E2E:** `VERIFIED`  
 **Date:** 2026-11-08
 
 The integration was not redeveloped. The existing RIS contracts, Jobsearch BFF,
@@ -160,4 +160,63 @@ Provide one of:
    allowlisted pilot and no general rollout.
 
 Until then the live web E2E cannot be honestly claimed.
+
+## 11. Final live E2E — production
+
+**Production URL:** `https://www.mays-job-matcher.app`  
+**Deployment:** `dpl_ufUcAnWNGMEeHkXeLsW2df4eHwPz` (READY, target production)
+
+### RIS final state
+
+| Field | Value |
+| --- | --- |
+| State serial | **49** |
+| Lambda | `ris-dev-dev-agent`, `Active`, code `j6eiYk09A8cF9idJBqklzGFaSafDMq+Bsara634PzUI=` |
+| `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED` | **true** |
+| `CV_STORAGE_CONSENT_ENFORCED` | true |
+| Notice | `search-profile-storage/1.0` `APPROVED` |
+| Applied plans | `d6cfcda…` (code/notice), `53bcc0a…` (enforcement true), `09ce68b…` (API Gateway v2 gate fix) |
+
+### Browser E2E
+
+A real operator session was injected into the browser; no mock of `/api/**` was used.
+
+- Consent loaded from RIS: `APPROVED`, text v2, `GRANTED`.
+- Manual profile: create → edit → browser reload → still present → delete.
+- Persistent synthetic CV: create/upload/complete.
+- CV search profile: create → edit → reload → present → delete.
+- ATS profile: create under the persistent CV search profile → reload → present → delete.
+- Consent withdrawn → persistent manual profile still visible/readable.
+- Regrant via UI.
+- With enforcement enabled, POST/PUT after withdrawal returned **403
+  `SEARCH_PROFILE_STORAGE_CONSENT_REQUIRED`**.
+- List/get after withdrawal returned **200**; deletes returned **204**.
+- Regrant → create **201** → delete **204**.
+- Final cleanup: manual list 0, synthetic CV 0, consent `WITHDRAWN`.
+
+### UI fixes found by the live test
+
+- Persistent manual items now show `Dauerhaft im RIS-Konto`, not
+  `Nur diese Sitzung`.
+- Save button reads `Dauerhaft speichern` in persistent mode.
+- After withdrawal, stored profiles remain visible and deletable (read-only),
+  while create/edit/duplicate are disabled.
+- Non-allowlisted users do not get the persistent UI if the BFF rejects their
+  identity.
+
+### Cleanup
+
+- Preview deployments and preview-only RIS variables were removed.
+- Synthetic profiles and synthetic CV were deleted.
+- The operator's real CV was not modified.
+- Consent left `WITHDRAWN`; the operator can grant again in the UI.
+
+### Remaining rollout limits
+
+- P3 account-level erasure still does not include partner search profiles;
+  per-profile deletion works. This remains a blocker for general rollout.
+- `VITE_RIS_SEARCH_PROFILE_STORAGE_ENABLED=true` is visible to authenticated
+  users; server-side allowlist still restricts storage to the confirmed
+  operator identity.
+- No general rollout.
 
