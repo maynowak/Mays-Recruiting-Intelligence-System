@@ -90,24 +90,23 @@ class NoticeVersion:
         }
 
 
-#: Server-owned catalog. The identifiers below are technical; legal approval
-#: is tracked separately and is ``None`` until a real approval record exists.
+#: Server-owned catalog. The identifiers below are technical; the legal
+#: approval is recorded per version in ``legal_approval_ref``.
 NOTICE_REGISTRY: dict[str, dict[str, NoticeVersion]] = {
     "application-storage": {
         "1.0": NoticeVersion(
             purpose="application-storage",
             version="1.0",
-            state=NOTICE_DRAFT,
-            label="RIS application-storage notice v1 (technical draft)",
-            legal_approval_ref=None,
+            state=NOTICE_APPROVED,
+            label="RIS application-storage notice v1 (operator-approved limited beta pilot)",
+            legal_approval_ref="JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08",
         ),
     },
 }
 
-#: Partner-side identifiers that are *known* but deliberately not equivalent
-#: to a RIS notice version yet. ``2026-11-04-draft-1`` and the
-#: ``application-storage-consent-*`` text candidates are Jobsearch drafts;
-#: renaming or hashing them must never turn them into an approved RIS version.
+#: Partner-side identifiers that are *known* to RIS. Historical refs stay
+#: DRAFT/superseded and are never equivalent to a RIS notice version. The
+#: approved v4 text is the only mapped and only Art. 9-capable text.
 EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
     "application-storage": {
         "2026-11-04-draft-1": {
@@ -128,14 +127,14 @@ EXTERNAL_NOTICE_REFS: dict[str, dict[str, dict[str, object]]] = {
             ),
             "supersededBy": "application-storage-consent-2026-11-07-v2",
         },
-        # Current ApplicationV1 consent text candidate (Jobsearch v4, commit
-        # 5ac025f, explicit Art. 9 special-category consent incl. sex life and
-        # no inference). The hash pins the exact text; the mapping to RIS 1.0
-        # is NOT approved and stays DRAFT.
+        # Current ApplicationV1 consent text (Jobsearch v4, commit 5ac025f,
+        # explicit Art. 9 special-category consent incl. sex life and no
+        # inference). Operator-approved for the limited beta pilot on
+        # 2026-11-08; mapped to RIS notice 1.0. This is not a general rollout.
         "application-storage-consent-2026-11-07-v4": {
             "source": "mays-jobsearch",
-            "noticeState": NOTICE_DRAFT,
-            "noticeVersion": None,  # no equivalence until separately approved
+            "noticeState": NOTICE_APPROVED,
+            "noticeVersion": "1.0",
             "textSha256": (
                 "8722aed9fa78e5ee49c2b5e5a031bfd53a7109bf625dfb0e0c99743fd82443c7"
             ),

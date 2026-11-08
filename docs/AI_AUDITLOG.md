@@ -10524,3 +10524,38 @@ Aenderung, keine Live-Persistenz- oder Freigabe-Behauptung.
 - Changes: 272 no-op, 1 update (`module.lambda.aws_lambda_function.agent`), 0 delete, 0 replace. Orders SQS policy, IAM boundary, health/reader, Cognito/CloudFront/DNS/ACM/DynamoDB/API routes NO-OP.
 - Static test `tests/test_terraform_plan_reconciliation_06.py`: 3 passed. No apply/deploy/push; consent v4 remains DRAFT/no legalApprovalRef.
 - Report: `docs/reports/RIS-DEV-TF-PLAN-RECONCILIATION-06-REPORT.md`.
+
+## 2026-11-08 — JM-RIS-STORAGE-PILOT — Operator approval applied (v4, limited beta)
+
+**Status:** `APPROVED (LIMITED BETA PILOT) / NO ACTIVE / NO DEPLOY / NO LIVE PERSISTENCE`
+
+- Betreiberfreigabe angewendet: Text `application-storage-consent-2026-11-07-v4`
+  (SHA-256 `8722aed9fa78e5ee49c2b5e5a031bfd53a7109bf625dfb0e0c99743fd82443c7`),
+  Datum 2026-11-08, Stelle „Betreiberin May's Job Matcher“, Referenz
+  `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`.
+- `NOTICE_REGISTRY["application-storage"]["1.0"]`: `state=APPROVED` (bewusst
+  **nicht** `ACTIVE`), `legal_approval_ref="JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08"`.
+  `EXTERNAL_NOTICE_REFS[...v4]`: `noticeState=APPROVED`,
+  `noticeVersion="1.0"`. v1–v3 bleiben historisch/`DRAFT`/`supersededBy`;
+  nur v4 ist Art.-9-faehig.
+- Tests angepasst: aktueller Katalog erwartet APPROVED + Referenz; DRAFT- und
+  SUPERSEDED-Faelle werden explizit per Registry-Patch geprueft und bleiben
+  fail-closed unter Enforcement; APPROVED/ACTIVE grantbar; v4-Art.-9-Proof
+  verlangt v4-Hash und lehnt v3 ab; scoped `CONSENT_PILOT_ALLOWLIST`
+  unveraendert. Exakt:
+  `pytest tests/test_consent_notice_lifecycle.py
+  tests/test_consent_notice_catalog_contract.py
+  tests/test_consent_pilot_allowlist.py
+  tests/test_consent_special_categories.py
+  tests/test_consent_active_notice_pilot.py
+  tests/test_consent_e2e_joint.py -q` = **91 passed**;
+  `terraform fmt -check -recursive` exit 0.
+- Doku: `docs/contracts/CONSENT-V1.md`, Mapping-Dokument und Approval-Paket
+  auf APPROVED/Referenz/limited-pilot aktualisiert. Offen und **nicht**
+  faelschlich bestaetigt: vollstaendige Kontoloeschung, Consent-History-
+  Retention, DPA-/Transfer-Pruefungen; kein allgemeiner Rollout.
+- **Keine Aktivierung:** kein Deploy/Apply, keine Env-/Flag-Aenderung, kein
+  Push/Merge, keine Live-Persistenz. `APPLICATION_CONSENT_ENFORCED` bleibt
+  `false`; `CONSENT_NOTICE_STATE_ENFORCED` nur scoped per Pilot-Allowlist.
+- Verbleibende Blocker: Deployment/Plan-GO, Pilot-Allowlist, und die offenen
+  Punkte zu Kontoloeschung/Consent-History/DPA-Transfer.

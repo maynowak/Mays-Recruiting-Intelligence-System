@@ -215,21 +215,28 @@ class HandlerGrantWiringTests(unittest.TestCase):
 class ScopedRepositoryGrantTests(unittest.TestCase):
     @mock_aws
     def test_draft_grant_rejected_for_pilot_enforcement(self):
-        with patch.dict(os.environ,
-                        {"CONSENT_NOTICE_STATE_ENFORCED": "false"}):
-            repo = _table()
-            with self.assertRaises(ConsentContractError) as caught:
-                repo.grant(_ctx(), PURPOSE, VERSION, enforce_notice_state=True)
+        draft = _entry(state=NOTICE_DRAFT, legal_approval_ref=None)
+        with patch.dict(consent_contract.NOTICE_REGISTRY[PURPOSE],
+                        {VERSION: draft}):
+            with patch.dict(os.environ,
+                            {"CONSENT_NOTICE_STATE_ENFORCED": "false"}):
+                repo = _table()
+                with self.assertRaises(ConsentContractError) as caught:
+                    repo.grant(_ctx(), PURPOSE, VERSION,
+                               enforce_notice_state=True)
         self.assertEqual("NOTICE_NOT_ACTIVE", caught.exception.code)
         self.assertEqual("NOT_GRANTED",
                          repo.get(_ctx(), PURPOSE)["status"])
 
     @mock_aws
     def test_draft_grant_allowed_for_non_pilot_global_false(self):
-        with patch.dict(os.environ,
-                        {"CONSENT_NOTICE_STATE_ENFORCED": "false"}):
-            granted = _table().grant(
-                _ctx(), PURPOSE, VERSION, enforce_notice_state=False)
+        draft = _entry(state=NOTICE_DRAFT, legal_approval_ref=None)
+        with patch.dict(consent_contract.NOTICE_REGISTRY[PURPOSE],
+                        {VERSION: draft}):
+            with patch.dict(os.environ,
+                            {"CONSENT_NOTICE_STATE_ENFORCED": "false"}):
+                granted = _table().grant(
+                    _ctx(), PURPOSE, VERSION, enforce_notice_state=False)
         self.assertEqual(STATUS_GRANTED, granted["status"])
         self.assertEqual(NOTICE_DRAFT, granted["noticeState"])
 
@@ -272,10 +279,11 @@ class ScopedRepositoryGrantTests(unittest.TestCase):
                                enforce_notice_state=True)
             self.assertEqual(1, again["version"])
             withdrawn = repo.withdraw(_ctx(), PURPOSE)
-        self.assertEqual(STATUS_WITHDRAWN, withdrawn["status"])
-        with self.assertRaises(ConsentContractError) as caught:
-            repo.grant(_ctx(), PURPOSE, VERSION, enforce_notice_state=True)
-        self.assertEqual("NOTICE_NOT_ACTIVE", caught.exception.code)
+            self.assertEqual(STATUS_WITHDRAWN, withdrawn["status"])
+            with self.assertRaises(ConsentContractError) as caught:
+                repo.grant(_ctx(), PURPOSE, VERSION,
+                           enforce_notice_state=True)
+            self.assertEqual("NOTICE_NOT_ACTIVE", caught.exception.code)
 
 
 @unittest.skipUnless(boto3 and mock_aws, "boto3/moto unavailable")

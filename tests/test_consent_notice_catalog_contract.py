@@ -232,9 +232,20 @@ class NoticeStateSemanticsTests(unittest.TestCase):
         self.assertTrue(catalog["acceptedForNewGrant"])
         self.assertFalse(catalog["grantableWhenEnforced"])
 
-    def test_current_notice_1_0_is_draft_without_legal_approval(self):
+    def test_current_notice_1_0_is_approved_with_legal_ref(self):
         current = notice_version(PURPOSE, VERSION)
         self.assertIsNotNone(current)
+        self.assertEqual(NOTICE_APPROVED, current.state)
+        self.assertEqual("JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08",
+                         current.legal_approval_ref)
+        self.assertTrue(current.approved)
+        self.assertTrue(current.grantable)
+
+    def test_a_patched_draft_stays_unapproved(self):
+        draft = _entry(state=NOTICE_DRAFT, legal_approval_ref=None)
+        with patch.dict(consent_contract.NOTICE_REGISTRY[PURPOSE],
+                        {VERSION: draft}):
+            current = notice_version(PURPOSE, VERSION)
         self.assertEqual(NOTICE_DRAFT, current.state)
         self.assertIsNone(current.legal_approval_ref)
         self.assertFalse(current.approved)
@@ -247,24 +258,30 @@ class GrantAndWithdrawGateTests(unittest.TestCase):
 
     @mock_aws
     def test_draft_grant_is_accepted_only_while_enforcement_is_off(self):
-        with patch.dict(os.environ,
-                        {"CONSENT_NOTICE_STATE_ENFORCED": "false"}):
-            granted = _table().grant(CTX, PURPOSE, VERSION)
+        draft = _entry(state=NOTICE_DRAFT, legal_approval_ref=None)
+        with patch.dict(consent_contract.NOTICE_REGISTRY[PURPOSE],
+                        {VERSION: draft}):
+            with patch.dict(os.environ,
+                            {"CONSENT_NOTICE_STATE_ENFORCED": "false"}):
+                granted = _table().grant(CTX, PURPOSE, VERSION)
         self.assertEqual(STATUS_GRANTED, granted["status"])
         self.assertEqual(NOTICE_DRAFT, granted["noticeState"])
         self.assertFalse(granted["noticeApproved"])
 
     @mock_aws
     def test_draft_grant_is_rejected_with_422_semantics_under_enforcement(self):
-        with patch.dict(os.environ,
-                        {"CONSENT_NOTICE_STATE_ENFORCED": "true"}):
-            repo = _table()
-            with self.assertRaises(ConsentContractError) as caught:
-                repo.grant(CTX, PURPOSE, VERSION)
-            # The handler maps this to 422 NOTICE_NOT_ACTIVE.
-            self.assertEqual("NOTICE_NOT_ACTIVE", caught.exception.code)
-            self.assertEqual(STATUS_NOT_GRANTED,
-                             repo.get(CTX, PURPOSE)["status"])
+        draft = _entry(state=NOTICE_DRAFT, legal_approval_ref=None)
+        with patch.dict(consent_contract.NOTICE_REGISTRY[PURPOSE],
+                        {VERSION: draft}):
+            with patch.dict(os.environ,
+                            {"CONSENT_NOTICE_STATE_ENFORCED": "true"}):
+                repo = _table()
+                with self.assertRaises(ConsentContractError) as caught:
+                    repo.grant(CTX, PURPOSE, VERSION)
+                # The handler maps this to 422 NOTICE_NOT_ACTIVE.
+                self.assertEqual("NOTICE_NOT_ACTIVE", caught.exception.code)
+                self.assertEqual(STATUS_NOT_GRANTED,
+                                 repo.get(CTX, PURPOSE)["status"])
 
     @mock_aws
     def test_approved_and_active_grants_pass_under_enforcement(self):
@@ -313,13 +330,16 @@ class GrantAndWithdrawGateTests(unittest.TestCase):
 
     @mock_aws
     def test_republishing_a_draft_does_not_rewrite_an_existing_grant(self):
-        with patch.dict(os.environ,
-                        {"CONSENT_NOTICE_STATE_ENFORCED": "false"}):
-            repo = _table()
-            repo.grant(CTX, PURPOSE, VERSION)
-        with patch.dict(os.environ,
-                        {"CONSENT_NOTICE_STATE_ENFORCED": "true"}):
-            status = repo.get(CTX, PURPOSE)
+        draft = _entry(state=NOTICE_DRAFT, legal_approval_ref=None)
+        with patch.dict(consent_contract.NOTICE_REGISTRY[PURPOSE],
+                        {VERSION: draft}):
+            with patch.dict(os.environ,
+                            {"CONSENT_NOTICE_STATE_ENFORCED": "false"}):
+                repo = _table()
+                repo.grant(CTX, PURPOSE, VERSION)
+            with patch.dict(os.environ,
+                            {"CONSENT_NOTICE_STATE_ENFORCED": "true"}):
+                status = repo.get(CTX, PURPOSE)
         self.assertEqual(STATUS_GRANTED, status["status"])
         self.assertEqual(VERSION, status["noticeVersion"])
         self.assertEqual(NOTICE_DRAFT, status["noticeState"])
@@ -344,11 +364,11 @@ class ApplicationStorageTextRefTests(unittest.TestCase):
     def _refs(self):
         return {r["externalRef"]: r for r in external_refs_payload(PURPOSE)}
 
-    def test_current_v4_ref_is_draft_and_deliberately_unmapped(self):
+    def test_current_v4_ref_is_approved_and_mapped(self):
         entry = self._refs()[self.TEXT_REF]
         self.assertEqual("mays-jobsearch", entry["source"])
-        self.assertEqual(NOTICE_DRAFT, entry["noticeState"])
-        self.assertIsNone(entry["noticeVersion"])
+        self.assertEqual(NOTICE_APPROVED, entry["noticeState"])
+        self.assertEqual("1.0", entry["noticeVersion"])
         self.assertEqual(self.TEXT_SHA256, entry["textSha256"])
 
     def test_historical_v3_v2_v1_stay_draft_and_chain_supersession(self):

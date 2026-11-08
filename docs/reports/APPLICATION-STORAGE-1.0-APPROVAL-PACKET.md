@@ -1,10 +1,13 @@
 # APPLICATION-STORAGE-1.0 — APPROVAL PACKET
 
-**Status:** `DRAFT — NOT AN APPROVAL, NOT LEGALLY REVIEWED`
-**Date:** 2026-11-07
-**Purpose:** collect the existing texts, identifiers, data categories, retention
-facts and open decisions so a legal/operator approval of the RIS consent notice
-`application-storage/1.0` can be requested and recorded.
+**Status:** `APPROVED — LIMITED BETA PILOT ONLY` (no general rollout)
+**Approval date:** 2026-11-08
+**Approval body:** Betreiberin May's Job Matcher
+**Approval reference:** `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`
+**Date:** 2026-11-07 (packet), 2026-11-08 (approval)
+**Purpose:** record the approved v4 text, identifiers, data categories,
+retention facts and open decisions for the RIS consent notice
+`application-storage/1.0`, scoped to the limited beta pilot.
 **Owner of the decision:** RIS operator + legal reviewer (not the engineering
 agents).
 
@@ -12,11 +15,13 @@ agents).
 
 | Side | Branch | Commit |
 | --- | --- | --- |
-| RIS | `feature/jm-ris-storage-activation-01` | `7032e82` |
+| RIS | `feature/jm-ris-storage-activation-01` | `197fb1c` |
 | Jobsearch | `feature/jm-ris-storage-activation-01` | code `5ac025f` (v4 text; docs include the same commit) |
 
-> This packet does **not** approve anything. No notice state is changed, no
-> `legalApprovalRef` is set, no flag is enabled, nothing is deployed.
+> The approval is **limited to the beta pilot**. It is not `ACTIVE`, not a
+> general rollout, and does not resolve the open account-deletion,
+> consent-history-retention or DPA/transfer checks. No deployment, flag or
+> environment change is made by this document.
 
 ---
 
@@ -31,14 +36,15 @@ agents).
    (`public/legal/datenschutz.md`, v1.1, 2026-11-07) and the Jobsearch UI
    strings; both are privacy *notice/description* material, not by themselves
    the consent declaration.
-3. **A complete candidate declaration now exists, but no operator/legal
-   approval, `legalApprovalRef`, or RIS `1.0` mapping exists.** Candidate D
+3. **A complete declaration exists and is approved for the limited beta pilot,
+   with a real `legalApprovalRef` and a RIS `1.0` mapping.** Candidate D
    (§3.4, Jobsearch `src/lib/applicationStorageConsent.ts` /
-   `api/_lib/ris/consentText.mjs`, commit `5ac025f`) is a full first-person
-   declaration for ApplicationV1 (v4), including an explicit Art. 9
-   special-category consent (incl. Sexualleben/sexuelle Orientierung) with a
-   no-inference statement. It is labelled `DRAFT`, is not approved and is not
-   mapped to RIS notice `1.0`. The previous v3/v2/v1 texts are historical and
+   `api/_lib/ris/consentText.mjs`, commit `5ac025f`) is the approved v4
+   first-person declaration (explicit Art. 9 consent incl. Sexualleben/
+   sexuelle Orientierung, no inference). Approval: 2026-11-08,
+   Betreiberin May's Job Matcher, reference
+   `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`. It is `APPROVED`, **not**
+   `ACTIVE`; no general rollout. The previous v3/v2/v1 texts are historical and
    superseded.
 4. The RIS processing-purpose and retention matrices
    (`RIS-JOBSEARCH-PROCESSING-PURPOSES-V1.md`,
@@ -57,8 +63,8 @@ agents).
 | Side | Identifier | State | Mapping |
 | --- | --- | --- | --- |
 | RIS purpose | `application-storage` | — | — |
-| RIS notice version | `application-storage` / `1.0` | `DRAFT`, `legalApprovalRef = null` | — |
-| Jobsearch ApplicationV1 text version | `application-storage-consent-2026-11-07-v4` | `DRAFT` (candidate, §3.4) | **none** |
+| RIS notice version | `application-storage` / `1.0` | `APPROVED` (pilot), `legalApprovalRef = JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08` | `1.0` |
+| Jobsearch ApplicationV1 text version | `application-storage-consent-2026-11-07-v4` | `APPROVED` (candidate D, §3.4) | `1.0` (pilot) |
 | Jobsearch ApplicationV1 text SHA-256 | `8722aed9fa78e5ee49c2b5e5a031bfd53a7109bf625dfb0e0c99743fd82443c7` | — | — |
 | Jobsearch historical text version (v3) | `application-storage-consent-2026-11-07-v3` | `DRAFT`, superseded by v4 | **none** |
 | Jobsearch historical text version (v2) | `application-storage-consent-2026-11-07-v2` | `DRAFT`, superseded by v3 | **none** |
@@ -230,7 +236,7 @@ Candidate D is rendered verbatim above the consent button at Jobsearch
 Candidates A–C remain supporting/context material. v3/v2/v1 are historical and
 superseded.
 
-### 3.4 Candidate D — complete ApplicationV1 declaration (candidate, v4)
+### 3.4 Candidate D — approved ApplicationV1 declaration (v4, limited beta pilot)
 
 Source: `src/lib/applicationStorageConsent.ts` (Jobsearch commit `5ac025f`),
 canonical text = the nine paragraphs below joined with `\n\n` (UTF-8).
@@ -241,9 +247,9 @@ canonical text = the nine paragraphs below joined with `\n\n` (UTF-8).
 | SHA-256 | `8722aed9fa78e5ee49c2b5e5a031bfd53a7109bf625dfb0e0c99743fd82443c7` |
 | Supersedes | `...-v3`, `...-v2` and `...-v1` (historical, never approved) |
 | Intended RIS notice | `application-storage` / `1.0` |
-| State | **`DRAFT` — not approved** |
-| `legalApprovalRef` | **none** (RIS notice `1.0` still `null`) |
-| RIS ↔ Jobsearch mapping | **none** |
+| State | **`APPROVED` — limited beta pilot only, not `ACTIVE`** |
+| `legalApprovalRef` | `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08` |
+| RIS ↔ Jobsearch mapping | **`1.0` (limited beta pilot)** |
 | Art. 9 categories | `health`, `religious_or_philosophical_beliefs`, `trade_union_membership`, `political_opinions`, `sexual_orientation`, `sex_life`, `biometric_data`, `genetic_data`, `racial_or_ethnic_origin` |
 | Stored proof (RIS) | `specialCategoriesConsent`, `specialCategories`, `externalTextVersion`, `externalTextSha256` |
 | Privacy-policy reference inside text | v1.1, 7 November 2026 |
@@ -267,9 +273,9 @@ canonical text = the nine paragraphs below joined with `\n\n` (UTF-8).
 >
 > Für ApplicationV1 ist derzeit keine pauschale Aufbewahrungsfrist freigegeben. Gespeicherte Bewerbungen bleiben bestehen, bis ich sie lösche. Sicherungen, Protokolle und gesetzliche Aufbewahrungspflichten können eine Löschung verzögern oder begrenzen.
 
-**Note:** This is a candidate. It is not approved, not mapped to RIS `1.0`
-and must not be presented as approved until an operator/legal approval records
-the text, the mapping and a real `legalApprovalRef`. v3/v2/v1 (`...-v3` hash
+**Approval:** approved 2026-11-08 by Betreiberin May's Job Matcher for the
+**limited beta pilot only**, reference `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`.
+It is not `ACTIVE` and not a general rollout. v3/v2/v1 (`...-v3` hash
 `696f…7668`, `...-v2` hash `232c…a0ca`, `...-v1` hash `2615…9953`) remain
 historical/superseded and were never approved. The RIS backend stores the
 explicit Art. 9 proof (`specialCategoriesConsent`, `specialCategories`,
@@ -386,67 +392,63 @@ deletes" with no approved clock, no TTL value and no approved backup rule.
 
 ---
 
-## 7. Technical impact of an approval (what changes, what does not)
+## 7. Technical impact of the approval (what changes, what does not)
 
-**If the notice is approved and set to `APPROVED`/`ACTIVE` with a real
-`legalApprovalRef`:**
+**The approval is applied locally as `APPROVED` (not `ACTIVE`):**
 
-- `consent_contract.catalog_payload()` reports `noticeState`,
-  `noticeApproved=true`, `grantableWhenEnforced=true`;
-  `acceptedForNewGrant` is already `true` while enforcement is off.
-- The Jobsearch BFF gate opens (it requires state + both flags) and the UI
-  enables the grant button.
-- With `CONSENT_NOTICE_STATE_ENFORCED=true`, RIS accepts new grants and rejects
-  `DRAFT`/`SUPERSEDED` with `422 NOTICE_NOT_ACTIVE`.
+- `consent_contract.catalog_payload()` reports `noticeState=APPROVED`,
+  `noticeApproved=true`, `grantableWhenEnforced=true`, and the approval ref;
+  `acceptedForNewGrant` is `true`.
+- The Jobsearch BFF gate can open once its own text mapping
+  (`RIS_CONSENT_TEXT_STATE=APPROVED`) is set; the UI keeps the grant disabled
+  until server notice and text approval agree.
+- With `CONSENT_NOTICE_STATE_ENFORCED=true`, RIS accepts `APPROVED`/`ACTIVE`
+  new grants and rejects `DRAFT`/`SUPERSEDED` with `422 NOTICE_NOT_ACTIVE`.
 - Existing grants are unchanged; a version becoming `SUPERSEDED` does not
   rewrite them.
 - No DynamoDB migration, no table change, no new route.
-- The Lambda source hash changes → bundle rebuild and a **new** Terraform plan
-  are required before any deployment.
-
-**If the notice is not approved:** nothing changes; the Jobsearch gate stays
-closed and no real write can be granted.
+- Approval is local only. The Lambda source hash changes → bundle rebuild and
+  a **new** Terraform plan/review are required before any pilot deployment.
+  `APPLICATION_CONSENT_ENFORCED` and any environment change remain separate
+  GO items.
 
 ---
 
-## 8. Missing decisions (must be resolved before approval)
+## 8. Decision status (approval applied, open items)
 
-1. **Consent declaration text.** Approve an exact, complete first-person
-   declaration for application storage. Candidates A/B/C above are the only
-   existing texts; none is an approved declaration.
-2. **Scope of the notice.** Confirm that ApplicationV1 (applications, cover
-   letters, document versions, notes, contact, salary, history) is covered —
-   the RIS draft is written for profile/CV/search-profile data.
-3. **Controller/processor roles** and the Art. 6(1) basis (consent vs requested
-   service) for application storage.
-4. **Art. 9 assessment** for cover-letter/notes/contact free text.
-5. **RIS ↔ Jobsearch mapping**: approve that Jobsearch
-   `2026-11-04-draft-1` corresponds to RIS `application-storage/1.0`, or define
-   a successor mapping. Today the mapping is explicitly **none**.
-6. **`legalApprovalRef`**: approve the exact approval record identifier, owner,
-   date and which body approved it. No format is defined yet.
-7. **Retention rule for ApplicationV1**: clock event, duration, backup/PITR
-   treatment, deletion exceptions. Also decide consent-state/history retention
-   (no TTL today).
-8. **Account-level erasure**: decide whether `ERASURE_APPLICATIONS_ENABLED`
-   must be part of approval or explicitly excluded.
-9. **Recipients/transfers**: confirm AWS region `eu-central-1`, Vercel and any
-   further processors for this flow.
-10. **Withdrawal semantics**: confirm that withdrawal blocks new writes without
-    deleting existing applications.
-11. **Environment and audience**: dedicated pilot workspace vs `ris-dev`
-    (shared with the Jobsearch partner edge), and the exact synthetic test
-    identity allowlist.
-12. **Ordering approval**: separate GO for `CONSENT_NOTICE_STATE_ENFORCED=true`
-    and `APPLICATION_CONSENT_ENFORCED=true`.
+Resolved by this approval (limited beta pilot):
+
+| Item | Status |
+| --- | --- |
+| Exact declaration text | **APPROVED** — v4, hash `8722…43c7` |
+| ApplicationV1 scope | **APPROVED** — applications, cover letters, versions, notes, contact, salary, history, status/statusHistory |
+| Art. 9 text consent | **APPROVED** — separate consent, 9 categories incl. Sexualleben/sexuelle Orientierung, no self-categorisation/inference |
+| RIS ↔ Jobsearch mapping | **APPROVED** — v4 ↔ RIS `1.0` |
+| `legalApprovalRef` | **RECORDED** — `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`, 2026-11-08, Betreiberin May's Job Matcher |
+
+Still open (not falsely confirmed):
+
+1. **Full account deletion** — `ERASURE_APPLICATIONS_ENABLED=false`; account-level
+   erasure of applications is not enabled.
+2. **Consent-history retention** — the consents table has no TTL; the retention
+   clock/duration remains undecided.
+3. **DPA / transfer checks** — recipients, AWS `eu-central-1`, Vercel and any
+   further processors/transfers still require confirmation.
+4. **ApplicationV1 retention rule** — clock event, duration, backup/PITR and
+   deletion exceptions.
+5. **Controller/processor roles** and the Art. 6(1) basis beyond the consent
+   mechanism.
+6. **Environment and audience** — pilot deployment, exact `ris-dev` allowlist
+   and the separate GO for `CONSENT_NOTICE_STATE_ENFORCED=true` /
+   `APPLICATION_CONSENT_ENFORCED=true`.
 
 ---
 
 ## 9. What this packet explicitly does not do
 
-- It does not approve, publish or activate notice `1.0`.
-- It does not set `legalApprovalRef`, change `NOTICE_REGISTRY`, or change any
-  flag, environment, Terraform value or deployment.
-- It does not claim that candidate A, B, C or D is legally sufficient.
-- It does not claim live persistence; all technical statements are repository
-  and local-test facts.
+- It does **not** grant general availability: the notice is `APPROVED`, not
+  `ACTIVE`, and the pilot is limited.
+- It does **not** deploy, apply Terraform, change a flag/environment or claim
+  live persistence.
+- It does **not** confirm the open items in §8 (account deletion,
+  consent-history retention, DPA/transfers, retention clock).

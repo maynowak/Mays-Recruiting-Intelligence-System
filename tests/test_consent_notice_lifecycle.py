@@ -18,7 +18,8 @@ try:
     import boto3
     from moto import mock_aws
     from jobsearch.consent_contract import (
-        ConsentContext, ConsentContractError, NOTICE_ACTIVE, NOTICE_DRAFT,
+        ConsentContext, ConsentContractError, NOTICE_ACTIVE, NOTICE_APPROVED,
+        NOTICE_DRAFT,
         NOTICE_SUPERSEDED, STATUS_GRANTED, STATUS_NOT_GRANTED,
         catalog_payload, external_refs_payload, notice_version)
     from jobsearch import consent_contract
@@ -57,23 +58,31 @@ def _entry(**changes):
 class NoticeLifecycleTests(unittest.TestCase):
     @mock_aws
     def test_draft_is_grantable_while_enforcement_is_off(self):
-        with patch.dict(os.environ, {"CONSENT_NOTICE_STATE_ENFORCED": "false"}):
-            repo = _table()
-            granted = repo.grant(CTX, PURPOSE, VERSION)
-        self.assertEqual(STATUS_GRANTED, granted["status"])
-        self.assertEqual(NOTICE_DRAFT, granted["noticeState"])
-        self.assertFalse(granted["noticeApproved"])
-        self.assertTrue(granted["acceptedForNewGrant"])
-        self.assertIsNone(notice_version(PURPOSE, VERSION).legal_approval_ref)
+        draft = _entry(state=NOTICE_DRAFT, legal_approval_ref=None)
+        with patch.dict(consent_contract.NOTICE_REGISTRY[PURPOSE],
+                        {VERSION: draft}):
+            with patch.dict(os.environ,
+                            {"CONSENT_NOTICE_STATE_ENFORCED": "false"}):
+                repo = _table()
+                granted = repo.grant(CTX, PURPOSE, VERSION)
+            self.assertEqual(STATUS_GRANTED, granted["status"])
+            self.assertEqual(NOTICE_DRAFT, granted["noticeState"])
+            self.assertFalse(granted["noticeApproved"])
+            self.assertTrue(granted["acceptedForNewGrant"])
+            self.assertIsNone(notice_version(PURPOSE, VERSION).legal_approval_ref)
 
     @mock_aws
     def test_enforcement_rejects_draft_for_new_grant(self):
-        with patch.dict(os.environ, {"CONSENT_NOTICE_STATE_ENFORCED": "true"}):
-            repo = _table()
-            with self.assertRaises(ConsentContractError) as caught:
-                repo.grant(CTX, PURPOSE, VERSION)
-            self.assertEqual("NOTICE_NOT_ACTIVE", caught.exception.code)
-            status = repo.get(CTX, PURPOSE)
+        draft = _entry(state=NOTICE_DRAFT, legal_approval_ref=None)
+        with patch.dict(consent_contract.NOTICE_REGISTRY[PURPOSE],
+                        {VERSION: draft}):
+            with patch.dict(os.environ,
+                            {"CONSENT_NOTICE_STATE_ENFORCED": "true"}):
+                repo = _table()
+                with self.assertRaises(ConsentContractError) as caught:
+                    repo.grant(CTX, PURPOSE, VERSION)
+                self.assertEqual("NOTICE_NOT_ACTIVE", caught.exception.code)
+                status = repo.get(CTX, PURPOSE)
         self.assertEqual(STATUS_NOT_GRANTED, status["status"])
         self.assertFalse(status["noticeApproved"])
         self.assertFalse(status["acceptedForNewGrant"])
@@ -125,16 +134,32 @@ class NoticeLifecycleTests(unittest.TestCase):
         self.assertEqual("INVALID_NOTICE_VERSION", caught.exception.code)
 
     @mock_aws
-    def test_catalog_reports_state_and_absence_of_legal_approval(self):
+    def test_catalog_reports_the_operator_approval(self):
         with patch.dict(os.environ, {"CONSENT_NOTICE_STATE_ENFORCED": "false"}):
             catalog = catalog_payload(PURPOSE)
+            current = notice_version(PURPOSE, VERSION)
         self.assertEqual(1, len(catalog))
         entry = catalog[0]
         self.assertEqual(VERSION, entry["noticeVersion"])
+        self.assertEqual(NOTICE_APPROVED, entry["noticeState"])
+        self.assertTrue(entry["noticeApproved"])
+        self.assertEqual("JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08",
+                         entry["legalApprovalRef"])
+        self.assertTrue(entry["acceptedForNewGrant"])
+        self.assertEqual(NOTICE_APPROVED, current.state)
+        self.assertEqual("JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08",
+                         current.legal_approval_ref)
+
+    def test_catalog_still_reports_a_draft_when_patched(self):
+        draft = _entry(state=NOTICE_DRAFT, legal_approval_ref=None)
+        with patch.dict(consent_contract.NOTICE_REGISTRY[PURPOSE],
+                        {VERSION: draft}):
+            with patch.dict(os.environ,
+                            {"CONSENT_NOTICE_STATE_ENFORCED": "false"}):
+                entry = catalog_payload(PURPOSE)[0]
         self.assertEqual(NOTICE_DRAFT, entry["noticeState"])
         self.assertFalse(entry["noticeApproved"])
         self.assertIsNone(entry["legalApprovalRef"])
-        self.assertTrue(entry["acceptedForNewGrant"])
 
     @mock_aws
     def test_unknown_version_is_still_rejected(self):
@@ -163,7 +188,9 @@ class ConsentStatusResponseShapeTests(unittest.TestCase):
         body = json.loads(response["body"])
         self.assertEqual(1, len(body["items"]))
         self.assertEqual(VERSION, body["catalog"][0]["noticeVersion"])
-        self.assertEqual(NOTICE_DRAFT, body["catalog"][0]["noticeState"])
+        self.assertEqual(NOTICE_APPROVED, body["catalog"][0]["noticeState"])
+        self.assertEqual("JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08",
+                         body["catalog"][0]["legalApprovalRef"])
         self.assertEqual("2026-11-04-draft-1",
                          body["externalRefs"][0]["externalRef"])
 
