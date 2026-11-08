@@ -10885,3 +10885,27 @@ missing commit pointers:
 - Offen für allgemeinen Rollout: P3 Account-Erasure umfasst keine Partner-
   Suchprofile.
 - Commits: Jobsearch `8dacb93`/`217cce8`; RIS `60bc72d`/`d3459e2`.
+
+## 2026-11-08 — RIS-ACCOUNT-ERASURE-SEARCH-PROFILES-01
+
+**Typ:** Privacy / Account-Erasure / P3
+**Status:** `IMPLEMENTED / VERIFIED LOCAL`
+
+- Added `erase-partner-search-profiles` to the existing `PrivacyErasure`
+  lifecycle. It reuses the R08-C1A `ProfileOnlyErasureExecutor` and the
+  existing `PartnerProfileRepository`; no second deletion engine or UI.
+- Order: ATS search profiles → CV search profiles → manual search profiles.
+  Deletes are identity-scoped by user, tenant, partner application and issuer,
+  version-conditioned, paginated and idempotent. Partial failures and version
+  conflicts keep the run incomplete; retry resumes by re-listing.
+- Document phase now returns pending/open work instead of a false success;
+  `delete_all_for_user_report` reports `(deleted, pending)`.
+- Handler requires `PARTNER_PROFILE_TABLE` and passes the verified partner
+  context. Privacy inspect/export already included all three profile types.
+- Tests: new 13-test suite PASS; focused privacy/profile suites 103 PASS;
+  full RIS suite 2550 PASS, 17 skipped, 16 pre-existing unrelated failures.
+- Jobsearch still has only the disabled erasure placeholder and does not call
+  `/me/erasure`; no new UI/client was added. This remains a cross-repo follow-up.
+- No AWS apply/deploy, global erasure flag, Cognito/CloudFront/DNS/ACM or
+  Mays-Orders change. No physical backup/PITR purge claimed.
+- Commit: `30668ff`.
