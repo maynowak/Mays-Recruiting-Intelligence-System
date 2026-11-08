@@ -5533,8 +5533,10 @@ def _cv_delete(ctx, cv_id):
                          cvId=cv_id, s3Touched=False)
     except PartnerProfileNotFoundError:
         return _cv_error(404, 'Not found')
-    except Exception:
-        logger.error('cv delete reservation failed')
+    except Exception as exc:
+        # Diagnostic only: exception class and message, never CV/document contents.
+        logger.error('cv delete reservation failed: %s: %s',
+                     type(exc).__name__, str(exc)[:300])
         return _cv_error(500, 'Internal error')
 
     # Phase B: delete the current S3 object version only after the child guard

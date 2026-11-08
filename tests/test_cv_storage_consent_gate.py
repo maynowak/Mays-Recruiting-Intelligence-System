@@ -151,6 +151,14 @@ def test_cv_notice_is_operator_approved_for_limited_pilot():
     )
 
 
+def test_partner_profile_policy_allows_transaction_condition_checks():
+    source = (ROOT / "terraform" / "modules" / "lambda" / "main.tf").read_text(
+        encoding="utf-8"
+    )
+    assert 'resource "aws_iam_role_policy" "lambda_dynamodb_partner_profiles"' in source
+    assert '"dynamodb:ConditionCheckItem"' in source
+
+
 def test_cv_consent_terraform_wiring_defaults_off():
     variables = (ROOT / "terraform" / "variables.tf").read_text(encoding="utf-8")
     module_variables = (ROOT / "terraform" / "modules" / "lambda" / "variables.tf").read_text(
