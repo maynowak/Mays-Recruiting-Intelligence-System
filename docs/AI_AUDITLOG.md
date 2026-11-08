@@ -10903,7 +10903,7 @@ missing commit pointers:
 - Handler requires `PARTNER_PROFILE_TABLE` and passes the verified partner
   context. Privacy inspect/export already included all three profile types.
 - Tests: new 14-test suite PASS; focused privacy/profile suites 103 PASS;
-  full RIS suite 2550 PASS, 17 skipped, 16 pre-existing unrelated failures.
+  full RIS suite 2551 PASS, 17 skipped, 16 pre-existing unrelated failures.
 - Jobsearch still has only the disabled erasure placeholder and does not call
   `/me/erasure`; no new UI/client was added. This remains a cross-repo follow-up.
 - No AWS apply/deploy, global erasure flag, Cognito/CloudFront/DNS/ACM or

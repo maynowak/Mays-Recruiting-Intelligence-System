@@ -101,7 +101,7 @@ pytest -q \
 # 103 passed
 
 pytest -q tests --ignore=tests/integration
-# 2550 passed, 17 skipped, 16 pre-existing failures
+# 2551 passed, 17 skipped, 16 pre-existing failures
 ```
 
 The 16 full-suite failures are the existing project-config/composite/health/
