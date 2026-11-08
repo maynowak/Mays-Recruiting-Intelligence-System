@@ -1,3 +1,6 @@
+> **SUPERSEDED by `SEARCH-PROFILE-STORAGE-03-E2E-RUNBOOK.md`** (APPROVED notice).
+> Kept for the DRAFT/synthetic history only.
+
 # SEARCH-PROFILE-STORAGE-02 — Synthetic E2E Runbook
 
 **Status:** `PREPARED — NOT EXECUTED`
