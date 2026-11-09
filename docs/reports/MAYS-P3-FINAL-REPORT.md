@@ -121,8 +121,8 @@ S3 versions/backups/PITR remain separate open boundaries.
 | Jobsearch BFF/router/client/consent | **23 passed** |
 | Jobsearch account-erasure browser E2E (mocked BFF) | **PASS** |
 | Jobsearch production build | **PASS** |
-| RIS partner/erasure focused (after metadata fix) | **46 passed** + **77 passed** earlier |
-| RIS full suite (`tests --ignore=tests/integration`) | **2555 passed**, 17 skipped, 16 pre-existing unrelated failures |
+| RIS partner/erasure focused (after metadata fix) | **46 passed**; partner-route focused **77 passed** earlier |
+| RIS full suite (`tests --ignore=tests/integration`) | **2558 passed**, 17 skipped, 16 pre-existing unrelated failures |
 | RIS `terraform validate` / `fmt -check` | **PASS** |
 | Live preview browser E2E | **PASS** (synthetic identity only) |
 
@@ -146,19 +146,21 @@ expected 4 invocations/hour / 96/day (pre-change 12/hour / 288/day).
 - RIS live E2E docs: `a52fabd`
 - Jobsearch live E2E docs: `938f82b`
 - Health schedule: `74e766c` / docs `70c9bf0`
+- Consolidated reports: Jobsearch `70cd0aa`, RIS `20595a6`
 
 ## 9. Remaining approvals
 
 1. **Production Jobsearch deployment**: review/deploy the BFF/UI on the
    selected production branch; keep erasure flags limited to the approved pilot
    identity.
-3. **Production copy cleanup**: ensure no test identity/allowlist remains.
-4. **S3 versions/backups/PITR**: separate evidence and approval; no physical
+2. **Production copy cleanup**: ensure no test identity/allowlist remains.
+3. **S3 versions/backups/PITR**: separate evidence and approval; no physical
    purge is claimed.
 
 ## 10. Result
 
 `MAYS-P3-FINAL — PARTNER ERASURE ROUTE LIVE PREVIEW E2E PASS`
 
-The partner route and search-profile erasure are verified live in an isolated
-preview. Production deployment and CVDocument metadata erasure remain pending.
+The partner route, search-profile erasure and CVDocument metadata erasure are
+verified live in an isolated preview. Production deployment and
+S3-version/backup/PITR remain pending.

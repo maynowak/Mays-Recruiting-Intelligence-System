@@ -1,11 +1,10 @@
 > **Historical report.** Current consolidated P3 status:
 > `MAYS-P3-FINAL-REPORT.md`.
 
-> **Post-report note (2026-11-09):** current RIS-DEV state is serial **54**,
-> not 50, after temporary test-allowlist setup/rollback and the local
-> partner-context handler fix. See `MAYS-P3-FINAL-REPORT.md` for the current
-> blocker: `/me/erasure` is on the kernel API (different Cognito pool) and is
-> not reachable from the Jobsearch partner edge.
+> **Post-report note (2026-11-09):** current RIS-DEV state is serial **61**.
+> The partner-edge route `POST /v1/partner/me/erasure` is live and the
+> Jobsearch BFF partner route plus CVDocument metadata erasure were verified
+> with an isolated synthetic identity. See `MAYS-P3-FINAL-REPORT.md`.
 
 # RIS-ACCOUNT-ERASURE-SEARCH-PROFILES-03 — Deployment Report
 
