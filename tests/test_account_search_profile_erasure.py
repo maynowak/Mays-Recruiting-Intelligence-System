@@ -204,6 +204,27 @@ class AccountSearchProfileErasureTests(unittest.TestCase):
         self.assertEqual("SEARCH_PROFILE_STORAGE_UNAVAILABLE", result.error)
 
 
+class PrivacyErasureRealAdapterTests(unittest.TestCase):
+    def test_real_adapter_is_used_by_the_account_lifecycle(self):
+        repo = Repo([
+            profile("ats1", "ATSSearchProfile", ats_profile_id="ats1", search_profile_id="sp1"),
+            profile("sp1", "CVSearchProfile", search_profile_id="sp1", cv_id="cv1"),
+            profile("man1", "ManualSearchProfile", manual_profile_id="man1"),
+        ])
+        result = PrivacyErasure(
+            partner_profile_erasure=AccountSearchProfileErasure(repo),
+            document_deleter=lambda _uid: 0,
+        ).erase("u1", "t1", partner_application_id="p1",
+                 issuer="issuer")
+        step = next(s for s in result.steps
+                    if s.step == "erase-partner-search-profiles")
+        self.assertTrue(step.ok, step.error)
+        self.assertEqual(3, step.affected)
+        self.assertEqual(3, result.search_profiles_deleted)
+        self.assertTrue(result.complete)
+        self.assertEqual({}, repo.items)
+
+
 class HandlerWiringTests(unittest.TestCase):
     def test_erasure_handler_constructs_and_passes_partner_profile_erasure(self):
         source = (ROOT / "lambda" / "handler.py").read_text(encoding="utf-8")
@@ -297,3 +318,45 @@ class PrivacyErasureIntegrationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class DocumentMetadataErasureTests(unittest.TestCase):
+    def test_metadata_is_deleted_after_s3_success(self):
+        repo = Repo([
+            profile("cv1", "CVDocument", cv_id="cv1", version=2),
+            profile("cv-other", "CVDocument", cv_id="cv-other", user_id="u2"),
+        ])
+        result = PrivacyErasure(
+            partner_profile_erasure=AccountSearchProfileErasure(repo),
+            document_deleter=lambda _uid: 1,
+        ).erase("u1", "t1", partner_application_id="p1", issuer="issuer")
+        step = next(s for s in result.steps
+                    if s.step == "delete-document-metadata")
+        self.assertTrue(step.ok, step.error)
+        self.assertEqual(1, result.document_metadata_deleted)
+        self.assertTrue(result.complete)
+        self.assertNotIn("cv1", repo.items)
+        self.assertIn("cv-other", repo.items)
+
+    def test_metadata_is_not_deleted_when_s3_is_pending(self):
+        repo = Repo([profile("cv1", "CVDocument", cv_id="cv1", version=2)])
+        result = PrivacyErasure(
+            partner_profile_erasure=AccountSearchProfileErasure(repo),
+            document_deleter=lambda _uid: (1, True),
+        ).erase("u1", "t1", partner_application_id="p1", issuer="issuer")
+        step = next(s for s in result.steps
+                    if s.step == "delete-document-metadata")
+        self.assertFalse(step.ok)
+        self.assertEqual("DOCUMENTS_REMAIN", step.error)
+        self.assertFalse(result.complete)
+        self.assertIn("cv1", repo.items)
+
+    def test_metadata_version_conflict_fails_closed(self):
+        repo = Repo([profile("cv1", "CVDocument", cv_id="cv1", version=2)],
+                    conflict_on="cv1")
+        teammate = AccountSearchProfileErasure(repo)
+        outcome = teammate.erase_document_metadata(
+            user_id="u1", tenant_id="t1", partner_application_id="p1",
+            issuer="issuer")
+        self.assertFalse(outcome.ok)
+        self.assertEqual("PROFILE_CONCURRENT_MUTATION", outcome.error)
+

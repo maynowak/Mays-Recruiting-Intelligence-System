@@ -525,6 +525,15 @@ class SearchProfileErasureResult:
     error: Optional[str] = None
 
 
+@dataclass(frozen=True)
+class DocumentMetadataErasureResult:
+    """Outcome of CVDocument metadata deletion after the S3 phase."""
+
+    ok: bool
+    deleted: int
+    error: Optional[str] = None
+
+
 class _TransientOperationRepository:
     """Minimal checkpoint sink for one account-erasure invocation.
 
@@ -564,9 +573,9 @@ class AccountSearchProfileErasure:
 
     Reuses ``ProfileOnlyErasureExecutor`` (R08-C1A) rather than introducing a
     second deletion engine. The executor deletes ATS profiles first, then CV
-    search profiles, then manual profiles. CVDocument/S3 and user-profile
-    phases remain owned by ``PrivacyErasure``; this adapter only reports the
-    three search-profile categories.
+    search profiles, then manual profiles. ``erase_document_metadata`` deletes
+    CVDocument rows only after the caller has confirmed the S3 phase; the
+    user-profile phase remains owned by ``PrivacyErasure``.
     """
 
     def __init__(self, profile_repository: Any, *, page_size: int = 50):
@@ -637,6 +646,70 @@ class AccountSearchProfileErasure:
         return SearchProfileErasureResult(ok, deleted, counts, error)
 
 
+    def erase_document_metadata(self, *, user_id: str, tenant_id: str,
+                                partner_application_id: str,
+                                issuer: str) -> DocumentMetadataErasureResult:
+        """Delete CVDocument metadata rows after S3 objects are gone.
+
+        This is intentionally separate from the search-profile categories: the
+        caller must complete/verify the S3 phase first. A missing child
+        CVSearchProfile is a conflict, not a silent skip.
+        """
+        if not self._identity(user_id, tenant_id, partner_application_id,
+                               issuer):
+            return DocumentMetadataErasureResult(
+                False, 0, "SEARCH_PROFILE_IDENTITY_CONTEXT_REQUIRED")
+        if getattr(self.profiles, "table", object()) is None:
+            return DocumentMetadataErasureResult(
+                False, 0, "PARTNER_PROFILE_STORAGE_UNAVAILABLE")
+        cursor = None
+        deleted = 0
+        while True:
+            try:
+                items, next_cursor = self.profiles.list_by_user(
+                    user_id, tenant_id, resource_type="CVDocument",
+                    partner_app_id=partner_application_id, issuer=issuer,
+                    limit=self.page_size, cursor=cursor)
+            except Exception as exc:
+                logger.error("CVDocument metadata list failed: %s",
+                             type(exc).__name__)
+                return DocumentMetadataErasureResult(
+                    False, deleted, "CV_DOCUMENT_METADATA_ERASURE_FAILED")
+            for item in items:
+                cv_id = getattr(item, "cv_id", None)
+                if not cv_id:
+                    return DocumentMetadataErasureResult(
+                        False, deleted, "CV_DOCUMENT_IDENTITY_MISSING")
+                try:
+                    result = self.profiles.delete(
+                        cv_id, user_id=user_id, tenant_id=tenant_id,
+                        partner_app_id=partner_application_id, issuer=issuer,
+                        expected_version=getattr(item, "version", None))
+                except Exception as exc:
+                    if _is_conflict(exc):
+                        return DocumentMetadataErasureResult(
+                            False, deleted, CONCURRENT_MUTATION)
+                    logger.error("CVDocument metadata delete failed: %s",
+                                 type(exc).__name__)
+                    return DocumentMetadataErasureResult(
+                        False, deleted, "CV_DOCUMENT_METADATA_ERASURE_FAILED")
+                if result is False:
+                    current = self.profiles.get(
+                        cv_id, user_id, tenant_id, partner_application_id,
+                        issuer)
+                    if current is not None:
+                        return DocumentMetadataErasureResult(
+                            False, deleted, CONCURRENT_MUTATION)
+                deleted += 1
+            if not next_cursor:
+                return DocumentMetadataErasureResult(True, deleted)
+            if next_cursor == cursor:
+                return DocumentMetadataErasureResult(
+                    False, deleted, "CV_DOCUMENT_METADATA_CURSOR_STALLED")
+            cursor = next_cursor
+
+
 __all__ = ["ProfileOnlyErasureExecutor", "ProfileErasureError",
            "ProfileErasureConflict", "ProfileErasureBlocked", "DOCUMENT_PENDING",
-           "AccountSearchProfileErasure", "SearchProfileErasureResult"]
+           "AccountSearchProfileErasure", "SearchProfileErasureResult",
+           "DocumentMetadataErasureResult"]
