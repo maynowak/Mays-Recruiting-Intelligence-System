@@ -11086,3 +11086,15 @@ missing commit pointers:
   documentMetadataDeleted=1, documentsDeleted=1; CV list 0. Test user/data and
   allowlist cleaned. Full suite 2558 passed, 16 pre-existing failures.
 - S3 versions/backups/PITR remain open.
+
+## 2026-11-09 — P3 feature branch pushed
+
+**Typ:** Git push / Handoff
+**Status:** `PUSHED — NO MERGE/DEPLOY`
+
+- RIS `feature/jm-ris-cv-storage-integration-01` pushed:
+  `bb3fdfa65fc24e2896e893ae911a3ccd92015696`.
+- Remote RIS `main` is `f830a5e…`; the feature branch was created from the
+  older local base. PR readiness requires a fetch/rebase or merge review before
+  opening/merging a PR; no force/merge/deploy was performed.
+- No secrets/test sessions/tfstate were pushed.
