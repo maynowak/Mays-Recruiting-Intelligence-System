@@ -1,6 +1,6 @@
 # MAYS-P3-FINAL — Orchestrated E2E & Release Closure
 
-**Result:** `PARTNER ERASURE ROUTE VERIFIED LOCAL — DEPLOYMENT PENDING`  
+**Result:** `PARTNER ERASURE ROUTE LIVE PREVIEW E2E PASS — PRODUCTION DEPLOYMENT PENDING`  
 **Safe work:** complete  
 **Date:** 2026-11-08
 
@@ -210,4 +210,64 @@ Deployment is now the only remaining step for this local route: apply the
 reviewed plan, deploy the Jobsearch BFF/UI, and then run the destructive
 synthetic E2E with an approved isolated identity. No real data was deleted.
 S3/document/backup/PITR limits remain open.
+
+## 12. Live preview E2E with isolated synthetic identity (2026-11-09)
+
+The exact partner-erasure plan was applied, the Jobsearch BFF was deployed to a
+preview, and a real browser E2E was executed with a new isolated Cognito test
+user. Only that synthetic identity was deleted.
+
+### Deployment
+
+- Applied `/tmp/opencode/ris-dev-partner-erasure.tfplan`, SHA-256
+  `837068b155f953272600ec46a03efe9f82ef5472f00b9b6b283e67f936729148`:
+  **1 add** (`POST /v1/partner/me/erasure`) + **1 update** (agent Lambda),
+  0 delete/replace.
+- Live partner route: `POST /v1/partner/me/erasure`.
+- RIS state after deploy/allowlist rollback: serial **58**; Lambda
+  `nmpYXt+WGUx6rPlkcGbYb78XuBLDmJYIUfUqVgfbh8g=`.
+- Jobsearch preview `mays-job-matcher-d4rbxb3hv-maymilly.vercel.app` (removed
+  after test); BFF env/flags were preview-only.
+- Production Jobsearch remains `dpl_6DiPJxotbPSC8K5u8C8ZYkizTYdA` from
+  `e5716f1`; this E2E did not deploy to production.
+
+### Browser E2E
+
+- Isolated Cognito user created for the test; `CONSENT_PILOT_ALLOWLIST` and
+  preview `RIS_TEST_USER_ALLOWLIST` temporarily scoped to its exact `iss|sub`.
+- Synthetic CV + manual + CV-search + ATS profile created.
+- Real Settings UI, typed `LÖSCHEN`, clicked delete.
+- Response: **complete=true**, `searchProfiles=3`, `documents=1`,
+  `applications=0`, `credentials=0`.
+- Search-profile lists after erasure: manual **0**, CV-search **0**, ATS route
+  **404** (parent gone).
+- Second erasure call: **complete=true**, `searchProfiles=0`, `documents=0`
+  (idempotent for the exercised path).
+- Screenshot: `docs/reports/assets/MAYS-P3-FINAL/p3-final-real-erasure.png`.
+
+### Finding: CVDocument metadata remains
+
+After the lifecycle returned `complete=true`, the synthetic `CVDocument`
+metadata still appeared in `GET /api/ris/cvs`. The S3 document count was 1 and
+the S3 object was deleted, but the metadata row was not part of this erasure
+phase. The synthetic CV metadata was then deleted manually for cleanup.
+
+This is an **open S3/document boundary**, not a failed search-profile deletion.
+It must be resolved before claiming complete account erasure of CV documents.
+
+### Cleanup
+
+- Test user deleted from Cognito.
+- Temporary allowlist entry removed; allowlist restored to the original
+  operator identity (state serial 58).
+- Synthetic CV/search profiles removed; preview deployment and preview env
+  removed; local session/test artifacts deleted.
+- No real user data deleted.
+
+### Current status
+
+`MAYS-P3-FINAL — PARTNER ERASURE ROUTE LIVE PREVIEW E2E PASS`
+
+Production Jobsearch deployment and CVDocument-metadata erasure remain
+separate approvals/open boundaries.
 

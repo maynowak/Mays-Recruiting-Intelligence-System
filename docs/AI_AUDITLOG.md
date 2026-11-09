@@ -11045,3 +11045,18 @@ missing commit pointers:
 - Tests: RIS focused 77 PASS; full 2555 PASS with 16 pre-existing unrelated
   failures; Jobsearch 23 PASS + browser E2E PASS + build PASS.
 - No deployment, no real account deletion; S3/document/backup/PITR limits open.
+
+## 2026-11-09 — Partner erasure live preview E2E
+
+**Typ:** Controlled preview deployment / Synthetic browser E2E
+**Status:** `PARTNER ERASURE ROUTE LIVE PREVIEW E2E PASS — PRODUCTION PENDING`
+
+- Applied exact plan `837068b155f953272600ec46a03efe9f82ef5472f00b9b6b283e67f936729148`:
+  1 add (`POST /v1/partner/me/erasure`) + 1 update (agent Lambda).
+- RIS state serial **58**; Lambda `nmpYXt+WGUx6rPlkcGbYb78XuBLDmJYIUfUqVgfbh8g=`.
+- Real browser E2E with isolated synthetic user: complete=true,
+  `searchProfiles=3`, `documents=1`; lists 0/0/404; second call idempotent.
+- Finding: CVDocument metadata remained after complete=true; S3 object deleted,
+  metadata not. Open S3/document boundary; synthetic metadata cleaned manually.
+- Test user/allowlist/preview env cleaned; no real data deleted. Production
+  Jobsearch remains `dpl_6DiP...`.
