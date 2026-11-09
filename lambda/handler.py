@@ -580,6 +580,14 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # R06: partner ATS search profiles (ATSSearchProfileV1 CRUD).
         return _search_profile_storage_guard(
             _handle_partner_ats_routes, event, context, method, path)
+    elif method == 'POST' and path == '/v1/partner/me/erasure':
+        # Partner-edge account erasure: the existing JWT authorizer is
+        # combined with the existing partner credential/profile boundary.
+        # Reuse the kernel lifecycle; no second deletion engine.
+        _partner_ctx, error = _partner_profile_context(event)
+        if error:
+            return error
+        return _handle_me_erasure(event, context)
     elif path == '/v1/partner/me/consents' or path.startswith('/v1/partner/me/consents/'):
         return _handle_consent_routes(event, context, method, path)
     elif path == '/v1/partner/me/applications' or path.startswith('/v1/partner/me/applications/'):
