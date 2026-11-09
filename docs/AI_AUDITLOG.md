@@ -11098,3 +11098,22 @@ missing commit pointers:
   older local base. PR readiness requires a fetch/rebase or merge review before
   opening/merging a PR; no force/merge/deploy was performed.
 - No secrets/test sessions/tfstate were pushed.
+
+## 2026-11-09 — MAYS-XREPO PR/merge consolidation 01
+
+**Typ:** Integration preparation
+**Status:** `INTEGRATION PREPARED — GO FOR HUMAN MERGE REVIEW`
+
+- Fetched `origin` with `--prune`; baseline `main` is `f830a5e`. Feature branch
+  `feature/jm-ris-cv-storage-integration-01` is at `9c39316`.
+- Isolated worktree `worktrees/integration-ris-p3`, branch
+  `integration/mays-p3-ris`, merge commit `9159150` plus integration fixes
+  `a749510`/`6d123b4`; feature branch is an ancestor. Auditlog conflict resolved
+  by retaining both sides. No integration branch push.
+- Installer overlay allowlist now accepts `cv_storage_consent_enforced`
+  (already present in `ris-dev`; flag value unchanged). Terraform contract test
+  tolerates `terraform fmt` alignment; no runtime/Terraform change.
+- Focused privacy/erasure/OpenAPI tests 111 passed; full suite 2568 passed,
+  17 skipped, 6 pre-existing failures also reproduced on `origin/main`.
+  `terraform fmt -check -recursive` PASS.
+- No merge, deployment, AWS/Terraform apply, Vercel mutation or force-push.
