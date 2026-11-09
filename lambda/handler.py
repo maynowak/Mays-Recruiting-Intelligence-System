@@ -1485,6 +1485,18 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'Unauthenticated'})
         }
 
+    # Resolve the tenant server-side from the verified client/registry when the
+    # token does not carry a tenant claim. This is the same boundary used by
+    # the partner profile routes and is required for standard users' erasure.
+    resolved_tenant, tenant_conflict = _resolve_tenant(user_context)
+    if tenant_conflict:
+        return {
+            'statusCode': 403,
+            'body': json.dumps({'error': 'Erasure authorization context invalid'})
+        }
+    if resolved_tenant:
+        user_context['tenantId'] = resolved_tenant
+
     try:
         from agents.ecosystem.privacy_erasure import (
             PrivacyErasure, ErasureExecutionUnavailable)
@@ -1557,24 +1569,34 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     dynamodb = _get_dynamodb()
     partner_application_id = user_context.get('partnerApplicationId')
     issuer = user_context.get('issuer')
+    tenant_id = user_context.get('tenantId')
+    # Standard Cognito users may not carry a partner-application claim. The
+    # verified client-id registry is the server-side source of truth; resolve
+    # it before deciding whether partner search profiles exist. Never trust a
+    # client-supplied application id.
+    client_ref = user_context.get('clientId') or user_context.get('audience')
+    if not partner_application_id and client_ref and tenant_id:
+        registry = resolve_partner_application(client_ref)
+        if (registry and registry.get('status') == 'ACTIVE'
+                and registry.get('tenantId') == tenant_id):
+            partner_application_id = registry.get('applicationId')
     application_context = None
-    if partner_application_id and issuer and user_context.get('tenantId'):
-        registry = resolve_partner_application(
-            user_context.get('clientId'))
+    if partner_application_id and issuer and tenant_id:
+        registry = resolve_partner_application(client_ref)
         if (not registry or registry.get('status') != 'ACTIVE'
                 or registry.get('applicationId') != partner_application_id
-                or registry.get('tenantId') != user_context.get('tenantId')):
+                or registry.get('tenantId') != tenant_id):
             return {
                 'statusCode': 403,
                 'body': json.dumps({'error': 'Erasure authorization context invalid'})
             }
         application_context = ApplicationContext(
-            user_context['userId'], user_context['tenantId'],
+            user_context['userId'], tenant_id,
             partner_application_id, issuer)
     application_repository = ApplicationRepository(
         table_name=os.environ.get("APPLICATIONS_TABLE"), dynamodb=dynamodb)
     partner_profile_erasure = None
-    if partner_application_id and issuer and user_context.get('tenantId'):
+    if partner_application_id and issuer and tenant_id:
         partner_profile_erasure = AccountSearchProfileErasure(
             _manual_profile_repo())
     erasure = PrivacyErasure(
