@@ -1,3 +1,9 @@
+> **Post-report note (2026-11-09):** current RIS-DEV state is serial **54**,
+> not 50, after temporary test-allowlist setup/rollback and the local
+> partner-context handler fix. See `MAYS-P3-FINAL-REPORT.md` for the current
+> blocker: `/me/erasure` is on the kernel API (different Cognito pool) and is
+> not reachable from the Jobsearch partner edge.
+
 # RIS-ACCOUNT-ERASURE-SEARCH-PROFILES-03 — Deployment Report
 
 **Result:** `DEPLOYED / POST-DEPLOY VERIFIED`  

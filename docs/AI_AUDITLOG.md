@@ -10981,3 +10981,19 @@ missing commit pointers:
 - Evidence: `docs/reports/assets/MAYS-P3-FINAL/account-erasure-ui.png`.
 - The destructive production E2E remains blocked pending an approved isolated
   synthetic identity/dataset and a Jobsearch deployment approval.
+
+## 2026-11-09 — MAYS-P3-FINAL status reconciliation
+
+**Status:** `BLOCKED — PARTNER-EDGE ERASURE ROUTE MISSING`
+
+- RIS-DEV state serial **54**, Lambda
+  `FlXserJvs+Cxi0uGTyKkIReLFs2kOTyJXtGTivNe8+0=`; synthetic allowlist entry
+  removed; synthetic test user/data deleted; no real data touched.
+- Production Jobsearch is on `dpl_6DiPJxotbPSC8K5u8C8ZYkizTYdA` from a
+  different branch (`e5716f1`), not the local P3 branch.
+- `/me/erasure` lives on the kernel API with Cognito pool
+  `eu-central-1_ojbmoiYGM`; the Jobsearch partner edge uses
+  `eu-central-1_ZURSMpD2O` and has no erasure route. Minimal correction: add
+  `POST /v1/partner/me/erasure` to the existing partner edge and dispatch to
+  `_handle_me_erasure`.
+- No destructive production E2E, no push/merge.

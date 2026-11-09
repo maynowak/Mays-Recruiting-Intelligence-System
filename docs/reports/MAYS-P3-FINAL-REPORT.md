@@ -1,6 +1,6 @@
 # MAYS-P3-FINAL — Orchestrated E2E & Release Closure
 
-**Result:** `BLOCKED — DESTRUCTIVE SYNTHETIC ERASURE E2E + JOBSEARCH DEPLOYMENT PENDING`  
+**Result:** `BLOCKED — PARTNER-EDGE ERASURE ROUTE MISSING + JOBSEARCH DEPLOYMENT PENDING`  
 **Safe work:** complete  
 **Date:** 2026-11-08
 
@@ -108,3 +108,54 @@ the two repository commits.
 `MAYS-P3-FINAL` can become `VERIFIED` only after the isolated synthetic identity
 approval, Jobsearch deployment, and destructive synthetic erasure E2E have all
 been completed and evidenced.
+
+## 9. 2026-11-09 status reconciliation
+
+### Production Jobsearch
+
+- Production `https://www.mays-job-matcher.app` is live via
+  `dpl_6DiPJxotbPSC8K5u8C8ZYkizTYdA` (deployment URL
+  `https://mays-job-matcher-g997tkrur-maymilly.vercel.app`), source branch
+  `feature/jm-ris-vercel-test-env-05-integration @ e5716f1`.
+- Public smoke `/`, `/datenschutz`, `/impressum`: 200, no console errors
+  (reported by the production deployment operator; this workspace independently
+  confirmed the public alias returns 200).
+- Authenticated login/consent/application E2E remains manual and was not run by
+  this agent. This production build is **not** the local P3 branch
+  `feature/jm-ris-cv-storage-integration-01`.
+
+### RIS-DEV current state
+
+- State serial is now **54**, not the serial 50 recorded in RAESP-03, after
+  allowlist test setup/rollback and the local partner-context handler fix.
+- Lambda `ris-dev-dev-agent` is Active at
+  `FlXserJvs+Cxi0uGTyKkIReLFs2kOTyJXtGTivNe8+0=`.
+- `CONSENT_PILOT_ALLOWLIST` is back to the original operator identity only.
+- The synthetic test user was deleted; its synthetic CV/search profiles were
+  removed. No real operator data was touched.
+
+### Actual erasure blocker discovered
+
+`POST /me/erasure` is on the RIS **kernel** API
+(`g6901and25`), whose JWT authorizer uses a different Cognito pool
+(`eu-central-1_ojbmoiYGM`, client `7ldhihlpdgsgcl3puvu4oi7ksv`). The Jobsearch
+partner edge (`c7e9pdwe78`) uses the Jobsearch pool
+(`eu-central-1_ZURSMpD2O`, client `5hb3f6dj5ialg77jf4blur9g6g`) and does not
+expose an erasure route. A Jobsearch access/ID token therefore receives 401
+from the kernel route; an account-erasure request cannot be completed via the
+current BFF/base URL.
+
+**Minimal correction:** add `POST /v1/partner/me/erasure` to the existing
+partner edge with the existing Jobsearch JWT authorizer and dispatch it to the
+existing `_handle_me_erasure` (no second engine), then point the Jobsearch BFF
+at that partner route and use the browser access token. This requires a
+reviewed Terraform/API change and a Jobsearch deployment approval.
+
+### Current status
+
+`MAYS-P3-FINAL — BLOCKED`
+
+RIS search-profile erasure is deployed; the cross-repository *account* erasure
+path is not reachable for Jobsearch users until the partner-edge route exists.
+No destructive production E2E was executed.
+
