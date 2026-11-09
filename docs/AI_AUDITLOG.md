@@ -11001,14 +11001,32 @@ missing commit pointers:
 ## 2026-11-09 — Health publisher schedule reduced to 15 minutes
 
 **Typ:** Cost control / Schedule change
-**Status:** `APPLIED — RIS-DEV`
+**Status:** `APPLIED / VERIFIED — RIS-DEV` (`GREEN`)
 
+- Context: AWS account `240571105849`, profile `mayaws`, region
+  `eu-central-1`, Terraform workspace `ris-dev`, backend
+  `mays-ris-tf-state-dev`, key `env:/ris-dev/dev/terraform.tfstate`,
+  lineage `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`.
 - Changed `module.health_plane.aws_cloudwatch_event_rule.health_publisher_schedule`
-  from `rate(5 minutes)` to `rate(15 minutes)`.
+  from `rate(5 minutes)` to `rate(15 minutes)` in commit `74e766c`
+  (`feature/jm-ris-cv-storage-integration-01`).
 - Plan `/tmp/opencode/ris-dev-health-15min.tfplan`, SHA-256
-  `f8b02fb00ab9e95cae57c91cc361eb24f650edded411440bdfcee33c436b64b8`;
-  0 add / 1 change / 0 destroy; only the EventBridge rule.
-- Apply result: 0 added / 1 changed / 0 destroyed; state serial **55**.
-- Live rule: `rate(15 minutes)`, `ENABLED`; measured 12 invocations/hour
-  instead of 12/5-minute intervals (288/day).
+  `f8b02fb00ab9e95cae57c91cc361eb24f650edded411440bdfcee33c436b64b8`,
+  timestamp `2026-11-09T08:36:03Z`; 0 add / 1 change / 0 destroy; only the
+  EventBridge rule; 273 no-op changes and no output changes.
+- Apply `2026-11-09T08:36:34Z`: 0 added / 1 changed / 0 destroyed; state
+  serial **54 → 55**; lineage unchanged; 250 resources; state object
+  `LastModified=2026-11-09T08:36:37Z`.
+- CloudTrail shows exactly one `PutRule` by the Terraform provider in the
+  apply window; no other mutating API call.
+- Live rule: `ris-dev-dev-health-publisher-schedule`,
+  `rate(15 minutes)`, `ENABLED`; one target
+  `ris-dev-dev-health-publisher`.
+- Invocation impact: the old 5-minute rate measured 12 invocations/hour
+  (288/day). The 15-minute rate is expected to produce 4 invocations/hour
+  (96/day); a full post-change hour had not elapsed at audit time.
+- Checks: `terraform fmt -check` PASS; `terraform validate` PASS
+  (pre-existing deprecation warnings only). No `-target`, `-replace`,
+  `-destroy`, `-refresh=false` or `-lock=false`.
 - No Lambda, IAM, API, data or other resource change. No push/merge.
+- Report: `docs/reports/RIS-HEALTH-PUBLISHER-SCHEDULE-15MIN-01-REPORT.md`.
