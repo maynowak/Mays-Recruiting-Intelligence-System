@@ -1,3 +1,6 @@
+> **Historical report.** Current consolidated P3 status:
+> `MAYS-P3-FINAL-REPORT.md`.
+
 # RIS-ACCOUNT-ERASURE-SEARCH-PROFILES-02 — Deployment Readiness
 
 **Result:** `DEPLOYMENT READY / GO`  

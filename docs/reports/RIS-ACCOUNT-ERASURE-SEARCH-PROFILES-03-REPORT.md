@@ -1,3 +1,6 @@
+> **Historical report.** Current consolidated P3 status:
+> `MAYS-P3-FINAL-REPORT.md`.
+
 > **Post-report note (2026-11-09):** current RIS-DEV state is serial **54**,
 > not 50, after temporary test-allowlist setup/rollback and the local
 > partner-context handler fix. See `MAYS-P3-FINAL-REPORT.md` for the current
