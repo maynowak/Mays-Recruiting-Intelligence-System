@@ -11072,3 +11072,17 @@ missing commit pointers:
 - Historical RAESP-02/03 reports carry a banner to the consolidated report.
 - Open: CVDocument metadata erasure, production Jobsearch deployment,
   S3/version/backup/PITR. No real data deleted.
+
+## 2026-11-09 — CVDocument metadata erasure fixed and live-verified
+
+**Typ:** Privacy erasure / CVDocument metadata
+**Status:** `DEPLOYED / VERIFIED — RIS-DEV`
+
+- Metadata deletion added after successful S3 deletion through the existing
+  partner repository; pending S3 keeps metadata deletion closed.
+- Plan `5ef5567121deb72a7da82a08257bb6c20d06174a3228754b123bc18f84aa980b`;
+  0 add / 1 change / 0 destroy (agent Lambda only); state serial **61**.
+- Live synthetic E2E: complete=true, searchProfilesDeleted=3,
+  documentMetadataDeleted=1, documentsDeleted=1; CV list 0. Test user/data and
+  allowlist cleaned. Full suite 2558 passed, 16 pre-existing failures.
+- S3 versions/backups/PITR remain open.

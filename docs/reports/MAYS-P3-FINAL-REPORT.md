@@ -23,10 +23,10 @@ RIS kernel API with a different Cognito pool — is resolved:
 - The synthetic identity, its CV/search profiles, temporary allowlist entry and
   preview environment were removed afterwards.
 
-The remaining real open points are **production deployment** and **CVDocument
-metadata erasure** (S3 object deletion was verified; the CVDocument metadata row
-was not removed by the lifecycle). S3 version/backup/PITR erasure remains
-unclaimed.
+CVDocument metadata erasure is now also implemented and live-verified: after
+the S3 phase, the existing CVDocument rows are deleted through the same partner
+repository. The remaining open points are **production deployment** and
+S3-version/backup/PITR erasure.
 
 ## 2. RIS current state
 
@@ -34,9 +34,9 @@ unclaimed.
 | --- | --- |
 | AWS account / region | `240571105849` / `eu-central-1` |
 | Terraform workspace | `ris-dev` |
-| State serial | **58** |
+| State serial | **61** |
 | Lambda | `ris-dev-dev-agent`, `Active` |
-| Code hash | `nmpYXt+WGUx6rPlkcGbYb78XuBLDmJYIUfUqVgfbh8g=` |
+| Code hash | `uQqKk33NnwxWnaGm2PDUhpCnyhIFVUZ5Zxe9oUotirs=` |
 | Partner erasure route | `POST /v1/partner/me/erasure` — live |
 | `CONSENT_PILOT_ALLOWLIST` | original operator identity only |
 | Synthetic test user/profile data | deleted |
@@ -51,6 +51,7 @@ unclaimed.
 | `09ce68b…` — API Gateway v2 gate fix | 0 add / 1 change / 0 destroy |
 | `837068b155f953272600ec46a03efe9f82ef5472f00b9b6b283e67f936729148` — partner route + code | **1 add / 1 change / 0 destroy** |
 | `f8b02fb0…` — health publisher 15 min | 0 add / 1 change / 0 destroy |
+| `5ef5567121deb72a7da82a08257bb6c20d06174a3228754b123bc18f84aa980b` — CVDocument metadata cleanup | 0 add / 1 change / 0 destroy |
 
 No Cognito, CloudFront, Route53/DNS, ACM, Mays-Orders, API Gateway (other than
 the new partner route), S3, DynamoDB or Partner Edge resource was otherwise
@@ -99,16 +100,19 @@ Browser result:
   idempotent for the exercised path.
 - Screenshot: `docs/reports/assets/MAYS-P3-FINAL/p3-final-real-erasure.png`.
 
-## 5. Remaining finding: CVDocument metadata
+## 5. CVDocument metadata — resolved and live-verified
 
-After `complete=true`, the synthetic **CVDocument metadata** still appeared in
-`GET /api/ris/cvs`. The S3 object itself was deleted (`documentsDeleted=1`), but
-the metadata row was not part of this erasure phase. The synthetic metadata was
-then deleted manually for cleanup.
+The first live run exposed that CVDocument metadata remained after
+`complete=true`. The fix deletes `CVDocument` metadata through the existing
+partner repository only after the S3 phase succeeds; if S3 is pending, the
+metadata step fails closed and does not delete the row.
 
-This is an **open S3/document boundary** and must be resolved before claiming
-complete account erasure of CV documents. It is not a search-profile deletion
-failure.
+A second isolated synthetic run after deploying the fix returned
+`complete=true`, `searchProfilesDeleted=3`, `documentMetadataDeleted=1`,
+`documentsDeleted=1`; `GET /api/ris/cvs` then returned **0** synthetic CVs.
+The synthetic test user and allowlist entry were cleaned up afterwards.
+
+S3 versions/backups/PITR remain separate open boundaries.
 
 ## 6. Tests
 
@@ -117,7 +121,7 @@ failure.
 | Jobsearch BFF/router/client/consent | **23 passed** |
 | Jobsearch account-erasure browser E2E (mocked BFF) | **PASS** |
 | Jobsearch production build | **PASS** |
-| RIS partner/erasure focused | **77 passed** |
+| RIS partner/erasure focused (after metadata fix) | **46 passed** + **77 passed** earlier |
 | RIS full suite (`tests --ignore=tests/integration`) | **2555 passed**, 17 skipped, 16 pre-existing unrelated failures |
 | RIS `terraform validate` / `fmt -check` | **PASS** |
 | Live preview browser E2E | **PASS** (synthetic identity only) |
@@ -137,6 +141,7 @@ expected 4 invocations/hour / 96/day (pre-change 12/hour / 288/day).
 ## 8. Commits
 
 - RIS partner route: `451c12e`
+- RIS CVDocument metadata erasure: `2c7c200`
 - Jobsearch BFF partner route: `424da71`
 - RIS live E2E docs: `a52fabd`
 - Jobsearch live E2E docs: `938f82b`
@@ -144,9 +149,7 @@ expected 4 invocations/hour / 96/day (pre-change 12/hour / 288/day).
 
 ## 9. Remaining approvals
 
-1. **CVDocument metadata erasure**: wire the existing document metadata phase
-   into account erasure and verify it before claiming complete CV erasure.
-2. **Production Jobsearch deployment**: review/deploy the BFF/UI on the
+1. **Production Jobsearch deployment**: review/deploy the BFF/UI on the
    selected production branch; keep erasure flags limited to the approved pilot
    identity.
 3. **Production copy cleanup**: ensure no test identity/allowlist remains.
