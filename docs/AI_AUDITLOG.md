@@ -10997,3 +10997,18 @@ missing commit pointers:
   `POST /v1/partner/me/erasure` to the existing partner edge and dispatch to
   `_handle_me_erasure`.
 - No destructive production E2E, no push/merge.
+
+## 2026-11-09 — Health publisher schedule reduced to 15 minutes
+
+**Typ:** Cost control / Schedule change
+**Status:** `APPLIED — RIS-DEV`
+
+- Changed `module.health_plane.aws_cloudwatch_event_rule.health_publisher_schedule`
+  from `rate(5 minutes)` to `rate(15 minutes)`.
+- Plan `/tmp/opencode/ris-dev-health-15min.tfplan`, SHA-256
+  `f8b02fb00ab9e95cae57c91cc361eb24f650edded411440bdfcee33c436b64b8`;
+  0 add / 1 change / 0 destroy; only the EventBridge rule.
+- Apply result: 0 added / 1 changed / 0 destroyed; state serial **55**.
+- Live rule: `rate(15 minutes)`, `ENABLED`; measured 12 invocations/hour
+  instead of 12/5-minute intervals (288/day).
+- No Lambda, IAM, API, data or other resource change. No push/merge.

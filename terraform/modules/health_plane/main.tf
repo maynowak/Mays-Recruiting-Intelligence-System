@@ -157,7 +157,7 @@ resource "aws_iam_role_policy_attachment" "health_publisher" {
 resource "aws_cloudwatch_event_rule" "health_publisher_schedule" {
   name                = "${var.project_name}-${var.environment}-health-publisher-schedule"
   description         = "Scheduled health publisher run"
-  schedule_expression = "rate(5 minutes)"
+  schedule_expression = "rate(15 minutes)"
 }
 
 resource "aws_cloudwatch_event_target" "health_publisher" {
