@@ -11030,3 +11030,18 @@ missing commit pointers:
   `-destroy`, `-refresh=false` or `-lock=false`.
 - No Lambda, IAM, API, data or other resource change. No push/merge.
 - Report: `docs/reports/RIS-HEALTH-PUBLISHER-SCHEDULE-15MIN-01-REPORT.md`.
+
+## 2026-11-09 — MAYS-P3-FINAL partner erasure route verified local
+
+**Typ:** Partner-edge erasure route / Local verification
+**Status:** `PARTNER ERASURE ROUTE VERIFIED LOCAL — DEPLOYMENT PENDING`
+
+- Commit `451c12e`: added `POST /v1/partner/me/erasure` to partner edge and a
+  dispatcher branch that verifies `_partner_profile_context` then reuses
+  `_handle_me_erasure`. No second deletion engine.
+- Plan `/tmp/opencode/ris-dev-partner-erasure.tfplan`, SHA-256
+  `837068b155f953272600ec46a03efe9f82ef5472f00b9b6b283e67f936729148`;
+  1 add (partner route) + 1 update (agent Lambda), 0 delete/replace; not applied.
+- Tests: RIS focused 77 PASS; full 2555 PASS with 16 pre-existing unrelated
+  failures; Jobsearch 23 PASS + browser E2E PASS + build PASS.
+- No deployment, no real account deletion; S3/document/backup/PITR limits open.

@@ -1,6 +1,6 @@
 # MAYS-P3-FINAL — Orchestrated E2E & Release Closure
 
-**Result:** `BLOCKED — PARTNER-EDGE ERASURE ROUTE MISSING + JOBSEARCH DEPLOYMENT PENDING`  
+**Result:** `PARTNER ERASURE ROUTE VERIFIED LOCAL — DEPLOYMENT PENDING`  
 **Safe work:** complete  
 **Date:** 2026-11-08
 
@@ -158,4 +158,56 @@ reviewed Terraform/API change and a Jobsearch deployment approval.
 RIS search-profile erasure is deployed; the cross-repository *account* erasure
 path is not reachable for Jobsearch users until the partner-edge route exists.
 No destructive production E2E was executed.
+
+## 11. Partner-edge erasure route — local verification (2026-11-09)
+
+The kernel/partner topology blocker is resolved **locally**; no AWS apply or
+deployment was performed.
+
+### RIS
+
+- Added `POST /v1/partner/me/erasure` to the existing partner edge route set
+  (`terraform/modules/partner_edge/main.tf`).
+- Added a dispatcher branch in `lambda/handler.py` that first verifies the
+  existing partner credential/profile context via
+  `_partner_profile_context`, then calls the existing `_handle_me_erasure`.
+  No second deletion engine.
+- The partner-application/tenant resolution fix remains in place for standard
+  Cognito users without custom partner claims.
+- Commit: `451c12e` — `feat(privacy): expose partner-edge erasure route`.
+
+### Jobsearch
+
+- BFF now targets `POST /v1/partner/me/erasure` on the existing partner base;
+  no separate kernel base URL.
+- Existing `RIS_ACCOUNT_ERASURE_ENABLED`, `VITE_RIS_ACCOUNT_ERASURE_ENABLED`,
+  allowlist and `LÖSCHEN` confirmation remain. Disabled by default.
+- Commit: `424da71` — `feat(privacy): point erasure BFF at partner route`.
+
+### Plan (not applied)
+
+| Field | Value |
+| --- | --- |
+| Plan | `/tmp/opencode/ris-dev-partner-erasure.tfplan` |
+| SHA-256 | `837068b155f953272600ec46a03efe9f82ef5472f00b9b6b283e67f936729148` |
+| Changes | **1 add** (partner route) + **1 update** (agent Lambda code) |
+| Deletes/replacements | 0 |
+| State serial at plan | 55 |
+| Apply | **none** |
+
+### Tests
+
+- Jobsearch BFF/router/client/consent: **23 passed**
+- Jobsearch account-erasure browser E2E (mocked BFF): **PASS**
+- Jobsearch build: **PASS**
+- RIS partner/erasure focused: **77 passed**
+- RIS full suite: **2555 passed**, 17 skipped, 16 pre-existing unrelated failures
+- `terraform fmt -check` / `validate`: PASS
+
+### Current blocker
+
+Deployment is now the only remaining step for this local route: apply the
+reviewed plan, deploy the Jobsearch BFF/UI, and then run the destructive
+synthetic E2E with an approved isolated identity. No real data was deleted.
+S3/document/backup/PITR limits remain open.
 
