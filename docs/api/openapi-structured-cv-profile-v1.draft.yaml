@@ -87,7 +87,7 @@ paths:
       operationId: updateStructuredCvProfile
       summary: Update with optimistic concurrency
       parameters:
-        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IfMatchRequired"
       requestBody:
         required: true
         content:
@@ -162,6 +162,11 @@ components:
       name: If-Match
       in: header
       required: false
+      schema: { type: string, pattern: '^"v[1-9][0-9]*"$' }
+    IfMatchRequired:
+      name: If-Match
+      in: header
+      required: true
       schema: { type: string, pattern: '^"v[1-9][0-9]*"$' }
   responses:
     BadRequest:
@@ -275,19 +280,116 @@ components:
         profile: { $ref: "#/components/schemas/StructuredCvProfileV1" }
     CvBuilderDraftV1:
       type: object
-      additionalProperties: true
+      additionalProperties: false
       required: [schemaVersion, personal, profile, experience, education, skills, projects, certificates, languages, links]
       properties:
         schemaVersion: { type: integer, enum: [1] }
-        personal: { type: object }
-        profile: { type: object }
-        experience: { type: array, items: { type: object } }
-        education: { type: array, items: { type: object } }
-        skills: { type: array, items: { type: string } }
-        projects: { type: array, items: { type: object } }
-        certificates: { type: array, items: { type: object } }
-        languages: { type: array, items: { type: object } }
-        links: { type: array, items: { type: object } }
+        personal: { $ref: "#/components/schemas/CvBuilderPersonalV1" }
+        profile: { $ref: "#/components/schemas/CvBuilderProfileDataV1" }
+        experience:
+          type: array
+          maxItems: 20
+          items: { $ref: "#/components/schemas/CvBuilderExperienceV1" }
+        education:
+          type: array
+          maxItems: 20
+          items: { $ref: "#/components/schemas/CvBuilderEducationV1" }
+        skills:
+          type: array
+          maxItems: 100
+          items: { type: string, maxLength: 100 }
+        projects:
+          type: array
+          maxItems: 20
+          items: { $ref: "#/components/schemas/CvBuilderProjectV1" }
+        certificates:
+          type: array
+          maxItems: 20
+          items: { $ref: "#/components/schemas/CvBuilderCertificateV1" }
+        languages:
+          type: array
+          maxItems: 20
+          items: { $ref: "#/components/schemas/CvBuilderLanguageV1" }
+        links:
+          type: array
+          maxItems: 20
+          items: { $ref: "#/components/schemas/CvBuilderLinkV1" }
+    CvBuilderPersonalV1:
+      type: object
+      additionalProperties: false
+      properties:
+        fullName: { type: string, maxLength: 200 }
+        email: { type: string, maxLength: 320 }
+        phone: { type: string, maxLength: 80 }
+        location: { type: string, maxLength: 200 }
+    CvBuilderProfileDataV1:
+      type: object
+      additionalProperties: false
+      properties:
+        headline: { type: string, maxLength: 200 }
+        summary: { type: string, maxLength: 4000 }
+    CvBuilderExperienceV1:
+      type: object
+      additionalProperties: false
+      required: [id, employer, position, startMonth, current]
+      properties:
+        id: { type: string }
+        employer: { type: string, maxLength: 200 }
+        position: { type: string, maxLength: 200 }
+        startMonth: { type: string, pattern: '^(?:(?:19|20)[0-9]{2}-(?:0[1-9]|1[0-2]))?$' }
+        endMonth: { type: string, pattern: '^(?:(?:19|20)[0-9]{2}-(?:0[1-9]|1[0-2]))?$' }
+        current: { type: boolean }
+        description: { type: string, maxLength: 5000 }
+    CvBuilderEducationV1:
+      type: object
+      additionalProperties: false
+      required: [id, institution, degree, startMonth, current]
+      properties:
+        id: { type: string }
+        institution: { type: string, maxLength: 200 }
+        degree: { type: string, maxLength: 200 }
+        startMonth: { type: string, pattern: '^(?:(?:19|20)[0-9]{2}-(?:0[1-9]|1[0-2]))?$' }
+        endMonth: { type: string, pattern: '^(?:(?:19|20)[0-9]{2}-(?:0[1-9]|1[0-2]))?$' }
+        current: { type: boolean }
+        description: { type: string, maxLength: 5000 }
+    CvBuilderProjectV1:
+      type: object
+      additionalProperties: false
+      required: [id, name, technologies]
+      properties:
+        id: { type: string }
+        name: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 3000 }
+        technologies:
+          type: array
+          maxItems: 100
+          items: { type: string, maxLength: 100 }
+    CvBuilderCertificateV1:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string, maxLength: 200 }
+        issuer: { type: string, maxLength: 200 }
+        date: { type: string, pattern: '^(?:(?:19|20)[0-9]{2}-(?:0[1-9]|1[0-2]))?$' }
+    CvBuilderLanguageV1:
+      type: object
+      additionalProperties: false
+      required: [id, language, level]
+      properties:
+        id: { type: string }
+        language: { type: string, maxLength: 100 }
+        level: { type: string, enum: [basic, conversational, professional, fluent, native] }
+    CvBuilderLinkV1:
+      type: object
+      additionalProperties: false
+      required: [id, kind, label, url]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [portfolio, github, linkedin, other] }
+        label: { type: string, maxLength: 200 }
+        url: { type: string, maxLength: 1000 }
     ImportReviewV1:
       type: object
       additionalProperties: false
@@ -331,5 +433,7 @@ components:
         applied: { type: boolean }
         page: { type: integer, minimum: 1 }
         sectionHeading: { type: string }
-        reason: { type: string }
+        reason:
+          type: string
+          enum: [unknown-section, training, certification-goal, target-roles, document-notes, incomplete-experience, incomplete-education, incomplete-language, project-reference, ambiguous]
         suggestedTarget: { type: string, enum: [ignore, profile, experience, education, skills, projects, certificates, links] }

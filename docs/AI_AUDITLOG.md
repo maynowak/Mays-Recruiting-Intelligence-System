@@ -9907,3 +9907,20 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
   AWS, consent catalog, main or production.
 - Added contract, privacy draft, draft OpenAPI and report; YAML parse PASS,
   `git diff --check` PASS.
+
+## 2026-11-12 — RIS-STRUCTURED-CV-CONTRACT-REVIEW-02
+
+- Reconciled draft with Jobsearch 03B `c4c2cde`: corrected entry limits
+  (20), skills 100/100 chars, review 500/2000 chars, exact nested draft
+  schemas, `importReview.schemaVersion` adapter, missing `applied` → false,
+  and local `cvId` ↔ server `profileId` session mapping.
+- Hardened OpenAPI: required PATCH `If-Match`, idempotent create, enum/limits,
+  exact additionalProperties, dedicated owner-index requirement; `gsi-user`
+  alone not accepted for full owner isolation.
+- Added contract-only test `tests/test_structured_cv_contract_document.py`
+  (8 PASS) covering 44-item roundtrip, missing applied, unknown schema
+  versions/fields, oversize schema limits, distinct profiles and privacy
+  markers. OpenAPI YAML parse/checks PASS.
+- Added decision matrix; legal/Art.9/retention/withdrawal/BFF gates remain
+  REVIEW REQUIRED. No product code, Terraform/AWS, consent activation, main
+  merge or deployment.

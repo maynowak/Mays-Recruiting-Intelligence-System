@@ -138,3 +138,25 @@ Add a structured-profile step to the existing `PrivacyErasure`/R08 lifecycle:
 
 **This draft does not authorize production storage, consent activation,
 Terraform/AWS changes, main merge or deployment.**
+
+## 11. Contract review 02 decision matrix
+
+| Topic | Proposal | Status |
+|---|---|---|
+| Capacity | 20 profiles/user; 10 may match current UI | REVIEW REQUIRED |
+| Consent purpose | `cv-builder-profile-storage`, separate notice | REVIEW REQUIRED |
+| Notice lifecycle | DRAFT; no real-user grant until approved | BLOCKED pending legal |
+| Art. 9 | explicit consent/notice assessment required | REVIEW REQUIRED |
+| Retention | while profile exists; no invented legal period | REVIEW REQUIRED |
+| Withdrawal | writes blocked; reads/export/delete grace policy | REVIEW REQUIRED |
+| Export/delete after withdrawal | data-subject rights must remain usable | REVIEW REQUIRED |
+| Backup/restore | replay deletion ledger; no synchronous purge claim | REVIEW REQUIRED |
+| Erasure order | structured profile + embedded review via existing PrivacyErasure/R08 step | REVIEW REQUIRED |
+| BFF route | `/api/ris/cv-builder-profiles` | proposal; verify before implementation |
+| Feature flags | client + server, off by default | REVIEW REQUIRED |
+| Review schema | stored `importReview.schemaVersion=1`; 03B adapter; unknown rejected | technically aligned |
+| Review `applied` absence | normalize to `false`, never infer from accepted | technically aligned |
+| cvId/profileId | session sidecar mapping; server profileId authoritative | technically aligned |
+
+This matrix is a contract proposal, not an approval. DRAFT notice and legal
+items must not be activated automatically.

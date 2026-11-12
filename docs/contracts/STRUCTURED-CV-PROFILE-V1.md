@@ -1,9 +1,9 @@
 # StructuredCvProfileV1 — RIS/Jobsearch Contract
 
-**Status:** DRAFT / PROPOSED / CONTRACT ONLY — not implemented, not deployed, not legally approved  
-**Date:** 2026-11-12  
-**Repositories:** `maynowak/Mays-Recruiting-Intelligence-System`, `maynowak/mays-jobsearch`  
-**Related Jobsearch evidence:** CV-BUILDER-02F/03A/03B  
+**Status:** DRAFT / CONTRACT ONLY — technically aligned with CV-BUILDER-03B; not implemented, not deployed, not legally approved
+**Date:** 2026-11-12
+**Repositories:** `maynowak/Mays-Recruiting-Intelligence-System`, `maynowak/mays-jobsearch`
+**Related Jobsearch evidence:** CV-BUILDER-02F/03A/03B
 **Supersedes:** nothing. This is a new resource contract.
 
 > This contract does **not** extend PDF/CV-document storage, search-profile
@@ -117,14 +117,100 @@ Every read, update, export and delete filters on all four values. Email,
 nickname and client-supplied identity fields are never owner keys. Foreign,
 missing or cross-tenant/partner/issuer IDs return the same `404 NOT_FOUND`.
 
+## 3. Schema reconciliation with CV-BUILDER-03B
+
+### CvBuilderDraftV1
+
+The RIS `cvData` payload is the existing Jobsearch draft without a second
+schema. The accepted limits are the 03B validation limits:
+
+- `experience`, `education`, `projects`, `certificates`, `languages` and
+  `links`: each at most **20** entries.
+- `skills`: at most **100** entries, each at most **100** characters.
+- `personal.fullName` 200, `email` 320, `phone` 80, `location` 200;
+  `profile.headline` 200, `summary` 4,000;
+  `experience.employer`/`position` 200, `description` 5,000;
+  `education.institution`/`degree` 200, `description` 5,000;
+  `projects.name` 200, `projects.technologies` joined length 500,
+  `projects.description` 3,000;
+  `certificates.name`/`issuer` 200; `languages.language` 100;
+  `links.label` 200, `links.url` 1,000.
+- `startMonth`/`endMonth`/`date` are `""` or `YYYY-MM`; `current` is boolean;
+  language level is `basic|conversational|professional|fluent|native`;
+  link kind is `portfolio|github|linkedin|other`.
+- `cvData.schemaVersion` must be `1`. Unknown versions are rejected with
+  `422 UNSUPPORTED_SCHEMA_VERSION`; no best-effort migration.
+
+### CvBuilderProfileV1 and profileId/cvId
+
+The local `CvBuilderProfileV1.cvId` is **not** an owner identity and is not
+sent as a server key. Keep a session-only sidecar mapping:
+
+```text
+DurableProfileRef {
+  localCvId: "cvb-...",
+  profileId: "cvp-...",
+  version: 1
+}
+```
+
+Rules:
+
+- Before durable save, the local `cvId` remains the session identity.
+- After a successful create, store `localCvId → profileId → version` in the
+  Jobsearch session adapter; do not overwrite unrelated local profiles.
+- A durable load may hydrate a local profile whose `cvId` is the server
+  `profileId` **only if no local profile with that id exists**. Otherwise show
+  a conflict and require an explicit choice; never overwrite the local draft.
+- On update, send the server `profileId` and expected version, not the local
+  `cvId`, unless the local `cvId` was explicitly mapped to that profile.
+- A stale/missing mapping is a conflict, not a reason to create a duplicate.
+- Server `profileId`, owner fields, timestamps and version are server-owned.
+
+### ImportReviewV1
+
+The 03B `CvBuilderImportReviewSummary` is a session summary. The durable DTO
+adds `schemaVersion: 1` and requires individual `items` to be present whenever
+`total > 0`; a counts-only summary is not silently stored as if complete.
+
+- Stored `importReview.schemaVersion` is always `1`; unknown versions are
+  rejected with `422 UNSUPPORTED_SCHEMA_VERSION`.
+- The Jobsearch adapter normalizes a 03B summary without `schemaVersion` to
+  `1` only when its items are present; otherwise `IMPORT_REVIEW_INCOMPLETE`.
+- `CvBuilderImportReviewItem.applied` is optional in older 03B data and
+  defaults to **false** on read. It is never inferred from `accepted`.
+- `accepted` is a decision; `applied` is an actual draft write. Both are
+  preserved.
+- Item `id`, `index`, `original`, `text`, `edited`, `page`, `sectionHeading`,
+  `reason` and `suggestedTarget` are preserved losslessly. `text`/`original`
+  are capped at 2,000 characters; larger or truncated data is rejected, never
+  silently shortened.
+- Items are capped at 500. A larger backlog is rejected rather than dropping
+  items.
+
+### Review status/reason enums
+
+`status`: `pending | accepted | ignored`. `applied`: boolean (default false
+when absent). `target`/`suggestedTarget`: `ignore | profile | experience |
+education | skills | projects | certificates | links`. `reason` is one of the
+03B unassigned reasons: `unknown-section`, `training`, `certification-goal`,
+`target-roles`, `document-notes`, `incomplete-experience`,
+`incomplete-education`, `incomplete-language`, `project-reference`,
+`ambiguous`.
+
 ## 3. Storage shape
 
-Reuse the existing `partner-profiles` table and `gsi-user` index:
+Reuse the existing `partner-profiles` table, but do **not** rely on `gsi-user`
+alone for structured-profile isolation: it is keyed by `userId`/`resourceType`
+and filters tenant/partner/issuer after the query. The contract requires a
+dedicated owner index (implementation proposal: `gsi-structured-owner`) with a
+server-derived compound `ownerKey` and `profileId`/`resourceId` range:
 
 ```text
 resourceId       = "cvp-<uuid>"                  (PK)
-userId           = verified subject               (GSI hash key)
-resourceType     = "StructuredCvProfile"          (GSI range key)
+ownerKey         = H(tenant|partner|issuer|subject) (new GSI hash)
+userId           = verified subject
+resourceType     = "StructuredCvProfile"
 tenantId         = verified tenant
 partnerApplicationId = verified partner
 issuer           = verified issuer
@@ -132,6 +218,10 @@ version          = integer
 createdAt/updatedAt = ISO-8601
 payload          = StructuredCvProfileV1 body
 ```
+
+A signed cursor must bind the full owner scope and index query. If the owner
+index is not approved, implementation is blocked rather than falling back to
+an unscoped scan or a filter-only approximation.
 
 A dedicated capacity counter and lifecycle guard use the existing
 `capacity#`/`lifecycle#` mechanics. No table scan is permitted on normal CRUD.
@@ -145,7 +235,8 @@ DynamoDB's 400 KiB item limit applies to the complete item, not just `payload`.
 - Maximum review items: **500**.
 - Maximum single review text/original: **2,000 characters** each.
 - `cvData` arrays: experience/education/projects/certificates/languages/links
-  each ≤100; skills ≤500 (matching the builder validation cap).
+  each ≤**20**; skills ≤**100**; skill length ≤**100** (matching the 03B
+  builder validation limits).
 - Oversize rejects with `413 PAYLOAD_TOO_LARGE` / `PROFILE_TOO_LARGE`; no
   truncation, no partial save and no silent review loss.
 - Proposed per-user capacity: **20 structured CV profiles**
@@ -207,8 +298,10 @@ key.
 
 ### Update
 
-`PATCH .../{profileId}` requires `If-Match: "vN"` or body
-`expectedVersion: N`. Mutable fields: `name`, `cvData`, `template`,
+`PATCH .../{profileId}` requires a valid version proof: the contract requires
+`If-Match: "vN"`; a body `expectedVersion: N` is accepted only as a legacy
+BFF compatibility fallback and must be validated server-side. Missing proof is
+`428 PRECONDITION_REQUIRED`; stale proof is `409 VERSION_CONFLICT`. Mutable fields: `name`, `cvData`, `template`,
 `importReview`. `profileId`, owner, `schemaVersion`, `version`, `createdAt`
 and `updatedAt` are immutable/server-owned. Missing fields remain unchanged;
 `null` removes optional `importReview` only by explicit contract (prefer
