@@ -85,14 +85,17 @@ class AgentRouter:
     - Router selects ONE winner
     """
     
-    def __init__(self, strategy: Callable = None):
+    def __init__(self, strategy: Callable = None, registry=None):
         """
         Initialize the router.
         
         Args:
             strategy: Selection strategy function. Defaults to first_match.
+            registry: Runtime AgentRegistry used to resolve descriptors when
+                eligibility results contain agent IDs only.
         """
         self.strategy = strategy or SelectionStrategy.first_match
+        self.registry = registry
     
     def select(
         self,
@@ -148,32 +151,22 @@ class AgentRouter:
         Returns:
             RoutingDecision or None
         """
-        candidates = [
-            DiscoveryResult(
+        candidates = []
+        for check in eligibility_result.eligible:
+            descriptor = getattr(check, "agent", None)
+            if descriptor is None and self.registry is not None:
+                descriptor = self.registry.get(check.agent_id)
+            if descriptor is None:
+                logger.warning(
+                    "Eligible agent %s has no descriptor in the runtime registry",
+                    check.agent_id,
+                )
+                continue
+            candidates.append(DiscoveryResult(
                 agent_id=check.agent_id,
-                agent=None,
-                reason="; ".join(check.reasons) if check.reasons else "eligible"
-            )
-            for check in eligibility_result.eligible
-        ]
-        
-        if candidates:
-            for check in eligibility_result.eligible:
-                desc = check.__dict__.get('agent') if hasattr(check, 'agent') else None
-                if desc is None:
-                    from agents.ecosystem.registry import AgentRegistry
-                    registry = AgentRegistry()
-                    desc = registry.get(check.agent_id)
-                
-                candidates = [
-                    DiscoveryResult(
-                        agent_id=r.agent_id,
-                        agent=r.agent or desc,
-                        reason=r.reason
-                    )
-                    for r in candidates
-                ]
-                break
+                agent=descriptor,
+                reason="; ".join(check.reasons) if check.reasons else "eligible",
+            ))
         
         return self.select(candidates, context)
 
@@ -196,7 +189,7 @@ class QueryRouter:
         """
         self.registry = registry
         self.discovery = discovery
-        self.router = AgentRouter(strategy)
+        self.router = AgentRouter(strategy, registry=registry)
     
     def route_by_capability(
         self,

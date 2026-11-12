@@ -494,7 +494,7 @@ def process_record(
     pipeline = EligibilityPipeline(registry).check_candidates(candidates, envelope)
     eligible_ids = {c.agent_id for c in pipeline.eligible}
     eligible = [c for c in candidates if c.agent_id in eligible_ids]
-    decision = EcosystemRouter().select(eligible)
+    decision = EcosystemRouter(registry=registry).select(eligible)
     if decision is None:
         raise ValueError(
             f"Kein geeigneter Agent (eligible={len(pipeline.eligible)}, "
