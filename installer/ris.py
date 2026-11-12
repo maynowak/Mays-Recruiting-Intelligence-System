@@ -124,6 +124,10 @@ HEALTH_CLOUDFRONT_CREATE_ALLOWLIST = frozenset({
     "module.health_public.aws_cloudfront_distribution.health_public",
     "module.health_public.aws_cloudfront_origin_access_control.health_public",
 })
+HEALTH_CLOUDFRONT_PROJECT_ALLOWLIST = frozenset({
+    ("ris-dev2", "dev"),
+    ("ris-agent", "dev"),
+})
 
 PROTECTED_PLAN_RESOURCE_TYPES = frozenset({
     "aws_cognito_user_pool",
@@ -137,6 +141,11 @@ PROTECTED_PLAN_RESOURCE_TYPES = frozenset({
     "aws_acm_certificate",
     "aws_acm_certificate_validation",
 })
+
+# The isolated agent test stack owns a new Cognito boundary.  Permit only
+# create-only Cognito actions for that explicitly named deployment; every
+# other protected-resource action remains fail-closed.
+TEST_COGNITO_CREATE_ALLOWLIST = frozenset({("ris-agent", "dev")})
 
 
 # ---------------------------------------------------------------------------
@@ -978,12 +987,16 @@ def is_plan_safe(plan_json: dict, project_name: str, environment: str) -> tuple[
         address = change.get("address", "")
         resource_type = change.get("type", "")
 
+        # Refresh-only plan entries are not mutations and must not be treated
+        # as protected-resource actions.
+        if actions == ["no-op"]:
+            continue
+
         # CloudFront is forbidden by default. The only exception is the two
         # isolated ris-dev2 health resources, and only for exactly ["create"].
         if resource_type.startswith("aws_cloudfront_"):
             if (
-                project_name == "ris-dev2"
-                and environment == "dev"
+                (project_name, environment) in HEALTH_CLOUDFRONT_PROJECT_ALLOWLIST
                 and address in HEALTH_CLOUDFRONT_CREATE_ALLOWLIST
                 and actions == ["create"]
             ):
@@ -993,8 +1006,16 @@ def is_plan_safe(plan_json: dict, project_name: str, environment: str) -> tuple[
                 f"{address} (type: {resource_type}, actions: {actions})"
             )
 
-        # Cognito, DNS and ACM remain strictly zero-action scopes.
+        # Cognito, DNS and ACM remain strictly zero-action scopes, except for
+        # the explicitly approved fresh ris-agent/dev test identity boundary.
         if resource_type in PROTECTED_PLAN_RESOURCE_TYPES and actions:
+            if (
+                resource_type.startswith("aws_cognito_")
+                and (project_name, environment) in TEST_COGNITO_CREATE_ALLOWLIST
+                and actions == ["create"]
+                and not before
+            ):
+                continue
             return False, (
                 f"Protected resource action is forbidden: {address} "
                 f"(type: {resource_type}, actions: {actions})"
@@ -1034,15 +1055,25 @@ def is_plan_safe(plan_json: dict, project_name: str, environment: str) -> tuple[
     return True, "Plan is safe"
 
 
-def load_plan_json(plan_file: str) -> dict:
-    """Load and parse a Terraform plan file as JSON."""
+def load_plan_json(
+    plan_file: str,
+    cwd: Optional[str] = None,
+    tf_data_dir: Optional[str] = None,
+) -> dict:
+    """Load and parse a Terraform plan using the plan's provider context."""
     if not os.path.exists(plan_file):
         # In test environments, the plan file may not exist (mocked)
         # Return an empty plan that passes the safety gate
         return {"resource_changes": []}
     import subprocess
+    env = None
+    if tf_data_dir:
+        env = os.environ.copy()
+        env["TF_DATA_DIR"] = tf_data_dir
     result = subprocess.run(
         ["terraform", "show", "-json", plan_file],
+        cwd=cwd,
+        env=env,
         capture_output=True,
         text=True,
         timeout=60,
@@ -1133,6 +1164,11 @@ class RisInstallContext:
             "health_writer_zip_path": health_writer_zip,
             "health_publisher_zip_path": health_publisher_zip,
         })
+        # A pure RIS installation must not implicitly enable the Orders
+        # module through Terraform's default.  Keep the boundary explicit in
+        # the generated plan as well as in the installer orchestration.
+        if not self.composite:
+            merged["orders_lifecycle"] = "disabled"
         return merged
 
     def make_runner(self) -> TerraformRunner:
@@ -1373,7 +1409,9 @@ def _cmd_apply(ctx: RisInstallContext, out_file: Optional[str] = None) -> List[T
         return [init_res, plan_res]
     
     # Safety gate: inspect plan before apply
-    plan_json = load_plan_json(plan_file)
+    plan_json = load_plan_json(
+        plan_file, cwd=str(runner.working_dir), tf_data_dir=str(runner.data_dir)
+    )
     safe, msg = is_plan_safe(plan_json, ctx.project_name, ctx.environment)
     print(f"Safety gate: {msg}")
     if not safe:
@@ -1577,7 +1615,9 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
         return 1
 
     # Safety gate: inspect destroy plan before apply
-    plan_json = load_plan_json(plan_file)
+    plan_json = load_plan_json(
+        plan_file, cwd=str(runner.working_dir), tf_data_dir=str(runner.data_dir)
+    )
     safe, msg = is_plan_safe(plan_json, ctx.project_name, ctx.environment)
     print(f"RIS destroy safety gate: {msg}")
     if not safe:
@@ -2388,7 +2428,9 @@ def _cmd_install(
 
     # Safety gate: inspect plan before apply
     plan_file = out_file or f"{ctx.workspace}-apply.tfplan"
-    plan_json = load_plan_json(plan_file)
+    plan_json = load_plan_json(
+        plan_file, cwd=str(runner.working_dir), tf_data_dir=str(runner.data_dir)
+    )
     safe, msg = is_plan_safe(plan_json, ctx.project_name, ctx.environment)
     print(f"Safety gate: {msg}")
     if not safe:
@@ -2512,11 +2554,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     # GLUE-01: composite lifecycle toggle (default on; OFF for pure-RIS).
     parser.add_argument(
-        "--composite/--no-composite",
+        "--composite",
         dest="composite",
+        action="store_true",
         default=True,
-        help="Enable composite Orders-component lifecycle (default: on). "
-             "Use --no-composite to operate on RIS foundation only.",
+        help="Enable composite Orders-component lifecycle (default: on).",
+    )
+    parser.add_argument(
+        "--no-composite",
+        dest="composite",
+        action="store_false",
+        help="Operate on the RIS foundation only; do not manage Mays-Orders.",
     )
     parser.add_argument("command", choices=list(COMMANDS),
         help="Command to execute: validate, plan, apply, preflight, install, state, destroy, package, or lock",

@@ -174,6 +174,13 @@ class BackendBootstrap:
             BillingMode="PAY_PER_REQUEST",
             Tags=[{"Key": "Project", "Value": self.project_name}],
         )
+        # Terraform may attempt the first lock immediately after bootstrap;
+        # wait until DynamoDB exposes the table instead of racing its
+        # eventual creation state.
+        dynamodb.get_waiter("table_exists").wait(
+            TableName=self.names.lock_table,
+            WaiterConfig={"Delay": 2, "MaxAttempts": 30},
+        )
         return {"lock_table": self.names.lock_table, "created": True}
 
     def ensure_all(self) -> Dict[str, Any]:

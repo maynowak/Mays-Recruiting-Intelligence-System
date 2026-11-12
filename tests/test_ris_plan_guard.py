@@ -76,6 +76,16 @@ def test_health_allowlist_is_not_valid_for_another_project():
     assert "CloudFront" in message
 
 
+def test_health_allowlist_accepts_isolated_ris_agent_test_stack():
+    item = change(
+        "module.health_public.aws_cloudfront_distribution.health_public",
+        "aws_cloudfront_distribution",
+        ["create"],
+    )
+    safe, message = is_plan_safe(plan(item), "ris-agent", "dev")
+    assert safe, message
+
+
 def test_cognito_dns_and_acm_remain_forbidden():
     for resource_type in (
         "aws_cognito_user_pool",
@@ -90,6 +100,15 @@ def test_cognito_dns_and_acm_remain_forbidden():
         )
         assert not safe
         assert "Protected resource action" in message
+
+
+def test_noop_on_protected_resource_is_safe():
+    safe, message = is_plan_safe(
+        plan(change("protected", "aws_cognito_resource_server", ["no-op"])),
+        "ris-agent",
+        "dev",
+    )
+    assert safe, message
 
 
 def test_health_public_isolated_configuration_has_no_custom_domain_bindings():
