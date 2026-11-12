@@ -9892,3 +9892,18 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
 Status: RIS-DEV2 STACK DESTROYED — 177 RESOURCES — BOOTSTRAP RETAINED
 Date: 2026-11-09
 After explicit operator approval, the previously reviewed destroy plan `E72A55052F1A9E15027085B5F63A8AEE4B3485B9B48ACA6C461A129D8BC1717B` was applied unchanged in workspace `ris-dev2` (account `262370457690`, region `eu-central-1`). CloudTrail `ris-dev2-trail` was stopped and its 3,536-object log bucket emptied first; Terraform then destroyed 177 resources: Cognito pool/client/domain/groups, CloudFront distribution/OAC, HTTP API and 66 routes, Lambda/health functions, IAM, 18 DynamoDB tables, 5 SQS queues, CloudTrail, 5 S3 buckets, CloudWatch/EventBridge resources. Apply result: 0 added / 0 changed / 177 destroyed. State serial 30 → 36, lineage unchanged, state resources 0. Verified absent: dev2 DynamoDB tables, SQS queues, Lambda, Cognito pool `K3dkdSipZ`, CloudFront `E1IZKHFPZ5X7SN`, API `8apxb6fgne`, CloudTrail trail and dev2 S3 buckets. Bootstrap retained intentionally: state bucket `ris-dev2-tf-state-dev`, lock table `ris-dev2-tf-lock`, local state backup. `ris-dev` and all other accounts/workspaces remained untouched. No secrets. Report: `docs/reports/RIS-DEV2-STACK-DESTROY-01.md`.
+
+## 2026-11-12 — RIS-STRUCTURED-CV-CONTRACT-01
+
+- Baseline `origin/main` `f830a5e`; new RIS branch
+  `feature/ris-structured-cv-contract-01`. Contract-only work.
+- Defined new `StructuredCvProfileV1` resource, API namespace, owner isolation,
+  version/ETag, required idempotency key, pagination, capacity, safe 300KB
+  DynamoDB payload bound, embedded 03B review sidecar, export and delete.
+- Defined separate draft purpose `cv-builder-profile-storage`, DRAFT notice,
+  Art. 9/consent/withdrawal/regrant/retention/backup/erasure requirements.
+- Defined Jobsearch BFF/UI extension and synthetic test contract; did not
+  modify production OpenAPI, PDF/search/identity contracts, code, Terraform,
+  AWS, consent catalog, main or production.
+- Added contract, privacy draft, draft OpenAPI and report; YAML parse PASS,
+  `git diff --check` PASS.

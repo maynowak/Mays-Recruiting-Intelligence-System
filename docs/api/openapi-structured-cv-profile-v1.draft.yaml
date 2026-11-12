@@ -1,0 +1,335 @@
+# DRAFT OpenAPI — Structured CV Builder Profiles V1
+# Contract only. Not an implemented or deployed API. Do not merge into the
+# production platform OpenAPI until backend/BFF/legal gates are approved.
+openapi: 3.0.3
+info:
+  title: RIS Structured CV Builder Profiles V1 (DRAFT)
+  version: 1.0.0-draft
+  description: |
+    Proposed partner resource for editable structured CV-builder profiles and
+    the CV-BUILDER-03B review backlog. This is not PDF storage and not a search
+    profile. Owner identity is derived server-side from the verified JWT,
+    partner credential, tenant and issuer.
+servers:
+  - url: https://api.mays-recruiting-intelligence.example
+    description: Placeholder — verify the actual partner API host before implementation.
+security:
+  - CognitoBearer: []
+    PartnerCredential: []
+paths:
+  /v1/partner/me/cv-builder-profiles:
+    post:
+      operationId: createStructuredCvProfile
+      summary: Create one structured CV profile
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StructuredCvProfileInput" }
+      responses:
+        "201":
+          description: Created
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StructuredCvProfileV1" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+    get:
+      operationId: listStructuredCvProfiles
+      summary: List profile metadata
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string, maxLength: 2000 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        "200":
+          description: Owner-scoped page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StructuredCvProfileList" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /v1/partner/me/cv-builder-profiles/{profileId}:
+    parameters:
+      - $ref: "#/components/parameters/ProfileId"
+    get:
+      operationId: getStructuredCvProfile
+      summary: Read one full profile
+      responses:
+        "200":
+          description: Full profile
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StructuredCvProfileV1" }
+        "304": { description: Not modified }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+    patch:
+      operationId: updateStructuredCvProfile
+      summary: Update with optimistic concurrency
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StructuredCvProfilePatch" }
+      responses:
+        "200":
+          description: Updated
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StructuredCvProfileV1" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+    delete:
+      operationId: deleteStructuredCvProfile
+      summary: Delete profile and embedded review
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204": { description: Deleted or idempotent own-profile replay }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /v1/partner/me/cv-builder-profiles/{profileId}/export:
+    parameters:
+      - $ref: "#/components/parameters/ProfileId"
+    get:
+      operationId: exportStructuredCvProfile
+      summary: Export structured JSON including review provenance
+      responses:
+        "200":
+          description: Structured export
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StructuredCvProfileExport" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+components:
+  securitySchemes:
+    CognitoBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    PartnerCredential:
+      type: apiKey
+      in: header
+      name: X-Api-Credential
+  parameters:
+    ProfileId:
+      name: profileId
+      in: path
+      required: true
+      schema: { type: string, pattern: "^cvp-[A-Za-z0-9-]{8,80}$" }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 16, maxLength: 128 }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      schema: { type: string, pattern: '^"v[1-9][0-9]*"$' }
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing/invalid authentication
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: Partner/tenant/consent not allowed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Not found for this owner
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Conflict:
+      description: Version or idempotency conflict
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    PayloadTooLarge:
+      description: Profile exceeds the safe DynamoDB payload limit
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Validation:
+      description: Contract validation failed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unavailable:
+      description: Storage unavailable or disabled
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      additionalProperties: false
+      required: [error, code]
+      properties:
+        error: { type: string }
+        code: { type: string }
+    StructuredCvProfileInput:
+      type: object
+      additionalProperties: false
+      required: [name, cvData, template]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        cvData: { $ref: "#/components/schemas/CvBuilderDraftV1" }
+        template: { type: string, enum: [classic, modern, compact] }
+        importReview: { $ref: "#/components/schemas/ImportReviewV1" }
+    StructuredCvProfilePatch:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        cvData: { $ref: "#/components/schemas/CvBuilderDraftV1" }
+        template: { type: string, enum: [classic, modern, compact] }
+        importReview: { $ref: "#/components/schemas/ImportReviewV1" }
+        expectedVersion: { type: integer, minimum: 1 }
+    StructuredCvProfileV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, profileId, name, cvData, template, version, createdAt, updatedAt]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        profileId: { type: string, pattern: "^cvp-[A-Za-z0-9-]{8,80}$" }
+        name: { type: string }
+        cvData: { $ref: "#/components/schemas/CvBuilderDraftV1" }
+        template: { type: string, enum: [classic, modern, compact] }
+        importReview: { $ref: "#/components/schemas/ImportReviewV1" }
+        version: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    StructuredCvProfileList:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/StructuredCvProfileSummary" }
+        nextCursor: { type: string, nullable: true }
+    StructuredCvProfileSummary:
+      type: object
+      additionalProperties: false
+      required: [profileId, name, template, version, createdAt, updatedAt]
+      properties:
+        profileId: { type: string }
+        name: { type: string }
+        template: { type: string, enum: [classic, modern, compact] }
+        version: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    StructuredCvProfileExport:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, exportedAt, source, profile]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        exportedAt: { type: string, format: date-time }
+        source: { type: string, enum: [ris-structured-cv-profile] }
+        profile: { $ref: "#/components/schemas/StructuredCvProfileV1" }
+    CvBuilderDraftV1:
+      type: object
+      additionalProperties: true
+      required: [schemaVersion, personal, profile, experience, education, skills, projects, certificates, languages, links]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        personal: { type: object }
+        profile: { type: object }
+        experience: { type: array, items: { type: object } }
+        education: { type: array, items: { type: object } }
+        skills: { type: array, items: { type: string } }
+        projects: { type: array, items: { type: object } }
+        certificates: { type: array, items: { type: object } }
+        languages: { type: array, items: { type: object } }
+        links: { type: array, items: { type: object } }
+    ImportReviewV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, items, total, pending, accepted, ignored]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        sourceName: { type: string }
+        pageCount: { type: integer, minimum: 1 }
+        pendingAcknowledged: { type: boolean }
+        selectedSections:
+          type: array
+          items: { type: string }
+        skills:
+          type: object
+          additionalProperties: false
+          properties:
+            total: { type: integer, minimum: 0 }
+            selected: { type: integer, minimum: 0 }
+            unselected: { type: integer, minimum: 0 }
+            limited: { type: boolean }
+        items:
+          type: array
+          maxItems: 500
+          items: { $ref: "#/components/schemas/ImportReviewItemV1" }
+        total: { type: integer, minimum: 0 }
+        pending: { type: integer, minimum: 0 }
+        accepted: { type: integer, minimum: 0 }
+        ignored: { type: integer, minimum: 0 }
+    ImportReviewItemV1:
+      type: object
+      additionalProperties: false
+      required: [id, index, text, original, edited, target, status, applied, reason, suggestedTarget]
+      properties:
+        id: { type: string }
+        index: { type: integer, minimum: 0 }
+        text: { type: string, maxLength: 2000 }
+        original: { type: string, maxLength: 2000 }
+        edited: { type: boolean }
+        target: { type: string, enum: [ignore, profile, experience, education, skills, projects, certificates, links] }
+        status: { type: string, enum: [pending, accepted, ignored] }
+        applied: { type: boolean }
+        page: { type: integer, minimum: 1 }
+        sectionHeading: { type: string }
+        reason: { type: string }
+        suggestedTarget: { type: string, enum: [ignore, profile, experience, education, skills, projects, certificates, links] }
