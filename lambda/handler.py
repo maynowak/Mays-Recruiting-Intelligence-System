@@ -582,6 +582,8 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             _handle_partner_ats_routes, event, context, method, path)
     elif path == '/v1/partner/me/consents' or path.startswith('/v1/partner/me/consents/'):
         return _handle_consent_routes(event, context, method, path)
+    elif path == '/v1/partner/me/cv-builder-profiles' or path.startswith('/v1/partner/me/cv-builder-profiles/'):
+        return _handle_structured_cv_routes(event, context, method, path)
     elif path == '/v1/partner/me/applications' or path.startswith('/v1/partner/me/applications/'):
         # ApplicationV1 uses the existing authenticated partner boundary. It
         # never invokes an agent/model and never accepts client identity.
@@ -1501,6 +1503,16 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             partner_application_id, issuer)
     application_repository = ApplicationRepository(
         table_name=os.environ.get("APPLICATIONS_TABLE"), dynamodb=dynamodb)
+    structured_cv_eraser = None
+    # Erasure is a data-subject right and must cover any profiles written while
+    # the feature was enabled. It is therefore not gated by the route flag; it
+    # only needs the existing partner-profile table.
+    if os.environ.get("PARTNER_PROFILE_TABLE"):
+        from jobsearch.structured_cv_profile import StructuredCvProfileRepository
+        structured_cv_repository = StructuredCvProfileRepository()
+        structured_cv_eraser = (
+            lambda user_id, tenant_id: structured_cv_repository.erase_for_user(
+                user_id, tenant_id))
     erasure = PrivacyErasure(
         credential_store=DynamoDBCredentialStore(
             table_name=os.environ.get("CREDENTIALS_TABLE")),
@@ -1520,6 +1532,7 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             os.environ.get("USER_PROFILE_TABLE")),
         application_erasure=ApplicationErasureExecutor(application_repository),
         application_context=application_context,
+        structured_cv_eraser=structured_cv_eraser,
     )
 
     try:
@@ -4291,6 +4304,36 @@ def _handle_privacy_inspect(event, context):
                 retention_ref=retention_ref, status='UNAVAILABLE',
                 code='unavailable')
 
+    from jobsearch.structured_cv_profile import (
+        StructuredCvError, StructuredCvProfileRepository,
+    )
+    try:
+        structured_repo = StructuredCvProfileRepository()
+        structured_items, structured_cursor = structured_repo.list(
+            ctx, limit=limit,
+            cursor=(event.get('queryStringParameters') or {}).get('structuredCvCursor'))
+        structured_summaries = [{
+            'profileId': item['profileId'], 'name': item['name'],
+            'template': item['template'], 'version': item['version'],
+            'createdAt': item['createdAt'], 'updatedAt': item['updatedAt'],
+        } for item in structured_items]
+        categories['structuredCvProfiles'] = _privacy_category(
+            name='StructuredCvProfile', purpose='structured CV profile storage',
+            storage_status=('stored' if structured_summaries or structured_cursor
+                            else 'no_data'),
+            retention_ref='RIS-STRUCTURED-CV-PROFILE-RETENTION-DECISION#REVIEW_REQUIRED',
+            page={'items': structured_summaries, 'nextCursor': structured_cursor})
+    except StructuredCvError:
+        return _cv_error(400, 'Invalid privacy inspection cursor')
+    except Exception:
+        logger.error('privacy inspection structured CV domain unavailable')
+        unavailable = True
+        categories['structuredCvProfiles'] = _privacy_category(
+            name='StructuredCvProfile', purpose='structured CV profile storage',
+            storage_status='unavailable',
+            retention_ref='RIS-STRUCTURED-CV-PROFILE-RETENTION-DECISION#REVIEW_REQUIRED',
+            status='UNAVAILABLE', code='unavailable')
+
     try:
         from jobsearch.application_repository import ApplicationRepository
         app_repo = ApplicationRepository()
@@ -4699,6 +4742,148 @@ def _post_write_response(stored, response, status=200):
         logger.error('post-write read returned no item')
         return _storage_error()
     return response(stored, status)
+
+
+def _structured_cv_enabled() -> bool:
+    return os.environ.get("STRUCTURED_CV_PROFILE_ENABLED", "false").strip().lower() == "true"
+
+
+def _structured_cv_response(status, payload=None, code=None, etag=None):
+    if status == 204:
+        response = {"statusCode": 204,
+                    "headers": {"Cache-Control": "no-store, private"}, "body": ""}
+    else:
+        response = _application_response(status, payload, code)
+    if etag:
+        response["headers"]["ETag"] = etag
+    return response
+
+
+def _structured_cv_consent_ok(ctx):
+    from jobsearch.consent_contract import ConsentContext
+    from jobsearch.consent_repository import ConsentRepository
+    try:
+        consent_ctx = ConsentContext(
+            user_id=ctx["userId"], tenant_id=ctx["tenantId"],
+            partner_application_id=ctx["partnerApplicationId"], issuer=ctx["issuer"])
+        return ConsentRepository().has_consent(consent_ctx, "cv-builder-profile-storage")
+    except Exception:
+        logger.error("structured CV consent store unavailable")
+        return None
+
+
+def _structured_cv_error(exc):
+    from jobsearch.structured_cv_profile import (
+        StructuredCvCapacity, StructuredCvConflict, StructuredCvError,
+    )
+    if isinstance(exc, StructuredCvCapacity):
+        return _structured_cv_response(409, "Structured CV profile capacity exceeded", "CAPACITY_EXCEEDED")
+    if isinstance(exc, StructuredCvConflict):
+        return _structured_cv_response(409, "Structured CV profile version conflict", exc.code)
+    if isinstance(exc, StructuredCvError):
+        return _structured_cv_response(exc.status, str(exc), exc.code)
+    raise exc
+
+
+def _structured_cv_etag(version):
+    return '"v%d"' % int(version)
+
+
+def _structured_cv_version(event):
+    raw = (event.get("headers") or {}).get("if-match")
+    if raw is None:
+        raw = (event.get("headers") or {}).get("If-Match")
+    match = re.fullmatch(r'\s*"v([1-9][0-9]*)"\s*', str(raw or ""))
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _handle_structured_cv_routes(event, context, method, path):
+    if not _structured_cv_enabled():
+        return _structured_cv_response(
+            503, "Structured CV profile storage is disabled",
+            "STRUCTURED_CV_PROFILE_STORAGE_DISABLED")
+    ctx, error = _partner_profile_context(event)
+    if error:
+        return error
+
+    from jobsearch.structured_cv_profile import (
+        StructuredCvNotFound, StructuredCvProfileRepository, StructuredCvError,
+    )
+    repo = StructuredCvProfileRepository()
+    base = "/v1/partner/me/cv-builder-profiles"
+    suffix = path[len(base):].strip("/") if path.startswith(base) else ""
+    parts = suffix.split("/") if suffix else []
+    profile_id = parts[0] if parts else None
+    is_export = len(parts) == 2 and parts[1] == "export"
+    if len(parts) > 2 or (len(parts) == 2 and not is_export):
+        return _structured_cv_response(404, "Not found", "NOT_FOUND")
+
+    try:
+        if method == "POST" and not profile_id:
+            consent = _structured_cv_consent_ok(ctx)
+            if consent is None:
+                return _structured_cv_response(503, "Storage consent is unavailable", "STORAGE_UNAVAILABLE")
+            if not consent:
+                return _structured_cv_response(403, "Storage consent is required", "CONSENT_REQUIRED")
+            body = _application_body(event)
+            if body is None:
+                return _structured_cv_response(422, "Request body is invalid", "VALIDATION_ERROR")
+            idem = (event.get("headers") or {}).get("idempotency-key") or (event.get("headers") or {}).get("Idempotency-Key")
+            profile = repo.create(body, ctx, idempotency_key=idem or "")
+            return _structured_cv_response(201, profile, etag=_structured_cv_etag(profile["version"]))
+
+        if method == "GET" and not profile_id:
+            params = event.get("queryStringParameters") or {}
+            try:
+                limit = int(params.get("limit", 20))
+            except (TypeError, ValueError):
+                return _structured_cv_response(422, "Invalid limit", "VALIDATION_ERROR")
+            if limit < 1 or limit > 50:
+                return _structured_cv_response(422, "Invalid limit", "VALIDATION_ERROR")
+            items, next_cursor = repo.list(ctx, limit=limit, cursor=params.get("cursor"))
+            summaries = [{
+                "profileId": item["profileId"], "name": item["name"],
+                "template": item["template"], "version": item["version"],
+                "createdAt": item["createdAt"], "updatedAt": item["updatedAt"],
+            } for item in items]
+            return _structured_cv_response(200, {"items": summaries, "nextCursor": next_cursor})
+
+        if method == "GET" and profile_id and is_export:
+            return _structured_cv_response(200, repo.export(profile_id, ctx))
+        if method == "GET" and profile_id:
+            profile = repo.get(profile_id, ctx)
+            return _structured_cv_response(200, profile, etag=_structured_cv_etag(profile["version"]))
+
+        if method == "PATCH" and profile_id:
+            consent = _structured_cv_consent_ok(ctx)
+            if consent is None:
+                return _structured_cv_response(503, "Storage consent is unavailable", "STORAGE_UNAVAILABLE")
+            if not consent:
+                return _structured_cv_response(403, "Storage consent is required", "CONSENT_REQUIRED")
+            version = _structured_cv_version(event)
+            if version is None:
+                return _structured_cv_response(428, "If-Match version is required", "PRECONDITION_REQUIRED")
+            body = _application_body(event)
+            if body is None:
+                return _structured_cv_response(422, "Request body is invalid", "VALIDATION_ERROR")
+            profile = repo.update(profile_id, body, ctx, expected_version=version)
+            return _structured_cv_response(200, profile, etag=_structured_cv_etag(profile["version"]))
+
+        if method == "DELETE" and profile_id:
+            repo.delete(profile_id, ctx, expected_version=_structured_cv_version(event))
+            return _structured_cv_response(204, None)
+
+        return _structured_cv_response(405, "Method not allowed", "METHOD_NOT_ALLOWED")
+    except StructuredCvNotFound:
+        return _structured_cv_response(404, "Not found", "NOT_FOUND")
+    except Exception as exc:
+        try:
+            return _structured_cv_error(exc)
+        except Exception:
+            logger.exception("structured CV profile request failed")
+            return _structured_cv_response(503, "Structured CV profile storage is unavailable", "STORAGE_UNAVAILABLE")
 
 
 def _partner_storage_guard(call, *args):

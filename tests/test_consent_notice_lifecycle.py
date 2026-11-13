@@ -161,11 +161,15 @@ class ConsentStatusResponseShapeTests(unittest.TestCase):
             response = handler._handle_consent_routes(
                 event, None, "GET", "/v1/partner/me/consents")
         body = json.loads(response["body"])
-        self.assertEqual(1, len(body["items"]))
-        self.assertEqual(VERSION, body["catalog"][0]["noticeVersion"])
-        self.assertEqual(NOTICE_DRAFT, body["catalog"][0]["noticeState"])
+        self.assertEqual(2, len(body["items"]))
+        application = next(item for item in body["catalog"]
+                           if item["purpose"] == "application-storage")
+        self.assertEqual(VERSION, application["noticeVersion"])
+        self.assertEqual(NOTICE_DRAFT, application["noticeState"])
         self.assertEqual("2026-11-04-draft-1",
                          body["externalRefs"][0]["externalRef"])
+        self.assertIn("cv-builder-profile-storage",
+                      {item["purpose"] for item in body["items"]})
 
 
 if __name__ == "__main__":

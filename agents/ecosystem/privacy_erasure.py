@@ -157,6 +157,7 @@ class PrivacyErasure:
                  mutation_executor: Any = None,
                  application_erasure: Any = None,
                  application_context: Any = None,
+                 structured_cv_eraser: Optional[Callable[[str, Optional[str]], int]] = None,
                  ) -> None:
         self.credentials = credential_store
         self.profiles = profile_store
@@ -172,6 +173,7 @@ class PrivacyErasure:
         self.mutation_executor = mutation_executor
         self.application_erasure = application_erasure
         self.application_context = application_context
+        self.structured_cv_eraser = structured_cv_eraser
 
     # ------------------------------------------------------------------
     def erase(self, user_id: str,
@@ -220,6 +222,8 @@ class PrivacyErasure:
         # Runs after documents and before the profile row, so a failure here
         # still leaves the identity intact and the run resumable.
         result.steps.append(self._delete_applications(result))
+        if self.structured_cv_eraser is not None:
+            result.steps.append(self._erase_structured_cv_profiles(result))
         # 5. Profile row last.
         result.steps.append(self._delete_profile(result, stamp))
 
@@ -259,6 +263,22 @@ class PrivacyErasure:
             logger.error("application erasure failed: %s", type(exc).__name__)
             return StepResult("erase-applications", False, deleted,
                               "APPLICATION_ERASURE_FAILED")
+
+    def _erase_structured_cv_profiles(self, result: ErasureResult) -> StepResult:
+        """Erase owner-scoped structured CV profiles before the identity row.
+
+        The adapter is optional so existing deployments and unit fixtures keep
+        their previous step list until the feature is explicitly wired.
+        """
+        if self.structured_cv_eraser is None:
+            return StepResult("erase-structured-cv-profiles", True, 0)
+        try:
+            deleted = self.structured_cv_eraser(result.user_id, result.tenant_id)
+            return StepResult("erase-structured-cv-profiles", True, int(deleted or 0))
+        except Exception as exc:
+            logger.error("structured CV erasure failed: %s", type(exc).__name__)
+            return StepResult("erase-structured-cv-profiles", False, 0,
+                              "STRUCTURED_CV_ERASURE_FAILED")
 
     # ------------------------------------------------------------------
     def _revoke_credentials(self, result: ErasureResult) -> StepResult:

@@ -205,13 +205,16 @@ class TestTerraformSchema(unittest.TestCase):
 
     def test_user_and_parent_gsis(self):
         block = _table_block()
-        self.assertEqual(2, block.count("global_secondary_index {"))
+        self.assertEqual(3, block.count("global_secondary_index {"))
         user = block.split('name            = "gsi-user"')[1].split("}")[0]
         self.assertIn('hash_key        = "userId"', user)
         self.assertIn('range_key       = "resourceType"', user)
         parent = block.split('name            = "gsi-parent"')[1].split("}")[0]
         self.assertIn('hash_key        = "parentId"', parent)
         self.assertIn('projection_type = "ALL"', parent)
+        owner = block.split('name            = "gsi-structured-owner"')[1].split("}")[0]
+        self.assertIn('hash_key        = "ownerKey"', owner)
+        self.assertIn('range_key       = "resourceId"', owner)
 
     def test_ttl_is_on_expires_at(self):
         block = _table_block()

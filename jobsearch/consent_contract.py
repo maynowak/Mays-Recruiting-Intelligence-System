@@ -34,6 +34,8 @@ SCHEMA_VERSION = 1
 #: :func:`notice_state_enforced`).
 CONSENT_PURPOSES = {
     "application-storage": frozenset({"1.0"}),
+    "cv-builder-profile-storage": frozenset({
+        "structured-cv-profile-storage-2026-11-12-draft-1"}),
 }
 
 # --- notice version lifecycle -------------------------------------------
@@ -98,6 +100,15 @@ NOTICE_REGISTRY: dict[str, dict[str, NoticeVersion]] = {
             version="1.0",
             state=NOTICE_DRAFT,
             label="RIS application-storage notice v1 (technical draft)",
+            legal_approval_ref=None,
+        ),
+    },
+    "cv-builder-profile-storage": {
+        "structured-cv-profile-storage-2026-11-12-draft-1": NoticeVersion(
+            purpose="cv-builder-profile-storage",
+            version="structured-cv-profile-storage-2026-11-12-draft-1",
+            state=NOTICE_DRAFT,
+            label="Structured CV profile storage notice (technical draft)",
             legal_approval_ref=None,
         ),
     },

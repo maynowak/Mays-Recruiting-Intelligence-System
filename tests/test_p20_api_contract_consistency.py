@@ -151,6 +151,11 @@ def handler_dispatch_routes():
 #: pfad-basierten Test uebernommen, jetzt mit Methoden-Wildcard.
 WILDCARD_DISPATCH_PATHS = ("/api/agents", "/work", "/me/jobsearches")
 
+#: Dispatch branches that exist behind a default-off feature flag and are not
+#: exposed in API Gateway/Terraform yet. Activating them is a separate
+#: infrastructure and privacy gate; this list must stay tiny and explicit.
+FEATURE_FLAGGED_DISPATCH_PATHS = ("/v1/partner/me/cv-builder-profiles",)
+
 
 def reader_dispatch_routes():
     """routeKey-Literale aus dem orders-reader-Einstieg.
@@ -425,6 +430,8 @@ class TestDocumentedRoutesReachHandlerCode(unittest.TestCase):
 
         for method, path in sorted(handler_dispatch_routes()):
             if path.rstrip("/") in WILDCARD_DISPATCH_PATHS:
+                continue
+            if path.rstrip("/") in FEATURE_FLAGGED_DISPATCH_PATHS:
                 continue
             if method == "*":
                 # Pfad-Zweig ohne Methodenbedingung: zaehlt als exponiert,
