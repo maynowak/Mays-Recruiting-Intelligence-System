@@ -9993,3 +9993,17 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - Data risks documented: no real DynamoDB proof, 20-profile export response
   size, 24h idempotency TTL, no backup/PITR purge claim.
 - Report: `docs/reports/RIS-STRUCTURED-CV-DEPLOYMENT-PREFLIGHT-01-REPORT.md`.
+
+
+## 2026-11-13 — RIS-STRUCTURED-CV-API-ROUTES-01
+
+**Status:** `API ROUTES IMPLEMENTED / LOCAL VERIFIED / DEPLOYMENT BLOCKED`
+
+- Added six explicit Structured-CV API Gateway routes with existing JWT
+  authorizer and Lambda integration; no wildcard/proxy route.
+- Default-off `STRUCTURED_CV_PROFILE_ENABLED` and server consent gate remain
+  authoritative; existing partner routes unchanged.
+- Updated API-STANDARD/P20 inventory (80/76) and added route contract tests.
+  Focused 64 PASS / 343 subtests; Terraform fmt/local validate PASS.
+- No AWS plan/apply/state, consent activation, main merge or real CV write.
+- Report: `docs/reports/RIS-STRUCTURED-CV-API-ROUTES-01-REPORT.md`.

@@ -414,6 +414,57 @@ resource "aws_apigatewayv2_route" "partner_cvs_document_get" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
+# Structured CV builder profiles. Explicit routes only; the same human JWT
+# authorizer and in-Lambda partner credential boundary apply. The feature flag
+# remains default-off and every route is unusable until it is explicitly enabled.
+resource "aws_apigatewayv2_route" "partner_cv_builder_profiles_list" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/cv-builder-profiles"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "partner_cv_builder_profiles_create" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/partner/me/cv-builder-profiles"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "partner_cv_builder_profiles_get" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/cv-builder-profiles/{profileId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "partner_cv_builder_profiles_update" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "PATCH /v1/partner/me/cv-builder-profiles/{profileId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "partner_cv_builder_profiles_delete" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "DELETE /v1/partner/me/cv-builder-profiles/{profileId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_apigatewayv2_route" "partner_cv_builder_profiles_export" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "GET /v1/partner/me/cv-builder-profiles/{profileId}/export"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
 # R05-B: CV search profile CRUD. Explicit routes only; the human JWT authorizer
 # and the in-Lambda RIS credential verification are reused unchanged.
 resource "aws_apigatewayv2_route" "partner_cv_search_profiles_list" {
