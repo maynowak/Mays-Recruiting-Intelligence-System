@@ -9985,3 +9985,14 @@ Date: 2026-11-13
 - Tests: new tests/test_agent_order_body.py 43 passed (valid/minimal/versioned documents, 4 secret shapes, unknown fields, capability/target/result-contract mismatches, version independence, fingerprint stability and sensitivity, metadata mismatch rejection, end-to-end 17+25=42 through the existing AgentBody, 0.1+0.2=0.3, result secret/shape checks). Regression 235 passed + 11 subtests.
 - Deliberately not done: no Orders change, no persistence, no queue, no deploy. A04-A07 require the additive Orders contract decision documented in A00 §6 (B1/B2/B3/B4).
 Report: docs/reports/MO-RIS-AGENT-ORDER-BODY-01-A01-A03-CONTRACT.md
+
+[MO-RIS-AGENT-ORDER-BODY-01 / A00 CORRECTION + A04]
+Status: A00 corrected; A04 COMPLETE locally in the Orders repo (no deploy, no RC migration).
+Date: 2026-11-13
+- Root cause of the A00 error: the local origin/main ref was stale; no git fetch had run. After fetching, origin/main is f597d14 and contains identity.py, order_handlers.py, processing_result.py, recovery.py and orderType. The brief's premise is therefore correct for the RC4 line, and A00 §4 is retracted for RC4 while kept as a historical record.
+- Tested baseline identified: 5cf50a0 (RIS pin, v0.5.0-rc.2) is an ancestor of 9627eb2 and git diff 5cf50a0 9627eb2 -- lambda/src is EMPTY. The tested integration line therefore equals the current local checkout; RC4 is strictly ahead and is not migrated.
+- A04 implemented on a separate worktree from 9627eb2 (branch feature/mo-agent-order-body-01), so the existing checkout stayed untouched. New lambda/src/agent_order.py validates schemaVersion 1.0/"1", rejects unknown fields/versions, enforces mutual exclusion with retail fields, rejects secret-shaped content and >16 KiB, and computes the same fingerprint semantics as RIS.
+- Persistence: agentOrder and agentOrderFingerprint stored as their own item fields; no customer/items/currency/totalAmount are invented; existing orderId/timestamps/version/GSI1 unchanged. Because the base has no ownership binding, both fields are in INTERNAL_FIELDS and never appear in the public projection; the list projection for agent orders is minimal; agent orders are NOT sent to the status-only retail SQS worker.
+- Tests: cd lambda, PYTHONPATH=src, unittest discover -> 96 tests OK (76 pre-existing + 20 new), compileall clean. Retail persistence and dispatch asserted unchanged.
+- Commits: Orders 6369eb4 (feature/mo-agent-order-body-01). Remaining: ownership/authorized read gate, A05 dispatch, A06 result, A07 E2E.
+

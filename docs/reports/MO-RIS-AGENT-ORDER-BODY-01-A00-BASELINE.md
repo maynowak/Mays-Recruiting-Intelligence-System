@@ -112,3 +112,34 @@ B3 (Ergebnis-Queue/Consumer), B4 (Status vs. Zusatzfeld).
 - IST/SOLL/GAP vollständig.
 - Keine Datei im Orders-Repo verändert.
 - Keine AWS-Aufrufe.
+
+## 8. KORREKTUR (2026-11-13, nach `git fetch`)
+
+**Dieser Bericht war in einem zentralen Punkt falsch.** Ursache: der lokale
+`origin/main`-Ref des Orders-Clones war **veraltet**; es wurde kein `git fetch`
+ausgeführt.
+
+Nach dem Fetch:
+
+| Ref | vorher (lokal, veraltet) | nachher (echt) |
+|---|---|---|
+| `origin/main` | `086a8be` | `f597d14` |
+
+`f597d14` enthält `identity.py`, `order_handlers.py`, `processing_result.py`,
+`recovery.py` sowie `orderType`. Die im Auftrag genannten Bausteine **existieren**
+— sie gehören zur **RC4-Linie**.
+
+Damit gilt:
+
+1. Die Prämisse des Auftrags ist korrekt; §4 („GAP") dieses Berichts ist für
+   RC4 falsch und wird hiermit zurückgezogen.
+2. Die **getestete Integrationsbasis** ist die RC2-/Modul-Contract-Linie:
+   `5cf50a0` (RIS-Pin) ist Vorfahr von `9627eb2`, und
+   `git diff 5cf50a0 9627eb2 -- lambda/src` ist **leer**.
+3. A04 wird auf `9627eb2` implementiert, **ohne** RC4-Migration.
+4. A04.5 („keine öffentliche Ausgabe ohne Eigentümerprüfung") ist auf dieser
+   Basis tatsächlich relevant, weil `9627eb2` noch keine Eigentümerbindung hat.
+
+Der GAP-Befund aus §4 bleibt als **historischer, fehlerhafter Stand** stehen und
+wird nicht gelöscht; maßgeblich ist diese Korrektur.
+
