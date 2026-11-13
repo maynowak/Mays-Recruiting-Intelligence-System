@@ -31,6 +31,9 @@ def build_work_item(
     agent_version: Optional[str] = None,
     idempotency_key: Optional[str] = None,
     requested_by: Optional[str] = None,
+    api_profile_id: Optional[str] = None,
+    partner_application_id: Optional[str] = None,
+    issuer: Optional[str] = None,
     work_id: Optional[str] = None,
     request_id: Optional[str] = None,
     now: Optional[datetime] = None,
@@ -47,6 +50,10 @@ def build_work_item(
         agent_version: Version from the catalog, defaults to 1.0.0.
         idempotency_key: Stable dedup key; generated when absent.
         requested_by: Actor that requested the work; defaults to ``user_id``.
+        api_profile_id: Server-verified APIProfile of the credential. Empty
+            string means "not profile-scoped" (human/user-wide path).
+        partner_application_id: Verified partner application, if any.
+        issuer: Verified token issuer of the credential context.
         work_id: Pre-allocated work id (correlation); generated when absent.
         request_id: Transport correlation id; generated when absent.
         now: Injectable clock for deterministic tests.
@@ -59,6 +66,9 @@ def build_work_item(
         "tenantId": tenant_id,
         "userId": user_id,
         "requestedBy": requested_by if requested_by is not None else user_id,
+        "apiProfileId": api_profile_id or "",
+        "partnerApplicationId": partner_application_id or "",
+        "issuer": issuer or "",
         "agentId": agent_id,
         "capability": capability,
         "idempotencyKey": idempotency_key or str(uuid.uuid4()),

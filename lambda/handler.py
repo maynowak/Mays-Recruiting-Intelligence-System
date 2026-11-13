@@ -1959,7 +1959,8 @@ def _partner_execute_agent(event: Dict[str, Any], agent_id: Optional[str]) -> Di
             agent_version=agent_version,
             idempotency_key=data.get('idempotencyKey'),
             partner_application_id=context.get('partnerApplicationId'),
-            issuer=context.get('issuer'))
+            issuer=context.get('issuer'),
+            api_profile_id=context.get('apiProfileId'))
     except Exception:
         return {'statusCode': 500, 'body': json.dumps({'error': 'Failed to create work item'})}
 
@@ -2142,7 +2143,8 @@ Route: POST /v1/m2m/agents/{agentId}/execute
             agent_version=agent_version,
             idempotency_key=data.get('idempotencyKey'),
             partner_application_id=context.get('partnerApplicationId'),
-            issuer=context.get('issuer'))
+            issuer=context.get('issuer'),
+            api_profile_id=context.get('apiProfileId'))
     except Exception:
         return {'statusCode': 500,
                 'body': json.dumps({'error': 'Failed to create work item'})}
@@ -3269,7 +3271,8 @@ def _enqueue_agent_work(agent_id: str, capability: str,
                         agent_version: str = '1.0.0',
                         idempotency_key: Optional[str] = None,
                         partner_application_id: Optional[str] = None,
-                        issuer: Optional[str] = None
+                        issuer: Optional[str] = None,
+                        api_profile_id: Optional[str] = None
                         ) -> Dict[str, Any]:
     """Single execution contract: build the work item, persist, enqueue.
 
@@ -3296,10 +3299,9 @@ def _enqueue_agent_work(agent_id: str, capability: str,
         requested_by=user_id,
         request_id=request_id,
         now=now,
-        extra={
-            'partnerApplicationId': partner_application_id or '',
-            'issuer': issuer or '',
-        },
+        api_profile_id=api_profile_id,
+        partner_application_id=partner_application_id,
+        issuer=issuer,
     )
 
     table_name = os.environ.get('WORK_ITEMS_TABLE')
@@ -3401,7 +3403,8 @@ def _execute_agent(event: Dict[str, Any], context: Any, agent_id: Optional[str])
             agent_version=agent.get('version', '1.0.0'),
             idempotency_key=body.get('idempotencyKey'),
             partner_application_id=user_context.get('partnerApplicationId'),
-            issuer=user_context.get('issuer'))
+            issuer=user_context.get('issuer'),
+            api_profile_id=user_context.get('apiProfileId'))
     except Exception as e:
         logger.error(f"Error creating work item: {e}")
         return {

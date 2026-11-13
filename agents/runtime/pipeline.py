@@ -540,6 +540,33 @@ def process_record(
 
     attempt = int(item.get("attempt_no", 1))
 
+    # G04: a partner-scoped work item must carry the APIProfile that was
+    # verified at the RIS entry point. Missing binding is a permanent denial,
+    # not a retry: an absent identity must never fall back to user-wide
+    # authorization. Human/user-wide work items carry no partner application
+    # and keep the existing (api_profile_id=None) semantics.
+    api_profile_id = work.get("apiProfileId") or None
+    partner_application_id = work.get("partnerApplicationId") or None
+    if partner_application_id and not api_profile_id:
+        _persist_failure(
+            table, work["workId"], attempt,
+            {"message": "Partner-scoped work item carries no verified "
+                        "apiProfileId",
+             "type": "IDENTITY_BINDING_MISSING"}, terminal=True)
+        logger.warning(
+            "worker identity binding DENIED (workId=%s, partnerApplication=%s)",
+            work["workId"], partner_application_id)
+        return {
+            "workId": work["workId"],
+            "status": "DEAD_LETTER",
+            "duplicate": False,
+            "attempt_no": attempt,
+            "agent_id": decision.agent_id,
+            "denied": True,
+            "reason": "api-profile-binding-missing",
+            "result_reference": f"work:{work['workId']}:attempt:{attempt}",
+        }
+
     # Execution-Time-Entitlement-Re-check (Gate 08): SQS ist
     # Aktivierung, keine Autorisierung. Geprueft wird der ENTSCHIEDENE
     # Agent (Registry-Wahrheit) gegen den registrierten Entitlement-
@@ -562,7 +589,7 @@ def process_record(
                 # Profile context passthrough (P11): None preserves the
                 # user-wide behavior exactly; asserted contexts are verified
                 # against profile-bound rows (never trusted blindly).
-                api_profile_id=work.get("apiProfileId"),
+                api_profile_id=api_profile_id,
             )
         except Exception as exc:
             # Transienter Infrastrukturfehler (Store unerreichbar) ist

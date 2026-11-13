@@ -250,6 +250,9 @@ class TestDispatchMapping:
             user_id="user-a", requested_by="machine-client-a",
             idempotency_key="ord_abc123:dispatch", request_id="corr-1",
             work_id="work-1", now=NOW,
+            api_profile_id="profile-a",
+            partner_application_id="app-a",
+            issuer="https://cognito.example/ris",
             extra={"orderId": "ord_abc123"},
         )
         # Every reference key must exist with the same value; the transport adds

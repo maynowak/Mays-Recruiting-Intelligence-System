@@ -102,6 +102,7 @@ class AdditionAgent(AgentBase):
             return self._error(
                 "Field 'payload' must be an object", "ValidationError"
             )
+        operands = self._operand_payload(payload)
 
         work_id = work_item.get("workId")
         logger.info(
@@ -111,7 +112,7 @@ class AdditionAgent(AgentBase):
         )
 
         try:
-            data = add_operands(payload.get("left"), payload.get("right"))
+            data = add_operands(operands.get("left"), operands.get("right"))
         except AdditionInputError as exc:
             return self._error(str(exc), "ValidationError")
 
@@ -156,6 +157,24 @@ class AdditionAgent(AgentBase):
                 "agentId": ADDITION_AGENT_ID,
             },
         }
+
+    @staticmethod
+    def _operand_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Accept the agent payload at both real entry points.
+
+        ``AgentBody.execute(work_item)`` passes the payload as-is. The
+        ecosystem pipeline builds its invocation contract from the whole
+        ProcessingEnvelope input (which *is* the work item), so operands arrive
+        one level deeper. Unwrapping only when the nested object actually looks
+        like a work item keeps both paths correct without changing the runtime
+        for other agents.
+        """
+        if "left" in payload and "right" in payload:
+            return payload
+        nested = payload.get("payload")
+        if isinstance(nested, dict) and "left" in nested and "right" in nested:
+            return nested
+        return payload
 
     @staticmethod
     def _error(message: str, error_type: str) -> Dict[str, Any]:

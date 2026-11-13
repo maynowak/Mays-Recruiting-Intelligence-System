@@ -9954,3 +9954,15 @@ Date: 2026-11-13
 - Pre-existing, not caused here: test_platform_handlers.py::TestAgentAPI::test_execute_agent expects 202 but gets 500 (durable subject fence store guard already in HEAD), and test_consent_notice_lifecycle.py fails collection with NameError ConsentContext.
 - Not done: no Orders change, no queue, no Terraform, no catalog seed. G05/G07 remain BLOCKED by B1/B3/B4; G04 is PARTIAL.
 Report: docs/reports/RIS-AGENT-GENERIC-ORDER-TRANSPORT-01-T02-T05-CONTRACT.md
+
+[RIS-MO-ADDITION-E2E-G04 / VERIFIED API PROFILE PROPAGATION]
+Status: COMPLETE (local) — verified apiProfileId reaches the worker entitlement check.
+Date: 2026-11-13
+- Baseline: feature/ris-mo-addition-agent-e2e-01 @ 962bf66, remote identical.
+- Finding: all three _enqueue_agent_work call sites omitted apiProfileId while the worker already read work.get("apiProfileId") and passed it to check_worker_entitlement. The profile binding was effectively disabled at the execution boundary.
+- Change: api_profile_id/partner_application_id/issuer are now first-class parameters of the single build_work_item function; _enqueue_agent_work accepts api_profile_id; the partner, machine and human call sites pass the server-verified value; the transport mapping uses the same parameters instead of extra fields (identical output).
+- Enforcement: a partner-scoped work item (partnerApplicationId set) without apiProfileId is rejected before the entitlement check with reason api-profile-binding-missing, persisted as DEAD_LETTER, and never executed. User-wide work items (no partner application) keep api_profile_id=None semantics unchanged.
+- Finding (pre-existing, not introduced here): ExecutionEngine builds its InvocationContract from the whole ProcessingEnvelope input, so agents receive the work item nested under payload. The addition agent now accepts both real entry shapes; the runtime was deliberately not changed globally. Recommendation recorded for a separate gate.
+- Tests: new tests/test_api_profile_propagation.py 14 passed (M2M propagation, foreign binding 403, persisted item == SQS body including apiProfileId/partnerApplicationId/issuer, missing profile becomes empty not invented, no secrets, worker COMPLETED with 42, profile-mismatch denial, missing-binding denial, user-wide preserved, revocation between enqueue and execution, spy proving check_worker_entitlement receives the profile). Regression 253 passed + 11 subtests including all 53 transport contract tests.
+- No AWS mutation, no deployment, no Orders change, no new authorization system.
+Report: docs/reports/RIS-MO-ADDITION-E2E-G04-API-PROFILE-PROPAGATION.md
