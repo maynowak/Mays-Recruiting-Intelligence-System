@@ -22,11 +22,11 @@ No AWS plan/apply/state.
 
 ### B — Consent lifecycle
 
-`feature/jm-ris-structured-cv-consent-readiness-01 @ ac787da`
+`feature/jm-ris-structured-cv-consent-readiness-01 @ 2b830e6`
 
 Added read-only consent classifier and the grant/withdraw/regrant/Art. 9/UX
 specification. No grant/withdraw endpoint or DRAFT activation. Classifier tests
-5 PASS; build PASS.
+5 PASS; full frontend 1922/5 skipped; build PASS.
 
 ### C — Privacy/AWS approval readiness
 
