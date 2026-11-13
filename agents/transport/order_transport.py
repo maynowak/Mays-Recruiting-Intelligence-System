@@ -283,6 +283,16 @@ def validate_envelope(raw: Any,
         agent_id = recipient["agentId"]
         _require(re.match(r"^[A-Za-z0-9_.\-]{1,64}$", agent_id) is not None,
                  "invalid_recipient", "'recipient.agentId' has unsupported characters")
+        # A05-1: a dispatch MAY carry a pre-bound workId. It is optional and
+        # backward compatible: envelopes without it keep their previous
+        # behaviour (the receiver generates the id).
+        execution = raw.get("execution")
+        if execution is not None:
+            _require(_is_plain_object(execution), "missing_execution",
+                     "'execution' must be an object")
+            _reject_unknown(execution, {"workId", "attempt", "executionId"},
+                            "execution")
+            _assert_str(execution.get("workId"), "execution.workId")
 
     if message_type in RESULT_TYPES:
         execution = raw.get("execution")
@@ -347,6 +357,12 @@ def dispatch_to_work_item(envelope: Dict[str, Any],
     _require(payload is not None, "invalid_payload",
              "ORDER_DISPATCH requires an inline payload")
 
+    # A05-1: prefer the workId the sender bound to its order. The idempotency
+    # key stays the dedup anchor either way; a missing pre-bound id keeps the
+    # old behaviour of generating one here.
+    bound_work_id = (envelope.get("execution") or {}).get("workId")
+    effective_work_id = work_id or bound_work_id
+
     return build_work_item(
         agent_id=recipient["agentId"],
         capability=recipient.get("capability"),
@@ -357,7 +373,7 @@ def dispatch_to_work_item(envelope: Dict[str, Any],
         agent_version=agent_version,
         idempotency_key=envelope["idempotencyKey"],
         request_id=envelope["correlationId"],
-        work_id=work_id,
+        work_id=effective_work_id,
         now=now,
         api_profile_id=context.api_profile_id,
         partner_application_id=context.partner_application_id,

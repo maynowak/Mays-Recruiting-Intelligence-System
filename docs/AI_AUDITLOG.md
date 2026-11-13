@@ -9986,6 +9986,17 @@ Date: 2026-11-13
 - Deliberately not done: no Orders change, no persistence, no queue, no deploy. A04-A07 require the additive Orders contract decision documented in A00 §6 (B1/B2/B3/B4).
 Report: docs/reports/MO-RIS-AGENT-ORDER-BODY-01-A01-A03-CONTRACT.md
 
+[MO-RIS-AGENT-DISPATCH-01 / A05 RIS MAPPING]
+Status: COMPLETE (local) — dispatch honours the work id bound by Mays-Orders.
+Date: 2026-11-13
+- Root finding: the frozen V1 validator already accepted execution.workId on ORDER_DISPATCH, but dispatch_to_work_item ignored it and generated a new id, so the sender's expectedWorkId could never match an incoming result. Fixed as an additive, backward-compatible mapping rule: use the pre-bound id when present, otherwise keep the previous behaviour (receiver generates). No new field, no version bump.
+- validate_envelope now also validates execution structurally for ORDER_DISPATCH (workId required when execution is present). Existing envelopes without execution are unchanged.
+- Security unchanged: the work id is correlation, not authorization; identity still comes only from VerifiedContext and contextRef is compared, never trusted.
+- Cross-repo test tests/test_mo_dispatch_handoff.py (skipped unless MO_ORDERS_SRC is set): stored order -> prepare_dispatch -> V1 envelope -> validate_envelope -> dispatch_to_work_item (same workId) -> AdditionAgent 42 -> result_from_work_item -> Orders apply_result -> owner sees 42 once. Also covers repeated dispatch, duplicate result, wrong work id, stale attempt, unsigned message, foreign owner and cancelled order.
+- Tests: RIS 149 passed with MO_ORDERS_SRC (10 cross-repo), 96 passed + 10 skipped without it; Orders suite 193 passed separately.
+- No AWS call, no apply, no deployment; queues/IAM/secret remain not deployed and require explicit approval.
+Report: docs/reports/MO-RIS-AGENT-DISPATCH-01-A05-RIS-MAPPING.md
+
 [MO-RIS-AGENT-ORDER-BODY-01 / A00 CORRECTION + A04]
 Status: A00 corrected; A04 COMPLETE locally in the Orders repo (no deploy, no RC migration).
 Date: 2026-11-13
