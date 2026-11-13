@@ -393,3 +393,14 @@ moved {
   from = module.monitoring_orders
   to   = module.monitoring_orders[0]
 }
+
+module "agent_transport" {
+  count  = var.enable_agent_transport ? 1 : 0
+  source = "./modules/agent_transport"
+
+  project_name = var.project_name
+  environment  = var.environment
+  tags         = var.tags
+
+  orders_producer_role_arns = var.orders_producer_role_arns
+}

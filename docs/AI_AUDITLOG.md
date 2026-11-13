@@ -10009,6 +10009,19 @@ Date: 2026-11-13
 - No apply, no deployment, no Cognito/CloudFront/DNS change, no RC upgrade, no merge. Local SQS simulation is explicitly not AWS delivery.
 Report: docs/reports/MO-RIS-AGENT-PARTNER-E2E-01-A07.md
 
+[MO-RIS-AWS-INTEGRATION-PLAN-01 / SQS BOUNDARY]
+Status: PLAN COMPLETE — Terraform code added disabled by default; no AWS mutation, no apply, no real plan.
+Date: 2026-11-13
+- Baseline: RIS cd14f98, Orders 1e06468. Inventory read only: Orders has one queue (orders, visibility 30 s, retention 120 s) without DLQ; RIS has work/cv/ats/match/dlq (visibility 300 s, dlq 14 d); neither repo has a KMS or Secrets Manager resource.
+- Topology: one queue per direction, not per agent. Dispatch queue owned by RIS, result queue owned by Orders, both with DLQ (maxReceive 3), SSE-SQS, and queue policies that list only explicitly supplied role ARNs (empty list keeps the queue inert).
+- The existing retail queue is explicitly NOT reused: its consumer interprets status as a transition and knows no envelope format.
+- IAM: orders producer sends only to dispatch; RIS ingress only receives from it; RIS result producer sends only to results; orders consumer only receives from it. No cross-database access, no owner rights for service accounts, no RIS key in any message.
+- Contract compatibility: new tests/test_mo_contract_compat.py (9 passed) pins schema version, message types, direction, and exact required-field sets; it round-trips a real Orders dispatch into RIS and a real RIS result into the Orders validator, and proves Orders rejects unknown fields and version "2".
+- Terraform: modules/agent_transport in both repos, wired with count = var.enable_agent_transport (default false) so existing stacks plan zero changes. terraform fmt -check = 0 and terraform validate = Success in both repos (1.17.0, -backend=false). No plan generated: that needs an explicitly approved state/credential context.
+- Blast radius with the flag on: 3 new resources per repo, all creates, no changes/replaces/deletes. With the flag off: zero.
+- Blockers recorded: dispatch ingress Lambda missing, result consumer Lambda missing, cross-account decision open, no Secrets Manager module for the HMAC secret. STOP before apply.
+Report: docs/reports/MO-RIS-AWS-INTEGRATION-PLAN-01.md
+
 [MO-RIS-AGENT-ORDER-BODY-01 / A00 CORRECTION + A04]
 Status: A00 corrected; A04 COMPLETE locally in the Orders repo (no deploy, no RC migration).
 Date: 2026-11-13
