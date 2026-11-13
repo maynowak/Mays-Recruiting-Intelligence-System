@@ -9941,7 +9941,7 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - Added account-erasure step, owner-scoped privacy-inspect category and
   export/delete foundations. Retention/withdrawal/backup/PITR decisions remain
   open; no physical purge is claimed.
-- Tests: 28 new focused PASS; full RIS 2559 passed / 56 skipped / 19 failed,
+- Tests: 28 new focused PASS; full RIS 2561 passed / 56 skipped / 19 failed,
   with the same 19 baseline failures at `49eb13b` (2533 passed / 56 skipped /
   19 failed). Terraform fmt and local validate PASS; draft YAML parse and
   `git diff --check` PASS; secret/private-data scan no matches.

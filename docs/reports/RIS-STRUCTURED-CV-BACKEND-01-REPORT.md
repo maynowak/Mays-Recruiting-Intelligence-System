@@ -203,7 +203,7 @@ capacity and account erasure across partner scopes.
 Full RIS suite on this branch:
 
 ```text
-2559 passed, 56 skipped, 19 failed, 425 subtests passed
+2561 passed, 56 skipped, 19 failed, 425 subtests passed
 ```
 
 Baseline comparison at contract commit `49eb13b`:
@@ -215,7 +215,7 @@ Baseline comparison at contract commit `49eb13b`:
 The same 19 baseline failures remain (wrapper/installer, composite lifecycle,
 health pipeline, lambda packaging fixture, platform handler). They are
 unrelated to this change and were not repaired by weakening tests. The new
-work adds 26 net passing tests.
+work adds 28 net passing tests.
 
 Additional gates:
 
@@ -257,8 +257,8 @@ account erasure must cover every partner scope in one operation.
 
 - `28f118f` — local backend, HTTP adapter, consent and erasure foundation.
 - `3409c6c` — preparatory owner GSI and default-off flag.
-- Documentation commit(s) are recorded by the branch history immediately
-  following this report.
+- `8eede8f` — verification report, audit entry and synchronized draft OpenAPI.
+  A follow-up documentation correction records the final test total.
 
 ## 16. Next integration gates
 
