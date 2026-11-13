@@ -10055,3 +10055,15 @@ Date: 2026-11-13
 - Tests: cd lambda, PYTHONPATH=src, unittest discover -> 96 tests OK (76 pre-existing + 20 new), compileall clean. Retail persistence and dispatch asserted unchanged.
 - Commits: Orders 6369eb4 (feature/mo-agent-order-body-01). Remaining: ownership/authorized read gate, A05 dispatch, A06 result, A07 E2E.
 
+
+
+[MO-RIS-AWS-TERRAFORM-WIRING-01 / L07 LAMBDA WIRING]
+Status: CODE COMPLETE - both Lambda entrypoints wired, default-off; no plan, no apply.
+Date: 2026-11-13
+- RIS modules/agent_transport gained lambda.tf: dedicated ingress role (logs scoped to its own log group, GetItem on api_profiles, RW on work_items, read on entitlements, consume on the dispatch queue), Lambda dispatch_ingress.handler on python3.14 using the existing agent bundle, and an SQS ESM with batch 5 and ReportBatchItemFailures.
+- Orders modules/agent_transport gained lambda.tf: dedicated consumer role (logs, GetItem/UpdateItem on the existing orders table only, GetSecretValue scoped to the module's secret ARN, consume on the results queue), optional kms:Decrypt policy created only when result_secret_kms_key_arn is set, Lambda result_consumer.handler, and an SQS ESM with batch 10 and ReportBatchItemFailures.
+- Default-off preserved: module count = var.enable_agent_transport (default false). With the flag off nothing is created; with it on the code yields 18 creates (RIS 8, Orders 10 active + 1 optional KMS policy), 0 updates, 0 deletes.
+- No existing module was replaced or duplicated; tables are referenced via existing outputs. No API route, no cross-account policy, no wildcard resource for DynamoDB/SQS.
+- Validation: terraform fmt -check = 0 and terraform validate = Success in both repositories; static wiring tests 11 (RIS) and 12 (Orders); Orders suite 217 OK.
+- Still open: account 240571105849 is unverified live, the secret value must be provisioned, the bundle must be built before plan, and the real plan/apply remain explicitly gated.
+Report: docs/reports/MO-RIS-AWS-TERRAFORM-WIRING-01.md

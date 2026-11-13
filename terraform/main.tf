@@ -403,4 +403,13 @@ module "agent_transport" {
   tags         = var.tags
 
   orders_producer_role_arns = var.orders_producer_role_arns
+
+  lambda_zip_path = "${path.root}/lambda.zip"
+
+  work_items_table_name   = module.dynamodb.work_items_table_name
+  work_items_table_arn    = module.dynamodb.work_items_table_arn
+  api_profiles_table_name = module.dynamodb.api_profiles_table_name
+  api_profiles_table_arn  = module.dynamodb.api_profiles_table_arn
+  entitlements_table_name = module.dynamodb.entitlements_table_name
+  entitlements_table_arn  = module.dynamodb.entitlements_table_arn
 }
