@@ -9977,3 +9977,16 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
   deployment, main merge or consent activation. GSI/transaction verification
   remains local/simulated only.
 - Report: `docs/reports/RIS-STRUCTURED-CV-BACKEND-HARDENING-02-REPORT.md`.
+
+
+## 2026-11-13 — RIS-STRUCTURED-CV-PRIVACY-APPROVAL-PACKAGE-01
+
+**Status:** `PRIVACY PACKAGE READY / HUMAN LEGAL APPROVAL REQUIRED`
+
+- Created `docs/privacy/STRUCTURED-CV-PRODUCTION-APPROVAL-PACKAGE.md` for
+  `cv-builder-profile-storage`; no notice/consent activation.
+- Covers Art. 6/9, roles, notice candidate, retention/withdrawal, rights,
+  backup/PITR boundaries and an approval matrix. Notice remains DRAFT with
+  `legalApprovalRef=null`.
+- No AWS/RIS deployment, real CV data or legal approval claimed.
+- Report: `docs/reports/RIS-STRUCTURED-CV-PRIVACY-APPROVAL-PACKAGE-01-REPORT.md`.
