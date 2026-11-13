@@ -462,6 +462,16 @@ def accepted_message_types() -> Tuple[str, ...]:
     return tuple(sorted(SUPPORTED_MESSAGE_TYPES))
 
 
+def assert_secret_free(value: Any, path: str = "value") -> None:
+    """Public wrapper: reject credential-shaped content before transport.
+
+    Shared with the Agent Order Body so both contracts use one rule instead of
+    two slightly different ones.
+    """
+    _scan_for_secrets(value, path)
+    _check_payload_size(value, path)
+
+
 __all__ = [
     "SCHEMA_VERSION",
     "ACCEPTED_SCHEMA_VERSIONS",
@@ -482,4 +492,5 @@ __all__ = [
     "result_from_work_item",
     "is_stale_attempt",
     "accepted_message_types",
+    "assert_secret_free",
 ]

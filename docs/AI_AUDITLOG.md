@@ -9966,3 +9966,22 @@ Date: 2026-11-13
 - Tests: new tests/test_api_profile_propagation.py 14 passed (M2M propagation, foreign binding 403, persisted item == SQS body including apiProfileId/partnerApplicationId/issuer, missing profile becomes empty not invented, no secrets, worker COMPLETED with 42, profile-mismatch denial, missing-binding denial, user-wide preserved, revocation between enqueue and execution, spy proving check_worker_entitlement receives the profile). Regression 253 passed + 11 subtests including all 53 transport contract tests.
 - No AWS mutation, no deployment, no Orders change, no new authorization system.
 Report: docs/reports/RIS-MO-ADDITION-E2E-G04-API-PROFILE-PROPAGATION.md
+
+[MO-RIS-AGENT-ORDER-BODY-01 / A00 BASELINE]
+Status: COMPLETE (read-only) — the Mays-Orders premise does not hold; A04-A07 blocked.
+Date: 2026-11-13
+- Baseline: RIS feature/ris-mo-addition-agent-e2e-01 @ d137267 (clean, remote identical); Mays-Orders feature/mo-module-contract-ris-dev2-2026 @ 9627eb2 (clean, untouched).
+- Verified on all three Orders refs (origin/main, local feature branch, origin/feature/mo-rc4-kms-privacy-retention): lambda/src has exactly seven files and there is NO orderType, NO agentOrder, NO handler registry, NO resultStatus/processingId/attemptNo, NO result or attempt persistence. git grep returns zero matches.
+- Orders really has: strict POST /orders validation (customer/items/currency only, unknown keys 400), a status-only SQS worker ({orderId,status}), six status values, and no ownership binding at all (no JWT claim is read; get_order/list_orders check no owner).
+- Consequence: A01/A02/A03 are independent RIS work and GO; A04/A05/A06/A07 need an additive Orders contract decision (optional agentOrder field, persistence, subject binding, result field/endpoint). No substitute architecture was built.
+Report: docs/reports/MO-RIS-AGENT-ORDER-BODY-01-A00-BASELINE.md
+
+[MO-RIS-AGENT-ORDER-BODY-01 / A01-A03 AGENT ORDER BODY V1]
+Status: COMPLETE (local) — contract, versioning and mapping; 17+25=42 proven; A04-A07 BLOCKED.
+Date: 2026-11-13
+- Added agents/orders/agent_order.py: versioned agentOrder contract (schemaVersion 1.0/"1"), target/input/metadata/processing/resultContract, documented defaults, strict unknown-field rejection, one shared secret rule with the transport contract, and stable error codes.
+- Versioning is explicitly three-way and uncoupled (orders module external, transport envelope "1", agentOrder "1.0"). fingerprint() hashes schemaVersion+target+input only, so correlation-only fields do not change the execution identity; the fingerprint is carried on the work item.
+- Mapping: target -> agentId/capability/type, input.data -> payload, metadata.idempotencyKey -> idempotencyKey, processing.parentWorkId -> parentWorkId, plus orderId/correlationId/agentOrderVersion/agentOrderFingerprint. metadata references are checked against the verified context and never used as authorization.
+- Tests: new tests/test_agent_order_body.py 43 passed (valid/minimal/versioned documents, 4 secret shapes, unknown fields, capability/target/result-contract mismatches, version independence, fingerprint stability and sensitivity, metadata mismatch rejection, end-to-end 17+25=42 through the existing AgentBody, 0.1+0.2=0.3, result secret/shape checks). Regression 235 passed + 11 subtests.
+- Deliberately not done: no Orders change, no persistence, no queue, no deploy. A04-A07 require the additive Orders contract decision documented in A00 §6 (B1/B2/B3/B4).
+Report: docs/reports/MO-RIS-AGENT-ORDER-BODY-01-A01-A03-CONTRACT.md
