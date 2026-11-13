@@ -9950,3 +9950,30 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
   or consent activation. No real CV data. GSI query was verified only against
   moto; transaction subset was simulated and is not claimed as AWS evidence.
 - Report: `docs/reports/RIS-STRUCTURED-CV-BACKEND-01-REPORT.md`.
+
+## 2026-11-13 — RIS-STRUCTURED-CV-BACKEND-HARDENING-02
+
+**Status:** `RIS-STRUCTURED-CV-BACKEND-02 — INTEGRITY & PRIVACY VERIFIED LOCAL / READY FOR BFF PLANNING`
+
+- Branch `feature/ris-structured-cv-backend-hardening-02` from `9386535`.
+  Code commits `bf923bf` (concurrency/capacity) and `aeabfeb` (privacy export,
+  consent/delete contract).
+- Conditional update/delete failures now map to 409 or 404 instead of generic
+  503; missing `If-Match` remains 428 and no last-write-wins path remains.
+- Delete and capacity release are transactional; bounded owner-index
+  reconciliation repairs a missing/stale counter with one retry and otherwise
+  returns 503. Repeated own delete, foreign and unknown IDs all return 404.
+- Account privacy export now includes every owner-scoped structured profile
+  page with full review provenance; unavailable storage yields an UNAVAILABLE
+  category and overall PARTIAL, never COMPLETE.
+- DRAFT structured-CV consent is rejected by the HTTP adapter even when notice
+  state enforcement is off; no test-mode branch exists in the handler. DRAFT
+  repository grants require the explicit local test switch and remain blocked
+  under notice enforcement.
+- Tests: focused 22/13/3/2 PASS; full RIS 2576 passed / 56 skipped / 19 failed,
+  identical to the documented baseline failure set. Terraform fmt/local
+  validate, draft YAML, diff and secret scans PASS.
+- No AWS/plan/apply/state, API Gateway/Cognito/CloudFront/DNS/IAM mutation,
+  deployment, main merge or consent activation. GSI/transaction verification
+  remains local/simulated only.
+- Report: `docs/reports/RIS-STRUCTURED-CV-BACKEND-HARDENING-02-REPORT.md`.
