@@ -10034,6 +10034,17 @@ Date: 2026-11-13
 - Blockers: no approved profile for 240571105849, dispatch ingress Lambda and result consumer Lambda still missing, secret value must be provisioned, rotation not implemented. STOP before apply.
 Report: docs/reports/MO-RIS-AWS-INTEGRATION-PLAN-02.md
 
+[MO-RIS-AWS-LAMBDA-BRIDGE-01 / LAMBDA ENTRYPOINTS]
+Status: LOCAL LAMBDA E2E VERIFIED — both entrypoints implemented, not deployed.
+Date: 2026-11-13
+- L01 RIS lambda/dispatch_ingress.py: SQS records -> transport V1 (expected ORDER_DISPATCH) -> context resolved from the API profile store by contextRef (never from the message) -> canonical work item -> existing process_record. The queue ARN is pinned via DISPATCH_QUEUE_ARN, a pre-bound execution.workId is mandatory, and partial batch failures are returned for retry while permanent rejections are consumed.
+- L02 Orders lambda/src/result_consumer.py: dedicated function, same A06 boundary, HMAC keys fetched from Secrets Manager via ORDER_RESULT_SECRET_ARN (cached per container, JSON {current, previous} for rotation, bare string accepted). Missing or unreadable secret fails closed. result_handler was minimally refactored to expose process_records(records, secrets, service=None); its env-based handler is unchanged.
+- L04 packaging defect found and fixed: Orders build_zip.py used a hardcoded seven-module list, so identity/agent_order/result_envelope/result_handler/dispatch/result_consumer would never have shipped. Now it discovers src/*.py (13 modules verified). RIS AGENT_FILES now includes lambda/dispatch_ingress.py (bundle contains it).
+- Tests: RIS ingress 15 passed, Lambda bridge E2E 5 passed, contract compat 9 passed, RIS targeted 210 passed, Orders suite 205 OK. The bridge test drives both real handlers end to end: create -> dispatch -> AgentBody 42 -> ORDER_RESULT -> consumer -> authorised GET returns 42, foreign partner 404, duplicate idempotent, tampered message rejected.
+- Not done: Terraform resources for the two Lambdas (roles, ESM, handler paths), the secret value, and a real plan. The plan still lists 8 resources without Lambdas.
+- Pre-existing RIS baseline unchanged: 34 failures and 4 collection errors from environment (no python3 subprocess on Windows, missing requests) in unrelated suites.
+Report: docs/reports/MO-RIS-AWS-LAMBDA-BRIDGE-01.md
+
 [MO-RIS-AGENT-ORDER-BODY-01 / A00 CORRECTION + A04]
 Status: A00 corrected; A04 COMPLETE locally in the Orders repo (no deploy, no RC migration).
 Date: 2026-11-13

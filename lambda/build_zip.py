@@ -134,7 +134,8 @@ EXCLUDED_PARTS = ("__pycache__", ".git", ".pytest_cache", ".DS_Store")
 EXCLUDED_SUFFIXES = (".pyc", ".pyo")
 
 #: Bewiesenes Agent-Layout (Einstieg handler.lambda_handler am Root).
-AGENT_FILES = ["lambda/handler.py", "lambda/documents.py"]
+AGENT_FILES = ["lambda/handler.py", "lambda/documents.py",
+               "lambda/dispatch_ingress.py"]
 AGENT_DIRS = ["agents", "jobsearch"]
 
 #: Reader-Layout (Einstieg orders_reader.handler am Root).
