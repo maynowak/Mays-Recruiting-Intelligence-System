@@ -148,6 +148,9 @@ def ensure_reference_agent(
     body.register_agent(work_type=ATS_WORK_TYPE, handler=ats.process_work)
     body.register_agent(capability=ATS_ANALYZE_CAPABILITY, handler=ats.process_work)
     body.register_agent(agent_id="ats-agent", handler=ats.process_work)
+    # Gate G03 (RIS-MO-ADDITION-AGENT-E2E-01): deterministischer math.add-Agent.
+    from agents.addition_agent.registry import register_addition_agent
+    register_addition_agent(registry, body)
     return registry, body
 
 

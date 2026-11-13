@@ -9903,3 +9903,13 @@ Date: 2026-11-13
 - No tests executed and no AWS calls made in G00; every claim traces to the named commits. Previously verified basis (separate): ris-agent deployment 394d290, drift 0, two ACTIVE catalog agents, work ESM Enabled/batch 5.
 - Blocking decisions recorded (B1 payload field, B2 subjectId enforcement, B3 new result queue/consumer, B4 status vs. result field, B5 live E2E approval). STOP applies until B1-B4 are approved.
 Report: docs/reports/RIS-MO-ADDITION-AGENT-E2E-01-G00-CONTRACT.md
+
+[RIS-MO-ADDITION-AGENT-E2E-01 / G03 ADDITION AGENT]
+Status: G03 COMPLETE (local verified) — 17 + 25 = 42.
+Date: 2026-11-13
+- Added agents/addition_agent/ (AgentBase implementation, descriptor, idempotent registration) and one registration line in ensure_reference_agent; no second architecture, no DB, no credentials, no per-agent queue.
+- Contract: agentId addition_agent, capability math.add, workType agent_addition_agent, version 1.0.0, ACTIVE. Input payload {left,right} -> data {left,right,sum}. bool/None/str/list/inf/nan and unknown capabilities fail closed as ValidationError; Decimal arithmetic keeps 0.1+0.2 at 0.3 and data is clock-free/deterministic.
+- Tests: new tests/test_addition_agent.py 29 passed (reference case, 50x determinism, negatives, 8 invalid types, 3 non-finite, validation, idempotent registration, execution through the existing AgentBody, capability-only routing, SQS parity handler). Adjacent regression 125 passed + 5 subtests. py_compile and git diff --check clean.
+- Security: the agent reads only work_item payload, performs no authorization and holds no secrets; authorization stays with the M2M handler and the execution-time entitlement check.
+- Deliberately excluded: Terraform agent-catalog seed (deployment change), Orders changes, result channel. G05/G07/G08 stay blocked by B1-B4 from G00.
+Report: docs/reports/RIS-MO-ADDITION-AGENT-E2E-01-G03-ADDITION-AGENT.md
