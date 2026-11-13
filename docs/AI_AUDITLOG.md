@@ -9923,3 +9923,13 @@ Date: 2026-11-13
 - Finding 2: authorization is per agent, not per capability. verify_api_credential checks agent status, credential, profile, tenant and entitlement; the body capability is passed through and only validated at execution time by discovery/eligibility. This is accept-then-fail, not a bypass; whether to validate capability at the M2M edge is an open contract decision for G05 and was not changed.
 - Regression: 112 passed + 7 subtests (p21 boundary, p17 credential lifecycle, entitlement provisioning).
 Report: docs/reports/RIS-MO-ADDITION-AGENT-E2E-01-G02-AUTHORIZATION.md
+
+[RIS-MO-ADDITION-AGENT-E2E-01 / G01 PARTNER DEMO]
+Status: G01 COMPLETE (local, fake adapters) — 15 passed + 4 subtests.
+Date: 2026-11-13
+- Added examples/partner-addition-demo/ (demo_core.py ports+Fakes+DemoService, app.py stdlib HTTP transport, README) with no new dependency and no AWS call.
+- Flow verified over HTTP: POST /api/orders -> FakeOrders.create -> FakeRis.submit (idempotency key = orderId) -> 201; GET /api/orders/{id} advances QUEUED->RUNNING->COMPLETED and stores {left,right,sum} = {17,25,42} on the order. Repeated reads are stable; agent failure marks FAILED without a result.
+- Security: the RIS key is read server-side from RIS_API_KEY only; tests assert it never appears in HTML, JSON or the page; missing key yields 503/FAILED instead of an invented placeholder; default bind 127.0.0.1; every response carries Cache-Control: no-store; invalid bodies create no order; foreign order ids return 404.
+- Deliberately excluded: real Cognito login and persistence (Phase C). Ports are narrow so the fakes can be replaced by the real RIS M2M client and Orders API without changing DemoService.
+- G05/G07/G08 remain blocked by B1-B4; the live path additionally needs the addition_agent Terraform catalog seed and an active Orders instance.
+Report: docs/reports/RIS-MO-ADDITION-AGENT-E2E-01-G01-PARTNER-DEMO.md
