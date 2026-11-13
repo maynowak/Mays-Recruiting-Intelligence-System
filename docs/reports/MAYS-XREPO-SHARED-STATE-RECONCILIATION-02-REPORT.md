@@ -169,7 +169,8 @@ No real dispatch, AWS call or issue mutation was performed in this correction.
   `feature/mays-xrepo-shared-state-reconciliation-02`.
 - RIS correction: `d44b804` on
   `feature/mays-xrepo-shared-state-reconciliation-02`.
-- Documentation commits follow this report.
+- Jobsearch PR: https://github.com/maynowak/mays-jobsearch/pull/18
+- RIS PR: https://github.com/maynowak/Mays-Recruiting-Intelligence-System/pull/9
 - No PR was merged and no live dispatch was sent.
 
 ## 11. Open approvals
