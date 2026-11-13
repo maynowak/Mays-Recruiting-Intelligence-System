@@ -186,7 +186,7 @@ was created.
 
 - `bf923bf` — concurrency and capacity hardening.
 - `aeabfeb` — privacy export and consent/delete-contract hardening.
-- This report and audit entry are committed immediately after the code changes.
+- `f7f19ac` — this report and audit entry.
 
 ## 7. Next gates
 
