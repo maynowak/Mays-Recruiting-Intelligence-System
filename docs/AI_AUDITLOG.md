@@ -9992,3 +9992,20 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - Reports:
   `docs/reports/RIS-STRUCTURED-CV-AWS-LIVE-E2E-01-RUNBOOK.md`,
   `docs/reports/RIS-STRUCTURED-CV-AWS-LIVE-E2E-01-REPORT.md`.
+
+
+## 2026-11-13 — MAYS-STRUCTURED-CV-RELEASE-ORCHESTRATION-01
+
+**Status:** `PREFLIGHT & PRIVACY PACKAGE COMPLETE / AWS & LEGAL APPROVAL PENDING`
+
+- Consolidated RIS branches A `2371fbb`, B `ea898b9`, C `1fa4a57` and
+  Jobsearch release-gate `52b6786`. No main merge, AWS discovery/plan/apply,
+  state access, consent activation or production deployment.
+- A: technical preflight ready with API Gateway route/real-DynamoDB deltas;
+  B: privacy package ready for human legal approval, notice still DRAFT;
+  C: offline AWS/live-E2E runbook and synthetic test manifest ready.
+- Gate G0-G2 local evidence only; G3-G10 pending/blocked. XRepo tasks are not
+  dispatched and are not claimed VERIFIED/COMPLETED.
+- Tests: RIS 2576 PASS / 56 skipped / 19 baseline failures; structured-CV
+  focused 43 PASS; Terraform fmt/validate PASS.
+- Report: `docs/reports/MAYS-STRUCTURED-CV-RELEASE-ORCHESTRATION-01-REPORT.md`.
