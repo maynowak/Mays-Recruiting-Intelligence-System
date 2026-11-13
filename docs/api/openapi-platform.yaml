@@ -2206,6 +2206,128 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorObject" }
 
+  /v1/partner/me/cv-builder-profiles:
+    get:
+      tags: [Partner]
+      operationId: listStructuredCvProfiles
+      summary: List owner-scoped structured CV metadata
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: cursor
+          in: query
+          schema: { type: string, maxLength: 2000 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200": { description: Owner-scoped metadata page. }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403": { description: Partner or tenant boundary refused. }
+        "422": { description: Invalid limit or cursor. }
+        "503": { description: Structured-CV storage disabled or unavailable. }
+    post:
+      tags: [Partner]
+      operationId: createStructuredCvProfile
+      summary: Create an owner-scoped structured CV profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 16, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "201": { description: Created structured CV profile. }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403": { description: Consent or partner boundary refused. }
+        "409": { description: Idempotency or capacity conflict. }
+        "413": { description: Profile payload too large. }
+        "422": { description: Invalid profile data. }
+        "503": { description: Structured-CV storage disabled or unavailable. }
+  /v1/partner/me/cv-builder-profiles/{profileId}:
+    parameters:
+      - $ref: "#/components/parameters/ApiCredential"
+      - name: profileId
+        in: path
+        required: true
+        schema: { type: string, pattern: "^cvp-[A-Za-z0-9-]{8,80}$" }
+    get:
+      tags: [Partner]
+      operationId: getStructuredCvProfile
+      summary: Read one owner-scoped structured CV profile
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200": { description: Full structured CV profile. }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403": { description: Partner or tenant boundary refused. }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+        "503": { description: Structured-CV storage disabled or unavailable. }
+    patch:
+      tags: [Partner]
+      operationId: updateStructuredCvProfile
+      summary: Update an owner-scoped structured CV profile
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          schema: { type: string, pattern: '^"v[1-9][0-9]*"$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200": { description: Updated structured CV profile. }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403": { description: Consent or partner boundary refused. }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+        "409": { description: Version conflict. }
+        "413": { description: Profile payload too large. }
+        "422": { description: Invalid profile data. }
+        "428": { description: If-Match required. }
+        "503": { description: Structured-CV storage disabled or unavailable. }
+    delete:
+      tags: [Partner]
+      operationId: deleteStructuredCvProfile
+      summary: Delete an owner-scoped structured CV profile
+      parameters:
+        - name: If-Match
+          in: header
+          required: false
+          schema: { type: string, pattern: '^"v[1-9][0-9]*"$' }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "204": { description: Deleted. A later delete returns 404. }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403": { description: Partner or tenant boundary refused. }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+        "409": { description: Version conflict. }
+        "503": { description: Structured-CV storage disabled or unavailable. }
+  /v1/partner/me/cv-builder-profiles/{profileId}/export:
+    get:
+      tags: [Partner]
+      operationId: exportStructuredCvProfile
+      summary: Export an owner-scoped structured CV profile
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+        - name: profileId
+          in: path
+          required: true
+          schema: { type: string, pattern: "^cvp-[A-Za-z0-9-]{8,80}$" }
+      x-infrastructure-governance: terraform-managed
+      responses:
+        "200": { description: Structured JSON export with review provenance. }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403": { description: Partner or tenant boundary refused. }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+        "503": { description: Structured-CV storage disabled or unavailable. }
   /v1/partner/me/applications:
     get:
       tags: [Partner]

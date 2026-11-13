@@ -10019,3 +10019,33 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - C2A/C2B remain separated; G3-G10 pending/blocked. No AWS discovery/plan/state/apply, consent activation, main merge or production deployment.
 - XRepo issue inventory empty; no dispatch/status transition invented.
 - Report: `docs/reports/MAYS-SCV-RELEASE-GATE-02-REPORT.md`.
+
+## 2026-11-13 — RIS-STRUCTURED-CV-DEPLOYMENT-PREFLIGHT-01
+
+**Status:** `TECHNICAL PREFLIGHT READY / AWS PLAN APPROVAL REQUIRED`
+
+- Offline inventory at `0e08822`; no AWS call, plan, state or apply.
+- Structured-CV repository/handler/GSI/flag/privacy/erasure are implemented;
+  the API Gateway route for the resource is absent and remains a C2B activation
+  delta. IAM already covers the table and index; GSI add is an in-place plan
+  item requiring real-plan review.
+- Local checks: structured-CV focused 43 PASS; full RIS 2576 PASS / 56 skipped /
+  19 documented baseline failures; Terraform fmt/validate and diff PASS.
+- Data risks documented: no real DynamoDB proof, 20-profile export response
+  size, 24h idempotency TTL, no backup/PITR purge claim.
+- Report: `docs/reports/RIS-STRUCTURED-CV-DEPLOYMENT-PREFLIGHT-01-REPORT.md`.
+
+
+## 2026-11-13 — RIS-STRUCTURED-CV-API-ROUTES-01
+
+**Status:** `API ROUTES IMPLEMENTED / LOCAL VERIFIED / DEPLOYMENT BLOCKED`
+
+- Added six explicit Structured-CV API Gateway routes with existing JWT
+  authorizer and Lambda integration; no wildcard/proxy route.
+- Default-off `STRUCTURED_CV_PROFILE_ENABLED` and server consent gate remain
+  authoritative; existing partner routes unchanged.
+- Updated API-STANDARD/OpenAPI/P20 inventory (80/76) and added route contract
+  tests. Focused 64 PASS / 343 subtests; full RIS 2582 PASS / 56 skipped / 19
+  documented baseline failures; Terraform fmt/local validate PASS.
+- No AWS plan/apply/state, consent activation, main merge or real CV write.
+- Report: `docs/reports/RIS-STRUCTURED-CV-API-ROUTES-01-REPORT.md`.

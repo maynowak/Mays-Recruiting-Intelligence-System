@@ -137,6 +137,12 @@ Antwort 202: `{"workId": string, "status": string, "requestId": string}`
 | `GET /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 500, 503 |
 | `PUT /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 404, 409, 422, 500, 503 |
 | `DELETE /v1/partner/me/cvs/{cvId}/search-profiles/{searchProfileId}` | JWT **+** `X-Api-Credential` | 204 | 401, 403, 404, 409, 422, 500, 503 |
+| `GET /v1/partner/me/cv-builder-profiles` | JWT **+** `X-Api-Credential` | 200 (`items`, `nextCursor`) | 400, 401, 403, 422, 503 |
+| `POST /v1/partner/me/cv-builder-profiles` | JWT **+** `X-Api-Credential` | 201 | 401, 403, 409, 413, 422, 503 |
+| `GET /v1/partner/me/cv-builder-profiles/{profileId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 503 |
+| `PATCH /v1/partner/me/cv-builder-profiles/{profileId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 409, 413, 422, 428, 503 |
+| `DELETE /v1/partner/me/cv-builder-profiles/{profileId}` | JWT **+** `X-Api-Credential` | 204 | 401, 403, 404, 409, 503 |
+| `GET /v1/partner/me/cv-builder-profiles/{profileId}/export` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 503 |
 | `POST /v1/partner/me/applications` | JWT **+** `X-Api-Credential` | 201 | 401, 403, 409, 422, 503 |
 | `GET /v1/partner/me/applications` | JWT **+** `X-Api-Credential` | 200 (`items`, `nextCursor`) | 401, 403, 422, 503 |
 | `GET /v1/partner/me/applications/metrics` | JWT **+** `X-Api-Credential` | 200 (`metrics`) | 401, 403, 422, 503 |

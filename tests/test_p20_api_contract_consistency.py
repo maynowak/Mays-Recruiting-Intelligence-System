@@ -151,12 +151,6 @@ def handler_dispatch_routes():
 #: pfad-basierten Test uebernommen, jetzt mit Methoden-Wildcard.
 WILDCARD_DISPATCH_PATHS = ("/api/agents", "/work", "/me/jobsearches")
 
-#: Dispatch branches that exist behind a default-off feature flag and are not
-#: exposed in API Gateway/Terraform yet. Activating them is a separate
-#: infrastructure and privacy gate; this list must stay tiny and explicit.
-FEATURE_FLAGGED_DISPATCH_PATHS = ("/v1/partner/me/cv-builder-profiles",)
-
-
 def reader_dispatch_routes():
     """routeKey-Literale aus dem orders-reader-Einstieg.
 
@@ -192,8 +186,8 @@ class TestTerraformRouteInventory(unittest.TestCase):
         eine stille Ruecknahme nicht durchgeht.
         """
         routes = terraform_routes()
-        self.assertEqual(74, len(routes))
-        self.assertEqual(70, sum(1 for v in routes.values()
+        self.assertEqual(80, len(routes))
+        self.assertEqual(76, sum(1 for v in routes.values()
                                  if v["target"] == "agent"))
         self.assertEqual(4, sum(1 for v in routes.values()
                                 if v["target"] == "orders"))
@@ -212,6 +206,12 @@ class TestTerraformRouteInventory(unittest.TestCase):
             "GET /v1/partner/me/manual-search-profiles/{profileId}",
             "PUT /v1/partner/me/manual-search-profiles/{profileId}",
             "DELETE /v1/partner/me/manual-search-profiles/{profileId}",
+            "GET /v1/partner/me/cv-builder-profiles",
+            "POST /v1/partner/me/cv-builder-profiles",
+            "GET /v1/partner/me/cv-builder-profiles/{profileId}",
+            "PATCH /v1/partner/me/cv-builder-profiles/{profileId}",
+            "DELETE /v1/partner/me/cv-builder-profiles/{profileId}",
+            "GET /v1/partner/me/cv-builder-profiles/{profileId}/export",
             "GET /v1/partner/me/cvs",
             "POST /v1/partner/me/cvs",
             "GET /v1/partner/me/cvs/{cvId}",
@@ -430,8 +430,6 @@ class TestDocumentedRoutesReachHandlerCode(unittest.TestCase):
 
         for method, path in sorted(handler_dispatch_routes()):
             if path.rstrip("/") in WILDCARD_DISPATCH_PATHS:
-                continue
-            if path.rstrip("/") in FEATURE_FLAGGED_DISPATCH_PATHS:
                 continue
             if method == "*":
                 # Pfad-Zweig ohne Methodenbedingung: zaehlt als exponiert,
