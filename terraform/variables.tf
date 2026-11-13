@@ -354,6 +354,12 @@ variable "partner_surface_enabled" {
   default     = false
 }
 
+variable "structured_cv_profile_enabled" {
+  description = "Aktiviert die Structured-CV-Profilrouten (Default AUS; keine Aktivierung durch Deployment)."
+  type        = bool
+  default     = false
+}
+
 variable "jobsearch_cognito_issuer" {
   description = "Issuer des Jobsearch-Partner-Pools fuer den isolierten Partner-Gateway. Leer = kein Partner-Gateway."
   type        = string

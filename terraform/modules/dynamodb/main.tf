@@ -244,6 +244,14 @@ resource "aws_dynamodb_table" "partner_profiles" {
     type = "S"
   }
 
+  # Structured CV profiles use a server-derived owner hash. This index is
+  # deliberately separate from gsi-user: owner isolation must not depend on a
+  # user-supplied or propagated userId value.
+  attribute {
+    name = "ownerKey"
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "gsi-user"
     hash_key        = "userId"
@@ -254,6 +262,13 @@ resource "aws_dynamodb_table" "partner_profiles" {
   global_secondary_index {
     name            = "gsi-parent"
     hash_key        = "parentId"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "gsi-structured-owner"
+    hash_key        = "ownerKey"
+    range_key       = "resourceId"
     projection_type = "ALL"
   }
 

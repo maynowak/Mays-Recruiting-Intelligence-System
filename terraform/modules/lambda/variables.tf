@@ -134,6 +134,12 @@ variable "partner_surface_enabled" {
   default     = false
 }
 
+variable "structured_cv_profile_enabled" {
+  description = "Aktiviert die Structured-CV-Profilrouten. Default AUS; der Code allein darf keine Route oeffnen."
+  type        = bool
+  default     = false
+}
+
 variable "applications_cursor_secret_arn" {
   description = "ARN of the Secrets Manager secret that holds the pagination HMAC key. ARN only; the value must never enter Terraform state, environment variables or logs. Empty = pagination stays fail-closed."
   type        = string

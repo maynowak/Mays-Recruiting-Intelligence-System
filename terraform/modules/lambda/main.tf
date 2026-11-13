@@ -648,8 +648,10 @@ resource "aws_lambda_function" "agent" {
       PARTNER_SURFACE_ENABLED      = var.partner_surface_enabled ? "true" : "false"
       CONSENTS_TABLE               = var.consents_table_name
       APPLICATION_CONSENT_ENFORCED = var.application_consent_enforced ? "true" : "false"
-      DELETION_LEDGER_TABLE        = var.deletion_ledger_table_name
-      LOG_LEVEL                    = var.log_level
+      # Structured CV profile routes are opt-in and fail closed by default.
+      STRUCTURED_CV_PROFILE_ENABLED = var.structured_cv_profile_enabled ? "true" : "false"
+      DELETION_LEDGER_TABLE         = var.deletion_ledger_table_name
+      LOG_LEVEL                     = var.log_level
     }
   }
 
