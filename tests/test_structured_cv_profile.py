@@ -29,6 +29,7 @@ from jobsearch.structured_cv_profile import (
     StructuredCvError,
     StructuredCvNotFound,
     StructuredCvProfileRepository,
+    owner_key,
     validate_create_body,
 )
 
@@ -118,12 +119,34 @@ class _FakeTransactions:
                                     Key={"resourceId": resource_id},
                                     ConsistentRead=True).get("Item")
 
-    def _fail(self):
-        raise _TransactionCanceledException("TransactionCanceled: simulated condition failure")
+    def _fail(self, index=0, count=None, kind="condition"):
+        reasons = [{"Code": "None"} for _ in range(count or index + 1)]
+        reasons[index] = {"Code": "ConditionalCheckFailed", "Message": kind}
+        exc = _TransactionCanceledException("TransactionCanceled: simulated condition failure")
+        exc.response = {"CancellationReasons": reasons}
+        raise exc
+
+    def _check_condition(self, condition, existing, values=None, names=None, index=0, count=None):
+        if not condition:
+            return
+        if not existing:
+            self._fail(index, count, "missing")
+        values = values or {}
+        names = names or {}
+        expression = condition
+        for alias, real in names.items():
+            expression = expression.replace(alias, real)
+        if "ownerKey = :owner" in expression and existing.get("ownerKey") != self._raw(values.get(":owner")):
+            self._fail(index, count, "owner")
+        if "#version = :expected" in expression or "version = :expected" in expression:
+            expected = self._raw(values.get(":expected"))
+            if existing.get("version") != expected:
+                self._fail(index, count, "version")
 
     def transact_write_items(self, TransactItems):
         self.calls += 1
-        for action in TransactItems:
+        count = len(TransactItems)
+        for index, action in enumerate(TransactItems):
             if "Put" in action:
                 raw = action["Put"]["Item"]
                 resource_id = self._raw(raw["resourceId"])
@@ -134,14 +157,25 @@ class _FakeTransactions:
                     now = self._raw(values.get(":now")) if values.get(":now") else None
                     expires = existing.get("expiresAt")
                     if not (now and expires and int(expires) < int(now)):
-                        self._fail()
+                        self._fail(index, count, "idempotency")
             elif "Update" in action:
                 update = action["Update"]
                 resource_id = self._raw(update["Key"]["resourceId"])
                 existing = self._get(resource_id)
                 current = int((existing or {}).get("count") or 0)
-                if current >= MAX_PROFILES_PER_OWNER:
-                    self._fail()
+                expression = update.get("UpdateExpression", "")
+                if "if_not_exists" in expression and current >= MAX_PROFILES_PER_OWNER:
+                    self._fail(index, count, "capacity")
+                if " - :one" in expression and current <= 0:
+                    self._fail(index, count, "capacity-counter")
+            elif "Delete" in action:
+                delete = action["Delete"]
+                resource_id = self._raw(delete["Key"]["resourceId"])
+                existing = self._get(resource_id)
+                self._check_condition(
+                    delete.get("ConditionExpression", ""), existing,
+                    delete.get("ExpressionAttributeValues", {}),
+                    delete.get("ExpressionAttributeNames", {}), index, count)
         for action in TransactItems:
             if "Put" in action:
                 item = {key: self._raw(value) for key, value in action["Put"]["Item"].items()}
@@ -152,11 +186,16 @@ class _FakeTransactions:
                 existing = self._get(resource_id)
                 current = int((existing or {}).get("count") or 0)
                 values = update["ExpressionAttributeValues"]
+                delta = -1 if " - :one" in update.get("UpdateExpression", "") else 1
                 self.client.put_item(TableName="partner-profiles-test", Item={
                     "resourceId": resource_id,
-                    "count": current + 1,
+                    "count": current + delta,
                     "updatedAt": self._raw(values[":now"]),
                 })
+            elif "Delete" in action:
+                resource_id = self._raw(action["Delete"]["Key"]["resourceId"])
+                self.client.delete_item(TableName="partner-profiles-test",
+                                        Key={"resourceId": resource_id})
         return {}
 
 
@@ -284,6 +323,105 @@ class StructuredCvRepositoryTest(unittest.TestCase):
             self.repo.get(first["profileId"], CONTEXT)
         with self.assertRaises(StructuredCvNotFound):
             self.repo.get(second["profileId"], other)
+
+    def test_injected_conditional_failure_maps_to_version_conflict(self):
+        profile = self.repo.create(_body(), CONTEXT, idempotency_key="idem-" + "m" * 20)
+
+        def conditional_failure(**_kwargs):
+            raise RuntimeError("ConditionalCheckFailedException")
+
+        self.repo.table.update_item = conditional_failure
+        with self.assertRaises(StructuredCvConflict):
+            self.repo.update(profile["profileId"], {"name": "Race"}, CONTEXT,
+                             expected_version=1)
+
+    def test_race_after_precheck_detects_newer_version(self):
+        profile = self.repo.create(_body(), CONTEXT, idempotency_key="idem-" + "n" * 20)
+        original = self.repo.table.update_item
+
+        def raced_update(**kwargs):
+            self.repo.table.update_item = original
+            original(Key={"resourceId": profile["profileId"]},
+                     UpdateExpression="SET #v = :v",
+                     ExpressionAttributeNames={"#v": "version"},
+                     ExpressionAttributeValues={":v": 2})
+            raise RuntimeError("ConditionalCheckFailedException")
+
+        self.repo.table.update_item = raced_update
+        with self.assertRaises(StructuredCvConflict):
+            self.repo.update(profile["profileId"], {"name": "Race"}, CONTEXT,
+                             expected_version=1)
+
+    def test_delete_race_returns_not_found_not_storage_unavailable(self):
+        profile = self.repo.create(_body(), CONTEXT, idempotency_key="idem-" + "o" * 20)
+        original = self.repo.client.transact_write_items
+
+        def raced_transaction(TransactItems):
+            self.repo.table.delete_item(Key={"resourceId": profile["profileId"]})
+            return original(TransactItems)
+
+        self.repo.client.transact_write_items = raced_transaction
+        with self.assertRaises(StructuredCvNotFound):
+            self.repo.delete(profile["profileId"], CONTEXT)
+
+    def test_missing_counter_is_repaired_by_atomic_delete_retry(self):
+        first = self.repo.create(_body("First"), CONTEXT,
+                                 idempotency_key="idem-" + "p" * 20)
+        self.repo.create(_body("Second"), CONTEXT,
+                         idempotency_key="idem-" + "q" * 20)
+        self.repo.table.delete_item(Key={
+            "resourceId": "capacity#SCVP#" + owner_key(CONTEXT)})
+        self.repo.delete(first["profileId"], CONTEXT)
+        remaining = self.repo.list(CONTEXT)[0]
+        self.assertEqual([item["name"] for item in remaining], ["Second"])
+        counter = self.repo.table.get_item(Key={
+            "resourceId": "capacity#SCVP#" + owner_key(CONTEXT)},
+            ConsistentRead=True)["Item"]
+        self.assertEqual(1, int(counter["count"]))
+
+    def test_reconcile_capacity_repairs_stale_counter(self):
+        self.repo.create(_body("Only"), CONTEXT, idempotency_key="idem-" + "t" * 20)
+        counter_key = "capacity#SCVP#" + owner_key(CONTEXT)
+        self.repo.table.put_item(Item={
+            "resourceId": counter_key, "count": MAX_PROFILES_PER_OWNER,
+            "updatedAt": "2026-11-13T00:00:00+00:00"})
+        with self.assertRaises(StructuredCvCapacity):
+            self.repo.create(_body("Blocked"), CONTEXT,
+                             idempotency_key="idem-" + "u" * 20)
+        self.assertEqual(1, self.repo.reconcile_capacity(CONTEXT))
+        self.repo.create(_body("Allowed"), CONTEXT,
+                         idempotency_key="idem-" + "v" * 20)
+        self.assertEqual(2, len(self.repo.list(CONTEXT)[0]))
+
+    def test_repeated_delete_is_not_found_without_ownership_leak(self):
+        profile = self.repo.create(_body(), CONTEXT, idempotency_key="idem-" + "r" * 20)
+        self.repo.delete(profile["profileId"], CONTEXT)
+        with self.assertRaises(StructuredCvNotFound):
+            self.repo.delete(profile["profileId"], CONTEXT)
+        foreign = dict(CONTEXT, userId="foreign")
+        with self.assertRaises(StructuredCvNotFound):
+            self.repo.delete("cvp-does-not-exist", foreign)
+
+    def test_account_erasure_resumes_after_partial_failure(self):
+        for index in range(2):
+            self.repo.create(_body(f"Resume {index}"), CONTEXT,
+                             idempotency_key=f"resume-{index}-" + "s" * 20)
+        original = self.repo.delete
+        failed = []
+
+        def flaky(profile_id, ctx, *, expected_version=None):
+            if not failed:
+                failed.append(profile_id)
+                raise StructuredCvError("STORAGE_UNAVAILABLE", "synthetic", 503)
+            return original(profile_id, ctx, expected_version=expected_version)
+
+        self.repo.delete = flaky
+        with self.assertRaises(StructuredCvError):
+            self.repo.erase_for_user(CONTEXT["userId"], CONTEXT["tenantId"])
+        self.repo.delete = original
+        self.assertEqual(2, self.repo.erase_for_user(
+            CONTEXT["userId"], CONTEXT["tenantId"]))
+        self.assertEqual([], self.repo.list(CONTEXT)[0])
 
     def test_durable_review_preserves_applied_and_44_items(self):
         review = _review(44)

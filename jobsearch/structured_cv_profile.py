@@ -307,6 +307,31 @@ def _plain(value: Any) -> Any:
     return value
 
 
+def _error_code(exc: Any) -> str:
+    response = getattr(exc, "response", None) or {}
+    return str((response.get("Error") or {}).get("Code") or "")
+
+
+def _is_conditional_failure(exc: Any) -> bool:
+    code = _error_code(exc)
+    if code in {"ConditionalCheckFailedException", "ConditionalCheckFailed"}:
+        return True
+    return "ConditionalCheckFailed" in type(exc).__name__ or "ConditionalCheckFailed" in str(exc)
+
+
+def _is_transaction_cancel(exc: Any) -> bool:
+    code = _error_code(exc)
+    return (code in {"TransactionCanceledException", "TransactionCanceled"}
+            or "TransactionCanceled" in type(exc).__name__
+            or "TransactionCanceled" in str(exc))
+
+
+def _cancellation_codes(exc: Any) -> List[str]:
+    response = getattr(exc, "response", None) or {}
+    return [str((reason or {}).get("Code") or "")
+            for reason in (response.get("CancellationReasons") or [])]
+
+
 class StructuredCvProfileRepository:
     """Owner-scoped repository on the existing partner-profiles table."""
 
@@ -481,43 +506,116 @@ class StructuredCvProfileRepository:
             profile.pop("importReview", None)
         validate_stored_profile(profile)
         _check_item_size(self._item(profile, ctx))
-        self.table.update_item(
-            Key={"resourceId": profile_id},
-            UpdateExpression="SET #v = :next, #u = :now, #p = :p",
-            ConditionExpression="#v = :expected AND ownerKey = :owner",
-            ExpressionAttributeNames={"#v": "version", "#u": "updatedAt", "#p": "payload"},
-            ExpressionAttributeValues={":next": profile["version"], ":now": now, ":p": profile,
-                                       ":expected": expected_version, ":owner": self._owner(ctx)},
-        )
+        try:
+            self.table.update_item(
+                Key={"resourceId": profile_id},
+                UpdateExpression="SET #v = :next, #u = :now, #p = :p",
+                ConditionExpression="#v = :expected AND ownerKey = :owner",
+                ExpressionAttributeNames={"#v": "version", "#u": "updatedAt", "#p": "payload"},
+                ExpressionAttributeValues={":next": profile["version"], ":now": now, ":p": profile,
+                                           ":expected": expected_version, ":owner": self._owner(ctx)},
+            )
+        except Exception as exc:
+            if not _is_conditional_failure(exc):
+                raise
+            # The pre-read may have been valid while another writer won the
+            # race. Re-read only to distinguish a version conflict from a
+            # vanished/foreign profile; never overwrite.
+            try:
+                latest = self.get(profile_id, ctx)
+            except StructuredCvNotFound:
+                raise
+            if latest["version"] != expected_version:
+                raise StructuredCvConflict()
+            raise StructuredCvConflict()
         return profile
 
     def delete(self, profile_id: str, ctx: Dict[str, str], *, expected_version: Optional[int] = None) -> None:
         current = self.get(profile_id, ctx)
         if expected_version is not None and current["version"] != expected_version:
             raise StructuredCvConflict()
+        owner = self._owner(ctx)
         kwargs: Dict[str, Any] = {
             "Key": {"resourceId": profile_id},
             "ConditionExpression": "ownerKey = :owner",
-            "ExpressionAttributeValues": {":owner": self._owner(ctx)},
+            "ExpressionAttributeValues": {":owner": owner},
         }
         if expected_version is not None:
             kwargs["ConditionExpression"] += " AND #v = :expected"
             kwargs["ExpressionAttributeNames"] = {"#v": "version"}
             kwargs["ExpressionAttributeValues"][":expected"] = expected_version
-        self.table.delete_item(**kwargs)
-        # Capacity is a soft allocation counter. A failure here must not turn
-        # a successful owner-bound delete into an error; the next create can
-        # still be rejected and is recoverable by an operator.
-        try:
-            self.table.update_item(
-                Key={"resourceId": CAPACITY_PREFIX + self._owner(ctx)},
-                UpdateExpression="SET #c = #c - :one, updatedAt = :now",
-                ConditionExpression="#c > :zero",
-                ExpressionAttributeNames={"#c": "count"},
-                ExpressionAttributeValues={":one": 1, ":zero": 0, ":now": _now()},
-            )
-        except Exception:
-            pass
+        counter_id = CAPACITY_PREFIX + owner
+        delete_action = {"Delete": {"TableName": self.table_name,
+                                    "Key": {"resourceId": _serialize(profile_id)},
+                                    "ConditionExpression": kwargs["ConditionExpression"],
+                                    "ExpressionAttributeValues": {
+                                        k: _serialize(v) for k, v in kwargs["ExpressionAttributeValues"].items()}}}
+        if kwargs.get("ExpressionAttributeNames"):
+            delete_action["Delete"]["ExpressionAttributeNames"] = kwargs["ExpressionAttributeNames"]
+        counter_action = {"Update": {
+            "TableName": self.table_name,
+            "Key": {"resourceId": _serialize(counter_id)},
+            "UpdateExpression": "SET #c = #c - :one, updatedAt = :now",
+            "ConditionExpression": "#c > :zero",
+            "ExpressionAttributeNames": {"#c": "count"},
+            "ExpressionAttributeValues": {":one": _serialize(1), ":zero": _serialize(0),
+                                          ":now": _serialize(_now())},
+        }}
+        for attempt in range(2):
+            try:
+                self.client.transact_write_items(TransactItems=[delete_action, counter_action])
+                return
+            except Exception as exc:
+                if not _is_transaction_cancel(exc):
+                    raise
+                reasons = _cancellation_codes(exc)
+                profile_failed = bool(reasons and reasons[0] in {
+                    "ConditionalCheckFailed", "ConditionalCheckFailedException"})
+                counter_failed = bool(len(reasons) > 1 and reasons[1] in {
+                    "ConditionalCheckFailed", "ConditionalCheckFailedException"})
+                if profile_failed:
+                    try:
+                        latest = self.get(profile_id, ctx)
+                    except StructuredCvNotFound:
+                        raise StructuredCvNotFound()
+                    if expected_version is not None and latest["version"] != expected_version:
+                        raise StructuredCvConflict()
+                    raise StructuredCvConflict()
+                if counter_failed and attempt == 0:
+                    self._repair_counter(ctx)
+                    continue
+                if counter_failed:
+                    raise StructuredCvError(
+                        "CAPACITY_RECONCILIATION_REQUIRED",
+                        "Profile capacity could not be reconciled", 503)
+                raise StructuredCvError(
+                    "CAPACITY_RECONCILIATION_REQUIRED",
+                    "Profile deletion outcome could not be reconciled", 503)
+
+    def reconcile_capacity(self, ctx: Dict[str, str]) -> int:
+        """Recompute the owner counter from the bounded owner index.
+
+        Reconciliation is a recovery operation, not part of the normal delete
+        path. Callers must not run it concurrently with writes in the same
+        owner scope; the normal create/delete path remains transactional.
+        """
+        items = []
+        cursor = None
+        while True:
+            page, cursor = self.list(ctx, limit=50, cursor=cursor)
+            items.extend(page)
+            if not cursor:
+                break
+        count = len(items)
+        self.table.put_item(Item={
+            "resourceId": CAPACITY_PREFIX + self._owner(ctx),
+            "count": count,
+            "updatedAt": _now(),
+        })
+        return count
+
+    def _repair_counter(self, ctx: Dict[str, str]) -> None:
+        self.reconcile_capacity(ctx)
 
     def erase_for_user(self, user_id: str, tenant_id: Optional[str] = None) -> int:
         """Delete all structured profiles for a user across partner scopes.
