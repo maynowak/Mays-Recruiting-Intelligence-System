@@ -1,6 +1,9 @@
 # DRAFT OpenAPI — Structured CV Builder Profiles V1
-# Contract only. Not an implemented or deployed API. Do not merge into the
-# production platform OpenAPI until backend/BFF/legal gates are approved.
+# Local backend adapter exists on feature/ris-structured-cv-backend-01, but
+# this API is NOT deployed or activated. Do not merge into the production
+# platform OpenAPI until backend/BFF/legal gates are approved.
+# Feature flag: STRUCTURED_CV_PROFILE_ENABLED (default false).
+# Consent purpose: cv-builder-profile-storage (notice DRAFT).
 openapi: 3.0.3
 info:
   title: RIS Structured CV Builder Profiles V1 (DRAFT)
@@ -78,7 +81,6 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/StructuredCvProfileV1" }
-        "304": { description: Not modified }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
@@ -108,6 +110,7 @@ paths:
         "409": { $ref: "#/components/responses/Conflict" }
         "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "422": { $ref: "#/components/responses/Validation" }
+        "428": { $ref: "#/components/responses/PreconditionRequired" }
         "503": { $ref: "#/components/responses/Unavailable" }
     delete:
       operationId: deleteStructuredCvProfile
@@ -115,7 +118,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/IfMatch"
       responses:
-        "204": { description: Deleted or idempotent own-profile replay }
+        "204": { description: Deleted; a later delete returns 404 }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
@@ -204,6 +207,11 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+    PreconditionRequired:
+      description: If-Match is required for PATCH
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
     Unavailable:
       description: Storage unavailable or disabled
       content:
@@ -234,7 +242,6 @@ components:
         cvData: { $ref: "#/components/schemas/CvBuilderDraftV1" }
         template: { type: string, enum: [classic, modern, compact] }
         importReview: { $ref: "#/components/schemas/ImportReviewV1" }
-        expectedVersion: { type: integer, minimum: 1 }
     StructuredCvProfileV1:
       type: object
       additionalProperties: false

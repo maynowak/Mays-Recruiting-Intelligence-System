@@ -9924,3 +9924,29 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - Added decision matrix; legal/Art.9/retention/withdrawal/BFF gates remain
   REVIEW REQUIRED. No product code, Terraform/AWS, consent activation, main
   merge or deployment.
+
+## 2026-11-13 — RIS-STRUCTURED-CV-BACKEND-01
+
+**Status:** `VERIFIED LOCAL / DEPLOYMENT BLOCKED`
+
+- Branch `feature/ris-structured-cv-backend-01` from contract `49eb13b`.
+  Product commit `28f118f`; preparatory IaC commit `3409c6c`.
+- Added `StructuredCvProfileV1` validation and an owner-scoped repository on
+  the existing partner-profile table; dedicated `gsi-structured-owner`
+  (`ownerKey`/`resourceId`), server-generated IDs, conditional create,
+  idempotency, `If-Match` updates, export/delete and 20-profile capacity.
+- Added default-off `STRUCTURED_CV_PROFILE_ENABLED`; HTTP create/update require
+  a granted `cv-builder-profile-storage` consent. Notice remains DRAFT with
+  `legalApprovalRef=null`; no existing consent flag or notice was activated.
+- Added account-erasure step, owner-scoped privacy-inspect category and
+  export/delete foundations. Retention/withdrawal/backup/PITR decisions remain
+  open; no physical purge is claimed.
+- Tests: 28 new focused PASS; full RIS 2559 passed / 56 skipped / 19 failed,
+  with the same 19 baseline failures at `49eb13b` (2533 passed / 56 skipped /
+  19 failed). Terraform fmt and local validate PASS; draft YAML parse and
+  `git diff --check` PASS; secret/private-data scan no matches.
+- No AWS call, Terraform plan/apply/state change, API Gateway/Cognito/
+  CloudFront/DNS/IAM/Orders change, deployment, main merge, production route
+  or consent activation. No real CV data. GSI query was verified only against
+  moto; transaction subset was simulated and is not claimed as AWS evidence.
+- Report: `docs/reports/RIS-STRUCTURED-CV-BACKEND-01-REPORT.md`.
