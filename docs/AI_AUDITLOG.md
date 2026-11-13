@@ -9977,3 +9977,19 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
   deployment, main merge or consent activation. GSI/transaction verification
   remains local/simulated only.
 - Report: `docs/reports/RIS-STRUCTURED-CV-BACKEND-HARDENING-02-REPORT.md`.
+
+
+## 2026-11-13 — RIS-STRUCTURED-CV-DEPLOYMENT-PREFLIGHT-01
+
+**Status:** `TECHNICAL PREFLIGHT READY / AWS PLAN APPROVAL REQUIRED`
+
+- Offline inventory at `0e08822`; no AWS call, plan, state or apply.
+- Structured-CV repository/handler/GSI/flag/privacy/erasure are implemented;
+  the API Gateway route for the resource is absent and remains a C2B activation
+  delta. IAM already covers the table and index; GSI add is an in-place plan
+  item requiring real-plan review.
+- Local checks: structured-CV focused 43 PASS; full RIS 2576 PASS / 56 skipped /
+  19 documented baseline failures; Terraform fmt/validate and diff PASS.
+- Data risks documented: no real DynamoDB proof, 20-profile export response
+  size, 24h idempotency TTL, no backup/PITR purge claim.
+- Report: `docs/reports/RIS-STRUCTURED-CV-DEPLOYMENT-PREFLIGHT-01-REPORT.md`.
