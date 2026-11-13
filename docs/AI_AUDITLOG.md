@@ -10009,3 +10009,13 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - Tests: RIS 2576 PASS / 56 skipped / 19 baseline failures; structured-CV
   focused 43 PASS; Terraform fmt/validate PASS.
 - Report: `docs/reports/MAYS-STRUCTURED-CV-RELEASE-ORCHESTRATION-01-REPORT.md`.
+
+
+## 2026-11-13 — MAYS-SCV-RELEASE-GATE-02
+
+**Status:** `ACTIVATION DELTAS READY / AWS & LEGAL APPROVAL PENDING`
+
+- Consolidated A API routes `1d65696` (six JWT/proxy routes, default-off, OpenAPI/P20 inventory 80/76, focused 64 PASS, full 2582/56/19), B consent readiness `ac787da` (read-only classifier/spec, no grant mutation), and C approval/G4 templates.
+- C2A/C2B remain separated; G3-G10 pending/blocked. No AWS discovery/plan/state/apply, consent activation, main merge or production deployment.
+- XRepo issue inventory empty; no dispatch/status transition invented.
+- Report: `docs/reports/MAYS-SCV-RELEASE-GATE-02-REPORT.md`.
