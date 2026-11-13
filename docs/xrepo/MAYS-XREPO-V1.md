@@ -95,6 +95,30 @@ exactly. `issue` evidence is additionally verified through the source API.
 `test` and `document` evidence are repository-bound references; they are not
 executed and are not treated as independent test proof.
 
+## Shared state reconstruction and issue binding
+
+A receiver no longer reconstructs the task history from the destination issue
+alone. Before deciding, it verifies the bound source issue through the source
+repository API, verifies the destination issue, and reads trusted comments from
+**both** issues. The source issue title or body must contain the exact task ID;
+the destination issue has the same requirement. A missing or unrelated issue
+fails closed as `issue_binding_invalid`.
+
+Only `github-actions[bot]` comments are trusted. Ordinary prose, hand-written
+markers, a foreign issue, or an unreadable history never becomes state. The
+receiver still writes an applied state marker **only** to the destination issue.
+The source issue remains read-only; the existing GitHub App source permission is
+`Issues: read`.
+
+The combined history is fail-closed on:
+
+- a state marker for the task with no status;
+- multiple event/state markers in one trusted comment;
+- the same sequence with different statuses;
+- the same sequence with different event IDs;
+- a duplicate event ID whose state/sequence differs from the replay;
+- missing source read access or a missing/unverified source issue.
+
 ## Sequence and idempotency
 
 - Key: `taskId` + `eventId`.
@@ -113,7 +137,15 @@ executed and are not treated as independent test proof.
 - Only comments authored by `github-actions[bot]` are trusted as marker sources.
 - Legacy state markers without a status fail closed as `state_unreadable` and
   require manual recovery.
-- `concurrency` in the receive workflow serializes events per `taskId`.
+- The receive workflow `concurrency` group serializes events **within one
+  repository**. It does not provide a cross-repository lock. The supported
+  operating mode is a controlled sequential handoff: send one event, wait for
+  the receiver to apply or reject it, then send the next event. Simultaneous
+  cross-repository dispatches are unsupported; if histories conflict after a
+  race, the receivers fail closed and require human reconciliation. No
+  automatic repair or `COMPLETED` transition is allowed from a conflicting
+  history. See the rollout gate in
+  `docs/reports/MAYS-XREPO-SHARED-STATE-RECONCILIATION-02-REPORT.md`.
 
 ## Workflows
 
@@ -192,7 +224,7 @@ python3 scripts/xrepo/validate_event.py docs/xrepo/fixtures/valid-requested.json
 | maximum three rework rounds | receiver state tests |
 | rejection markers and rejected retries | receiver state tests |
 | evidence repository/SHA/number binding | validator + receiver tests |
-| A → B → A | receiver state tests + documented E2E path |
+| A → B → A | shared-state receiver tests (source + destination markers) |
 | live `repository_dispatch` | **E2E PENDING** until workflows are on both default branches and app credentials exist |
 
 ## Security notes

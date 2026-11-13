@@ -33,6 +33,7 @@ from validate_event import ValidationError, load_event, validate_event  # noqa: 
 STATE_MARKER_RE = re.compile(
     r"<!-- mays-xrepo:state:([A-Z][A-Z0-9-]{2,63}):([0-9]+)(?::([A-Z_]+))? -->"
 )
+EVENT_MARKER_RE = re.compile(r"<!-- mays-xrepo:event:([0-9a-f-]{36}) -->")
 REJECTION_PREFIX = "<!-- mays-xrepo:rejected:"
 REJECTION_MARKER_RE = re.compile(
     r"<!-- mays-xrepo:rejected:([0-9a-f-]{36}):([a-z_]+) -->"
@@ -71,6 +72,7 @@ class ApplyError(RuntimeError):
 class State:
     sequence: int
     status: str | None
+    event_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -122,17 +124,39 @@ def _trusted_comments(comments: Iterable[Any]) -> Iterable[Any]:
 def last_state(comments: Iterable[Any], task_id: str) -> State | None:
     best: State | None = None
     for comment in _trusted_comments(comments):
-        for match in STATE_MARKER_RE.finditer(_comment_body(comment)):
-            if match.group(1) != task_id:
-                continue
+        body = _comment_body(comment)
+        event_ids = [match.group(1) for match in EVENT_MARKER_RE.finditer(body)]
+        state_matches = [
+            match for match in STATE_MARKER_RE.finditer(body)
+            if match.group(1) == task_id
+        ]
+        if len(event_ids) > 1 or len(state_matches) > 1:
+            # A single trusted comment may not declare multiple events or
+            # multiple states for one task. Preserve a sequence number for
+            # diagnostics but fail closed on the status.
+            sequences = [int(match.group(2)) for match in state_matches]
+            if sequences:
+                seq = max(sequences)
+                if best is None or seq > best.sequence:
+                    best = State(sequence=seq, status=None)
+            elif best is not None:
+                best = State(sequence=best.sequence, status=None)
+            continue
+        for match in state_matches:
             sequence = int(match.group(2))
             status = match.group(3)
+            event_id = event_ids[0] if len(event_ids) == 1 else None
             if best is None or sequence > best.sequence:
-                best = State(sequence=sequence, status=status)
-            elif sequence == best.sequence and status != best.status:
-                # Two trusted comments claim the same sequence with different
-                # statuses. Fail closed instead of choosing one.
-                best = State(sequence=sequence, status=None)
+                best = State(sequence=sequence, status=status, event_id=event_id)
+            elif sequence == best.sequence:
+                if status != best.status or (
+                        best.event_id is not None and event_id is not None
+                        and best.event_id != event_id):
+                    # Same sequence with different statuses or different
+                    # event identities is not a usable history.
+                    best = State(sequence=sequence, status=None)
+                elif best.event_id is None and event_id is not None:
+                    best = State(sequence=sequence, status=status, event_id=event_id)
     return best
 
 
@@ -144,6 +168,26 @@ def last_sequence(comments: Iterable[Any], task_id: str) -> int | None:
 def has_event(comments: Iterable[Any], event_id: str) -> bool:
     marker = _event_marker(event_id)
     return any(marker in _comment_body(comment) for comment in _trusted_comments(comments))
+
+
+def event_consistent(comments: Iterable[Any], event: dict[str, Any]) -> bool:
+    """A replay of an event id must carry the same task/sequence/status."""
+    marker = _event_marker(event["eventId"])
+    found = False
+    for comment in _trusted_comments(comments):
+        body = _comment_body(comment)
+        if marker not in body:
+            continue
+        found = True
+        states = [m for m in STATE_MARKER_RE.finditer(body) if m.group(1) == event["taskId"]]
+        if not states:
+            continue
+        if len(states) != 1:
+            return False
+        state = states[0]
+        if int(state.group(2)) != event["sequence"] or state.group(3) != event["status"]:
+            return False
+    return found
 
 
 def has_rejected(comments: Iterable[Any], event_id: str) -> bool:
@@ -173,6 +217,8 @@ def decide(event: dict[str, Any], comments: Iterable[Any]) -> Decision:
     if has_rejected(comments, event["eventId"]):
         return Decision("rejected_duplicate", reason="event was already rejected")
     if has_event(comments, event["eventId"]):
+        if not event_consistent(comments, event):
+            return Decision("conflict", reason="event id appears with a different state")
         return Decision("duplicate")
 
     state = last_state(comments, event["taskId"])
@@ -349,7 +395,15 @@ def _gh_jsonl(args: list[str], token: str) -> list[Any]:
     return items
 
 
-def verify_source(event: dict[str, Any], token: str) -> None:
+def _issue_matches_task(issue: dict[str, Any], task_id: str) -> bool:
+    title = issue.get("title")
+    body = issue.get("body")
+    text = "\n".join(value for value in (title, body) if isinstance(value, str))
+    return bool(task_id) and task_id in text
+
+
+def verify_source(event: dict[str, Any], token: str, *,
+                  task_id: str | None = None) -> None:
     """Verify the source issue and commit through the source repository API."""
 
     source = event["source"]
@@ -367,6 +421,8 @@ def verify_source(event: dict[str, Any], token: str) -> None:
         raise ApplyError("source_not_found", "source reference is a pull request, not an issue")
     if issue.get("state") not in {"open", "closed"}:
         raise ApplyError("source_not_found", "source issue has no usable state")
+    if task_id is not None and not _issue_matches_task(issue, task_id):
+        raise ApplyError("issue_binding_invalid", "source issue is not bound to the task")
 
     commit_data = _gh_json(["api", f"repos/{repo}/commits/{commit}"], token)
     if not isinstance(commit_data, dict) or commit_data.get("sha") != commit:
@@ -413,12 +469,15 @@ def list_comments(repo: str, issue_number: int, token: str) -> list[Any]:
     )
 
 
-def verify_target_issue(repo: str, issue_number: int, token: str) -> None:
+def verify_target_issue(repo: str, issue_number: int, token: str, *,
+                        task_id: str | None = None) -> None:
     issue = _gh_json(["api", f"repos/{repo}/issues/{issue_number}"], token)
     if not isinstance(issue, dict):
         raise ApplyError("target_not_found", "destination issue lookup returned no object")
     if "pull_request" in issue:
         raise ApplyError("target_not_found", "destination is a pull request, not an issue")
+    if task_id is not None and not _issue_matches_task(issue, task_id):
+        raise ApplyError("issue_binding_invalid", "destination issue is not bound to the task")
 
 
 def post_comment(repo: str, issue_number: int, body: str, token: str) -> None:
@@ -458,11 +517,16 @@ def apply_event(
     issue_number = destination["issue"]
     timestamp = received_at or _now()
 
-    verify_target_issue(repo, issue_number, target_token)
-    verify_source(event, source_token)
+    task_id = event["taskId"]
+    verify_target_issue(repo, issue_number, target_token, task_id=task_id)
+    verify_source(event, source_token, task_id=task_id)
     verify_evidence(event, source_token)
 
-    comments = list_comments(repo, issue_number, target_token)
+    target_comments = list_comments(repo, issue_number, target_token)
+    source = event["source"]
+    source_comments = list_comments(
+        source["repository"], source["issue"], source_token)
+    comments = target_comments + source_comments
     decision = decide(event, comments)
     if decision.action == "duplicate":
         return decision
