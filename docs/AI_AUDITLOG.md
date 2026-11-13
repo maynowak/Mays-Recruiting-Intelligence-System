@@ -10022,6 +10022,18 @@ Date: 2026-11-13
 - Blockers recorded: dispatch ingress Lambda missing, result consumer Lambda missing, cross-account decision open, no Secrets Manager module for the HMAC secret. STOP before apply.
 Report: docs/reports/MO-RIS-AWS-INTEGRATION-PLAN-01.md
 
+[MO-RIS-AWS-INTEGRATION-PLAN-02 / ACCOUNT RECONCILIATION]
+Status: PLAN FROZEN (read-only) — target account identified from file evidence; live verification BLOCKED.
+Date: 2026-11-13
+- Baseline: RIS ff3d5ed, Orders b2074f4; both clean.
+- Account evidence: the Orders state backend is mays-orders-tfstate-central-240571105849 (region eu-central-1, workspace prefix env:, lock mays-orders-terraform-locks) and its deployment reports name mayaws/240571105849; the RIS documentation places ris-dev in the same account. Conclusion: SAME account 240571105849, no migration, no cross-account contract.
+- Live check with the only available credentials (devnemo, 262370457690): head-bucket on the Orders state bucket returns 403 Forbidden and no mays-orders queues exist here; only the ris-agent test stack (5 queues) is visible. Therefore the target account is NOT readable from this machine: BLOCKED — ACCOUNT CONTEXT UNVERIFIED for live facts, and no terraform plan was generated.
+- Service contract: no agent transport queue exists in the target; both directions are new (one queue per direction, never per agent). Responsibilities: Orders dispatch producer, new RIS dispatch ingress, existing RIS worker, RIS result producer, new Orders result consumer.
+- Secret contract (B4): one Secrets Manager secret owned by Orders, value set out-of-band (never in state/Git/report/log/test), read granted only to explicitly listed RIS producer roles, runtime fetch at cold start, JSON {current, previous} for rotation, fail-closed when missing.
+- Terraform: 8 creates behind enable_agent_transport (default false → 0 changes): RIS dispatch queue + DLQ + policy; Orders results queue + DLQ + policy + secret + secret policy. fmt 0 and validate Success in both repos.
+- Blockers: no approved profile for 240571105849, dispatch ingress Lambda and result consumer Lambda still missing, secret value must be provisioned, rotation not implemented. STOP before apply.
+Report: docs/reports/MO-RIS-AWS-INTEGRATION-PLAN-02.md
+
 [MO-RIS-AGENT-ORDER-BODY-01 / A00 CORRECTION + A04]
 Status: A00 corrected; A04 COMPLETE locally in the Orders repo (no deploy, no RC migration).
 Date: 2026-11-13
