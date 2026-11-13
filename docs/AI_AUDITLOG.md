@@ -9913,3 +9913,13 @@ Date: 2026-11-13
 - Security: the agent reads only work_item payload, performs no authorization and holds no secrets; authorization stays with the M2M handler and the execution-time entitlement check.
 - Deliberately excluded: Terraform agent-catalog seed (deployment change), Orders changes, result channel. G05/G07/G08 stay blocked by B1-B4 from G00.
 Report: docs/reports/RIS-MO-ADDITION-AGENT-E2E-01-G03-ADDITION-AGENT.md
+
+[RIS-MO-ADDITION-AGENT-E2E-01 / G02 AUTHORIZATION MATRIX]
+Status: G02 COMPLETE (local) — 16/16 matrix green, no AWS.
+Date: 2026-11-13
+- Reused the real handler entry point and the real in-memory APIProfile/Credential stores; only AWS side effects patched. No second harness, no real credentials.
+- Matrix: Partner A allow (202); no entitlement, entitlement for another agent, expired window, not-yet-valid window and withdrawn row all 403; wrong and missing key 401; revoked credential 403; INACTIVE and unknown agent 403; foreign tenant and foreign apiProfile binding 403; Cognito tenant never becomes the execution tenant; addition payload 17/25 crosses the boundary unchanged; secret and credential header never appear in the work item or response.
+- Finding 1: entitlements carry no status field. Validity is temporal (validFrom/validUntil) plus agent/tenant match; withdrawal deletes the row (offers.withdraw_entitlement -> delete_item). A status field would be silently ignored, so the negative tests model withdrawal as an absent row and expiry as a window.
+- Finding 2: authorization is per agent, not per capability. verify_api_credential checks agent status, credential, profile, tenant and entitlement; the body capability is passed through and only validated at execution time by discovery/eligibility. This is accept-then-fail, not a bypass; whether to validate capability at the M2M edge is an open contract decision for G05 and was not changed.
+- Regression: 112 passed + 7 subtests (p21 boundary, p17 credential lifecycle, entitlement provisioning).
+Report: docs/reports/RIS-MO-ADDITION-AGENT-E2E-01-G02-AUTHORIZATION.md
