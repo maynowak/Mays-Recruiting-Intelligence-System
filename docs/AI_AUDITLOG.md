@@ -9892,3 +9892,35 @@ Reconciled `feature/mays-xrepo-orchestration-01` with current `origin/main` in b
 Status: RIS-DEV2 STACK DESTROYED — 177 RESOURCES — BOOTSTRAP RETAINED
 Date: 2026-11-09
 After explicit operator approval, the previously reviewed destroy plan `E72A55052F1A9E15027085B5F63A8AEE4B3485B9B48ACA6C461A129D8BC1717B` was applied unchanged in workspace `ris-dev2` (account `262370457690`, region `eu-central-1`). CloudTrail `ris-dev2-trail` was stopped and its 3,536-object log bucket emptied first; Terraform then destroyed 177 resources: Cognito pool/client/domain/groups, CloudFront distribution/OAC, HTTP API and 66 routes, Lambda/health functions, IAM, 18 DynamoDB tables, 5 SQS queues, CloudTrail, 5 S3 buckets, CloudWatch/EventBridge resources. Apply result: 0 added / 0 changed / 177 destroyed. State serial 30 → 36, lineage unchanged, state resources 0. Verified absent: dev2 DynamoDB tables, SQS queues, Lambda, Cognito pool `K3dkdSipZ`, CloudFront `E1IZKHFPZ5X7SN`, API `8apxb6fgne`, CloudTrail trail and dev2 S3 buckets. Bootstrap retained intentionally: state bucket `ris-dev2-tf-state-dev`, lock table `ris-dev2-tf-lock`, local state backup. `ris-dev` and all other accounts/workspaces remained untouched. No secrets. Report: `docs/reports/RIS-DEV2-STACK-DESTROY-01.md`.
+
+
+## 2026-11-13 — MAYS-XREPO-SHARED-STATE-RECONCILIATION-02
+
+**Status:** `LOCAL VERIFIED / READY FOR CONTROLLED ROLLOUT`
+
+- Both receivers now bind source+destination issues to the exact task ID and
+  reconstruct trusted state from bot comments on both issues; markers are
+  written only to the destination issue. No event-schema/app-secret change.
+- Fail-closed cases: mixed same-sequence states, conflicting event IDs,
+  untrusted/ordinary text, unreadable history and missing source read access.
+- `python3 -m pytest -q scripts/xrepo`: 76 PASS / 4 subtests in both repos.
+- Concurrency: repository-local groups only; simultaneous cross-repo dispatches
+  are unsupported. Controlled sequential handoff and human conflict recovery
+  documented; no automatic repair/COMPLETED from a conflict.
+- No live dispatch, main merge, AWS/Terraform, consent activation or production
+  deployment. RIS RC1 `4bfd08f` unchanged.
+- Report: `docs/reports/MAYS-XREPO-SHARED-STATE-RECONCILIATION-02-REPORT.md`.
+
+
+## 2026-11-13 — MAYS-XREPO-SHARED-STATE-REVIEW-GATE-03
+
+**Status:** `SECURITY REVIEW PASS / MAIN ROLLOUT APPROVAL PENDING`
+
+- Hardened both receivers: historical conflicts cannot be hidden by later
+  markers; exact task-token binding; mutual source/destination issue links;
+  replay integrity checked before duplicate success; split-history full matrix.
+- `scripts/xrepo` 82 PASS / 4 subtests in both repositories. No live dispatch,
+  merge, AWS/Terraform or production mutation.
+- Concurrency remains controlled-sequential-only; simultaneous cross-repo
+  dispatches unsupported, conflict recovery is human-gated. RIS RC1 unchanged.
+- Report: `docs/reports/MAYS-XREPO-SHARED-STATE-REVIEW-GATE-03-REPORT.md`.

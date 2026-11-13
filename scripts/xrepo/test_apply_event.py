@@ -29,6 +29,7 @@ from apply_event import (  # noqa: E402
     render_comment,
     rework_count,
     verify_evidence,
+    verify_issue_pair,
     verify_source,
     verify_target_issue,
 )
@@ -128,6 +129,17 @@ class DecisionTests(unittest.TestCase):
             item = event(status=status, sequence=index, event_id=event_id_for(index))
             self.assertEqual(decide(item, comments).action, "apply")
             comments.append(applied_comment(item))
+
+    def test_full_sequence_split_across_source_and_destination(self) -> None:
+        target: list[dict] = []
+        source: list[dict] = []
+        for index, status in enumerate(FULL_SEQUENCE, start=1):
+            item = event(status=status, sequence=index, event_id=event_id_for(index))
+            self.assertEqual(decide(item, target + source).action, "apply")
+            if index % 2:
+                target.append(applied_comment(item))
+            else:
+                source.append(applied_comment(item))
 
     def test_completed_requires_verified(self) -> None:
         comments = history(
@@ -368,6 +380,51 @@ class ApiTests(unittest.TestCase):
                 verify_target_issue(TARGET_REPO, 117, "token")
         self.assertEqual(caught.exception.code, "target_not_found")
 
+    def test_verify_source_task_binding_rejects_unrelated_issue(self) -> None:
+        with mock.patch.object(
+            apply_event_module,
+            "_gh_json",
+            side_effect=[
+                {"number": 42, "state": "open", "title": "unrelated"},
+                {"sha": SOURCE_COMMIT},
+            ],
+        ):
+            with self.assertRaises(ApplyError) as caught:
+                verify_source(event(), "token", task_id="MAYS-XR-001")
+        self.assertEqual(caught.exception.code, "issue_binding_invalid")
+
+    def test_verify_target_task_binding_rejects_unrelated_issue(self) -> None:
+        with mock.patch.object(
+            apply_event_module,
+            "_gh_json",
+            return_value={"number": 117, "title": "unrelated"},
+        ):
+            with self.assertRaises(ApplyError) as caught:
+                verify_target_issue(TARGET_REPO, 117, "token", task_id="MAYS-XR-001")
+        self.assertEqual(caught.exception.code, "issue_binding_invalid")
+
+    def test_task_id_prefix_does_not_bind_issue(self) -> None:
+        with mock.patch.object(
+            apply_event_module,
+            "_gh_json",
+            side_effect=[
+                {"number": 42, "state": "open", "title": "MAYS-XR-001-TEST"},
+                {"sha": SOURCE_COMMIT},
+            ],
+        ):
+            with self.assertRaises(ApplyError) as caught:
+                verify_source(event(), "token", task_id="MAYS-XR-001")
+        self.assertEqual(caught.exception.code, "issue_binding_invalid")
+
+    def test_issue_pair_requires_mutual_links(self) -> None:
+        item = event()
+        source_issue = {"body": f"{TARGET_REPO}/issues/117"}
+        target_issue = {"body": f"{SOURCE_REPO}/issues/42"}
+        verify_issue_pair(item, source_issue, target_issue, [], [])
+        with self.assertRaises(ApplyError) as caught:
+            verify_issue_pair(item, {"body": "no link"}, target_issue, [], [])
+        self.assertEqual(caught.exception.code, "issue_binding_invalid")
+
     def test_post_comment_uses_json_file_not_shell_arguments(self) -> None:
         completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
         with mock.patch.object(
@@ -390,11 +447,14 @@ class ApiTests(unittest.TestCase):
 
 
 class ApplyFlowTests(unittest.TestCase):
-    def _run(self, item: dict, comments: list[dict]) -> mock.Mock:
+    def _run(self, item: dict, comments: list[dict],
+             source_comments: list[dict] | None = None) -> mock.Mock:
         with mock.patch.object(apply_event_module, "verify_target_issue"), \
              mock.patch.object(apply_event_module, "verify_source"), \
              mock.patch.object(apply_event_module, "verify_evidence"), \
-             mock.patch.object(apply_event_module, "list_comments", return_value=comments), \
+             mock.patch.object(apply_event_module, "verify_issue_pair"), \
+             mock.patch.object(apply_event_module, "list_comments",
+                               side_effect=[comments, source_comments or []]), \
              mock.patch.object(apply_event_module, "post_comment") as post:
             try:
                 apply_one(item, source_token="source", target_token="target", received_at=RECEIVED)
@@ -410,6 +470,78 @@ class ApplyFlowTests(unittest.TestCase):
         self.assertIsNone(self.last_error)
         body = post.call_args.args[2]
         self.assertIn("mays-xrepo:state:MAYS-XR-001:1:REQUESTED", body)
+
+    def test_reverse_accepts_requested_from_source_issue(self) -> None:
+        requested = event(status="REQUESTED", sequence=1, event_id=event_id_for(1))
+        accepted = event(
+            status="ACCEPTED", sequence=2, event_id=event_id_for(2),
+            source_issue=117,
+        )
+        post = self._run(accepted, [], [applied_comment(requested)])
+        self.assertIsNone(self.last_error)
+        self.assertIn("MAYS-XREPO-V1 — ACCEPTED", post.call_args.args[2])
+
+    def test_duplicate_event_with_different_state_conflicts(self) -> None:
+        first = event(status="REQUESTED", sequence=1, event_id=event_id_for(1))
+        replay = event(status="ACCEPTED", sequence=2, event_id=event_id_for(1))
+        post = self._run(replay, [applied_comment(first)])
+        self.assertIsNotNone(self.last_error)
+        self.assertEqual(self.last_error.code, "conflict")
+        post.assert_called_once()
+
+    def test_source_issue_marker_is_used_for_reverse_transition(self) -> None:
+        requested = event(status="REQUESTED", sequence=1, event_id=event_id_for(1))
+        implementing = event(
+            status="IMPLEMENTING", sequence=3, event_id=event_id_for(3),
+            source_issue=117,
+        )
+        accepted = event(status="ACCEPTED", sequence=2, event_id=event_id_for(2),
+                         source_issue=117)
+        post = self._run(implementing, [applied_comment(accepted)], [applied_comment(requested)])
+        self.assertIsNone(self.last_error)
+        self.assertIn("IMPLEMENTING", post.call_args.args[2])
+
+    def test_mixed_source_and_target_same_sequence_fails_closed(self) -> None:
+        target = event(status="REQUESTED", sequence=1, event_id=event_id_for(1))
+        source = event(status="ACCEPTED", sequence=1, event_id=event_id_for(2))
+        decision = decide(
+            event(status="IMPLEMENTING", sequence=2, event_id=event_id_for(3)),
+            [applied_comment(target), applied_comment(source)],
+        )
+        self.assertEqual(decision.action, "state_unreadable")
+
+    def test_source_untrusted_marker_is_ignored(self) -> None:
+        comments = [{
+            "body": "<!-- mays-xrepo:state:MAYS-XR-001:1:REQUESTED -->",
+            "user": {"login": "attacker"},
+        }]
+        self.assertEqual(decide(event(status="ACCEPTED", sequence=2), comments).action,
+                         "invalid_transition")
+
+    def test_historical_conflict_is_not_hidden_by_later_marker(self) -> None:
+        comments = [
+            applied_comment(event(status="REQUESTED", sequence=1, event_id=event_id_for(1))),
+            applied_comment(event(status="ACCEPTED", sequence=2, event_id=event_id_for(2))),
+            applied_comment(event(status="IMPLEMENTING", sequence=2, event_id=event_id_for(3))),
+            applied_comment(event(status="IMPLEMENTATION_READY", sequence=3, event_id=event_id_for(4))),
+        ]
+        decision = decide(event(status="INTEGRATING", sequence=4, event_id=event_id_for(5)), comments)
+        self.assertEqual(decision.action, "state_unreadable")
+
+    def test_malformed_marker_before_valid_marker_fails_closed(self) -> None:
+        comments = [
+            {"user": {"login": "github-actions[bot]"},
+             "body": "<!-- mays-xrepo:state:MAYS-XR-001:1 -->"},
+            applied_comment(event(status="REQUESTED", sequence=2, event_id=event_id_for(2))),
+        ]
+        self.assertEqual(decide(event(status="ACCEPTED", sequence=3), comments).action,
+                         "state_unreadable")
+
+    def test_conflicting_duplicate_history_fails_closed(self) -> None:
+        item = event(status="REQUESTED", sequence=1, event_id=event_id_for(1))
+        conflicting = applied_comment(event(status="ACCEPTED", sequence=1, event_id=event_id_for(2)))
+        self.assertEqual(decide(item, [applied_comment(item), conflicting]).action,
+                         "state_unreadable")
 
     def test_duplicate_posts_nothing(self) -> None:
         item = event()
