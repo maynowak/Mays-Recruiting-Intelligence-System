@@ -10061,3 +10061,21 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
   `legalApprovalRef=null`.
 - No AWS/RIS deployment, real CV data or legal approval claimed.
 - Report: `docs/reports/RIS-STRUCTURED-CV-PRIVACY-APPROVAL-PACKAGE-01-REPORT.md`.
+
+
+## 2026-11-13 — MAYS-XREPO-SCV-RC3-01
+
+**Status:** `BLOCKED / XREPO CORRECTION REQUIRED`
+
+- Issue pair created: jobsearch#17 and RIS#8, task `MAYS-SCV-RC3-001`; no
+  dispatch/status marker written due receiver state-reconciliation defect.
+- Read-only code audit and real `decide()` simulation confirmed a Jobsearch-
+  destination ACCEPTED cannot see a RIS-issued REQUESTED; it is rejected as
+  an invalid initial transition.
+- RIS RC1 `release/structured-cv-rc1` `3cc4576` integrates API routes `1d65696`
+  and privacy package `ea898b9`; full RIS 2582 PASS / 56 skipped / 19 baseline,
+  Terraform fmt/local validate PASS. Jobsearch 2b830e6 BFF/consent 51 PASS and
+  combined 71/44 mock E2E PASS.
+- XRepo statuses REQUESTED..COMPLETED are not claimed. No AWS/plan/apply/state,
+  consent activation, main merge or production deployment.
+- Report: `docs/reports/MAYS-XREPO-SCV-RC3-01-REPORT.md`.
