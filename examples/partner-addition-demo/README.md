@@ -54,6 +54,30 @@ Die Ports sind absichtlich schmal. Für einen späteren echten Betrieb werden
 `X-Api-Credential`) und `FakeOrders` → Mays-Orders-API ersetzt, ohne
 `DemoService` oder die Seite zu ändern.
 
+## Modi
+
+| Modus | Adapter | Zweck |
+|---|---|---|
+| Standard | `FakeOrders` / `FakeRis` | UI- und Ablaufentwicklung ohne zweites Repo |
+| `DEMO_MODE=real` | echte Orders-/RIS-Komponenten, lokaler SQS-Bus | End-to-End-Nachweis (A07) |
+
+```bash
+# Fake-Modus (Default)
+RIS_API_KEY=ris_demo_not_a_real_key python examples/partner-addition-demo/app.py
+
+# Realer Modus: nutzt den echten Orders-Handler, A05-Dispatch, RIS-Transport,
+# AgentBody und den A06-Result-Consumer. SQS bleibt lokal simuliert.
+MO_ORDERS_SRC=/pfad/zu/mays-order-aws/lambda/src \
+ORDERS_COGNITO_ISSUER=https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_X \
+ORDERS_COGNITO_CLIENT_ID=client-x \
+ORDER_RESULT_SERVICE_SECRET=local-secret \
+DEMO_MODE=real python examples/partner-addition-demo/app.py
+```
+
+Im realen Modus läuft die Kette
+`POST /orders → A05 Dispatch → RIS → AdditionAgent → ORDER_RESULT → A06 → GET`,
+ohne dass die Oberfläche etwas davon weiß. Es wird **nichts** deployt.
+
 ## Nicht enthalten
 
 - Kein echter Cognito-Login (G01 akzeptiert den vorhandenen Cognito-Vertrag;

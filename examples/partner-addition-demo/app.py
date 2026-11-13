@@ -153,10 +153,17 @@ def make_server(service: DemoService, host: str = "127.0.0.1",
 def main(argv: Optional[list] = None) -> int:
     host = os.environ.get("DEMO_HOST", "127.0.0.1")
     port = int(os.environ.get("DEMO_PORT", "8080"))
-    if not os.environ.get("RIS_API_KEY"):
-        print("warning: RIS_API_KEY is not set; order creation will fail "
-              "with 503 (no credential is invented).", file=sys.stderr)
-    server = make_server(build_service(), host=host, port=port)
+    if os.environ.get("DEMO_MODE") == "real":
+        from app_ports import build_real_service
+
+        service = build_real_service()
+        print("mode: real application ports (local SQS)", file=sys.stderr)
+    else:
+        service = build_service()
+        if not os.environ.get("RIS_API_KEY"):
+            print("warning: RIS_API_KEY is not set; order creation will fail "
+                  "with 503 (no credential is invented).", file=sys.stderr)
+    server = make_server(service, host=host, port=port)
     print(f"Partner addition demo on http://{host}:{server.server_port}")
     try:
         server.serve_forever()

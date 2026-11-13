@@ -9997,6 +9997,18 @@ Date: 2026-11-13
 - No AWS call, no apply, no deployment; queues/IAM/secret remain not deployed and require explicit approval.
 Report: docs/reports/MO-RIS-AGENT-DISPATCH-01-A05-RIS-MAPPING.md
 
+[MO-RIS-AGENT-PARTNER-E2E-01 / A07 FULL LOCAL E2E]
+Status: LOCAL E2E VERIFIED — 17+25=42 through the real application components; SQS simulated locally.
+Date: 2026-11-13
+- Baseline: RIS 7d7f446, Orders 1e06468; both clean before the change.
+- DemoService and the page are unchanged. Only the fakes were replaced: OrdersApplicationAdapter calls the real index.handler with verified API Gateway claims and then performs A05 dispatch; RisApplicationAdapter uses the real transport parser, registry/discovery/eligibility/entitlement and the existing AgentBody, then delivers a signed ORDER_RESULT through the real A06 consumer. LocalSqsBus keeps the message shapes and consumer entry points; InMemoryOrdersTable only doubles DynamoDB storage.
+- DEMO_MODE=real runs the whole chain locally: POST /orders -> prepare_dispatch -> ORDER_DISPATCH -> RIS (same workId) -> AdditionAgent 42 -> ORDER_RESULT -> apply_result -> owner GET returns 42. The fachliche order status stays PENDING; the view reports the processing status separately.
+- Negatives covered: partner B 404, no dispatch message 503 (no fabricated success), foreign tenant 403, unsupported capability 403, missing identity reference blocks dispatch, repeated dispatch reuses the workId, duplicate result idempotent, wrong workId, stale attempt, cancelled order, tampered signature and no secrets in HTML/transport/response.
+- Note: the partner order path carries no RIS key at all (service-to-service); wrong/revoked RIS key belongs to the direct M2M route and is covered by the 16 G02 tests.
+- Tests: tests/test_partner_e2e_real.py 16 passed; tests/test_mo_dispatch_handoff.py 10 passed; Orders suite 193 OK unchanged. Transport V1 and the addition agent are reused unchanged.
+- No apply, no deployment, no Cognito/CloudFront/DNS change, no RC upgrade, no merge. Local SQS simulation is explicitly not AWS delivery.
+Report: docs/reports/MO-RIS-AGENT-PARTNER-E2E-01-A07.md
+
 [MO-RIS-AGENT-ORDER-BODY-01 / A00 CORRECTION + A04]
 Status: A00 corrected; A04 COMPLETE locally in the Orders repo (no deploy, no RC migration).
 Date: 2026-11-13
