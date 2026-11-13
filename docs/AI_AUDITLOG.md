@@ -9924,3 +9924,19 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - Concurrency remains controlled-sequential-only; simultaneous cross-repo
   dispatches unsupported, conflict recovery is human-gated. RIS RC1 unchanged.
 - Report: `docs/reports/MAYS-XREPO-SHARED-STATE-REVIEW-GATE-03-REPORT.md`.
+
+
+## 2026-11-13 — MAYS-XREPO-CONTROLLED-MAIN-ROLLOUT-04
+
+**Status:** `R3 VERIFIED / R4 DISPATCH APPROVAL PENDING`
+
+- Under the release-owner rollout directive, PRs #18 and #9 were merged by
+  merge commit `a5640d1` (Jobsearch) and `df3c032` (RIS). No branch deletion or
+  force-push occurred.
+- Main verification: receiver code identical; both `scripts/xrepo` suites
+  82 PASS / 4 subtests; issue pair #17/#8 unchanged with zero state/event/
+  rejection markers; no live XRepo run/dispatch after merge; RIS RC1 `4bfd08f`
+  unchanged.
+- Sequential controlled mode remains required; R4 live dispatch is still
+  separate approval. No AWS/Terraform/consent/product/production mutation.
+- Report: `docs/reports/MAYS-XREPO-CONTROLLED-MAIN-ROLLOUT-04-REPORT.md`.
