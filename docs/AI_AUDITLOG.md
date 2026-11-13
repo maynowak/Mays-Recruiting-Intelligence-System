@@ -9977,3 +9977,18 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
   deployment, main merge or consent activation. GSI/transaction verification
   remains local/simulated only.
 - Report: `docs/reports/RIS-STRUCTURED-CV-BACKEND-HARDENING-02-REPORT.md`.
+
+
+## 2026-11-13 — RIS-STRUCTURED-CV-AWS-LIVE-E2E-01
+
+**Status:** `LIVE-E2E RUNBOOK READY / DEPLOYMENT APPROVAL REQUIRED`
+
+- Prepared offline deployment runbook and synthetic test/cleanup manifest at
+  `0e08822`; no AWS discovery, plan, state, apply, route/consent mutation or
+  live E2E executed.
+- G4/G5/G6/C2A/C2B and live E2E remain NOT PRESENT/BLOCKED. Dependencies:
+  API Gateway route delta, real DynamoDB proof, legal notice/consent approval,
+  approved test identities and release-owner sign-off.
+- Reports:
+  `docs/reports/RIS-STRUCTURED-CV-AWS-LIVE-E2E-01-RUNBOOK.md`,
+  `docs/reports/RIS-STRUCTURED-CV-AWS-LIVE-E2E-01-REPORT.md`.
