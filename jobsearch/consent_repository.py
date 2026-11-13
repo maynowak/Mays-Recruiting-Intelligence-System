@@ -30,9 +30,10 @@ except ImportError:  # pragma: no cover - Lambda provides boto3
     Key = None
 
 from jobsearch.consent_contract import (
-    EVENT_GRANTED, EVENT_REGRANTED, EVENT_WITHDRAWN,
+    EVENT_GRANTED, EVENT_REGRANTED, EVENT_WITHDRAWN, NOTICE_DRAFT,
     STATUS_GRANTED, STATUS_NOT_GRANTED, STATUS_WITHDRAWN,
-    ConsentContext, ConsentContractError, status_payload,
+    ConsentContext, ConsentContractError, notice_version as lookup_notice_version,
+    status_payload,
     validate_notice_version, validate_purpose,
 )
 
@@ -139,6 +140,18 @@ class ConsentRepository:
             # A brand-new or re-granted consent must not be recorded against a
             # draft/superseded text when state enforcement is enabled.
             version = validate_notice_version(purpose, version)
+            # The structured-CV purpose is not approved. Even in the legacy
+            # technical mode (state enforcement off), a DRAFT must not become
+            # a real consent unless the separate local test switch is set.
+            if purpose == "cv-builder-profile-storage":
+                entry = lookup_notice_version(purpose, version)
+                if (entry is not None and entry.state == NOTICE_DRAFT
+                        and os.environ.get(
+                            "STRUCTURED_CV_PROFILE_TEST_MODE", "false"
+                        ).strip().lower() != "true"):
+                    raise ConsentContractError(
+                        "NOTICE_NOT_APPROVED",
+                        "structured CV notice is not legally approved")
 
             stamp = _now()
             event = EVENT_REGRANTED if previous == STATUS_WITHDRAWN else EVENT_GRANTED

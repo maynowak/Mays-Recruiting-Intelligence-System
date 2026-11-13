@@ -4446,6 +4446,24 @@ def _privacy_file_export(cv_items):
     }
 
 
+def _privacy_export_structured_cv(event, ctx, limit):
+    """Collect every owner-scoped structured CV profile, including review."""
+    from jobsearch.structured_cv_profile import StructuredCvProfileRepository
+    repo = StructuredCvProfileRepository()
+    items = []
+    cursor = None
+    seen = set()
+    while True:
+        if cursor in seen:
+            raise _PrivacyInspectionUnavailable('Structured CV cursor did not advance')
+        if cursor:
+            seen.add(cursor)
+        page, cursor = repo.list(ctx, limit=limit, cursor=cursor)
+        items.extend(page)
+        if cursor is None:
+            return items
+
+
 def _privacy_export_receipts(event, ctx, limit):
     """Collect all authorized receipt pages, if the journal is available."""
     items = []
@@ -4534,6 +4552,29 @@ def _handle_privacy_export(event, context):
                 name=resource_type, purpose=purpose,
                 storage_status='unavailable', retention_ref=retention_ref,
                 status='UNAVAILABLE', code='unavailable')
+
+    try:
+        structured_profiles = _privacy_export_structured_cv(event, ctx, limit)
+        categories['structuredCvProfiles'] = _privacy_export_category(
+            name='StructuredCvProfile', purpose='structured CV profile storage',
+            storage_status='stored' if structured_profiles else 'no_data',
+            retention_ref='RIS-STRUCTURED-CV-PROFILE-RETENTION-DECISION#REVIEW_REQUIRED',
+            items=structured_profiles)
+    except _PrivacyInspectionUnavailable:
+        partial = True
+        categories['structuredCvProfiles'] = _privacy_export_category(
+            name='StructuredCvProfile', purpose='structured CV profile storage',
+            storage_status='unavailable',
+            retention_ref='RIS-STRUCTURED-CV-PROFILE-RETENTION-DECISION#REVIEW_REQUIRED',
+            status='UNAVAILABLE', code='unavailable')
+    except Exception:
+        logger.error('privacy export structured CV domain unavailable')
+        partial = True
+        categories['structuredCvProfiles'] = _privacy_export_category(
+            name='StructuredCvProfile', purpose='structured CV profile storage',
+            storage_status='unavailable',
+            retention_ref='RIS-STRUCTURED-CV-PROFILE-RETENTION-DECISION#REVIEW_REQUIRED',
+            status='UNAVAILABLE', code='unavailable')
 
     try:
         from jobsearch.application_repository import ApplicationRepository
@@ -4760,13 +4801,27 @@ def _structured_cv_response(status, payload=None, code=None, etag=None):
 
 
 def _structured_cv_consent_ok(ctx):
-    from jobsearch.consent_contract import ConsentContext
+    from jobsearch.consent_contract import (
+        APPROVED_NOTICE_STATES, ConsentContext, notice_version,
+    )
     from jobsearch.consent_repository import ConsentRepository
     try:
         consent_ctx = ConsentContext(
             user_id=ctx["userId"], tenant_id=ctx["tenantId"],
             partner_application_id=ctx["partnerApplicationId"], issuer=ctx["issuer"])
-        return ConsentRepository().has_consent(consent_ctx, "cv-builder-profile-storage")
+        state = ConsentRepository().get(consent_ctx, "cv-builder-profile-storage")
+        if state.get("status") != "GRANTED":
+            return False
+        entry = notice_version("cv-builder-profile-storage",
+                               state.get("noticeVersion"))
+        if entry is None:
+            return False
+        # A real HTTP write needs an approved notice AND a legal approval
+        # record. A DRAFT is always rejected here, even when the legacy
+        # consent-state enforcement switch is off. Technical DRAFT grants are
+        # confined to the repository test layer and never reach this adapter.
+        return (entry.state in APPROVED_NOTICE_STATES
+                and bool(entry.legal_approval_ref))
     except Exception:
         logger.error("structured CV consent store unavailable")
         return None

@@ -15,6 +15,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from jobsearch.structured_cv_profile import StructuredCvConflict
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 SPEC = importlib.util.spec_from_file_location("ris_structured_cv_handler", ROOT / "lambda" / "handler.py")
@@ -84,6 +86,44 @@ class _FakeRepo:
         self.deleted.append((profile_id, expected_version))
 
 
+class StructuredCvConsentBoundaryTest(unittest.TestCase):
+    def _consent(self, state, *, test_mode=False):
+        class _Repo:
+            def get(self, _ctx, _purpose):
+                return state
+
+        env = {"STRUCTURED_CV_PROFILE_TEST_MODE": "true" if test_mode else "false"}
+        with patch.dict(os.environ, env), \
+                patch("jobsearch.consent_repository.ConsentRepository", return_value=_Repo()):
+            return handler._structured_cv_consent_ok(CONTEXT)
+
+    def test_granted_draft_does_not_authorize_real_writes(self):
+        self.assertFalse(self._consent({
+            "status": "GRANTED",
+            "noticeVersion": "structured-cv-profile-storage-2026-11-12-draft-1",
+        }))
+
+    def test_draft_is_rejected_even_with_a_legacy_environment_flag(self):
+        state = {
+            "status": "GRANTED",
+            "noticeVersion": "structured-cv-profile-storage-2026-11-12-draft-1",
+        }
+        self.assertFalse(self._consent(state, test_mode=True))
+        self.assertFalse(self._consent(dict(state, status="WITHDRAWN"), test_mode=True))
+
+    def test_approved_notice_requires_legal_approval_reference(self):
+        class Entry:
+            state = "APPROVED"
+            legal_approval_ref = None
+
+        state = {"status": "GRANTED", "noticeVersion": "approved-version"}
+        with patch("jobsearch.consent_contract.notice_version", return_value=Entry()):
+            self.assertFalse(self._consent(state))
+        Entry.legal_approval_ref = "LEGAL-REF"
+        with patch("jobsearch.consent_contract.notice_version", return_value=Entry()):
+            self.assertTrue(self._consent(state))
+
+
 class StructuredCvHttpTest(unittest.TestCase):
     def _call(self, event, method, path, *, consent=True, repo=None, enabled=True):
         repo = repo or _FakeRepo()
@@ -130,6 +170,30 @@ class StructuredCvHttpTest(unittest.TestCase):
             "PATCH", PATH + "/cvp-12345678")
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(response["headers"]["ETag"], '"v2"')
+
+    def test_repository_conditional_conflict_maps_to_409(self):
+        class ConflictRepo(_FakeRepo):
+            def update(self, profile_id, body, ctx, *, expected_version):
+                raise StructuredCvConflict()
+
+        response, _ = self._call(
+            _event("PATCH", path=PATH + "/cvp-12345678", body={"name": "x"},
+                   headers={"If-Match": '"v1"'}),
+            "PATCH", PATH + "/cvp-12345678", repo=ConflictRepo())
+        self.assertEqual(409, response["statusCode"])
+        self.assertEqual("VERSION_CONFLICT", json.loads(response["body"])["code"])
+
+    def test_unexpected_storage_error_stays_503_without_internal_detail(self):
+        class BrokenRepo(_FakeRepo):
+            def update(self, profile_id, body, ctx, *, expected_version):
+                raise RuntimeError("DynamoDB expression secret detail")
+
+        response, _ = self._call(
+            _event("PATCH", path=PATH + "/cvp-12345678", body={"name": "x"},
+                   headers={"If-Match": '"v1"'}),
+            "PATCH", PATH + "/cvp-12345678", repo=BrokenRepo())
+        self.assertEqual(503, response["statusCode"])
+        self.assertNotIn("DynamoDB", response["body"])
 
     def test_delete_is_204_without_json_body(self):
         response, repo = self._call(

@@ -314,10 +314,12 @@ and `updatedAt` are immutable/server-owned. Missing fields remain unchanged;
 ### Delete
 
 `DELETE .../{profileId}` with optional `If-Match`. Own profile:
-**204** on success. Idempotent replay for the same owner: **204**; foreign or
-unknown ID: **404** (safe enumeration shape). A version mismatch is
-`409 VERSION_CONFLICT`. Deletion is hard delete of the profile item/review
-sidecar; backups/PITR follow the retention contract.
+**204** on success. A repeated own delete, an unknown ID and a foreign ID all
+return the same **404** (safe enumeration shape; no tombstone or ownership
+disclosure). A version mismatch is `409 VERSION_CONFLICT`. Deletion is a hard
+delete of the profile item and embedded review sidecar, atomically paired with
+release of the owner capacity counter. Backups/PITR follow the retention
+contract; no physical purge is claimed.
 
 ### Export
 
@@ -436,7 +438,7 @@ Synthetic only; no private CV content:
 6. Withdrawn consent → writes blocked; export/delete policy verified.
 7. Regrant → new write allowed; old purged data not silently restored.
 8. Duplicate via create → new profile ID; no shared owner leakage.
-9. Delete → 204, idempotent replay, export 404.
+9. Delete → 204, repeated delete → 404, export 404.
 10. Full export includes draft and all review items.
 11. Account erasure removes profile/review; partial/resume behavior.
 12. 44-item review backlog round-trip, including `applied` and page/section.

@@ -4,7 +4,9 @@ The notice remains DRAFT; these tests only verify technical fail-closed
 behaviour in a local moto table. They are not evidence of legal approval.
 """
 
+import os
 import unittest
+from unittest.mock import patch
 
 try:
     import boto3
@@ -38,18 +40,30 @@ class StructuredCvConsentTest(unittest.TestCase):
         return ConsentRepository("consents-structured", db)
 
     @mock_aws
-    def test_no_consent_and_withdrawal_fail_closed(self):
+    def test_draft_grant_requires_explicit_test_mode(self):
         repo = self._repo()
-        self.assertFalse(repo.has_consent(CTX, PURPOSE))
-        repo.grant(CTX, PURPOSE, DRAFT)
+        with self.assertRaises(Exception):
+            repo.grant(CTX, PURPOSE, DRAFT)
+        with patch.dict(os.environ, {"STRUCTURED_CV_PROFILE_TEST_MODE": "true"}):
+            repo.grant(CTX, PURPOSE, DRAFT)
         self.assertTrue(repo.has_consent(CTX, PURPOSE))
         repo.withdraw(CTX, PURPOSE)
         self.assertFalse(repo.has_consent(CTX, PURPOSE))
 
     @mock_aws
+    def test_notice_enforcement_blocks_draft_even_in_test_mode(self):
+        repo = self._repo()
+        with patch.dict(os.environ, {
+                "STRUCTURED_CV_PROFILE_TEST_MODE": "true",
+                "CONSENT_NOTICE_STATE_ENFORCED": "true"}):
+            with self.assertRaises(Exception):
+                repo.grant(CTX, PURPOSE, DRAFT)
+
+    @mock_aws
     def test_consent_is_bound_to_tenant_and_user(self):
         repo = self._repo()
-        repo.grant(CTX, PURPOSE, DRAFT)
+        with patch.dict(os.environ, {"STRUCTURED_CV_PROFILE_TEST_MODE": "true"}):
+            repo.grant(CTX, PURPOSE, DRAFT)
         other_tenant = ConsentContext(CTX.user_id, "other-tenant",
                                       CTX.partner_application_id, CTX.issuer)
         other_user = ConsentContext("other-user", CTX.tenant_id,
