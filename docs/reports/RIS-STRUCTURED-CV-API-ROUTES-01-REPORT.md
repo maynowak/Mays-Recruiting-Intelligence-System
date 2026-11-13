@@ -43,8 +43,8 @@ JWT/proxy integration and remains hidden behind the default-off feature flag.
 
 ## 4. Contract inventory
 
-- `docs/api/API-STANDARD.md` now documents all six methods with JWT +
-  `X-Api-Credential`.
+- `docs/api/API-STANDARD.md` and production `docs/api/openapi-platform.yaml`
+  now document all six methods with JWT + `X-Api-Credential`.
 - `tests/test_p20_api_contract_consistency.py`: route inventory adjusted from
   74/70 to **80/76** with explicit checks for all six routes; the former
   feature-flag allowlist was removed because the routes are now declared.
@@ -59,6 +59,7 @@ pytest tests/test_structured_cv_api_routes.py \
        tests/test_p20_api_contract_consistency.py \
        tests/test_partner_profile_integration_harness.py
 64 passed, 343 subtests passed
+full RIS suite: 2582 passed / 56 skipped / 19 documented baseline failures
 
 terraform fmt -check -recursive terraform          PASS
 terraform init -backend=false                     PASS
