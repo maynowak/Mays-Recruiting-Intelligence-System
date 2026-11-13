@@ -9933,3 +9933,24 @@ Date: 2026-11-13
 - Deliberately excluded: real Cognito login and persistence (Phase C). Ports are narrow so the fakes can be replaced by the real RIS M2M client and Orders API without changing DemoService.
 - G05/G07/G08 remain blocked by B1-B4; the live path additionally needs the addition_agent Terraform catalog seed and an active Orders instance.
 Report: docs/reports/RIS-MO-ADDITION-AGENT-E2E-01-G01-PARTNER-DEMO.md
+
+[RIS-AGENT-GENERIC-ORDER-TRANSPORT-01 / T00-T01 BASELINE & INVENTORY]
+Status: COMPLETE (read-only) — baseline verified, one G00 finding corrected.
+Date: 2026-11-13
+- Baseline: feature/ris-mo-addition-agent-e2e-01 @ bb77498, clean, remote identical. G00 documented only; G01/G02/G03 implemented and tested. No generic transport contract existed before this task.
+- Correction: at main@2d0c67d _enqueue_agent_work DOES carry partnerApplicationId and issuer and fail-closes on missing WORK_ITEMS_TABLE and missing user/tenant (plus a subject-fence transaction). G00's "no partnerApplicationId/issuer" applied to the older ef5d884 checkout. Still true: apiProfileId is absent from the work item, so the execution-time entitlement re-check reads None.
+- Documented drift: work-system/work-item.md names entityId/resultRef/claimedBy and status QUEUE, none of which the code uses; the doc is not the source of truth.
+- Documented overlap risks: three status vocabularies (Order/WorkItem/ProcessingEnvelope); envelope.input holds the whole work item (eligibility depends on that copy); idempotencyKey exists in WorkItem but not in ProcessingEnvelope; handler sets requestedBy equal to userId.
+Report: docs/reports/RIS-AGENT-GENERIC-ORDER-TRANSPORT-01-T00-T01.md
+
+[RIS-AGENT-GENERIC-ORDER-TRANSPORT-01 / T02-T05 CONTRACT V1]
+Status: IMPLEMENTED + TESTED (local) — no live integration, no AWS call.
+Date: 2026-11-13
+- Added agents/transport/order_transport.py (envelope V1, strict validation, dispatch/result mapping) and agents/runtime/work_item.py. _enqueue_agent_work now calls build_work_item, so handler and transport share one work item shape; a test forbids a second literal in the handler.
+- V1: schemaVersion 1/"1.0" only; ORDER_DISPATCH/ORDER_RESULT/ORDER_FAILED/ORDER_CANCELLED/ORDER_STATUS_CHANGED implemented; ORDER_PROGRESS/ORDER_ACK reserved and rejected with a distinct code; unknown fields rejected at every level; payload XOR payloadRef; 16 KiB cap; recursive secret scan.
+- Identity: envelope carries identity.contextRef plus non-authoritative claims. dispatch_to_work_item builds the work item only from a server-resolved VerifiedContext; contextRef mismatch and any contradicting claim are rejected. Owner and actor stay distinguishable.
+- Result: orderId always from the dispatch envelope, never from the work row; ORDER_RESULT requires COMPLETED plus a present result, ORDER_FAILED requires FAILED; idempotency key is stable per order/work/type; stale attempts detected.
+- Tests: new tests/test_order_transport_contract.py 53 passed (positive/negative schema, mapping parity with build_work_item, 4 claim contradictions, secret/size rejection, end-to-end 17+25=42 including through AgentBody, result correlation, stable idempotency, stale attempt). Targeted regression 179 passed + 329 subtests.
+- Pre-existing, not caused here: test_platform_handlers.py::TestAgentAPI::test_execute_agent expects 202 but gets 500 (durable subject fence store guard already in HEAD), and test_consent_notice_lifecycle.py fails collection with NameError ConsentContext.
+- Not done: no Orders change, no queue, no Terraform, no catalog seed. G05/G07 remain BLOCKED by B1/B3/B4; G04 is PARTIAL.
+Report: docs/reports/RIS-AGENT-GENERIC-ORDER-TRANSPORT-01-T02-T05-CONTRACT.md

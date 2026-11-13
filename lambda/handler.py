@@ -3282,26 +3282,25 @@ def _enqueue_agent_work(agent_id: str, capability: str,
     request_id = str(uuid.uuid4())
     now = utcnow()
 
-    work_item = {
-        'workId': str(uuid.uuid4()),
-        'type': f'agent_{agent_id}',
-        'tenantId': tenant_id,
-        'userId': user_id,
-        'partnerApplicationId': partner_application_id or '',
-        'issuer': issuer or '',
-        'requestedBy': user_id,
-        'agentId': agent_id,
-        'capability': capability,
-        'idempotencyKey': idempotency_key or str(uuid.uuid4()),
-        'payloadVersion': '1.0',
-        'agentVersion': agent_version or '1.0.0',
-        'requestId': request_id,
-        'status': 'QUEUED',
-        'attempt': 0,
-        'payload': payload,
-        'createdAt': now.isoformat(),
-        'expiresAt': (now + timedelta(days=30)).isoformat()
-    }
+    # Single source of truth for the work item shape (also used by the generic
+    # order transport). No second schema is defined here.
+    from agents.runtime.work_item import build_work_item
+    work_item = build_work_item(
+        agent_id=agent_id,
+        capability=capability,
+        payload=payload,
+        tenant_id=tenant_id,
+        user_id=user_id,
+        agent_version=agent_version,
+        idempotency_key=idempotency_key,
+        requested_by=user_id,
+        request_id=request_id,
+        now=now,
+        extra={
+            'partnerApplicationId': partner_application_id or '',
+            'issuer': issuer or '',
+        },
+    )
 
     table_name = os.environ.get('WORK_ITEMS_TABLE')
     if not table_name:
