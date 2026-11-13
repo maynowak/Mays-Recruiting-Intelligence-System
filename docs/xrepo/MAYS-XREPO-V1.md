@@ -100,8 +100,10 @@ executed and are not treated as independent test proof.
 A receiver no longer reconstructs the task history from the destination issue
 alone. Before deciding, it verifies the bound source issue through the source
 repository API, verifies the destination issue, and reads trusted comments from
-**both** issues. The source issue title or body must contain the exact task ID;
-the destination issue has the same requirement. A missing or unrelated issue
+**both** issues. The source and destination issue title/body must contain the
+exact task ID as a standalone token (e.g. `MAYS-XR-001-TEST` does not bind to
+`MAYS-XR-001`). The issues must also reference each other by repository and
+issue number in their body or comments. A missing, unrelated or unlinked issue
 fails closed as `issue_binding_invalid`.
 
 Only `github-actions[bot]` comments are trusted. Ordinary prose, hand-written
