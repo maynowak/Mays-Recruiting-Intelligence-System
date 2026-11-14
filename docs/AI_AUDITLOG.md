@@ -11309,3 +11309,35 @@ missing commit pointers:
   17 skipped, 6 pre-existing failures also reproduced on `origin/main`.
   `terraform fmt -check -recursive` PASS.
 - No merge, deployment, AWS/Terraform apply, Vercel mutation or force-push.
+
+
+## 2026-11-13 — MAYS-XREPO-SHARED-STATE-RECONCILIATION-02
+
+**Status:** `LOCAL VERIFIED / READY FOR CONTROLLED ROLLOUT`
+
+- Both receivers now bind source+destination issues to the exact task ID and
+  reconstruct trusted state from bot comments on both issues; markers are
+  written only to the destination issue. No event-schema/app-secret change.
+- Fail-closed cases: mixed same-sequence states, conflicting event IDs,
+  untrusted/ordinary text, unreadable history and missing source read access.
+- `python3 -m pytest -q scripts/xrepo`: 76 PASS / 4 subtests in both repos.
+- Concurrency: repository-local groups only; simultaneous cross-repo dispatches
+  are unsupported. Controlled sequential handoff and human conflict recovery
+  documented; no automatic repair/COMPLETED from a conflict.
+- No live dispatch, main merge, AWS/Terraform, consent activation or production
+  deployment. RIS RC1 `4bfd08f` unchanged.
+- Report: `docs/reports/MAYS-XREPO-SHARED-STATE-RECONCILIATION-02-REPORT.md`.
+
+
+## 2026-11-13 — MAYS-XREPO-SHARED-STATE-REVIEW-GATE-03
+
+**Status:** `SECURITY REVIEW PASS / MAIN ROLLOUT APPROVAL PENDING`
+
+- Hardened both receivers: historical conflicts cannot be hidden by later
+  markers; exact task-token binding; mutual source/destination issue links;
+  replay integrity checked before duplicate success; split-history full matrix.
+- `scripts/xrepo` 82 PASS / 4 subtests in both repositories. No live dispatch,
+  merge, AWS/Terraform or production mutation.
+- Concurrency remains controlled-sequential-only; simultaneous cross-repo
+  dispatches unsupported, conflict recovery is human-gated. RIS RC1 unchanged.
+- Report: `docs/reports/MAYS-XREPO-SHARED-STATE-REVIEW-GATE-03-REPORT.md`.
