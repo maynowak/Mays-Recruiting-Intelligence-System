@@ -9924,3 +9924,26 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - Concurrency remains controlled-sequential-only; simultaneous cross-repo
   dispatches unsupported, conflict recovery is human-gated. RIS RC1 unchanged.
 - Report: `docs/reports/MAYS-XREPO-SHARED-STATE-REVIEW-GATE-03-REPORT.md`.
+
+
+## 2026-11-14 — RIS-SCV-AWS-G4-REPLAN-10
+
+**Status:** `UNSAFE PLAN / DO NOT APPLY`
+
+- Release Owner authorized one RC2 G4 replan for `ris-dev`; operator `mayaws`,
+  window ~08:55–08:58Z. No apply.
+- Git: main `df3c032`, RC1 `4bfd08f` unchanged, RC2 `6eeab5d`. AWS identity,
+  backend, workspace, effective key and state serial `61`/lineage
+  `9cec61e5…` verified; state unchanged before/after.
+- Protected `0600` inputs were used; four consent controls matched live,
+  allowlist value withheld, boundary set, Structured-CV flag false.
+- Pinned Orders module `1dbb0cb` verified; init/fmt/validate PASS. One plan
+  `8d1cb396ae536c6a69c7b3f5285193955c8d3948d40111cba8d7341bd339f423`:
+  **6 CREATE / 2 UPDATE / 1 DELETE / 0 REPLACE**.
+- Expected six routes, GSI and agent flag update; erasure, CORS, consent,
+  `ConditionCheckItem`, Orders boundary and 15-min schedule are preserved.
+  **Unsafe finding:** `module.mays_orders[0].module.sqs.aws_sqs_queue_policy.orders`
+  would be deleted. G5 is therefore rejected; no further plan or apply.
+- Old rejected plan `36632ab5…` remains untouched. No state mutation, import,
+  destroy, consent activation, main merge or production deployment.
+- Report: `docs/reports/RIS-SCV-AWS-G4-REPLAN-10-REPORT.md`.
