@@ -9924,3 +9924,23 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - Concurrency remains controlled-sequential-only; simultaneous cross-repo
   dispatches unsupported, conflict recovery is human-gated. RIS RC1 unchanged.
 - Report: `docs/reports/MAYS-XREPO-SHARED-STATE-REVIEW-GATE-03-REPORT.md`.
+
+
+## 2026-11-14 — RIS-SCV-MO-SQS-POLICY-FORENSICS-11
+
+**Status:** `SECURITY CLASSIFIED / REMEDIATION DECISION PENDING`
+
+- Confirmed locked plan `8d1cb396…` and resource
+  `module.mays_orders[0].module.sqs.aws_sqs_queue_policy.orders`; no AWS
+  access, no new plan, no state or SQS mutation.
+- Mays-Orders F-03 `a2fb385` removed the wildcard SQS resource policy
+  (`Principal "*"`, no condition) in favor of IAM identity policies. The RIS
+  pin `1dbb0cb` contains F-03; RC.3 `086a8be` records the same fix.
+- State/plan `before` still contains the exact legacy wildcard policy.
+  Classification: `LEGACY UNSAFE`. It must not be restored to avoid DELETE.
+- Ownership: old generated module address vs pinned module without the
+  resource. Recommended smallest safe path is a separate, approved F-03
+  remediation; do not hide the delete via target/state/ignore/removed tricks.
+- No product code, AWS, Terraform, pin, state, queue or policy change. No
+  main merge, consent activation, production deploy or XRepo completion.
+- Report: `docs/reports/RIS-SCV-MO-SQS-POLICY-FORENSICS-11-REPORT.md`.
