@@ -34,18 +34,16 @@ from pathlib import Path
 # TERRAFORM_EXE optional: expliziter Pfad zur Terraform-Executable.
 # Wenn nicht gesetzt, wird im PATH gesucht.
 TERRAFORM_EXE = os.environ.get("TERRAFORM_EXE", "")
+# Cross-platform Git executable. Operators may override this explicitly.
+GIT_EXE = os.environ.get("GIT_EXE", "git")
 
 
 def _terraform_exe() -> str:
     """Ermittle den Terraform-Executable-Pfad."""
     if TERRAFORM_EXE and os.path.isfile(TERRAFORM_EXE):
         return TERRAFORM_EXE
-    result = subprocess.run(
-        ["where", "terraform"], capture_output=True, text=True
-    )
-    if result.returncode == 0 and result.stdout.strip():
-        return result.stdout.strip().split("\r\n")[0]
-    return "terraform.exe"
+    found = shutil.which("terraform")
+    return found or "terraform"
 
 
 def _tf_run(args: list, cwd=None) -> subprocess.CompletedProcess:
@@ -80,8 +78,8 @@ def _check_returncode(result: subprocess.CompletedProcess, label: str) -> bool:
 
 def run(cmd, cwd=None):
     """Führe einen Git- oder System-Befehl aus."""
-    if cmd[0] in ("git",) or (len(cmd) > 1 and cmd[0] == "git"):
-        cmd = [r"C:\Program Files\Git\bin\git.exe"] + cmd[1:]
+    if cmd[0] == "git":
+        cmd = [GIT_EXE] + cmd[1:]
     # Terraform-Executable auflösen (über TERRAFORM_EXE oder PATH)
     if cmd[0] == "terraform":
         cmd = [_terraform_exe()] + cmd[1:]
@@ -453,18 +451,18 @@ def ensure_repo():
     INSTALLER_PROJECTS.mkdir(parents=True, exist_ok=True)
     if not MAYS_ORDERS_BUILDER_DIR.exists():
         print(f"Cloning mays-order-aws into {MAYS_ORDERS_BUILDER_DIR}")
-        run([r"C:\Program Files\Git\bin\git.exe", "clone",
+        run([GIT_EXE, "clone",
              "https://github.com/maynowak/mays-order-aws.git", str(MAYS_ORDERS_BUILDER_DIR)])
     else:
-        result = run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "fetch", "--quiet"])
+        result = run([GIT_EXE, "-C", str(MAYS_ORDERS_BUILDER_DIR), "fetch", "--quiet"])
 
     # Auf den Builder-Pin checkout (detached HEAD)
-    result = run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "checkout", BUILDER_PIN])
+    result = run([GIT_EXE, "-C", str(MAYS_ORDERS_BUILDER_DIR), "checkout", BUILDER_PIN])
 
     # Arbeitsbaum zustand prüfen – Dirty ablehnen ohne Reset/Clean
     try:
         status = subprocess.run(
-            [r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "status", "--porcelain"]
+            [GIT_EXE, "-C", str(MAYS_ORDERS_BUILDER_DIR), "status", "--porcelain"]
         , capture_output=True, text=True)
         if status.stdout.strip():
             print(f"FEHLER: builder worktree has untracked/modified files:\n{status.stdout.strip()}")
