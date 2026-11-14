@@ -9924,3 +9924,28 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - Concurrency remains controlled-sequential-only; simultaneous cross-repo
   dispatches unsupported, conflict recovery is human-gated. RIS RC1 unchanged.
 - Report: `docs/reports/MAYS-XREPO-SHARED-STATE-REVIEW-GATE-03-REPORT.md`.
+
+
+## 2026-11-14 — RIS-SCV-AWS-LIVE-BASELINE-RECONCILIATION-08
+
+**Status:** `LOCAL VERIFIED / G4 REPLAN APPROVAL PENDING`
+
+- RC1 `4bfd08f` remained unchanged. New `release/structured-cv-rc2-reconciled`
+  at `ee0905a` merges the current `origin/main` `df3c032` and the verified live
+  baseline line `feature/jm-ris-cv-storage-integration-01`.
+- Restored live Terraform controls: partner erasure route (`451c12e`),
+  documents CORS and consent flags (`216e061`, `81634d8`, `37503a9`,
+  `fc32aad`), partner-profile `ConditionCheckItem` (`48a55c1`), Orders
+  permissions boundary wiring (`197fb1c`) and 15-minute health schedule
+  (`74e766c`). Structured-CV routes/GSI remain, flag false.
+- Consent contract now carries all four purposes; the structured-CV DRAFT gate
+  and scoped proof logic both remain. No IAM wildcard, CORS wildcard or
+  boundary removal was introduced. The pilot allowlist is not in Git.
+- Tests: focused 249 PASS; full RIS 2634 PASS / 56 skipped / 5 pre-existing
+  failures (3 composite CLI, 1 health integration, 1 platform handler; same on
+  RC1); XRepo 82 PASS / 4 subtests; Terraform fmt/validate PASS. New static
+  regression guards added.
+- No AWS plan, apply, state mutation, import, destroy, consent activation,
+  main merge or production deployment. The rejected plan `36632ab5…` remains
+  rejected and is not a basis for G4.
+- Report: `docs/reports/RIS-SCV-AWS-LIVE-BASELINE-RECONCILIATION-08-REPORT.md`.
