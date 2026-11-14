@@ -9924,3 +9924,19 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - Concurrency remains controlled-sequential-only; simultaneous cross-repo
   dispatches unsupported, conflict recovery is human-gated. RIS RC1 unchanged.
 - Report: `docs/reports/MAYS-XREPO-SHARED-STATE-REVIEW-GATE-03-REPORT.md`.
+
+
+## 2026-11-14 — MAYS-XREPO-R4-LIVE-HANDOFF-PREFLIGHT-05
+
+**Status:** `READY / HUMAN DISPATCH AUTHORIZATION PENDING`
+
+- Verified mains `a5640d1` (Jobsearch) and `df3c032` (RIS), RC1 `4bfd08f`
+  unchanged; issue pair #17/#8 mutually linked, no status markers.
+- Both default-branch receivers have identical shared-state code; historical
+  app-token sends exist, but current installation could not be enumerated with
+  a user token (403). First authorized R4 sender run is permission proof.
+- RIS CI run 43482788367 has 0 jobs/no logs and the same pattern predates the
+  XRepo merge; classified unrelated to XRepo, CI root cause remains separate.
+- Local illustrative REQUESTED event validated; no dispatch. Runbook/recovery
+  prepared for sequential statuses/evidence; R4 remains separately gated.
+- Report: `docs/reports/MAYS-XREPO-R4-LIVE-HANDOFF-PREFLIGHT-05-REPORT.md`.
