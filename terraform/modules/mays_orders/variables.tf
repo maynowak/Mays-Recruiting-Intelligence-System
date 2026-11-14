@@ -1,7 +1,7 @@
 variable "project_name" {
   description = "Name des Projekts; wird als Prefix fuer Ressourcen-Namen verwendet."
   type        = string
-  default     = "ris-dev2-mays-orders"
+  default     = "ris-dev-mays-orders"
 
   # Naming-Safety (T013): ein vorhersagbarer, kompatibel nutzbarer Installationsname.
   # Kleinschreibung + Bindestrich ist über alle verwendeten Ressourcen hinweg gültig
