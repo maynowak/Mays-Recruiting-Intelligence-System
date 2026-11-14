@@ -38,7 +38,7 @@ def test_structured_cv_owner_index_and_flag_remain_fail_closed():
     assert 'variable "structured_cv_profile_enabled"' in variables
     assert "default     = false" in variables.split(
         'variable "structured_cv_profile_enabled"', 1)[1].split("}", 1)[0]
-    assert ('STRUCTURED_CV_PROFILE_ENABLED           = '
+    assert ('STRUCTURED_CV_PROFILE_ENABLED = '
             'var.structured_cv_profile_enabled ? "true" : "false"') in lambda_tf
 
 
