@@ -9924,3 +9924,30 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - Concurrency remains controlled-sequential-only; simultaneous cross-repo
   dispatches unsupported, conflict recovery is human-gated. RIS RC1 unchanged.
 - Report: `docs/reports/MAYS-XREPO-SHARED-STATE-REVIEW-GATE-03-REPORT.md`.
+
+
+## 2026-11-14 — RIS-SCV-AWS-G4-EXECUTION-07
+
+**Status:** `BLOCKED / TARGET OR STATE MISMATCH`
+
+- Release Owner G4 authorization executed once for `ris-dev` only: STS account
+  `240571105849`, region `eu-central-1`, profile `mayaws`, workspace `ris-dev`.
+  Backend `mays-ris-tf-state-dev`, effective key
+  `env:/ris-dev/dev/terraform.tfstate`, lock table `mays-ris-tf-lock`.
+  Effective key matched the object actually read.
+- State before/after: lineage `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`, serial
+  `61`, 250 resources; unchanged. Init, workspace select, fmt, validate and
+  plan succeeded. No state write, import, repair or workspace creation.
+- RC1 `4bfd08f` planned with `STRUCTURED_CV_PROFILE_ENABLED=false`. Plan
+  `36632ab510cbef32030e111d82465aa7b2f8b65b2913181d107aa9021b79a57b`:
+  **6 CREATE / 8 UPDATE / 2 DELETE / 0 REPLACE**.
+- Six Structured-CV routes and the `gsi-structured-owner` GSI are expected.
+  But the plan also deletes the live `POST /v1/partner/me/erasure` route and
+  documents-bucket CORS config, removes four consent env flags, removes
+  partner-profile `ConditionCheckItem`, removes the Orders worker permissions
+  boundary, and changes the health schedule 15→5 minutes. This is a live-state/
+  RC1 reconciliation gap.
+- G5 recommendation: **DO NOT APPROVE THIS PLAN**. No apply, destroy, consent
+  activation, live E2E or production deployment. No plan/state artifact was
+  committed.
+- Report: `docs/reports/RIS-SCV-AWS-G4-EXECUTION-07-REPORT.md`.
