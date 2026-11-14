@@ -10067,3 +10067,16 @@ Date: 2026-11-13
 - Validation: terraform fmt -check = 0 and terraform validate = Success in both repositories; static wiring tests 11 (RIS) and 12 (Orders); Orders suite 217 OK.
 - Still open: account 240571105849 is unverified live, the secret value must be provisioned, the bundle must be built before plan, and the real plan/apply remain explicitly gated.
 Report: docs/reports/MO-RIS-AWS-TERRAFORM-WIRING-01.md
+
+
+[MO-RIS-AWS-PLAN-REVIEW-01 / R1 DISCOVERY]
+Status: R1 DISCOVERY COMPLETE - R2 BLOCKED (AWS_ACCOUNT_IDENTITY_UNVERIFIED).
+Date: 2026-11-14
+- Baseline: RIS a7cd516 and Orders c54467d, both clean and identical to their remotes; no foreign changes found or touched.
+- AWS access: only one profile exists on this machine (default = devnemo / 262370457690, documented at session start). No profile for the target account 240571105849 exists, so no sts call was made against it and no remote state was read. BLOCKED for live identity.
+- Account/region: Orders backend bucket mays-orders-tfstate-central-240571105849 plus deployment reports, and the RIS documentation, both point to 240571105849 / eu-central-1. Same-account assumption is file-based only; no provider/account_id/assume_role blocks exist in the new modules.
+- State ownership documented: Orders S3 mays-orders-tfstate-central-240571105849 with env: prefix and lock mays-orders-terraform-locks; RIS partial backend with env:/<project>/<env>/terraform.tfstate and <project>-tf-lock. The RIS target state was not read.
+- Inventory from code/reports: Orders retail queue only (no DLQ); RIS work/cv/ats/match/dlq; no KMS anywhere; no Secrets Manager resource yet.
+- Flags/artifacts: both flags default false; module counts 8 (RIS) + 11 (Orders, one KMS policy at count 0) = 18 active creates when enabled, 0 otherwise. RIS bundle 301632 B sha256 6d77ed97... with dispatch_ingress.py; Orders bundle 29531 B sha256 010feb64... with 13 modules including result_consumer.py. L04 packaging regression re-checked.
+- No plan, no apply, no destroy, no secret access, no state mutation.
+Report: docs/reports/MO-RIS-AWS-PLAN-REVIEW-01-R1.md
