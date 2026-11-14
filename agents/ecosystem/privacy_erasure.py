@@ -108,6 +108,8 @@ class ErasureResult:
     profiles_revoked: int = 0
     work_cancelled: int = 0
     applications_deleted: int = 0
+    search_profiles_deleted: int = 0
+    document_metadata_deleted: int = 0
     documents_deleted: int = 0
     profile_deleted: bool = False
 
@@ -120,6 +122,8 @@ class ErasureResult:
             "profilesRevoked": self.profiles_revoked,
             "workCancelled": self.work_cancelled,
             "applicationsDeleted": self.applications_deleted,
+            "searchProfilesDeleted": self.search_profiles_deleted,
+            "documentMetadataDeleted": self.document_metadata_deleted,
             "documentsDeleted": self.documents_deleted,
             "profileDeleted": self.profile_deleted,
             "steps": [s.to_dict() for s in self.steps],
@@ -158,6 +162,7 @@ class PrivacyErasure:
                  application_erasure: Any = None,
                  application_context: Any = None,
                  structured_cv_eraser: Optional[Callable[[str, Optional[str]], int]] = None,
+                 partner_profile_erasure: Any = None,
                  ) -> None:
         self.credentials = credential_store
         self.profiles = profile_store
@@ -174,10 +179,13 @@ class PrivacyErasure:
         self.application_erasure = application_erasure
         self.application_context = application_context
         self.structured_cv_eraser = structured_cv_eraser
+        self.partner_profile_erasure = partner_profile_erasure
 
     # ------------------------------------------------------------------
     def erase(self, user_id: str,
-              tenant_id: Optional[str] = None) -> ErasureResult:
+              tenant_id: Optional[str] = None, *,
+              partner_application_id: Optional[str] = None,
+              issuer: Optional[str] = None) -> ErasureResult:
         """Run the full lifecycle. Never raises for a step failure.
 
         A step failure is recorded and the run continues only where doing
@@ -216,8 +224,17 @@ class PrivacyErasure:
         # 3. Non-terminal work is cancelled, never deleted.
         result.steps.append(self._cancel_work(result))
         result.steps.append(self._erase_applications(result))
-        # 4. Documents owned by the platform for this user.
-        result.steps.append(self._delete_documents(result))
+        # 4. Persisted partner search profiles. ATS children first, then CV
+        # search profiles, then manual profiles. This intentionally runs
+        # before document deletion so no CV parent is removed first.
+        result.steps.append(self._erase_partner_profiles(
+            result, partner_application_id, issuer))
+        # 5. Documents owned by the platform for this user, then the
+        #    CVDocument metadata rows only after S3 is confirmed clean.
+        documents_step = self._delete_documents(result)
+        result.steps.append(documents_step)
+        result.steps.append(self._delete_document_metadata(
+            result, partner_application_id, issuer, documents_step.ok))
         # 4b. Applications (partner-scoped records of the same person).
         # Runs after documents and before the profile row, so a failure here
         # still leaves the identity intact and the run resumable.
@@ -279,6 +296,32 @@ class PrivacyErasure:
             logger.error("structured CV erasure failed: %s", type(exc).__name__)
             return StepResult("erase-structured-cv-profiles", False, 0,
                               "STRUCTURED_CV_ERASURE_FAILED")
+
+    # ------------------------------------------------------------------
+    def _erase_partner_profiles(self, result: ErasureResult,
+                                partner_application_id: Optional[str],
+                                issuer: Optional[str]) -> StepResult:
+        if self.partner_profile_erasure is None:
+            return StepResult("erase-partner-search-profiles", True, 0)
+        try:
+            outcome = self.partner_profile_erasure.erase(
+                user_id=result.user_id,
+                tenant_id=result.tenant_id,
+                partner_application_id=partner_application_id,
+                issuer=issuer,
+            )
+        except Exception as exc:
+            logger.error("partner search-profile erasure failed: %s",
+                         type(exc).__name__)
+            return StepResult("erase-partner-search-profiles", False, 0,
+                              "SEARCH_PROFILE_ERASURE_FAILED")
+        result.search_profiles_deleted = outcome.deleted
+        if not outcome.ok:
+            return StepResult("erase-partner-search-profiles", False,
+                              outcome.deleted,
+                              outcome.error or "SEARCH_PROFILE_ERASURE_PENDING")
+        return StepResult("erase-partner-search-profiles", True,
+                          outcome.deleted)
 
     # ------------------------------------------------------------------
     def _revoke_credentials(self, result: ErasureResult) -> StepResult:
@@ -469,13 +512,52 @@ class PrivacyErasure:
         if self.documents is None:
             return StepResult("delete-documents", True, 0)
         try:
-            deleted = self.documents(result.user_id)
+            outcome = self.documents(result.user_id)
+            if isinstance(outcome, tuple):
+                deleted, pending = outcome
+            else:
+                deleted, pending = outcome, False
+            if not isinstance(deleted, int) or isinstance(deleted, bool) or deleted < 0:
+                raise ValueError("invalid document deletion count")
         except Exception as exc:
             logger.error("document deletion failed for %s: %s",
                          result.user_id, exc)
-            return StepResult("delete-documents", False, 0, str(exc))
+            return StepResult("delete-documents", False, 0,
+                              "DOCUMENT_ERASURE_FAILED")
         result.documents_deleted = deleted
-        return StepResult("delete-documents", True, deleted)
+        return StepResult("delete-documents", not pending, deleted,
+                          "documents remain" if pending else None)
+
+    def _delete_document_metadata(self, result: ErasureResult,
+                                   partner_application_id: Optional[str],
+                                   issuer: Optional[str],
+                                   documents_ok: bool) -> StepResult:
+        if self.partner_profile_erasure is None or not hasattr(
+                self.partner_profile_erasure, "erase_document_metadata"):
+            return StepResult("delete-document-metadata", True, 0)
+        if self.documents is None:
+            return StepResult("delete-document-metadata", False, 0,
+                              "DOCUMENT_STORAGE_UNAVAILABLE")
+        if not documents_ok:
+            return StepResult("delete-document-metadata", False, 0,
+                              "DOCUMENTS_REMAIN")
+        try:
+            outcome = self.partner_profile_erasure.erase_document_metadata(
+                user_id=result.user_id,
+                tenant_id=result.tenant_id,
+                partner_application_id=partner_application_id,
+                issuer=issuer)
+        except Exception as exc:
+            logger.error("document metadata erasure failed: %s",
+                         type(exc).__name__)
+            return StepResult("delete-document-metadata", False, 0,
+                              "CV_DOCUMENT_METADATA_ERASURE_FAILED")
+        result.document_metadata_deleted = outcome.deleted
+        if not outcome.ok:
+            return StepResult("delete-document-metadata", False,
+                              outcome.deleted,
+                              outcome.error or "CV_DOCUMENT_METADATA_ERASURE_FAILED")
+        return StepResult("delete-document-metadata", True, outcome.deleted)
 
     def _delete_applications(self, result: ErasureResult) -> StepResult:
         if self.applications is None:

@@ -240,6 +240,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb_partner_profiles" {
           "dynamodb:Query",
           "dynamodb:DeleteItem",
           "dynamodb:UpdateItem",
+          "dynamodb:ConditionCheckItem",
           "dynamodb:TransactWriteItems"
         ]
         Resource = [
@@ -645,9 +646,13 @@ resource "aws_lambda_function" "agent" {
       DELETION_LEDGER_ENABLED              = "false"
       # New partner/personal routes stay closed until the data-protection
       # decision is signed off; deploying infrastructure is not approval.
-      PARTNER_SURFACE_ENABLED      = var.partner_surface_enabled ? "true" : "false"
-      CONSENTS_TABLE               = var.consents_table_name
-      APPLICATION_CONSENT_ENFORCED = var.application_consent_enforced ? "true" : "false"
+      PARTNER_SURFACE_ENABLED                 = var.partner_surface_enabled ? "true" : "false"
+      CONSENTS_TABLE                          = var.consents_table_name
+      APPLICATION_CONSENT_ENFORCED            = var.application_consent_enforced ? "true" : "false"
+      CV_STORAGE_CONSENT_ENFORCED             = var.cv_storage_consent_enforced ? "true" : "false"
+      SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED = var.search_profile_storage_consent_enforced ? "true" : "false"
+      CONSENT_NOTICE_STATE_ENFORCED           = var.consent_notice_state_enforced ? "true" : "false"
+      CONSENT_PILOT_ALLOWLIST                 = var.consent_pilot_allowlist
       # Structured CV profile routes are opt-in and fail closed by default.
       STRUCTURED_CV_PROFILE_ENABLED = var.structured_cv_profile_enabled ? "true" : "false"
       DELETION_LEDGER_TABLE         = var.deletion_ledger_table_name

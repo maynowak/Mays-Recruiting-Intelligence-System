@@ -1,6 +1,8 @@
 # Partner Consent V1 — API-Vertrag (Handoff für Mays-Jobsearch)
 
-**Status:** implementiert, lokal verifiziert, **nicht deployt**
+**Status:** implementiert, lokal verifiziert, **nicht deployt**;
+Notice `application-storage/1.0` `APPROVED` für den begrenzten Beta-Pilot; separater `cv-storage/1.0` ist `APPROVED` für den begrenzten CV-Beta-Pilot (`JM-CV-STORAGE-V1-BETA-2026-11-08`).
+(`JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`), kein allgemeiner Rollout
 **Gilt für:** `mays-jobsearch` und weitere Partner
 **Basis:** RIS-Partner-Gateway (`c7e9pdwe78`) bzw. Kernel-API, gleiche Lambda
 
@@ -89,7 +91,7 @@ GET /v1/partner/me/consents?purpose=application-storage
 { "items": [ { "purpose": "application-storage", "status": "GRANTED", "noticeVersion": "1.0", "grantedAt": "…", "withdrawnAt": null, "version": 1, "schemaVersion": 1 } ] }
 ```
 
-Ohne `purpose` werden alle bekannten Zwecke geliefert (aktuell nur `application-storage`).
+Ohne `purpose` werden alle bekannten Zwecke geliefert (`application-storage`, `cv-storage`).
 
 ---
 
@@ -126,25 +128,29 @@ Ereignisse: `GRANTED`, `WITHDRAWN`, `REGRANTED`. Append-only, neueste zuerst.
 
 | Purpose | Bekannte `noticeVersion` | Lifecycle-State | Rechtliche Freigabe |
 |---|---|---|---|
-| `application-storage` | `1.0` | `DRAFT` | keine (`legalApprovalRef = null`) |
+| `application-storage` | `1.0` | `APPROVED` | `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08` (limited beta pilot, 2026-11-08) |
+| `cv-storage` | `1.0` | `APPROVED` | `JM-CV-STORAGE-V1-BETA-2026-11-08` (limited beta pilot, 2026-11-08) |
 
-Eine frei erfundene Version wird mit `422 INVALID_NOTICE_VERSION` abgewiesen.
-Ein bekannter, aber nicht freigegebener Entwurf wird bei aktiver
-State-Enforcement mit `422 NOTICE_NOT_ACTIVE` abgewiesen.
+Die Freigabe gilt **nur** für den begrenzten ApplicationV1-Beta-Pilot, nicht für
+einen allgemeinen Rollout. Eine frei erfundene Version wird mit
+`422 INVALID_NOTICE_VERSION` abgewiesen. Ein bekannter, aber nicht freigegebener
+Entwurf wird bei aktiver State-Enforcement mit `422 NOTICE_NOT_ACTIVE`
+abgewiesen.
 
 Die Antwort von `GET /v1/partner/me/consents` enthält zusätzlich:
 
 ```json
 {
-  "items": [ { "...": "…", "noticeState": "DRAFT", "noticeApproved": false,
+  "items": [ { "...": "…", "noticeState": "APPROVED", "noticeApproved": true,
                "acceptedForNewGrant": true } ],
   "catalog": [ { "purpose": "application-storage", "noticeVersion": "1.0",
-                 "noticeState": "DRAFT", "noticeApproved": false,
-                 "acceptedForNewGrant": true, "legalApprovalRef": null,
+                 "noticeState": "APPROVED", "noticeApproved": true,
+                 "acceptedForNewGrant": true,
+                 "legalApprovalRef": "JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08",
                  "supersedes": null, "externalRefs": {} } ],
-  "externalRefs": [ { "externalRef": "2026-11-04-draft-1",
-                      "source": "mays-jobsearch", "noticeState": "DRAFT",
-                      "noticeVersion": null } ]
+  "externalRefs": [ { "externalRef": "application-storage-consent-2026-11-07-v4",
+                      "source": "mays-jobsearch", "noticeState": "APPROVED",
+                      "noticeVersion": "1.0" } ]
 }
 ```
 
@@ -179,19 +185,28 @@ Regeln:
 
 | Quelle | Kennung | State | Abbildung auf RIS |
 |---|---|---|---|
-| RIS | `application-storage` / `1.0` | `DRAFT` | — |
+| RIS | `application-storage` / `1.0` | `APPROVED` (`JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`) | — |
+| Jobsearch | `application-storage-consent-2026-11-07-v4` (SHA-256 `8722aed9…43c7`) | `APPROVED` (limited beta pilot) | **`1.0`** |
 | Jobsearch | `STORAGE_CONSENT_TEXT_VERSION = 2026-11-04-draft-1` | `DRAFT` | **keine** (nicht äquivalent) |
-| Jobsearch | `STORAGE_CONSENT_PRIVACY_NOTICE_VERSION = 2026-11-04-draft-1` | `DRAFT` | **keine** |
+| Jobsearch | Jobsearch v1/v2/v3 Texte | `DRAFT`, superseded | **keine** |
 
-`2026-11-04-draft-1` ist serverseitig bekannt, wird aber **nie** als
-`noticeVersion` akzeptiert. Eine Gleichsetzung mit `1.0` entsteht erst durch
-eine dokumentierte, rechtlich freigegebene Zuordnung; das bloße Umbenennen
-einer Kennung ist keine Freigabe.
+Der Betreiber hat die v4-Textfassung am 2026-11-08 für den begrenzten
+ApplicationV1-Beta-Pilot freigegeben (Referenz
+`JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`, Betreiberin May's Job Matcher).
+Diese Freigabe umfasst **keinen** allgemeinen Rollout. `2026-11-04-draft-1` und
+die historischen v1–v3-Texte bleiben bekannt, aber **nie** als `noticeVersion`
+akzeptiert; das bloße Umbenennen einer Kennung ist keine Freigabe.
 
-Die BFF-Anbindung sendet deshalb weiterhin `noticeVersion: "1.0"` (die
-RIS-Kennung), zeigt aber den Jobsearch-Text an und protokolliert die
-angezeigte Textkennung (`2026-11-04-draft-1`) im eigenen Audit-Trail. Das Paar
-(angezeigter Text, RIS-`noticeVersion`) muss nachvollziehbar bleiben.
+Die BFF-Anbindung sendet `noticeVersion: "1.0"` (die RIS-Kennung) und
+protokolliert zusätzlich die angezeigte Textkennung
+(`application-storage-consent-2026-11-07-v4`) samt SHA-256 im Consent-Proof.
+Das Paar (angezeigter Text, RIS-`noticeVersion`) bleibt nachvollziehbar.
+
+Art. 9: Nur v4 ist Art.-9-fähig. Ein `specialCategoriesConsent=true` verlangt
+Version `application-storage-consent-2026-11-07-v4` und den exakten Hash
+`8722aed9fa78e5ee49c2b5e5a031bfd53a7109bf625dfb0e0c99743fd82443c7`; sonst
+`422 EXTERNAL_TEXT_REQUIRED_FOR_SPECIAL_CATEGORIES` bzw.
+`422 EXTERNAL_TEXT_NOT_ART9`.
 
 ---
 
@@ -204,7 +219,11 @@ angezeigte Textkennung (`2026-11-04-draft-1`) im eigenen Audit-Trail. Das Paar
 5. Wirkungsbereich des gemeinsamen Lambda-Gates geprüft.
 6. `APPLICATION_CONSENT_ENFORCED=true` gesondert freigegeben.
 
-Bis dahin bleibt `APPLICATION_CONSENT_ENFORCED=false`.
+Gate 3 ist für den **begrenzten Beta-Pilot** durch
+`JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08` erfüllt. Gates 1, 4, 5 und 6
+bleiben deployment-/pilot-spezifisch und sind nicht durch diese Freigabe
+abgedeckt. `APPLICATION_CONSENT_ENFORCED` bleibt `false`, bis der Pilot separat
+freigegeben und deployed ist.
 
 
 ---

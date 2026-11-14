@@ -34,7 +34,7 @@ from jobsearch.consent_contract import (
     STATUS_GRANTED, STATUS_NOT_GRANTED, STATUS_WITHDRAWN,
     ConsentContext, ConsentContractError, notice_version as lookup_notice_version,
     status_payload,
-    validate_notice_version, validate_purpose,
+    validate_consent_proof, validate_notice_version, validate_purpose,
 )
 
 
@@ -48,6 +48,19 @@ def _now() -> str:
 
 def _entity(purpose: str) -> str:
     return "PURPOSE#" + purpose
+
+
+def _proof_matches(row: dict[str, Any], consent: bool, categories: list[str],
+                   external_version: str | None,
+                   external_sha256: str | None) -> bool:
+    """Whether a stored grant already carries exactly the requested proof."""
+    return (
+        (row.get("specialCategoriesConsent") is True) == consent
+        and [value for value in (row.get("specialCategories") or [])
+             if isinstance(value, str)] == categories
+        and (row.get("externalTextVersion") or None) == external_version
+        and (row.get("externalTextSha256") or None) == external_sha256
+    )
 
 
 class ConsentRepository:
@@ -79,6 +92,10 @@ class ConsentRepository:
             granted_at=row.get("grantedAt"),
             withdrawn_at=row.get("withdrawnAt"),
             version=int(row.get("version") or 0),
+            special_categories_consent=row.get("specialCategoriesConsent") is True,
+            special_categories=row.get("specialCategories") or [],
+            external_text_version=row.get("externalTextVersion"),
+            external_text_sha256=row.get("externalTextSha256"),
         )
 
     def has_consent(self, ctx: ConsentContext, purpose: str) -> bool:
@@ -109,14 +126,47 @@ class ConsentRepository:
             "status": x.get("status"),
             "noticeVersion": x.get("noticeVersion"),
             "occurredAt": x.get("occurredAt"),
+            "specialCategoriesConsent": x.get("specialCategoriesConsent") is True,
+            "specialCategories": [
+                value for value in (x.get("specialCategories") or [])
+                if isinstance(value, str)
+            ],
+            "externalTextVersion": x.get("externalTextVersion"),
+            "externalTextSha256": x.get("externalTextSha256"),
         } for x in result.get("Items", [])]
         return events, result.get("LastEvaluatedKey")
 
     # -- writes --------------------------------------------------------
     def grant(self, ctx: ConsentContext, purpose: str,
-              notice_version: str) -> dict[str, Any]:
+              notice_version: str,
+              enforce_notice_state: bool | None = None,
+              special_categories_consent: bool = False,
+              special_categories: object = None,
+              external_text_version: str | None = None,
+              external_text_sha256: str | None = None) -> dict[str, Any]:
+        """Record a grant with an optional Art. 9 / external-text proof.
+
+        ``enforce_notice_state`` is the caller's effective enforcement
+        decision (global flag OR a scoped pilot identity). ``None`` keeps the
+        previous behavior of reading ``CONSENT_NOTICE_STATE_ENFORCED`` from the
+        environment. It only affects a *new* or *regranted* consent; an
+        idempotent repeat of an existing grant is validated by identifier and
+        proof.
+
+        The proof fields are validated before any write. Repeating a grant with
+        the same proof is idempotent; a different external text or special
+        category scope for an already granted consent raises
+        ``RECONSENT_REQUIRED`` instead of silently reusing the old consent.
+        """
         ctx.validate()
         purpose = validate_purpose(purpose)
+        consent, categories, external_version, external_sha256 = (
+            validate_consent_proof(
+                purpose,
+                special_categories_consent=special_categories_consent,
+                special_categories=special_categories,
+                external_text_version=external_text_version,
+                external_text_sha256=external_text_sha256))
         # Identifier check only. State enforcement is applied once we know a
         # new grant is actually being written, so repeating an existing grant
         # stays idempotent even after its notice version became SUPERSEDED.
@@ -126,10 +176,20 @@ class ConsentRepository:
             row = self._current(ctx, purpose)
             if (row and row.get("status") == STATUS_GRANTED
                     and row.get("noticeVersion") == version):
+                if not _proof_matches(row, consent, categories,
+                                      external_version, external_sha256):
+                    raise ConsentContractError(
+                        "RECONSENT_REQUIRED",
+                        "a different consent text or category scope is already "
+                        "granted; withdraw before granting new proof")
                 return status_payload(
                     purpose, status=STATUS_GRANTED, notice_version=version,
                     granted_at=row.get("grantedAt"), withdrawn_at=None,
-                    version=int(row.get("version") or 0))
+                    version=int(row.get("version") or 0),
+                    special_categories_consent=consent,
+                    special_categories=categories,
+                    external_text_version=external_version,
+                    external_text_sha256=external_sha256)
 
             previous = (row or {}).get("status") or STATUS_NOT_GRANTED
             if previous == STATUS_GRANTED:
@@ -139,7 +199,8 @@ class ConsentRepository:
 
             # A brand-new or re-granted consent must not be recorded against a
             # draft/superseded text when state enforcement is enabled.
-            version = validate_notice_version(purpose, version)
+            version = validate_notice_version(
+                purpose, version, require_active=enforce_notice_state)
             # The structured-CV purpose is not approved. Even in the legacy
             # technical mode (state enforcement off), a DRAFT must not become
             # a real consent unless the separate local test switch is set.
@@ -167,6 +228,11 @@ class ConsentRepository:
                 "version": expected + 1,
                 "updatedAt": stamp,
                 "subject": ctx.user_id,
+                # Stored proof. Never inferred from the notice or the browser.
+                "specialCategoriesConsent": consent,
+                "specialCategories": list(categories),
+                "externalTextVersion": external_version,
+                "externalTextSha256": external_sha256,
             }
             condition = ("attribute_not_exists(scopeKey)" if not row
                          else "version = :expected")
@@ -181,14 +247,23 @@ class ConsentRepository:
                     }},
                     {"Put": {
                         "TableName": self.table_name,
-                        "Item": self._event_item(ctx, purpose, event, version, stamp),
+                        "Item": self._event_item(
+                            ctx, purpose, event, version, stamp,
+                            special_categories_consent=consent,
+                            special_categories=categories,
+                            external_text_version=external_version,
+                            external_text_sha256=external_sha256),
                         "ConditionExpression": "attribute_not_exists(entityKey)",
                     }},
                 ])
                 return status_payload(
                     purpose, status=STATUS_GRANTED, notice_version=version,
                     granted_at=stamp, withdrawn_at=None,
-                    version=expected + 1)
+                    version=expected + 1,
+                    special_categories_consent=consent,
+                    special_categories=categories,
+                    external_text_version=external_version,
+                    external_text_sha256=external_sha256)
             except Exception as exc:  # conditional conflict -> retry once
                 if "ConditionalCheckFailed" in str(exc):
                     continue
@@ -207,7 +282,12 @@ class ConsentRepository:
                 notice_version=(row or {}).get("noticeVersion"),
                 granted_at=(row or {}).get("grantedAt"),
                 withdrawn_at=(row or {}).get("withdrawnAt"),
-                version=int((row or {}).get("version") or 0))
+                version=int((row or {}).get("version") or 0),
+                special_categories_consent=(row or {}).get(
+                    "specialCategoriesConsent") is True,
+                special_categories=(row or {}).get("specialCategories") or [],
+                external_text_version=(row or {}).get("externalTextVersion"),
+                external_text_sha256=(row or {}).get("externalTextSha256"))
         if current != STATUS_GRANTED:
             raise ConsentContractError(
                 "NOT_GRANTED", "there is no active consent to withdraw")
@@ -223,6 +303,13 @@ class ConsentRepository:
         updated = dict(row or {})
         updated.update(status=STATUS_WITHDRAWN, withdrawnAt=stamp,
                        version=expected + 1, updatedAt=stamp)
+        proof = {
+            "special_categories_consent":
+                (row or {}).get("specialCategoriesConsent") is True,
+            "special_categories": (row or {}).get("specialCategories") or [],
+            "external_text_version": (row or {}).get("externalTextVersion"),
+            "external_text_sha256": (row or {}).get("externalTextSha256"),
+        }
         try:
             self._transact([
                 {"Put": {
@@ -234,7 +321,7 @@ class ConsentRepository:
                 {"Put": {
                     "TableName": self.table_name,
                     "Item": self._event_item(ctx, purpose, EVENT_WITHDRAWN,
-                                             version, stamp),
+                                             version, stamp, **proof),
                     "ConditionExpression": "attribute_not_exists(entityKey)",
                 }},
             ])
@@ -245,11 +332,19 @@ class ConsentRepository:
         return status_payload(
             purpose, status=STATUS_WITHDRAWN, notice_version=version,
             granted_at=(row or {}).get("grantedAt"), withdrawn_at=stamp,
-            version=expected + 1)
+            version=expected + 1,
+            special_categories_consent=proof["special_categories_consent"],
+            special_categories=proof["special_categories"],
+            external_text_version=proof["external_text_version"],
+            external_text_sha256=proof["external_text_sha256"])
 
     # -- helpers -------------------------------------------------------
     def _event_item(self, ctx: ConsentContext, purpose: str, event: str,
-                    notice_version: str, stamp: str) -> dict[str, Any]:
+                    notice_version: str, stamp: str, *,
+                    special_categories_consent: bool = False,
+                    special_categories: object = None,
+                    external_text_version: str | None = None,
+                    external_text_sha256: str | None = None) -> dict[str, Any]:
         event_id = str(uuid.uuid4())
         return {
             "scopeKey": ctx.scope_key,
@@ -263,6 +358,15 @@ class ConsentRepository:
             "occurredAt": stamp,
             "subject": ctx.user_id,
             "identityRef": ctx.scope_key,
+            # Proof is copied onto every event so the append-only history can
+            # reconstruct exactly which text/categories were consented to.
+            "specialCategoriesConsent": special_categories_consent is True,
+            "specialCategories": [
+                value for value in (special_categories or [])
+                if isinstance(value, str)
+            ],
+            "externalTextVersion": external_text_version,
+            "externalTextSha256": external_text_sha256,
         }
 
     def _transact(self, items: list[dict[str, Any]]) -> None:

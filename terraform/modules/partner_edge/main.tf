@@ -46,6 +46,7 @@ locals {
     "DELETE /v1/partner/me/applications/{applicationId}",
     "GET /v1/partner/me/privacy/inspect",
     "GET /v1/partner/me/privacy/export",
+    "POST /v1/partner/me/erasure",
   ])
 }
 

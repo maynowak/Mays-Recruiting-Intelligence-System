@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from installer.bootstrap_preflight import EXPECTED, validate_bootstrap_config
@@ -18,7 +19,7 @@ def test_plan_contract_uses_external_identity_and_explicit_orders_modes():
     assert 'variable "orders_lifecycle"' in variables
     assert 'count  = local.identity_managed ? 1 : 0' in main
     assert 'count  = local.orders_enabled ? 1 : 0' in main
-    assert 'count              = local.orders_managed ? 1 : 0' in main
+    assert re.search(r'count\s+=\s+local\.orders_managed \? 1 : 0', main)
 
 
 def test_external_plan_has_no_protected_resource_declarations_in_root():

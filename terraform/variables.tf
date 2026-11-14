@@ -143,6 +143,17 @@ variable "external_cognito_domain" {
   default     = ""
 }
 
+variable "mays_orders_lambda_execution_boundary" {
+  description = "Optional IAM permissions boundary ARN for the existing Mays-Orders SQS worker role. Null preserves module default; set explicitly to retain an existing deployed boundary."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.mays_orders_lambda_execution_boundary == null || can(regex("^arn:aws:iam::[0-9]{12}:policy/", var.mays_orders_lambda_execution_boundary))
+    error_message = "mays_orders_lambda_execution_boundary must be null or a valid IAM policy ARN."
+  }
+}
+
 variable "orders_lifecycle" {
   description = "Orders lifecycle: managed, external, or disabled."
   type        = string
@@ -346,6 +357,30 @@ variable "application_consent_enforced" {
   description = "Enforce application-storage consent on ApplicationV1 writes (Default AUS fuer den Rollout)."
   type        = bool
   default     = false
+}
+
+variable "cv_storage_consent_enforced" {
+  description = "Enforce cv-storage consent on durable CV create/upload/update writes. Reads, downloads and deletion stay available. Default false until explicitly enabled for the CV pilot."
+  type        = bool
+  default     = false
+}
+
+variable "search_profile_storage_consent_enforced" {
+  description = "Enforce search-profile-storage consent on manual, CV-search and ATS-profile create/update writes. Reads and deletion stay available. Default false while the notice is DRAFT."
+  type        = bool
+  default     = false
+}
+
+variable "consent_notice_state_enforced" {
+  description = "Reject new consent grants for non-grantable notice states (DRAFT/SUPERSEDED) in the Lambda runtime (Default AUS; separate activation gate)."
+  type        = bool
+  default     = false
+}
+
+variable "consent_pilot_allowlist" {
+  description = "Comma/newline separated <issuer>|<sub> synthetic pilot identities. Empty means no scoped pilot identity. Non-secret configuration, never a credential."
+  type        = string
+  default     = ""
 }
 
 variable "partner_surface_enabled" {

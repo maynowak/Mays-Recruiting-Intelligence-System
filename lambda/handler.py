@@ -565,12 +565,12 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _partner_execute_agent(event, _machine_agent_id(path.replace('/v1/partner/agents/', '/v1/m2m/agents/')))
     elif path == '/v1/partner/me/manual-search-profiles':
         # R03: partner manual search profile CRUD (human JWT + RIS credential).
-        return _partner_storage_guard(
+        return _search_profile_storage_guard(
             _handle_manual_profile_collection, event, context, method)
     elif path.startswith('/v1/partner/me/manual-search-profiles/'):
         params = event.get('pathParameters') or {}
         profile_id = params.get('profileId') or path[len('/v1/partner/me/manual-search-profiles/'):].split('?')[0]
-        return _partner_storage_guard(
+        return _search_profile_storage_guard(
             _handle_manual_profile_item, event, context, method, profile_id)
     elif path == '/v1/partner/me/cvs' or path.startswith('/v1/partner/me/cvs/'):
         # R04: partner CV metadata + secure document lifecycle.
@@ -578,8 +578,16 @@ def _handle_api_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             _handle_partner_cv_routes, event, context, method, path)
     elif path.startswith('/v1/partner/me/search-profiles/'):
         # R06: partner ATS search profiles (ATSSearchProfileV1 CRUD).
-        return _partner_storage_guard(
+        return _search_profile_storage_guard(
             _handle_partner_ats_routes, event, context, method, path)
+    elif method == 'POST' and path == '/v1/partner/me/erasure':
+        # Partner-edge account erasure: the existing JWT authorizer is
+        # combined with the existing partner credential/profile boundary.
+        # Reuse the kernel lifecycle; no second deletion engine.
+        _partner_ctx, error = _partner_profile_context(event)
+        if error:
+            return error
+        return _handle_me_erasure(event, context)
     elif path == '/v1/partner/me/consents' or path.startswith('/v1/partner/me/consents/'):
         return _handle_consent_routes(event, context, method, path)
     elif path == '/v1/partner/me/cv-builder-profiles' or path.startswith('/v1/partner/me/cv-builder-profiles/'):
@@ -636,6 +644,59 @@ def _consent_enforced() -> bool:
     return os.environ.get("APPLICATION_CONSENT_ENFORCED", "false").strip().lower() == "true"
 
 
+def _consent_pilot_identities() -> frozenset[tuple[str, str]]:
+    """Synthetic pilot identities from ``CONSENT_PILOT_ALLOWLIST``.
+
+    Format: comma- or newline-separated ``<issuer>|<sub>``. The value is
+    non-secret configuration (no credential), empty/unset means "no pilot
+    identities". Malformed entries are ignored, so a broken value can only
+    disable the pilot scope, never widen it.
+    """
+    raw = os.environ.get("CONSENT_PILOT_ALLOWLIST", "")
+    identities: set[tuple[str, str]] = set()
+    for entry in raw.replace(",", "\n").splitlines():
+        entry = entry.strip()
+        if not entry or "|" not in entry:
+            continue
+        issuer, _, subject = entry.partition("|")
+        issuer = issuer.strip().rstrip("/")
+        subject = subject.strip()
+        if issuer and subject:
+            identities.add((issuer, subject))
+    return frozenset(identities)
+
+
+def _is_consent_pilot_identity(issuer: object, sub: object) -> bool:
+    """Exact normalized issuer + sub match against the pilot allowlist."""
+    if not isinstance(issuer, str) or not isinstance(sub, str):
+        return False
+    normalized = (issuer.strip().rstrip("/"), sub.strip())
+    return normalized in _consent_pilot_identities()
+
+
+def _consent_enforced_for(ctx: Any) -> bool:
+    """Effective ApplicationV1 write gate for one identity.
+
+    Global ``APPLICATION_CONSENT_ENFORCED=true`` keeps its meaning; a listed
+    pilot identity is additionally gated without changing the global rollout
+    for the shared partner edge.
+    """
+    return _consent_enforced() or _is_consent_pilot_identity(
+        getattr(ctx, "issuer", None), getattr(ctx, "user_id", None))
+
+
+def _consent_notice_state_enforced_for(ctx: Any) -> bool:
+    """Effective notice-lifecycle enforcement for one identity.
+
+    Mirrors ``_consent_enforced_for``: global flag OR pilot identity. The
+    global default stays ``false``; pilot new/regranted grants must still
+    reject DRAFT/SUPERSEDED notices.
+    """
+    from jobsearch.consent_contract import notice_state_enforced
+    return notice_state_enforced() or _is_consent_pilot_identity(
+        getattr(ctx, "issuer", None), getattr(ctx, "user_id", None))
+
+
 def _consent_ctx(event):
     from jobsearch.consent_contract import ConsentContext
     ctx, error = _partner_profile_context(event)
@@ -674,7 +735,14 @@ def _handle_consent_routes(event, context, method, path):
                                  for entry in external_refs_payload(p)],
             })
         if path == '/v1/partner/me/consents' and method == 'POST':
-            result = repo.grant(ctx, body.get('purpose'), body.get('noticeVersion'))
+            result = repo.grant(
+                ctx, body.get('purpose'), body.get('noticeVersion'),
+                enforce_notice_state=_consent_notice_state_enforced_for(ctx),
+                special_categories_consent=body.get(
+                    'specialCategoriesConsent', False),
+                special_categories=body.get('specialCategories'),
+                external_text_version=body.get('externalTextVersion'),
+                external_text_sha256=body.get('externalTextSha256'))
             return _application_response(200, {'consent': result})
         if path == '/v1/partner/me/consents/withdraw' and method == 'POST':
             result = repo.withdraw(ctx, body.get('purpose'), body.get('noticeVersion'))
@@ -688,7 +756,12 @@ def _handle_consent_routes(event, context, method, path):
                 'nextCursor': next_key is not None})
         return _application_response(405, 'Method not allowed', 'METHOD_NOT_ALLOWED')
     except ConsentContractError as exc:
-        status = 404 if exc.code == 'UNKNOWN_PURPOSE' else 422
+        if exc.code == 'UNKNOWN_PURPOSE':
+            status = 404
+        elif exc.code == 'RECONSENT_REQUIRED':
+            status = 409
+        else:
+            status = 422
         return _application_response(status, str(exc), exc.code)
     except ConsentConflict as exc:
         return _application_response(409, 'Consent conflict', 'CONFLICT')
@@ -698,8 +771,13 @@ def _handle_consent_routes(event, context, method, path):
 
 
 def _application_consent_error(ctx):
-    """Return an error response when storage consent is enforced and absent."""
-    if not _consent_enforced():
+    """Return an error response when storage consent is enforced and absent.
+
+    The effective gate is global ``APPLICATION_CONSENT_ENFORCED=true`` OR a
+    listed ``CONSENT_PILOT_ALLOWLIST`` identity. Non-pilot identities keep the
+    previous global-only behavior, so the shared partner edge is unchanged.
+    """
+    if not _consent_enforced_for(ctx):
         return None
     from jobsearch.consent_contract import ConsentContext
     consent_ctx = ConsentContext(
@@ -1417,10 +1495,23 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'Unauthenticated'})
         }
 
+    # Resolve the tenant server-side from the verified client/registry when the
+    # token does not carry a tenant claim. This is the same boundary used by
+    # the partner profile routes and is required for standard users' erasure.
+    resolved_tenant, tenant_conflict = _resolve_tenant(user_context)
+    if tenant_conflict:
+        return {
+            'statusCode': 403,
+            'body': json.dumps({'error': 'Erasure authorization context invalid'})
+        }
+    if resolved_tenant:
+        user_context['tenantId'] = resolved_tenant
+
     try:
         from agents.ecosystem.privacy_erasure import (
             PrivacyErasure, ErasureExecutionUnavailable)
         from agents.ecosystem.privacy_application_erasure import ApplicationErasureExecutor
+        from agents.ecosystem.privacy_profile_erasure import AccountSearchProfileErasure
         from agents.ecosystem.partner_registry import resolve_partner_application
         from jobsearch.application_contract import ApplicationContext
         from jobsearch.application_repository import ApplicationRepository
@@ -1439,6 +1530,7 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         ("WORK_ITEMS_TABLE", "WORK_ITEMS_TABLE"),
         ("USER_PROFILE_TABLE", "USER_PROFILE_TABLE"),
         ("APPLICATIONS_TABLE", "APPLICATIONS_TABLE"),
+        ("PARTNER_PROFILE_TABLE", "PARTNER_PROFILE_TABLE"),
     ) if not os.environ.get(env)]
     if missing:
         logger.warning("erasure stores unconfigured: %s", ",".join(missing))
@@ -1478,7 +1570,7 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         """Delete every document object the platform holds for this user."""
         try:
             import documents
-            return documents.delete_all_for_user(user_id)
+            return documents.delete_all_for_user_report(user_id=user_id)
         except Exception as exc:
             logger.warning("document purge unavailable for %s: %s",
                            user_id, exc)
@@ -1487,19 +1579,29 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     dynamodb = _get_dynamodb()
     partner_application_id = user_context.get('partnerApplicationId')
     issuer = user_context.get('issuer')
+    tenant_id = user_context.get('tenantId')
+    # Standard Cognito users may not carry a partner-application claim. The
+    # verified client-id registry is the server-side source of truth; resolve
+    # it before deciding whether partner search profiles exist. Never trust a
+    # client-supplied application id.
+    client_ref = user_context.get('clientId') or user_context.get('audience')
+    if not partner_application_id and client_ref and tenant_id:
+        registry = resolve_partner_application(client_ref)
+        if (registry and registry.get('status') == 'ACTIVE'
+                and registry.get('tenantId') == tenant_id):
+            partner_application_id = registry.get('applicationId')
     application_context = None
-    if partner_application_id and issuer and user_context.get('tenantId'):
-        registry = resolve_partner_application(
-            user_context.get('clientId'))
+    if partner_application_id and issuer and tenant_id:
+        registry = resolve_partner_application(client_ref)
         if (not registry or registry.get('status') != 'ACTIVE'
                 or registry.get('applicationId') != partner_application_id
-                or registry.get('tenantId') != user_context.get('tenantId')):
+                or registry.get('tenantId') != tenant_id):
             return {
                 'statusCode': 403,
                 'body': json.dumps({'error': 'Erasure authorization context invalid'})
             }
         application_context = ApplicationContext(
-            user_context['userId'], user_context['tenantId'],
+            user_context['userId'], tenant_id,
             partner_application_id, issuer)
     application_repository = ApplicationRepository(
         table_name=os.environ.get("APPLICATIONS_TABLE"), dynamodb=dynamodb)
@@ -1513,6 +1615,10 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         structured_cv_eraser = (
             lambda user_id, tenant_id: structured_cv_repository.erase_for_user(
                 user_id, tenant_id))
+    partner_profile_erasure = None
+    if partner_application_id and issuer and tenant_id:
+        partner_profile_erasure = AccountSearchProfileErasure(
+            _manual_profile_repo())
     erasure = PrivacyErasure(
         credential_store=DynamoDBCredentialStore(
             table_name=os.environ.get("CREDENTIALS_TABLE")),
@@ -1533,11 +1639,15 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         application_erasure=ApplicationErasureExecutor(application_repository),
         application_context=application_context,
         structured_cv_eraser=structured_cv_eraser,
+        partner_profile_erasure=partner_profile_erasure,
     )
 
     try:
-        result = erasure.erase(user_context['userId'],
-                               tenant_id=user_context.get('tenantId'))
+        result = erasure.erase(
+            user_context['userId'],
+            tenant_id=user_context.get('tenantId'),
+            partner_application_id=partner_application_id,
+            issuer=issuer)
     except ErasureExecutionUnavailable:
         return {
             'statusCode': 503,
@@ -5393,13 +5503,120 @@ def _cv_get_owned(ctx, cv_id):
     return repo, (cv if isinstance(cv, CVDocument) else None)
 
 
+def _search_profile_storage_consent_enforced() -> bool:
+    """Rollout switch for durable search-profile writes.
+
+    Default is off while the technical candidate is prepared. When enabled,
+    manual, CV-search and ATS-profile create/update operations require a
+    GRANTED ``search-profile-storage`` consent. List/get/delete remain
+    available.
+    """
+    return os.environ.get(
+        "SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED", "false").strip().lower() == "true"
+
+
+def _search_profile_storage_consent_error(ctx):
+    if _consent_pilot_identities() and not _is_consent_pilot_identity(
+            ctx.get('issuer'), ctx.get('userId')):
+        return _cv_error(
+            403, 'Search-profile storage is restricted to the pilot identity',
+            code='SEARCH_PROFILE_STORAGE_PILOT_NOT_ALLOWED')
+    if not _search_profile_storage_consent_enforced():
+        return None
+    from jobsearch.consent_contract import ConsentContext
+    consent_ctx = ConsentContext(
+        user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+        partner_application_id=ctx.get('partnerApplicationId'),
+        issuer=ctx.get('issuer'))
+    try:
+        allowed = _consent_repo().has_consent(
+            consent_ctx, 'search-profile-storage')
+    except Exception:
+        logger.exception('search-profile storage consent check failed')
+        allowed = False
+    if allowed:
+        return None
+    return _cv_error(
+        403, 'Search-profile storage consent required',
+        code='SEARCH_PROFILE_STORAGE_CONSENT_REQUIRED')
+
+
+def _search_profile_storage_guard(call, event, *args):
+    """Apply the search-profile consent gate to mutating routes only."""
+    http_ctx = ((event.get('requestContext') or {}).get('http') or {})
+    route_key = str(event.get('routeKey') or '')
+    route_method = route_key.split(' ', 1)[0] if ' ' in route_key else ''
+    method = str(
+        event.get('httpMethod') or http_ctx.get('method') or route_method or ''
+    ).upper()
+    if method in {'POST', 'PUT', 'PATCH'}:
+        ctx, error = _partner_profile_context(event)
+        if error:
+            return error
+        denied = _search_profile_storage_consent_error(ctx)
+        if denied:
+            return denied
+    return _partner_storage_guard(call, event, *args)
+
+
+def _cv_storage_consent_enforced() -> bool:
+    """Rollout switch for the separate durable-CV storage consent gate.
+
+    Default is off for local/synthetic work. When enabled, new CV writes
+    (create, upload, complete, update) fail closed without a GRANTED
+    ``cv-storage`` consent. Reads, downloads and deletion stay available so a
+    withdrawal never traps the user's existing data.
+    """
+    return os.environ.get(
+        "CV_STORAGE_CONSENT_ENFORCED", "false").strip().lower() == "true"
+
+
+def _cv_storage_consent_error(ctx):
+    # The pilot is scoped to the existing confirmed operator identity set.
+    # An empty allowlist keeps local/development behavior unchanged; a
+    # configured allowlist is an additional server-side access boundary.
+    if _consent_pilot_identities() and not _is_consent_pilot_identity(
+            ctx.get('issuer'), ctx.get('userId')):
+        return _cv_error(
+            403, 'CV storage is restricted to the pilot identity',
+            code='CV_STORAGE_PILOT_NOT_ALLOWED')
+    if not _cv_storage_consent_enforced():
+        return None
+    from jobsearch.consent_contract import ConsentContext
+    consent_ctx = ConsentContext(
+        user_id=ctx['userId'], tenant_id=ctx['tenantId'],
+        partner_application_id=ctx.get('partnerApplicationId'),
+        issuer=ctx.get('issuer'))
+    try:
+        allowed = _consent_repo().has_consent(consent_ctx, 'cv-storage')
+    except Exception:
+        logger.exception('cv storage consent check failed')
+        allowed = False
+    if allowed:
+        return None
+    return _cv_error(
+        403, 'CV storage consent required', code='CV_STORAGE_CONSENT_REQUIRED')
+
+
 def _handle_partner_cv_routes(event, context, method, path):
     ctx, error = _partner_profile_context(event)
     if error:
         return error
     rest = path[len(_CV_COLLECTION):].strip('/')
     parts = [p for p in rest.split('/') if p]
+    # Search-profile writes are a separate profile domain. The CV document
+    # lifecycle (create/upload/complete/update) is gated by cv-storage; delete,
+    # list and download remain available after withdrawal.
+    if method in {'POST', 'PATCH'} and not (
+            len(parts) >= 2 and parts[1] == 'search-profiles'):
+        denied = _cv_storage_consent_error(ctx)
+        if denied:
+            return denied
     if len(parts) >= 2 and parts[1] == 'search-profiles':
+        if method in {'POST', 'PUT', 'PATCH'}:
+            denied = _search_profile_storage_consent_error(ctx)
+            if denied:
+                return denied
         cv_id = parts[0]
         if len(parts) == 2:
             return _cv_search_profile_collection(event, ctx, method, cv_id)
@@ -5656,8 +5873,10 @@ def _cv_delete(ctx, cv_id):
                          cvId=cv_id, s3Touched=False)
     except PartnerProfileNotFoundError:
         return _cv_error(404, 'Not found')
-    except Exception:
-        logger.error('cv delete reservation failed')
+    except Exception as exc:
+        # Diagnostic only: exception class and message, never CV/document contents.
+        logger.error('cv delete reservation failed: %s: %s',
+                     type(exc).__name__, str(exc)[:300])
         return _cv_error(500, 'Internal error')
 
     # Phase B: delete the current S3 object version only after the child guard
@@ -5725,8 +5944,11 @@ def _cv_upload_ticket(event, ctx, cv_id):
 
     data = _cv_body(event) or {}
     content_type = data.get('contentType') or existing.content_type
-    if content_type not in ALLOWED_CONTENT_TYPES:
-        return _cv_error(422, 'contentType is required and must be allowed')
+    # The approved CV consent covers PDF only. Do not widen the document
+    # allowlist to CV uploads even though the generic document endpoint allows
+    # other content types.
+    if content_type != 'application/pdf':
+        return _cv_error(422, 'contentType must be application/pdf')
 
     document_id = existing.document_id or new_doc_id()
     now = datetime.now(timezone.utc).isoformat()

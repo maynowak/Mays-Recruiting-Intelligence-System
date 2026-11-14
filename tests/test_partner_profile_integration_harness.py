@@ -20,6 +20,7 @@ import sys
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -264,6 +265,41 @@ class TestApiRoutes(unittest.TestCase):
         self.assertNotIn("{proxy+}", src)
         self.assertNotIn("ANY /v1/partner", src)
 
+
+    def test_partner_erasure_route_is_explicit_and_reuses_lifecycle(self):
+        edge = _read("terraform", "modules", "partner_edge", "main.tf")
+        self.assertIn('"POST /v1/partner/me/erasure"', edge)
+        handler = _read("lambda", "handler.py")
+        self.assertIn("path == '/v1/partner/me/erasure'", handler)
+        self.assertIn("_partner_profile_context(event)", handler)
+        self.assertIn("_handle_me_erasure(event, context)", handler)
+
+    def test_partner_erasure_route_requires_partner_boundary(self):
+        from unittest.mock import patch
+        denied = {"statusCode": 403, "body": json.dumps({"error": "Forbidden"})}
+        with patch.object(h, "_partner_profile_context",
+                          return_value=(None, denied)), \
+                patch.object(h, "_handle_me_erasure") as lifecycle:
+            response = h._handle_api_event({
+                "httpMethod": "POST", "path": "/v1/partner/me/erasure",
+                "requestContext": {}, "headers": {},
+            }, None)
+        self.assertEqual(403, response["statusCode"])
+        lifecycle.assert_not_called()
+
+    def test_partner_erasure_route_dispatches_to_existing_lifecycle(self):
+        from unittest.mock import patch
+        with patch.object(h, "_partner_profile_context",
+                          return_value=({"userId": "u1"}, None)), \
+                patch.object(h, "_handle_me_erasure",
+                             return_value={"statusCode": 207}) as lifecycle:
+            response = h._handle_api_event({
+                "httpMethod": "POST", "path": "/v1/partner/me/erasure",
+                "requestContext": {}, "headers": {},
+            }, None)
+        self.assertEqual(207, response["statusCode"])
+        lifecycle.assert_called_once()
+
     def test_handler_uses_single_route_dispatcher(self):
         src = _read("lambda", "handler.py")
         self.assertIn("_ATS_PARENT_PREFIX = '/v1/partner/me/search-profiles/'",
@@ -271,7 +307,7 @@ class TestApiRoutes(unittest.TestCase):
         # Exactly one dispatcher: its definition plus the single guarded call.
         self.assertEqual(2, src.count("_handle_partner_ats_routes"))
         self.assertEqual(1, src.count(
-            "_partner_storage_guard(\n            _handle_partner_ats_routes"))
+            "_search_profile_storage_guard(\n            _handle_partner_ats_routes"))
 
 
 class TestRepositoryStatic(unittest.TestCase):

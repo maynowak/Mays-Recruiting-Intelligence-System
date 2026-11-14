@@ -255,6 +255,14 @@ class TestCvCrud(CvHarness):
         self.assertEqual(resp["statusCode"], 409)
         self.assertEqual(self.body(resp)["code"], "conflict")
 
+    def test_upload_ticket_rejects_non_pdf_for_cv(self):
+        created = self.body(self.create_cv())
+        resp = self.call(
+            "POST", f"{CVS}/{created['cvId']}/document/upload",
+            body={"contentType": "text/plain"})
+        self.assertEqual(resp["statusCode"], 422)
+        self.assertIn("application/pdf", self.body(resp)["error"])
+
     def test_patch_accepts_if_match_version(self):
         created = self.body(self.create_cv())
         response = self.call(

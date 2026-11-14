@@ -503,6 +503,11 @@ PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
     "jobsearch_cognito_issuer",
     "jobsearch_cognito_client_id",
     "jobsearch_edge_cors_origins",
+    "cv_storage_consent_enforced",
+    "search_profile_storage_consent_enforced",
+    "consent_notice_state_enforced",
+    "consent_pilot_allowlist",
+    "mays_orders_lambda_execution_boundary",
 })
 
 

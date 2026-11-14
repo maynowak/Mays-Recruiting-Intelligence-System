@@ -30,7 +30,8 @@ def _event():
 
 def test_public_erasure_constructs_application_executor(monkeypatch):
     for name in ("CREDENTIALS_TABLE", "API_PROFILES_TABLE", "WORK_ITEMS_TABLE",
-                 "USER_PROFILE_TABLE", "APPLICATIONS_TABLE"):
+                 "USER_PROFILE_TABLE", "APPLICATIONS_TABLE",
+                 "PARTNER_PROFILE_TABLE"):
         monkeypatch.setenv(name, name.lower())
     monkeypatch.setattr(handler, "_get_dynamodb", lambda: _Ddb())
     captured = {}
@@ -51,7 +52,7 @@ def test_public_erasure_constructs_application_executor(monkeypatch):
         def __init__(self, **kwargs):
             captured.update(kwargs)
 
-        def erase(self, user_id, tenant_id=None):
+        def erase(self, user_id, tenant_id=None, **kwargs):
             return SimpleNamespace(complete=True, to_dict=lambda: {
                 "userId": user_id, "tenantId": tenant_id, "complete": True,
                 "steps": []})
@@ -123,3 +124,63 @@ def test_application_phase_failure_is_not_reported_complete():
     assert not result.complete
     assert next(step for step in result.steps
                 if step.step == "erase-applications").ok is False
+
+def test_erasure_resolves_partner_from_client_id_without_custom_claim(monkeypatch):
+    """Standard Cognito users have client_id but may lack partner claim."""
+    for name in ("CREDENTIALS_TABLE", "API_PROFILES_TABLE", "WORK_ITEMS_TABLE",
+                 "USER_PROFILE_TABLE", "APPLICATIONS_TABLE",
+                 "PARTNER_PROFILE_TABLE"):
+        monkeypatch.setenv(name, name.lower())
+    event = _event()
+    claims = event["requestContext"]["authorizer"]["jwt"]["claims"]
+    claims.pop("custom:tenant_id", None)
+    claims.pop("custom:partner_application_id", None)
+    monkeypatch.setattr(handler, "_get_dynamodb", lambda: _Ddb())
+    monkeypatch.setattr(handler, "_resolve_tenant", lambda ctx: ("tenant-1", False))
+    monkeypatch.setattr(handler, "_manual_profile_repo", lambda: object())
+    captured = {}
+
+    class Store:
+        def __init__(self, **kwargs):
+            pass
+
+    class Erasure:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+        def erase(self, user_id, tenant_id=None, **kwargs):
+            captured["erase_args"] = (user_id, tenant_id, kwargs)
+            return SimpleNamespace(complete=True, to_dict=lambda: {
+                "userId": user_id, "tenantId": tenant_id, "complete": True,
+                "steps": []})
+
+    class ProfileErasure:
+        def __init__(self, repo):
+            captured["profile_repo"] = repo
+        def erase(self, **kwargs):
+            return SimpleNamespace(ok=True, deleted=0, error=None)
+
+    import agents.ecosystem.privacy_erasure as legacy
+    import agents.ecosystem.privacy_profile_erasure as profile_erasure
+    import agents.ecosystem.credentials as credentials
+    import agents.ecosystem.api_profiles as profiles
+    import agents.ecosystem.privacy_application_erasure as app_erasure
+    import agents.ecosystem.partner_registry as partner_registry
+    import jobsearch.application_repository as app_repo
+    monkeypatch.setattr(legacy, "PrivacyErasure", Erasure)
+    monkeypatch.setattr(profile_erasure, "AccountSearchProfileErasure", ProfileErasure)
+    monkeypatch.setattr(credentials, "DynamoDBCredentialStore", Store)
+    monkeypatch.setattr(profiles, "DynamoDBApiProfileStore", Store)
+    monkeypatch.setattr(app_erasure, "ApplicationErasureExecutor", lambda repo: object())
+    monkeypatch.setattr(app_repo, "ApplicationRepository", lambda **kwargs: object())
+    monkeypatch.setattr(partner_registry, "resolve_partner_application",
+                        lambda client_id: {"applicationId": "mays-jobsearch",
+                                           "tenantId": "tenant-1",
+                                           "status": "ACTIVE"})
+
+    response = handler.handler(event, None)
+    assert response["statusCode"] == 200
+    assert captured["profile_repo"] is not None
+    assert captured["erase_args"] == (
+        "user-1", "tenant-1",
+        {"partner_application_id": "mays-jobsearch", "issuer": "https://issuer.example"})
+

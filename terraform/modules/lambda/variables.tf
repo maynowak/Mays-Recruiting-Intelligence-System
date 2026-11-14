@@ -128,6 +128,30 @@ variable "application_consent_enforced" {
   default     = false
 }
 
+variable "cv_storage_consent_enforced" {
+  description = "Enforce cv-storage consent on durable CV create/upload/update writes. Default false until the CV storage notice is approved and explicitly enabled."
+  type        = bool
+  default     = false
+}
+
+variable "search_profile_storage_consent_enforced" {
+  description = "Enforce search-profile-storage consent on manual, CV-search and ATS-profile create/update writes. Default false while the notice is DRAFT."
+  type        = bool
+  default     = false
+}
+
+variable "consent_notice_state_enforced" {
+  description = "Enforce the consent notice lifecycle state for new grants (DRAFT/SUPERSEDED rejected). Default false; enable only after the notice is legally approved."
+  type        = bool
+  default     = false
+}
+
+variable "consent_pilot_allowlist" {
+  description = "Comma/newline separated <issuer>|<sub> synthetic pilot identities. Empty means no scoped pilot identity. Non-secret configuration, never a credential."
+  type        = string
+  default     = ""
+}
+
 variable "partner_surface_enabled" {
   description = "Aktiviert die Partner-/Personen-Oberflaeche (/v1/partner/me/*). Default AUS; Aktivierung ist eine Betreiberentscheidung, keine Deployment-Nebenwirkung."
   type        = bool
