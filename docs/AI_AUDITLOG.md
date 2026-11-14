@@ -10080,3 +10080,14 @@ Date: 2026-11-14
 - Flags/artifacts: both flags default false; module counts 8 (RIS) + 11 (Orders, one KMS policy at count 0) = 18 active creates when enabled, 0 otherwise. RIS bundle 301632 B sha256 6d77ed97... with dispatch_ingress.py; Orders bundle 29531 B sha256 010feb64... with 13 modules including result_consumer.py. L04 packaging regression re-checked.
 - No plan, no apply, no destroy, no secret access, no state mutation.
 Report: docs/reports/MO-RIS-AWS-PLAN-REVIEW-01-R1.md
+
+
+[MO-RIS-AWS-PLAN-REVIEW-02 / R2 ATTEMPT]
+Status: R2 BLOCKED - AWS_PROFILE_NOT_FOUND.
+Date: 2026-11-14
+- Ran aws sts get-caller-identity --profile devmemo: the CLI reports "The config profile (devmemo) could not be found".
+- Local evidence: aws configure list-profiles shows only "default"; ~/.aws/config (49 B) and ~/.aws/credentials each contain only [default]; AWS_CONFIG_FILE and AWS_SHARED_CREDENTIALS_FILE are unset; ~/.aws/cli holds only session.db.
+- Diagnostic only, not a substitution: the default profile currently resolves to account 262370457690 (arn:aws:iam::262370457690:user/devnemo). Even if default were used, the account gate for 240571105849 would fail.
+- Per the order, no substitute profile was used. No plan, no apply, no destroy, no secret access, no state read.
+- To continue: the exact profile name as listed by the CLI, creation of the profile in this shell, or an explicit decision to target the default account instead (which would invalidate the 240571105849 file evidence).
+Report: docs/reports/MO-RIS-AWS-PLAN-REVIEW-02-R2-BLOCKED.md
