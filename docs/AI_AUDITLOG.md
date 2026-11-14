@@ -10114,3 +10114,15 @@ Date: 2026-11-14
 - Orders side blocked: head-bucket on mays-orders-tfstate-central-240571105849 returns 403 and no orders tables/buckets exist in 262370457690, so only 8 of the expected 18 resources are verified.
 - No apply, no destroy, no deployment, no secret read. Two decisions needed: whether the full ris-dev2 rebuild is intended, and the cross-account role ARNs for the queue policies.
 Report: docs/reports/MO-RIS-AWS-PLAN-REVIEW-02-R2-RESULTS.md
+
+
+[MO-RIS-RISDEV2-STATE-FORENSIC-01 / STATE RECONCILIATION]
+Status: STATE RECONCILED (read-only) - no unexplained drift.
+Date: 2026-11-14
+- Historical evidence: ris-dev2 was deployed in account 262370457690 (profile default/devnemo, eu-central-1), workspace ris-dev2, key env:/ris-dev2/dev/terraform.tfstate, lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082, serial 24 in October, 177 resources before teardown.
+- Current state read (metadata only): same bucket, key, workspace and lineage; serial 36; 0 resources; no outputs. S3 object versions show the shrink on 2026-11-09 from 559263 B through 126026/48257/11564/9639/4343 to the latest 5406 B, matching the documented destroy (operator-approved, plan E72A5505..., 177 resources). No backend switch, no state migration.
+- Live sweep in 262370457690: no SQS, API Gateway, Cognito, CloudTrail, IAM roles, log groups or CloudFront origins with the ris-dev2 prefix; only the bootstrap bucket ris-dev2-tf-state-dev and lock table ris-dev2-tf-lock remain. Categories 1/2/4 (managed, unmanaged but existing, ambiguous) are empty; category 3 (deleted) covers all 177.
+- Cross-account contract: RIS 262370457690, Orders 240571105849, both eu-central-1; dispatch queue owned by RIS, result queue by Orders; sender role ARNs in the Orders account are unknown (no access), so the queue policies stay fail-closed with an empty principal list. No ARN was invented. SSE-SQS, no KMS.
+- Target remains ris-dev2; ris-agent was documented as an alternative only and not used. ris-dev untouched.
+- Consequence: the R2 plans (183 default-off, 191 with integration) are a full rebuild, not an incremental integration. No apply, no destroy, no state restore, no migration.
+Report: docs/reports/MO-RIS-RISDEV2-STATE-FORENSIC-01.md
