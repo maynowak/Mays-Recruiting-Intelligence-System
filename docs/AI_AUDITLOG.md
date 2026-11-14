@@ -9924,3 +9924,32 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - Concurrency remains controlled-sequential-only; simultaneous cross-repo
   dispatches unsupported, conflict recovery is human-gated. RIS RC1 unchanged.
 - Report: `docs/reports/MAYS-XREPO-SHARED-STATE-REVIEW-GATE-03-REPORT.md`.
+
+
+## 2026-11-14 — MAYS-XREPO-SCV-AWS-END-TO-END-06
+
+**Status:** `CURRENT GATE VERIFIED / NEXT APPROVAL PENDING`
+
+- Release Owner authorized R4. Sequential live events were applied and verified:
+  `REQUESTED` event `51892f3f-73a0-4d43-b18d-904f8d7b3949` (Jobsearch sender
+  43563328645 / RIS receiver 43563344933, RIS #8); `ACCEPTED` event
+  `aa53d4c1-49fc-4b6b-9df5-8f911dfd132e` (RIS sender 43563396424 / Jobsearch
+  receiver 43563411751, Jobsearch #17); `IMPLEMENTING` event
+  `208005fb-2f9d-434a-86f2-22a422a17b6c` (Jobsearch sender 43563481706 / RIS
+  receiver 43563498202, RIS #8).
+- The live runs prove the GitHub App installation and least-privilege token
+  path. No manual status markers were written. The task stops at `IMPLEMENTING`;
+  no premature `IMPLEMENTATION_READY`, `VERIFIED` or `COMPLETED`.
+- Release matrix: Jobsearch `2b830e6` is 13 ahead / 20 behind `a5640d1`, not
+  merged; RIS RC1 `4bfd08f` is 21 ahead / 6 behind `df3c032`, not merged. RC1
+  contains the six routes, `gsi-structured-owner` and
+  `STRUCTURED_CV_PROFILE_ENABLED=false`; no Terraform plan exists.
+- AWS was not queried. G4 is `BLOCKED / TARGET VERIFICATION REQUIRED`: the
+  documented active target is `ris-dev` (account 240571105849, region
+  eu-central-1, workspace ris-dev, last documented state serial 61), while
+  `ris-dev2` is documented as destroyed/empty under a different account.
+  No STS, discovery, state read, init, plan or apply occurred.
+- Consent remains `DRAFT` (`structured-cv-profile-storage-2026-11-12-draft-1`,
+  `legalApprovalRef=null`); P1-P12 remain unapproved. No consent/product
+  activation, live E2E, main merge, deployment or production change.
+- Report: `docs/reports/MAYS-XREPO-SCV-AWS-END-TO-END-06-REPORT.md`.
