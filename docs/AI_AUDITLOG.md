@@ -10126,3 +10126,16 @@ Date: 2026-11-14
 - Target remains ris-dev2; ris-agent was documented as an alternative only and not used. ris-dev untouched.
 - Consequence: the R2 plans (183 default-off, 191 with integration) are a full rebuild, not an incremental integration. No apply, no destroy, no state restore, no migration.
 Report: docs/reports/MO-RIS-RISDEV2-STATE-FORENSIC-01.md
+
+
+[MO-RIS-TESTED-MODULE-RECONCILIATION-01 / MODULE BASELINE]
+Status: BLOCKED WITH EVIDENCE (generated module artefact); local integration reconciled.
+Date: 2026-11-14
+- K01: pin 5cf50a0 to base 9627eb2 is empty for lambda/src; feature branch 2fa6900 adds only files, no deletions.
+- K02/K03: RIS agentOrder V1 and the Orders validator agree; 43 body tests + 9 cross-repo contract tests; Orders suite 217 OK; RIS targeted 73 passed including A07 and the lambda bridge.
+- K04 (blocking): the generated orders-service module (builder 0.1.0, RIS builder pin 1dbb0cb, manifest source.commit "unknown") ships a 7-file lambda zip containing only errors/index/order_service/order_types/sqs_handler/state_machine/validation. It contains no agent_order, identity, dispatch, result_envelope, result_handler or result_consumer; its dynamodb module has only gsi1/gsi2 (no ownership gsi3); the default handler is index.handler with no result_consumer. The builder pin is not an ancestor of the feature line. The module is local-only ("local Terraform module") and the manifest records no source commit, so the artefact is not reproducible.
+- K05: local A07 still proves 17+25=42 through both lambda entrypoints, but it does not and cannot exercise the generated module, because that artefact lacks the handlers. No claim is made that the feature zip equals the module zip.
+- K06: RIS 262370457690 (ris-dev2 destroyed, 191 creates would be a full rebuild, not approved); Orders 240571105849 not reachable (403); cross-account role ARNs unknown, policies remain fail-closed with an empty principal list.
+- Four levels recorded separately: local integration COMPLETE, generated module integration-tested NO, AWS plan-verified RIS-yes/Orders-no, live E2E NO.
+- Recommendation: point the builder pin at a commit that contains A04-A07 and make the manifest record it; only then rebuild and re-run the E2E against the module artefact.
+Report: docs/reports/MO-RIS-TESTED-MODULE-RECONCILIATION-01.md
