@@ -10091,3 +10091,13 @@ Date: 2026-11-14
 - Per the order, no substitute profile was used. No plan, no apply, no destroy, no secret access, no state read.
 - To continue: the exact profile name as listed by the CLI, creation of the profile in this shell, or an explicit decision to target the default account instead (which would invalidate the 240571105849 file evidence).
 Report: docs/reports/MO-RIS-AWS-PLAN-REVIEW-02-R2-BLOCKED.md
+
+
+[MO-RIS-AWS-PLAN-REVIEW-02 / R2 TARGET CONFLICT]
+Status: R2 BLOCKED - ACCOUNT_TOPOLOGY_CONFLICT (in addition to the missing profile).
+Date: 2026-11-14
+- Local evidence, no AWS access: auditlog entry RIS-DEV2-STACK-DESTROY-01 (2026-11-09) records that workspace ris-dev2 in account 262370457690 was fully destroyed: 177 resources, state serial 36, state resources 0; only the bootstrap (ris-dev2-tf-state-dev, ris-dev2-tf-lock) was retained. No rebuild evidence exists in the auditlog or reports; the destroy report states a rebuild is possible later, not done.
+- The R2 order names ris-dev2 as target and expects account 240571105849. Both parts contradict the evidence: the environment has zero resources and the recorded account is 262370457690.
+- Consequence for any plan with enable_agent_transport=true against that empty state: not 18 creates but the full RIS platform plus 18 (about 195), because the stack no longer exists. That number is correct but contradicts the stated expectation and would rebuild a whole system on apply.
+- Three options recorded: A rebuild ris-dev2 in 240571105849 (full stack), B use the existing ris-agent stack in 262370457690 (185 resources, drift 0) which requires cross-account policies to Orders in 240571105849, C move both systems to 262370457690 (would need a new Orders backend). No plan was generated pending this decision.
+Report: docs/reports/MO-RIS-AWS-PLAN-REVIEW-02-R2-BLOCKED.md
