@@ -9924,3 +9924,27 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - Concurrency remains controlled-sequential-only; simultaneous cross-repo
   dispatches unsupported, conflict recovery is human-gated. RIS RC1 unchanged.
 - Report: `docs/reports/MAYS-XREPO-SHARED-STATE-REVIEW-GATE-03-REPORT.md`.
+
+
+## 2026-11-14 — RIS-SCV-AWS-G4-REPLAN-READINESS-09
+
+**Status:** `LOCAL READY / AWS APPROVAL PENDING`
+
+- Verified `origin/main` `df3c032`, RC1 `4bfd08f` unchanged, RC2
+  `6eeab5d`; rejected plan `36632ab5…` remains DO NOT APPLY.
+- Identified and validated the protected live `ris-dev` input source without
+  reproducing the scoped allowlist. Prepared a `0600` protected RC2 tfvars
+  file; allowlist present, value withheld from Git/reports/logs.
+- Fixed the pinned Mays-Orders builder's Windows-only Git/Terraform paths
+  (`17a828b`). Two consecutive builds at pin `1dbb0cb` were byte-identical;
+  module validate passed; generated default aligned to `ris-dev-mays-orders`
+  (`6eeab5d`).
+- Local release checks: six routes, GSI, erasure, documents CORS, four consent
+  flags, `ConditionCheckItem`, Orders boundary, 15-minute schedule and flag
+  false all retained. Focused 249 PASS; builder 10 PASS; full RIS 2634 PASS /
+  56 skipped / 5 pre-existing failures; XRepo 82 PASS / 4 subtests;
+  fmt/validate PASS.
+- No AWS identity/state read, plan, apply, import, destroy, consent activation,
+  main merge, production deployment or XRepo completion. G4 replan approval is
+  not granted by this task.
+- Report: `docs/reports/RIS-SCV-AWS-G4-REPLAN-READINESS-09-REPORT.md`.
