@@ -10139,3 +10139,17 @@ Date: 2026-11-14
 - Four levels recorded separately: local integration COMPLETE, generated module integration-tested NO, AWS plan-verified RIS-yes/Orders-no, live E2E NO.
 - Recommendation: point the builder pin at a commit that contains A04-A07 and make the manifest record it; only then rebuild and re-run the E2E against the module artefact.
 Report: docs/reports/MO-RIS-TESTED-MODULE-RECONCILIATION-01.md
+
+
+[MO-RIS-ORDERS-MODULE-REBUILD-01 / REPRODUCIBLE ORDERS MODULE]
+Status: GENERATED ORDERS MODULE - LOCAL INTEGRATION VERIFIED.
+Date: 2026-11-14
+- Root cause: build_module() copied lambda/dist/lambda.zip instead of building it; the old pin 1dbb0cb is not an ancestor of the feature line and only holds the 7 base modules. The manifest wrote source.commit=unknown, the orders-service preset lacked agent_transport, and the injected cognito count was not rewritten in the lambda/output references (validate failed).
+- Orders fixes: 48659cf builds lambda.zip from source, records the full SHA fail-closed, adds agent_transport to catalog/preset, rewrites every module.cognito reference mode-safely. 4a33f4d fixes ZipInfo timestamps. 446dbe7 commits the artifact. 122ec65 normalises CRLF/LF so the archive is checkout-independent.
+- Final source pin: 122ec65ac7ab5a044d2b2576ae6b7e4c325246b8 (branch feature/mo-agent-order-body-01). RIS pin updated in installer/mays-orders-builder.pinned.json and installer/build_mays_orders_module.py.
+- Generated module: preset orders-service, 8 modules, 42 files, lambda zip 13 files, sha256 1801e9fbe0d8d7dd70f8cc46699ff2eae6d44c2c590c5472804e022854ead222. Manifest commit matches the pin. gsi3 present; agent_transport default-off with result_consumer.handler, SQS/DLQ, secret and least-privilege IAM.
+- Terraform: fmt -check exit 0, validate exit 0 (the previous "user_pool_client_id list" error is fixed).
+- Tests against the artifact: new tests/test_generated_module_artifact.py 8 passed (CRC, file set, SHA, imports from the ZIP only, handlers, gsi3, agent_transport, cognito modes). A07 against the extracted ZIP: 73 passed (43 body + 9 contract + 16 partner E2E + 5 bridge), 17+25=42 through both endpoints. Addition-agent/transport suites: 93 passed. Orders lambda suite 217 OK; module_builder 77 passed with the same 13 pre-existing Windows path failures.
+- Reproducibility: two clones (autocrlf true and false, i.e. CRLF and LF sources) rebuilt to the same ZIP sha256; the pinned installer path (clone at 122ec65) produced the same sha and passed fmt/init/validate.
+- Levels: local integration YES, generated module integration-tested YES, AWS plan-verified RIS-yes/Orders-no (403 on the Orders state bucket), live E2E NO. No AWS approval is derived.
+Report: docs/reports/MO-RIS-ORDERS-MODULE-REBUILD-01.md
