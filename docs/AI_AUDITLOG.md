@@ -10101,3 +10101,16 @@ Date: 2026-11-14
 - Consequence for any plan with enable_agent_transport=true against that empty state: not 18 creates but the full RIS platform plus 18 (about 195), because the stack no longer exists. That number is correct but contradicts the stated expectation and would rebuild a whole system on apply.
 - Three options recorded: A rebuild ris-dev2 in 240571105849 (full stack), B use the existing ris-agent stack in 262370457690 (185 resources, drift 0) which requires cross-account policies to Orders in 240571105849, C move both systems to 262370457690 (would need a new Orders backend). No plan was generated pending this decision.
 Report: docs/reports/MO-RIS-AWS-PLAN-REVIEW-02-R2-BLOCKED.md
+
+
+[MO-RIS-AWS-PLAN-REVIEW-02 / R2 RESULTS]
+Status: RIS PLAN REVIEW READY; Orders BLOCKED (403 on 240571105849).
+Date: 2026-11-14
+- Profile clarified by the operator: the local default account is the target. sts confirms account 262370457690 (arn:aws:iam::262370457690:user/devnemo), region eu-central-1. RIS-dev2 therefore lives in 262370457690 while Orders lives in 240571105849: the integration is CROSS-ACCOUNT. PLAN-02's same-account assumption is corrected here.
+- RIS-dev2 state read (metadata only): bucket ris-dev2-tf-state-dev, key env:/ris-dev2/dev/terraform.tfstate, workspace ris-dev2, serial 36, lineage present, 0 resources, no outputs; only the lock table ris-dev2-tf-lock exists live.
+- Default-off plan: 183 create + 3 read = 186 changes, 0 agent_transport resources. Enabled plan (enable_agent_transport=true): 191 create + 3 read = 194 changes, exactly 8 agent_transport creates. No updates, no replacements, no deletes in either plan.
+- Plan SHA-256: default 08ecbd3da81fe2f30f20b191267ed3459a88d78e50193cedceceaaa769bce67f; enabled 779dbc92256ff54d99fbab3b2bce98ab907cb7fb283abd73958d68e43cd2867c.
+- Critical: because ris-dev2 has zero resources, both plans are full-stack rebuilds (183 baseline). An apply would recreate the entire RIS platform, not just add 18 resources.
+- Orders side blocked: head-bucket on mays-orders-tfstate-central-240571105849 returns 403 and no orders tables/buckets exist in 262370457690, so only 8 of the expected 18 resources are verified.
+- No apply, no destroy, no deployment, no secret read. Two decisions needed: whether the full ris-dev2 rebuild is intended, and the cross-account role ARNs for the queue policies.
+Report: docs/reports/MO-RIS-AWS-PLAN-REVIEW-02-R2-RESULTS.md
