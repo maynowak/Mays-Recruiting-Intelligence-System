@@ -10205,3 +10205,17 @@ Date: 2026-11-15
 - Test baseline before changes: tests/test_ats_domain_agent.py + tests/test_jobsearch_agent.py = 13 passed on main ae08267.
 - No AWS, Terraform, Jobsearch mutation, merge or push in this gate.
 Report: docs/reports/RIS-ATS-AGENT-01-ORCH-00-BASELINE.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-01 JOBSEARCH API SNAPSHOT]
+Status: ORCH-01 COMPLETE (read-only).
+Date: 2026-11-15
+- Fresh read-only clone of maynowak/mays-jobsearch at installer/projects/mays_jobsearch_ats_readonly. HEAD a5640d12dba8ca39258484f5212def17eabf4eca (2026-11-13), identical to the plan baseline; no branch/tag/commit/patch in Jobsearch.
+- Historical RIS pin 29d8b730bb0660d48d1ba774c773e88d9aa7142e is an ancestor of HEAD and remains a historical reference; it is not reused as the ATS package pin.
+- Files: api/ats-analysis.mjs (252 lines, unchanged since the pin), api/_lib/ats.mjs (792, +77 net), api/_lib/filter.mjs (262, +47/-21). Import graph: handler -> filter/ai/ats/config; ats -> filter; filter -> none. The deterministic analysis needs only filter.mjs plus ats.mjs.
+- Contract confirmed: POST {job, profile?, ai?}; response analysis{score, keywordCoverage.overall, criticalGaps, requirements[id,text,category,importance], matches[requirementId,status,confidence]} + recommendations[requirementId,changeType,priority,proposedChange,rationale,evidence] + ai{...}. Match statuses are MATCHED/PARTIAL/UNKNOWN; there is no GAP status.
+- Scoring: overall = round(matchedWeight/totalWeight*100) with critical4/high3/medium2/low1 and partial=0.5; keywordCoverage = round((matched+partial)/total*100), 0 when no requirements. 0/50/100 are deterministic.
+- ATS commits since the historical pin: c186619 (normalisation/metadata filter), 4fb852b (docs), 8456b1d (grouped terms). The API handler alone is not the full state.
+- Tests/UI observed: tests/api/ats-analysis.test.js, ats-extraction.test.js, ats-model-selection.test.mjs, filter.test.js; src/components/AtsOverlay(.test).tsx binds score, keywordCoverage.overall, criticalGaps, requirements, matches, recommendations.
+- No PDF/DOCX extraction exists in the API; input is structured job/profile JSON. No Jobsearch mutation, no AWS, no merge, no push.
+Report: docs/reports/RIS-ATS-AGENT-01-ORCH-01-API-SNAPSHOT.md
