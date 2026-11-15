@@ -10153,3 +10153,12 @@ Date: 2026-11-14
 - Reproducibility: two clones (autocrlf true and false, i.e. CRLF and LF sources) rebuilt to the same ZIP sha256; the pinned installer path (clone at 122ec65) produced the same sha and passed fmt/init/validate.
 - Levels: local integration YES, generated module integration-tested YES, AWS plan-verified RIS-yes/Orders-no (403 on the Orders state bucket), live E2E NO. No AWS approval is derived.
 Report: docs/reports/MO-RIS-ORDERS-MODULE-REBUILD-01.md
+
+
+[DOCS / MAYS-ORDERS VERSION + ROADMAP PDF]
+Status: DOCUMENTED.
+Date: 2026-11-15
+- Added docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md: three separate levels. Live in AWS: nothing (state serial 36, 0 resources, ris-dev2 destroyed 2026-11-09). Documented clone/module pin: 5cf50a0 = v0.5.0-rc.2. Actual module source: 122ec65 on feature/mo-agent-order-body-01, which is an ancestor chain v0.5.0-rc.2 -> 9627eb2 -> 122ec65.
+- Filed the customer-provided roadmap PDF at docs/roadmap/RIS_Agent_Ecosystem_Entwicklungsroadmap_2026.pdf (141528 bytes, sha256 0212667decc460963498669c0be00faffa5eece76b821d69605658f252ed904a) and linked it from docs/roadmap/ROADMAP.md as a planning document, explicitly not an evidence source.
+- No code, Terraform, or AWS change. No version pin changed by this docs task.
+Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md

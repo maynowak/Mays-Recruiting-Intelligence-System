@@ -1,5 +1,18 @@
 # Mays-RIS Roadmap (konsolidiert, Stand 2026-10-01)
 
+## Strategische Roadmap 2026 (Referenzdokument)
+
+| Dokument | Stand | Inhalt | SHA-256 |
+|---|---|---|---|
+| [`RIS_Agent_Ecosystem_Entwicklungsroadmap_2026.pdf`](RIS_Agent_Ecosystem_Entwicklungsroadmap_2026.pdf) | 2026-11-15 | Vom Auftraggeber bereitgestellte Entwicklungsroadmap (PDF) | `0212667decc460963498669c0be00faffa5eece76b821d69605658f252ed904a` |
+
+Das PDF ist ein **Planungsdokument**, kein Evidenznachweis. Technische Aussagen
+gelten nur, wenn sie durch Code, Tests, Pläne oder Reports gedeckt sind
+(`docs/reports/`, `docs/AI_AUDITLOG.md`).
+
+Aktueller Deployment-Stand der Mays-Orders-Anbindung:
+[`docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md`](../deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md).
+
 ## R08 Security-05 status (2026-11-04)
 
 FIX-01 is verified locally with a durable subject fence and DynamoDB atomic
