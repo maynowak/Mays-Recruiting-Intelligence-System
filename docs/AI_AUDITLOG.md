@@ -9893,7 +9893,6 @@ Status: RIS-DEV2 STACK DESTROYED — 177 RESOURCES — BOOTSTRAP RETAINED
 Date: 2026-11-09
 After explicit operator approval, the previously reviewed destroy plan `E72A55052F1A9E15027085B5F63A8AEE4B3485B9B48ACA6C461A129D8BC1717B` was applied unchanged in workspace `ris-dev2` (account `262370457690`, region `eu-central-1`). CloudTrail `ris-dev2-trail` was stopped and its 3,536-object log bucket emptied first; Terraform then destroyed 177 resources: Cognito pool/client/domain/groups, CloudFront distribution/OAC, HTTP API and 66 routes, Lambda/health functions, IAM, 18 DynamoDB tables, 5 SQS queues, CloudTrail, 5 S3 buckets, CloudWatch/EventBridge resources. Apply result: 0 added / 0 changed / 177 destroyed. State serial 30 → 36, lineage unchanged, state resources 0. Verified absent: dev2 DynamoDB tables, SQS queues, Lambda, Cognito pool `K3dkdSipZ`, CloudFront `E1IZKHFPZ5X7SN`, API `8apxb6fgne`, CloudTrail trail and dev2 S3 buckets. Bootstrap retained intentionally: state bucket `ris-dev2-tf-state-dev`, lock table `ris-dev2-tf-lock`, local state backup. `ris-dev` and all other accounts/workspaces remained untouched. No secrets. Report: `docs/reports/RIS-DEV2-STACK-DESTROY-01.md`.
 
-
 ## 2026-11-13 — MAYS-XREPO-SHARED-STATE-RECONCILIATION-02
 
 **Status:** `LOCAL VERIFIED / READY FOR CONTROLLED ROLLOUT`
@@ -9924,3 +9923,273 @@ After explicit operator approval, the previously reviewed destroy plan `E72A5505
 - Concurrency remains controlled-sequential-only; simultaneous cross-repo
   dispatches unsupported, conflict recovery is human-gated. RIS RC1 unchanged.
 - Report: `docs/reports/MAYS-XREPO-SHARED-STATE-REVIEW-GATE-03-REPORT.md`.
+
+[RIS-MO-ADDITION-AGENT-E2E-01 / G00 BASELINE & CONTRACT]
+Status: G00 COMPLETE (read-only) — G03 GO local; G05/G07/G08 BLOCKED pending Orders contract decision.
+Date: 2026-11-13
+- Baseline: RIS branch feature/ris-mo-addition-agent-e2e-01 @ 2d0c67d; Mays-Orders feature/mo-module-contract-ris-dev2-2026 @ 9627eb2 (read-only). The dirty main RIS checkout was not touched.
+- Verified Orders IST: POST /orders validates strictly (customer/items/currency only; unknown keys -> 400), so math.add is not transportable. POST publishes {orderId,status:"CONFIRMED"} to SQS_QUEUE_URL; the only consumer (sqs_handler) treats status as a transition and has no result ingestion, no message-type guard and no conditional write.
+- Verified Orders gaps: no JWT claim extraction in lambda/src (create_order never receives subject_id); get_order/list_orders enforce no ownership, so any authenticated caller can read any order. No result field, no result endpoint; PROCESSING->DELIVERED does not exist in the state machine.
+- Verified RIS IST: M2M route requires a Cognito access token plus X-Api-Credential and binds client_id -> apiProfileId/tenantId through the partner registry. The WorkItem carries no apiProfileId/orderId/partnerApplicationId/issuer, so the execution-time entitlement re-check reads None. Catalog seeds are reference_agent and jobsearch-agent only; queues are work/cv/ats/match/dlq with no result channel. OrdersPort is HTTP-only (no SQS return path).
+- No tests executed and no AWS calls made in G00; every claim traces to the named commits. Previously verified basis (separate): ris-agent deployment 394d290, drift 0, two ACTIVE catalog agents, work ESM Enabled/batch 5.
+- Blocking decisions recorded (B1 payload field, B2 subjectId enforcement, B3 new result queue/consumer, B4 status vs. result field, B5 live E2E approval). STOP applies until B1-B4 are approved.
+Report: docs/reports/RIS-MO-ADDITION-AGENT-E2E-01-G00-CONTRACT.md
+
+[RIS-MO-ADDITION-AGENT-E2E-01 / G03 ADDITION AGENT]
+Status: G03 COMPLETE (local verified) — 17 + 25 = 42.
+Date: 2026-11-13
+- Added agents/addition_agent/ (AgentBase implementation, descriptor, idempotent registration) and one registration line in ensure_reference_agent; no second architecture, no DB, no credentials, no per-agent queue.
+- Contract: agentId addition_agent, capability math.add, workType agent_addition_agent, version 1.0.0, ACTIVE. Input payload {left,right} -> data {left,right,sum}. bool/None/str/list/inf/nan and unknown capabilities fail closed as ValidationError; Decimal arithmetic keeps 0.1+0.2 at 0.3 and data is clock-free/deterministic.
+- Tests: new tests/test_addition_agent.py 29 passed (reference case, 50x determinism, negatives, 8 invalid types, 3 non-finite, validation, idempotent registration, execution through the existing AgentBody, capability-only routing, SQS parity handler). Adjacent regression 125 passed + 5 subtests. py_compile and git diff --check clean.
+- Security: the agent reads only work_item payload, performs no authorization and holds no secrets; authorization stays with the M2M handler and the execution-time entitlement check.
+- Deliberately excluded: Terraform agent-catalog seed (deployment change), Orders changes, result channel. G05/G07/G08 stay blocked by B1-B4 from G00.
+Report: docs/reports/RIS-MO-ADDITION-AGENT-E2E-01-G03-ADDITION-AGENT.md
+
+[RIS-MO-ADDITION-AGENT-E2E-01 / G02 AUTHORIZATION MATRIX]
+Status: G02 COMPLETE (local) — 16/16 matrix green, no AWS.
+Date: 2026-11-13
+- Reused the real handler entry point and the real in-memory APIProfile/Credential stores; only AWS side effects patched. No second harness, no real credentials.
+- Matrix: Partner A allow (202); no entitlement, entitlement for another agent, expired window, not-yet-valid window and withdrawn row all 403; wrong and missing key 401; revoked credential 403; INACTIVE and unknown agent 403; foreign tenant and foreign apiProfile binding 403; Cognito tenant never becomes the execution tenant; addition payload 17/25 crosses the boundary unchanged; secret and credential header never appear in the work item or response.
+- Finding 1: entitlements carry no status field. Validity is temporal (validFrom/validUntil) plus agent/tenant match; withdrawal deletes the row (offers.withdraw_entitlement -> delete_item). A status field would be silently ignored, so the negative tests model withdrawal as an absent row and expiry as a window.
+- Finding 2: authorization is per agent, not per capability. verify_api_credential checks agent status, credential, profile, tenant and entitlement; the body capability is passed through and only validated at execution time by discovery/eligibility. This is accept-then-fail, not a bypass; whether to validate capability at the M2M edge is an open contract decision for G05 and was not changed.
+- Regression: 112 passed + 7 subtests (p21 boundary, p17 credential lifecycle, entitlement provisioning).
+Report: docs/reports/RIS-MO-ADDITION-AGENT-E2E-01-G02-AUTHORIZATION.md
+
+[RIS-MO-ADDITION-AGENT-E2E-01 / G01 PARTNER DEMO]
+Status: G01 COMPLETE (local, fake adapters) — 15 passed + 4 subtests.
+Date: 2026-11-13
+- Added examples/partner-addition-demo/ (demo_core.py ports+Fakes+DemoService, app.py stdlib HTTP transport, README) with no new dependency and no AWS call.
+- Flow verified over HTTP: POST /api/orders -> FakeOrders.create -> FakeRis.submit (idempotency key = orderId) -> 201; GET /api/orders/{id} advances QUEUED->RUNNING->COMPLETED and stores {left,right,sum} = {17,25,42} on the order. Repeated reads are stable; agent failure marks FAILED without a result.
+- Security: the RIS key is read server-side from RIS_API_KEY only; tests assert it never appears in HTML, JSON or the page; missing key yields 503/FAILED instead of an invented placeholder; default bind 127.0.0.1; every response carries Cache-Control: no-store; invalid bodies create no order; foreign order ids return 404.
+- Deliberately excluded: real Cognito login and persistence (Phase C). Ports are narrow so the fakes can be replaced by the real RIS M2M client and Orders API without changing DemoService.
+- G05/G07/G08 remain blocked by B1-B4; the live path additionally needs the addition_agent Terraform catalog seed and an active Orders instance.
+Report: docs/reports/RIS-MO-ADDITION-AGENT-E2E-01-G01-PARTNER-DEMO.md
+
+[RIS-AGENT-GENERIC-ORDER-TRANSPORT-01 / T00-T01 BASELINE & INVENTORY]
+Status: COMPLETE (read-only) — baseline verified, one G00 finding corrected.
+Date: 2026-11-13
+- Baseline: feature/ris-mo-addition-agent-e2e-01 @ bb77498, clean, remote identical. G00 documented only; G01/G02/G03 implemented and tested. No generic transport contract existed before this task.
+- Correction: at main@2d0c67d _enqueue_agent_work DOES carry partnerApplicationId and issuer and fail-closes on missing WORK_ITEMS_TABLE and missing user/tenant (plus a subject-fence transaction). G00's "no partnerApplicationId/issuer" applied to the older ef5d884 checkout. Still true: apiProfileId is absent from the work item, so the execution-time entitlement re-check reads None.
+- Documented drift: work-system/work-item.md names entityId/resultRef/claimedBy and status QUEUE, none of which the code uses; the doc is not the source of truth.
+- Documented overlap risks: three status vocabularies (Order/WorkItem/ProcessingEnvelope); envelope.input holds the whole work item (eligibility depends on that copy); idempotencyKey exists in WorkItem but not in ProcessingEnvelope; handler sets requestedBy equal to userId.
+Report: docs/reports/RIS-AGENT-GENERIC-ORDER-TRANSPORT-01-T00-T01.md
+
+[RIS-AGENT-GENERIC-ORDER-TRANSPORT-01 / T02-T05 CONTRACT V1]
+Status: IMPLEMENTED + TESTED (local) — no live integration, no AWS call.
+Date: 2026-11-13
+- Added agents/transport/order_transport.py (envelope V1, strict validation, dispatch/result mapping) and agents/runtime/work_item.py. _enqueue_agent_work now calls build_work_item, so handler and transport share one work item shape; a test forbids a second literal in the handler.
+- V1: schemaVersion 1/"1.0" only; ORDER_DISPATCH/ORDER_RESULT/ORDER_FAILED/ORDER_CANCELLED/ORDER_STATUS_CHANGED implemented; ORDER_PROGRESS/ORDER_ACK reserved and rejected with a distinct code; unknown fields rejected at every level; payload XOR payloadRef; 16 KiB cap; recursive secret scan.
+- Identity: envelope carries identity.contextRef plus non-authoritative claims. dispatch_to_work_item builds the work item only from a server-resolved VerifiedContext; contextRef mismatch and any contradicting claim are rejected. Owner and actor stay distinguishable.
+- Result: orderId always from the dispatch envelope, never from the work row; ORDER_RESULT requires COMPLETED plus a present result, ORDER_FAILED requires FAILED; idempotency key is stable per order/work/type; stale attempts detected.
+- Tests: new tests/test_order_transport_contract.py 53 passed (positive/negative schema, mapping parity with build_work_item, 4 claim contradictions, secret/size rejection, end-to-end 17+25=42 including through AgentBody, result correlation, stable idempotency, stale attempt). Targeted regression 179 passed + 329 subtests.
+- Pre-existing, not caused here: test_platform_handlers.py::TestAgentAPI::test_execute_agent expects 202 but gets 500 (durable subject fence store guard already in HEAD), and test_consent_notice_lifecycle.py fails collection with NameError ConsentContext.
+- Not done: no Orders change, no queue, no Terraform, no catalog seed. G05/G07 remain BLOCKED by B1/B3/B4; G04 is PARTIAL.
+Report: docs/reports/RIS-AGENT-GENERIC-ORDER-TRANSPORT-01-T02-T05-CONTRACT.md
+
+[RIS-MO-ADDITION-E2E-G04 / VERIFIED API PROFILE PROPAGATION]
+Status: COMPLETE (local) — verified apiProfileId reaches the worker entitlement check.
+Date: 2026-11-13
+- Baseline: feature/ris-mo-addition-agent-e2e-01 @ 962bf66, remote identical.
+- Finding: all three _enqueue_agent_work call sites omitted apiProfileId while the worker already read work.get("apiProfileId") and passed it to check_worker_entitlement. The profile binding was effectively disabled at the execution boundary.
+- Change: api_profile_id/partner_application_id/issuer are now first-class parameters of the single build_work_item function; _enqueue_agent_work accepts api_profile_id; the partner, machine and human call sites pass the server-verified value; the transport mapping uses the same parameters instead of extra fields (identical output).
+- Enforcement: a partner-scoped work item (partnerApplicationId set) without apiProfileId is rejected before the entitlement check with reason api-profile-binding-missing, persisted as DEAD_LETTER, and never executed. User-wide work items (no partner application) keep api_profile_id=None semantics unchanged.
+- Finding (pre-existing, not introduced here): ExecutionEngine builds its InvocationContract from the whole ProcessingEnvelope input, so agents receive the work item nested under payload. The addition agent now accepts both real entry shapes; the runtime was deliberately not changed globally. Recommendation recorded for a separate gate.
+- Tests: new tests/test_api_profile_propagation.py 14 passed (M2M propagation, foreign binding 403, persisted item == SQS body including apiProfileId/partnerApplicationId/issuer, missing profile becomes empty not invented, no secrets, worker COMPLETED with 42, profile-mismatch denial, missing-binding denial, user-wide preserved, revocation between enqueue and execution, spy proving check_worker_entitlement receives the profile). Regression 253 passed + 11 subtests including all 53 transport contract tests.
+- No AWS mutation, no deployment, no Orders change, no new authorization system.
+Report: docs/reports/RIS-MO-ADDITION-E2E-G04-API-PROFILE-PROPAGATION.md
+
+[MO-RIS-AGENT-ORDER-BODY-01 / A00 BASELINE]
+Status: COMPLETE (read-only) — the Mays-Orders premise does not hold; A04-A07 blocked.
+Date: 2026-11-13
+- Baseline: RIS feature/ris-mo-addition-agent-e2e-01 @ d137267 (clean, remote identical); Mays-Orders feature/mo-module-contract-ris-dev2-2026 @ 9627eb2 (clean, untouched).
+- Verified on all three Orders refs (origin/main, local feature branch, origin/feature/mo-rc4-kms-privacy-retention): lambda/src has exactly seven files and there is NO orderType, NO agentOrder, NO handler registry, NO resultStatus/processingId/attemptNo, NO result or attempt persistence. git grep returns zero matches.
+- Orders really has: strict POST /orders validation (customer/items/currency only, unknown keys 400), a status-only SQS worker ({orderId,status}), six status values, and no ownership binding at all (no JWT claim is read; get_order/list_orders check no owner).
+- Consequence: A01/A02/A03 are independent RIS work and GO; A04/A05/A06/A07 need an additive Orders contract decision (optional agentOrder field, persistence, subject binding, result field/endpoint). No substitute architecture was built.
+Report: docs/reports/MO-RIS-AGENT-ORDER-BODY-01-A00-BASELINE.md
+
+[MO-RIS-AGENT-ORDER-BODY-01 / A01-A03 AGENT ORDER BODY V1]
+Status: COMPLETE (local) — contract, versioning and mapping; 17+25=42 proven; A04-A07 BLOCKED.
+Date: 2026-11-13
+- Added agents/orders/agent_order.py: versioned agentOrder contract (schemaVersion 1.0/"1"), target/input/metadata/processing/resultContract, documented defaults, strict unknown-field rejection, one shared secret rule with the transport contract, and stable error codes.
+- Versioning is explicitly three-way and uncoupled (orders module external, transport envelope "1", agentOrder "1.0"). fingerprint() hashes schemaVersion+target+input only, so correlation-only fields do not change the execution identity; the fingerprint is carried on the work item.
+- Mapping: target -> agentId/capability/type, input.data -> payload, metadata.idempotencyKey -> idempotencyKey, processing.parentWorkId -> parentWorkId, plus orderId/correlationId/agentOrderVersion/agentOrderFingerprint. metadata references are checked against the verified context and never used as authorization.
+- Tests: new tests/test_agent_order_body.py 43 passed (valid/minimal/versioned documents, 4 secret shapes, unknown fields, capability/target/result-contract mismatches, version independence, fingerprint stability and sensitivity, metadata mismatch rejection, end-to-end 17+25=42 through the existing AgentBody, 0.1+0.2=0.3, result secret/shape checks). Regression 235 passed + 11 subtests.
+- Deliberately not done: no Orders change, no persistence, no queue, no deploy. A04-A07 require the additive Orders contract decision documented in A00 §6 (B1/B2/B3/B4).
+Report: docs/reports/MO-RIS-AGENT-ORDER-BODY-01-A01-A03-CONTRACT.md
+
+[MO-RIS-AGENT-DISPATCH-01 / A05 RIS MAPPING]
+Status: COMPLETE (local) — dispatch honours the work id bound by Mays-Orders.
+Date: 2026-11-13
+- Root finding: the frozen V1 validator already accepted execution.workId on ORDER_DISPATCH, but dispatch_to_work_item ignored it and generated a new id, so the sender's expectedWorkId could never match an incoming result. Fixed as an additive, backward-compatible mapping rule: use the pre-bound id when present, otherwise keep the previous behaviour (receiver generates). No new field, no version bump.
+- validate_envelope now also validates execution structurally for ORDER_DISPATCH (workId required when execution is present). Existing envelopes without execution are unchanged.
+- Security unchanged: the work id is correlation, not authorization; identity still comes only from VerifiedContext and contextRef is compared, never trusted.
+- Cross-repo test tests/test_mo_dispatch_handoff.py (skipped unless MO_ORDERS_SRC is set): stored order -> prepare_dispatch -> V1 envelope -> validate_envelope -> dispatch_to_work_item (same workId) -> AdditionAgent 42 -> result_from_work_item -> Orders apply_result -> owner sees 42 once. Also covers repeated dispatch, duplicate result, wrong work id, stale attempt, unsigned message, foreign owner and cancelled order.
+- Tests: RIS 149 passed with MO_ORDERS_SRC (10 cross-repo), 96 passed + 10 skipped without it; Orders suite 193 passed separately.
+- No AWS call, no apply, no deployment; queues/IAM/secret remain not deployed and require explicit approval.
+Report: docs/reports/MO-RIS-AGENT-DISPATCH-01-A05-RIS-MAPPING.md
+
+[MO-RIS-AGENT-PARTNER-E2E-01 / A07 FULL LOCAL E2E]
+Status: LOCAL E2E VERIFIED — 17+25=42 through the real application components; SQS simulated locally.
+Date: 2026-11-13
+- Baseline: RIS 7d7f446, Orders 1e06468; both clean before the change.
+- DemoService and the page are unchanged. Only the fakes were replaced: OrdersApplicationAdapter calls the real index.handler with verified API Gateway claims and then performs A05 dispatch; RisApplicationAdapter uses the real transport parser, registry/discovery/eligibility/entitlement and the existing AgentBody, then delivers a signed ORDER_RESULT through the real A06 consumer. LocalSqsBus keeps the message shapes and consumer entry points; InMemoryOrdersTable only doubles DynamoDB storage.
+- DEMO_MODE=real runs the whole chain locally: POST /orders -> prepare_dispatch -> ORDER_DISPATCH -> RIS (same workId) -> AdditionAgent 42 -> ORDER_RESULT -> apply_result -> owner GET returns 42. The fachliche order status stays PENDING; the view reports the processing status separately.
+- Negatives covered: partner B 404, no dispatch message 503 (no fabricated success), foreign tenant 403, unsupported capability 403, missing identity reference blocks dispatch, repeated dispatch reuses the workId, duplicate result idempotent, wrong workId, stale attempt, cancelled order, tampered signature and no secrets in HTML/transport/response.
+- Note: the partner order path carries no RIS key at all (service-to-service); wrong/revoked RIS key belongs to the direct M2M route and is covered by the 16 G02 tests.
+- Tests: tests/test_partner_e2e_real.py 16 passed; tests/test_mo_dispatch_handoff.py 10 passed; Orders suite 193 OK unchanged. Transport V1 and the addition agent are reused unchanged.
+- No apply, no deployment, no Cognito/CloudFront/DNS change, no RC upgrade, no merge. Local SQS simulation is explicitly not AWS delivery.
+Report: docs/reports/MO-RIS-AGENT-PARTNER-E2E-01-A07.md
+
+[MO-RIS-AWS-INTEGRATION-PLAN-01 / SQS BOUNDARY]
+Status: PLAN COMPLETE — Terraform code added disabled by default; no AWS mutation, no apply, no real plan.
+Date: 2026-11-13
+- Baseline: RIS cd14f98, Orders 1e06468. Inventory read only: Orders has one queue (orders, visibility 30 s, retention 120 s) without DLQ; RIS has work/cv/ats/match/dlq (visibility 300 s, dlq 14 d); neither repo has a KMS or Secrets Manager resource.
+- Topology: one queue per direction, not per agent. Dispatch queue owned by RIS, result queue owned by Orders, both with DLQ (maxReceive 3), SSE-SQS, and queue policies that list only explicitly supplied role ARNs (empty list keeps the queue inert).
+- The existing retail queue is explicitly NOT reused: its consumer interprets status as a transition and knows no envelope format.
+- IAM: orders producer sends only to dispatch; RIS ingress only receives from it; RIS result producer sends only to results; orders consumer only receives from it. No cross-database access, no owner rights for service accounts, no RIS key in any message.
+- Contract compatibility: new tests/test_mo_contract_compat.py (9 passed) pins schema version, message types, direction, and exact required-field sets; it round-trips a real Orders dispatch into RIS and a real RIS result into the Orders validator, and proves Orders rejects unknown fields and version "2".
+- Terraform: modules/agent_transport in both repos, wired with count = var.enable_agent_transport (default false) so existing stacks plan zero changes. terraform fmt -check = 0 and terraform validate = Success in both repos (1.17.0, -backend=false). No plan generated: that needs an explicitly approved state/credential context.
+- Blast radius with the flag on: 3 new resources per repo, all creates, no changes/replaces/deletes. With the flag off: zero.
+- Blockers recorded: dispatch ingress Lambda missing, result consumer Lambda missing, cross-account decision open, no Secrets Manager module for the HMAC secret. STOP before apply.
+Report: docs/reports/MO-RIS-AWS-INTEGRATION-PLAN-01.md
+
+[MO-RIS-AWS-INTEGRATION-PLAN-02 / ACCOUNT RECONCILIATION]
+Status: PLAN FROZEN (read-only) — target account identified from file evidence; live verification BLOCKED.
+Date: 2026-11-13
+- Baseline: RIS ff3d5ed, Orders b2074f4; both clean.
+- Account evidence: the Orders state backend is mays-orders-tfstate-central-240571105849 (region eu-central-1, workspace prefix env:, lock mays-orders-terraform-locks) and its deployment reports name mayaws/240571105849; the RIS documentation places ris-dev in the same account. Conclusion: SAME account 240571105849, no migration, no cross-account contract.
+- Live check with the only available credentials (devnemo, 262370457690): head-bucket on the Orders state bucket returns 403 Forbidden and no mays-orders queues exist here; only the ris-agent test stack (5 queues) is visible. Therefore the target account is NOT readable from this machine: BLOCKED — ACCOUNT CONTEXT UNVERIFIED for live facts, and no terraform plan was generated.
+- Service contract: no agent transport queue exists in the target; both directions are new (one queue per direction, never per agent). Responsibilities: Orders dispatch producer, new RIS dispatch ingress, existing RIS worker, RIS result producer, new Orders result consumer.
+- Secret contract (B4): one Secrets Manager secret owned by Orders, value set out-of-band (never in state/Git/report/log/test), read granted only to explicitly listed RIS producer roles, runtime fetch at cold start, JSON {current, previous} for rotation, fail-closed when missing.
+- Terraform: 8 creates behind enable_agent_transport (default false → 0 changes): RIS dispatch queue + DLQ + policy; Orders results queue + DLQ + policy + secret + secret policy. fmt 0 and validate Success in both repos.
+- Blockers: no approved profile for 240571105849, dispatch ingress Lambda and result consumer Lambda still missing, secret value must be provisioned, rotation not implemented. STOP before apply.
+Report: docs/reports/MO-RIS-AWS-INTEGRATION-PLAN-02.md
+
+[MO-RIS-AWS-LAMBDA-BRIDGE-01 / LAMBDA ENTRYPOINTS]
+Status: LOCAL LAMBDA E2E VERIFIED — both entrypoints implemented, not deployed.
+Date: 2026-11-13
+- L01 RIS lambda/dispatch_ingress.py: SQS records -> transport V1 (expected ORDER_DISPATCH) -> context resolved from the API profile store by contextRef (never from the message) -> canonical work item -> existing process_record. The queue ARN is pinned via DISPATCH_QUEUE_ARN, a pre-bound execution.workId is mandatory, and partial batch failures are returned for retry while permanent rejections are consumed.
+- L02 Orders lambda/src/result_consumer.py: dedicated function, same A06 boundary, HMAC keys fetched from Secrets Manager via ORDER_RESULT_SECRET_ARN (cached per container, JSON {current, previous} for rotation, bare string accepted). Missing or unreadable secret fails closed. result_handler was minimally refactored to expose process_records(records, secrets, service=None); its env-based handler is unchanged.
+- L04 packaging defect found and fixed: Orders build_zip.py used a hardcoded seven-module list, so identity/agent_order/result_envelope/result_handler/dispatch/result_consumer would never have shipped. Now it discovers src/*.py (13 modules verified). RIS AGENT_FILES now includes lambda/dispatch_ingress.py (bundle contains it).
+- Tests: RIS ingress 15 passed, Lambda bridge E2E 5 passed, contract compat 9 passed, RIS targeted 210 passed, Orders suite 205 OK. The bridge test drives both real handlers end to end: create -> dispatch -> AgentBody 42 -> ORDER_RESULT -> consumer -> authorised GET returns 42, foreign partner 404, duplicate idempotent, tampered message rejected.
+- Not done: Terraform resources for the two Lambdas (roles, ESM, handler paths), the secret value, and a real plan. The plan still lists 8 resources without Lambdas.
+- Pre-existing RIS baseline unchanged: 34 failures and 4 collection errors from environment (no python3 subprocess on Windows, missing requests) in unrelated suites.
+Report: docs/reports/MO-RIS-AWS-LAMBDA-BRIDGE-01.md
+
+[MO-RIS-AGENT-ORDER-BODY-01 / A00 CORRECTION + A04]
+Status: A00 corrected; A04 COMPLETE locally in the Orders repo (no deploy, no RC migration).
+Date: 2026-11-13
+- Root cause of the A00 error: the local origin/main ref was stale; no git fetch had run. After fetching, origin/main is f597d14 and contains identity.py, order_handlers.py, processing_result.py, recovery.py and orderType. The brief's premise is therefore correct for the RC4 line, and A00 §4 is retracted for RC4 while kept as a historical record.
+- Tested baseline identified: 5cf50a0 (RIS pin, v0.5.0-rc.2) is an ancestor of 9627eb2 and git diff 5cf50a0 9627eb2 -- lambda/src is EMPTY. The tested integration line therefore equals the current local checkout; RC4 is strictly ahead and is not migrated.
+- A04 implemented on a separate worktree from 9627eb2 (branch feature/mo-agent-order-body-01), so the existing checkout stayed untouched. New lambda/src/agent_order.py validates schemaVersion 1.0/"1", rejects unknown fields/versions, enforces mutual exclusion with retail fields, rejects secret-shaped content and >16 KiB, and computes the same fingerprint semantics as RIS.
+- Persistence: agentOrder and agentOrderFingerprint stored as their own item fields; no customer/items/currency/totalAmount are invented; existing orderId/timestamps/version/GSI1 unchanged. Because the base has no ownership binding, both fields are in INTERNAL_FIELDS and never appear in the public projection; the list projection for agent orders is minimal; agent orders are NOT sent to the status-only retail SQS worker.
+- Tests: cd lambda, PYTHONPATH=src, unittest discover -> 96 tests OK (76 pre-existing + 20 new), compileall clean. Retail persistence and dispatch asserted unchanged.
+- Commits: Orders 6369eb4 (feature/mo-agent-order-body-01). Remaining: ownership/authorized read gate, A05 dispatch, A06 result, A07 E2E.
+
+
+
+[MO-RIS-AWS-TERRAFORM-WIRING-01 / L07 LAMBDA WIRING]
+Status: CODE COMPLETE - both Lambda entrypoints wired, default-off; no plan, no apply.
+Date: 2026-11-13
+- RIS modules/agent_transport gained lambda.tf: dedicated ingress role (logs scoped to its own log group, GetItem on api_profiles, RW on work_items, read on entitlements, consume on the dispatch queue), Lambda dispatch_ingress.handler on python3.14 using the existing agent bundle, and an SQS ESM with batch 5 and ReportBatchItemFailures.
+- Orders modules/agent_transport gained lambda.tf: dedicated consumer role (logs, GetItem/UpdateItem on the existing orders table only, GetSecretValue scoped to the module's secret ARN, consume on the results queue), optional kms:Decrypt policy created only when result_secret_kms_key_arn is set, Lambda result_consumer.handler, and an SQS ESM with batch 10 and ReportBatchItemFailures.
+- Default-off preserved: module count = var.enable_agent_transport (default false). With the flag off nothing is created; with it on the code yields 18 creates (RIS 8, Orders 10 active + 1 optional KMS policy), 0 updates, 0 deletes.
+- No existing module was replaced or duplicated; tables are referenced via existing outputs. No API route, no cross-account policy, no wildcard resource for DynamoDB/SQS.
+- Validation: terraform fmt -check = 0 and terraform validate = Success in both repositories; static wiring tests 11 (RIS) and 12 (Orders); Orders suite 217 OK.
+- Still open: account 240571105849 is unverified live, the secret value must be provisioned, the bundle must be built before plan, and the real plan/apply remain explicitly gated.
+Report: docs/reports/MO-RIS-AWS-TERRAFORM-WIRING-01.md
+
+
+[MO-RIS-AWS-PLAN-REVIEW-01 / R1 DISCOVERY]
+Status: R1 DISCOVERY COMPLETE - R2 BLOCKED (AWS_ACCOUNT_IDENTITY_UNVERIFIED).
+Date: 2026-11-14
+- Baseline: RIS a7cd516 and Orders c54467d, both clean and identical to their remotes; no foreign changes found or touched.
+- AWS access: only one profile exists on this machine (default = devnemo / 262370457690, documented at session start). No profile for the target account 240571105849 exists, so no sts call was made against it and no remote state was read. BLOCKED for live identity.
+- Account/region: Orders backend bucket mays-orders-tfstate-central-240571105849 plus deployment reports, and the RIS documentation, both point to 240571105849 / eu-central-1. Same-account assumption is file-based only; no provider/account_id/assume_role blocks exist in the new modules.
+- State ownership documented: Orders S3 mays-orders-tfstate-central-240571105849 with env: prefix and lock mays-orders-terraform-locks; RIS partial backend with env:/<project>/<env>/terraform.tfstate and <project>-tf-lock. The RIS target state was not read.
+- Inventory from code/reports: Orders retail queue only (no DLQ); RIS work/cv/ats/match/dlq; no KMS anywhere; no Secrets Manager resource yet.
+- Flags/artifacts: both flags default false; module counts 8 (RIS) + 11 (Orders, one KMS policy at count 0) = 18 active creates when enabled, 0 otherwise. RIS bundle 301632 B sha256 6d77ed97... with dispatch_ingress.py; Orders bundle 29531 B sha256 010feb64... with 13 modules including result_consumer.py. L04 packaging regression re-checked.
+- No plan, no apply, no destroy, no secret access, no state mutation.
+Report: docs/reports/MO-RIS-AWS-PLAN-REVIEW-01-R1.md
+
+
+[MO-RIS-AWS-PLAN-REVIEW-02 / R2 ATTEMPT]
+Status: R2 BLOCKED - AWS_PROFILE_NOT_FOUND.
+Date: 2026-11-14
+- Ran aws sts get-caller-identity --profile devmemo: the CLI reports "The config profile (devmemo) could not be found".
+- Local evidence: aws configure list-profiles shows only "default"; ~/.aws/config (49 B) and ~/.aws/credentials each contain only [default]; AWS_CONFIG_FILE and AWS_SHARED_CREDENTIALS_FILE are unset; ~/.aws/cli holds only session.db.
+- Diagnostic only, not a substitution: the default profile currently resolves to account 262370457690 (arn:aws:iam::262370457690:user/devnemo). Even if default were used, the account gate for 240571105849 would fail.
+- Per the order, no substitute profile was used. No plan, no apply, no destroy, no secret access, no state read.
+- To continue: the exact profile name as listed by the CLI, creation of the profile in this shell, or an explicit decision to target the default account instead (which would invalidate the 240571105849 file evidence).
+Report: docs/reports/MO-RIS-AWS-PLAN-REVIEW-02-R2-BLOCKED.md
+
+
+[MO-RIS-AWS-PLAN-REVIEW-02 / R2 TARGET CONFLICT]
+Status: R2 BLOCKED - ACCOUNT_TOPOLOGY_CONFLICT (in addition to the missing profile).
+Date: 2026-11-14
+- Local evidence, no AWS access: auditlog entry RIS-DEV2-STACK-DESTROY-01 (2026-11-09) records that workspace ris-dev2 in account 262370457690 was fully destroyed: 177 resources, state serial 36, state resources 0; only the bootstrap (ris-dev2-tf-state-dev, ris-dev2-tf-lock) was retained. No rebuild evidence exists in the auditlog or reports; the destroy report states a rebuild is possible later, not done.
+- The R2 order names ris-dev2 as target and expects account 240571105849. Both parts contradict the evidence: the environment has zero resources and the recorded account is 262370457690.
+- Consequence for any plan with enable_agent_transport=true against that empty state: not 18 creates but the full RIS platform plus 18 (about 195), because the stack no longer exists. That number is correct but contradicts the stated expectation and would rebuild a whole system on apply.
+- Three options recorded: A rebuild ris-dev2 in 240571105849 (full stack), B use the existing ris-agent stack in 262370457690 (185 resources, drift 0) which requires cross-account policies to Orders in 240571105849, C move both systems to 262370457690 (would need a new Orders backend). No plan was generated pending this decision.
+Report: docs/reports/MO-RIS-AWS-PLAN-REVIEW-02-R2-BLOCKED.md
+
+
+[MO-RIS-AWS-PLAN-REVIEW-02 / R2 RESULTS]
+Status: RIS PLAN REVIEW READY; Orders BLOCKED (403 on 240571105849).
+Date: 2026-11-14
+- Profile clarified by the operator: the local default account is the target. sts confirms account 262370457690 (arn:aws:iam::262370457690:user/devnemo), region eu-central-1. RIS-dev2 therefore lives in 262370457690 while Orders lives in 240571105849: the integration is CROSS-ACCOUNT. PLAN-02's same-account assumption is corrected here.
+- RIS-dev2 state read (metadata only): bucket ris-dev2-tf-state-dev, key env:/ris-dev2/dev/terraform.tfstate, workspace ris-dev2, serial 36, lineage present, 0 resources, no outputs; only the lock table ris-dev2-tf-lock exists live.
+- Default-off plan: 183 create + 3 read = 186 changes, 0 agent_transport resources. Enabled plan (enable_agent_transport=true): 191 create + 3 read = 194 changes, exactly 8 agent_transport creates. No updates, no replacements, no deletes in either plan.
+- Plan SHA-256: default 08ecbd3da81fe2f30f20b191267ed3459a88d78e50193cedceceaaa769bce67f; enabled 779dbc92256ff54d99fbab3b2bce98ab907cb7fb283abd73958d68e43cd2867c.
+- Critical: because ris-dev2 has zero resources, both plans are full-stack rebuilds (183 baseline). An apply would recreate the entire RIS platform, not just add 18 resources.
+- Orders side blocked: head-bucket on mays-orders-tfstate-central-240571105849 returns 403 and no orders tables/buckets exist in 262370457690, so only 8 of the expected 18 resources are verified.
+- No apply, no destroy, no deployment, no secret read. Two decisions needed: whether the full ris-dev2 rebuild is intended, and the cross-account role ARNs for the queue policies.
+Report: docs/reports/MO-RIS-AWS-PLAN-REVIEW-02-R2-RESULTS.md
+
+
+[MO-RIS-RISDEV2-STATE-FORENSIC-01 / STATE RECONCILIATION]
+Status: STATE RECONCILED (read-only) - no unexplained drift.
+Date: 2026-11-14
+- Historical evidence: ris-dev2 was deployed in account 262370457690 (profile default/devnemo, eu-central-1), workspace ris-dev2, key env:/ris-dev2/dev/terraform.tfstate, lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082, serial 24 in October, 177 resources before teardown.
+- Current state read (metadata only): same bucket, key, workspace and lineage; serial 36; 0 resources; no outputs. S3 object versions show the shrink on 2026-11-09 from 559263 B through 126026/48257/11564/9639/4343 to the latest 5406 B, matching the documented destroy (operator-approved, plan E72A5505..., 177 resources). No backend switch, no state migration.
+- Live sweep in 262370457690: no SQS, API Gateway, Cognito, CloudTrail, IAM roles, log groups or CloudFront origins with the ris-dev2 prefix; only the bootstrap bucket ris-dev2-tf-state-dev and lock table ris-dev2-tf-lock remain. Categories 1/2/4 (managed, unmanaged but existing, ambiguous) are empty; category 3 (deleted) covers all 177.
+- Cross-account contract: RIS 262370457690, Orders 240571105849, both eu-central-1; dispatch queue owned by RIS, result queue by Orders; sender role ARNs in the Orders account are unknown (no access), so the queue policies stay fail-closed with an empty principal list. No ARN was invented. SSE-SQS, no KMS.
+- Target remains ris-dev2; ris-agent was documented as an alternative only and not used. ris-dev untouched.
+- Consequence: the R2 plans (183 default-off, 191 with integration) are a full rebuild, not an incremental integration. No apply, no destroy, no state restore, no migration.
+Report: docs/reports/MO-RIS-RISDEV2-STATE-FORENSIC-01.md
+
+
+[MO-RIS-TESTED-MODULE-RECONCILIATION-01 / MODULE BASELINE]
+Status: BLOCKED WITH EVIDENCE (generated module artefact); local integration reconciled.
+Date: 2026-11-14
+- K01: pin 5cf50a0 to base 9627eb2 is empty for lambda/src; feature branch 2fa6900 adds only files, no deletions.
+- K02/K03: RIS agentOrder V1 and the Orders validator agree; 43 body tests + 9 cross-repo contract tests; Orders suite 217 OK; RIS targeted 73 passed including A07 and the lambda bridge.
+- K04 (blocking): the generated orders-service module (builder 0.1.0, RIS builder pin 1dbb0cb, manifest source.commit "unknown") ships a 7-file lambda zip containing only errors/index/order_service/order_types/sqs_handler/state_machine/validation. It contains no agent_order, identity, dispatch, result_envelope, result_handler or result_consumer; its dynamodb module has only gsi1/gsi2 (no ownership gsi3); the default handler is index.handler with no result_consumer. The builder pin is not an ancestor of the feature line. The module is local-only ("local Terraform module") and the manifest records no source commit, so the artefact is not reproducible.
+- K05: local A07 still proves 17+25=42 through both lambda entrypoints, but it does not and cannot exercise the generated module, because that artefact lacks the handlers. No claim is made that the feature zip equals the module zip.
+- K06: RIS 262370457690 (ris-dev2 destroyed, 191 creates would be a full rebuild, not approved); Orders 240571105849 not reachable (403); cross-account role ARNs unknown, policies remain fail-closed with an empty principal list.
+- Four levels recorded separately: local integration COMPLETE, generated module integration-tested NO, AWS plan-verified RIS-yes/Orders-no, live E2E NO.
+- Recommendation: point the builder pin at a commit that contains A04-A07 and make the manifest record it; only then rebuild and re-run the E2E against the module artefact.
+Report: docs/reports/MO-RIS-TESTED-MODULE-RECONCILIATION-01.md
+
+
+[MO-RIS-ORDERS-MODULE-REBUILD-01 / REPRODUCIBLE ORDERS MODULE]
+Status: GENERATED ORDERS MODULE - LOCAL INTEGRATION VERIFIED.
+Date: 2026-11-14
+- Root cause: build_module() copied lambda/dist/lambda.zip instead of building it; the old pin 1dbb0cb is not an ancestor of the feature line and only holds the 7 base modules. The manifest wrote source.commit=unknown, the orders-service preset lacked agent_transport, and the injected cognito count was not rewritten in the lambda/output references (validate failed).
+- Orders fixes: 48659cf builds lambda.zip from source, records the full SHA fail-closed, adds agent_transport to catalog/preset, rewrites every module.cognito reference mode-safely. 4a33f4d fixes ZipInfo timestamps. 446dbe7 commits the artifact. 122ec65 normalises CRLF/LF so the archive is checkout-independent.
+- Final source pin: 122ec65ac7ab5a044d2b2576ae6b7e4c325246b8 (branch feature/mo-agent-order-body-01). RIS pin updated in installer/mays-orders-builder.pinned.json and installer/build_mays_orders_module.py.
+- Generated module: preset orders-service, 8 modules, 42 files, lambda zip 13 files, sha256 1801e9fbe0d8d7dd70f8cc46699ff2eae6d44c2c590c5472804e022854ead222. Manifest commit matches the pin. gsi3 present; agent_transport default-off with result_consumer.handler, SQS/DLQ, secret and least-privilege IAM.
+- Terraform: fmt -check exit 0, validate exit 0 (the previous "user_pool_client_id list" error is fixed).
+- Tests against the artifact: new tests/test_generated_module_artifact.py 8 passed (CRC, file set, SHA, imports from the ZIP only, handlers, gsi3, agent_transport, cognito modes). A07 against the extracted ZIP: 73 passed (43 body + 9 contract + 16 partner E2E + 5 bridge), 17+25=42 through both endpoints. Addition-agent/transport suites: 93 passed. Orders lambda suite 217 OK; module_builder 77 passed with the same 13 pre-existing Windows path failures.
+- Reproducibility: two clones (autocrlf true and false, i.e. CRLF and LF sources) rebuilt to the same ZIP sha256; the pinned installer path (clone at 122ec65) produced the same sha and passed fmt/init/validate.
+- Levels: local integration YES, generated module integration-tested YES, AWS plan-verified RIS-yes/Orders-no (403 on the Orders state bucket), live E2E NO. No AWS approval is derived.
+Report: docs/reports/MO-RIS-ORDERS-MODULE-REBUILD-01.md
+
+
+[DOCS / MAYS-ORDERS VERSION + ROADMAP PDF]
+Status: DOCUMENTED.
+Date: 2026-11-15
+- Added docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md: three separate levels. Live in AWS: nothing (state serial 36, 0 resources, ris-dev2 destroyed 2026-11-09). Documented clone/module pin: 5cf50a0 = v0.5.0-rc.2. Actual module source: 122ec65 on feature/mo-agent-order-body-01, which is an ancestor chain v0.5.0-rc.2 -> 9627eb2 -> 122ec65.
+- Filed the customer-provided roadmap PDF at docs/roadmap/RIS_Agent_Ecosystem_Entwicklungsroadmap_2026.pdf (141528 bytes, sha256 0212667decc460963498669c0be00faffa5eece76b821d69605658f252ed904a) and linked it from docs/roadmap/ROADMAP.md as a planning document, explicitly not an evidence source.
+- No code, Terraform, or AWS change. No version pin changed by this docs task.
+Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md

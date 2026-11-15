@@ -591,3 +591,19 @@ variable "orders_queue_arn" {
     error_message = "orders_queue_arn must be an ARN or explicitly configured"
   }
 }
+
+# ---------------------------------------------------------------------------
+# Agent transport boundary (MO-RIS-AWS-INTEGRATION-PLAN-01).
+# Disabled by default: an existing installation plans zero changes.
+# ---------------------------------------------------------------------------
+variable "enable_agent_transport" {
+  description = "Create the agent dispatch queue (RIS side of the boundary)."
+  type        = bool
+  default     = false
+}
+
+variable "orders_producer_role_arns" {
+  description = "Mays-Orders role ARNs allowed to enqueue agent dispatches."
+  type        = list(string)
+  default     = []
+}

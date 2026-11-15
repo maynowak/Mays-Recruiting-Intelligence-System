@@ -155,6 +155,37 @@ class TestAgentRouter:
         
         assert decision.agent_id == 'agent_2'
 
+    def test_select_from_eligibility_uses_runtime_registry(self):
+        """Eligibility selection must resolve against the supplied registry."""
+        from agents.ecosystem.eligibility import (
+            EligibilityCheck, EligibilityPipelineResult, EligibilityResult,
+        )
+
+        registry = AgentRegistry()
+        descriptor = AgentDescriptor(
+            agent_id='agent_1',
+            name='agent_1',
+            version='1.0.0',
+            capabilities=['test'],
+        )
+        registry.register('agent_1', descriptor)
+        eligibility = EligibilityPipelineResult(
+            eligible=[EligibilityCheck(
+                agent_id='agent_1',
+                eligible=True,
+                result=EligibilityResult.ELIGIBLE,
+                reasons=['Agent is eligible'],
+            )],
+            rejected=[],
+        )
+
+        decision = AgentRouter(registry=registry).select_from_eligibility(
+            eligibility
+        )
+
+        assert decision is not None
+        assert decision.agent is descriptor
+
 
 class TestQueryRouter:
     """Test QueryRouter convenience class."""

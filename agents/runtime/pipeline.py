@@ -148,6 +148,9 @@ def ensure_reference_agent(
     body.register_agent(work_type=ATS_WORK_TYPE, handler=ats.process_work)
     body.register_agent(capability=ATS_ANALYZE_CAPABILITY, handler=ats.process_work)
     body.register_agent(agent_id="ats-agent", handler=ats.process_work)
+    # Gate G03 (RIS-MO-ADDITION-AGENT-E2E-01): deterministischer math.add-Agent.
+    from agents.addition_agent.registry import register_addition_agent
+    register_addition_agent(registry, body)
     return registry, body
 
 
@@ -494,7 +497,7 @@ def process_record(
     pipeline = EligibilityPipeline(registry).check_candidates(candidates, envelope)
     eligible_ids = {c.agent_id for c in pipeline.eligible}
     eligible = [c for c in candidates if c.agent_id in eligible_ids]
-    decision = EcosystemRouter().select(eligible)
+    decision = EcosystemRouter(registry=registry).select(eligible)
     if decision is None:
         raise ValueError(
             f"Kein geeigneter Agent (eligible={len(pipeline.eligible)}, "
@@ -537,6 +540,33 @@ def process_record(
 
     attempt = int(item.get("attempt_no", 1))
 
+    # G04: a partner-scoped work item must carry the APIProfile that was
+    # verified at the RIS entry point. Missing binding is a permanent denial,
+    # not a retry: an absent identity must never fall back to user-wide
+    # authorization. Human/user-wide work items carry no partner application
+    # and keep the existing (api_profile_id=None) semantics.
+    api_profile_id = work.get("apiProfileId") or None
+    partner_application_id = work.get("partnerApplicationId") or None
+    if partner_application_id and not api_profile_id:
+        _persist_failure(
+            table, work["workId"], attempt,
+            {"message": "Partner-scoped work item carries no verified "
+                        "apiProfileId",
+             "type": "IDENTITY_BINDING_MISSING"}, terminal=True)
+        logger.warning(
+            "worker identity binding DENIED (workId=%s, partnerApplication=%s)",
+            work["workId"], partner_application_id)
+        return {
+            "workId": work["workId"],
+            "status": "DEAD_LETTER",
+            "duplicate": False,
+            "attempt_no": attempt,
+            "agent_id": decision.agent_id,
+            "denied": True,
+            "reason": "api-profile-binding-missing",
+            "result_reference": f"work:{work['workId']}:attempt:{attempt}",
+        }
+
     # Execution-Time-Entitlement-Re-check (Gate 08): SQS ist
     # Aktivierung, keine Autorisierung. Geprueft wird der ENTSCHIEDENE
     # Agent (Registry-Wahrheit) gegen den registrierten Entitlement-
@@ -559,7 +589,7 @@ def process_record(
                 # Profile context passthrough (P11): None preserves the
                 # user-wide behavior exactly; asserted contexts are verified
                 # against profile-bound rows (never trusted blindly).
-                api_profile_id=work.get("apiProfileId"),
+                api_profile_id=api_profile_id,
             )
         except Exception as exc:
             # Transienter Infrastrukturfehler (Store unerreichbar) ist
