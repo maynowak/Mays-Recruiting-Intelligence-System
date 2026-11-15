@@ -10193,3 +10193,15 @@ Date: 2026-11-15
 - Filed the customer-provided roadmap PDF at docs/roadmap/RIS_Agent_Ecosystem_Entwicklungsroadmap_2026.pdf (141528 bytes, sha256 0212667decc460963498669c0be00faffa5eece76b821d69605658f252ed904a) and linked it from docs/roadmap/ROADMAP.md as a planning document, explicitly not an evidence source.
 - No code, Terraform, or AWS change. No version pin changed by this docs task.
 Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-00 BASELINE]
+Status: ORCH-00 COMPLETE (read-only baseline).
+Date: 2026-11-15
+- Branch feature/ris-dev2-ats-agent-pinned-core-01 created from main ae08267c3871d7bb85b7aa7ed2aed07a75385584; tree clean. The planning document is filed at docs/roadmap/RIS_ATS_AGENT_ORCHESTRIERTER_PROMPTPLAN_2026-11-15.md (sha256 770f5135535c339ad936727efcbc1baf91511f46be74b9f490df3d9d58d1bdf0).
+- Existing ATS agent identity confirmed: ats-agent, capability analyze.job, work type ats_process, version 1.0.0, body 1.0.0, python3.14, LAMBDA, low risk. It currently delegates to the mutable mays-jobsearch HTTP endpoint via ATSHttpClient (httpx -> requests -> urllib); it contains no ATS business logic.
+- Runtime wiring already exists in agents/runtime/pipeline.py (registry + three body registrations); no second registration path and no ATS-specific SQS. A04-A07, transport V1, OrdersPort, agentOrder V1 and addition_agent are explicitly reused and must not be duplicated or changed.
+- Conflict matrix recorded: ats_agent is extended in place; orders/* and addition_agent/* untouched; installer/mays-jobsearch-clone.pinned.json (29d8b730) remains a historical reference and is not repurposed as the ATS package pin; jobsearch stays read-only.
+- Test baseline before changes: tests/test_ats_domain_agent.py + tests/test_jobsearch_agent.py = 13 passed on main ae08267.
+- No AWS, Terraform, Jobsearch mutation, merge or push in this gate.
+Report: docs/reports/RIS-ATS-AGENT-01-ORCH-00-BASELINE.md
