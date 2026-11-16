@@ -10265,3 +10265,15 @@ Date: 2026-11-16
 - Docs: docs/contracts/ATS-ANALYSIS-RESULT-BODY-V1.md; linked from the Jobsearch contract.
 - Tests: 174 passed plus 5 subtests (ATS, addition, processing/routing/pipeline, orders contracts, generated artifact and bridge). No AWS, Jobsearch mutation, merge or main change.
 Doc: docs/contracts/ATS-ANALYSIS-RESULT-BODY-V1.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-05 REGRESSION]
+Status: COMPLETE (local). 420 passed, 8 skipped, 14 subtests.
+Date: 2026-11-16
+- Ran 33 targeted suites across ATS contract/body/agent, registry, AgentBody, tenant/consent/privacy, agent-order A04-A07, Orders/transport, runtime, packaging/pinning and the generated Orders artifact. With ORDERS_TABLE and ORDERS_SQS_QUEUE_URL set: 420 passed, 8 skipped, 14 subtests.
+- Environment caveat: without those variables 3 tests in test_real_orders_adapter.py fail at import because lambda/orders_reader.py requires ORDERS_TABLE. Reproduced on main in a separate worktree (3 failed/1 passed without env, 4 passed with env), so it is pre-existing and unrelated to ATS.
+- Built the real RIS bundles: terraform/lambda.zip (93 files, sha256 a0b2eddbbe4a36c9cd950d112a5a4602be183d95f5fa2c6b7005db12c6befc47) and lambda/dist/orders-reader.zip (sha256 a26c19025eeafa6f08b499d55ba51a1538d298b4356e2d8efe9b334ecc291a56). A fresh interpreter with only the agent ZIP on sys.path imports contract/result_body and produces contract 1.1, body 1.0, score 50 and MATCHED/UNKNOWN.
+- Fail-closed covered: missing inputs, unknown capability, foreign tenant (runtime/tenant suites), consent/PII, duplicate delivery, stale expectedWorkId (bridge), contract hash/drift, and no CV raw text/secret in logs (new assertLogs test).
+- Skips are intentional: 6 planned R08 privacy capabilities and 2 live packaging tests that require mayaws credentials.
+- No live Jobsearch call, no AWS/Terraform/ris-dev2, no merge.
+Report: docs/reports/RIS-ATS-AGENT-01-ORCH-05-REGRESSION.md

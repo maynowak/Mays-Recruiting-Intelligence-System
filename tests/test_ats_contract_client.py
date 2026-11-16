@@ -162,5 +162,53 @@ class AgentContractIntegrationTest(unittest.TestCase):
         self.assertEqual(error.code, "ATS_UPSTREAM_ERROR")
 
 
+class FailClosedTest(unittest.TestCase):
+    def setUp(self):
+        self.agent = ATSAgent()
+
+    def test_validate_work_rejects_missing_required_field(self):
+        for field in ("workId", "type", "tenantId", "idempotencyKey"):
+            work = work_item()
+            del work[field]
+            with self.subTest(field=field):
+                self.assertFalse(self.agent.validate_work(work))
+
+    def test_validate_work_rejects_unknown_capability(self):
+        work = work_item()
+        work["capability"] = "ats.delete"
+        self.assertFalse(self.agent.validate_work(work))
+
+    def test_validate_work_rejects_missing_job(self):
+        work = work_item()
+        work["payload"] = {}
+        self.assertFalse(self.agent.validate_work(work))
+
+    def test_process_work_rejects_unknown_capability(self):
+        work = work_item()
+        work["capability"] = "ats.delete"
+        out = self.agent.process_work(work)
+        self.assertFalse(out["success"])
+        self.assertEqual(out["error"]["type"], "UnsupportedCapability")
+
+    def test_profile_and_description_never_reach_the_log(self):
+        sentinel = "RAW-CV-SENTINEL-DO-NOT-LOG"
+        work = work_item()
+        work["payload"] = {
+            "job": {"title": "QA Engineer", "descriptionPlain": sentinel},
+            "profile": {"skills": sentinel},
+        }
+        original = ATSHttpClient.analyze
+        ATSHttpClient.analyze = lambda self, job, profile=None: copy.deepcopy(VALID)
+        try:
+            with self.assertLogs("agents.ats_agent.agent", level="DEBUG") as captured:
+                out = self.agent.process_work(work)
+        finally:
+            ATSHttpClient.analyze = original
+        self.assertTrue(out["success"])
+        joined = "\n".join(captured.output)
+        self.assertNotIn(sentinel, joined)
+        self.assertNotIn("descriptionPlain", joined)
+
+
 if __name__ == "__main__":
     unittest.main()
