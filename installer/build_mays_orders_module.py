@@ -104,7 +104,7 @@ TARGET_MODULE_DIR = RIS_ROOT / "terraform" / "modules" / "mays_orders"
 BUILDER_PIN_FILE = RIS_ROOT / "installer" / "mays-orders-builder.pinned.json"
 CLONE_PIN_FILE = RIS_ROOT / "installer" / "mays-orders-clone.pinned.json"
 
-PINNED_COMMIT = "122ec65ac7ab5a044d2b2576ae6b7e4c325246b8"
+PINNED_COMMIT = "95f8921be34d4c3c2d9cb1ecc399a255c5a5b1d5"
 """Verbindlicher MO-Commit (40-stellig), ab welchem der Builder zu
 Generieren ist. Wird in der Builder-Pin-Datei MAYDS-ORDERS-BUILDER-PINNED-COMMIT
 hinterlegt; die Composite-Clone-Pin-Datei bleibt als historische Referenz erhalten."""

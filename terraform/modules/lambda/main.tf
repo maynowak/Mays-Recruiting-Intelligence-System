@@ -141,6 +141,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb_work" {
         Action = [
           "dynamodb:PutItem",
           "dynamodb:TransactWriteItems",
+          "dynamodb:ConditionCheckItem",
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
           "dynamodb:Query",

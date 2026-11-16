@@ -10315,3 +10315,16 @@ Date: 2026-11-16
 - Security batch 302 passed / 6 skipped / 13 subtests. Secret scan found no AKIA/private keys; only the intentional local DynamoDB test secret and a runtime credential attribute. Bundle has no .env/.pem/.key/.p12. compileall OK.
 - No apply, no deploy, no AWS mutation. Apply remains a separate approval for 227 creates.
 Report: docs/reports/RIS-ATS-AGENT-01-RIS-DEV2-PLAN-AND-VERIFICATION.md
+
+
+[RIS-ATS-AGENT-01 / RIS-DEV2 APPLY + LIVE E2E]
+Status: DEPLOYED / LOCAL VERIFIED / LIVE-E2E BLOCKED WITH EVIDENCE.
+Date: 2026-11-16
+- Applied the ris-dev2 rebuild with the default profile (devnemo): 227 creates, 0 changes, 0 destroys. The original saved plan (73953f06) was rejected due to a dependency-lock mismatch; the replacement plan e2824650 was address- and action-identical (233 addresses) and was applied. State went from serial 36/0 resources to serial 53/242 resources; lineage unchanged.
+- The first apply stopped at module.mays_orders sqs-worker because the generated module hardcoded the Orders-account boundary arn:aws:iam::240571105849:... . Fixed in Orders commit 95f8921 (submodule default empty, conditional boundary, Orders root passes it, builder neutralises the generated default) and pinned in RIS. Delta apply b392e5e2 added 5 resources / 222 no-ops / 0 destroys.
+- Added dynamodb:ConditionCheckItem to the agent role policy (module.lambda.lambda_dynamodb_work) because DynamoDB transactions require it for ConditionCheck. Delta 6db49d0f updated 1 policy.
+- Live E2E: direct Lambda invocation with a synthetic ats_process SQS record. Handler, envelope, eligibility and agent selection pass. Subject-fence admission fails with TransactionCanceledException [ValidationError: The provided key element does not match the schema]. Inside the Lambda even a GetItem with the simple key 'probe-key' fails the same way, although identity is 262370457690, table ris-dev2-dev-work-items, endpoint eu-central-1 and key schema workId (HASH, S). Identical GetItem/TransactWriteItems calls succeed with admin credentials, including the exact captured items. This is recorded as a platform/runtime anomaly, not a contract or agent-code defect.
+- Deployed agent code sha256 bfce06cd...ae29 (CodeSha256 v84GzeWEAuHRehbbLlVTAqd9icPFKLfx6icILZp/rik=). Diagnostics for the fence path were reduced to table/fence_key/work_id/cancellation logging.
+- Local verification after apply: 185 targeted ATS/orders tests; 425-test targeted regression; full suite 2627 passed/29 failed/79 skipped/4 errors versus main 2533/31/126/4 (no new failure); E2E 149 passed; security 302 passed/6 skipped; secret scan clean.
+- No destroy or rollback. The environment remains deployed for the AWS-side investigation.
+Report: docs/reports/RIS-ATS-AGENT-01-RIS-DEV2-APPLY-AND-LIVE-E2E.md

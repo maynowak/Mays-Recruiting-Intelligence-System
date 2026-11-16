@@ -248,26 +248,34 @@ def _register_processing(
         table_name = getattr(fence_table, "name", None)
         if client is None or not table_name:
             raise SubjectFenceUnavailable("subject fence transaction is unavailable")
+        fence_key = subject_fence_key(
+            user_id=user_id,
+            tenant_id=work.get("tenantId", ""),
+            partner_application_id=work.get("partnerApplicationId", ""),
+            issuer=work.get("issuer", ""))
+        transact_items = [
+            {"ConditionCheck": {
+                "TableName": table_name,
+                "Key": {"workId": {"S": fence_key}},
+                "ConditionExpression": "attribute_not_exists(workId)",
+            }},
+            {"Put": {
+                "TableName": table_name,
+                "Item": _ddb_client_item(item),
+                "ConditionExpression": "attribute_not_exists(workId)",
+            }},
+        ]
         try:
-            client.transact_write_items(TransactItems=[
-                {"ConditionCheck": {
-                    "TableName": table_name,
-                    "Key": {"workId": {"S": subject_fence_key(
-                        user_id=user_id,
-                        tenant_id=work.get("tenantId", ""),
-                        partner_application_id=work.get("partnerApplicationId", ""),
-                        issuer=work.get("issuer", ""))}},
-                    "ConditionExpression": "attribute_not_exists(workId)",
-                }},
-                {"Put": {
-                    "TableName": table_name,
-                    "Item": _ddb_client_item(item),
-                    "ConditionExpression": "attribute_not_exists(workId)",
-                }},
-            ])
+            client.transact_write_items(TransactItems=transact_items)
             return item, False
         except Exception as exc:
             if not _is_conditional_failed(exc):
+                logger.error(
+                    "subject fence admission failed: %s table=%s fence_key=%s work_id=%s",
+                    repr(exc), table_name, fence_key, item.get("workId"))
+                resp = getattr(exc, "response", None)
+                if isinstance(resp, dict):
+                    logger.error("cancellation=%s", resp.get("CancellationReasons"))
                 raise SubjectFenceUnavailable("subject fence admission failed") from exc
             existing = table.get_item(Key={"workId": work["workId"]}).get("Item", {})
             if existing:
