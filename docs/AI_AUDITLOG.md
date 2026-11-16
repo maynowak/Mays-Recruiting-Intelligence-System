@@ -10289,3 +10289,15 @@ Date: 2026-11-16
 - Targeted regression: 425 passed, 8 skipped, 14 subtests. Rebuilt terraform/lambda.zip: 93 files, sha256 b91b74295f1fd1e51b8d47478bda18532dfdd4f18d1c313eb85bdde36c3079d2.
 - Used the default profile (devnemo) only; not mayaws. No AWS mutation, no Jobsearch mutation, no merge.
 Report: docs/reports/RIS-ATS-AGENT-01-ORCH-05-REGRESSION.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-06 HANDOFF]
+Status: COMPLETE. Branch feature/ris-dev2-ats-agent-pinned-core-01 is reviewable; no merge.
+Date: 2026-11-16
+- Final state: RIS consumes the single ATS implementation in mays-jobsearch over the pinned HTTP contract. No code copy, no ATS logic duplication. Contract 1.2 at jobsearch commit 8456910a9ae64f51ec4a33ea1e9e82068f82bfff; ATSAnalysisResultBody 1.1.
+- Artifacts: terraform/lambda.zip 93 files sha256 b91b74295f1fd1e51b8d47478bda18532dfdd4f18d1c313eb85bdde36c3079d2; orders-reader.zip sha256 a26c19025eeafa6f08b499d55ba51a1538d298b4356e2d8efe9b334ecc291a56; generated Orders module zip sha256 1801e9fbe0d8d7dd70f8cc46699ff2eae6d44c2c590c5472804e022854ead222.
+- Targeted regression: 425 passed, 8 skipped, 14 subtests. Skips are 6 planned R08 privacy capabilities and 2 live packaging tests requiring the Orders account; mayaws was not used. Default profile devnemo only.
+- Live check: HTTP 200 against the jobsearch ATS endpoint with synthetic data; contract validation and body projection pass. No SLA/load claim.
+- Open and explicitly separate: no ris-dev2 plan/apply/deploy, no live RIS agent invocation, no scheduled drift monitor, no xrepo task (another agent active), Orders account unreachable (403), cross-account role ARNs unknown, secret not provisioned.
+- No AWS/Terraform/Jobsearch mutation, no merge, no deployment.
+Report: docs/reports/RIS-ATS-AGENT-01-ORCH-06-HANDOFF.md
