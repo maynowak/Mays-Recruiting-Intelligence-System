@@ -1,7 +1,9 @@
 {
   "analysis": {
     "score": 0,
-    "keywordCoverage": { "overall": 0 },
+    "keywordCoverage": {
+      "overall": 0
+    },
     "requirementCoverage": 0,
     "profileEvidenceCoverage": 0,
     "roleMatch": null,
@@ -14,7 +16,16 @@
     },
     "criticalGaps": [],
     "requirements": [],
-    "matches": []
+    "matches": [],
+    "metadata": {
+      "title": null,
+      "titleTokens": [],
+      "language": null,
+      "workMode": null,
+      "jobTypes": [],
+      "contractType": null,
+      "contractTypeNoData": true
+    }
   },
   "recommendations": [],
   "ai": {

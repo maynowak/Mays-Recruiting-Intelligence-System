@@ -36,9 +36,18 @@ ATS_ANALYSIS = {
             "hasDescription": True,
             "roleMatchAvailable": True,
         },
+        "metadata": {
+            "title": "QA Engineer",
+            "titleTokens": ["Engineer"],
+            "language": "en",
+            "workMode": None,
+            "jobTypes": [],
+            "contractType": None,
+            "contractTypeNoData": True,
+        },
         "criticalGaps": [],
         "requirements": [
-            {"id": "r1", "text": "Python", "category": "skill", "importance": "high"}
+            {"id": "r1", "text": "Python", "category": "skill", "importance": "high", "source": "tags"}
         ],
         "matches": [
             {"requirementId": "r1", "status": "MATCHED", "confidence": "HIGH"}

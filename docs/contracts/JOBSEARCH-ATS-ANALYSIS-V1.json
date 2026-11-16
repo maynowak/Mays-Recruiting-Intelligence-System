@@ -1,7 +1,7 @@
 {
   "protocol": "MAYS-JOBSEARCH-ATS-ANALYSIS-V1",
-  "contract_version": "1.1",
-  "description": "Interface metadata for the live mays-jobsearch ATS analysis endpoint. No source code is copied; the implementation stays in maynowak/mays-jobsearch (AGPL-3.0-only) and is consumed over the network.",
+  "contract_version": "1.2",
+  "description": "Interface metadata for the live mays-jobsearch ATS analysis endpoint. No source code is copied; the implementation stays in maynowak/mays-jobsearch (AGPL-3.0-only) and is consumed over the network. Version 1.2 reflects the live response at commit 8456910 (metadata, requirement source, evidence as string or null).",
   "endpoint": {
     "method": "POST",
     "path": "/api/ats-analysis",
@@ -28,6 +28,7 @@
         "roleMatch",
         "analysisStatus",
         "basis",
+        "metadata",
         "criticalGaps",
         "requirements",
         "matches"
@@ -46,11 +47,20 @@
         "hasDescription": "boolean",
         "roleMatchAvailable": "boolean"
       },
+      "metadata": {
+        "title": "string | null",
+        "titleTokens": "array<string>",
+        "language": "string | null",
+        "workMode": "'remote' | 'onsite' | null",
+        "jobTypes": "array<string>",
+        "contractType": "string | null",
+        "contractTypeNoData": "boolean"
+      },
       "criticalGaps": "array<requirement>",
-      "requirements": "array<{id: string, text: string, category: string, importance: 'critical'|'high'|'medium'|'low'}>",
+      "requirements": "array<{id: string, text: string, category: string, importance: 'critical'|'high'|'medium'|'low', source: string}>",
       "matches": "array<{requirementId: string, status: 'MATCHED'|'PARTIAL'|'UNKNOWN', confidence: string}>"
     },
-    "recommendations": "array<{requirementId: string, changeType: string, priority: string, proposedChange: string, rationale: string, evidence: array}>",
+    "recommendations": "array<{requirementId: string, changeType: string, priority: string, proposedChange: string, rationale: string, evidence: string|null}>",
     "ai": {
       "required": ["requested", "executed", "consentRequired", "consentGiven"],
       "requested": "boolean",

@@ -1,7 +1,9 @@
 {
   "analysis": {
     "score": 50,
-    "keywordCoverage": { "overall": 50 },
+    "keywordCoverage": {
+      "overall": 50
+    },
     "requirementCoverage": 50,
     "profileEvidenceCoverage": 50,
     "roleMatch": 50,
@@ -34,9 +36,30 @@
       }
     ],
     "matches": [
-      { "requirementId": "tag_0", "status": "MATCHED", "confidence": "HIGH" },
-      { "requirementId": "tag_1", "status": "UNKNOWN", "confidence": "LOW" }
-    ]
+      {
+        "requirementId": "tag_0",
+        "status": "MATCHED",
+        "confidence": "HIGH"
+      },
+      {
+        "requirementId": "tag_1",
+        "status": "UNKNOWN",
+        "confidence": "LOW"
+      }
+    ],
+    "metadata": {
+      "title": "Senior Python Engineer",
+      "titleTokens": [
+        "Senior",
+        "Python",
+        "Engineer"
+      ],
+      "language": "en",
+      "workMode": null,
+      "jobTypes": [],
+      "contractType": null,
+      "contractTypeNoData": true
+    }
   },
   "recommendations": [
     {
@@ -45,7 +68,7 @@
       "priority": "high",
       "proposedChange": "Add AWS evidence",
       "rationale": "No CV evidence found",
-      "evidence": []
+      "evidence": "Python, AWS, Docker"
     }
   ],
   "ai": {

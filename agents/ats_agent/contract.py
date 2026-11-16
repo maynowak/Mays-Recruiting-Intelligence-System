@@ -9,11 +9,11 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-CONTRACT_VERSION = "1.1"
+CONTRACT_VERSION = "1.2"
 CONTRACT_PROTOCOL = "MAYS-JOBSEARCH-ATS-ANALYSIS-V1"
 # Pinned source commit from docs/contracts/mays-jobsearch-api.manifest.json.
 # A test asserts that the two stay in sync.
-SOURCE_CONTRACT_COMMIT = "464783b936647b281df63d6dd8c18b15ad732aa3"
+SOURCE_CONTRACT_COMMIT = "8456910a9ae64f51ec4a33ea1e9e82068f82bfff"
 
 ANALYSIS_STATUSES = frozenset({"complete", "limited", "insufficient"})
 MATCH_STATUSES = frozenset({"MATCHED", "PARTIAL", "UNKNOWN"})
@@ -65,6 +65,11 @@ def _str(value: Any, path: str, allow_empty: bool = True) -> None:
         raise ATSContractError(f"{path}: expected string, got {type(value).__name__}")
     if not allow_empty and not value:
         raise ATSContractError(f"{path}: must not be empty")
+
+
+def _str_or_none(value: Any, path: str) -> None:
+    if value is not None:
+        _str(value, path)
 
 
 def validate_analysis_response(payload: Any) -> Dict[str, Any]:
@@ -122,6 +127,39 @@ def validate_analysis_response(payload: Any) -> Dict[str, Any]:
         "$.analysis.basis.roleMatchAvailable",
     )
 
+    metadata = _require(
+        _require_key(analysis, "metadata", "$.analysis"), "$.analysis.metadata"
+    )
+    _str_or_none(
+        _require_key(metadata, "title", "$.analysis.metadata"),
+        "$.analysis.metadata.title",
+    )
+    _list(
+        _require_key(metadata, "titleTokens", "$.analysis.metadata"),
+        "$.analysis.metadata.titleTokens",
+    )
+    _str_or_none(
+        _require_key(metadata, "language", "$.analysis.metadata"),
+        "$.analysis.metadata.language",
+    )
+    work_mode = _require_key(metadata, "workMode", "$.analysis.metadata")
+    if work_mode not in (None, "remote", "onsite"):
+        raise ATSContractError(
+            f"$.analysis.metadata.workMode: expected null, 'remote' or 'onsite', got {work_mode!r}"
+        )
+    _list(
+        _require_key(metadata, "jobTypes", "$.analysis.metadata"),
+        "$.analysis.metadata.jobTypes",
+    )
+    _str_or_none(
+        _require_key(metadata, "contractType", "$.analysis.metadata"),
+        "$.analysis.metadata.contractType",
+    )
+    _bool(
+        _require_key(metadata, "contractTypeNoData", "$.analysis.metadata"),
+        "$.analysis.metadata.contractTypeNoData",
+    )
+
     _list(_require_key(analysis, "criticalGaps", "$.analysis"), "$.analysis.criticalGaps")
 
     requirements = _list(
@@ -137,6 +175,7 @@ def validate_analysis_response(payload: Any) -> Dict[str, Any]:
             raise ATSContractError(
                 f"{path}.importance: expected one of {sorted(IMPORTANCE_LEVELS)}, got {importance!r}"
             )
+        _str(_require_key(item, "source", path), f"{path}.source")
 
     matches = _list(_require_key(analysis, "matches", "$.analysis"), "$.analysis.matches")
     for index, match in enumerate(matches):
@@ -164,7 +203,11 @@ def validate_analysis_response(payload: Any) -> Dict[str, Any]:
             "rationale",
         ):
             _str(_require_key(item, key, path), f"{path}.{key}")
-        _list(_require_key(item, "evidence", path), f"{path}.evidence")
+        evidence = _require_key(item, "evidence", path)
+        if evidence is not None and not isinstance(evidence, str):
+            raise ATSContractError(
+                f"{path}.evidence: expected string or null, got {type(evidence).__name__}"
+            )
 
     ai = _require(_require_key(response, "ai", "$"), "$.ai")
     for key in ("requested", "executed", "consentRequired", "consentGiven"):

@@ -16,10 +16,10 @@ from agents.ats_agent.contract import (
 )
 
 RESULT_BODY_TYPE = "ATSAnalysisResultBody"
-RESULT_BODY_VERSION = "1.0"
+RESULT_BODY_VERSION = "1.1"
 SOURCE_SYSTEM = "mays-jobsearch"
 
-_REQUIREMENT_FIELDS: Tuple[str, ...] = ("id", "text", "category", "importance")
+_REQUIREMENT_FIELDS: Tuple[str, ...] = ("id", "text", "category", "importance", "source")
 _MATCH_FIELDS: Tuple[str, ...] = ("requirementId", "status", "confidence")
 _RECOMMENDATION_FIELDS: Tuple[str, ...] = (
     "requirementId",
@@ -48,6 +48,15 @@ _BASIS_FIELDS: Tuple[str, ...] = (
     "titleRequirementCount",
     "hasDescription",
     "roleMatchAvailable",
+)
+_METADATA_FIELDS: Tuple[str, ...] = (
+    "title",
+    "titleTokens",
+    "language",
+    "workMode",
+    "jobTypes",
+    "contractType",
+    "contractTypeNoData",
 )
 
 
@@ -84,6 +93,7 @@ def build_ats_analysis_result_body(
             "roleMatch": analysis["roleMatch"],
             "analysisStatus": analysis["analysisStatus"],
             "basis": _project(analysis["basis"], _BASIS_FIELDS),
+            "metadata": _project(analysis["metadata"], _METADATA_FIELDS),
             "criticalGaps": _project_list(
                 analysis["criticalGaps"], _REQUIREMENT_FIELDS
             ),

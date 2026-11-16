@@ -10,7 +10,7 @@
 
 | Metrik | Wert |
 |---|---|
-| **Passed** | **420** |
+| **Passed** | **425** |
 | **Subtests** | **14** |
 | **Skipped** | **8** (bewusst, siehe unten) |
 | **Failed** | **0** (mit den dokumentierten Umgebungsvariablen) |
@@ -23,7 +23,7 @@ reproduziert:
 |---|---|
 | `main`, ohne Env | 3 failed, 1 passed |
 | `main`, mit Env | 4 passed |
-| Feature-Branch, mit Env | **420 passed** |
+| Feature-Branch, mit Env | **425 passed** |
 
 Die Ursache ist `lambda/orders_reader.py`, das beim Import
 `ORDERS_TABLE` verlangt — unabhängig von ATS.
@@ -75,7 +75,7 @@ python lambda/build_zip.py --bundle all
 
 | Artefakt | Größe | SHA-256 |
 |---|---|---|
-| `terraform/lambda.zip` | 305.716 B, 93 Dateien | `a0b2eddbbe4a36c9cd950d112a5a4602be183d95f5fa2c6b7005db12c6befc47` |
+| `terraform/lambda.zip` | 306.070 B, 93 Dateien | `b91b74295f1fd1e51b8d47478bda18532dfdd4f18d1c313eb85bdde36c3079d2` |
 | `lambda/dist/orders-reader.zip` | 4.357 B, 1 Datei | `a26c19025eeafa6f08b499d55ba51a1538d298b4356e2d8efe9b334ecc291a56` |
 
 `terraform/lambda.zip` enthält `agents/ats_agent/{agent,contract,result_body,registry}.py`
@@ -90,8 +90,8 @@ Body-Projektion aus:
 | Import aus dem ZIP | OK |
 | `validate_analysis_response` | OK |
 | `build_ats_analysis_result_body` | OK |
-| Contract-Version | `1.1` |
-| Body-Version | `1.0` |
+| Contract-Version | `1.2` |
+| Body-Version | `1.1` |
 | Score/Match-Status | `50` / `MATCHED, UNKNOWN` |
 
 Test: `tests/test_ats_built_bundle.py` (3 Tests, inkl. Hash-Report).
@@ -106,7 +106,25 @@ Test: `tests/test_ats_built_bundle.py` (3 Tests, inkl. Hash-Report).
 
 ---
 
-## 5. Skips (bewusst)
+## 5. Live-Verifikation (read-only, synthetisch)
+
+Ein echter `POST https://mays-jobsearch.vercel.app/api/ats-analysis` mit
+synthetischen Job-/Profil-Daten (keine PII) lieferte **HTTP 200** und deckte
+drei Abweichungen zum bisherigen Pin auf:
+
+| Befund | Korrektur |
+|---|---|
+| `analysis.metadata` vorhanden | in Contract 1.2 und Body 1.1 aufgenommen |
+| `requirements[].source` vorhanden | in Contract und Body aufgenommen |
+| `recommendations[].evidence` ist **String oder `null`**, kein Array | Validator und Contract korrigiert |
+
+Der Live-Dienst war gegenüber `464783b9` weitergelaufen; `main` stand auf
+`8456910` (PR #21). Der Pin wurde nach Review auf `8456910` gesetzt.
+
+Ergebnis: **Contract 1.2 / Body 1.1**, Live-Validierung und Projektion laufen
+durch. Keine Aussage über Last, SLA oder Produktionsverfügbarkeit.
+
+## 6. Skips (bewusst)
 
 | Anzahl | Grund |
 |---|---|
@@ -117,7 +135,7 @@ Keine Cloud-Tests werden als lokal bestanden ausgegeben.
 
 ---
 
-## 6. Reproduzierbare Kommandos
+## 7. Reproduzierbare Kommandos
 
 ```powershell
 python lambda/build_zip.py --bundle all
@@ -131,15 +149,15 @@ $env:MO_ORDERS_SOURCE_COMMIT='122ec65a…'
 $env:MO_ORDERS_SRC='…\generated\zip-extracted'
 
 python -m pytest <die 33 Testdateien aus Abschnitt 2> -q
-# 420 passed, 8 skipped, 14 subtests passed
+# 425 passed, 8 skipped, 14 subtests passed
 ```
 
 ---
 
-## 7. Grenzen
+## 8. Grenzen
 
-- **Kein Live-Call** gegen `mays-jobsearch`; getestet wurden Contract und
-  Fixtures, nicht die Produktionsverfügbarkeit.
+- **Live-Call** gegen `mays-jobsearch` war lesend und synthetisch; keine
+  Aussage ?ber Last, SLA oder Produktionsverf?gbarkeit.
 - **Kein AWS/ris-dev2**: kein Plan, kein Apply, kein Deployment.
 - **Kein vollständiger RIS-Suite-Lauf**: die bekannten, unabhängigen
   Alt-Fehler anderer Suiten bleiben außerhalb dieses Gates.

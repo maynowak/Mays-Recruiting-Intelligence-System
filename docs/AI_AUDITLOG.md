@@ -10277,3 +10277,15 @@ Date: 2026-11-16
 - Skips are intentional: 6 planned R08 privacy capabilities and 2 live packaging tests that require mayaws credentials.
 - No live Jobsearch call, no AWS/Terraform/ris-dev2, no merge.
 Report: docs/reports/RIS-ATS-AGENT-01-ORCH-05-REGRESSION.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-05 LIVE VERIFICATION - CONTRACT 1.2]
+Status: COMPLETE (local + read-only live check). 425 passed.
+Date: 2026-11-16
+- A real POST to https://mays-jobsearch.vercel.app/api/ats-analysis with synthetic job/profile data returned HTTP 200 and exposed three corrections: analysis.metadata exists, requirements[].source is delivered, and recommendations[].evidence is a string or null rather than an array.
+- The live service was ahead of the previous pin. Jobsearch main had moved to 8456910a9ae64f51ec4a33ea1e9e82068f82bfff (PR #21); after review the contract pin was refreshed to that commit. Contract is now 1.2, result body 1.1.
+- Updated agents/ats_agent/contract.py (metadata, requirement source, evidence string|null), result_body.py (metadata projection, source, body 1.1), and installer/jobsearch_api_contract.py markers. Fixtures and tests updated; new fail-closed cases for metadata, source and evidence.
+- Live validation and body projection pass: score 67, status complete, metadata keys and source present, evidence string.
+- Targeted regression: 425 passed, 8 skipped, 14 subtests. Rebuilt terraform/lambda.zip: 93 files, sha256 b91b74295f1fd1e51b8d47478bda18532dfdd4f18d1c313eb85bdde36c3079d2.
+- Used the default profile (devnemo) only; not mayaws. No AWS mutation, no Jobsearch mutation, no merge.
+Report: docs/reports/RIS-ATS-AGENT-01-ORCH-05-REGRESSION.md

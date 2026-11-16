@@ -1,7 +1,7 @@
 # Jobsearch → RIS: ATS Analysis Contract V1
 
 **Status:** contract pin · **Quelle:** `maynowak/mays-jobsearch` (live)
-**Contract-Version:** `1.1` · **Contract-Commit:** `464783b936647b281df63d6dd8c18b15ad732aa3`
+**Contract-Version:** `1.2` ? **Contract-Commit:** `8456910a9ae64f51ec4a33ea1e9e82068f82bfff`
 
 Die ATS-Implementierung bleibt **eine**: in Mays-Jobsearch. RIS kopiert keinen
 Code, sondern nutzt den veröffentlichten HTTP-Contract. Damit bleibt die
@@ -42,9 +42,18 @@ strukturierte Daten.
       "hasDescription": false,
       "roleMatchAvailable": false
     },
+    "metadata": {
+      "title": null,
+      "titleTokens": [],
+      "language": null,
+      "workMode": null,
+      "jobTypes": [],
+      "contractType": null,
+      "contractTypeNoData": true
+    },
     "criticalGaps": [],
     "requirements": [
-      { "id": "tag_0", "text": "Python", "category": "skill", "importance": "high" }
+      { "id": "tag_0", "text": "Python", "category": "skill", "importance": "high", "source": "tags" }
     ],
     "matches": [
       { "requirementId": "tag_0", "status": "MATCHED", "confidence": "HIGH" }
@@ -57,7 +66,7 @@ strukturierte Daten.
       "priority": "high",
       "proposedChange": "…",
       "rationale": "…",
-      "evidence": []
+      "evidence": "Python, AWS"
     }
   ],
   "ai": {
@@ -93,12 +102,20 @@ Statuswerte in `matches`: `MATCHED`, `PARTIAL`, `UNKNOWN`. Es gibt **keinen**
 | `roleMatch` | 0–100 oder `null` (Titel vs. `targetRoles`) |
 | `analysisStatus` | `complete` (Beschreibung vorhanden), `limited` (ohne), `insufficient` (keine Requirements) |
 | `basis` | `requirementCount`, `titleRequirementCount`, `hasDescription`, `roleMatchAvailable` |
+| `metadata` | Job-Metadaten: `title`, `titleTokens`, `language`, `workMode`, `jobTypes`, `contractType`, `contractTypeNoData` |
+| `requirements[].source` | Herkunft des Requirements (`title`, `tags`, `description`, `criteria`, …) |
+| `recommendations[].evidence` | **String oder `null`** (nicht Array) |
 | keine Requirements | 0 |
 
 **Vertragsänderung 1.1:** Titel-Tokens gelten nur noch als Rollensignal. Sie
 zählen nicht mehr als eigenständige Requirements, nicht als Gap und nicht in
 den Score. `score` und `keywordCoverage` beziehen sich auf die tatsächlichen
 Job-Requirements.
+
+**Vertragsänderung 1.2:** Live-Abgleich am 2026-11-16 gegen
+`https://mays-jobsearch.vercel.app/api/ats-analysis` ergab drei Korrekturen:
+`analysis.metadata` ist vorhanden, `requirements[].source` wird ausgeliefert
+und `recommendations[].evidence` ist ein String oder `null` (kein Array).
 
 Deterministisch: 0/50/100 sind ohne Zufall oder Uhrzeit konstruierbar.
 

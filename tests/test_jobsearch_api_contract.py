@@ -27,14 +27,15 @@ FILES = {
         "// /api/ats-analysis validateRequest\n"
         'const response = { analysis: { score: 0, keywordCoverage: { overall: 0 }, '
         'requirementCoverage: 0, profileEvidenceCoverage: 0, roleMatch: null, '
-        'analysisStatus: "insufficient", basis: {}, criticalGaps, requirements: [], '
-        'matches: [] }, recommendations: [], ai: { } };\n'
+        'analysisStatus: "insufficient", basis: {}, metadata: {}, criticalGaps, '
+        'requirements: [], matches: [] }, recommendations: [], ai: { } };\n'
     ).encode(),
     "api/_lib/ats.mjs": (
         "export function analyzeJobForAts() {}\n"
         "export function extractRequirementsFromJob() {}\n"
         "export function matchRequirement() {}\n"
         "export function calculateRoleMatch() {}\n"
+        "export function extractJobMetadata() {}\n"
         "export function generateCVRecommendations() {}\n"
         "const importanceWeight = {}; const criticalGaps = [];\n"
         "const analysisStatus = 'complete'; const requirementMatch = 0;\n"
@@ -150,7 +151,7 @@ class ContractDocumentTest(unittest.TestCase):
             )
         )
         self.assertEqual(contract_doc["protocol"], "MAYS-JOBSEARCH-ATS-ANALYSIS-V1")
-        self.assertEqual(contract_doc["contract_version"], "1.1")
+        self.assertEqual(contract_doc["contract_version"], "1.2")
         self.assertEqual(contract_doc["endpoint"]["path"], "/api/ats-analysis")
         self.assertEqual(contract_doc["statuses"], ["MATCHED", "PARTIAL", "UNKNOWN"])
         self.assertIn("requirementCoverage", contract_doc["response"]["analysis"]["required"])

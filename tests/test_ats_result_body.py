@@ -87,7 +87,10 @@ class ResultBodyShapeTest(unittest.TestCase):
 
     def test_upstream_internals_are_not_leaked(self):
         requirement = self.body["analysis"]["requirements"][0]
-        self.assertEqual(set(requirement), {"id", "text", "category", "importance"})
+        self.assertEqual(
+            set(requirement),
+            {"id", "text", "category", "importance", "source"},
+        )
         match = self.body["analysis"]["matches"][0]
         self.assertEqual(set(match), {"requirementId", "status", "confidence"})
         recommendation = self.body["recommendations"][0]
@@ -103,11 +106,25 @@ class ResultBodyShapeTest(unittest.TestCase):
             },
         )
 
+    def test_job_metadata_is_projected(self):
+        self.assertEqual(
+            set(self.body["analysis"]["metadata"]),
+            {
+                "title",
+                "titleTokens",
+                "language",
+                "workMode",
+                "jobTypes",
+                "contractType",
+                "contractTypeNoData",
+            },
+        )
+
     def test_source_metadata_is_minimal_and_pinned(self):
         source = self.body["source"]
         self.assertEqual(source["system"], "mays-jobsearch")
         self.assertEqual(source["contract"], "MAYS-JOBSEARCH-ATS-ANALYSIS-V1")
-        self.assertEqual(source["contractVersion"], "1.1")
+        self.assertEqual(source["contractVersion"], "1.2")
         self.assertEqual(source["contractCommit"], SOURCE_CONTRACT_COMMIT)
 
     def test_no_profile_input_in_body(self):
@@ -116,8 +133,8 @@ class ResultBodyShapeTest(unittest.TestCase):
         self.assertEqual(self.body["jobTitle"], "QA Engineer")
 
     def test_body_version_is_stable(self):
-        self.assertEqual(RESULT_BODY_VERSION, "1.0")
-        self.assertEqual(self.body["bodyVersion"], "1.0")
+        self.assertEqual(RESULT_BODY_VERSION, "1.1")
+        self.assertEqual(self.body["bodyVersion"], "1.1")
 
 
 class ResultBodyIntegrationTest(unittest.TestCase):
@@ -144,7 +161,7 @@ class ResultBodyIntegrationTest(unittest.TestCase):
         self.assertEqual(out["data"]["bodyType"], RESULT_BODY_TYPE)
         self.assertEqual(out["data"]["bodyVersion"], RESULT_BODY_VERSION)
         self.assertEqual(out["metrics"]["resultBodyVersion"], RESULT_BODY_VERSION)
-        self.assertEqual(out["metrics"]["contractVersion"], "1.1")
+        self.assertEqual(out["metrics"]["contractVersion"], "1.2")
         self.assertNotIn("candidateSkills", out["data"])
 
     def test_source_commit_matches_the_manifest(self):

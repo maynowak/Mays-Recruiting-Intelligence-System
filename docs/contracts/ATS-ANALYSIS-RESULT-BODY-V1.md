@@ -1,6 +1,6 @@
 # ATSAnalysisResultBody V1
 
-**Status:** implementiert · **Version:** `1.0`
+**Status:** implementiert ? **Version:** `1.1`
 **Quelle:** projiziert aus `MAYS-JOBSEARCH-ATS-ANALYSIS-V1` (Contract 1.1)
 
 Der RIS-Result-Body ist eine **versionierte, RIS-eigene Projektion** der
@@ -17,8 +17,8 @@ Jobsearch bleibt die einzige ATS-Implementierung.
     "durationMs": 12.3,
     "workId": "…",
     "agentVersion": "1.0.0",
-    "contractVersion": "1.1",
-    "resultBodyVersion": "1.0"
+    "contractVersion": "1.2",
+    "resultBodyVersion": "1.1"
   }
 }
 ```
@@ -28,7 +28,7 @@ Jobsearch bleibt die einzige ATS-Implementierung.
 ```json
 {
   "bodyType": "ATSAnalysisResultBody",
-  "bodyVersion": "1.0",
+  "bodyVersion": "1.1",
   "analysis": {
     "score": 50,
     "keywordCoverage": { "overall": 50 },
@@ -36,6 +36,15 @@ Jobsearch bleibt die einzige ATS-Implementierung.
     "profileEvidenceCoverage": 50,
     "roleMatch": null,
     "analysisStatus": "limited",
+    "metadata": {
+      "title": "QA Engineer",
+      "titleTokens": ["Engineer"],
+      "language": "en",
+      "workMode": null,
+      "jobTypes": [],
+      "contractType": null,
+      "contractTypeNoData": true
+    },
     "basis": {
       "requirementCount": 2,
       "titleRequirementCount": 1,
@@ -44,7 +53,7 @@ Jobsearch bleibt die einzige ATS-Implementierung.
     },
     "criticalGaps": [],
     "requirements": [
-      { "id": "tag_0", "text": "Python", "category": "skill", "importance": "high" }
+      { "id": "tag_0", "text": "Python", "category": "skill", "importance": "high", "source": "tags" }
     ],
     "matches": [
       { "requirementId": "tag_0", "status": "MATCHED", "confidence": "HIGH" }
@@ -57,7 +66,7 @@ Jobsearch bleibt die einzige ATS-Implementierung.
       "priority": "high",
       "proposedChange": "…",
       "rationale": "…",
-      "evidence": []
+      "evidence": "Python, AWS"
     }
   ],
   "ai": {
@@ -69,8 +78,8 @@ Jobsearch bleibt die einzige ATS-Implementierung.
   "source": {
     "system": "mays-jobsearch",
     "contract": "MAYS-JOBSEARCH-ATS-ANALYSIS-V1",
-    "contractVersion": "1.1",
-    "contractCommit": "464783b936647b281df63d6dd8c18b15ad732aa3"
+    "contractVersion": "1.2",
+    "contractCommit": "8456910a9ae64f51ec4a33ea1e9e82068f82bfff"
   },
   "jobTitle": "QA Engineer"
 }
@@ -81,7 +90,7 @@ Jobsearch bleibt die einzige ATS-Implementierung.
 | Feld | Regel |
 |---|---|
 | `bodyType` | konstant `ATSAnalysisResultBody` |
-| `bodyVersion` | `1.0`; eigener Versionszyklus, unabhängig vom API-Contract |
+| `bodyVersion` | `1.1`; eigener Versionszyklus, unabh?ngig vom API-Contract |
 | `analysis.score` | int 0–100 |
 | `analysis.keywordCoverage.overall` | int 0–100 |
 | `analysis.requirementCoverage` | int 0–100 (Alias des API-Feldes) |
@@ -89,10 +98,11 @@ Jobsearch bleibt die einzige ATS-Implementierung.
 | `analysis.roleMatch` | int 0–100 oder `null` |
 | `analysis.analysisStatus` | `complete`, `limited`, `insufficient` |
 | `analysis.basis` | vier Zähl-/Flag-Felder |
-| `analysis.criticalGaps[]` | `{id,text,category,importance}` |
-| `analysis.requirements[]` | `{id,text,category,importance}` |
+| `analysis.metadata` | Job-Metadaten: Titel, Tokens, Sprache, WorkMode, JobTypes, ContractType |
+| `analysis.criticalGaps[]` | `{id,text,category,importance,source}` |
+| `analysis.requirements[]` | `{id,text,category,importance,source}` |
 | `analysis.matches[]` | `{requirementId,status,confidence}`; Status `MATCHED/PARTIAL/UNKNOWN` |
-| `recommendations[]` | `{requirementId,changeType,priority,proposedChange,rationale,evidence}` |
+| `recommendations[]` | `{requirementId,changeType,priority,proposedChange,rationale,evidence}`; `evidence` ist String oder `null` |
 | `ai` | nur bekannte Felder; fehlende optionale Felder werden weggelassen |
 | `source` | System, Contract, Version, Commit — **keine** PII |
 | `jobTitle` | optional, nur wenn vorhanden |

@@ -1,7 +1,9 @@
 {
   "analysis": {
     "score": 0,
-    "keywordCoverage": { "overall": 0 },
+    "keywordCoverage": {
+      "overall": 0
+    },
     "requirementCoverage": 0,
     "profileEvidenceCoverage": 0,
     "roleMatch": null,
@@ -25,8 +27,23 @@
       }
     ],
     "matches": [
-      { "requirementId": "title_0", "status": "UNKNOWN", "confidence": "LOW" }
-    ]
+      {
+        "requirementId": "title_0",
+        "status": "UNKNOWN",
+        "confidence": "LOW"
+      }
+    ],
+    "metadata": {
+      "title": "Engineer",
+      "titleTokens": [
+        "Engineer"
+      ],
+      "language": null,
+      "workMode": null,
+      "jobTypes": [],
+      "contractType": null,
+      "contractTypeNoData": true
+    }
   },
   "recommendations": [],
   "ai": {

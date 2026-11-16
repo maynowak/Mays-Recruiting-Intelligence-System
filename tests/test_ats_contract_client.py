@@ -33,10 +33,19 @@ VALID = {
             "hasDescription": False,
             "roleMatchAvailable": False,
         },
+        "metadata": {
+            "title": "QA Engineer",
+            "titleTokens": ["Engineer"],
+            "language": "en",
+            "workMode": None,
+            "jobTypes": [],
+            "contractType": None,
+            "contractTypeNoData": True,
+        },
         "criticalGaps": [],
         "requirements": [
-            {"id": "tag_0", "text": "Python", "category": "skill", "importance": "high"},
-            {"id": "criteria_0", "text": "AWS", "category": "skill", "importance": "medium"},
+            {"id": "tag_0", "text": "Python", "category": "skill", "importance": "high", "source": "tags"},
+            {"id": "criteria_0", "text": "AWS", "category": "skill", "importance": "medium", "source": "criteria"},
         ],
         "matches": [
             {"requirementId": "tag_0", "status": "MATCHED", "confidence": "HIGH"},
@@ -50,7 +59,7 @@ VALID = {
             "priority": "medium",
             "proposedChange": "Add evidence",
             "rationale": "Partial match",
-            "evidence": [],
+            "evidence": "Python, AWS, Docker",
         }
     ],
     "ai": {
@@ -108,6 +117,30 @@ class ContractValidationTest(unittest.TestCase):
         broken["analysis"]["analysisStatus"] = "unknown"
         with self.assertRaises(ATSContractError):
             validate_analysis_response(broken)
+
+    def test_missing_metadata_fails(self):
+        broken = copy.deepcopy(VALID)
+        del broken["analysis"]["metadata"]
+        with self.assertRaises(ATSContractError) as ctx:
+            validate_analysis_response(broken)
+        self.assertIn("metadata", str(ctx.exception))
+
+    def test_missing_requirement_source_fails(self):
+        broken = copy.deepcopy(VALID)
+        del broken["analysis"]["requirements"][0]["source"]
+        with self.assertRaises(ATSContractError):
+            validate_analysis_response(broken)
+
+    def test_evidence_must_be_string_or_null(self):
+        broken = copy.deepcopy(VALID)
+        broken["recommendations"][0]["evidence"] = []
+        with self.assertRaises(ATSContractError):
+            validate_analysis_response(broken)
+
+    def test_null_evidence_is_allowed(self):
+        response = copy.deepcopy(VALID)
+        response["recommendations"][0]["evidence"] = None
+        self.assertIs(validate_analysis_response(response), response)
 
     def test_role_match_null_is_allowed(self):
         response = copy.deepcopy(VALID)
