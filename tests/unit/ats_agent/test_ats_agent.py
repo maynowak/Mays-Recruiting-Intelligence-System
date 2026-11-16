@@ -2,11 +2,48 @@
 Tests for ATS Agent - HTTP Integration Layer only
 """
 
+import importlib.util
 import sys
 sys.path.insert(0, '.')
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
+VALID_RESPONSE = {
+    "analysis": {
+        "score": 85,
+        "keywordCoverage": {"overall": 85},
+        "requirementCoverage": 85,
+        "profileEvidenceCoverage": 85,
+        "roleMatch": None,
+        "analysisStatus": "limited",
+        "basis": {
+            "requirementCount": 0,
+            "titleRequirementCount": 0,
+            "hasDescription": False,
+            "roleMatchAvailable": False,
+        },
+        "metadata": {
+            "title": "Test Job",
+            "titleTokens": ["Test", "Job"],
+            "language": None,
+            "workMode": None,
+            "jobTypes": [],
+            "contractType": None,
+            "contractTypeNoData": True,
+        },
+        "criticalGaps": [],
+        "requirements": [],
+        "matches": [],
+    },
+    "recommendations": [],
+    "ai": {
+        "requested": False,
+        "executed": False,
+        "consentRequired": True,
+        "consentGiven": False,
+    },
+}
+
 from agents.ats_agent import ATSAgent, ATSHttpClient, ATSAPIError
 
 
@@ -28,6 +65,7 @@ class TestATSHttpClient:
         client = ATSHttpClient(timeout=60)
         assert client.timeout == 60
     
+    @pytest.mark.skipif(importlib.util.find_spec('requests') is None, reason='requests not installed')
     @patch('requests.post')
     def test_analyze_job_calls_api(self, mock_post):
         """Test analyze_job makes HTTP request to correct endpoint."""
@@ -90,12 +128,7 @@ class TestATSAgent:
     @patch.object(ATSAgent, 'client')
     def test_process_work_analyze(self, mock_client):
         """Test analyze capability calls client."""
-        mock_client.analyze.return_value = {
-            'score': 85,
-            'keywordCoverage': {'overall': 85},
-            'requirements': [],
-            'matches': []
-        }
+        mock_client.analyze.return_value = VALID_RESPONSE
         
         agent = ATSAgent()
         work_item = {

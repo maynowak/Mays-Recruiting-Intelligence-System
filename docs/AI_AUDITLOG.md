@@ -10301,3 +10301,17 @@ Date: 2026-11-16
 - Open and explicitly separate: no ris-dev2 plan/apply/deploy, no live RIS agent invocation, no scheduled drift monitor, no xrepo task (another agent active), Orders account unreachable (403), cross-account role ARNs unknown, secret not provisioned.
 - No AWS/Terraform/Jobsearch mutation, no merge, no deployment.
 Report: docs/reports/RIS-ATS-AGENT-01-ORCH-06-HANDOFF.md
+
+
+[RIS-ATS-AGENT-01 / RIS-DEV2 PLAN + FULL VERIFICATION]
+Status: PLAN VERIFIED / NO NEW REGRESSION / NO APPLY.
+Date: 2026-11-16
+- Plan for workspace ris-dev2 (backend ris-dev2-tf-state-dev, lock ris-dev2-tf-lock, key dev/terraform.tfstate, prefix env:) with project_name=ris-dev2 and default profile devnemo: 227 to add, 0 to change, 0 to destroy, 6 data reads. Plan sha256 73953f06a25f63488d1a04b40f7b31782165c1235fe3e8798dff0bd9c8ce10ee; plan JSON sha256 8f79f9a2028fd5a996686b18b25823253b6a22361502aa6d206e3c38f3ad5d10.
+- No destructive actions or replacements. 227 creates are a full ris-dev2 rebuild because the state is empty. module.mays_orders contributes 25 resources, module.orders_reader 10, module.agent_transport 0 (enable_agent_transport=false).
+- The generated Orders module was built temporarily from pin 122ec65 for the plan and removed afterwards; the lockfile and placeholder variables.tf were restored. Worktree clean.
+- Full suite comparison: feature 2627 passed / 29 failed / 79 skipped / 4 errors / 434 subtests; main 2533 passed / 31 failed / 126 skipped / 4 errors / 425 subtests. No new failure. Two failures exist only on main (test_lambda_packaging::test_c_exclusions and test_ats_agent::test_analyze_job_calls_api, the latter now skipped because requests is absent).
+- ATS unit tests updated to contract 1.2 / body 1.1: tests/unit/ats_agent 19 passed, 1 skipped.
+- E2E batch 149 passed + 4 subtests (partner addition, partner E2E, bridge, agent-order, generated artifact, MO contract, transport). Live ATS POST returned 200 with contract 1.2 and body 1.1.
+- Security batch 302 passed / 6 skipped / 13 subtests. Secret scan found no AKIA/private keys; only the intentional local DynamoDB test secret and a runtime credential attribute. Bundle has no .env/.pem/.key/.p12. compileall OK.
+- No apply, no deploy, no AWS mutation. Apply remains a separate approval for 227 creates.
+Report: docs/reports/RIS-ATS-AGENT-01-RIS-DEV2-PLAN-AND-VERIFICATION.md
