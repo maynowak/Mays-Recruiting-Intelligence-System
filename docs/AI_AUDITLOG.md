@@ -10219,3 +10219,15 @@ Date: 2026-11-15
 - Tests/UI observed: tests/api/ats-analysis.test.js, ats-extraction.test.js, ats-model-selection.test.mjs, filter.test.js; src/components/AtsOverlay(.test).tsx binds score, keywordCoverage.overall, criticalGaps, requirements, matches, recommendations.
 - No PDF/DOCX extraction exists in the API; input is structured job/profile JSON. No Jobsearch mutation, no AWS, no merge, no push.
 Report: docs/reports/RIS-ATS-AGENT-01-ORCH-01-API-SNAPSHOT.md
+
+
+[RIS-ATS-AGENT-01 / XREPO CONSOLIDATION DECISION]
+Status: DECISION RECORDED (no code change).
+Date: 2026-11-16
+- Goal: one ATS implementation. Jobsearch already implements and live-tests ATS for users; RIS must consume it, not duplicate it. This supersedes the ORCH-02 vendor/port approach.
+- Evidence: jobsearch HEAD a5640d12dba8ca39258484f5212def17eabf4eca, endpoint POST /api/ats-analysis, AGPL-3.0-only, ATS core authored solely by maynowak. RIS ats_agent already calls the endpoint and contains no ATS business logic.
+- Decision: no code copy, no npm package, no Python port. RIS integrates via a pinned HTTP contract: commit a5640d12 as contract reference, documented request/response schema, fail-closed client validation, explicit timeouts/error classes, contract fixtures. AGPL remains a service boundary, so no copyleft transfer into RIS.
+- xrepo: MAYS-XREPO-V1 is the coordination channel and its allowlist is exactly RIS + mays-jobsearch. The separate maynowak/mays-xrepo-orchestration repository contains only README.md and LICENSE; the working implementation is in docs/xrepo/ and scripts/xrepo/. Active tasks MAYS-XR-E2E-001 (RIS#7 / jobsearch#3) and MAYS-SCV-RC3-001 (RIS#8 / jobsearch#17) are owned elsewhere; a new MAYS-XR-ATS-001 task would require explicit approval and sequential dispatch.
+- Revised gates: ORCH-02 becomes a contract pin (fixtures, schema validator, contract tests); ORCH-03 becomes client hardening; ORCH-04 (ATSAnalysisResultBody V1) remains valid; ORCH-05/06 unchanged.
+- No code, AWS, Terraform, Jobsearch mutation, merge or push in this step.
+Report: docs/reports/RIS-ATS-AGENT-01-XREPO-CONSOLIDATION.md
