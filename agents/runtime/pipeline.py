@@ -192,8 +192,36 @@ def _is_conditional_failed(exc: Exception) -> bool:
         return True
     resp = getattr(exc, "response", None)
     if isinstance(resp, dict):
-        return resp.get("Error", {}).get("Code") == "ConditionalCheckFailedException"
+        code = resp.get("Error", {}).get("Code")
+        if code == "ConditionalCheckFailedException":
+            return True
+        if code == "TransactionCanceledException":
+            reasons = resp.get("CancellationReasons") or []
+            return any(
+                isinstance(reason, dict)
+                and reason.get("Code") == "ConditionalCheckFailed"
+                for reason in reasons
+            )
     return False
+
+
+def _ddb_transaction_client(table: Any) -> Any:
+    """Return a DynamoDB client that does not apply resource marshalling.
+
+    ``boto3.resource('dynamodb').Table(...).meta.client`` carries the
+    document transformation and therefore double-wraps DynamoDB JSON
+    (``{"workId": {"M": {"S": {"S": "..."}}}}``). The fence transaction
+    passes DynamoDB JSON, so it needs a plain low-level client. Injected
+    fake clients (tests) have no ``service_model`` and are returned as-is.
+    """
+    resource_client = getattr(getattr(table, "meta", None), "client", None)
+    if resource_client is None:
+        return None
+    meta = getattr(resource_client, "meta", None)
+    if getattr(meta, "service_model", None) is None:
+        return resource_client
+    import boto3
+    return boto3.client("dynamodb", region_name=getattr(meta, "region_name", None))
 
 
 def _register_processing(
@@ -244,7 +272,7 @@ def _register_processing(
     if require_fence:
         if fence_table is None:
             raise SubjectFenceUnavailable("subject fence is required")
-        client = getattr(getattr(fence_table, "meta", None), "client", None)
+        client = _ddb_transaction_client(fence_table)
         table_name = getattr(fence_table, "name", None)
         if client is None or not table_name:
             raise SubjectFenceUnavailable("subject fence transaction is unavailable")
@@ -337,7 +365,7 @@ def _ddb_client_item(value: Dict[str, Any]) -> Dict[str, Any]:
 def _final_fence_admission(table: Any, fence_table: Any,
                            work: Dict[str, Any], attempt: int) -> None:
     """Atomically re-check the subject fence immediately before execution."""
-    client = getattr(getattr(fence_table, "meta", None), "client", None)
+    client = _ddb_transaction_client(fence_table)
     table_name = getattr(fence_table, "name", None)
     if client is None or not table_name:
         raise SubjectFenceUnavailable("subject fence transaction is unavailable")

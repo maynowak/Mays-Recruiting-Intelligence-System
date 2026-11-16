@@ -243,5 +243,88 @@ class FailClosedTest(unittest.TestCase):
         self.assertNotIn("descriptionPlain", joined)
 
 
+class TransactionClientTest(unittest.TestCase):
+    """The fence transaction must not run through the resource marshaller."""
+
+    def test_resource_client_is_replaced_by_a_plain_client(self):
+        import boto3
+        from agents.runtime.pipeline import _ddb_transaction_client
+
+        table = boto3.resource("dynamodb", region_name="eu-central-1").Table(
+            "ris-dev2-dev-work-items")
+        client = _ddb_transaction_client(table)
+        self.assertIsNot(client, table.meta.client)
+        self.assertEqual(client.meta.service_model.service_name, "dynamodb")
+
+    def test_parameters_are_not_double_marshalled(self):
+        import boto3
+        from agents.runtime.pipeline import _ddb_transaction_client
+
+        table = boto3.resource("dynamodb", region_name="eu-central-1").Table("probe")
+
+        class Stop(Exception):
+            pass
+
+        def capture(client):
+            captured = {}
+
+            def before_call(model, params, **kwargs):
+                captured.update(params)
+                raise Stop()
+
+            client.meta.events.register("before-call.dynamodb.GetItem", before_call)
+            try:
+                with self.assertRaises(Stop):
+                    client.get_item(
+                        TableName="probe", Key={"workId": {"S": "probe-key"}})
+            finally:
+                client.meta.events.unregister(
+                    "before-call.dynamodb.GetItem", before_call)
+            return captured["body"]
+
+        plain_body = capture(_ddb_transaction_client(table))
+        resource_body = capture(table.meta.client)
+        self.assertIn(b'"S": "probe-key"', plain_body)
+        self.assertNotIn(b'"M"', plain_body)
+        self.assertIn(b'"M"', resource_body)  # the resource client double-wraps
+
+    def test_injected_fake_client_is_preserved(self):
+        from agents.runtime.pipeline import _ddb_transaction_client
+
+        class FakeClient:
+            pass
+
+        class FakeMeta:
+            client = FakeClient()
+
+        class FakeTable:
+            meta = FakeMeta()
+
+        table = FakeTable()
+        self.assertIs(_ddb_transaction_client(table), table.meta.client)
+
+
+class ConditionalFailureTest(unittest.TestCase):
+    def test_transaction_conditional_failure_is_recognised(self):
+        from botocore.exceptions import ClientError
+        from agents.runtime.pipeline import _is_conditional_failed
+
+        def error(code, reasons=None):
+            response = {"Error": {"Code": code}}
+            if reasons is not None:
+                response["CancellationReasons"] = reasons
+            return ClientError(response, "op")
+
+        self.assertTrue(_is_conditional_failed(
+            error("TransactionCanceledException",
+                  [{"Code": "ConditionalCheckFailed"}, {"Code": "None"}])))
+        self.assertFalse(_is_conditional_failed(
+            error("TransactionCanceledException",
+                  [{"Code": "ValidationError"}, {"Code": "None"}])))
+        self.assertTrue(_is_conditional_failed(
+            error("ConditionalCheckFailedException")))
+        self.assertFalse(_is_conditional_failed(error("AccessDeniedException")))
+
+
 if __name__ == "__main__":
     unittest.main()

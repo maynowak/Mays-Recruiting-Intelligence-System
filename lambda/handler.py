@@ -244,7 +244,10 @@ def _handle_sqs_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     return {
         'statusCode': 200,
-        'body': json.dumps({'processed': len(event.get('Records', [])), 'results': results})
+        'body': json.dumps(
+            {'processed': len(event.get('Records', [])), 'results': results},
+            default=_application_json_default,
+        )
     }
 
 

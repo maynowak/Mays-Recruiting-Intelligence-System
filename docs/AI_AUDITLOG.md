@@ -10337,3 +10337,16 @@ Date: 2026-11-16
 - Fixed in Orders commit dad69ea28e8b952a8e76e9dfb4fb163f7a979b52: the queue policy is restricted to arn:aws:iam::<own-account>:root. RIS builder pin updated to dad69ea; delta plan v13 applied as exactly 1 update, no destroys.
 - Verified policy now: Principal AWS arn:aws:iam::262370457690:root. State remains 242 resources.
 - Live E2E blocker (work-items GetItem key-schema rejection inside the Lambda) is unrelated to Orders and remains open.
+
+
+[RIS-ATS-AGENT-01 / LIVE E2E VERIFIED ON RIS-DEV2]
+Status: DEPLOYED / LIVE E2E VERIFIED.
+Date: 2026-11-16
+- Live ATS work item through the deployed agent Lambda: COMPLETED, ATSAnalysisResultBody 1.1, contract 1.2 at jobsearch commit 8456910, score 67, analysisStatus complete, metadata and matches present, source metadata minimal. The agent called the live jobsearch API over the network.
+- Live addition work item: 17 + 25 = 42, COMPLETED. Duplicate delivery of the same ATS work item: duplicate true, attempt 1, no second agent run.
+- Root causes fixed for the live path: (1) table.meta.client applied the DynamoDB resource document transformation to already-serialized DynamoDB JSON, producing {"workId":{"M":{"S":{"S":...}}}}; _ddb_transaction_client now returns a plain low-level client, with a regression test asserting the serialized body has no "M". (2) _is_conditional_failed now recognizes TransactionCanceledException cancellation reasons with ConditionalCheckFailed, so duplicates follow the idempotent path. (3) the SQS handler serializes DynamoDB Decimal via _application_json_default.
+- Test entitlement rows were created for user-e2e-15 / tenant-e2e-15 (ats-agent analyze.job and addition_agent math.add) solely for the E2E; they remain documented test data, not infrastructure.
+- Deployed agent CodeSha256 94exPsBrUKodt2hkj4qeiPKroyiAdiTWYe/6o1SEKcw=. State serial 58, 243 resources, lineage unchanged, no destroy.
+- Local: 223 focused ATS/orders/handler tests (1 pre-existing platform-handler failure), 425 targeted regression, full suite no new failure vs main, E2E 149, security 302, secret scan clean.
+- Separate findings fixed: Orders boundary portability (95f8921), Orders queue policy wildcard (dad69ea), dynamodb:ConditionCheckItem IAM.
+Report: docs/reports/RIS-ATS-AGENT-01-RIS-DEV2-APPLY-AND-LIVE-E2E.md

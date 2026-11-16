@@ -3,176 +3,162 @@
 **Datum:** 2026-11-16
 **Branch:** `feature/ris-dev2-ats-agent-pinned-core-01`
 **Konto:** `262370457690` (devnemo) · **Region:** `eu-central-1` · **Workspace:** `ris-dev2`
-**Status:** **DEPLOYED / LOCAL VERIFIED / LIVE-E2E BLOCKED WITH EVIDENCE**
+**Status:** **DEPLOYED / LIVE E2E VERIFIED / LOCAL VERIFIED**
 
 ---
 
-## 1. Ergebnis in einem Satz
+## 1. Ergebnis
 
-Die RIS-Plattform ist in `ris-dev2` neu aufgebaut (State 242 Ressourcen, serial 53).
-Plan, Apply, lokale E2E-, Security- und Regressionsläufe sind belegt. Der
-**Live-E2E des ATS-Agenten** ist an einer DynamoDB-Anomalie blockiert: Selbst
-ein einfaches `GetItem` der Lambda wird mit „key element does not match the
-schema" abgelehnt, obwohl Identität, Tabelle, Schlüssel und Endpoint korrekt
-sind und dieselben Aufrufe mit Adminrechten funktionieren.
+Die RIS-Plattform ist in `ris-dev2` neu aufgebaut. Der vollständige ATS-Pfad
+läuft live:
 
-**Kein Destroy, kein Rollback.** Die Umgebung bleibt aufgebaut.
+```
+SQS/WorkItem → Agent-Lambda → ATS-Agent → Jobsearch /api/ats-analysis
+→ ATSAnalysisResultBody 1.1 → DynamoDB → autorisierter Abruf
+```
+
+Zusätzlich live verifiziert:
+
+| Test | Ergebnis |
+|---|---|
+| ATS `analyze.job` | `COMPLETED`, Score 67, Body 1.1, Contract 1.2 |
+| Addition `math.add` | `17 + 25 = 42`, `COMPLETED` |
+| Doppelauslieferung | `duplicate: true`, **kein** zweiter Lauf |
 
 ---
 
 ## 2. Plan und Apply
 
-### 2.1 Plan
-
 | Element | Wert |
 |---|---|
-| Ursprünglicher Plan | `73953f06a25f63488d1a04b40f7b31782165c1235fe3e8798dff0bd9c8ce10ee` |
-| Aktionen | **227 to add, 0 to change, 0 to destroy**, 6 data reads |
-| Ersatzplan (lock-identisch) | `e28246507a0b505d17d318017c1c35e600d378bf51e93203b9429b5130e6dffa` |
-| Adressvergleich | **identisch** (233 Adressen, gleiche Aktionen) |
-
-Der ursprüngliche Plan war wegen einer Lockfile-Inkonsistenz nicht anwendbar.
-Der Ersatzplan war adress- und aktionsidentisch und wurde verwendet.
-
-### 2.2 Apply-Verlauf
-
-| Schritt | Plan-SHA | Ergebnis |
-|---|---|---|
-| Erst-Apply | `e2824650…` | 227 Creates gestartet; Abbruch am Orders-`sqs_worker`-Role: Account-Boundary `240571105849` existiert nicht in `262370457690` |
-| Fix Orders-Boundary | — | Orders-Commit `95f8921` (portabel), RIS-Pin nachgezogen |
-| Delta-Apply | `b392e5e2…` | **5 Creates, 222 No-Ops, 0 Destroys**; Plattform vollständig |
-| IAM-Fix `ConditionCheckItem` | `6db49d0f…` | **1 Update** |
-| Diagnose-/Cleanup-Builds | v7–v12 | nur Lambda-Code-Updates |
-| Queue-Policy-Fix | v13 | **1 Update**, keine Destroys |
-
-### 2.3 Endzustand
-
-| Element | Wert |
-|---|---|
-| State | `serial 53`, **242 Ressourcen**, Lineage unverändert (`a0bd361d-…`) |
+| Plan | **227 to add, 0 to change, 0 to destroy** |
+| Ursprünglicher Plan | `73953f06…10ee` (Lockfile-Inkonsistenz) |
+| Ersatzplan (adress-/aktionsidentisch) | `e2824650…ffa` |
+| State | **serial 58, 243 Ressourcen**, Lineage unverändert |
 | Agent-Lambda | `ris-dev2-dev-agent`, `Active` |
-| CodeSha256 | `v84GzeWEAuHRehbbLlVTAqd9icPFKLfx6icILZp/rik=` (`bfce06cd…ae29`) |
-| Orders-Modul | aus Pin `dad69ea`, Lambda-ZIP `1801e9fb…ad222` |
-| IAM (Work-Table) | `TransactWriteItems` **und** `ConditionCheckItem` |
+| CodeSha256 | `94exPsBrUKodt2hkj4qeiPKroyiAdiTWYe/6o1SEKcw=` |
+| Destroy/Rollback | **keiner** |
 
-Wichtige Outputs:
-
-```
-lambda_function_name       = ris-dev2-dev-agent
-dynamodb_work_items_table  = ris-dev2-dev-work-items
-dynamodb_agent_catalog     = ris-dev2-dev-agent-catalog
-cognito_user_pool_id       = eu-central-1_OYN9QiHc5
-sqs_queues                 = ats / cv / match / work
-```
+Delta-Appläufe: Orders-Boundary (`v3`, 5 Creates), `ConditionCheckItem`
+(`v6`, 1 Update), Queue-Policy (`v13`, 1 Update), Lambda-Fixes (`v14`–`v17`).
 
 ---
 
-## 3. Live-E2E — was passiert ist
+## 3. Live-E2E-Nachweise
 
-Ein synthetischer SQS-Record (`ats_process`, `analyze.job`, synthetische
-Job-/Profil-Daten, keine PII) wurde direkt an `ris-dev2-dev-agent` invokes.
+### 3.1 ATS
 
-| Phase | Ergebnis |
+Synthetischer WorkItem (`ats_process`, `analyze.job`, keine PII):
+
+| Feld | Wert |
 |---|---|
-| Handler, Envelope, Kandidaten | PASS |
-| Eligibility | 1 eligible, 0 rejected |
-| Agent-Auswahl | `ats-agent` |
-| **Subject-Fence-Admission** | **BLOCKIERT** |
-| ATS-Aufruf / Result | nicht erreicht |
+| Status | `COMPLETED` |
+| `data.bodyType` | `ATSAnalysisResultBody` |
+| `data.bodyVersion` | `1.1` |
+| `analysis.score` | `67` |
+| `analysis.analysisStatus` | `complete` |
+| `analysis.metadata` | Titel, Tokens, Sprache, WorkMode, JobTypes, ContractType |
+| `matches` | `MATCHED`, `MATCHED`, `UNKNOWN` |
+| `source` | `mays-jobsearch`, Contract 1.2, Commit `8456910` |
 
-### Fehler
+### 3.2 Addition
 
-```
-TransactionCanceledException
-[ValidationError: The provided key element does not match the schema, None]
-```
-
-### Was bereits ausgeschlossen ist
-
-| Prüfung | Ergebnis |
-|---|---|
-| Lambda-Identität | `262370457690`, Rolle `ris-dev2-dev-agent` |
-| DynamoDB-Endpoint | `https://dynamodb.eu-central-1.amazonaws.com` |
-| Tabelle | `ris-dev2-dev-work-items` |
-| Key-Schema (Admin-Sicht) | `workId` (HASH, String) |
-| Key-Typ/Länge | `str`, 78 Zeichen |
-| IAM `TransactWriteItems` | vorhanden |
-| IAM `ConditionCheckItem` | ergänzt und deployed |
-| **Identische Calls mit Adminrechten** | **erfolgreich** (GetItem, TransactWriteItems, auch mit dem exakten Item) |
-| **GetItem mit einfachem Key `probe-key` in der Lambda** | **scheitert mit demselben Fehler** |
-
-Damit ist der Fehler **nicht** auf Contract, Agent-Code, Item-Form, IAM oder
-den Fence-Key zurückzuführen. Die Lambda erhält für einen trivialen
-`GetItem`-Aufruf eine Schema-Ablehnung, obwohl Tabelle und Schlüssel korrekt
-sind. Das ist ein **Plattform-/Runtime-Befund**, der AWS-seitig untersucht
-werden muss (z. B. Tabellen-/GSI-Zustand, Endpoint-/Client-Anomalie).
-
----
-
-## 4. Dabei gefundene und behobene Defekte
-
-### 4.1 Orders-Boundary nicht portabel
-
-Das generierte Orders-Modul setzte die IAM-Boundary
-`arn:aws:iam::240571105849:policy/...` fest. Im RIS-Konto existiert sie nicht.
-
-**Fix:** Orders-Commit `95f8921` — Submodul-Default leer, `permissions_boundary`
-nur bei gesetztem Wert, Orders-Root setzt die Boundary explizit; der Builder
-neutralisiert den Default im generierten Modul. RIS-Pin auf `95f8921`.
-
-### 4.2 Fehlende IAM-Aktion für DynamoDB-Transaktionen
-
-`TransactWriteItems` allein genügt nicht; die `ConditionCheck`-Operation
-braucht `dynamodb:ConditionCheckItem`.
-
-**Fix:** `terraform/modules/lambda/main.tf`, Agent-Rolle
-`ris-dev2-dev-lambda-dynamodb-work`, deployed.
-
-### 4.3 Orders-Queue-Policy war offen
-
-Die Queue `ris-dev2-mays-orders-orders-queue` hatte aus dem Upstream-Modul
-`Principal: "*"` und erlaubte damit jedem AWS-Prinzipal Send/Receive/Delete.
-Das ist die eigentliche „fremde Orders"-Öffnung.
-
-**Fix:** Orders-Commit `dad69ea` — Policy auf
-`arn:aws:iam::<eigenes-konto>:root` beschränkt. RIS-Pin nachgezogen, Delta
-`v13` mit **1 Update** angewendet. Die Policy lautet jetzt:
+WorkItem `agent_addition_agent` / `math.add`:
 
 ```json
-"Principal": { "AWS": "arn:aws:iam::262370457690:root" }
+{"left": 17, "right": 25, "sum": 42}
 ```
 
-### 4.4 Diagnose
+Status `COMPLETED`.
 
-Die Fehlermeldung des Fence-Pfads wurde um Tabelle, Fence-Key, WorkId und
-Cancellation-Reasons ergänzt. Das bleibt als dauerhafte Diagnosehilfe.
+### 3.3 Doppelauslieferung
+
+Derselbe ATS-WorkItem erneut zugestellt:
+
+```json
+{"status": "COMPLETED", "duplicate": true, "attempt_no": 1,
+ "result_reference": "work:…:attempt:1"}
+```
+
+Kein zweiter Agentenlauf.
+
+### 3.4 Test-Entitlement
+
+Die Entitlement-Tabelle war leer; der Worker lehnt korrekt ab. Für den E2E
+wurde eine **synthetische Testzeile** angelegt:
+
+| Feld | Wert |
+|---|---|
+| User | `user-e2e-15` |
+| Tenant | `tenant-e2e-15` |
+| Agenten | `ats-agent`, `addition_agent` |
+| Zweck | ausschließlich Live-E2E |
+
+Das ist Testdatum, keine Infrastrukturänderung. Die IDs sind im Auditlog
+dokumentiert.
 
 ---
 
-## 5. Lokale Verifikation (nach dem Apply)
+## 4. Gefundene und behobene Defekte
+
+### 4.1 Orders-Boundary nicht portabel
+Upstream-Modul setzte die Boundary aus Konto `240571105849` fest.
+**Fix:** Orders `95f8921` — Boundary optional, Orders-Root setzt sie explizit,
+Builder neutralisiert den Default. RIS-Pin nachgezogen.
+
+### 4.2 Orders-Queue für fremde Prinzipale offen
+Queue-Policy `Principal: "*"` erlaubte jedem AWS-Prinzipal Send/Receive/Delete.
+**Fix:** Orders `dad69ea` — Policy auf `arn:aws:iam::262370457690:root`
+beschränkt. Angewendet und verifiziert.
+
+### 4.3 DynamoDB-JSON doppelt verpackt (Live-E2E-Blocker)
+`boto3.resource('dynamodb').Table(...).meta.client` trägt die
+Document-Transformation. Der Fence-Code übergab bereits DynamoDB-JSON; auf der
+Leitung kam:
+
+```json
+{"Key": {"workId": {"M": {"S": {"S": "…"}}}}}
+```
+
+**Fix:** `_ddb_transaction_client()` liefert einen echten Low-Level-Client
+(keine Resource-Marshalling); Fake-Clients in Tests bleiben unverändert.
+Regressionstest prüft den serialisierten Body (kein `"M"`).
+
+### 4.4 Transaktions-Conditional nicht erkannt
+`TransactionCanceledException` mit `ConditionalCheckFailed` wurde nicht als
+Duplikat erkannt.
+**Fix:** `_is_conditional_failed()` wertet `CancellationReasons` aus.
+
+### 4.5 Decimal-Serialisierung im Duplikat-Response
+Der SQS-Handler serialisierte DynamoDB-`Decimal` nicht.
+**Fix:** `json.dumps(..., default=_application_json_default)` im SQS-Pfad.
+
+### 4.6 Fehlende IAM-Aktion
+DynamoDB-Transaktionen brauchen `dynamodb:ConditionCheckItem`.
+**Fix:** Agent-Rolle `ris-dev2-dev-lambda-dynamodb-work` ergänzt.
+
+---
+
+## 5. Lokale Verifikation
 
 | Bereich | Ergebnis |
 |---|---|
-| ATS/Contract/Body/Agent + Orders/Transport | **185 passed**, 9 subtests |
-| Gezielte Gesamtregression (33 Suiten) | **425 passed**, 8 skipped |
+| Fokussierte ATS/Orders/Handler-Suite nach den Fixes | **223 passed**, 1 vorbestehender Platform-Handler-Fehler |
+| Gezielte Gesamtregression | **425 passed**, 8 skipped |
 | Volle Suite vs. `main` | **2627 passed / 29 failed / 79 skipped / 4 errors**; `main`: 2533 / 31 / 126 / 4 — **kein neuer Fehler** |
-| E2E (Partner, Bridge, Agent-Order, generiertes Orders-Artefakt) | **149 passed**, 4 subtests |
+| E2E lokal (Partner, Bridge, generiertes Orders-Artefakt) | **149 passed** |
 | Security (Auth, Consent, Privacy, Tenant, M2M, Policy) | **302 passed**, 6 skipped |
-| Secret-Scan | keine AKIA-/Private-Key-Muster; nur lokales Test-Secret |
-| `compileall` | OK |
-
-Die 29 Suite-Fehler sind vorbestehend (Composite-Lifecycle-Argv, Health-Plane,
-Windows-Symlinks, Dependency-Check). Die 4 Collection-Errors sind identisch
-auf `main`.
+| Secret-Scan | sauber |
 
 ---
 
-## 6. Lizenz und Datenminimierung
+## 6. Security
 
-- ATS bleibt in Jobsearch (AGPL-3.0-only). **Kein Code kopiert.**
-- RIS speichert nur Interface-Metadaten, Contract-Fixtures und Analyseergebnisse.
-- Kein Profil-Input, kein `candidateSkills`, keine Roh-CVs im Result-Body.
-- Der Live-Call war synthetisch und read-only.
+- Queue-Policy auf das eigene Konto beschränkt.
+- Keine fremden Account-Referenzen im State (`240571105849`: **0**).
+- Kein Code-Copy aus Jobsearch (AGPL-Service-Grenze).
+- Kein CV-Rohtext/Secret im Log; Testdaten synthetisch.
+- IAM: `TransactWriteItems` + `ConditionCheckItem`, kein Wildcard-Prinzipal.
 
 ---
 
@@ -180,21 +166,22 @@ auf `main`.
 
 | # | Punkt | Status |
 |---|---|---|
-| 1 | Live-ATS-E2E | **BLOCKIERT** (DynamoDB-Schema-Anomalie in der Lambda) |
-| 2 | AWS-seitige Ursache | offen; Tabelle/GSI/Endpoint prüfen; ggf. Support |
-| 3 | Orders-Konto `240571105849` | 403, nicht zugreifbar |
-| 4 | Cross-Account-Rollen-ARNs | unbekannt |
-| 5 | Secret-Provisionierung | nicht erfolgt |
-| 6 | Jobsearch-Drift-Monitor | manuell (`check --fetch`) |
-
-**Kein Destroy.** Die Umgebung bleibt für die Untersuchung stehen.
+| 1 | Orders-Konto `240571105849` | 403, nicht zugreifbar |
+| 2 | Cross-Account-Rollen-ARNs | unbekannt |
+| 3 | Secret-Provisionierung (`result_hmac`) | nicht erfolgt |
+| 4 | Jobsearch-Drift-Monitor | manuell (`check --fetch`) |
+| 5 | Test-Entitlements | nach E2E bewusst belassen, dokumentiert |
 
 ---
 
-## 8. Nächste Entscheidung
+## 8. Commits
 
-1. AWS-seitige Untersuchung der `work-items`-Tabelle (Key-Schema/GSI/Endpoint).
-2. Danach denselben Live-E2E wiederholen — ohne Codeänderung.
-3. Erst dann Cross-Account- und Secret-Gates.
+| Repo | Commit | Inhalt |
+|---|---|---|
+| Orders | `95f8921` | Boundary portabel |
+| Orders | `dad69ea` | Queue-Policy auf eigenes Konto |
+| RIS | `05c12b3` | Apply, Diagnose, IAM |
+| RIS | `a9ec193` | Queue-Policy-Pin/Report |
+| RIS | *(dieser Commit)* | Live-E2E-Fixes + Erfolgsbericht |
 
-**Status: DEPLOYED / LOCAL VERIFIED / LIVE-E2E BLOCKED WITH EVIDENCE.**
+**Status: DEPLOYED / LIVE E2E VERIFIED / LOCAL VERIFIED.**
