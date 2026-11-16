@@ -10370,3 +10370,14 @@ Date: 2026-11-16
 - Minimal fix _ddb_transaction_client (plain low-level client) is already deployed; the deployed bundle hash matches the code and the live E2E passes: ATS COMPLETED with ATSAnalysisResultBody 1.1 / contract 1.2, addition 17+25=42, duplicate true with no second run. _is_conditional_failed and the SQS Decimal serialization were fixed alongside.
 - No changes were made in this gate.
 Report: docs/reports/RIS-DEV2-OWNERSHIP-DYNAMODB-FORENSIC-01.md
+
+
+[RIS-ATS-AGENT-01 / ORCHESTRATION COMPLETENESS]
+Status: RIS-DEV2 DIRECT PATH COMPLETE / PRODUCT E2E OPEN.
+Date: 2026-11-16
+- ORCH-00 through ORCH-06 are complete. The direct agent path in ris-dev2 is deployed and live-verified: SQS/WorkItem -> agent Lambda -> registry/discovery/eligibility/routing -> ats-agent -> jobsearch API -> ATSAnalysisResultBody 1.1 -> DynamoDB, including duplicate delivery (duplicate true, no second run) and addition regression (17+25=42).
+- Environment: state serial 58 / 243 resources, agent Lambda ris-dev2-dev-agent Active, CodeSha256 94exPsBrUKodt2hkj4qeiPKroyiAdiTWYe/6o1SEKcw=.
+- Not complete for the full product path: live public partner API with Cognito JWT, Orders-external account 240571105849 (403), live authorized Orders GET, xrepo handoff MAYS-XR-ATS-001, merge to main, and a scheduled contract drift monitor.
+- Local evidence: 425 targeted regression, full suite no new failure vs main, E2E 149, security 302, secret scan clean.
+- No AWS changes in this report.
+Report: docs/reports/RIS-ATS-AGENT-01-ORCHESTRATION-STATUS.md
