@@ -10359,3 +10359,14 @@ Date: 2026-11-16
 - Workspace is ris-dev2; the remote state is s3://ris-dev2-tf-state-dev/env:/ris-dev2/dev/terraform.tfstate. Deployed names are ris-dev2-dev-* and ris-dev2-mays-orders-*, with the Project tag ris-dev2.
 - No mays-ris-dev-* Lambda, DynamoDB or SQS resources exist. The Maker tag value mays-ris is the template maker tag, not the project name.
 - Future plans/applies must keep project_name=ris-dev2 and TF_WORKSPACE=ris-dev2.
+
+
+[RIS-DEV2 / OWNERSHIP & DYNAMODB FORENSIC-01]
+Status: COMPLETE (read-only). No apply, destroy or rollback.
+Date: 2026-11-16
+- Project boundaries confirmed: default/devnemo account 262370457690, workspace ris-dev2, state serial 58 with 243 resources and unchanged lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082. The applied plan has project_name=ris-dev2, environment=dev and orders_lifecycle=managed.
+- Orders is a local managed instance: table ris-dev2-mays-orders, queue ris-dev2-mays-orders-orders-queue, handler and sqs-worker in 262370457690. The state contains zero references to 240571105849. The 65 mays-ris occurrences are Maker tags only; 188 mays-orders occurrences are the ris-dev2-mays-orders prefix. No mays-ris-dev-* resources exist. Lambda envs, IAM boundaries/trust policies and SQS policies contain no foreign account or wildcard principal. The module source pin dad69ea is a build input, not AWS ownership.
+- DynamoDB forensic: table ris-dev2-dev-work-items has HASH workId (S) and active gsi-user/gsi-status. The Lambda used table.meta.client, whose resource document transformation wrapped the already-serialized key: {"workId":{"M":{"S":{"S":"probe-key"}}}}. The admin plain client sends {"workId":{"S":"probe-key"}}. DynamoDB correctly rejected the malformed Lambda request with ValidationException. This is a client/serializer defect, not an AWS defect.
+- Minimal fix _ddb_transaction_client (plain low-level client) is already deployed; the deployed bundle hash matches the code and the live E2E passes: ATS COMPLETED with ATSAnalysisResultBody 1.1 / contract 1.2, addition 17+25=42, duplicate true with no second run. _is_conditional_failed and the SQS Decimal serialization were fixed alongside.
+- No changes were made in this gate.
+Report: docs/reports/RIS-DEV2-OWNERSHIP-DYNAMODB-FORENSIC-01.md
