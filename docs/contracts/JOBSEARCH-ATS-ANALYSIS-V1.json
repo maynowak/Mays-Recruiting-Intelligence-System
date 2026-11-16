@@ -1,0 +1,94 @@
+{
+  "protocol": "MAYS-JOBSEARCH-ATS-ANALYSIS-V1",
+  "contract_version": "1.1",
+  "description": "Interface metadata for the live mays-jobsearch ATS analysis endpoint. No source code is copied; the implementation stays in maynowak/mays-jobsearch (AGPL-3.0-only) and is consumed over the network.",
+  "endpoint": {
+    "method": "POST",
+    "path": "/api/ats-analysis",
+    "content_type": "application/json",
+    "cors": "*"
+  },
+  "request": {
+    "required": ["job"],
+    "optional": ["profile", "ai"],
+    "ai": {
+      "enabled": "boolean (default false)",
+      "consent": "boolean (default false)",
+      "model": "string (optional; server default when omitted)"
+    }
+  },
+  "response": {
+    "required": ["analysis", "recommendations", "ai"],
+    "analysis": {
+      "required": [
+        "score",
+        "keywordCoverage",
+        "requirementCoverage",
+        "profileEvidenceCoverage",
+        "roleMatch",
+        "analysisStatus",
+        "basis",
+        "criticalGaps",
+        "requirements",
+        "matches"
+      ],
+      "score": "integer 0..100 (importance-weighted over non-title job requirements)",
+      "keywordCoverage": {
+        "overall": "integer 0..100"
+      },
+      "requirementCoverage": "integer 0..100 (alias of keywordCoverage.overall)",
+      "profileEvidenceCoverage": "integer 0..100",
+      "roleMatch": "integer 0..100 | null (title vs targetRoles)",
+      "analysisStatus": "'complete' | 'limited' | 'insufficient'",
+      "basis": {
+        "requirementCount": "integer",
+        "titleRequirementCount": "integer",
+        "hasDescription": "boolean",
+        "roleMatchAvailable": "boolean"
+      },
+      "criticalGaps": "array<requirement>",
+      "requirements": "array<{id: string, text: string, category: string, importance: 'critical'|'high'|'medium'|'low'}>",
+      "matches": "array<{requirementId: string, status: 'MATCHED'|'PARTIAL'|'UNKNOWN', confidence: string}>"
+    },
+    "recommendations": "array<{requirementId: string, changeType: string, priority: string, proposedChange: string, rationale: string, evidence: array}>",
+    "ai": {
+      "required": ["requested", "executed", "consentRequired", "consentGiven"],
+      "requested": "boolean",
+      "executed": "boolean",
+      "consentRequired": "boolean (always true)",
+      "consentGiven": "boolean",
+      "provider": "string|null",
+      "model": "string|null",
+      "externalProcessing": "boolean",
+      "dataMinimized": "boolean",
+      "privacyStatus": "string|null",
+      "dataCategories": "array",
+      "privacyPolicy": "object|null",
+      "formulations": "array"
+    }
+  },
+  "statuses": ["MATCHED", "PARTIAL", "UNKNOWN"],
+  "scoring": {
+    "weights": {
+      "critical": 4,
+      "high": 3,
+      "medium": 2,
+      "low": 1
+    },
+    "partial_credit": 0.5,
+    "overall": "round(matched_weight / total_weight * 100) over non-title job requirements",
+    "keyword_coverage": "round((matched + partial) / total * 100) over non-title job requirements",
+    "title_tokens": "role signals only; excluded from requirements, gaps and score",
+    "empty_requirements": 0,
+    "deterministic": true
+  },
+  "input_boundary": {
+    "structured_job_profile_only": true,
+    "pdf_docx_extraction": false
+  },
+  "license": {
+    "source": "AGPL-3.0-only",
+    "code_copied": false,
+    "usage": "network service boundary; RIS stores only this interface metadata"
+  }
+}

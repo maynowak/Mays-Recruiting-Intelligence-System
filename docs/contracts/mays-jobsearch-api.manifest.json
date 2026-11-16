@@ -1,0 +1,18 @@
+{
+  "contract": "docs/contracts/JOBSEARCH-ATS-ANALYSIS-V1.json",
+  "files": {
+    "api/_lib/ats.mjs": "0c71d135d9d040a9ae20be9e988ed8d961d6be3088f9a46d5116a9077082f616",
+    "api/_lib/filter.mjs": "4599583cf63fdc05edb8028111754c753e7a0e027ce3724e8e5a6476db2eb259",
+    "api/ats-analysis.mjs": "caa926f7d29d2cf4ac2165180c0b9061ed66d632c3a2d00a1041680037b959b3"
+  },
+  "license": {
+    "boundary": "network-service",
+    "code_copied": false,
+    "source": "AGPL-3.0-only"
+  },
+  "protocol": "MAYS-JOBSEARCH-API-SNAPSHOT-V1",
+  "source": {
+    "commit": "464783b936647b281df63d6dd8c18b15ad732aa3",
+    "repo": "maynowak/mays-jobsearch"
+  }
+}

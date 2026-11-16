@@ -10231,3 +10231,15 @@ Date: 2026-11-16
 - Revised gates: ORCH-02 becomes a contract pin (fixtures, schema validator, contract tests); ORCH-03 becomes client hardening; ORCH-04 (ATSAnalysisResultBody V1) remains valid; ORCH-05/06 unchanged.
 - No code, AWS, Terraform, Jobsearch mutation, merge or push in this step.
 Report: docs/reports/RIS-ATS-AGENT-01-XREPO-CONSOLIDATION.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-02 REVISED - CONTRACT PIN]
+Status: COMPLETE (local). Contract refreshed from a5640d12 to 464783b9.
+Date: 2026-11-16
+- Added installer/jobsearch_api_contract.py with two commands: `check` verifies the pinned commit, file SHA-256 values and contract markers and reports DRIFT; `refresh --commit` pins a reviewed commit and refuses to write when markers are missing. `check --fetch` fetches origin read-only and compares origin/main.
+- Added docs/contracts/JOBSEARCH-ATS-ANALYSIS-V1.{md,json} and docs/contracts/mays-jobsearch-api.manifest.json. The contract is interface metadata only; no AGPL source is copied, so the licence boundary stays a network service boundary.
+- The first real run found drift: origin/main moved to 464783b936647b281df63d6dd8c18b15ad732aa3 (PR #19, "evaluate full job requirements instead of title tokens"). The handler adds requirementCoverage, profileEvidenceCoverage, roleMatch, analysisStatus and basis; scoring now excludes title tokens from requirements, gaps and score. Contract bumped to 1.1 and the pin refreshed after review.
+- File hashes at 464783b9: ats-analysis.mjs caa926f7..., ats.mjs 0c71d135..., filter.mjs 4599583c... (filter unchanged since the previous pin).
+- Tests: tests/test_jobsearch_api_contract.py 8 passed (up-to-date, drift, hash mismatch, missing marker, deterministic refresh, fail-closed refresh, unknown file set, document/manifest agreement); with the existing ATS suites 21 passed.
+- No Jobsearch mutation (read-only clone checkout only), no code copy, no AWS, no merge, no push.
+Docs: docs/contracts/JOBSEARCH-ATS-ANALYSIS-V1.md
