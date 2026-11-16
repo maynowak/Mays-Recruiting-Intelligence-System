@@ -10328,3 +10328,12 @@ Date: 2026-11-16
 - Local verification after apply: 185 targeted ATS/orders tests; 425-test targeted regression; full suite 2627 passed/29 failed/79 skipped/4 errors versus main 2533/31/126/4 (no new failure); E2E 149 passed; security 302 passed/6 skipped; secret scan clean.
 - No destroy or rollback. The environment remains deployed for the AWS-side investigation.
 Report: docs/reports/RIS-ATS-AGENT-01-RIS-DEV2-APPLY-AND-LIVE-E2E.md
+
+
+[RIS-ATS-AGENT-01 / ORDERS QUEUE POLICY HARDENING]
+Status: FIXED AND DEPLOYED.
+Date: 2026-11-16
+- Found the deployed Orders queue ris-dev2-mays-orders-orders-queue with Principal "*" from the upstream SQS module, which allowed any AWS principal to send/receive/delete. This was the actual foreign-orders exposure; the ris-dev2 state contains zero references to the Orders account 240571105849 after the boundary fix.
+- Fixed in Orders commit dad69ea28e8b952a8e76e9dfb4fb163f7a979b52: the queue policy is restricted to arn:aws:iam::<own-account>:root. RIS builder pin updated to dad69ea; delta plan v13 applied as exactly 1 update, no destroys.
+- Verified policy now: Principal AWS arn:aws:iam::262370457690:root. State remains 242 resources.
+- Live E2E blocker (work-items GetItem key-schema rejection inside the Lambda) is unrelated to Orders and remains open.

@@ -43,6 +43,7 @@ Der Ersatzplan war adress- und aktionsidentisch und wurde verwendet.
 | Delta-Apply | `b392e5e2…` | **5 Creates, 222 No-Ops, 0 Destroys**; Plattform vollständig |
 | IAM-Fix `ConditionCheckItem` | `6db49d0f…` | **1 Update** |
 | Diagnose-/Cleanup-Builds | v7–v12 | nur Lambda-Code-Updates |
+| Queue-Policy-Fix | v13 | **1 Update**, keine Destroys |
 
 ### 2.3 Endzustand
 
@@ -51,7 +52,7 @@ Der Ersatzplan war adress- und aktionsidentisch und wurde verwendet.
 | State | `serial 53`, **242 Ressourcen**, Lineage unverändert (`a0bd361d-…`) |
 | Agent-Lambda | `ris-dev2-dev-agent`, `Active` |
 | CodeSha256 | `v84GzeWEAuHRehbbLlVTAqd9icPFKLfx6icILZp/rik=` (`bfce06cd…ae29`) |
-| Orders-Modul | aus Pin `95f8921`, Lambda-ZIP `1801e9fb…ad222` |
+| Orders-Modul | aus Pin `dad69ea`, Lambda-ZIP `1801e9fb…ad222` |
 | IAM (Work-Table) | `TransactWriteItems` **und** `ConditionCheckItem` |
 
 Wichtige Outputs:
@@ -127,7 +128,21 @@ braucht `dynamodb:ConditionCheckItem`.
 **Fix:** `terraform/modules/lambda/main.tf`, Agent-Rolle
 `ris-dev2-dev-lambda-dynamodb-work`, deployed.
 
-### 4.3 Diagnose
+### 4.3 Orders-Queue-Policy war offen
+
+Die Queue `ris-dev2-mays-orders-orders-queue` hatte aus dem Upstream-Modul
+`Principal: "*"` und erlaubte damit jedem AWS-Prinzipal Send/Receive/Delete.
+Das ist die eigentliche „fremde Orders"-Öffnung.
+
+**Fix:** Orders-Commit `dad69ea` — Policy auf
+`arn:aws:iam::<eigenes-konto>:root` beschränkt. RIS-Pin nachgezogen, Delta
+`v13` mit **1 Update** angewendet. Die Policy lautet jetzt:
+
+```json
+"Principal": { "AWS": "arn:aws:iam::262370457690:root" }
+```
+
+### 4.4 Diagnose
 
 Die Fehlermeldung des Fence-Pfads wurde um Tabelle, Fence-Key, WorkId und
 Cancellation-Reasons ergänzt. Das bleibt als dauerhafte Diagnosehilfe.
