@@ -10350,3 +10350,12 @@ Date: 2026-11-16
 - Local: 223 focused ATS/orders/handler tests (1 pre-existing platform-handler failure), 425 targeted regression, full suite no new failure vs main, E2E 149, security 302, secret scan clean.
 - Separate findings fixed: Orders boundary portability (95f8921), Orders queue policy wildcard (dad69ea), dynamodb:ConditionCheckItem IAM.
 Report: docs/reports/RIS-ATS-AGENT-01-RIS-DEV2-APPLY-AND-LIVE-E2E.md
+
+
+[RIS-DEV2 PROJECT IDENTITY CHECK]
+Status: VERIFIED.
+Date: 2026-11-16
+- All plan JSONs used project_name=ris-dev2 and environment=dev. The applied plan v2, all delta plans and the final plan show the same values.
+- Workspace is ris-dev2; the remote state is s3://ris-dev2-tf-state-dev/env:/ris-dev2/dev/terraform.tfstate. Deployed names are ris-dev2-dev-* and ris-dev2-mays-orders-*, with the Project tag ris-dev2.
+- No mays-ris-dev-* Lambda, DynamoDB or SQS resources exist. The Maker tag value mays-ris is the template maker tag, not the project name.
+- Future plans/applies must keep project_name=ris-dev2 and TF_WORKSPACE=ris-dev2.

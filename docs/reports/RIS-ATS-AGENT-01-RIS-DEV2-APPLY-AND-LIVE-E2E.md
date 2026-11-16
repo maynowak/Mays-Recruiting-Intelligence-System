@@ -42,6 +42,22 @@ Zusätzlich live verifiziert:
 Delta-Appläufe: Orders-Boundary (`v3`, 5 Creates), `ConditionCheckItem`
 (`v6`, 1 Update), Queue-Policy (`v13`, 1 Update), Lambda-Fixes (`v14`–`v17`).
 
+### 2.4 Projektidentität (geprüft)
+
+| Prüfung | Wert |
+|---|---|
+| `project_name` in allen Plan-JSONs | **`ris-dev2`** |
+| `environment` | `dev` |
+| Terraform-Workspace | **`ris-dev2`** |
+| State-Key | `env:/ris-dev2/dev/terraform.tfstate` |
+| Ressourcennamen | `ris-dev2-dev-*`, `ris-dev2-mays-orders-*` |
+| Tag `Project` | `ris-dev2` |
+| Tag `Maker` | `mays-ris` (Maker-Tag des Templates, **nicht** der Projektname) |
+| `mays-ris-dev-*`-Ressourcen | **keine** |
+
+Der Default der Root-Variable ist `mays-ris`; jeder Plan/Apply wurde bewusst
+mit `-var="project_name=ris-dev2"` und `TF_WORKSPACE=ris-dev2` ausgeführt.
+
 ---
 
 ## 3. Live-E2E-Nachweise
