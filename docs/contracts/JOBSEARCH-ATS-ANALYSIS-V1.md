@@ -135,6 +135,31 @@ git clone https://github.com/maynowak/mays-jobsearch.git \
   installer/projects/mays_jobsearch_ats_readonly
 ```
 
+## RIS-Client-Validierung (ORCH-03)
+
+`agents/ats_agent/contract.py` prüft die Antwort **fail-closed** gegen Version
+1.1, bevor sie in den Result-Body geht:
+
+- Pflichtfelder, Typen und Wertebereiche (`0..100`),
+- `analysisStatus` ∈ `complete`, `limited`, `insufficient`,
+- `matches[].status` ∈ `MATCHED`, `PARTIAL`, `UNKNOWN`,
+- `roleMatch` darf `null` sein,
+- zusätzliche Felder sind erlaubt (additive Weiterentwicklung).
+
+Fehlercodes im Result:
+
+| Code | Bedeutung |
+|---|---|
+| `ATS_CONTRACT_MISMATCH` | Antwort entspricht nicht dem gepinnten Contract |
+| `ATS_TIMEOUT` | Zeitüberschreitung |
+| `ATS_UNAVAILABLE` | Verbindungsfehler |
+| `ATS_BAD_REQUEST` | HTTP 4xx |
+| `ATS_UPSTREAM_ERROR` | HTTP 5xx oder sonstiger Upstream-Fehler |
+
+Der Agent bleibt eine reine Delegation: **keine ATS-Fachlogik in RIS**, keine
+Roh-CV-Daten im Log. Erfolgreiche Ergebnisse tragen
+`metrics.contractVersion = "1.1"`.
+
 ## Lizenz
 
 | Punkt | Wert |

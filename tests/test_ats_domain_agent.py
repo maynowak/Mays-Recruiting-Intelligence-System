@@ -22,7 +22,36 @@ from agents.ecosystem.routing import AgentRouter as EcosystemRouter
 from agents.runtime.pipeline import ensure_reference_agent, process_record
 
 
-ATS_ANALYSIS = {"analysis": {"score": 87, "requirements": [{"id": "r1"}]}, "jobTitle": "QA Engineer"}
+ATS_ANALYSIS = {
+    "analysis": {
+        "score": 87,
+        "keywordCoverage": {"overall": 87},
+        "requirementCoverage": 87,
+        "profileEvidenceCoverage": 87,
+        "roleMatch": 100,
+        "analysisStatus": "complete",
+        "basis": {
+            "requirementCount": 1,
+            "titleRequirementCount": 0,
+            "hasDescription": True,
+            "roleMatchAvailable": True,
+        },
+        "criticalGaps": [],
+        "requirements": [
+            {"id": "r1", "text": "Python", "category": "skill", "importance": "high"}
+        ],
+        "matches": [
+            {"requirementId": "r1", "status": "MATCHED", "confidence": "HIGH"}
+        ],
+    },
+    "recommendations": [],
+    "ai": {
+        "requested": False,
+        "executed": False,
+        "consentRequired": True,
+        "consentGiven": False,
+    },
+}
 
 
 def stub_analyze_ok(self, job, profile=None):

@@ -10243,3 +10243,13 @@ Date: 2026-11-16
 - Tests: tests/test_jobsearch_api_contract.py 8 passed (up-to-date, drift, hash mismatch, missing marker, deterministic refresh, fail-closed refresh, unknown file set, document/manifest agreement); with the existing ATS suites 21 passed.
 - No Jobsearch mutation (read-only clone checkout only), no code copy, no AWS, no merge, no push.
 Docs: docs/contracts/JOBSEARCH-ATS-ANALYSIS-V1.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-03 CONTRACT CLIENT]
+Status: COMPLETE (local). Agent validates contract 1.1 fail-closed.
+Date: 2026-11-16
+- Added agents/ats_agent/contract.py: validates the POST /api/ats-analysis response against the pinned contract 1.1 (required fields, integer 0..100 ranges, analysisStatus complete/limited/insufficient, match status MATCHED/PARTIAL/UNKNOWN, roleMatch null allowed, unknown additive fields allowed). No ATS business logic is implemented in RIS.
+- Hardened agents/ats_agent/agent.py: transport errors now carry stable codes (ATS_TIMEOUT, ATS_UNAVAILABLE, ATS_BAD_REQUEST for 4xx, ATS_UPSTREAM_ERROR for 5xx/other); schema mismatches return ATS_CONTRACT_MISMATCH; successful results include metrics.contractVersion=1.1. Logging records exception types, not payloads.
+- Tests: tests/test_ats_contract_client.py 10 passed (valid, missing field, range, non-integer score, unknown match/analysis status, roleMatch null, additive fields, agent schema mismatch, timeout, status code). Combined ATS/addition suites 54 passed; processing/routing/pipeline/orders regressions 86 passed, 14 skipped; generated-orders artifact plus bridge 13 passed.
+- No ATS logic duplication, no Jobsearch mutation, no AWS/Terraform/merge. Branch will be pushed as a data backup; main stays untouched.
+Contract: docs/contracts/JOBSEARCH-ATS-ANALYSIS-V1.md

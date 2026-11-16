@@ -18,6 +18,12 @@ if '.' not in __import__('sys').path:
 
 from agents.base import AgentBase
 
+from agents.ats_agent.contract import (
+    ATSContractError,
+    CONTRACT_VERSION,
+    validate_analysis_response,
+)
+
 logger = logging.getLogger(__name__)
 
 from agents.timeutil import utcnow, utcnow_naive_iso
@@ -26,7 +32,33 @@ from agents.timeutil import utcnow, utcnow_naive_iso
 
 class ATSAPIError(Exception):
     """Error communicating with ATS API."""
-    pass
+
+    def __init__(
+        self,
+        message: str,
+        code: str = "ATS_UPSTREAM_ERROR",
+        status: Optional[int] = None,
+    ):
+        super().__init__(message)
+        self.code = code
+        self.status = status
+
+
+def _classify_transport_error(error: Exception) -> str:
+    name = type(error).__name__.lower()
+    if "timeout" in name:
+        return "ATS_TIMEOUT"
+    if "connection" in name or "network" in name:
+        return "ATS_UNAVAILABLE"
+    return "ATS_UPSTREAM_ERROR"
+
+
+def _check_http_status(response: Any) -> None:
+    status = getattr(response, "status_code", 200)
+    if status >= 500:
+        raise ATSAPIError(f"ATS API HTTP {status}", "ATS_UPSTREAM_ERROR", status)
+    if status >= 400:
+        raise ATSAPIError(f"ATS API HTTP {status}", "ATS_BAD_REQUEST", status)
 
 
 class ATSHttpClient:
@@ -76,24 +108,29 @@ class ATSHttpClient:
         if self._http_lib == 'httpx' and self._session is not None:
             try:
                 response = self._session.post(url, json=payload)
-                response.raise_for_status()
+                _check_http_status(response)
                 return response.json()
+            except ATSAPIError:
+                raise
             except Exception as e:
-                logger.error(f"ATS API request failed: {e}")
-                raise ATSAPIError(str(e)) from e
+                logger.error("ATS API request failed: %s", type(e).__name__)
+                raise ATSAPIError(str(e), _classify_transport_error(e)) from e
         try:
             import requests
             response = requests.post(url, json=payload, timeout=self.timeout)
-            response.raise_for_status()
+            _check_http_status(response)
             return response.json()
         except ImportError:
             pass
+        except ATSAPIError:
+            raise
         except Exception as e:
-            logger.error(f"ATS API request failed: {e}")
-            raise ATSAPIError(str(e)) from e
+            logger.error("ATS API request failed: %s", type(e).__name__)
+            raise ATSAPIError(str(e), _classify_transport_error(e)) from e
 
         # Stdlib-Fallback (keine Drittabhaengigkeit).
         import json as _json
+        import urllib.error as _urlerror
         import urllib.request as _urllib
 
         try:
@@ -105,9 +142,12 @@ class ATSHttpClient:
             )
             with _urllib.urlopen(req, timeout=self.timeout) as resp:
                 return _json.loads(resp.read().decode("utf-8") or "{}")
+        except _urlerror.HTTPError as e:
+            code = "ATS_BAD_REQUEST" if e.code < 500 else "ATS_UPSTREAM_ERROR"
+            raise ATSAPIError(f"ATS API HTTP {e.code}", code, e.code) from e
         except Exception as e:
-            logger.error(f"ATS API request failed: {e}")
-            raise ATSAPIError(str(e)) from e
+            logger.error("ATS API request failed: %s", type(e).__name__)
+            raise ATSAPIError(str(e), _classify_transport_error(e)) from e
 
 
 class ATSAgent(AgentBase):
@@ -172,7 +212,8 @@ class ATSAgent(AgentBase):
         result['metrics'].update({
             'durationMs': duration_ms,
             'workId': work_id,
-            'agentVersion': self.version
+            'agentVersion': self.version,
+            'contractVersion': CONTRACT_VERSION,
         })
         
         return result
@@ -222,7 +263,8 @@ class ATSAgent(AgentBase):
         
         try:
             result = self.client.analyze(job, profile)
-            
+            result = validate_analysis_response(result)
+
             return {
                 'success': True,
                 'data': {
@@ -231,15 +273,29 @@ class ATSAgent(AgentBase):
                     'candidateSkills': profile.get('skills', '')
                 }
             }
-            
-        except ATSAPIError as e:
-            logger.error(f"ATS API error: {e}")
+
+        except ATSContractError as e:
+            logger.error("ATS contract mismatch: %s", e)
             return {
                 'success': False,
-                'error': {'message': str(e), 'type': 'ATSAPIError'}
+                'error': {
+                    'message': str(e),
+                    'type': 'ATSContractError',
+                    'code': e.code,
+                },
+            }
+        except ATSAPIError as e:
+            logger.error("ATS API error: %s", type(e).__name__)
+            return {
+                'success': False,
+                'error': {
+                    'message': str(e),
+                    'type': 'ATSAPIError',
+                    'code': e.code,
+                },
             }
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
+            logger.error("Unexpected error: %s", type(e).__name__)
             return {
                 'success': False,
                 'error': {'message': str(e), 'type': type(e).__name__}
