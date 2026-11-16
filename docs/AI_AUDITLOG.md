@@ -10253,3 +10253,15 @@ Date: 2026-11-16
 - Tests: tests/test_ats_contract_client.py 10 passed (valid, missing field, range, non-integer score, unknown match/analysis status, roleMatch null, additive fields, agent schema mismatch, timeout, status code). Combined ATS/addition suites 54 passed; processing/routing/pipeline/orders regressions 86 passed, 14 skipped; generated-orders artifact plus bridge 13 passed.
 - No ATS logic duplication, no Jobsearch mutation, no AWS/Terraform/merge. Branch will be pushed as a data backup; main stays untouched.
 Contract: docs/contracts/JOBSEARCH-ATS-ANALYSIS-V1.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-04 RESULT BODY]
+Status: COMPLETE (local). ATSAnalysisResultBody V1 emitted.
+Date: 2026-11-16
+- Added agents/ats_agent/result_body.py: versioned projection (bodyType ATSAnalysisResultBody, bodyVersion 1.0) with a whitelist for analysis, requirements, matches, criticalGaps, recommendations, ai and source metadata. Unknown upstream fields and tokenizer internals (normalized, source, explicitness) are dropped; profile input and candidateSkills are never included.
+- Source metadata is minimal: mays-jobsearch, contract MAYS-JOBSEARCH-ATS-ANALYSIS-V1, contractVersion 1.1 and the pinned commit 464783b9. A test asserts the constant matches docs/contracts/mays-jobsearch-api.manifest.json.
+- The agent now returns the body under success/data and adds metrics.resultBodyVersion=1.0 in addition to metrics.contractVersion=1.1. Duplicates from the API are preserved rather than silently deduplicated.
+- Fixtures: tests/fixtures/ats_result_body/{score-0-empty,score-50-partial,score-100-matched,duplicates,optional-missing}.json. tests/test_ats_result_body.py covers projection, versions, source metadata, data minimisation, the success/data/metrics contract and that every fixture passes the contract validator.
+- Docs: docs/contracts/ATS-ANALYSIS-RESULT-BODY-V1.md; linked from the Jobsearch contract.
+- Tests: 174 passed plus 5 subtests (ATS, addition, processing/routing/pipeline, orders contracts, generated artifact and bridge). No AWS, Jobsearch mutation, merge or main change.
+Doc: docs/contracts/ATS-ANALYSIS-RESULT-BODY-V1.md

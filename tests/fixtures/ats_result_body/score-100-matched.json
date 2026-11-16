@@ -1,0 +1,46 @@
+{
+  "analysis": {
+    "score": 100,
+    "keywordCoverage": { "overall": 100 },
+    "requirementCoverage": 100,
+    "profileEvidenceCoverage": 100,
+    "roleMatch": 100,
+    "analysisStatus": "complete",
+    "basis": {
+      "requirementCount": 1,
+      "titleRequirementCount": 0,
+      "hasDescription": true,
+      "roleMatchAvailable": true
+    },
+    "criticalGaps": [],
+    "requirements": [
+      {
+        "id": "skill_0",
+        "text": "Python",
+        "category": "skill",
+        "importance": "critical",
+        "source": "description",
+        "normalized": "python",
+        "explicitness": "explicit"
+      }
+    ],
+    "matches": [
+      { "requirementId": "skill_0", "status": "MATCHED", "confidence": "HIGH" }
+    ]
+  },
+  "recommendations": [],
+  "ai": {
+    "requested": false,
+    "executed": false,
+    "consentRequired": true,
+    "consentGiven": false,
+    "provider": null,
+    "model": null,
+    "externalProcessing": false,
+    "dataMinimized": false,
+    "privacyStatus": null,
+    "dataCategories": [],
+    "privacyPolicy": null,
+    "formulations": []
+  }
+}

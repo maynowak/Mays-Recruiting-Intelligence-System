@@ -23,6 +23,10 @@ from agents.ats_agent.contract import (
     CONTRACT_VERSION,
     validate_analysis_response,
 )
+from agents.ats_agent.result_body import (
+    RESULT_BODY_VERSION,
+    build_ats_analysis_result_body,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -214,6 +218,7 @@ class ATSAgent(AgentBase):
             'workId': work_id,
             'agentVersion': self.version,
             'contractVersion': CONTRACT_VERSION,
+            'resultBodyVersion': RESULT_BODY_VERSION,
         })
         
         return result
@@ -264,14 +269,13 @@ class ATSAgent(AgentBase):
         try:
             result = self.client.analyze(job, profile)
             result = validate_analysis_response(result)
+            body = build_ats_analysis_result_body(
+                result, job_title=job.get('title') or None
+            )
 
             return {
                 'success': True,
-                'data': {
-                    'analysis': result,
-                    'jobTitle': job.get('title', ''),
-                    'candidateSkills': profile.get('skills', '')
-                }
+                'data': body,
             }
 
         except ATSContractError as e:

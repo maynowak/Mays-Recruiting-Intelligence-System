@@ -160,6 +160,9 @@ Der Agent bleibt eine reine Delegation: **keine ATS-Fachlogik in RIS**, keine
 Roh-CV-Daten im Log. Erfolgreiche Ergebnisse tragen
 `metrics.contractVersion = "1.1"`.
 
+Der RIS-eigene, versionierte Result-Body ist in
+[`ATS-ANALYSIS-RESULT-BODY-V1.md`](ATS-ANALYSIS-RESULT-BODY-V1.md) beschrieben.
+
 ## Lizenz
 
 | Punkt | Wert |

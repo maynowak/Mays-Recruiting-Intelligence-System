@@ -1,0 +1,65 @@
+{
+  "analysis": {
+    "score": 50,
+    "keywordCoverage": { "overall": 50 },
+    "requirementCoverage": 50,
+    "profileEvidenceCoverage": 50,
+    "roleMatch": 50,
+    "analysisStatus": "complete",
+    "basis": {
+      "requirementCount": 2,
+      "titleRequirementCount": 0,
+      "hasDescription": true,
+      "roleMatchAvailable": true
+    },
+    "criticalGaps": [],
+    "requirements": [
+      {
+        "id": "tag_0",
+        "text": "Python",
+        "category": "skill",
+        "importance": "high",
+        "source": "tags",
+        "normalized": "python",
+        "explicitness": "explicit"
+      },
+      {
+        "id": "tag_1",
+        "text": "AWS",
+        "category": "skill",
+        "importance": "high",
+        "source": "tags",
+        "normalized": "aws",
+        "explicitness": "explicit"
+      }
+    ],
+    "matches": [
+      { "requirementId": "tag_0", "status": "MATCHED", "confidence": "HIGH" },
+      { "requirementId": "tag_1", "status": "UNKNOWN", "confidence": "LOW" }
+    ]
+  },
+  "recommendations": [
+    {
+      "requirementId": "tag_1",
+      "changeType": "add_skill",
+      "priority": "high",
+      "proposedChange": "Add AWS evidence",
+      "rationale": "No CV evidence found",
+      "evidence": []
+    }
+  ],
+  "ai": {
+    "requested": false,
+    "executed": false,
+    "consentRequired": true,
+    "consentGiven": false,
+    "provider": null,
+    "model": null,
+    "externalProcessing": false,
+    "dataMinimized": false,
+    "privacyStatus": null,
+    "dataCategories": [],
+    "privacyPolicy": null,
+    "formulations": []
+  }
+}

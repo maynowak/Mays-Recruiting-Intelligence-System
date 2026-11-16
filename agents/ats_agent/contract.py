@@ -11,6 +11,9 @@ from typing import Any, Dict
 
 CONTRACT_VERSION = "1.1"
 CONTRACT_PROTOCOL = "MAYS-JOBSEARCH-ATS-ANALYSIS-V1"
+# Pinned source commit from docs/contracts/mays-jobsearch-api.manifest.json.
+# A test asserts that the two stay in sync.
+SOURCE_CONTRACT_COMMIT = "464783b936647b281df63d6dd8c18b15ad732aa3"
 
 ANALYSIS_STATUSES = frozenset({"complete", "limited", "insufficient"})
 MATCH_STATUSES = frozenset({"MATCHED", "PARTIAL", "UNKNOWN"})
