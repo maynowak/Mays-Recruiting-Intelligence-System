@@ -10193,3 +10193,31 @@ Date: 2026-11-15
 - Filed the customer-provided roadmap PDF at docs/roadmap/RIS_Agent_Ecosystem_Entwicklungsroadmap_2026.pdf (141528 bytes, sha256 0212667decc460963498669c0be00faffa5eece76b821d69605658f252ed904a) and linked it from docs/roadmap/ROADMAP.md as a planning document, explicitly not an evidence source.
 - No code, Terraform, or AWS change. No version pin changed by this docs task.
 Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
+
+## 2026-11-17 — XREPO-RIS-CONSENT-RECOVERY-01
+
+**Status:** `A — FIX VERIFIED LOCAL / PRODUCTION ACTIVATION PENDING`
+
+- Read-only dataflow review: Jobsearch `StorageConsentLive` → `risConsentApi`
+  → `/api/ris/consents` → RIS `/v1/partner/me/consents` → consent repository.
+- Confirmed contract regression on RIS `origin/main` `ae08267`:
+  `application-storage/1.0` was `DRAFT`/`noticeApproved=false`/
+  `legalApprovalRef=null`. With production-style
+  `CONSENT_NOTICE_STATE_ENFORCED=true`, `acceptedForNewGrant=false`; the
+  Jobsearch BFF correctly returns `grantAllowed=false` / `notice_not_active`
+  and blocks the UI/POST.
+- The existing documented limited-beta approval `6bfb71f`
+  (`JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`) and the approved v4 text
+  mapping were only on pilot branches, not on `origin/main`.
+- Minimal fix on `feature/xrepo-ris-consent-recovery-01`: restore
+  `application-storage/1.0` to `APPROVED`, retain the existing legal reference,
+  and map `application-storage-consent-2026-11-07-v4` to `1.0`. No gate
+  bypass, no new approval, no env/flag change, no AWS/Terraform change.
+- Tests: RIS focused consent **27 PASS**; full RIS **2620 PASS / 104 skipped /
+  6 baseline failures** (same failures on clean `origin/main`). Jobsearch
+  focused consent **63 PASS**. No Jobsearch product change.
+- Authenticated live GET/POST **not executed**: operator refresh token returned
+  `invalid_grant`; no valid test identity was available. No token, personal
+  data or consent history was logged. Production status is not claimed.
+- Deployment and live smoke require separate approval. Report:
+  `docs/reports/XREPO-RIS-CONSENT-RECOVERY-01.md`.
