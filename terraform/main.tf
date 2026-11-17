@@ -195,6 +195,7 @@ module "lambda" {
   agent_result_queue_arn              = local.agent_result_queue_arn
   agent_result_secret_arn             = local.agent_result_secret_arn
   orders_base_url                     = module.api.api_endpoint
+  ats_api_base_url                    = var.ats_api_base_url
   tags                                = var.tags
 }
 
@@ -435,6 +436,7 @@ module "agent_transport" {
   # The reader is the ORDER_DISPATCH producer; Orders itself is not.
   orders_producer_role_arns = local.agent_dispatch_enabled ? [module.orders_reader[0].role_arn] : var.orders_producer_role_arns
 
+  ats_api_base_url         = var.ats_api_base_url
   result_transport_enabled = local.orders_agent_result_enabled
   order_result_queue_url   = local.agent_result_queue_url
   order_result_queue_arn   = local.agent_result_queue_arn

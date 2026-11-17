@@ -164,6 +164,12 @@ variable "agent_result_secret_arn" {
   default     = ""
 }
 
+variable "ats_api_base_url" {
+  description = "ATS analysis endpoint for the ATS agent (never empty)."
+  type        = string
+  default     = "https://mays-jobsearch.vercel.app"
+}
+
 variable "orders_base_url" {
   description = "Base URL of the project-owned Orders facade (RIS /orders API). Prevents the dead upstream default in agents/orders/real.py."
   type        = string

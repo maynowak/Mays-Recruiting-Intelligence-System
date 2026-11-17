@@ -613,3 +613,14 @@ variable "orders_agent_result_enabled" {
   type        = bool
   default     = false
 }
+
+variable "ats_api_base_url" {
+  description = "ATS analysis endpoint for the ATS agent. Must never be empty; the default is the verified contract host."
+  type        = string
+  default     = "https://mays-jobsearch.vercel.app"
+
+  validation {
+    condition     = can(regex("^https://", var.ats_api_base_url))
+    error_message = "ats_api_base_url must be a non-empty https URL"
+  }
+}

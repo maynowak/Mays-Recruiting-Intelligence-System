@@ -46,6 +46,12 @@ variable "dispatch_batch_window_seconds" {
   default = 0
 }
 
+variable "ats_api_base_url" {
+  description = "ATS analysis endpoint used by the inline ATS agent."
+  type        = string
+  default     = "https://mays-jobsearch.vercel.app"
+}
+
 variable "result_transport_enabled" {
   description = "Wire the existing result queue/secret into the dispatch ingress so ORDER_RESULT can be forwarded."
   type        = bool
@@ -119,10 +125,11 @@ resource "aws_iam_role_policy" "dispatch_ingress" {
         Resource = var.work_items_table_arn
       },
       {
-        Sid      = "Entitlements"
-        Effect   = "Allow"
-        Action   = ["dynamodb:GetItem", "dynamodb:Query"]
-        Resource = var.entitlements_table_arn
+        Sid    = "Entitlements"
+        Effect = "Allow"
+        Action = ["dynamodb:GetItem", "dynamodb:Query"]
+        Resource = [var.entitlements_table_arn,
+        "${var.entitlements_table_arn}/index/*"]
       },
       {
         Sid    = "ConsumeDispatchQueue"
@@ -188,6 +195,7 @@ resource "aws_lambda_function" "dispatch_ingress" {
       # Result transport for the inline pipeline execution.
       ORDER_RESULT_QUEUE_URL  = var.order_result_queue_url
       ORDER_RESULT_SECRET_ARN = var.order_result_secret_arn
+      ATS_API_BASE_URL        = var.ats_api_base_url
     }
   }
 

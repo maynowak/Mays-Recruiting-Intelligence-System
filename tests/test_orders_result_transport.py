@@ -176,7 +176,7 @@ def test_installer_does_not_guess_the_result_outputs():
 
 def test_worker_uses_the_live_ris_orders_facade_base_url():
     main = text(LAMBDA_MAIN)
-    assert "ORDERS_BASE_URL = var.orders_base_url" in main
+    assert "ORDERS_BASE_URL  = var.orders_base_url" in main
     variables = text(LAMBDA_VARS)
     assert 'variable "orders_base_url"' in variables
     root = text(ROOT_MAIN)
@@ -230,3 +230,23 @@ def test_reader_bundle_ships_the_flat_dispatch_contract():
     assert "lambda/orders_reader.py" in READER_FILES
     assert "agents/transport/order_transport.py" in READER_FILES
     assert "agents/orders/agent_order.py" in READER_FILES
+
+def test_dispatch_ingress_entitlement_query_covers_the_gsi():
+    transport = text(TF / "modules" / "agent_transport" / "lambda.tf")
+    assert '"${var.entitlements_table_arn}/index/*"' in transport
+    assert 'Action = ["dynamodb:GetItem", "dynamodb:Query"]' in transport
+
+
+def test_ats_api_base_url_is_pinned_and_wired():
+    root = text(ROOT_MAIN)
+    variables = text(ROOT_VARS)
+    worker = text(LAMBDA_MAIN)
+    worker_vars = text(LAMBDA_VARS)
+    ingress = text(TF / "modules" / "agent_transport" / "lambda.tf")
+    assert 'variable "ats_api_base_url"' in variables
+    assert 'default     = "https://mays-jobsearch.vercel.app"' in variables
+    assert 'variable "ats_api_base_url"' in worker_vars
+    assert "ATS_API_BASE_URL = var.ats_api_base_url" in worker
+    assert "ATS_API_BASE_URL        = var.ats_api_base_url" in ingress
+    assert "ats_api_base_url                    = var.ats_api_base_url" in root
+    assert "ats_api_base_url         = var.ats_api_base_url" in root

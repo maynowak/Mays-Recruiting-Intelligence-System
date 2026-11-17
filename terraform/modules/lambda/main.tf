@@ -687,7 +687,8 @@ resource "aws_lambda_function" "agent" {
       LOG_LEVEL                    = var.log_level
       # Project-owned Orders facade base URL. Without it agents/orders/real.py
       # falls back to a deleted API host and every orders.* call fails.
-      ORDERS_BASE_URL = var.orders_base_url
+      ORDERS_BASE_URL  = var.orders_base_url
+      ATS_API_BASE_URL = var.ats_api_base_url
     }
   }
 

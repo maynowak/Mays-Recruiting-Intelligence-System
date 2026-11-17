@@ -10561,6 +10561,21 @@ Date: 2026-11-17
 
 Report: docs/reports/RIS-ATS-TRANSPORT-RELEASE-READY-04.md
 
+[RIS-ATS-PRODUCT-READINESS-07 / PREFLIGHT + PLAN]
+Status: PLAN REVIEWED / NO APPLY.
+Date: 2026-11-17
+- Preflight (5 independent reviews): ATS endpoint, identity/profile/entitlement, flags/HMAC, SQS/retry/ops, Terraform baseline. No AWS mutation, no secret access, no user creation.
+- Two real wiring gaps fixed locally: (1) dispatch-ingress entitlement Query now covers the `gsi-user` index (`${table_arn}/index/*`), otherwise the first canary would hit AccessDenied and DLQ; (2) `ATS_API_BASE_URL` is now an explicit non-empty https variable, passed to the worker and the dispatch ingress, defaulting to the verified contract host `https://mays-jobsearch.vercel.app`. No non-production ATS endpoint exists in the repo; a canary must use synthetic job/profile data.
+- Flags remain default-off; the 24/4 plan requires explicit approved input `orders_agent_result_enabled=true` and `enable_agent_transport=true`. `enable_agent_transport` is not an allowed project-overlay key; it must be in the reviewed plan input.
+- Final plan sha256 E11732AD9F31C1874E43231DA43987A2E7F1D607ADE41A571D91DB0F922AC70D: 24 add, 4 change, 0 destroy, 0 replace. No Cognito/CloudFront/Route53/DNS/ACM/S3 change, no secret_version; state serial 58 and ETag unchanged. State 58 / lineage a0bd361d-... verified.
+- Baseline hazards recorded: the second state object `env/ris-dev2/dev/terraform.tfstate` is an empty legacy state (0 resources, serial 13); init MUST use bucket ris-dev2-tf-state-dev, key dev/terraform.tfstate, workspace prefix env, lock ris-dev2-tf-lock, workspace ris-dev2. Generated module must be rebuilt before plan; its tracked variables.tf stub must not be committed.
+- Identity prerequisites (no Cognito config change): one RIS-pool user, one ACTIVE API profile (`ownerUserId=sub`, tenantId), one user-wide entitlement (`userId=sub`, agentId=ats-agent, tenantId, valid window). Current live: 0 users, 0 profiles, entitlements only expired foreign test rows.
+- Secret: container-only; value after apply as bare 64-hex via CSPRNG/file:// with immediate deletion; one AWSCURRENT, keys=1. Flags enabled without a secret yield RETRYING/DLQ, never success.
+- Ops risks: results visibility 60s vs consumer timeout 30s; no DLQ alarms/SNS actions for dispatch/result queues; no ORDER_FAILED; reader POST has no request-id idempotency; dispatch ingress executes inline within 30s.
+- Decision: GO (conditional) for the infrastructure apply after plan approval; NO-GO for canary/product traffic until user, profile, entitlement and secret are provisioned and verified.
+
+Report: docs/reports/RIS-ATS-PRODUCT-READINESS-07.md
+
 [RIS-ATS-ORDER-DISPATCH-LINK-06 / PHASE B — AGENT ORDER + DISPATCH]
 Status: IMPLEMENTED / TESTED locally. No AWS apply.
 Date: 2026-11-17
