@@ -10561,5 +10561,20 @@ Date: 2026-11-17
 
 Report: docs/reports/RIS-ATS-TRANSPORT-RELEASE-READY-04.md
 
+[RIS-ATS-TRANSPORT-APPLY-05 / CONTROLLED ROLLOUT PREPARATION]
+Status: NO-GO / NO APPLY / NO SECRET MUTATION.
+Date: 2026-11-17
+- Baseline: RIS 6bb5250, clean; Orders pin 016cdfd; STS arn:aws:iam::262370457690:user/devnemo; workspace ris-dev2; backend ris-dev2-tf-state-dev / env:/ris-dev2/dev/terraform.tfstate; lineage a0bd361d-...; serial 58 before and after; no active lock; no drift.
+- Generated module rebuilt from pin 016cdfd: manifest source matches, lambda.zip 48ddd5e5..., 23 outputs.
+- Fresh plan sha256 9A2DA4209AB002E7DDB10D8F1BE9334910A587DB07F59469340285BE9FE8BC3A: 13 add, 4 change, 0 destroy, 0 replace; no Cognito/CloudFront/DNS/ACM/S3 change, no secret_version, no drift.
+- Zero-traffic proof before apply: work queue 0/0, result queue absent, orders table 0 items, all existing work items without orderId, 0 Cognito users, partner surface disabled, no result DLQ alarm.
+- Four Lambda changes verified individually: RIS agent (bundle + ORDERS_BASE_URL/ORDER_RESULT_*), RIS reader (bundle + Cognito env), Orders handler and SQS worker (source_code_hash only, shared bundle). Two new worker IAM policies are scoped to one action/one ARN each; the 10 agent_transport resources and the ats-agent catalog seed match the documented configuration.
+- Decisive finding: no live order-correlated ingress exists. Partner execute creates a work item without orderId (NOT_ORDER, no send); the ORDER_DISPATCH ingress is not deployed and not part of the plan; the RIS facade POST /orders silently creates a retail order and drops agentOrder. The apply would create an idle result chain and cannot produce actual Orders persistence.
+- Additional blockers: no identity (0 users, m2m rejected), ORDERS_ID_TOKEN unset, two-pool owner mismatch, visibility 60s vs timeout 30s, no DLQ alarm, no ORDER_FAILED, secret value only after apply, project config flag false (override trap), upstream main divergence.
+- Secret procedure documented (bare 64-hex, CSPRNG, restricted file, put-secret-value file://, immediate deletion, one AWSCURRENT, keys=1 shape check); no secret value touched.
+- Decision: NO-GO for the transport apply until an approved order-correlated ingress, an identity decision and a reproducible flag/plan exist. No AWS mutation, no secret mutation, no user creation, no push, no merge.
+
+Report: docs/reports/RIS-ATS-TRANSPORT-APPLY-05.md
+
 Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
 
