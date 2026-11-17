@@ -164,6 +164,12 @@ variable "agent_result_secret_arn" {
   default     = ""
 }
 
+variable "orders_base_url" {
+  description = "Base URL of the project-owned Orders facade (RIS /orders API). Prevents the dead upstream default in agents/orders/real.py."
+  type        = string
+  default     = ""
+}
+
 variable "user_profile_table_arn" {
   description = "DynamoDB table ARN for user profiles"
   type        = string

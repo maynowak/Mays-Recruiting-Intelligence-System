@@ -172,3 +172,16 @@ def test_installer_does_not_guess_the_result_outputs():
                  "result_hmac_secret_arn"):
         assert name in ris._UNCONSUMED_ORDERS_OUTPUTS
     assert "orders_agent_result_enabled" in ris.PROJECT_CONFIG_ALLOWED_KEYS
+
+
+def test_worker_uses_the_live_ris_orders_facade_base_url():
+    main = text(LAMBDA_MAIN)
+    assert "ORDERS_BASE_URL = var.orders_base_url" in main
+    variables = text(LAMBDA_VARS)
+    assert 'variable "orders_base_url"' in variables
+    root = text(ROOT_MAIN)
+    lambda_block = re.search(r'module "lambda" \{(.*?)\n\}', root, re.S).group(1)
+    assert "orders_base_url                     = module.api.api_endpoint" in lambda_block
+    # The dead upstream default must not be the effective configuration.
+    real = (REPO / "agents" / "orders" / "real.py").read_text(encoding="utf-8")
+    assert "aboqolpm0f" in real  # documented default stays, but is overridden

@@ -10489,5 +10489,21 @@ Date: 2026-11-17
 - Open blockers for the apply gate: secret value must be set out-of-band as a bare hex string; RIS reader pins the RIS pool while Orders has its own pool (orders created directly via the Orders API stay 404 until a scoped identity change); the Orders adapter default base URL points to a deleted API; no ORDER_FAILED forwarding; result queue visibility 60s vs consumer timeout 30s.
 - Recommendation: separate apply gate only with a freshly regenerated plan against the approved commit, secret value pre-set, and the 13/2/0/0 check repeated.
 
+[RIS-ATS-PRE-APPLY-CHECKPOINT-01 / LIVE VERIFICATION + CONFIG CORRECTION]
+Status: READ-ONLY VERIFICATION COMPLETE / ONE LOCAL FIX / NO APPLY.
+Date: 2026-11-17
+- Secret/queue: no `ris-dev2-mays-orders-agent-result-hmac` secret, no `agent-results`/`agent-results-dlq` queue, no result consumer Lambda, and zero Secrets Manager secrets in the account. `module.mays_orders[0].module.agent_transport` is absent from state. The container-only design means an apply still yields no usable key until `put-secret-value` (bare hex).
+- Producer role corrected in the analysis: `module.lambda.lambda_role_arn` resolves to `arn:aws:iam::262370457690:role/ris-dev2-dev-agent` (the live worker role; confirmed by the Lambda Role attribute and the plan output). The `ris-dev2-lambda-role` ARN is the health-plane role and is not used here.
+- Orders API: live are `r95qvhg2p3` (ris-dev2-dev-api), `7ency74vs0` (ris-dev2-mays-orders-api) and a legacy `n4rhy1qpo0`. The adapter default `aboqolpm0f` is deleted (API NotFound + DNS NXDOMAIN), and `ORDERS_BASE_URL` was not set anywhere.
+- RIS live env: worker has no `ORDER_RESULT_*`, no `ORDERS_*`; reader has only `ORDERS_TABLE`/`ORDERS_SQS_QUEUE_URL`, so `/orders` returns 503 before touching DynamoDB. State and live code hashes match (94ex.../omwZ...), serial 58.
+- Identity: RIS pool OYN9QiHc5 and Orders pool GInnOix9P are disjoint and both have zero users; owner-key derivation is byte-identical (`sha256(strip().rstrip("/") + "\x00" + sub)`) and gsi3/gsi3sk agree. The orders table is empty. A delivered result never advances the order status (MO handoff test).
+- Local correction: `ORDERS_BASE_URL` is now wired from `module.api.api_endpoint` into the worker env, so `agents/orders/function.py` no longer falls back to the deleted host. No Cognito, queue or identity change.
+- Rebuilt artifacts are identical to the previous gate (agent 8462e5de..., reader 417e5b5f...). New plan sha256 2ED7B1A5C63E0427719F75500E763025612625D94D8040E7E31CADC6A2AB4C01: 13 add, 2 change, 0 destroy, 0 replace; state serial 58 unchanged.
+- Full suite 2639 passed / 128 skipped / 434 subtests with the same 29 pre-existing failures and 4 collection errors.
+- Blockers: secret value absent until post-apply `put-secret-value`; no human identity exists (both pools empty) and the m2m client is not accepted by the reader audience check, so an end-to-end read-back cannot be demonstrated without an identity decision; `ORDERS_ID_TOKEN` remains unset for token-less work items; result consumer visibility 60s vs timeout 30s.
+- Recommendation: GO for the transport apply with an immediately following out-of-band secret provisioning and no partner traffic; NO-GO for declaring the product read-back complete until an identity path is approved.
+
+Report: docs/reports/RIS-ATS-PRE-APPLY-CHECKPOINT-01.md
+
 Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
 

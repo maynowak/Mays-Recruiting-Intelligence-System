@@ -685,6 +685,9 @@ resource "aws_lambda_function" "agent" {
       APPLICATION_CONSENT_ENFORCED = var.application_consent_enforced ? "true" : "false"
       DELETION_LEDGER_TABLE        = var.deletion_ledger_table_name
       LOG_LEVEL                    = var.log_level
+      # Project-owned Orders facade base URL. Without it agents/orders/real.py
+      # falls back to a deleted API host and every orders.* call fails.
+      ORDERS_BASE_URL = var.orders_base_url
     }
   }
 

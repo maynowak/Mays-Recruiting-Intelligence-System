@@ -189,6 +189,7 @@ module "lambda" {
   agent_result_queue_url              = local.agent_result_queue_url
   agent_result_queue_arn              = local.agent_result_queue_arn
   agent_result_secret_arn             = local.agent_result_secret_arn
+  orders_base_url                     = module.api.api_endpoint
   tags                                = var.tags
 }
 
