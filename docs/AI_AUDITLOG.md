@@ -10315,3 +10315,23 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
   still blocked by missing valid test identity/token; no Production
   verification claimed. No general rollout.
 - Report: `docs/reports/RIS-CONSENT-RELEASE-05.md`.
+
+## 2026-11-17 — XREPO-JM-RIS-CONSENT-FINAL-01
+
+**Status:** `B — XREPO CONTRACT VERIFIED / AUTH E2E BLOCKED`
+
+- Cross-repo contract verified from existing evidence and focused tests:
+  Jobsearch BFF 40 PASS; RIS consent focused 27 PASS. No new architecture,
+  Terraform apply or production deployment.
+- Jobsearch Main/Production: `92ca1fc690adcb1c6db3b392f710b3456c324e04`.
+  RIS code Main `00363977…`; state serial 80; live agent contains
+  `application-storage/1.0 = APPROVED`; post-apply plan clean.
+- ApplicationV1 and CV consent contracts remain separate; `specialCategoriesConsent`,
+  notice/text mapping and fail-closed error handling are verified in code/tests.
+- Authenticated live E2E remains blocked by the exact missing prerequisite: a
+  valid authorized synthetic-session token for the existing server-side
+  `RIS_TEST_USER_ALLOWLIST` identity. No auth bypass, test identity creation,
+  real data change or token logging.
+- No Main merge, new Production deployment, Terraform/AWS/RIS/Cognito/
+  CloudFront/DNS change. Shared report:
+  `docs/reports/XREPO-JM-RIS-CONSENT-FINAL-01.md`.
