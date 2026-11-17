@@ -1,10 +1,28 @@
 # XREPO-JM-RIS-CONSENT-LIVE-E2E-02
 
-**Status:** `B — AUTH ACCESS ACTION REQUIRED`  
+**Status:** `C — PRODUCT DEFECT CONFIRMED / FIX PREPARED / LIVE DEPLOYMENT NOT AUTHORIZED`
 **Scope:** Jobsearch ↔ RIS limited-beta application-storage and CV-storage consent  
-**No new Production deployment, Main merge, Terraform apply, AWS/Cognito change or real applicant data.**
+**No Main merge, new Production deployment, Terraform apply, AWS/Cognito/CloudFront/DNS change or real applicant data.**
 
-## 1. Ausgangsstand
+## 1. Ergebnis
+
+Der authentifizierte Live-Lauf konnte nach der Operator-Anmeldung ausgeführt
+werden. Er hat zwei echte RIS-Vertragsfehler bestätigt:
+
+1. **ApplicationV1:** Grant, Reload und Status funktionieren, aber der
+   Art.-9-/Text-Nachweis wird nicht gespeichert. Nach Reload meldet der BFF
+   `specialCategoriesConsent=false`, `externalTextVersion=null`,
+   `externalTextSha256=null`; die UI zeigt „Art.-9-Einwilligung: nicht
+   erteilt“.
+2. **CV-/Search-Profile-Consent:** `GET /api/ris/cv-consents` und
+   `GET /api/ris/search-profile-consents` liefern `404 UNKNOWN_PURPOSE`.
+   Der aktuelle RIS-Main-Code kennt nur `application-storage`.
+
+Der Live-CV-Teil ist damit **nicht** durchführbar; ein CV-Grant, Upload,
+Reload, Download oder eine CV-404-Prüfung wurde nicht behauptet. Die
+Jobsearch-UI und der XRepo-Transport sind nicht die Ursache.
+
+## 2. Ausgangsstand
 
 | Komponente | Stand |
 |---|---|
@@ -17,108 +35,168 @@
 | RIS Live Agent | `ris-dev-dev-agent`, Code `cQFmaERVhZ0cjrqcio/kzaD5ZJB71kS0sa7vB4vJbdU=` |
 | RIS Post-Apply Plan | no changes, SHA-256 `30c4a15c…` |
 
-## 2. Auth-Pfad
+## 3. Authentifizierung
 
-Jobsearch:
+Die vorhandene, bereits allowlistete Pilot-Session wurde nach der
+Operator-Anmeldung über den normalen Cognito-Refresh-Flow im Browser erneuert.
+Es wurden keine Tokenwerte, Credentials, Profil-E-Mails oder Subject-Werte
+ausgegeben oder gespeichert.
 
-- Cognito/OIDC-Pool `eu-central-1_ZURSMpD2O`, Client
-  `5hb3f6dj5ialg77jf4blur9g6g`, Domain
-  `https://auth.mays-job-matcher.app`.
-- `react-oidc-context` liefert den Access-Token; `StorageConsentLive` reicht
-  ihn ausschließlich an den server-side BFF `/api/ris/consents` weiter.
-- Der BFF prüft Signatur, `iss`, Client/`aud`, `token_use=access`, `sub` und
-  Ablaufzeit über `api/_lib/ris/auth.mjs`.
-- Danach prüft `RIS_TEST_USER_ALLOWLIST` die Kombination `iss|sub` zusätzlich
-  zur RIS-Partner-Autorisierung. Empty/missing denies.
+Der BFF akzeptierte die Session:
 
-RIS:
+```text
+GET /api/ris/consents
+HTTP 200
+grantAllowed=true
+noticeState=APPROVED
+textState=APPROVED
+consent.status=GRANTED
+```
 
-- Die Partneroberfläche akzeptiert denselben Jobsearch-Issuer/Client, die
-  RIS-Partner-Credential bleibt ausschließlich serverseitig.
-- Der Grant-Schreibpfad prüft Notice- und Textzustand vor dem Speichern.
+Damit war die Identität für die serverseitige `RIS_TEST_USER_ALLOWLIST` und
+die RIS-Partnerautorisierung gültig. Es gab keine Auth-Umgehung und keine
+neue Testidentität.
 
-## 3. Warum keine Session verfügbar ist
+## 4. Live-E2E ApplicationV1
 
-Geprüfte lokale Artefakte, ohne Werte oder Tokens zu protokollieren:
+Ausgeführt über die sichtbare Produktions-UI (`/profil?tab=settings`) und den
+BFF:
 
-| Artefakt | Befund |
+- Application-Consent wurde einmal widerrufen.
+- Art.-9-Checkbox wurde gesetzt.
+- Grant wurde erneut ausgeführt.
+- Sichtbare Bestätigung:
+  „Die Einwilligung zur dauerhaften Speicherung wurde gespeichert.
+  Status: erteilt.“
+- Reload und anschließender BFF-GET:
+
+```text
+HTTP 200
+consent.status=GRANTED
+grantAllowed=true
+noticeState=APPROVED
+consent.specialCategoriesConsent=false
+consent.specialCategories=[]
+consent.externalTextVersion=null
+consent.externalTextSha256=null
+UI: "Art.-9-Einwilligung: nicht erteilt"
+```
+
+**Bewertung:** Grant und Statuspersistenz funktionieren; der
+Art.-9-/Text-Nachweis geht verloren. Das ist ein RIS-Backend-Vertragsfehler,
+kein Browser-/UI-Fehler. Der finale Consent-Status blieb `GRANTED`; es wurden
+keine Bewerberdaten angelegt oder verändert.
+
+## 5. Live-E2E CV / Search Profile
+
+```text
+GET /api/ris/cv-consents
+HTTP 404
+code=UNKNOWN_PURPOSE
+
+GET /api/ris/search-profile-consents
+HTTP 404
+code=UNKNOWN_PURPOSE
+```
+
+Der BFF leitet die getrennten Zwecke korrekt an RIS weiter. RIS-Main/Live
+akzeptiert sie jedoch nicht. Dadurch sind CV-Consent und Suchprofil-Consent
+in Produktion nicht erreichbar; CV-Grant/Upload/Download/404 konnten nicht
+ausgeführt werden.
+
+Zusätzlicher Code-Befund: Die aktuellen RIS-Main-Routen für manuelle
+Suchprofile, ATS-Profile und CV-Writes verwenden keinen der vorhandenen
+Consent-Gates. Der Live-Stand ist daher nicht nur funktional unvollständig,
+sondern auch ein Privacy-Regress gegenüber dem zuvor verifizierten
+Pilotstand. Keine realen Nutzerdaten wurden dabei verändert.
+
+## 6. Ursache
+
+Der aktuelle RIS-Main-Code enthält nur den Application-Vertrag:
+
+- `jobsearch/consent_contract.py`: `CONSENT_PURPOSES` enthält nur
+  `application-storage`; `cv-storage` und `search-profile-storage` fehlen.
+- `jobsearch/consent_repository.py`: Grant/Status speichern keine
+  `specialCategoriesConsent`, `specialCategories`, `externalTextVersion`
+  oder `externalTextSha256`.
+- `lambda/handler.py`: Der Consent-POST reicht die Nachweisfelder nicht an
+  das Repository weiter; CV-/Search-Routen nutzen den allgemeinen
+  Storage-Guard ohne Consent-Prüfung.
+
+Der zuvor verifizierte Pilotstand (`451c12e`) enthielt diese Bestandteile.
+Der Release-05-Apply aus RIS-Main hat den Live-Lambda-Code damit auf einen
+älteren, unvollständigen Consent-Vertrag zurückgesetzt. Es liegt **kein**
+XRepo-Protokollfehler und **keine** Jobsearch-BFF-Abweichung vor.
+
+## 7. Vorbereiteter Fix
+
+Lokaler RIS-Branch, nicht in Main gemergt und nicht deployt:
+
+| Feld | Wert |
 |---|---|
-| `/tmp/opencode/e2e_idtoken` | abgelaufen; Issuer `eu-central-1_cmJWXujnb` (RIS-Kernel-Pool), nicht der produktive Jobsearch-Pool `ZURSMpD2O` |
-| `/tmp/opencode/jm-operator-session.json` | Access-/ID-Token abgelaufen; Refresh-Token liefert `invalid_grant`; keine synthetische Session |
-| `/tmp/opencode/jm-e2e-user.json` | fehlt; `jm-login-pkce.mjs` kann damit keine neue Session erzeugen |
-| Chrome-Profile `mays-live-e2e-profile`, `e2e-profile`, `e2e-profile2`, `actual-restore` | keine `oidc.user`-Session, keine `#dashboard-v2-title`-Ansicht |
-| `jm-e2e-token.json` | fehlt |
+| Branch | `fix/xrepo-ris-consent-contract-02` |
+| Commit | `fd02722` |
+| Pull Request | RIS #15 |
+| Basis | `origin/main` `b193b71` |
+| Geänderte Bereiche | `jobsearch/consent_contract.py`, `jobsearch/consent_repository.py`, `lambda/handler.py`, Consent-/Profile-Tests |
+| Nicht geändert | Terraform, AWS, Cognito, API Gateway, Consent-Aktivierung, Deployment |
 
-Damit liegt primär **kein gültiger Token** vor; zusätzlich sind vorhandene
-Tokens abgelaufen bzw. der alte ID-Token gehört zum falschen Pool. Es ist
-**keine** XRepo-Vertrags- oder Allowlist-Abweichung nachgewiesen. Es wurde
-nichts umgangen und keine Testidentität angelegt.
+Der Fix stellt den bekannten, zuvor live verifizierten Consent-Vertrag wieder
+her:
 
-## 4. Vertragsstand
-
-Bereits verifiziert, nicht erneut live ausgeführt:
-
-- `grantAllowed` wird serverseitig aus Notice- und Textzustand berechnet.
-- `specialCategoriesConsent=true` wird im POST übertragen und serverseitig
-  geprüft.
-- RIS `application-storage/1.0` ist `APPROVED` mit
-  `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`.
-- Textversion `application-storage-consent-2026-11-07-v4` und SHA-256 stimmen.
-- Reload, Withdraw/Regrant und persistierter Status sind über BFF/RIS-Tests
-  abgedeckt.
-- CV-Consent `cv-storage` bleibt getrennt von ApplicationV1.
-- CV-404 wird nicht-destruktiv behandelt; kein Löschen/Migrieren.
+- ApplicationV1-Art.-9-Nachweis inklusive Textversion und SHA-256 wird
+  validiert, gespeichert und im Status zurückgegeben.
+- `cv-storage` und `search-profile-storage` sind wieder gültige, getrennte
+  Zwecke mit den bestehenden genehmigten Notices.
+- CV-, manuelle Suchprofil- und ATS-Writes besitzen wieder die zugehörigen
+  Consent-Gates; Reads/Delete bleiben bei Widerruf möglich.
+- Der BFF-Vertrag bleibt unverändert; keine neuen Credentials, Scopes oder
+  Infrastrukturvariablen.
 
 Tests:
 
 ```text
-Jobsearch BFF consent: 40 PASS
-RIS consent focused:   27 PASS
-Jobsearch full:        1952 PASS / 11 skipped
-RIS full:              2629 PASS / 104 skipped / 5 bekannte Baseline-Fehler
+RIS fokussiert (Consent, CV, Search, Profile): 232 PASS
+RIS vollständig: 2823 PASS / 104 skipped / 19 bekannte Baseline-Fehler
+Clean-Main-Baseline b193b71: 2746 PASS / 104 skipped / 19 identische Fehler
+Jobsearch BFF/Consent/UI-Libs: 53 PASS
 ```
 
-## 5. Authentifizierter Live-E2E
+Die 19 Restfehler sind identisch zur Clean-Main-Baseline (Wrapper-/Terraform-,
+Composite-, Health-, Packaging- und Platform-Handler-Tests) und wurden durch
+den Fix nicht verursacht. Es wurden keine Terraform- oder AWS-Änderungen
+vorgenommen.
 
-**Nicht ausgeführt.**
+## 8. Betriebsstatus und nächste Gates
 
-Nicht behauptet:
+Bis zu einem separat freigegebenen RIS-Deployment bleibt Produktion
+eingeschränkt:
 
-- ApplicationV1-Grant im angemeldeten Live-Konto
-- Reload-/Withdraw-/Regrant-Live-E2E
-- CV-Grant, CV-Persistenz, PDF-Download oder CV-404 mit angemeldeten Daten
+- ApplicationV1: Grant/Status vorhanden, Art.-9-/Text-Nachweis **nicht**
+  belastbar; keine Aussage „Art.-9-Nachweis persistiert“.
+- CV-/Search-Profile: Consent-APIs `404`; keine Nutzung für reale Nutzer.
+- Keine allgemeine Freigabe, kein Main-Merge, kein neues Deployment.
 
-Es wurden keine echten Bewerbungsdaten verändert und keine Tokens/Consent-
-Historien ausgegeben.
+Nächste Schritte:
 
-## 6. Genau eine Operator-Aktion
+1. Review des Branches `fix/xrepo-ris-consent-contract-02` (`fd02722`).
+2. Separates RIS-Deployment-Gate mit expliziter Freigabe; dabei bestehende
+   Env-/Terraform-Schalter prüfen, ohne sie in diesem Branch zu ändern.
+3. Danach Live-E2E erneut ausführen: ApplicationV1 Art.-9-Proof,
+   Withdraw/Regrant, CV-Grant, synthetischer PDF-Upload/Reload/Download/404,
+   Cleanup.
+4. Erst danach Status auf `A` setzen.
 
-Einmalig in einer sichtbaren Chrome-Session mit dem bereits autorisierten
-synthetischen Limited-Beta-Konto anmelden:
+## 9. Evidenz / Reproduktion
 
-```bash
-cd /home/dci-student/projects/mays-xrepo-orchestration/worktrees/jobsearch-xrepo-consent-final-01
-npm run test:e2e:live-browser -- open
-```
+- Live-UI: `/profil?tab=settings`, Application-Consent-Abschnitt.
+- Live-BFF: `GET /api/ris/consents`, `GET /api/ris/cv-consents`,
+  `GET /api/ris/search-profile-consents`.
+- Fix-Tests: `python3 -m pytest -q` im Branch-Worktree.
+- Keine Tokens, Access-/Refresh-Token, E-Mails oder Subject-Werte in Report,
+  Logs oder Auditlog.
+- Keine realen Bewerberdaten; der Application-Consent wurde einmal
+  zurückgesetzt und wieder erteilt, finaler Status `GRANTED`.
 
-Im geöffneten Chrome-Fenster:
-
-- **nur einmal** mit der vorhandenen autorisierten synthetischen Testidentität
-  anmelden,
-- keine Zugangsdaten oder Tokens in Chat/Terminal eingeben,
-- nach sichtbarer Profilseite die Session stehen lassen.
-
-Erwartete Wirkung: eine gültige kurzlebige Access-Session im
-`/tmp/opencode/mays-live-e2e-profile`-Profil. Danach können die automatisierten
-Consent-/CV-Prüfungen über CDP ausgeführt werden; eine manuelle
-Button-Testaufforderung ist nicht erforderlich.
-
-## 7. Verbleibende Gates
-
-- gültige synthetische Session/Allowlist-Identität
-- ApplicationV1 Grant/Reload/Withdraw/Regrant
-- CV-Grant und synthetischer CV-PDF-Download/404
-- kontrollierte Testdaten-Bereinigung
-
-Kein Main-Merge, kein neues Deployment, kein Terraform/AWS/Cognito/CloudFront/
-DNS-Eingriff.
+Kein Main-Merge, kein neues Deployment, kein Terraform/AWS/Cognito/
+CloudFront/DNS-Eingriff.

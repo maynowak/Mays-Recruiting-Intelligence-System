@@ -10338,21 +10338,28 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
 
 ## 2026-11-17 — XREPO-JM-RIS-CONSENT-LIVE-E2E-02
 
-**Status:** `B — AUTH ACCESS ACTION REQUIRED`
+**Status:** `C — PRODUCT DEFECT CONFIRMED / FIX PREPARED`
 
-- Investigated the authorization path: Jobsearch OIDC pool/client and BFF
-  signature/issuer/client/expiry checks, server-side `RIS_TEST_USER_ALLOWLIST`,
-  and RIS partner identity. No contract or allowlist mismatch was found.
-- Existing access artifacts are not reusable: `e2e_idtoken` expired and belongs
-  to the RIS kernel pool `cmJWXujnb`; operator session access/ID tokens expired
-  and refresh returns `invalid_grant`; `jm-e2e-user.json` is absent; Chrome
-  profiles contain no OIDC session. No tokens or PII were logged.
-- Contract evidence remains sound: Jobsearch BFF consent 40 PASS; RIS consent
-  focused 27 PASS; production Jobsearch build `92ca1fc`; RIS state serial 80
-  with APPROVED application-storage notice and clean post-apply plan.
-- No authenticated ApplicationV1/CV E2E, no real data/tokens, no Main merge,
-  deployment, Terraform/AWS/Cognito/CloudFront/DNS change.
-- Exactly one operator action documented: open the existing live-browser
-  harness and sign in once with the already-authorized synthetic identity;
-  afterwards automated checks can run via CDP. Report:
+- Die operatorseitig geöffnete, bereits allowlistete Pilot-Session wurde über
+  den normalen Cognito-Refresh-Flow im Browser erneuert; keine Token-/PII-Werte
+  geloggt. Der BFF akzeptierte die Identität (`grantAllowed=true`,
+  `noticeState=APPROVED`, `textState=APPROVED`, Status `GRANTED`).
+- ApplicationV1 live: Withdraw/Regrant über die Produktions-UI erfolgreich,
+  Reload/Status `GRANTED`. Der Art.-9-/Text-Nachweis fehlt jedoch nach Reload
+  (`specialCategoriesConsent=false`, `externalTextVersion=null`); die UI zeigt
+  „Art.-9-Einwilligung: nicht erteilt“. Kein Bewerberdatensatz angelegt;
+  finaler Consent-Status `GRANTED`.
+- CV-/Search-Profile live: `GET /api/ris/cv-consents` und
+  `GET /api/ris/search-profile-consents` liefern `404 UNKNOWN_PURPOSE`.
+  CV-Grant/Upload/Download/404 wurden daher nicht behauptet.
+- Ursache ist RIS-Main `00363977…`: nur `application-storage` im
+  Consent-Vertrag, keine Proof-Felder im Repository/Handler und keine
+  CV-/Search-Consent-Gates. Kein XRepo- oder Jobsearch-BFF-Fehler.
+- Fix vorbereitet: RIS-Branch `fix/xrepo-ris-consent-contract-02`, Commit
+  `fd02722`, Basis `b193b71`; Vertrag/Repository/Handler und Tests
+  wiederhergestellt. RIS fokussiert **232 PASS**; vollständig **2823 PASS /
+  104 skipped / 19 identische Clean-Main-Baseline-Fehler**; Jobsearch
+  BFF/Consent/UI-Libs **53 PASS**.
+- Kein Main-Merge, kein neues Deployment, keine Terraform-/AWS-/Cognito-/
+  CloudFront-/DNS-Änderung. Report:
   `docs/reports/XREPO-JM-RIS-CONSENT-LIVE-E2E-02.md`.
