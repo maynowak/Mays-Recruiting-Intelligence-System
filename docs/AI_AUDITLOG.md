@@ -10381,3 +10381,11 @@ Date: 2026-11-16
 - Local evidence: 425 targeted regression, full suite no new failure vs main, E2E 149, security 302, secret scan clean.
 - No AWS changes in this report.
 Report: docs/reports/RIS-ATS-AGENT-01-ORCHESTRATION-STATUS.md
+
+
+[MAYS-XR-ATS-001 / DRAFT]
+Status: DRAFT ONLY. No issues, no dispatch.
+Date: 2026-11-17
+- Added docs/xrepo/MAYS-XR-ATS-001-DRAFT.md: proposed task ID, direction (jobsearch -> RIS for contract 1.2), required MAYS-XREPO-V1 fields, issue binding, evidence rules, sequential handoff and the explicit no-dispatch boundary.
+- Existing tasks MAYS-XR-E2E-001 and MAYS-SCV-RC3-001 were not touched. Another agent remains active in xrepo.
+- No GitHub issue, repository_dispatch, AWS or installation change.
