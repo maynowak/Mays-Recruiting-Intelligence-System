@@ -10363,3 +10363,23 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
 - Kein Main-Merge, kein neues Deployment, keine Terraform-/AWS-/Cognito-/
   CloudFront-/DNS-Änderung. Report:
   `docs/reports/XREPO-JM-RIS-CONSENT-LIVE-E2E-02.md`.
+
+## 2026-11-17 — XREPO-RIS-CONSENT-RECOVERY-03
+
+**Status:** `D — FIX MERGED / PLAN TECHNICALLY CLEAN / APPLY NOT SAFE FOR COMPLETE CONSENT GATES`
+
+- RIS PR #15 reviewed: 3 product files plus tests, no Terraform/AWS changes.
+  Proof fields and both profile purposes are restored; merged regularly as
+  `e95fe48573cb61151a84f448e9e6376f4a7833d6`.
+- Merged-main verification: focused 77 PASS; full 2823 PASS / 104 skipped /
+  19 identical clean-main baseline failures; Jobsearch BFF/consent/UI 53 PASS.
+- Notices: application v4, CV v1 and search-profile v2 are complete and
+  approved for the limited pilot; no general legal approval invented.
+- Terraform plan `/tmp/opencode/ris-consent-recovery-03.tfplan`, SHA-256
+  `153d121260bf5340a63b4d091abe5541732e853891db2f00f6d8b1694baf312c`,
+  state serial 80, 0 add / 5 change / 0 destroy / 0 replace; no state write.
+- Release blocker: Terraform main/live do not wire
+  `CV_STORAGE_CONSENT_ENFORCED`, `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED`,
+  `CONSENT_NOTICE_STATE_ENFORCED` or `CONSENT_PILOT_ALLOWLIST`; plan adds no
+  env keys, so gates remain inactive. No apply executed.
+- Shared report: `docs/reports/XREPO-RIS-CONSENT-RECOVERY-03.md`.
