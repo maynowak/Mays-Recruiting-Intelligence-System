@@ -485,3 +485,24 @@ class TestResultSenderSignature:
             sign_result("test-secret", "msg_work-1_order_result",
                         call["MessageBody"]))
 
+    def test_sender_normalizes_whitespace_in_the_secret(self):
+        from agents.transport.order_result_sender import make_sender, sign_result
+
+        class FakeSqs:
+            def __init__(self):
+                self.sent = []
+
+            def send_message(self, **kwargs):
+                self.sent.append(kwargs)
+
+        class FakeSecrets:
+            def get_secret_value(self, SecretId):
+                return {"SecretString": "  test-secret\n"}
+
+        sqs = FakeSqs()
+        sender = make_sender("https://sqs.example/queue", "arn:secret",
+                             sqs_client=sqs, secrets_client=FakeSecrets())
+        sender({"messageId": "msg_1", "payload": {"a": 1}})
+        call = sqs.sent[0]
+        assert call["MessageAttributes"]["serviceSignature"]["StringValue"] == (
+            sign_result("test-secret", "msg_1", call["MessageBody"]))

@@ -55,7 +55,9 @@ def make_sender(
 
             client = secrets_client or boto3.client("secretsmanager")
             response = client.get_secret_value(SecretId=secret_arn)
-            value = response.get("SecretString") or ""
+            # Normalise like the consumer: a stray newline/space in the stored
+            # value must not change the HMAC key.
+            value = (response.get("SecretString") or "").strip()
             if not value:
                 raise RuntimeError("ORDER_RESULT_SECRET_ARN has no value")
             cached_secret["value"] = value

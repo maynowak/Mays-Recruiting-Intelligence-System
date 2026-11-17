@@ -205,11 +205,13 @@ class LambdaBridgeE2E(unittest.TestCase):
     def _result_record(self, envelope, secret=RESULT_SECRET, message_id=None):
         from result_envelope import sign
 
-        mid = message_id or envelope["messageId"]
+        # The signature basis is the envelope id; the SQS record id is a UUID
+        # assigned at send time and is deliberately different here.
+        record_id = message_id or "11111111-2222-3333-4444-555555555555"
         body = json.dumps(envelope)
-        return {"messageId": mid, "body": body,
+        return {"messageId": record_id, "body": body,
                 "messageAttributes": {"serviceSignature": {
-                    "stringValue": sign(secret, mid, body)}}}
+                    "stringValue": sign(secret, envelope["messageId"], body)}}}
 
     # -- tests -----------------------------------------------------------
     def test_full_bridge_returns_42_to_the_owner(self):

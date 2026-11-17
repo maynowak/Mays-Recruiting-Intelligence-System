@@ -10521,5 +10521,19 @@ Date: 2026-11-17
 
 Report: docs/reports/RIS-ATS-TRANSPORT-RELEASE-02.md
 
+[RIS-ATS-TRANSPORT-CONSUMER-FIX-03 / B1+B2 FIX + PIN]
+Status: IMPLEMENTED / TESTED locally. No apply, no push, no main merge.
+Date: 2026-11-17
+- Orders commit 016cdfd6ac62565dcec9a2fee78cb898fb919e59 on local branch fix/order-result-signature-domain-01: the consumer verifies the HMAC over the envelope messageId from the JSON body, not the SQS-assigned record messageId. The SQS record id is used only as itemIdentifier for partial batch failures.
+- Missing/unreadable/empty/whitespace secret never returns success: result_consumer.handler reports every record as a batch failure; generic secret read errors are caught and reported the same way. Non-ASCII/non-comparable signatures return False instead of raising; a record without an SQS messageId raises rather than being silently acknowledged.
+- Invalid JSON and a missing/non-string envelope messageId are permanent rejects; invalid signatures never reach apply_result. Infrastructure failures are returned per record as batchItemFailures while successful records are acknowledged.
+- Orders tests: 225 passed (lambda/tests unittest discover), including new envelope-id vs SQS-id positive/negative cases, secret failure batch failures, partial infrastructure retry, invalid JSON/missing id, non-ASCII signature, whitespace secret parsing. Artifact lambda/dist/lambda.zip sha256 48ddd5e52d07b40fc333b67e5e34fb1b67701cf823536e20c7b2816a78a05f94 (13 files).
+- RIS pin updated to 016cdfd in installer/mays-orders-builder.pinned.json and build_mays_orders_module.PINNED_COMMIT. Generated module rebuilt: manifest source 016cdfd, artifact hash 48ddd5e5..., 23 outputs.
+- RIS cross-repo tests: 91 passed (bridge, MO contract, dispatch handoff, transport contract, generated artifact with MO_ORDERS_MODULE). Targeted regression 150 passed / 318 subtests; full suite 2640 passed / 128 skipped with the same 29 pre-existing failures and 4 collection errors.
+- Producer now strips whitespace from the stored HMAC value so both sides normalize identically; a whitespace-only secret still fails closed.
+- No AWS mutation, no secret access, no user change.
+
+Report: docs/reports/RIS-ATS-TRANSPORT-CONSUMER-FIX-03.md
+
 Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
 
