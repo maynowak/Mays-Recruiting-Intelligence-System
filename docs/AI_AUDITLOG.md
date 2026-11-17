@@ -10423,3 +10423,17 @@ Date: 2026-11-17
 - Tests: tests/test_worker_pipeline.py + tests/test_order_transport_contract.py 76 passed (correlation persistence, one result per completion, data-not-wrapper payload, non-order skip, missing correlation, no config, duplicate idempotency, sender failure, pinned HMAC vector).
 - No Terraform apply; production still has no result queue/secret wiring and enable_agent_transport=false.
 
+[RIS-ATS-RESULT-LINK-01 / PHASE 3 — ORDERS READER OWNERSHIP]
+Status: LOCAL IMPLEMENTATION COMPLETE / APPLY PENDING.
+Date: 2026-11-17
+- lambda/orders_reader.py derives identity only from the gateway-verified JWT (requestContext.authorizer.jwt.claims). Issuer and client are re-asserted from ORDERS_COGNITO_ISSUER / ORDERS_COGNITO_CLIENT_ID; missing config returns 503 instead of skipping the check.
+- Owner key matches the Orders module byte-for-byte: sha256(normalize(iss) + "\x00" + sub) with strip().rstrip("/"). Foreign, missing and legacy-unbound orders all return 404 ORDER_NOT_FOUND so existence is not leaked. A valid JWT alone is not authorization.
+- GET/PATCH enforce the owner check before reading status or mutating. GET /orders moved from the global gsi1 list to gsi3pk = ownerKey; an index error fails closed with 503 and never falls back to a global list.
+- POST now persists ownerIssuer, ownerSubject, ownerKey, ownerClientId, actorType, actorId, gsi3pk, gsi3sk, so newly created orders are readable by their owner and by nobody else.
+- Responses are allowlist projections: retail fields plus agentOrder.{target,input,metadata,resultContract} and processing.{status,attempt,completedAt,result,error.message}. gsi*, owner*, actor*, subjectId, version, agentOrderFingerprint, expectedWorkId, dispatch and work/message/execution ids are never emitted. A stored result with a credential-shaped key or value is withheld as 500 without content.
+- Terraform: module gets cognito_issuer/cognito_client_id variables and ORDERS_COGNITO_* env; root wires local.identity_issuer and the human client id. terraform fmt -check exit 0; terraform validate success (warnings only).
+- Tests: tests/test_orders_reader.py 22 passed (401/503/404 matrix, foreign owner, legacy row, gsi3 isolation, PATCH isolation, whitelist leak regression, create+read-back). tests/test_real_orders_adapter.py updated for the identity requirement: 18 passed. Docs: docs/api/API-STANDARD.md documents JWT+owner, 401/503 and the projection.
+- Live reader would fail closed with 503 until an apply supplies the two env vars; no AWS change was made.
+
+Report: docs/reports/RIS-ATS-RESULT-LINK-01.md
+

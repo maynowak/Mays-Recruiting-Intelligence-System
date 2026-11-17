@@ -193,6 +193,8 @@ module "orders_reader" {
   environment       = var.environment
   api_id            = module.api.api_id
   authorizer_id     = module.api.authorizer_id
+  cognito_issuer    = local.identity_issuer
+  cognito_client_id = local.identity_managed ? module.cognito[0].user_pool_client_id : var.external_cognito_human_client_id
   aws_region        = var.aws_region
   filename          = var.filename
   tags              = var.tags

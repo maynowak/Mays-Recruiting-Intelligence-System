@@ -182,7 +182,16 @@ class TestOrdersFunction(unittest.TestCase):
 
 
 class TestReaderPost(unittest.TestCase):
+    ISSUER = "https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_TEST"
+    CLIENT = "client-test"
+
     def _reader(self):
+        os.environ.setdefault("ORDERS_TABLE", "mays-orders")
+        os.environ.setdefault(
+            "ORDERS_SQS_QUEUE_URL",
+            "https://sqs.eu-central-1.amazonaws.com/240571105849/mays-orders-orders-queue")
+        os.environ.setdefault("ORDERS_COGNITO_ISSUER", self.ISSUER)
+        os.environ.setdefault("ORDERS_COGNITO_CLIENT_ID", self.CLIENT)
         spec = importlib.util.spec_from_file_location(
             "orders_reader_uut",
             os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -191,6 +200,19 @@ class TestReaderPost(unittest.TestCase):
         sys.modules["orders_reader_uut"] = mod
         spec.loader.exec_module(mod)
         return mod
+
+    def _event(self, route, body):
+        return {
+            "routeKey": route,
+            "body": json.dumps(body),
+            "requestContext": {"authorizer": {"jwt": {"claims": {
+                "iss": self.ISSUER,
+                "sub": "reader-post-user",
+                "token_use": "access",
+                "client_id": self.CLIENT,
+                "aud": self.CLIENT,
+            }}}},
+        }
 
     def test_post_validates_and_returns_201(self):
         mod = self._reader()
@@ -202,9 +224,9 @@ class TestReaderPost(unittest.TestCase):
 
         mod._send_order_created = lambda order_id: sent.setdefault("sqs", order_id)
         resp = mod.handler(
-            {"routeKey": "POST /orders",
-             "body": json.dumps({"customer": {"name": "T", "email": "t@x.io"},
-                                 "items": [{"sku": "S", "quantity": 2, "unitPrice": 100}]})},
+            self._event("POST /orders",
+                        {"customer": {"name": "T", "email": "t@x.io"},
+                         "items": [{"sku": "S", "quantity": 2, "unitPrice": 100}]}),
             None, table=FakeTable())
         self.assertEqual(resp["statusCode"], 201)
         body = json.loads(resp["body"])
@@ -212,6 +234,10 @@ class TestReaderPost(unittest.TestCase):
         self.assertEqual(body["totalAmount"], 200)
         self.assertTrue(body["orderId"].startswith("ord_"))
         self.assertEqual(sent["sqs"], body["orderId"])
+        # The create path binds the caller as owner (read-back precondition).
+        self.assertEqual(sent["item"]["ownerIssuer"], self.ISSUER)
+        self.assertEqual(sent["item"]["ownerSubject"], "reader-post-user")
+        self.assertEqual(sent["item"]["gsi3pk"], sent["item"]["ownerKey"])
 
     def test_post_rejects_float_price(self):
         mod = self._reader()
@@ -221,9 +247,9 @@ class TestReaderPost(unittest.TestCase):
                 raise AssertionError("darf nicht speichern")
 
         resp = mod.handler(
-            {"routeKey": "POST /orders",
-             "body": json.dumps({"customer": {"name": "T", "email": "t@x.io"},
-                                 "items": [{"sku": "S", "quantity": 1, "unitPrice": 1.0}]})},
+            self._event("POST /orders",
+                        {"customer": {"name": "T", "email": "t@x.io"},
+                         "items": [{"sku": "S", "quantity": 1, "unitPrice": 1.0}]}),
             None, table=FakeTable())
         self.assertEqual(resp["statusCode"], 400)
 
@@ -235,8 +261,8 @@ class TestReaderPost(unittest.TestCase):
                 raise AssertionError("darf nicht speichern")
 
         resp = mod.handler(
-            {"routeKey": "POST /orders",
-             "body": json.dumps({"customer": {"name": "T", "email": "t@x.io"}, "items": []})},
+            self._event("POST /orders",
+                        {"customer": {"name": "T", "email": "t@x.io"}, "items": []}),
             None, table=FakeTable())
         self.assertEqual(resp["statusCode"], 400)
 

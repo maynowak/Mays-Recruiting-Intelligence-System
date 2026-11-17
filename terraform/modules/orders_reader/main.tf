@@ -83,8 +83,10 @@ resource "aws_lambda_function" "reader" {
 
   environment {
     variables = {
-      ORDERS_TABLE         = var.orders_table_name
-      ORDERS_SQS_QUEUE_URL = var.orders_queue_url
+      ORDERS_TABLE             = var.orders_table_name
+      ORDERS_SQS_QUEUE_URL     = var.orders_queue_url
+      ORDERS_COGNITO_ISSUER    = var.cognito_issuer
+      ORDERS_COGNITO_CLIENT_ID = var.cognito_client_id
     }
   }
 

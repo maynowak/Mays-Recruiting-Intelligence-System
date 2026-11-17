@@ -88,6 +88,16 @@ variable "runtime" {
   default     = "python3.14"
 }
 
+variable "cognito_issuer" {
+  description = "Cognito issuer expected in the verified JWT"
+  type        = string
+}
+
+variable "cognito_client_id" {
+  description = "Cognito app client id expected in the verified JWT"
+  type        = string
+}
+
 variable "timeout" {
   description = "Lambda timeout in Sekunden"
   type        = number
