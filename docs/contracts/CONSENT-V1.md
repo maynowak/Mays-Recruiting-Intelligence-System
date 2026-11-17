@@ -126,7 +126,7 @@ Ereignisse: `GRANTED`, `WITHDRAWN`, `REGRANTED`. Append-only, neueste zuerst.
 
 | Purpose | Bekannte `noticeVersion` | Lifecycle-State | Rechtliche Freigabe |
 |---|---|---|---|
-| `application-storage` | `1.0` | `DRAFT` | keine (`legalApprovalRef = null`) |
+| `application-storage` | `1.0` | `APPROVED` | `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08` (limited beta pilot) |
 
 Eine frei erfundene Version wird mit `422 INVALID_NOTICE_VERSION` abgewiesen.
 Ein bekannter, aber nicht freigegebener Entwurf wird bei aktiver
@@ -136,15 +136,19 @@ Die Antwort von `GET /v1/partner/me/consents` enthält zusätzlich:
 
 ```json
 {
-  "items": [ { "...": "…", "noticeState": "DRAFT", "noticeApproved": false,
+  "items": [ { "...": "…", "noticeState": "APPROVED", "noticeApproved": true,
                "acceptedForNewGrant": true } ],
   "catalog": [ { "purpose": "application-storage", "noticeVersion": "1.0",
-                 "noticeState": "DRAFT", "noticeApproved": false,
-                 "acceptedForNewGrant": true, "legalApprovalRef": null,
+                 "noticeState": "APPROVED", "noticeApproved": true,
+                 "acceptedForNewGrant": true,
+                 "legalApprovalRef": "JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08",
                  "supersedes": null, "externalRefs": {} } ],
   "externalRefs": [ { "externalRef": "2026-11-04-draft-1",
                       "source": "mays-jobsearch", "noticeState": "DRAFT",
-                      "noticeVersion": null } ]
+                      "noticeVersion": null },
+                    { "externalRef": "application-storage-consent-2026-11-07-v4",
+                      "source": "mays-jobsearch", "noticeState": "APPROVED",
+                      "noticeVersion": "1.0" } ]
 }
 ```
 
@@ -179,19 +183,19 @@ Regeln:
 
 | Quelle | Kennung | State | Abbildung auf RIS |
 |---|---|---|---|
-| RIS | `application-storage` / `1.0` | `DRAFT` | — |
-| Jobsearch | `STORAGE_CONSENT_TEXT_VERSION = 2026-11-04-draft-1` | `DRAFT` | **keine** (nicht äquivalent) |
-| Jobsearch | `STORAGE_CONSENT_PRIVACY_NOTICE_VERSION = 2026-11-04-draft-1` | `DRAFT` | **keine** |
+| RIS | `application-storage` / `1.0` | `APPROVED` | — |
+| Jobsearch | `application-storage-consent-2026-11-07-v4` | `APPROVED` | `1.0` (limited beta pilot) |
+| Jobsearch | `2026-11-04-draft-1` | `DRAFT` | **keine** (historisch, nicht äquivalent) |
 
 `2026-11-04-draft-1` ist serverseitig bekannt, wird aber **nie** als
-`noticeVersion` akzeptiert. Eine Gleichsetzung mit `1.0` entsteht erst durch
-eine dokumentierte, rechtlich freigegebene Zuordnung; das bloße Umbenennen
-einer Kennung ist keine Freigabe.
+`noticeVersion` akzeptiert. Die v4-Textfassung ist die dokumentierte,
+operator-freigegebene Zuordnung zu RIS `1.0`; das bloße Umbenennen einer
+Kennung ist keine Freigabe.
 
-Die BFF-Anbindung sendet deshalb weiterhin `noticeVersion: "1.0"` (die
-RIS-Kennung), zeigt aber den Jobsearch-Text an und protokolliert die
-angezeigte Textkennung (`2026-11-04-draft-1`) im eigenen Audit-Trail. Das Paar
-(angezeigter Text, RIS-`noticeVersion`) muss nachvollziehbar bleiben.
+Die BFF-Anbindung sendet weiterhin `noticeVersion: "1.0"` (die RIS-Kennung)
+und die v4-Textidentität. Das Paar (angezeigter Text, RIS-`noticeVersion`)
+muss nachvollziehbar bleiben. Die Freigabe gilt nur für den begrenzten
+Beta-Pilot, nicht für einen allgemeinen Rollout.
 
 ---
 
