@@ -139,7 +139,11 @@ AGENT_FILES = ["lambda/handler.py", "lambda/documents.py",
 AGENT_DIRS = ["agents", "jobsearch"]
 
 #: Reader-Layout (Einstieg orders_reader.handler am Root).
-READER_FILES = ["lambda/orders_reader.py"]
+READER_FILES = [
+    "lambda/orders_reader.py",
+    "agents/transport/order_transport.py",
+    "agents/orders/agent_order.py",
+]
 
 
 def _collect(repo_root: Path, rel_paths) -> list:
@@ -215,10 +219,16 @@ def build_agent_bundle(repo_root: str = ".") -> dict:
                         str(repo / "terraform" / "lambda.zip"))
 
 
+def _reader_arcname(source_rel: str) -> str:
+    if source_rel.replace("\\", "/") == "lambda/orders_reader.py":
+        return "orders_reader.py"
+    return Path(source_rel).name
+
+
 def build_reader_bundle(repo_root: str = ".") -> dict:
-    """Reader-Bundle (orders_reader.py) -> lambda/dist/orders-reader.zip."""
+    """Reader-Bundle (orders_reader.py + flat contracts) -> orders-reader.zip."""
     repo = Path(repo_root)
-    return build_bundle(repo, READER_FILES, lambda source_rel: "orders_reader.py",
+    return build_bundle(repo, READER_FILES, _reader_arcname,
                         str(repo / "lambda" / "dist" / "orders-reader.zip"))
 
 

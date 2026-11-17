@@ -10561,6 +10561,15 @@ Date: 2026-11-17
 
 Report: docs/reports/RIS-ATS-TRANSPORT-RELEASE-READY-04.md
 
+[RIS-ATS-ORDER-DISPATCH-LINK-06 / PHASE B — AGENT ORDER + DISPATCH]
+Status: IMPLEMENTED / TESTED locally. No AWS apply.
+Date: 2026-11-17
+- Dispatch ingress fix (df909c9): resolve_context accepts the production DynamoDB API profile store (get_profile) and the stored ownerUserId, while keeping test doubles with get()/userId working.
+- Reader POST /orders now has an explicit agent.execution branch: validates the existing agentOrder contract (same keys/versions/defaults/fingerprint as Orders), rejects mixed retail/agent bodies and unknown orderType instead of silently creating a retail order.
+- The branch requires metadata.requestId and metadata.apiProfileRef, resolves the API profile from API_PROFILES_TABLE, requires status ACTIVE and ownerUserId == verified JWT sub + tenantId, binds one workId, persists the order with owner binding, agentOrder, fingerprint, expectedWorkId and dispatch state, then builds a validated ORDER_DISPATCH via the existing Transport V1 (new build_dispatch_envelope helper) and sends it to RIS_DISPATCH_QUEUE_URL. Dispatch failures are marked FAILED; retail orders still use the retail path and never dispatch.
+- Reader bundle now ships orders_reader.py plus the flat contract modules order_transport.py and agent_order.py (3 files); agent_order falls back to the flat transport when packaged.
+- Tests: reader 35 (incl. agent create, foreign/inactive profile, mixed conversion, missing correlation/profile, missing queue), dispatch ingress 16, new local E2E 6 (agent order -> dispatch ingress -> ATS -> ORDER_RESULT -> real consumer -> owner read; duplicate, invalid signature, missing entitlement, retail, foreign profile), packaging/transport/worker/ATS/link 178 passed.
+
 [RIS-ATS-TRANSPORT-APPLY-05 / CONTROLLED ROLLOUT PREPARATION]
 Status: NO-GO / NO APPLY / NO SECRET MUTATION.
 Date: 2026-11-17

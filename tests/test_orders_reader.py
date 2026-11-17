@@ -108,15 +108,26 @@ class FakeTable:
 
     def update_item(self, Key, UpdateExpression, ConditionExpression,
                     ExpressionAttributeNames, ExpressionAttributeValues,
-                    ReturnValues):
+                    ReturnValues=None):
+        names = ExpressionAttributeNames or {}
+        values = ExpressionAttributeValues or {}
         for item in self._items.values():
             if item["pk"] == Key["pk"] and item["sk"] == Key["sk"]:
-                if item["status"] != ExpressionAttributeValues[":currentStatus"]:
-                    raise _ConditionalFail()
-                item["status"] = ExpressionAttributeValues[":newStatus"]
-                item["updatedAt"] = ExpressionAttributeValues[":now"]
-                item["version"] = item.get("version", Decimal(0)) + 1
-                self.updated.append(item["orderId"])
+                if ":currentStatus" in values:
+                    if item["status"] != values[":currentStatus"]:
+                        raise _ConditionalFail()
+                    item["status"] = values[":newStatus"]
+                    item["updatedAt"] = values[":now"]
+                    item["version"] = item.get("version", Decimal(0)) + 1
+                    self.updated.append(item["orderId"])
+                    return {"Attributes": dict(item)}
+                set_part = UpdateExpression.split("REMOVE")[0].strip()
+                if set_part.startswith("SET "):
+                    set_part = set_part[4:]
+                for assignment in set_part.split(","):
+                    left, right = [part.strip()
+                                   for part in assignment.split("=", 1)]
+                    item[names.get(left, left)] = values[right]
                 return {"Attributes": dict(item)}
         raise _ConditionalFail()
 
@@ -125,6 +136,15 @@ class _ConditionalFail(Exception):
     @property
     def response(self):
         return {"Error": {"Code": "ConditionalCheckFailedException"}}
+
+
+class ProfileTable:
+    def __init__(self, items):
+        self._items = {i["apiProfileId"]: dict(i) for i in items}
+
+    def get_item(self, Key):
+        item = self._items.get(Key["apiProfileId"])
+        return {"Item": dict(item)} if item else {}
 
 
 def event(route, order_id=None, body=None, params=None, claims="default"):
@@ -445,6 +465,165 @@ class TestOrdersReaderDecimal(unittest.TestCase):
         resp = orders_reader.handler(
             event("GET /orders/{orderId}", "ord_../x"), None, table)
         self.assertEqual(resp["statusCode"], 400)
+
+
+class TestAgentOrderCreate(unittest.TestCase):
+    def setUp(self):
+        from unittest.mock import patch
+
+        self.table = FakeTable([])
+        self.profile_table = ProfileTable([{
+            "apiProfileId": "aprof_test",
+            "status": "ACTIVE",
+            "ownerUserId": OWNER_SUB,
+            "tenantId": "tenant-a",
+        }])
+        self.sent = []
+        self._patch = patch.object(orders_reader, "_send_order_dispatch",
+                                   side_effect=self.sent.append)
+        self._patch.start()
+
+    def tearDown(self):
+        self._patch.stop()
+
+    def agent_body(self, **overrides):
+        body = {
+            "orderType": "agent.execution",
+            "agentOrder": {
+                "schemaVersion": "1.0",
+                "target": {"agentId": "ats-agent", "capability": "analyze.job"},
+                "input": {"schemaVersion": "1.0",
+                          "data": {"job": {"title": "QA Engineer"}}},
+                "metadata": {"source": "test",
+                             "requestId": "corr-1",
+                             "apiProfileRef": "aprof_test"},
+            },
+        }
+        body.update(overrides)
+        return body
+
+    def _post(self, body, profile_table=None):
+        from unittest.mock import patch
+
+        return orders_reader.handler(
+            event("POST /orders", body=body), None, self.table,
+            profile_table=profile_table or self.profile_table)
+
+    def test_valid_agent_order_is_persisted_and_dispatched(self):
+        from agents.transport.order_transport import (
+            ORDER_DISPATCH,
+            validate_envelope,
+        )
+
+        resp = self._post(self.agent_body())
+        self.assertEqual(201, resp["statusCode"], resp["body"])
+        created = json.loads(resp["body"])
+        self.assertEqual("agent.execution", created["orderType"])
+        order_id = created["orderId"]
+        stored = self.table._items[order_id]
+        self.assertEqual("PENDING", stored["status"])
+        self.assertEqual("corr-1", stored["agentOrder"]["metadata"]["requestId"])
+        self.assertTrue(stored["expectedWorkId"].startswith("work-"))
+        self.assertEqual("SENT", stored["dispatch"]["status"])
+        self.assertEqual(stored["ownerKey"], OWNER_KEY)
+        self.assertEqual(1, len(self.sent))
+        envelope = validate_envelope(self.sent[0], expected_type=ORDER_DISPATCH)
+        self.assertEqual(order_id, envelope["orderId"])
+        self.assertEqual("corr-1", envelope["correlationId"])
+        self.assertEqual(stored["expectedWorkId"], envelope["execution"]["workId"])
+        self.assertEqual("ats-agent", envelope["recipient"]["agentId"])
+        self.assertEqual("analyze.job", envelope["recipient"]["capability"])
+
+    def test_agent_order_without_order_type_is_rejected(self):
+        body = self.agent_body()
+        body.pop("orderType")
+        resp = self._post(body)
+        self.assertEqual(400, resp["statusCode"])
+        self.assertEqual({}, self.table._items)
+
+    def test_agent_order_without_agent_order_is_rejected(self):
+        body = {"orderType": "agent.execution"}
+        resp = self._post(body)
+        self.assertEqual(400, resp["statusCode"])
+        self.assertEqual({}, self.table._items)
+
+    def test_mixed_retail_and_agent_is_rejected(self):
+        body = self.agent_body()
+        body["customer"] = {"name": "T", "email": "t@x.io"}
+        resp = self._post(body)
+        self.assertEqual(400, resp["statusCode"])
+        self.assertEqual({}, self.table._items)
+
+    def test_agent_order_requires_correlation(self):
+        body = self.agent_body()
+        body["agentOrder"]["metadata"].pop("requestId")
+        resp = self._post(body)
+        self.assertEqual(400, resp["statusCode"])
+        self.assertIn("requestId", resp["body"])
+        self.assertEqual({}, self.table._items)
+
+    def test_agent_order_requires_profile_reference(self):
+        body = self.agent_body()
+        body["agentOrder"]["metadata"].pop("apiProfileRef")
+        resp = self._post(body)
+        self.assertEqual(400, resp["statusCode"])
+        self.assertIn("apiProfileRef", resp["body"])
+
+    def test_foreign_profile_is_rejected(self):
+        profile = ProfileTable([{
+            "apiProfileId": "aprof_test", "status": "ACTIVE",
+            "ownerUserId": "owner-2", "tenantId": "tenant-a",
+        }])
+        resp = self._post(self.agent_body(), profile_table=profile)
+        self.assertEqual(403, resp["statusCode"])
+        self.assertEqual({}, self.table._items)
+
+    def test_inactive_profile_is_rejected(self):
+        profile = ProfileTable([{
+            "apiProfileId": "aprof_test", "status": "PENDING",
+            "ownerUserId": OWNER_SUB, "tenantId": "tenant-a",
+        }])
+        resp = self._post(self.agent_body(), profile_table=profile)
+        self.assertEqual(403, resp["statusCode"])
+        self.assertEqual({}, self.table._items)
+
+    def test_retail_create_never_dispatches(self):
+        body = {
+            "customer": {"name": "Reader Test", "email": "reader@example.com"},
+            "items": [{"sku": "SKU-R", "quantity": 2, "unitPrice": 150}],
+            "currency": "EUR",
+        }
+        with patch.object(orders_reader, "_send_order_created", return_value=None):
+            resp = self._post(body)
+        self.assertEqual(201, resp["statusCode"])
+        self.assertEqual([], self.sent)
+
+
+class TestAgentOrderDispatchConfiguration(unittest.TestCase):
+    def test_missing_dispatch_queue_fails_closed(self):
+        from unittest.mock import patch
+
+        table = FakeTable([])
+        profile = ProfileTable([{
+            "apiProfileId": "aprof_test", "status": "ACTIVE",
+            "ownerUserId": OWNER_SUB, "tenantId": "tenant-a",
+        }])
+        body = {
+            "orderType": "agent.execution",
+            "agentOrder": {
+                "schemaVersion": "1.0",
+                "target": {"agentId": "ats-agent", "capability": "analyze.job"},
+                "input": {"schemaVersion": "1.0", "data": {"job": {}}},
+                "metadata": {"requestId": "corr-1",
+                             "apiProfileRef": "aprof_test"},
+            },
+        }
+        with patch.object(orders_reader, "RIS_DISPATCH_QUEUE_URL", ""):
+            resp = orders_reader.handler(
+                event("POST /orders", body=body), None, table,
+                profile_table=profile)
+        self.assertEqual(503, resp["statusCode"])
+        self.assertEqual(1, len(table._items))
 
 
 if __name__ == "__main__":

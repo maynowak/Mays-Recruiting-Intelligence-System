@@ -96,7 +96,13 @@ def _assert_str(value: Any, path: str) -> str:
 
 def _assert_clean(value: Any, path: str) -> None:
     """Secret/size check with one error type for this contract."""
-    from agents.transport.order_transport import TransportError, assert_secret_free
+    try:
+        from order_transport import TransportError, assert_secret_free
+    except ImportError:  # repository layout (tests / agent bundle)
+        from agents.transport.order_transport import (
+            TransportError,
+            assert_secret_free,
+        )
 
     try:
         assert_secret_free(value, path)

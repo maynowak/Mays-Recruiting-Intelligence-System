@@ -23,8 +23,33 @@ import re
 from decimal import Decimal
 from typing import Any, Dict, Optional
 
+try:  # repository layout / tests (package takes precedence)
+    from agents.orders.agent_order import (
+        AgentOrderError,
+        fingerprint as agent_order_fingerprint,
+        validate_order_document,
+    )
+    from agents.transport.order_transport import (
+        ORDER_DISPATCH,
+        TransportError,
+        build_dispatch_envelope,
+    )
+except ImportError:  # Lambda reader bundle (flat contract modules)
+    from agent_order import (
+        AgentOrderError,
+        fingerprint as agent_order_fingerprint,
+        validate_order_document,
+    )
+    from order_transport import (
+        ORDER_DISPATCH,
+        TransportError,
+        build_dispatch_envelope,
+    )
+
 ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "")
 ORDERS_SQS_QUEUE_URL = os.environ.get("ORDERS_SQS_QUEUE_URL", "")
+RIS_DISPATCH_QUEUE_URL = os.environ.get("RIS_DISPATCH_QUEUE_URL", "")
+API_PROFILES_TABLE = os.environ.get("API_PROFILES_TABLE", "")
 # Validate non-empty binding (fail-closed: reject missing binding at runtime)
 if not ORDERS_TABLE:
     raise RuntimeError("ORDERS_TABLE environment variable must be set")
@@ -379,6 +404,177 @@ def _valid_order_id(value: Any) -> Optional[str]:
     return None
 
 
+_profile_table = None
+
+
+class AgentOrderRejected(Exception):
+    """Controlled rejection of an agent order (HTTP status + code)."""
+
+    def __init__(self, status_code: int, code: str, message: str):
+        super().__init__(message)
+        self.status_code = status_code
+        self.code = code
+        self.message = message
+
+
+def _get_profile_table():
+    global _profile_table
+    if _profile_table is None:  # pragma: no cover - live path
+        import boto3
+
+        _profile_table = boto3.resource(
+            "dynamodb", region_name=os.environ.get("AWS_REGION", "eu-central-1")
+        ).Table(API_PROFILES_TABLE)
+    return _profile_table
+
+
+def _load_profile(profile_id: str, identity: Dict[str, Any],
+                  table: Any = None) -> Dict[str, Any]:
+    """Load and authorize the API profile referenced by the agent order."""
+    if table is None and not API_PROFILES_TABLE:
+        raise AgentOrderRejected(503, "SERVICE_UNAVAILABLE",
+                                 "API profile store is not configured")
+    store = table if table is not None else _get_profile_table()
+    profile = store.get_item(Key={"apiProfileId": profile_id}).get("Item")
+    if not isinstance(profile, dict):
+        raise AgentOrderRejected(403, "AGENT_ORDER_REJECTED",
+                                 "API profile cannot be resolved")
+    if profile.get("status") != "ACTIVE":
+        raise AgentOrderRejected(403, "AGENT_ORDER_REJECTED",
+                                 "API profile is not active")
+    owner = profile.get("ownerUserId") or profile.get("userId")
+    if owner != identity["subject"]:
+        raise AgentOrderRejected(403, "AGENT_ORDER_REJECTED",
+                                 "API profile belongs to another owner")
+    if not profile.get("tenantId"):
+        raise AgentOrderRejected(403, "AGENT_ORDER_REJECTED",
+                                 "API profile has no tenant")
+    return profile
+
+
+def _send_order_dispatch(envelope: Dict[str, Any]) -> None:
+    """Send the existing ORDER_DISPATCH contract to the RIS ingress queue."""
+    if not RIS_DISPATCH_QUEUE_URL:
+        raise AgentOrderRejected(503, "SERVICE_UNAVAILABLE",
+                                 "Dispatch queue is not configured")
+    import boto3
+
+    sqs = boto3.client("sqs", region_name=os.environ.get("AWS_REGION", "eu-central-1"))
+    sqs.send_message(
+        QueueUrl=RIS_DISPATCH_QUEUE_URL,
+        MessageBody=json.dumps(envelope, separators=(",", ":")),
+    )
+
+
+def _set_dispatch_state(table: Any, order_id: str,
+                        dispatch: Dict[str, Any]) -> None:
+    """Best-effort dispatch state; never hides a failed send."""
+    try:
+        table.update_item(
+            Key={"pk": f"{ORDER_ID_PREFIX}{order_id}", "sk": ORDER_SK},
+            UpdateExpression="SET #dispatch = :dispatch",
+            ExpressionAttributeNames={"#dispatch": "dispatch"},
+            ExpressionAttributeValues={":dispatch": dispatch},
+            ConditionExpression="attribute_exists(pk)",
+            ReturnValues="NONE",
+        )
+    except Exception as exc:  # pragma: no cover - live path
+        print(f"dispatch state not persisted: {type(exc).__name__}")
+
+
+def _create_agent_order(table: Any, raw: Dict[str, Any],
+                        identity: Dict[str, Any],
+                        profile_table: Any = None) -> Dict[str, Any]:
+    """Validate, persist and dispatch an agent order through Transport V1."""
+    import secrets
+    from datetime import datetime, timezone
+
+    unknown = set(raw) - {"orderType", "agentOrder"}
+    if unknown:
+        raise AgentOrderRejected(
+            400, "VALIDATION_ERROR",
+            f"agent order contains unsupported field '{sorted(unknown)[0]}'")
+    try:
+        agent_order = validate_order_document(raw)
+    except AgentOrderError as exc:
+        raise AgentOrderRejected(400, "VALIDATION_ERROR", exc.message) from exc
+
+    metadata = agent_order["metadata"]
+    correlation_id = metadata.get("requestId")
+    if not correlation_id:
+        raise AgentOrderRejected(400, "VALIDATION_ERROR",
+                                 "agentOrder.metadata.requestId is required")
+    profile_ref = metadata.get("apiProfileRef")
+    if not profile_ref:
+        raise AgentOrderRejected(400, "VALIDATION_ERROR",
+                                 "agentOrder.metadata.apiProfileRef is required")
+
+    profile = _load_profile(profile_ref, identity, table=profile_table)
+
+    order_id = f"{ORDER_ID_PREFIX}{secrets.token_hex(12)}"
+    work_id = f"work-{secrets.token_hex(8)}"
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    idempotency_key = (metadata.get("idempotencyKey")
+                       or f"{order_id}:{work_id}:ORDER_DISPATCH")
+    envelope = build_dispatch_envelope(
+        order_id=order_id,
+        correlation_id=correlation_id,
+        work_id=work_id,
+        agent_id=agent_order["target"]["agentId"],
+        capability=agent_order["target"]["capability"],
+        payload=agent_order["input"]["data"],
+        context_ref=profile_ref,
+        idempotency_key=idempotency_key,
+    )
+
+    item = {
+        "pk": f"{ORDER_ID_PREFIX}{order_id}",
+        "sk": ORDER_SK,
+        "orderId": order_id,
+        "orderType": "agent.execution",
+        "status": "PENDING",
+        "agentOrder": agent_order,
+        "agentOrderFingerprint": agent_order_fingerprint(agent_order),
+        "expectedWorkId": work_id,
+        "dispatch": {"status": "PENDING", "workId": work_id},
+        "createdAt": now,
+        "updatedAt": now,
+        "version": 1,
+        "gsi1pk": GSI1_PK,
+        "gsi1sk": now,
+        "ownerIssuer": identity["issuer"],
+        "ownerSubject": identity["subject"],
+        "ownerKey": identity["ownerKey"],
+        "ownerClientId": identity["clientId"],
+        "actorType": "user",
+        "actorId": identity["subject"],
+        "gsi3pk": identity["ownerKey"],
+        "gsi3sk": f"{now}#{order_id}",
+    }
+    table.put_item(Item=item, ConditionExpression="attribute_not_exists(pk)")
+
+    try:
+        _send_order_dispatch(envelope)
+    except AgentOrderRejected:
+        _set_dispatch_state(table, order_id,
+                            {"status": "FAILED", "workId": work_id})
+        raise
+    except Exception as exc:
+        _set_dispatch_state(table, order_id,
+                            {"status": "FAILED", "workId": work_id})
+        raise AgentOrderRejected(
+            502, "DISPATCH_FAILED",
+            f"Order {order_id} stored but dispatch failed "
+            f"({type(exc).__name__})") from exc
+
+    _set_dispatch_state(table, order_id, {
+        "status": "SENT",
+        "workId": work_id,
+        "messageId": envelope["messageId"],
+    })
+    return _public(item)
+
+
 def _validate_create(body: Any) -> tuple:
     """Minimal-Validierung nach beobachtetem Live-Verhalten (400 bei Verstoss)."""
     if not isinstance(body, dict):
@@ -462,8 +658,9 @@ def _create_order(table: Any, data: Dict[str, Any],
     return _public(item)
 
 
-def handler(event: Dict[str, Any], context: Any, table: Any = None) -> Dict[str, Any]:
-    """HTTP-API-v2-Einstieg (routeKey). `table` nur fuer Unit-Tests injizierbar."""
+def handler(event: Dict[str, Any], context: Any, table: Any = None,
+            profile_table: Any = None) -> Dict[str, Any]:
+    """HTTP-API-v2-Einstieg (routeKey). Tabellen nur fuer Unit-Tests injizierbar."""
     tbl = table if table is not None else _get_table()
     try:
         identity, identity_error = _identity(event)
@@ -476,6 +673,20 @@ def handler(event: Dict[str, Any], context: Any, table: Any = None) -> Dict[str,
             except (ValueError, TypeError):
                 return _err(400, "VALIDATION_ERROR",
                             "Request body must be valid JSON")
+            if isinstance(raw, dict) and (
+                    "agentOrder" in raw
+                    or raw.get("orderType") == "agent.execution"):
+                try:
+                    created = _create_agent_order(
+                        tbl, raw, identity, profile_table=profile_table)
+                except AgentOrderRejected as exc:
+                    return _err(exc.status_code, exc.code, exc.message)
+                return _ok(201, created)
+            if isinstance(raw, dict) and raw.get("orderType") not in (
+                    None, "", "retail"):
+                return _err(400, "VALIDATION_ERROR",
+                            "Unsupported orderType; agent orders require "
+                            "orderType 'agent.execution' and an agentOrder")
             data, problem = _validate_create(raw)
             if data is None:
                 return _err(400, "VALIDATION_ERROR", problem)
