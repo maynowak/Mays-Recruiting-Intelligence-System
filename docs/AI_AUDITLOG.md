@@ -10335,3 +10335,24 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
 - No Main merge, new Production deployment, Terraform/AWS/RIS/Cognito/
   CloudFront/DNS change. Shared report:
   `docs/reports/XREPO-JM-RIS-CONSENT-FINAL-01.md`.
+
+## 2026-11-17 — XREPO-JM-RIS-CONSENT-LIVE-E2E-02
+
+**Status:** `B — AUTH ACCESS ACTION REQUIRED`
+
+- Investigated the authorization path: Jobsearch OIDC pool/client and BFF
+  signature/issuer/client/expiry checks, server-side `RIS_TEST_USER_ALLOWLIST`,
+  and RIS partner identity. No contract or allowlist mismatch was found.
+- Existing access artifacts are not reusable: `e2e_idtoken` expired and belongs
+  to the RIS kernel pool `cmJWXujnb`; operator session access/ID tokens expired
+  and refresh returns `invalid_grant`; `jm-e2e-user.json` is absent; Chrome
+  profiles contain no OIDC session. No tokens or PII were logged.
+- Contract evidence remains sound: Jobsearch BFF consent 40 PASS; RIS consent
+  focused 27 PASS; production Jobsearch build `92ca1fc`; RIS state serial 80
+  with APPROVED application-storage notice and clean post-apply plan.
+- No authenticated ApplicationV1/CV E2E, no real data/tokens, no Main merge,
+  deployment, Terraform/AWS/Cognito/CloudFront/DNS change.
+- Exactly one operator action documented: open the existing live-browser
+  harness and sign in once with the already-authorized synthetic identity;
+  afterwards automated checks can run via CDP. Report:
+  `docs/reports/XREPO-JM-RIS-CONSENT-LIVE-E2E-02.md`.
