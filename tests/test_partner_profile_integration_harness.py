@@ -268,7 +268,7 @@ class TestApiRoutes(unittest.TestCase):
         # Exactly one dispatcher: its definition plus the single guarded call.
         self.assertEqual(2, src.count("_handle_partner_ats_routes"))
         self.assertEqual(1, src.count(
-            "_partner_storage_guard(\n            _handle_partner_ats_routes"))
+            "_search_profile_storage_guard(\n            _handle_partner_ats_routes"))
 
 
 class TestRepositoryStatic(unittest.TestCase):

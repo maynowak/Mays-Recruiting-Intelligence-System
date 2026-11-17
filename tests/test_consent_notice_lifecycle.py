@@ -207,13 +207,21 @@ class ConsentStatusResponseShapeTests(unittest.TestCase):
             response = handler._handle_consent_routes(
                 event, None, "GET", "/v1/partner/me/consents")
         body = json.loads(response["body"])
-        self.assertEqual(1, len(body["items"]))
-        self.assertEqual(VERSION, body["catalog"][0]["noticeVersion"])
-        self.assertEqual(NOTICE_APPROVED, body["catalog"][0]["noticeState"])
+        self.assertEqual(3, len(body["items"]))
+        self.assertEqual(
+            {"application-storage", "cv-storage", "search-profile-storage"},
+            {item["purpose"] for item in body["items"]})
+        application_catalog = [
+            entry for entry in body["catalog"]
+            if entry["purpose"] == PURPOSE]
+        self.assertEqual(VERSION, application_catalog[0]["noticeVersion"])
+        self.assertEqual(NOTICE_APPROVED, application_catalog[0]["noticeState"])
         self.assertEqual("JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08",
-                         body["catalog"][0]["legalApprovalRef"])
-        self.assertEqual("2026-11-04-draft-1",
-                         body["externalRefs"][0]["externalRef"])
+                         application_catalog[0]["legalApprovalRef"])
+        application_refs = [
+            entry for entry in body["externalRefs"]
+            if entry["externalRef"] == "2026-11-04-draft-1"]
+        self.assertEqual(1, len(application_refs))
 
 
 if __name__ == "__main__":
