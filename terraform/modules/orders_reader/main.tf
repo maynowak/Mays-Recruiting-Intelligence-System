@@ -30,6 +30,28 @@ resource "aws_iam_role" "reader" {
   tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
+resource "aws_iam_role_policy" "reader_agent_dispatch" {
+  count = var.dispatch_enabled ? 1 : 0
+  name  = "${local.reader_name}-agent-dispatch"
+  role  = aws_iam_role.reader.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = [var.dispatch_queue_arn]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem"]
+        Resource = [var.api_profiles_table_arn]
+      },
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "reader_orders_table" {
   name = "${local.reader_name}-table"
   role = aws_iam_role.reader.id
@@ -87,6 +109,8 @@ resource "aws_lambda_function" "reader" {
       ORDERS_SQS_QUEUE_URL     = var.orders_queue_url
       ORDERS_COGNITO_ISSUER    = var.cognito_issuer
       ORDERS_COGNITO_CLIENT_ID = var.cognito_client_id
+      RIS_DISPATCH_QUEUE_URL   = var.dispatch_queue_url
+      API_PROFILES_TABLE       = var.api_profiles_table_name
     }
   }
 

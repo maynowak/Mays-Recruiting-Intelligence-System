@@ -36,6 +36,11 @@ locals {
   agent_result_queue_url      = local.orders_agent_result_enabled ? try(module.mays_orders[0].results_queue_url, "") : ""
   agent_result_queue_arn      = local.orders_agent_result_enabled ? try(module.mays_orders[0].results_queue_arn, "") : ""
   agent_result_secret_arn     = local.orders_agent_result_enabled ? try(module.mays_orders[0].result_hmac_secret_arn, "") : ""
+
+  # Dispatch (Orders -> RIS) uses the existing agent_transport module.
+  agent_dispatch_enabled   = var.enable_agent_transport && local.orders_enabled
+  agent_dispatch_queue_url = local.agent_dispatch_enabled ? try(module.agent_transport[0].dispatch_queue_url, "") : ""
+  agent_dispatch_queue_arn = local.agent_dispatch_enabled ? try(module.agent_transport[0].dispatch_queue_arn, "") : ""
 }
 
 provider "aws" {
@@ -215,6 +220,12 @@ module "orders_reader" {
   orders_table_arn  = local.orders_managed ? module.mays_orders[0].dynamodb_table_arn : var.external_orders_table_arn
   orders_queue_url  = local.orders_managed ? module.mays_orders[0].sqs_queue_url : var.external_orders_queue_url
   orders_queue_arn  = local.orders_managed ? module.mays_orders[0].sqs_queue_arn : var.external_orders_queue_arn
+
+  dispatch_enabled        = local.agent_dispatch_enabled
+  dispatch_queue_url      = local.agent_dispatch_queue_url
+  dispatch_queue_arn      = local.agent_dispatch_queue_arn
+  api_profiles_table_name = module.dynamodb.api_profiles_table_name
+  api_profiles_table_arn  = module.dynamodb.api_profiles_table_arn
 }
 
 
@@ -421,7 +432,13 @@ module "agent_transport" {
   environment  = var.environment
   tags         = var.tags
 
-  orders_producer_role_arns = var.orders_producer_role_arns
+  # The reader is the ORDER_DISPATCH producer; Orders itself is not.
+  orders_producer_role_arns = local.agent_dispatch_enabled ? [module.orders_reader[0].role_arn] : var.orders_producer_role_arns
+
+  result_transport_enabled = local.orders_agent_result_enabled
+  order_result_queue_url   = local.agent_result_queue_url
+  order_result_queue_arn   = local.agent_result_queue_arn
+  order_result_secret_arn  = local.agent_result_secret_arn
 
   lambda_zip_path = "${path.root}/lambda.zip"
 

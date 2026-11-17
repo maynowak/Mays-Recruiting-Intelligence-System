@@ -126,3 +126,33 @@ variable "aws_region" {
   type        = string
   default     = "eu-central-1"
 }
+
+variable "dispatch_enabled" {
+  description = "Enable agent-order dispatch from the reader (requires the RIS dispatch queue)."
+  type        = bool
+  default     = false
+}
+
+variable "dispatch_queue_url" {
+  description = "URL of the RIS agent dispatch queue (ORDER_DISPATCH ingress)."
+  type        = string
+  default     = ""
+}
+
+variable "dispatch_queue_arn" {
+  description = "ARN of the RIS agent dispatch queue (SendMessage scope)."
+  type        = string
+  default     = ""
+}
+
+variable "api_profiles_table_name" {
+  description = "API profile table read to validate the agent-order owner/profile binding."
+  type        = string
+  default     = ""
+}
+
+variable "api_profiles_table_arn" {
+  description = "API profile table ARN (GetItem scope)."
+  type        = string
+  default     = ""
+}

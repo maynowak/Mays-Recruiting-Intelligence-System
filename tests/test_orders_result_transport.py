@@ -185,3 +185,48 @@ def test_worker_uses_the_live_ris_orders_facade_base_url():
     # The dead upstream default must not be the effective configuration.
     real = (REPO / "agents" / "orders" / "real.py").read_text(encoding="utf-8")
     assert "aboqolpm0f" in real  # documented default stays, but is overridden
+
+def test_reader_dispatches_agent_orders_through_the_existing_queue():
+    root = text(ROOT_MAIN)
+    reader = text(TF / "modules" / "orders_reader" / "main.tf")
+    variables = text(TF / "modules" / "orders_reader" / "variables.tf")
+    assert "RIS_DISPATCH_QUEUE_URL" in reader
+    assert "API_PROFILES_TABLE" in reader
+    assert 'resource "aws_iam_role_policy" "reader_agent_dispatch"' in reader
+    assert "var.dispatch_enabled ? 1 : 0" in reader
+    for name in ("dispatch_enabled", "dispatch_queue_url",
+                 "dispatch_queue_arn", "api_profiles_table_name",
+                 "api_profiles_table_arn"):
+        assert f'variable "{name}"' in variables
+    block = re.search(r'module "orders_reader" \{(.*?)\n\}', root, re.S).group(1)
+    assert "dispatch_enabled        = local.agent_dispatch_enabled" in block
+    assert "dispatch_queue_url      = local.agent_dispatch_queue_url" in block
+    assert "api_profiles_table_name = module.dynamodb.api_profiles_table_name" in block
+
+
+def test_dispatch_ingress_can_forward_the_order_result():
+    transport = text(TF / "modules" / "agent_transport" / "lambda.tf")
+    root = text(ROOT_MAIN)
+    assert "ORDER_RESULT_QUEUE_URL  = var.order_result_queue_url" in transport
+    assert "ORDER_RESULT_SECRET_ARN = var.order_result_secret_arn" in transport
+    assert 'resource "aws_iam_role_policy" "dispatch_result_send"' in transport
+    assert 'resource "aws_iam_role_policy" "dispatch_result_secret"' in transport
+    assert "count = var.result_transport_enabled ? 1 : 0" in transport
+    block = re.search(r'module "agent_transport" \{(.*?)\n\}', root, re.S).group(1)
+    assert "result_transport_enabled = local.orders_agent_result_enabled" in block
+    assert "order_result_queue_url   = local.agent_result_queue_url" in block
+    assert "orders_producer_role_arns = local.agent_dispatch_enabled ? [module.orders_reader[0].role_arn] : var.orders_producer_role_arns" in block
+
+
+def test_reader_bundle_ships_the_flat_dispatch_contract():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "build_zip_contract", REPO / "lambda" / "build_zip.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    READER_FILES = module.READER_FILES
+
+    assert "lambda/orders_reader.py" in READER_FILES
+    assert "agents/transport/order_transport.py" in READER_FILES
+    assert "agents/orders/agent_order.py" in READER_FILES

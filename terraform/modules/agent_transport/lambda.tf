@@ -46,6 +46,27 @@ variable "dispatch_batch_window_seconds" {
   default = 0
 }
 
+variable "result_transport_enabled" {
+  description = "Wire the existing result queue/secret into the dispatch ingress so ORDER_RESULT can be forwarded."
+  type        = bool
+  default     = false
+}
+
+variable "order_result_queue_url" {
+  type    = string
+  default = ""
+}
+
+variable "order_result_queue_arn" {
+  type    = string
+  default = ""
+}
+
+variable "order_result_secret_arn" {
+  type    = string
+  default = ""
+}
+
 locals {
   ingress_name = "${var.project_name}-${var.environment}-agent-dispatch-ingress"
 }
@@ -114,6 +135,36 @@ resource "aws_iam_role_policy" "dispatch_ingress" {
   })
 }
 
+resource "aws_iam_role_policy" "dispatch_result_send" {
+  count = var.result_transport_enabled ? 1 : 0
+  name  = "${local.ingress_name}-result-send"
+  role  = aws_iam_role.dispatch_ingress.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["sqs:SendMessage"]
+      Resource = [var.order_result_queue_arn]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "dispatch_result_secret" {
+  count = var.result_transport_enabled ? 1 : 0
+  name  = "${local.ingress_name}-result-secret"
+  role  = aws_iam_role.dispatch_ingress.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = [var.order_result_secret_arn]
+    }]
+  })
+}
+
 resource "aws_lambda_function" "dispatch_ingress" {
   function_name = local.ingress_name
   role          = aws_iam_role.dispatch_ingress.arn
@@ -134,11 +185,18 @@ resource "aws_lambda_function" "dispatch_ingress" {
       API_PROFILES_TABLE = var.api_profiles_table_name
       ENTITLEMENTS_TABLE = var.entitlements_table_name
       DISPATCH_QUEUE_ARN = aws_sqs_queue.dispatch.arn
+      # Result transport for the inline pipeline execution.
+      ORDER_RESULT_QUEUE_URL  = var.order_result_queue_url
+      ORDER_RESULT_SECRET_ARN = var.order_result_secret_arn
     }
   }
 
-  depends_on = [aws_cloudwatch_log_group.dispatch_ingress]
-  tags       = merge({ "Project" = var.project_name }, var.tags)
+  depends_on = [
+    aws_cloudwatch_log_group.dispatch_ingress,
+    aws_iam_role_policy.dispatch_result_send,
+    aws_iam_role_policy.dispatch_result_secret,
+  ]
+  tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
 resource "aws_lambda_event_source_mapping" "dispatch" {
