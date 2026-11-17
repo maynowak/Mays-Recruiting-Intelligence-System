@@ -10411,3 +10411,15 @@ Date: 2026-11-17
 - Product result path remains open: no production ORDER_RESULT forwarder; work rows lack orderId/correlationId; pipeline stores the {success,data} wrapper while the transport expects the body; no public result read-back; the RIS orders-reader has no owner/tenant check; Orders external account 240571105849 is still 403. xrepo has a draft only (no issues/dispatch).
 - No AWS apply/deploy, merge or main push.
 Report: docs/reports/RIS-ATS-AGENT-01-CONTINUATION-01.md
+
+[RIS-ATS-RESULT-LINK-01 / PHASE 1+2 — CORRELATION + RESULT FORWARDER]
+Status: LOCAL IMPLEMENTATION COMPLETE / NO APPLY.
+Date: 2026-11-17
+- Work rows now persist the transport correlation from the dispatch work item: orderId, correlationId (falling back to requestId), transportMessageId, apiProfileId, partnerApplicationId and issuer. Existing rows without an orderId/correlationId stay valid and are simply not forwarded.
+- Added agents/transport/order_result_sender.py: HMAC-SHA256 signing pinned to the Orders consumer rule (messageId + "\n" + body, SQS attribute serviceSignature) and a thin SQS sender for the existing result queue. No new queue, no new envelope contract, no new transport type.
+- The worker reuses Transport V1 result_from_work_item + validate_envelope. The carrier is reconstructed from the persisted row; the pipeline's {success,data} wrapper is unwrapped exactly once so Orders receives the body.
+- Forwarding runs only after the conditional result write, so a fenced/erased/stale attempt cannot emit a result. The COMPLETED duplicate path re-emits the same deterministic messageId/idempotencyKey, covering the crash window before SendMessage; CANCELLED never forwards.
+- Fail-closed: missing orderId, correlationId, apiProfileId or ORDER_RESULT_QUEUE_URL/ORDER_RESULT_SECRET_ARN skips forwarding and leaves the row COMPLETED; TransportError (bad shape, secret-shaped result) is logged and never sent; sender/config errors raise so SQS redelivery retries.
+- Tests: tests/test_worker_pipeline.py + tests/test_order_transport_contract.py 76 passed (correlation persistence, one result per completion, data-not-wrapper payload, non-order skip, missing correlation, no config, duplicate idempotency, sender failure, pinned HMAC vector).
+- No Terraform apply; production still has no result queue/secret wiring and enable_agent_transport=false.
+

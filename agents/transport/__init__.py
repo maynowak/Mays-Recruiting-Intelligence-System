@@ -1,5 +1,6 @@
 """Generic order transport (RIS-AGENT-GENERIC-ORDER-TRANSPORT-01)."""
 
+from agents.transport.order_result_sender import make_sender, sign_result
 from agents.transport.order_transport import (
     ACCEPTED_SCHEMA_VERSIONS,
     ORDER_CANCELLED,
@@ -42,4 +43,6 @@ __all__ = [
     "result_from_work_item",
     "is_stale_attempt",
     "accepted_message_types",
+    "make_sender",
+    "sign_result",
 ]

@@ -443,3 +443,14 @@ class TestWorkItemSingleSource:
         # no inline schema literal in the enqueue path
         assert "'requestedBy': user_id" not in block
         assert "'payloadVersion': '1.0'" not in block
+
+
+class TestResultSenderSignature:
+    def test_signature_matches_the_pinned_consumer_rule(self):
+        from agents.transport.order_result_sender import sign_result
+
+        # HMAC-SHA256("test-secret", "msg_1\n" + body), pinned to the Orders
+        # consumer rule in mo-agent-order/lambda/src/result_envelope.py.
+        assert sign_result("test-secret", "msg_1", '{"a":1}') == (
+            "23ada4268ba9bf1b60ae5aed950c762b85689a9d93cce8d8ef0a9a6998a08e65")
+

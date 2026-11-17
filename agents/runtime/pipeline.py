@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -255,6 +256,13 @@ def _register_processing(
         "type": work.get("type", ""),
         "capability": work.get("capability", ""),
         "agentId": agent_id,
+        # Transport correlation: ORDER_RESULT needs these after execution.
+        "apiProfileId": work.get("apiProfileId", ""),
+        "partnerApplicationId": work.get("partnerApplicationId", ""),
+        "issuer": work.get("issuer", ""),
+        "orderId": work.get("orderId", ""),
+        "correlationId": work.get("correlationId") or work.get("requestId", ""),
+        "transportMessageId": work.get("transportMessageId", ""),
         "processing_id": envelope.processing_id,
         "execution_id": envelope.execution_id or str(uuid.uuid4()),
         "attempt_id": f"{envelope.processing_id}#1",
@@ -472,6 +480,7 @@ def process_record(
     erasure_admission: Any = None,
     subject_fence_table: Any = None,
     require_subject_fence: bool = False,
+    result_sender: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Einen SQS-Record durch den Runtime-Pfad fuehren (Worker-Einstieg).
 
@@ -557,6 +566,15 @@ def process_record(
                 work["workId"],
                 item.get("status"),
             )
+            if item.get("status") == "COMPLETED":
+                # Crash window between persist and send: re-emit the same
+                # deterministic ORDER_RESULT; the Order side de-duplicates.
+                _forward_order_result(
+                    item=item,
+                    attempt=int(item.get("attempt_no") or 1),
+                    result=item.get("result"),
+                    sender=result_sender,
+                )
             return {
                 "workId": work["workId"],
                 "status": item.get("status"),
@@ -724,6 +742,8 @@ def process_record(
                 agent_id=decision.agent_id,
                 attempt_id=str(attempt))
         _persist_result(table, work["workId"], attempt, result)
+        _forward_order_result(
+            item=item, attempt=attempt, result=result, sender=result_sender)
 
     return {
         "workId": work["workId"],
@@ -735,6 +755,80 @@ def process_record(
         "result_reference": f"work:{work['workId']}:attempt:{attempt}",
         "result": result,
     }
+
+
+def _result_body(stored: Any) -> Any:
+    """Unwrap the pipeline's {success,data} envelope exactly once."""
+    if isinstance(stored, dict) and "success" in stored and "data" in stored:
+        return stored.get("data") or {}
+    return stored
+
+
+def _dispatch_carrier(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Minimal dispatch carrier for the existing result_from_work_item mapping."""
+    return {
+        "messageType": "ORDER_DISPATCH",
+        "orderId": item.get("orderId", ""),
+        "correlationId": item.get("correlationId", ""),
+        "identity": {
+            "contextRef": item.get("apiProfileId") or "",
+            "tenantId": item.get("tenantId"),
+            "apiProfileId": item.get("apiProfileId"),
+            "partnerApplicationId": item.get("partnerApplicationId"),
+            "issuer": item.get("issuer"),
+        },
+    }
+
+
+def _resolve_result_sender() -> Optional[Any]:
+    url = os.environ.get("ORDER_RESULT_QUEUE_URL", "").strip()
+    arn = os.environ.get("ORDER_RESULT_SECRET_ARN", "").strip()
+    if not url or not arn:
+        return None
+    from agents.transport.order_result_sender import make_sender
+
+    return make_sender(url, arn)
+
+
+def _forward_order_result(*, item: Dict[str, Any], attempt: int,
+                          result: Any, sender: Optional[Any] = None) -> None:
+    """Forward a completed order work item via Transport V1, fail-closed."""
+    if not item.get("orderId"):
+        return
+    if not item.get("correlationId"):
+        logger.warning("order result not forwarded: missing correlationId")
+        return
+    if not item.get("apiProfileId"):
+        logger.warning("order result not forwarded: missing apiProfileId")
+        return
+    sender = sender if sender is not None else _resolve_result_sender()
+    if sender is None:
+        logger.warning(
+            "order result not forwarded: result transport not configured")
+        return
+    body = _result_body(result)
+    if not isinstance(body, dict):
+        logger.warning("order result not forwarded: result body is not an object")
+        return
+    from agents.transport import (
+        ORDER_RESULT,
+        TransportError,
+        result_from_work_item,
+        validate_envelope,
+    )
+
+    try:
+        envelope = result_from_work_item(
+            _dispatch_carrier(item),
+            {"workId": item["workId"], "status": "COMPLETED",
+             "attempt_no": attempt, "result": body},
+        )
+        validate_envelope(envelope, expected_type=ORDER_RESULT)
+    except TransportError as exc:
+        logger.error(
+            "order result not forwarded: %s", getattr(exc, "code", "transport"))
+        return
+    sender(envelope)
 
 
 def _resolve_table() -> Any:  # pragma: no cover - live Pfad (Env), Tests injizieren Fake
