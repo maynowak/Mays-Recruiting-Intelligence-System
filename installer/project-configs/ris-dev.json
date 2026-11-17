@@ -23,6 +23,13 @@
 
     "applications_cursor_secret_arn": "arn:aws:secretsmanager:eu-central-1:240571105849:secret:ris-dev/applications/cursor-hmac-cuHjQ8",
 
-    "api_cors_origins": "[\"http://localhost:5173\",\"https://mays-job-matcher.vercel.app\",\"https://www.mays-job-matcher.app\"]"
+    "api_cors_origins": "[\"http://localhost:5173\",\"https://mays-job-matcher.vercel.app\",\"https://www.mays-job-matcher.app\"]",
+
+    "enable_agent_transport": "true",
+    "orders_producer_role_arns": "[\"arn:aws:iam::240571105849:role/ris-dev-mays-orders-handler-role\"]",
+    "ris_result_producer_role_arns": "[\"arn:aws:iam::240571105849:role/ris-dev-dev-agent\",\"arn:aws:iam::240571105849:role/ris-dev-dev-agent-dispatch-ingress\"]",
+    "order_result_queue_url": "https://sqs.eu-central-1.amazonaws.com/240571105849/ris-dev-mays-orders-agent-results",
+    "order_result_queue_arn": "arn:aws:sqs:eu-central-1:240571105849:ris-dev-mays-orders-agent-results",
+    "order_result_secret_arn": "arn:aws:secretsmanager:eu-central-1:240571105849:secret:ris-dev-mays-orders-agent-result-hmac-8J5T6n"
   }
 }

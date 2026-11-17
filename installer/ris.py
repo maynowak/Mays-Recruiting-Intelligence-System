@@ -503,6 +503,14 @@ PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
     "jobsearch_cognito_issuer",
     "jobsearch_cognito_client_id",
     "jobsearch_edge_cors_origins",
+    # Existing Mays-Orders agent transport / result contract. These are
+    # site-specific resource references, not secrets or consent switches.
+    "enable_agent_transport",
+    "orders_producer_role_arns",
+    "ris_result_producer_role_arns",
+    "order_result_queue_url",
+    "order_result_queue_arn",
+    "order_result_secret_arn",
 })
 
 

@@ -37,3 +37,17 @@ resource "aws_s3_bucket_public_access_block" "documents" {
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
+
+# Browser uploads use short-lived presigned PUT URLs. The bucket stays private;
+# CORS only lets the approved Jobsearch origin perform the signed request.
+resource "aws_s3_bucket_cors_configuration" "documents" {
+  bucket = aws_s3_bucket.documents.id
+
+  cors_rule {
+    allowed_origins = var.browser_allowed_origins
+    allowed_methods = ["PUT", "GET", "HEAD"]
+    allowed_headers = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 900
+  }
+}

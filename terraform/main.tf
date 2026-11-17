@@ -177,7 +177,12 @@ module "lambda" {
   documents_bucket_arn                = module.documents.bucket_arn
   sqs_queue_arn                       = module.sqs.work_queue_arn
   work_queue_url                      = module.sqs.work_queue_url
-  tags                                = var.tags
+  # Existing RIS -> Mays-Orders result transport. Empty values preserve the
+  # previous absence of these variables for installations without the link.
+  order_result_queue_url  = var.order_result_queue_url
+  order_result_queue_arn  = var.order_result_queue_arn
+  order_result_secret_arn = var.order_result_secret_arn
+  tags                    = var.tags
 }
 
 # Gate 4 — eigene Order-Fassade (orders_reader) auf unserer API.
@@ -211,8 +216,38 @@ module "mays_orders" {
   tags               = var.tags
   monitoring_enabled = var.monitoring_enabled
   log_retention_days = var.lambda_config.log_retention_days
+  # Preserve the existing RIS -> Orders result transport when enabled.
+  enable_agent_transport        = var.enable_agent_transport
+  ris_result_producer_role_arns = var.ris_result_producer_role_arns
   # external_cognito = null  # MANAGED (Default) oder EXTERNAL
 }
+# Preserve the legacy Orders-handler -> RIS dispatch queue permission. It
+# exists in the live state but is emitted by an older generated Orders module;
+# moving it to the root keeps the AWS resource instead of planning a destroy.
+moved {
+  from = module.mays_orders[0].module.iam.aws_iam_role_policy.agent_dispatch[0]
+  to   = aws_iam_role_policy.orders_agent_dispatch[0]
+}
+
+resource "aws_iam_role_policy" "orders_agent_dispatch" {
+  count = local.orders_managed && var.enable_agent_transport ? 1 : 0
+
+  name = "${var.project_name}-mays-orders-handler-agent-dispatch-policy"
+  role = module.mays_orders[0].iam_handler_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "SendOrderDispatch"
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = module.agent_transport[0].dispatch_queue_arn
+      },
+    ]
+  })
+}
+
 # Observability-Foundation: CloudWatch (Runtime) + CloudTrail (Audit),
 # strikt getrennt (s. Modul-Kommentare). Ersetzt die frueheren Inline-Alarme.
 module "monitoring" {
@@ -403,6 +438,9 @@ module "agent_transport" {
   tags         = var.tags
 
   orders_producer_role_arns = var.orders_producer_role_arns
+  order_result_queue_url    = var.order_result_queue_url
+  order_result_queue_arn    = var.order_result_queue_arn
+  order_result_secret_arn   = var.order_result_secret_arn
 
   lambda_zip_path = "${path.root}/lambda.zip"
 

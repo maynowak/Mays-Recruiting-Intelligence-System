@@ -589,6 +589,31 @@ resource "aws_iam_role_policy" "lambda_logs" {
   })
 }
 
+resource "aws_iam_role_policy" "order_result_transport" {
+  count = var.order_result_queue_arn != "" && var.order_result_secret_arn != "" ? 1 : 0
+
+  name = "${local.lambda_name}-order-result"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "SendOrderResult"
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = var.order_result_queue_arn
+      },
+      {
+        Sid      = "ReadOrderResultSecret"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.order_result_secret_arn
+      },
+    ]
+  })
+}
+
 resource "aws_lambda_function" "agent" {
   function_name = local.lambda_name
   role          = aws_iam_role.lambda_execution.arn
@@ -601,7 +626,7 @@ resource "aws_lambda_function" "agent" {
   source_code_hash = filebase64sha256(var.lambda_config.filename)
 
   environment {
-    variables = {
+    variables = merge({
       WORK_ITEMS_TABLE      = var.dynamodb_table_name
       USER_PROFILE_TABLE    = var.user_profile_table_name
       AGENT_CATALOG_TABLE   = var.agent_catalog_table_name
@@ -650,7 +675,14 @@ resource "aws_lambda_function" "agent" {
       APPLICATION_CONSENT_ENFORCED = var.application_consent_enforced ? "true" : "false"
       DELETION_LEDGER_TABLE        = var.deletion_ledger_table_name
       LOG_LEVEL                    = var.log_level
-    }
+      },
+      var.order_result_queue_url != "" ? {
+        ORDER_RESULT_QUEUE_URL = var.order_result_queue_url
+      } : {},
+      var.order_result_secret_arn != "" ? {
+        ORDER_RESULT_SECRET_ARN = var.order_result_secret_arn
+      } : {},
+    )
   }
 
   depends_on = [

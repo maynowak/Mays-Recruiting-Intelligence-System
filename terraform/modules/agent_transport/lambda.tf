@@ -129,12 +129,19 @@ resource "aws_lambda_function" "dispatch_ingress" {
   memory_size = 256
 
   environment {
-    variables = {
+    variables = merge({
       WORK_ITEMS_TABLE   = var.work_items_table_name
       API_PROFILES_TABLE = var.api_profiles_table_name
       ENTITLEMENTS_TABLE = var.entitlements_table_name
       DISPATCH_QUEUE_ARN = aws_sqs_queue.dispatch.arn
-    }
+      },
+      var.order_result_queue_url != "" ? {
+        ORDER_RESULT_QUEUE_URL = var.order_result_queue_url
+      } : {},
+      var.order_result_secret_arn != "" ? {
+        ORDER_RESULT_SECRET_ARN = var.order_result_secret_arn
+      } : {},
+    )
   }
 
   depends_on = [aws_cloudwatch_log_group.dispatch_ingress]
