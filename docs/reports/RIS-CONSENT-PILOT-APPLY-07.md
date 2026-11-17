@@ -1,112 +1,146 @@
 # RIS-CONSENT-PILOT-APPLY-07
 
-**Status:** `PREPARED — AWAITING EXPLICIT GO APPLY`  
-**Scope:** Controlled apply of the existing Limited-Beta-Pilot plan  
-**No Apply, Deployment, Main-Merge, State mutation or real user data change.**
+**Status:** `PILOT LIVE PARTIAL — CV DELETE/CLEANUP BLOCKED`
+**Apply:** exakt der freigegebene Plan `e62370c0…` wurde angewendet.
+**No general production approval, no Main-Merge, no Cognito/CloudFront/DNS
+change.**
 
-## 1. Freigabegegenstand
+## 1. Apply
 
 ```text
 Plan:        /tmp/opencode/ris-consent-pilot-06.tfplan
 SHA-256:     e62370c0536af74b630a810585d95b12fba637a79ba428a13447b01ec07d1b68
-State:       ris-dev
-Serial:      80
-Lineage:     9cec61e5-c036-1ad5-6ae4-8b48a50122a4
-Resources:   271 Blöcke / 311 Instanzen
-State-ETag:  "abdb644e5d61cd023aefc294afb5df8d"
+State vor:   serial 80 / lineage 9cec61e5-c036-1ad5-6ae4-8b48a50122a4
+Ergebnis:    1 added / 5 changed / 0 destroyed
+State nach:  serial 82 / lineage unverändert
 ```
 
-## 2. Planprüfung
+Die Erasure-Route wurde angelegt:
 
 ```text
-1 Add / 5 Change / 0 Destroy / 0 Replace
+POST /v1/partner/me/erasure
+API: c7e9pdwe78 / Route: tbxgu4e / Authorizer: e6inno
 ```
 
-**Add:**
+Ungeschützter Aufruf:
 
 ```text
-module.jobsearch_edge[0].aws_apigatewayv2_route.partner["POST /v1/partner/me/erasure"]
-API: c7e9pdwe78 / Authorizer: e6inno / Target: integrations/anl98ns
+HTTP 401 Unauthorized
 ```
 
-**Change:**
-
-- Agent-Lambda: neuer Code-Hash; `APPLICATION_CONSENT_ENFORCED=false` → `true`;
-  vier Consent-Environment-Keys werden hinzugefügt.
-- Dispatch-Ingress: gleicher Agent-Bundle-Code.
-- Orders-Reader, Health-Writer, Health-Publisher: nur Artefaktpfade.
-- Keine entfernten Environment-Keys.
-- Keine IAM-, Cognito-, CloudFront-, DNS-, DynamoDB-, SQS-, S3- oder
-  Secrets-Änderung.
-- Kein Destroy/Replace.
-
-## 3. Pilotfreigaben
-
-Notices sind unverändert und für den begrenzten Pilot freigegeben:
+Live-Environment des Agenten:
 
 ```text
-application-storage/1.0        JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08
-cv-storage/1.0                 JM-CV-STORAGE-V1-BETA-2026-11-08
-search-profile-storage/1.0     JM-SEARCH-PROFILE-STORAGE-V1-2026-11-08
+APPLICATION_CONSENT_ENFORCED            = true
+CV_STORAGE_CONSENT_ENFORCED             = true
+SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED = true
+CONSENT_NOTICE_STATE_ENFORCED           = true
+CONSENT_PILOT_ALLOWLIST                 = bestehende 2 Einträge
 ```
 
-Die Plan-Allowlist stimmt mit der bestehenden Pilot-Allowlist überein
-(`2` bestehende Einträge); es wurden keine Identitäten ergänzt. Die Werte
-werden nicht in diesem Report ausgegeben.
-
-## 4. Gates im Plan
+Post-Apply-Plan:
 
 ```text
-APPLICATION_CONSENT_ENFORCED            false -> true
-CV_STORAGE_CONSENT_ENFORCED             (new) -> true
-SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED (new) -> true
-CONSENT_NOTICE_STATE_ENFORCED           (new) -> true
-CONSENT_PILOT_ALLOWLIST                 (new) -> bestehende Allowlist
+No changes. Your infrastructure matches the configuration.
+Plan: /tmp/opencode/ris-consent-pilot-06-post.tfplan
+SHA-256: 6b714e052f32bbed616d809868ba2363b719c705e6429e7e2226ae4720b46e3d
 ```
 
-Damit ist die serverseitige Consent-Prüfung für alle drei Speicherzwecke
-konsistent aktiviert. Nicht gelistete CV-/Search-Identitäten werden
-fail-closed behandelt; ApplicationV1 wird global geprüft.
+## 2. XRepo-Live-E2E
 
-## 5. Noch nicht ausgeführt
+Autorisierte, bereits vorhandene Pilot-Session; keine neue Identität. Es
+wurden keine Tokens oder Allowlist-Werte protokolliert.
 
-- Kein Terraform Apply.
-- Kein Post-Apply-Plan.
-- Keine Live-Verifikation der Erasure-Route.
-- Kein XRepo-Live-E2E.
-- Keine Datenänderung.
+Erfolgreich:
 
-Der State ist unverändert; ETag und LastModified blieben gleich.
+- ApplicationV1: Withdraw → Regrant → Reload
+  - Status `GRANTED`
+  - `specialCategoriesConsent=true`
+  - 9 Kategorien
+  - Text `application-storage-consent-2026-11-07-v4`
+  - Hash vorhanden
+- CV-Consent: Withdraw → Regrant → Reload
+  - Status `GRANTED`
+  - `specialCategoriesConsent=true`
+  - Text `cv-storage-consent-2026-11-08-v1`
+- Search-Profile-Consent: Withdraw → Regrant → Reload
+  - Status `GRANTED`
+  - Text `search-profile-storage-consent-2026-11-08-v2`
+- CV Create: `201`
+- Upload-Ticket: `200`
+- S3 Upload: `200`
+- Complete: `200`, Status `ready`
+- List/Reload: CV gefunden
+- PDF-Download: `200`, 13.569 Bytes, `%PDF`
 
-## 6. Apply-Gate
+## 3. Konkreter Fehler
 
-Der Apply darf **erst** nach ausdrücklicher Bestätigung ausgeführt werden:
+CV Delete schlägt fehl:
 
 ```text
-GO APPLY e62370c0536af74b630a810585d95b12fba637a79ba428a13447b01ec07d1b68
+DELETE /api/ris/cvs?id=<synthetic-cv>
+HTTP 500
+code=internal_error
+RIS-Log: cv delete reservation failed
 ```
 
-Nach GO wird exakt dieser gespeicherte Plan angewendet; kein neuer Plan,
-kein `-target`, keine State-Manipulation.
+Der synthetische CV ist deshalb **noch nicht bereinigt**.
 
-## 7. Nach dem Apply geplant
+Ursache ist bestätigt:
 
-1. Post-Apply-Plan auf `No changes` prüfen.
-2. Erasure-Route live prüfen.
-3. Consent-Gates für ApplicationV1, CV und Search verifizieren.
-4. Einmaligen XRepo-E2E mit der vorhandenen autorisierten Pilot-Session
-   durchführen:
-   - Grant
-   - Reload
-   - Withdraw/Regrant
-   - CV-Speicherung
-   - PDF-Download
-   - Suchprofil-Consent
-5. Reports/Auditlogs in beiden Repositories aktualisieren.
+```text
+IAM-Aktion: dynamodb:ConditionCheckItem
+Rolle:      ris-dev-dev-agent
+Ressource:  ris-dev-dev-partner-profiles
+Ergebnis:   implicitDeny
+```
 
-## 8. Rollback
+Die Aktion fehlt in `ris-dev-dev-lambda-dynamodb-partner-profiles`; der
+CV-Delete-Reservation-Pfad benötigt sie für `TransactWriteItems`. Es wurde
+keine echte Benutzerdatei angelegt; der verbleibende Datensatz ist synthetisch.
 
-Der Plan enthält keine Destroys/Replacements. Vor dem Apply sind aktuelle
-Lambda-Code-Hashes und Environment-Werte als Rollback-Referenz zu sichern.
-Ein Rollback nach Apply erfolgt über einen neuen Plan; die Route wird nur
-über einen separaten, freigegebenen Plan entfernt. Kein State-Push/Import.
+## 4. Vorbereiteter IAM-Fix
+
+Minimaler Fix im Feature-Branch:
+
+```text
+Branch: feature/ris-erasure-recovery-02
+Commit: 773d212
+```
+
+Der neue Plan ist noch **nicht angewendet**:
+
+```text
+/tmp/opencode/ris-consent-pilot-07-iam.tfplan
+SHA-256: c30d9c1928e60332be040d2a2453b5b357c9c14e699404238dddc623077be4e8
+State: serial 82
+0 Add / 1 Change / 0 Destroy / 0 Replace
+```
+
+Einzige Änderung: `dynamodb:ConditionCheckItem` in der bestehenden
+Partner-Profile-IAM-Policy. Keine Ressourcen-, Route-, Environment- oder
+State-Änderung.
+
+## 5. Nächster Schritt
+
+Erforderlich ist eine neue ausdrückliche Freigabe:
+
+```text
+GO APPLY c30d9c1928e60332be040d2a2453b5b357c9c14e699404238dddc623077be4e8
+```
+
+Nach diesem Apply:
+
+1. CV-Delete erneut ausführen und den synthetischen CV entfernen.
+2. List/404 und Post-Apply-Plan prüfen.
+3. XRepo-E2E-Abschlussstatus dokumentieren.
+
+Bis dahin bleibt der Status **PILOT LIVE PARTIAL**, nicht `PILOT LIVE VERIFIED`.
+
+## 6. Grenzen
+
+- Kein weiterer Apply in dieser Runde.
+- Keine Cognito-/CloudFront-/DNS-Änderung.
+- Keine allgemeine Benutzerfreigabe.
+- Kein Main-Merge.
+- Keine echten Benutzerdaten verändert.

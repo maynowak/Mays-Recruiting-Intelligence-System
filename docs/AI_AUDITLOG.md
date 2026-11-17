@@ -10466,17 +10466,23 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
 
 ## 2026-11-17 — RIS-CONSENT-PILOT-APPLY-07
 
-**Status:** `PREPARED — AWAITING EXPLICIT GO APPLY`
+**Status:** `PILOT LIVE PARTIAL — CV DELETE/CLEANUP BLOCKED`
 
-- Re-verified the approved plan `e62370c0…` against `ris-dev` state serial
-  80 / lineage `9cec61e5…`: **1 add / 5 change / 0 destroy / 0 replace**,
-  no state write, ETag unchanged.
-- Add is only the partner erasure route; changes are the agent/dispatch code,
-  four consent env keys, `APPLICATION_CONSENT_ENFORCED` false→true and
-  artifact-path updates. No IAM/Cognito/DNS/data-store changes.
-- Existing pilot allowlist matches the plan (2 entries, values not logged);
-  application/CV/search notices remain limited-pilot approved. No new
-  identities or approvals.
-- No apply, post-apply plan, live E2E or deployment. Waiting for exact
-  `GO APPLY e62370c0536af74b630a810585d95b12fba637a79ba428a13447b01ec07d1b68`.
+- Applied exactly `e62370c0…` after explicit GO: **1 added / 5 changed /
+  0 destroyed**; state serial 80 → 82, lineage unchanged. Route
+  `POST /v1/partner/me/erasure` is live (401 unauthenticated); consent env
+  gates are true with the existing 2-entry pilot allowlist. Post-apply plan
+  is clean (`6b714e05…`).
+- XRepo E2E: application/CV/search consent Withdraw→Regrant→Reload PASS
+  (Art. 9 proof present); CV create/upload/complete/list/download PASS
+  (13,569-byte synthetic PDF, `%PDF`).
+- CV delete returned `500 internal_error`; RIS logged `cv delete reservation
+  failed`. IAM simulation for `dynamodb:ConditionCheckItem` on
+  `ris-dev-dev-partner-profiles` is `implicitDeny`. The synthetic CV remains
+  and is not real user data.
+- Minimal IAM fix commit `773d212`; new plan `/tmp/opencode/
+  ris-consent-pilot-07-iam.tfplan` SHA-256
+  `c30d9c1928e60332be040d2a2453b5b357c9c14e699404238dddc623077be4e8`,
+  state 82, **0 add / 1 change / 0 destroy**. No apply; separate GO required.
+- No Main merge, Cognito/CloudFront/DNS change or real user data change.
   Report: `docs/reports/RIS-CONSENT-PILOT-APPLY-07.md`.
