@@ -10383,3 +10383,22 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
   `CONSENT_NOTICE_STATE_ENFORCED` or `CONSENT_PILOT_ALLOWLIST`; plan adds no
   env keys, so gates remain inactive. No apply executed.
 - Shared report: `docs/reports/XREPO-RIS-CONSENT-RECOVERY-03.md`.
+
+## 2026-11-17 — RIS-STATE-INVENTORY-01
+
+**Status:** `RESOURCE LOSS CONFIRMED`
+
+- Read-only reconciliation of `ris-dev`: S3 versioning enabled, 80 state
+  versions, no delete markers; current serial 80, lineage
+  `9cec61e5…`, 271 blocks / 311 instances.
+- Version comparison: serial 80 vs 79 removes only 5 empty resource blocks
+  (0 instances); serial 80 vs 78 only removes a data source and moves the
+  Orders dispatch policy; no managed loss there.
+- One actual AWS loss confirmed: API Gateway route
+  `POST /v1/partner/me/erasure` (`module.jobsearch_edge[0]...partner`,
+  API `c7e9pdwe78`, route `san8y6o`). CloudTrail `DeleteRoute` at
+  `2026-11-16T17:16:33Z`; state serial 62 at 17:17:01 no longer contains it.
+  Live API has 40 routes; the route is absent.
+- Existing plan `153d1212…` is valid for state 80 but restores no route
+  (0 add / 5 change / 0 destroy). No apply, state push, import or deployment.
+- Shared report: `docs/reports/RIS-STATE-INVENTORY-01.md`.
