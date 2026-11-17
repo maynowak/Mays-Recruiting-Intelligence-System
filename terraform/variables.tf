@@ -614,6 +614,12 @@ variable "ris_result_producer_role_arns" {
   default     = []
 }
 
+variable "order_dispatch_queue_url" {
+  description = "Existing RIS dispatch queue URL exposed to the Mays-Orders handler."
+  type        = string
+  default     = ""
+}
+
 variable "order_result_queue_url" {
   description = "Existing Mays-Orders result queue URL exposed to the RIS agent Lambda."
   type        = string

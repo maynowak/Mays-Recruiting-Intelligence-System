@@ -95,13 +95,19 @@ resource "aws_iam_role_policy" "dispatch_ingress" {
         Effect = "Allow"
         Action = ["dynamodb:GetItem", "dynamodb:PutItem",
         "dynamodb:UpdateItem", "dynamodb:Query"]
-        Resource = var.work_items_table_arn
+        Resource = [
+          var.work_items_table_arn,
+          "${var.work_items_table_arn}/index/*",
+        ]
       },
       {
-        Sid      = "Entitlements"
-        Effect   = "Allow"
-        Action   = ["dynamodb:GetItem", "dynamodb:Query"]
-        Resource = var.entitlements_table_arn
+        Sid    = "Entitlements"
+        Effect = "Allow"
+        Action = ["dynamodb:GetItem", "dynamodb:Query"]
+        Resource = [
+          var.entitlements_table_arn,
+          "${var.entitlements_table_arn}/index/*",
+        ]
       },
       {
         Sid    = "ConsumeDispatchQueue"

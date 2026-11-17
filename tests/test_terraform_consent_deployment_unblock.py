@@ -42,6 +42,11 @@ class TestRisDevOverlay(unittest.TestCase):
     def test_existing_result_transport_values_are_preserved(self):
         self.assertEqual(
             "https://sqs.eu-central-1.amazonaws.com/240571105849/"
+            "ris-dev-dev-agent-dispatch",
+            self.config["order_dispatch_queue_url"],
+        )
+        self.assertEqual(
+            "https://sqs.eu-central-1.amazonaws.com/240571105849/"
             "ris-dev-mays-orders-agent-results",
             self.config["order_result_queue_url"],
         )
@@ -94,6 +99,16 @@ class TestTerraformWiring(unittest.TestCase):
         self.assertIn('resource "aws_s3_bucket_cors_configuration" "documents"', source)
         self.assertIn("var.browser_allowed_origins", source)
         self.assertIn('variable "browser_allowed_origins"', variables)
+
+    def test_order_dispatch_env_is_wired_reproducibly(self):
+        root = read("terraform/main.tf")
+        variables = read("terraform/variables.tf")
+        builder = read("installer/build_mays_orders_module.py")
+        self.assertIn("order_dispatch_queue_url", root)
+        self.assertIn("var.order_dispatch_queue_url", root)
+        self.assertIn('variable "order_dispatch_queue_url"', variables)
+        self.assertIn("ORDER_DISPATCH_QUEUE_URL", builder)
+        self.assertIn("apply_ris_order_dispatch_env_patch", builder)
 
 
 if __name__ == "__main__":

@@ -216,9 +216,10 @@ module "mays_orders" {
   tags               = var.tags
   monitoring_enabled = var.monitoring_enabled
   log_retention_days = var.lambda_config.log_retention_days
-  # Preserve the existing RIS -> Orders result transport when enabled.
+  # Preserve the existing RIS -> Orders result/dispatch transport when enabled.
   enable_agent_transport        = var.enable_agent_transport
   ris_result_producer_role_arns = var.ris_result_producer_role_arns
+  order_dispatch_queue_url      = var.order_dispatch_queue_url
   # external_cognito = null  # MANAGED (Default) oder EXTERNAL
 }
 # Preserve the legacy Orders-handler -> RIS dispatch queue permission. It

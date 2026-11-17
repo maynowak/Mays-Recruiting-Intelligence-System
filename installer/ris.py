@@ -508,6 +508,7 @@ PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
     "enable_agent_transport",
     "orders_producer_role_arns",
     "ris_result_producer_role_arns",
+    "order_dispatch_queue_url",
     "order_result_queue_url",
     "order_result_queue_arn",
     "order_result_secret_arn",

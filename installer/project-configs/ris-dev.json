@@ -28,6 +28,7 @@
     "enable_agent_transport": "true",
     "orders_producer_role_arns": "[\"arn:aws:iam::240571105849:role/ris-dev-mays-orders-handler-role\"]",
     "ris_result_producer_role_arns": "[\"arn:aws:iam::240571105849:role/ris-dev-dev-agent\",\"arn:aws:iam::240571105849:role/ris-dev-dev-agent-dispatch-ingress\"]",
+    "order_dispatch_queue_url": "https://sqs.eu-central-1.amazonaws.com/240571105849/ris-dev-dev-agent-dispatch",
     "order_result_queue_url": "https://sqs.eu-central-1.amazonaws.com/240571105849/ris-dev-mays-orders-agent-results",
     "order_result_queue_arn": "arn:aws:sqs:eu-central-1:240571105849:ris-dev-mays-orders-agent-results",
     "order_result_secret_arn": "arn:aws:secretsmanager:eu-central-1:240571105849:secret:ris-dev-mays-orders-agent-result-hmac-8J5T6n"
