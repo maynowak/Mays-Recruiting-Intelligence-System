@@ -220,7 +220,28 @@ Jobsearch BFF/Consent/UI-Libs: 53 PASS
 
 Production bleibt `92ca1fc`; keine neue Jobsearch-Deployment-Aktion.
 
-## 8. Freigaben / nächste Schritte
+## 8. Ressourcenbestand `ris-dev`
+
+Es existiert **keine zweite `ris-dev`-Installation**:
+
+| Prüfung | Ergebnis |
+|---|---|
+| Terraform-Workspaces | `default` mit `0` Ressourcen; `ris-dev` aktiv |
+| State-Objekte im Bucket | nur `env:/ris-dev/dev/terraform.tfstate` |
+| State-Ressourcenblöcke | `271` (`255` managed, `16` data) |
+| Terraform-Ressourceninstanzen (`state list`) | `311` |
+| AWS-Ressourcen mit Tag `Project=ris-dev` | `67` tagbare Ressourcen |
+| AWS-Ressourcen mit Tag `Project=ris-dev-mays-orders` | `14` tagbare Ressourcen |
+| AWS-Ressourcen mit Tag `Project=ris-dev2` | `0` |
+| Lambda-Funktionen mit Präfix `ris-dev` | `8` |
+| Plan | `0 Add / 5 Change / 0 Destroy / 0 Replace` |
+
+Die Differenz `271` zu `311` ist erwartbar: `state list` zählt
+Ressourceninstanzen inklusive `count`/`for_each`; die State-JSON-Ressourcen
+zählen logische Blöcke. Die Tagging-API zählt zusätzlich nur tagbare
+Ressourcen und ist deshalb nicht mit dem Terraform-State gleichzusetzen.
+
+## 9. Freigaben / nächste Schritte
 
 1. Review des Plans `153d1212…` und Entscheidung über den Lambda-only-Umfang.
 2. Separates Terraform-Wiring für die vier fehlenden Consent-Variablen
