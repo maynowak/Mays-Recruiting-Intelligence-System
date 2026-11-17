@@ -10254,3 +10254,21 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
 - Preflight note: one initial plan invocation used the default AWS account and
   was discarded before evaluation; the final plan was regenerated with
   `AWS_PROFILE=mayaws` (`240571105849`). No apply or state write occurred.
+
+## 2026-11-17 — XREPO-RIS-CONSENT-RECOVERY-02 — CURRENT STATUS
+
+**Status:** `D — CONTRACT OR CONFIGURATION MISMATCH` / `C — AUTH BLOCKED`
+
+- PR #10 remains merged at `0eb3fe96a7e506e5c08e53816b7cc1c27b4e48f3`.
+- Live `ris-dev-dev-agent` remains on the old DRAFT code
+  (`LastModified 2026-11-16T19:35:14Z`, `CodeSha256 9p67...`); state ETag
+  `a7d6a215...`, serial 78.
+- Unblock-03 (PR #12) reduced the deployment plan from 22 destructions to
+  `0 add / 9 change / 0 destroy / 0 replace` by restoring existing transport
+  values and moving the legacy Orders dispatch policy.
+- One contract mismatch remains: existing Orders handler env
+  `ORDER_DISPATCH_QUEUE_URL` would be removed because the generated Orders
+  module no longer emits it. Decision required: approve removal or extend the
+  generated module reproduclibly. No apply/deployment.
+- Authenticated live E2E remains blocked; no valid test identity/token, no
+  tokens or personal data logged. No production restoration claimed.

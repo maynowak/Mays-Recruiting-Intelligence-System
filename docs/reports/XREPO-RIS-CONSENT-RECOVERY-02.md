@@ -1,7 +1,7 @@
 # XREPO-RIS-CONSENT-RECOVERY-02
 
-**Status:** `B — BLOCKED BY AWS PLAN`  
-**Zusätzliches Gate:** `C — AUTHENTICATED LIVE E2E REQUIRED`  
+**Status:** `D — CONTRACT OR CONFIGURATION MISMATCH`
+**Zusätzliches Gate:** `C — AUTHENTICATED LIVE E2E REQUIRED`
 **No Main deployment / no Terraform apply / no production verification.**
 
 ## 1. Integration
@@ -199,3 +199,57 @@ Live-Test erforderlich:
 - Keine Änderung an Consent-Enforcement oder Allowlist.
 - Keine neuen Provider, Secrets oder externen Dienste.
 - Keine allgemeine Rechtsfreigabe und kein allgemeiner Rollout.
+
+## 9. Nachtrag 2026-11-17 — Unblock-03
+
+Der ursprüngliche 22-Destruction-Plan wurde auf dem Branch
+`feature/ris-consent-deployment-unblock-03` (PR #12) weiter untersucht.
+
+Ursache der Destructions waren fehlende site-spezifische Bindungen für den
+bereits vorhandenen Agent-/Result-Transport, nicht der Consent-Fix. Nach
+Wiederherstellung der bestehenden Werte und einer `moved`-Migration der
+legacy Orders-Dispatch-Policy lautet der Plan:
+
+```text
+0 add / 9 change / 0 destroy / 0 replace
+```
+
+Plan-Datei:
+
+```text
+/tmp/opencode/ris-consent-unblock-03-final.tfplan
+SHA-256: aa7ec40ee2ccaa79942ba3c573c7c7c2d8e7e03c16d8dcab3725cca6d1433eb5
+```
+
+Der Plan enthält keine Queue-/Secret-/IAM-Destructions und keine Replacements.
+Ein Contract-Konflikt bleibt:
+
+```text
+ORDER_DISPATCH_QUEUE_URL
+```
+
+Diese bestehende Orders-Handler-Env-Variable ist im Live-State vorhanden, wird
+aber vom aktuellen generierten Orders-Modul nicht mehr emittiert; der Plan
+würde sie entfernen. Damit ist die Akzeptanz „keine verlorenen
+Lambda-Umgebungsvariablen“ nicht erfüllt. Erforderlich ist eine Entscheidung:
+
+- Entfernung der Altvariable ausdrücklich freigeben, oder
+- das generierte Orders-Modul reproduzierbar erweitern.
+
+Deshalb bleibt der aktuelle Status **D — CONTRACT OR CONFIGURATION MISMATCH**.
+Zusätzlich fehlt weiterhin eine autorisierte Testidentität
+(**C — AUTHENTICATED LIVE E2E REQUIRED**).
+
+Live-Lambda und State blieben unverändert:
+
+```text
+ris-dev-dev-agent
+LastModified: 2026-11-16T19:35:14Z
+CodeSha256:   9p67rKjkp0h0DAFS6Kht/GN5tc7YImQjjAnXw56Ub8A=
+State-ETag:   a7d6a2155823ec8605585c68f38cca95
+State serial: 78
+```
+
+Unblock-Details:
+`docs/reports/RIS-CONSENT-DEPLOYMENT-UNBLOCK-03.md` (Branch
+`feature/ris-consent-deployment-unblock-03`, PR #12).
