@@ -151,6 +151,28 @@ search-profile-storage/1.0 = APPROVED
 specialCategoriesConsent / externalTextVersion / externalTextSha256
 ```
 
+### Plan-Organisation
+
+Es gibt genau **einen aktiven Plan** für den aktuellen State:
+
+```text
+aktiv:       /tmp/opencode/ris-consent-recovery-03.tfplan
+Manifest:    /tmp/opencode/ris-consent-recovery-03-plan.manifest.json
+SHA-256:     153d121260bf5340a63b4d091abe5541732e853891db2f00f6d8b1694baf312c
+State:       serial 80 / lineage 9cec61e5…
+Main:        e95fe48
+```
+
+Regeln:
+
+- Pläne werden nicht in S3 gespeichert; dort liegt nur der State.
+- Ältere Pläne sind historisch/`SUPERSEDED` und dürfen nicht angewendet
+  werden.
+- Ein Plan gilt nur bei exakt passender State-Serial/Lineage. Nach jeder
+  State-Änderung ist ein neuer Plan zu erstellen.
+- Der alte externe Checkout ist keine gültige Plan-/Apply-Quelle.
+- Plan und Manifest liegen lokal mit Modus `0600`; keine Secrets im Repo.
+
 ## 5. Release-Blocker: Gates nicht verdrahtet
 
 Der aktuelle Terraform-Main verdrahtet nur:
