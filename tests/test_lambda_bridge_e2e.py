@@ -98,6 +98,10 @@ class LambdaBridgeE2E(unittest.TestCase):
         import index as mo_index
         import dispatch_ingress
 
+        self._saved_env = {key: os.environ.get(key) for key in (
+            "ORDERS_TABLE", "ORDERS_COGNITO_ISSUER",
+            "ORDERS_COGNITO_CLIENT_ID", "ORDER_RESULT_SECRET_ARN",
+            "DISPATCH_QUEUE_ARN")}
         os.environ.update({
             "ORDERS_TABLE": "orders",
             "ORDERS_COGNITO_ISSUER": ISSUER,
@@ -143,8 +147,11 @@ class LambdaBridgeE2E(unittest.TestCase):
         for p in self.patches:
             p.stop()
         self.mo_result_consumer.reset_cache()
-        for key in ("DISPATCH_QUEUE_ARN", "ORDER_RESULT_SECRET_ARN"):
-            os.environ.pop(key, None)
+        for key, value in self._saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
     # -- helpers ---------------------------------------------------------
     def _event(self, identity, route, **kwargs):

@@ -442,7 +442,7 @@ def _load_profile(profile_id: str, identity: Dict[str, Any],
     if profile.get("status") != "ACTIVE":
         raise AgentOrderRejected(403, "AGENT_ORDER_REJECTED",
                                  "API profile is not active")
-    owner = profile.get("ownerUserId") or profile.get("userId")
+    owner = profile.get("ownerUserId")
     if owner != identity["subject"]:
         raise AgentOrderRejected(403, "AGENT_ORDER_REJECTED",
                                  "API profile belongs to another owner")
