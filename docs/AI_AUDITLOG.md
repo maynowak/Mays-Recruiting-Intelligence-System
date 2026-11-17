@@ -10221,3 +10221,33 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
   data or consent history was logged. Production status is not claimed.
 - Deployment and live smoke require separate approval. Report:
   `docs/reports/XREPO-RIS-CONSENT-RECOVERY-01.md`.
+
+## 2026-11-17 — XREPO-RIS-CONSENT-RECOVERY-02
+
+**Status:** `B — BLOCKED BY AWS PLAN` / `C — AUTHENTICATED LIVE E2E REQUIRED`
+
+- PR #10 merged to `main` as `0eb3fe96a7e506e5c08e53816b7cc1c27b4e48f3`
+  (existing limited-beta approval restored; no new legal approval).
+- Read-only live Lambda check: `ris-dev-dev-agent`, `$LATEST`, Active,
+  LastModified `2026-11-16T19:35:14Z`, CodeSha256
+  `9p67rKjkp0h0DAFS6Kht/GN5tc7YImQjjAnXw56Ub8A=`, contains
+  `application-storage/1.0 = DRAFT` with no legal reference. Live env also
+  lacks the prior consent/CV/search enforcement flags and pilot allowlist;
+  these were not changed.
+- Target: account `240571105849`, `eu-central-1`, workspace `ris-dev`,
+  state `mays-ris-tf-state-dev` / `env:/ris-dev/dev/terraform.tfstate`,
+  serial `78`, lineage `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`.
+- Plan `/tmp/opencode/ris-consent-recovery-02.tfplan`, SHA-256
+  `88aef7470bdacbaa286525e2382af807a1034fafd4ee25be76125c352c1a4a43`,
+  result **0 add / 6 change / 22 destroy**. STOP: destroys include agent
+  transport/order-result resources and would remove two agent env variables.
+  No `-target`, state manipulation or apply.
+- Tests: RIS focused consent 27 PASS; full RIS 2620 PASS / 104 skipped /
+  6 baseline failures reproduced on clean `origin/main`; Jobsearch focused
+  consent 63 PASS. No Jobsearch product change.
+- Authenticated live E2E not executed: operator refresh token invalid; no
+  valid authorized test identity/token. No token, personal data or consent
+  history logged.
+- Required: reconcile Terraform drift, produce a new 0-delete/0-replace plan,
+  separate apply approval, provide authorized test identity, then live E2E.
+  Report: `docs/reports/XREPO-RIS-CONSENT-RECOVERY-02.md`.
