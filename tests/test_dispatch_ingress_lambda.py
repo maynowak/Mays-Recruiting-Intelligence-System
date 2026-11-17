@@ -146,6 +146,17 @@ class TestValidDispatch(IngressHarness):
             self.run_handler(self.record(message_id="msg-2"))
         self.assertEqual(["work-1"], calls)
 
+    def test_production_profile_store_shape_is_supported(self):
+        class ProductionShapeStore:
+            def get_profile(self, profile_id):
+                return {"apiProfileId": profile_id, "status": "ACTIVE",
+                        "ownerUserId": "partner-a-user", "tenantId": "tenant-a"}
+
+        self.deps["profile_store"] = ProductionShapeStore()
+        result = self.run_handler(self.record())
+        self.assertEqual([], result["batchItemFailures"])
+        self.assertEqual("COMPLETED", self.table.items["work-1"]["status"])
+
 
 class TestRejectedDispatch(IngressHarness):
     def _assert_rejected(self, record):

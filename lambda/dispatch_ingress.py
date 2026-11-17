@@ -40,14 +40,18 @@ def resolve_context(context_ref: str, profile_store: Any) -> VerifiedContext:
     if not context_ref:
         raise DispatchRejected("missing_context_ref",
                                "Dispatch carries no identity context reference")
-    profile = profile_store.get(context_ref)
+    # The production store exposes ``get_profile``; test doubles may expose
+    # ``get``. Accept both without weakening the lookup.
+    getter = getattr(profile_store, "get_profile", None)
+    profile = (getter or profile_store.get)(context_ref)
     if not isinstance(profile, dict):
         raise DispatchRejected("unknown_context",
                                "Identity context reference cannot be resolved")
     if profile.get("status") != "ACTIVE":
         raise DispatchRejected("inactive_context",
                                "Identity context is not active")
-    user_id = profile.get("userId")
+    # The store writes ``ownerUserId``; older rows/tests may use ``userId``.
+    user_id = profile.get("userId") or profile.get("ownerUserId")
     tenant_id = profile.get("tenantId")
     if not user_id or not tenant_id:
         raise DispatchRejected("incomplete_context",
