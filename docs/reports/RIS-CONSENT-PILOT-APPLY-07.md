@@ -137,7 +137,48 @@ Nach diesem Apply:
 
 Bis dahin bleibt der Status **PILOT LIVE PARTIAL**, nicht `PILOT LIVE VERIFIED`.
 
-## 6. Grenzen
+## 6. IAM-Final-Check (RIS-CV-DELETE-IAM-08)
+
+Read-only-Prüfung des vorbereiteten IAM-Plans:
+
+```text
+Plan:        /tmp/opencode/ris-consent-pilot-07-iam.tfplan
+SHA-256:     c30d9c1928e60332be040d2a2453b5b357c9c14e699404238dddc623077be4e8
+State:       serial 82
+Lineage:     9cec61e5-c036-1ad5-6ae4-8b48a50122a4
+Changes:     0 Add / 1 Change / 0 Destroy / 0 Replace
+```
+
+Der einzige Diff ist:
+
+```text
+module.lambda.aws_iam_role_policy.lambda_dynamodb_partner_profiles
++ dynamodb:ConditionCheckItem
+```
+
+Unverändert bleiben:
+
+- Effect `Allow`
+- Resource `ris-dev-dev-partner-profiles` und `.../index/*`
+- alle bisherigen Aktionen
+- die Rolle `ris-dev-dev-agent`
+- Lambda-Funktion und Environment
+
+Live-Rollenprüfung:
+
+```text
+Lambda ris-dev-dev-agent
+Role   arn:aws:iam::240571105849:role/ris-dev-dev-agent
+Policy ris-dev-dev-lambda-dynamodb-partner-profiles
+```
+
+Kein Add/Destroy/Replace und keine weiteren Berechtigungen.
+
+**Empfehlung:** `GO READY` für den IAM-Fix. Apply weiterhin nur nach
+separater Freigabe für exakt diese SHA; der synthetische CV wird erst danach
+entfernt.
+
+## 7. Grenzen
 
 - Kein weiterer Apply in dieser Runde.
 - Keine Cognito-/CloudFront-/DNS-Änderung.

@@ -10486,3 +10486,20 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
   state 82, **0 add / 1 change / 0 destroy**. No apply; separate GO required.
 - No Main merge, Cognito/CloudFront/DNS change or real user data change.
   Report: `docs/reports/RIS-CONSENT-PILOT-APPLY-07.md`.
+
+## 2026-11-17 — RIS-CV-DELETE-IAM-08
+
+**Status:** `GO READY — IAM PLAN ONLY / NO APPLY`
+
+- Re-verified state serial 82, lineage `9cec61e5…`, and plan SHA
+  `c30d9c1928e60332be040d2a2453b5b357c9c14e699404238dddc623077be4e8`:
+  exactly **0 add / 1 change / 0 destroy / 0 replace**.
+- The only policy diff is `dynamodb:ConditionCheckItem` on the existing
+  `ris-dev-dev-lambda-dynamodb-partner-profiles` policy for the existing
+  `ris-dev-dev-partner-profiles` table/index resources. Effect, resources,
+  role and all other actions are unchanged; no other resource changes.
+- Lambda `ris-dev-dev-agent` uses role `ris-dev-dev-agent`; the policy path
+  matches. No apply in this check. The synthetic CV remains until the IAM
+  plan is separately approved and applied.
+- No code/Terraform change in this check; report
+  `docs/reports/RIS-CONSENT-PILOT-APPLY-07.md`.
