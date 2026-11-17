@@ -10399,3 +10399,15 @@ Date: 2026-11-17
 - ATSAnalysisResultBody is now 2.0: analysis.metadata.titleTokens is intentionally not projected (tokenizer artifact, not a secret). The secret scan remains strict; a titleTokens key is still rejected. Docs and tests updated.
 - Added three partner-route tests (202 + enqueue for ats-agent, 403 when absent from catalog, 403 for a profile-bound entitlement mismatch) and two transport tests (ATS body round-trips; titleTokens still rejected).
 - Tests: 508 passed, 8 skipped, 20 subtests. No AWS apply/deploy; the live deployment still carries body 1.1 and the unseeded catalog until a controlled apply.
+
+
+[RIS-ATS-AGENT-01 / CONTINUATION 01]
+Status: SAFE LOCAL FIXES COMPLETE / PRODUCT RESULT PATH OPEN.
+Date: 2026-11-17
+- Added ats-agent to the Terraform agent-catalog seed (ACTIVE, analyze.job, 1.0.0, python3.14) and a seed/runtime parity test. The public partner route would still return 403 until a controlled apply seeds the live table.
+- ATSAnalysisResultBody is now 2.0: analysis.metadata.titleTokens is no longer projected so the strict secret scan accepts the body. The scan itself remains unchanged and still rejects a titleTokens key.
+- Added public partner-route tests (202/enqueue, 403 missing catalog, 403 profile-bound entitlement) and transport tests (ATS body round-trip, titleTokens rejected).
+- Local evidence: 508 passed / 8 skipped / 20 subtests; terraform fmt exit 0.
+- Product result path remains open: no production ORDER_RESULT forwarder; work rows lack orderId/correlationId; pipeline stores the {success,data} wrapper while the transport expects the body; no public result read-back; the RIS orders-reader has no owner/tenant check; Orders external account 240571105849 is still 403. xrepo has a draft only (no issues/dispatch).
+- No AWS apply/deploy, merge or main push.
+Report: docs/reports/RIS-ATS-AGENT-01-CONTINUATION-01.md
