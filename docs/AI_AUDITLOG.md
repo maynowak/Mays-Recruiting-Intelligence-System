@@ -10221,3 +10221,27 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
   data or consent history was logged. Production status is not claimed.
 - Deployment and live smoke require separate approval. Report:
   `docs/reports/XREPO-RIS-CONSENT-RECOVERY-01.md`.
+
+## 2026-11-17 — RIS-CONSENT-DEPLOYMENT-UNBLOCK-03
+
+**Status:** `C — ADDITIONAL DECISION REQUIRED` / `0 add, 9 change, 0 destroy`
+
+- Read-only live check: `ris-dev-dev-agent` still runs `application-storage/1.0`
+  as `DRAFT` (LastModified `2026-11-16T19:35:14Z`, CodeSha256
+  `9p67rKjkp0h0DAFS6Kht/GN5tc7YImQjjAnXw56Ub8A=`).
+- Identified missing site-specific bindings for existing agent/result transport,
+  IAM policies, S3-CORS and result env. Added the existing RG values to
+  `installer/project-configs/ris-dev.json`, wired transport values through the
+  root/modules, moved the legacy Orders dispatch IAM policy to a root resource,
+  and restored the documents CORS contract. No consent enforcement/allowlist
+  changes.
+- Final plan: `0 add / 9 change / 0 destroy / 0 replace`, SHA-256
+  `aa7ec40ee2ccaa79942ba3c573c7c7c2d8e7e03c16d8dcab3725cca6d1433eb5`.
+  Remaining decision: the existing Orders handler env `ORDER_DISPATCH_QUEUE_URL`
+  would be removed because the current generated Orders module does not emit it.
+  No apply or deployment.
+- Tests: focused Terraform/security **57 passed / 8 skipped**; full RIS
+  **2628 passed / 104 skipped / 5 failed** (known baseline; clean main six).
+  `terraform fmt`/`validate` PASS.
+- Auth remains blocked (no valid authorized test token/identity); no production
+  verification claimed. Report: `docs/reports/RIS-CONSENT-DEPLOYMENT-UNBLOCK-03.md`.
