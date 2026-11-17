@@ -10463,3 +10463,20 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
 - Old `e9bc7157…` and `153d1212…` plans are SUPERSEDED. No apply, state push,
   import/remove or deployment. Shared report:
   `docs/reports/RIS-CONSENT-PILOT-RELEASE-06.md`.
+
+## 2026-11-17 — RIS-CONSENT-PILOT-APPLY-07
+
+**Status:** `PREPARED — AWAITING EXPLICIT GO APPLY`
+
+- Re-verified the approved plan `e62370c0…` against `ris-dev` state serial
+  80 / lineage `9cec61e5…`: **1 add / 5 change / 0 destroy / 0 replace**,
+  no state write, ETag unchanged.
+- Add is only the partner erasure route; changes are the agent/dispatch code,
+  four consent env keys, `APPLICATION_CONSENT_ENFORCED` false→true and
+  artifact-path updates. No IAM/Cognito/DNS/data-store changes.
+- Existing pilot allowlist matches the plan (2 entries, values not logged);
+  application/CV/search notices remain limited-pilot approved. No new
+  identities or approvals.
+- No apply, post-apply plan, live E2E or deployment. Waiting for exact
+  `GO APPLY e62370c0536af74b630a810585d95b12fba637a79ba428a13447b01ec07d1b68`.
+  Report: `docs/reports/RIS-CONSENT-PILOT-APPLY-07.md`.
