@@ -142,8 +142,8 @@ class JointConsentE2ETests(unittest.TestCase):
         self.assertEqual("GRANTED", granted["status"])
         self.assertEqual(1, granted["version"])
         self.assertEqual(NOTICE_VERSION, granted["noticeVersion"])
-        self.assertEqual("DRAFT", granted["noticeState"])
-        self.assertFalse(granted["noticeApproved"])
+        self.assertEqual("APPROVED", granted["noticeState"])
+        self.assertTrue(granted["noticeApproved"])
         self.assertIsNone(self._handler_gate())
 
         # 3) Create -> allowed.
