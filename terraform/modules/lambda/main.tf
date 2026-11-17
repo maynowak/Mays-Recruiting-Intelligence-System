@@ -240,7 +240,8 @@ resource "aws_iam_role_policy" "lambda_dynamodb_partner_profiles" {
           "dynamodb:Query",
           "dynamodb:DeleteItem",
           "dynamodb:UpdateItem",
-          "dynamodb:TransactWriteItems"
+          "dynamodb:TransactWriteItems",
+          "dynamodb:ConditionCheckItem"
         ]
         Resource = [
           var.partner_profiles_table_arn,

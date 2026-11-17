@@ -80,6 +80,14 @@ def test_consent_table_and_rollout_default():
                      variables)
 
 
+def test_partner_profile_policy_allows_transaction_condition_checks():
+    module = (ROOT / "terraform" / "modules" / "lambda" / "main.tf").read_text(
+        encoding="utf-8")
+    policy = module[module.index('resource "aws_iam_role_policy" "lambda_dynamodb_partner_profiles"'):
+                    module.index('resource "aws_iam_role_policy" "lambda_dynamodb_applications"')]
+    assert '"dynamodb:ConditionCheckItem"' in policy
+
+
 def test_consent_gate_wiring_is_explicit_and_defaults_off():
     root_vars = (ROOT / "terraform" / "variables.tf").read_text(encoding="utf-8")
     module_vars = (ROOT / "terraform" / "modules" / "lambda" / "variables.tf").read_text(
