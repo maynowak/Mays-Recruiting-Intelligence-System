@@ -40,6 +40,7 @@ def test_partner_surface_closed_for_every_partner_path(monkeypatch):
         "/v1/partner/me/cvs",
         "/v1/partner/me/privacy/inspect",
         "/v1/partner/me/search-profiles/s1/ats-profiles",
+        "/v1/partner/me/erasure",
     ):
         assert handler.lambda_handler(_event(path), None)["statusCode"] == 503
 
