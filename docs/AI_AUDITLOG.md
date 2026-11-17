@@ -10585,5 +10585,19 @@ Date: 2026-11-17
 
 Report: docs/reports/RIS-ATS-TRANSPORT-APPLY-05.md
 
+[RIS-ATS-ORDER-DISPATCH-LINK-06 / LOCAL INTEGRATION + PLAN]
+Status: IMPLEMENTED / TESTED locally / PLAN REVIEWED. No AWS apply.
+Date: 2026-11-17
+- Reused the existing agentOrder contract, Transport V1, dispatch ingress, pipeline/ATS agent, result forwarder and Orders consumer. No new queue architecture; the existing RIS dispatch module was enabled.
+- Dispatch ingress (df909c9): production API profile store is read via get_profile and ownerUserId; test doubles with get()/userId remain compatible.
+- Reader (4fb5b88): explicit agent.execution branch validates the agent order, rejects mixed retail/agent bodies and unknown orderType, requires requestId/apiProfileRef, authorizes the profile owner against the JWT sub and tenant, persists agentOrder/fingerprint/expectedWorkId/dispatch, and sends a validated ORDER_DISPATCH to RIS_DISPATCH_QUEUE_URL. Retail stays on the retail path. Reader bundle ships the flat order_transport/agent_order contracts.
+- Infra (5d4a3c8): dispatch queue/ingress enabled, reader env RIS_DISPATCH_QUEUE_URL/API_PROFILES_TABLE + SendMessage/GetItem, ingress result env ORDER_RESULT_* + send/secret IAM.
+- Tests (8820ad9): bridge env restored, reader privacy literal removed. Local E2E 6, reader 35, ingress 16, cross-repo 192, Orders 225, full RIS 2654 passed / 134 skipped with the same 29 pre-existing failures and 4 collection errors.
+- New plan sha256 6E2A1077E1459B74A015E91518CB1B302817DD9329337A18EDDEA4BCF89ED17C: 24 add, 4 change, 0 destroy, 0 replace; state serial 58 unchanged; no Cognito/CloudFront/DNS/ACM/S3 change, no secret_version.
+- Remaining: API profile + entitlement rows, test identity (0 users), secret value after apply, ATS base URL, visibility/DLQ alarm/ORDER_FAILED, partner-execute remains a separate non-order path.
+- Decision: conditional GO for the expanded infrastructure apply; NO-GO for partner traffic/product acceptance until identity, profile, entitlement and secret are verified.
+
+Report: docs/reports/RIS-ATS-ORDER-DISPATCH-LINK-06.md
+
 Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
 
