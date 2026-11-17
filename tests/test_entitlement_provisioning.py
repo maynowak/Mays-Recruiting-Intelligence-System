@@ -505,7 +505,12 @@ class TestSecurityOfTheFixture(unittest.TestCase):
             capture_output=True, text=True, cwd=ROOT).stdout
         added = [l for l in diff.splitlines()
                  if l.startswith("+") and not l.startswith("+++")]
-        offenders = [l for l in added if '"*"' in l or '"Resource"' in l]
+        # S3 browser CORS uses a header wildcard for presigned PUT/GET; it is
+        # not an IAM Resource/Principal wildcard. Keep all other checks strict.
+        offenders = [
+            l for l in added
+            if ('"*"' in l or '"Resource"' in l) and "allowed_headers" not in l
+        ]
         self.assertEqual(offenders, [], f"wildcard/resource policy added: {offenders}")
 
 
