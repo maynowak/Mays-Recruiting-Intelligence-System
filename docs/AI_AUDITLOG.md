@@ -10402,3 +10402,24 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
 - Existing plan `153d1212…` is valid for state 80 but restores no route
   (0 add / 5 change / 0 destroy). No apply, state push, import or deployment.
 - Shared report: `docs/reports/RIS-STATE-INVENTORY-01.md`.
+
+## 2026-11-17 — RIS-ERASURE-RECOVERY-02
+
+**Status:** `PLAN READY — NO APPLY`
+
+- Restored `POST /v1/partner/me/erasure` in
+  `terraform/modules/partner_edge` using the last working route shape; added
+  the existing-handler dispatch in `lambda/handler.py`. No new deletion
+  architecture, IAM, Cognito or DNS change.
+- Feature branch `feature/ris-erasure-recovery-02`, commit `70a9fb9`.
+  Focused route/privacy 46 PASS; erasure/consent 143 PASS; full RIS 2827 PASS /
+  104 skipped / 18 known baseline failures; fmt/validate PASS.
+- New plan `/tmp/opencode/ris-erasure-recovery-02.tfplan`, SHA-256
+  `e9bc7157b451287248bc08fb2035e52249cbf94aaff4539c5a267cada9988822`,
+  state serial 80, lineage `9cec61e5…`: **1 add / 5 change / 0 destroy /
+  0 replace**. Old `153d1212…` is SUPERSEDED.
+- The add is the missing API Gateway route (`c7e9pdwe78`, authorizer
+  `e6inno`, target `integrations/anl98ns`); no IAM/env changes. Consent
+  gate variables remain unwired and are not activated by this plan.
+- No Terraform apply, state push/import/remove or deployment. Shared report:
+  `docs/reports/RIS-ERASURE-RECOVERY-02.md`.
