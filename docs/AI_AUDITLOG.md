@@ -10477,3 +10477,17 @@ Date: 2026-11-17
 
 Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
 
+[RIS-ATS-RESULT-TRANSPORT-GATE-01 / PHASE C — READINESS + PLAN]
+Status: PLAN REVIEWED / NO APPLY / HARD STOP.
+Date: 2026-11-17
+- Identity: default profile resolves to arn:aws:iam::262370457690:user/devnemo in eu-central-1; no profile named devnemo exists and none was created.
+- Backend: bucket ris-dev2-tf-state-dev, key env:/ris-dev2/dev/terraform.tfstate, lock table ris-dev2-tf-lock, workspace ris-dev2, lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082, serial 58 before and after the plan, no active lock.
+- Pin dad69ea28e8b952a8e76e9dfb4fb163f7a979b52 with a clean pinned worktree; generated module rebuilt and contract-checked (23 outputs).
+- Bundles rebuilt twice with identical hashes: agent 8462e5de6abb65b2..., reader 417e5b5f583e4f37...
+- Plan (sha256 C6EFB189F0F161304186E20E28A2BAA074CF5AED213B03CF4DA32C2BFE22FE1F): 13 add, 2 change (worker and reader Lambda code/env), 0 destroy, 0 replace. No Cognito, CloudFront, DNS or ACM action. No secret_version and no secret value in the plan.
+- The first two plan attempts were rejected and corrected: count on unknown ARNs is invalid (now gated by the plan-known boolean), and a stale project overlay would have destroyed the Cognito M2M client/resource server and enabled OAuth (now aligned to live).
+- Open blockers for the apply gate: secret value must be set out-of-band as a bare hex string; RIS reader pins the RIS pool while Orders has its own pool (orders created directly via the Orders API stay 404 until a scoped identity change); the Orders adapter default base URL points to a deleted API; no ORDER_FAILED forwarding; result queue visibility 60s vs consumer timeout 30s.
+- Recommendation: separate apply gate only with a freshly regenerated plan against the approved commit, secret value pre-set, and the 13/2/0/0 check repeated.
+
+Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
+

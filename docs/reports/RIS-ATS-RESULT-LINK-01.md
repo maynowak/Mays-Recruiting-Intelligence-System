@@ -2,6 +2,11 @@
 
 **Status:** Lokale Implementierung, Tests und Commits abgeschlossen. Kein AWS
 Apply, kein Deployment, kein Merge, kein Push auf `main`.
+
+> **Superseded (2026-11-17):** Die Blocker 1-3 und die Infrastruktur-Abschnitte
+> 7A/7B sind durch `RIS-ATS-RESULT-TRANSPORT-GATE-01` lokal vorbereitet:
+> `docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md`. Dieses Dokument bleibt als
+> historische Evidenz unveraendert.
 **Datum:** 2026-11-17
 **Branch:** `feature/ris-dev2-ats-agent-pinned-core-01`
 **Konto/Workspace (unverändert):** `262370457690` / `ris-dev2`
