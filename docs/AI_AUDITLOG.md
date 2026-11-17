@@ -10423,3 +10423,21 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
   gate variables remain unwired and are not activated by this plan.
 - No Terraform apply, state push/import/remove or deployment. Shared report:
   `docs/reports/RIS-ERASURE-RECOVERY-02.md`.
+
+## 2026-11-17 — RIS-CONSENT-RELEASE-GATE-05
+
+**Status:** `BLOCKED — Plan sauber / Consent-Gate-Aktivierung fehlt`
+
+- Final review of the unchanged plan `e9bc7157…`: state serial 80, **1 add /
+  5 change / 0 destroy / 0 replace**. The add is only
+  `POST /v1/partner/me/erasure` (`c7e9pdwe78`, authorizer `e6inno`).
+- Five Lambda updates are expected: agent and dispatch code hash change;
+  reader/health writer/publisher are filename/artifact-path updates only.
+  No env-key, IAM, Cognito, DNS, data-store or secrets changes.
+- Consent notices are complete and operator-approved for the limited pilot;
+  no general legal approval is documented. Terraform main/live still do not
+  wire CV/search/notice/pilot gates; the plan adds no env keys. No activation
+  was invented or performed.
+- No code/Terraform change and no new plan; old `153d1212…` remains
+  SUPERSEDED. State unchanged; no apply/deployment/main merge.
+- Shared report: `docs/reports/RIS-CONSENT-RELEASE-GATE-05.md`.
