@@ -10267,3 +10267,29 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
 - No AWS/Terraform apply, no deployment, no Main merge. Authenticated live E2E
   remains blocked by missing valid test identity/token; no production status
   claimed. Report: `docs/reports/RIS-CONSENT-DEPLOYMENT-UNBLOCK-04.md`.
+
+## 2026-11-17 — RIS-CONSENT-RELEASE-05
+
+**Status:** `READY FOR CONTROLLED APPLY` / no apply
+
+- PR #12 merged regularly into `main` as
+  `00363977ede1417c4992933b2639ac442a70a4b0`; feature tree equals main tree.
+- No CI checks are configured/reported for RIS PR #12. No conflicts; no
+  force-push or history rewrite.
+- AWS identity verified: profile `mayaws`, account `240571105849`, region
+  `eu-central-1`, workspace `ris-dev`, state bucket `mays-ris-tf-state-dev`,
+  key `env:/ris-dev/dev/terraform.tfstate`, serial `78`, lineage
+  `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`. State unchanged; ETag
+  `a7d6a2155823ec8605585c68f38cca95`.
+- Final plan: **0 add / 8 change / 0 destroy / 0 replace**, SHA-256
+  `512532f73b7feb6563eeea9ac4bc84e1bb713b90365c87e2f65849e4404bd09c`.
+  Eight expected Lambda bundle updates; no IAM-policy change, no lost Lambda
+  env, no Cognito/CloudFront/DNS change.
+- Agent bundle contains `application-storage/1.0 = APPROVED` and
+  `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`. Health bundles are unchanged
+  live artifacts; exact hashes documented in the release report.
+- Tests: focused Terraform/security 58 PASS / 8 skipped; full RIS 2629 PASS /
+  104 skipped / 5 known baseline failures; fmt/validate PASS.
+- No Terraform apply, deployment or Production verification. Authenticated
+  live E2E remains blocked by missing valid test identity/token.
+- Report: `docs/reports/RIS-CONSENT-RELEASE-05.md`.
