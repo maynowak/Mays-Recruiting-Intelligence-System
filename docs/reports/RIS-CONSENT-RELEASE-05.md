@@ -219,3 +219,22 @@ GET https://www.mays-job-matcher.app/api/ris/consents -> 401 unauthenticated
 
 Keine authentifizierte Consent-E2E; keine Testidentität/Token verfügbar.
 Keine Production-Wiederherstellung oder allgemeine Freigabe behauptet.
+
+## 13. Jobsearch consumer / cross-repo status
+
+Die Jobsearch-Seite benötigt **keine Produktänderung**:
+
+- `StorageConsentLive` und der BFF `/api/ris/consents` konsumieren weiterhin
+  den bestehenden RIS-Vertrag.
+- Die neue RIS-Lambda liefert `application-storage/1.0 = APPROVED`.
+- Der BFF bleibt fail-closed und prüft `noticeState`, `noticeApproved` und
+  `acceptedForNewGrant`; es wurde kein Gate abgeschwächt.
+- Ein unauthentifizierter Production-Smoke auf
+  `https://www.mays-job-matcher.app/api/ris/consents` liefert weiterhin
+  `401 unauthenticated`, nicht `503`.
+- Die authentifizierte Limited-Beta-E2E bleibt ein separates Gate; ohne
+  autorisierte Testidentität/Token wird keine Production-Wiederherstellung
+  behauptet.
+- Jobsearch-Dokumentation und Auditlog werden im Jobsearch-Repository
+  gespiegelt; keine Jobsearch-Produkt-, RIS-, AWS-, Terraform-, Cognito-,
+  CloudFront- oder DNS-Änderung.
