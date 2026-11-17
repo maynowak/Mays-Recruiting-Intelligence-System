@@ -6,7 +6,11 @@ Main-Merge.**
 **Datum:** 2026-11-17
 **RIS-Branch / HEAD:** `feature/ris-dev2-ats-agent-pinned-core-01` / `206f222`
 **Orders-Branch / HEAD:** `fix/order-result-signature-domain-01` / `016cdfd`
-(lokal, nicht gepusht)
+
+> **Nachtrag (RELEASE-READY-04):** Der Branch wurde nach `origin` gepusht
+> (`016cdfd`), `main` blieb unverändert. Die Aussagen „lokal, nicht gepusht" in
+> diesem Dokument sind historisch; aktueller Stand:
+> `docs/reports/RIS-ATS-TRANSPORT-RELEASE-READY-04.md`.
 
 ## 1. Commits
 

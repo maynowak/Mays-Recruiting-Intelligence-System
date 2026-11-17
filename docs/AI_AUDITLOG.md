@@ -10547,5 +10547,19 @@ Date: 2026-11-17
 
 Report: docs/reports/RIS-ATS-TRANSPORT-CONSUMER-FIX-03.md
 
+[RIS-ATS-TRANSPORT-RELEASE-READY-04 / PUBLISHED BASELINE]
+Status: PUBLISHED + PLAN REVIEWED / NO APPLY.
+Date: 2026-11-17
+- Orders fix published: branch fix/order-result-signature-domain-01 at 016cdfd6ac62565dcec9a2fee78cb898fb919e59 pushed to origin; remote main unchanged at 1eaa14ec5ed652a34e1dae4775e0b298be708a6c, no tags on the fix commit.
+- Orders lambda suite 225 passed locally and in a fresh clone. Fresh clone rebuild of lambda/dist/lambda.zip is byte-identical: 48ddd5e52d07b40fc333b67e5e34fb1b67701cf823536e20c7b2816a78a05f94.
+- RIS pin and PINNED_COMMIT are 016cdfd. Module built from the fresh clone via a temporary junction (local clone restored): manifest source 016cdfd, artifact 48ddd5e5..., 23 outputs. RIS bundles agent 4a6603e0..., reader 417e5b5f..., deterministic.
+- Cross-repo tests with fresh clone and generated module: 91 passed. Full RIS suite 2640 passed / 128 skipped / 434 subtests with the same 29 pre-existing failures and 4 collection errors.
+- Plan reconciliation: STS arn:aws:iam::262370457690:user/devnemo, workspace ris-dev2, backend ris-dev2-tf-state-dev / env:/ris-dev2/dev/terraform.tfstate, lineage a0bd361d-..., serial 58 before and after, no active lock. Plan sha256 B6A167308A1FAABBD29C8F13F34F1D05E9FE11A457D9E195DE11D45897D85011: 13 add, 4 change, 0 destroy, 0 replace; no Cognito/CloudFront/DNS/ACM/S3 change, no secret_version.
+- Upstream risk recorded: the Orders fix branch is based on the deployed dad69ea baseline, while origin/main is far ahead and has replaced the result-consumer contract. Any future pin bump toward main requires a producer rework; the current pin remains coherent with the deployed module.
+- Remaining blockers: secret value after apply; no test identity (both pools empty, m2m rejected); ORDERS_ID_TOKEN unset; visibility 60s vs 30s; no ORDER_FAILED; no DLQ alarm; Orders fix not merged to main (intentional).
+- Decision: conditional GO for the transport apply; NO-GO for partner traffic until secret and identity exist.
+
+Report: docs/reports/RIS-ATS-TRANSPORT-RELEASE-READY-04.md
+
 Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
 
