@@ -17,7 +17,7 @@ Apply, Secret-Write, Benutzeranlage, Deployment, Merge oder Push.**
 | Lineage / Serial | `a0bd361d-5cd1-a207-a8c0-e6888f0be082` / **58** |
 | Pin / Clone / Manifest | `016cdfd` / clean / `source.commit=016cdfd`, Zip `48ddd5e5…`, 23 Outputs |
 | Bundles | Agent `5258c99e…`, Reader `55366e35…` (zweiter Build identisch) |
-| **Plan-SHA-256** | **`E11732AD9F31C1874E43231DA43987A2E7F1D607ADE41A571D91DB0F922AC70D`** |
+| **Plan-SHA-256** | **`2EEC7310FD4B642BA70A639C7EC698A183ADD797495D658E08F2988964CEAD04`** |
 | Aktionen | **24 add / 4 change / 0 destroy / 0 replace** |
 
 **24 Adds:** 13 aus dem bisherigen Transportplan (Catalog-Seed `ats-agent`,
