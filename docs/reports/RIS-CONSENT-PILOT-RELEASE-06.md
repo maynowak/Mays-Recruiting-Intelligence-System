@@ -151,6 +151,10 @@ SUPERSEDED:
 Es wurde noch kein Apply ausgeführt. State-ETag und LastModified sind
 unverändert.
 
+Apply nur aus dem vorbereiteten Worktree mit dem aus dem gepinnten
+Mays-Orders-Builder erzeugten `terraform/modules/mays_orders`; nicht aus
+einem frischen Checkout ohne generiertes Modul.
+
 ## 8. Grenzen
 
 - Nur bestehender Limited-Beta-Pilot; keine allgemeine Produktionsfreigabe.
