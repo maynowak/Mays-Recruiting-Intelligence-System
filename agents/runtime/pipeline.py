@@ -566,22 +566,27 @@ def process_record(
                 work["workId"],
                 item.get("status"),
             )
+            delivery = None
             if item.get("status") == "COMPLETED":
                 # Crash window between persist and send: re-emit the same
                 # deterministic ORDER_RESULT; the Order side de-duplicates.
-                _forward_order_result(
+                delivery = _forward_order_result(
+                    table=table,
                     item=item,
                     attempt=int(item.get("attempt_no") or 1),
                     result=item.get("result"),
                     sender=result_sender,
                 )
-            return {
+            response = {
                 "workId": work["workId"],
                 "status": item.get("status"),
                 "duplicate": True,
                 "attempt_no": item.get("attempt_no", 1),
                 "result_reference": item.get("result_reference"),
             }
+            if delivery is not None:
+                response["order_result_delivery"] = delivery
+            return response
         if item.get("status") != "FAILED":
             raise RuntimeError("WORK_ADMISSION_STATE_UNSAFE")
         try:
@@ -716,6 +721,7 @@ def process_record(
         raise
 
     terminal = False
+    delivery = None
     if not result.get("success", False):
         error = result.get("error", {"message": "Agent meldete Fehler"})
         _health("record_failure",
@@ -742,10 +748,11 @@ def process_record(
                 agent_id=decision.agent_id,
                 attempt_id=str(attempt))
         _persist_result(table, work["workId"], attempt, result)
-        _forward_order_result(
-            item=item, attempt=attempt, result=result, sender=result_sender)
+        delivery = _forward_order_result(
+            table=table, item=item, attempt=attempt, result=result,
+            sender=result_sender)
 
-    return {
+    response = {
         "workId": work["workId"],
         "status": "COMPLETED" if result.get("success", False) else ("DEAD_LETTER" if terminal else "FAILED"),
         "duplicate": False,
@@ -755,6 +762,9 @@ def process_record(
         "result_reference": f"work:{work['workId']}:attempt:{attempt}",
         "result": result,
     }
+    if delivery is not None:
+        response["order_result_delivery"] = delivery
+    return response
 
 
 def _result_body(stored: Any) -> Any:
@@ -790,26 +800,77 @@ def _resolve_result_sender() -> Optional[Any]:
     return make_sender(url, arn)
 
 
-def _forward_order_result(*, item: Dict[str, Any], attempt: int,
-                          result: Any, sender: Optional[Any] = None) -> None:
-    """Forward a completed order work item via Transport V1, fail-closed."""
-    if not item.get("orderId"):
+def _record_result_delivery(table: Any, work_id: str, *, status: str,
+                            attempt: int,
+                            message_id: Optional[str] = None,
+                            code: Optional[str] = None) -> None:
+    """Persist the transport outcome next to the completed work item.
+
+    ``COMPLETED`` only proves that the agent result was persisted. This marker
+    makes the difference to "handed to SQS" observable without changing the
+    work lifecycle. It is best effort: a marker failure must never turn a
+    successful send into a redelivery.
+    """
+    if table is None or not work_id:
         return
+    marker: Dict[str, Any] = {
+        "status": status,
+        "attempt": int(attempt),
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    if message_id:
+        marker["messageId"] = message_id
+    if code:
+        marker["code"] = code
+    try:
+        table.update_item(
+            Key={"workId": work_id},
+            UpdateExpression="SET #delivery = :delivery",
+            ExpressionAttributeNames={
+                "#delivery": "orderResultDelivery"},
+            ExpressionAttributeValues={":delivery": marker},
+            ConditionExpression="attribute_exists(workId)",
+        )
+    except Exception as exc:  # noqa: BLE001 - observability only
+        logger.warning(
+            "order result delivery marker not persisted: %s",
+            type(exc).__name__)
+
+
+def _forward_order_result(*, table: Any, item: Dict[str, Any], attempt: int,
+                          result: Any,
+                          sender: Optional[Any] = None) -> str:
+    """Forward a completed order work item via Transport V1, fail-closed.
+
+    Returns the delivery outcome: ``SENT``, ``NOT_CONFIGURED``, ``SKIPPED``
+    or ``REJECTED``. Only a sender exception is re-raised (SQS redelivery).
+    """
+    work_id = item.get("workId", "")
+    if not item.get("orderId"):
+        return "NOT_ORDER"
     if not item.get("correlationId"):
         logger.warning("order result not forwarded: missing correlationId")
-        return
+        _record_result_delivery(table, work_id, status="SKIPPED",
+                                attempt=attempt, code="missing_correlation")
+        return "SKIPPED"
     if not item.get("apiProfileId"):
         logger.warning("order result not forwarded: missing apiProfileId")
-        return
+        _record_result_delivery(table, work_id, status="SKIPPED",
+                                attempt=attempt, code="missing_api_profile")
+        return "SKIPPED"
     sender = sender if sender is not None else _resolve_result_sender()
     if sender is None:
         logger.warning(
             "order result not forwarded: result transport not configured")
-        return
+        _record_result_delivery(table, work_id, status="NOT_CONFIGURED",
+                                attempt=attempt, code="transport_not_configured")
+        return "NOT_CONFIGURED"
     body = _result_body(result)
     if not isinstance(body, dict):
         logger.warning("order result not forwarded: result body is not an object")
-        return
+        _record_result_delivery(table, work_id, status="REJECTED",
+                                attempt=attempt, code="invalid_result")
+        return "REJECTED"
     from agents.transport import (
         ORDER_RESULT,
         TransportError,
@@ -825,10 +886,22 @@ def _forward_order_result(*, item: Dict[str, Any], attempt: int,
         )
         validate_envelope(envelope, expected_type=ORDER_RESULT)
     except TransportError as exc:
-        logger.error(
-            "order result not forwarded: %s", getattr(exc, "code", "transport"))
-        return
-    sender(envelope)
+        code = getattr(exc, "code", "transport")
+        logger.error("order result not forwarded: %s", code)
+        _record_result_delivery(table, work_id, status="REJECTED",
+                                attempt=attempt, code=code)
+        return "REJECTED"
+    try:
+        sender(envelope)
+    except Exception as exc:
+        _record_result_delivery(table, work_id, status="RETRYING",
+                                attempt=attempt,
+                                message_id=envelope.get("messageId"),
+                                code=type(exc).__name__)
+        raise
+    _record_result_delivery(table, work_id, status="SENT", attempt=attempt,
+                            message_id=envelope.get("messageId"))
+    return "SENT"
 
 
 def _resolve_table() -> Any:  # pragma: no cover - live Pfad (Env), Tests injizieren Fake

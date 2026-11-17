@@ -164,7 +164,7 @@ def _identity(event: Dict[str, Any]):
     if not isinstance(subject, str) or not subject.strip():
         return None, _err(401, "UNAUTHORIZED", "Missing verified subject")
     token_use = claims.get("token_use")
-    if token_use is not None and token_use not in ("id", "access"):
+    if token_use not in ("id", "access"):
         return None, _err(401, "UNAUTHORIZED", "Invalid token use")
     if _normalize_issuer(issuer) != _normalize_issuer(issuer_config):
         return None, _err(401, "UNAUTHORIZED", "Issuer mismatch")
@@ -267,13 +267,23 @@ def _public(item: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _list_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    if item.get("orderType") == "agent.execution":
+        # Agent orders carry no retail fields; mirror the Orders-side list
+        # projection instead of raising KeyError on customer/totalAmount.
+        return {
+            "orderId": item["orderId"],
+            "orderType": item["orderType"],
+            "status": item["status"],
+            "createdAt": item.get("createdAt"),
+            "updatedAt": item.get("updatedAt"),
+        }
     return {
         "orderId": item["orderId"],
         "status": item["status"],
         "customer": {"name": item["customer"]["name"]},
         "totalAmount": item["totalAmount"],
-        "createdAt": item["createdAt"],
-        "updatedAt": item["updatedAt"],
+        "createdAt": item.get("createdAt"),
+        "updatedAt": item.get("updatedAt"),
     }
 
 
@@ -340,11 +350,14 @@ def _update_status(table: Any, order_id: str, new_status: str,
             UpdateExpression=(
                 "SET #status = :newStatus, updatedAt = :now, "
                 "#version = #version + :one"),
-            ConditionExpression="attribute_exists(pk) AND #status = :currentStatus",
+            ConditionExpression=(
+                "attribute_exists(pk) AND #status = :currentStatus "
+                "AND ownerKey = :ownerKey"),
             ExpressionAttributeNames={"#status": "status", "#version": "version"},
             ExpressionAttributeValues={
                 ":newStatus": new_status,
                 ":currentStatus": raw.get("status"),
+                ":ownerKey": identity["ownerKey"],
                 ":now": now,
                 ":one": 1,
             },
@@ -508,7 +521,11 @@ def handler(event: Dict[str, Any], context: Any, table: Any = None) -> Dict[str,
                         "body": json.dumps({"error": payload})}
             return _ok(200, payload)
         return _err(400, "VALIDATION_ERROR", f"Unsupported route: {route}")
-    except PublicPayloadError:
+    except PublicPayloadError as exc:
+        # The message carries only the field path, never the value.
+        import sys
+
+        print(f"Stored order withheld: {exc}", file=sys.stderr)
         return _err(500, "INTERNAL_ERROR", "Stored order is not releasable")
     except Exception as exc:  # pragma: no cover - letzte Sicherung
         import sys

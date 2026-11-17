@@ -431,6 +431,12 @@ class TestOrderResultForwarding(unittest.TestCase):
         self.assertEqual(envelope["payload"],
                          {"left": 17, "right": 25, "sum": 42})
         self.assertNotIn("success", envelope["payload"])
+        # COMPLETED alone does not prove delivery; the marker does.
+        row = table.items["work-order-1"]
+        self.assertEqual(row["status"], "COMPLETED")
+        self.assertEqual(row["orderResultDelivery"]["status"], "SENT")
+        self.assertEqual(row["orderResultDelivery"]["messageId"],
+                         envelope["messageId"])
 
     def test_non_order_work_is_not_forwarded(self):
         table = FakeTable()
@@ -449,6 +455,9 @@ class TestOrderResultForwarding(unittest.TestCase):
         process_record(record(work), table=table, registry=registry,
                        body=body, result_sender=sent.append)
         self.assertEqual(sent, [])
+        marker = table.items["work-order-1"]["orderResultDelivery"]
+        self.assertEqual(marker["status"], "SKIPPED")
+        self.assertEqual(marker["code"], "missing_correlation")
 
     def test_no_result_transport_configuration_skips(self):
         table = FakeTable()
@@ -459,7 +468,10 @@ class TestOrderResultForwarding(unittest.TestCase):
         }):
             process_record(record(self._work()), table=table, registry=registry,
                            body=body)
-        self.assertEqual(table.items["work-order-1"]["status"], "COMPLETED")
+        row = table.items["work-order-1"]
+        self.assertEqual(row["status"], "COMPLETED")
+        self.assertEqual(row["orderResultDelivery"]["status"],
+                         "NOT_CONFIGURED")
 
     def test_sender_failure_keeps_row_completed_and_raises(self):
         table = FakeTable()
@@ -471,7 +483,9 @@ class TestOrderResultForwarding(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             process_record(record(self._work()), table=table, registry=registry,
                            body=body, result_sender=failing_sender)
-        self.assertEqual(table.items["work-order-1"]["status"], "COMPLETED")
+        row = table.items["work-order-1"]
+        self.assertEqual(row["status"], "COMPLETED")
+        self.assertEqual(row["orderResultDelivery"]["status"], "RETRYING")
 
     def test_duplicate_delivery_reemits_the_same_result(self):
         table = FakeTable()
@@ -484,6 +498,9 @@ class TestOrderResultForwarding(unittest.TestCase):
         self.assertEqual(len(sent), 2)
         self.assertEqual(sent[0]["idempotencyKey"], sent[1]["idempotencyKey"])
         self.assertEqual(sent[0]["messageId"], sent[1]["messageId"])
+        self.assertEqual(
+            table.items["work-order-1"]["orderResultDelivery"]["status"],
+            "SENT")
 
 
 if __name__ == "__main__":

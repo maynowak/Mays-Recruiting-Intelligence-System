@@ -367,6 +367,17 @@ Statuswerte: `PENDING`, `CONFIRMED`, `PROCESSING`, `SHIPPED`, `DELIVERED`,
 `CONFIRMED→{PROCESSING,CANCELLED}`, `PROCESSING→{SHIPPED}`, `SHIPPED→{DELIVERED}`;
 `DELIVERED` und `CANCELLED` sind Endzustände.
 
+Transport-Semantik (RIS-ATS-RESULT-TRANSPORT-GATE-01): `processing.status =
+COMPLETED` belegt, dass Orders ein Agent-Result konsumiert und unter
+`processing.result` abgelegt hat. Es ist kein Liefer- und kein Versandstatus:
+der fachliche Order-Status wechselt ausschliesslich ueber
+`PATCH /orders/{orderId}/status` (`PROCESSING -> SHIPPED -> DELIVERED`).
+Auf RIS-Seite trennt `orderResultDelivery.status` auf der Work-Row
+(`SENT`, `NOT_CONFIGURED`, `SKIPPED`, `REJECTED`, `RETRYING`) den
+WorkItem-Status `COMPLETED` von der tatsaechlichen Uebergabe an die
+Orders-Result-Queue. Ein `COMPLETED`-WorkItem ohne `SENT` gilt als nicht
+zugestellt.
+
 ## 4. Fehlerformat — zwei Formen, ehrlich benannt
 
 Das ist die wichtigste Korrektur gegenüber der alten Fassung.

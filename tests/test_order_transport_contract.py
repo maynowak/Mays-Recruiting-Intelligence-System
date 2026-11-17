@@ -454,3 +454,34 @@ class TestResultSenderSignature:
         assert sign_result("test-secret", "msg_1", '{"a":1}') == (
             "23ada4268ba9bf1b60ae5aed950c762b85689a9d93cce8d8ef0a9a6998a08e65")
 
+    def test_sender_keeps_decimals_numeric_and_signs_the_sent_body(self):
+        from decimal import Decimal
+
+        from agents.transport.order_result_sender import make_sender, sign_result
+
+        class FakeSqs:
+            def __init__(self):
+                self.sent = []
+
+            def send_message(self, **kwargs):
+                self.sent.append(kwargs)
+
+        class FakeSecrets:
+            def get_secret_value(self, SecretId):
+                return {"SecretString": "test-secret"}
+
+        sqs = FakeSqs()
+        sender = make_sender("https://sqs.example/queue", "arn:secret",
+                             sqs_client=sqs, secrets_client=FakeSecrets())
+        sender({
+            "messageId": "msg_work-1_order_result",
+            "payload": {"sum": Decimal("42"), "ratio": Decimal("0.5")},
+        })
+        call = sqs.sent[0]
+        assert '"sum":42' in call["MessageBody"]
+        assert '"ratio":0.5' in call["MessageBody"]
+        assert '"42"' not in call["MessageBody"]
+        assert call["MessageAttributes"]["serviceSignature"]["StringValue"] == (
+            sign_result("test-secret", "msg_work-1_order_result",
+                        call["MessageBody"]))
+

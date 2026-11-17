@@ -227,6 +227,32 @@ class TestOrdersReaderAuthorization(unittest.TestCase):
         self.assertEqual(table.last_query["ExpressionAttributeValues"][":owner"],
                          OWNER_KEY)
 
+    def test_get_without_token_use_returns_401(self):
+        table = FakeTable([ddb_like_order()])
+        claims = dict(DEFAULT_CLAIMS)
+        claims.pop("token_use")
+        resp = orders_reader.handler(
+            event("GET /orders/{orderId}", "ord_test1", claims=claims), None, table)
+        self.assertEqual(resp["statusCode"], 401)
+
+    def test_patch_condition_binds_the_owner(self):
+        table = FakeTable([ddb_like_order(status="CONFIRMED")])
+        captured = {}
+        original = table.update_item
+
+        def update_item(**kwargs):
+            captured.update(kwargs)
+            return original(**kwargs)
+
+        table.update_item = update_item
+        resp = orders_reader.handler(
+            event("PATCH /orders/{orderId}/status", "ord_test1",
+                  {"status": "CANCELLED"}), None, table)
+        self.assertEqual(resp["statusCode"], 200)
+        self.assertIn("ownerKey", captured["ConditionExpression"])
+        self.assertEqual(
+            captured["ExpressionAttributeValues"][":ownerKey"], OWNER_KEY)
+
     def test_patch_foreign_owner_returns_404_and_does_not_change(self):
         table = FakeTable([ddb_like_order(status="CONFIRMED")])
         claims = dict(DEFAULT_CLAIMS, sub="owner-2")
@@ -295,6 +321,20 @@ class TestOrdersReaderProjection(unittest.TestCase):
             "idempotencyKey", "workId", "messageId", "executionId",
         ):
             self.assertNotIn(forbidden, serialized)
+
+    def test_list_projects_agent_orders_without_retail_fields(self):
+        item = self._agent_order()
+        table = FakeTable([item])
+        resp = orders_reader.handler(
+            event("GET /orders", params={"limit": "10"}), None, table)
+        self.assertEqual(resp["statusCode"], 200)
+        body = json.loads(resp["body"])
+        self.assertEqual(body["count"], 1)
+        entry = body["orders"][0]
+        self.assertEqual(entry["orderType"], "agent.execution")
+        self.assertNotIn("customer", entry)
+        self.assertNotIn("totalAmount", entry)
+        self.assertEqual(entry["status"], "PROCESSING")
 
     def test_secret_shaped_result_returns_500_without_leak(self):
         item = ddb_like_order()

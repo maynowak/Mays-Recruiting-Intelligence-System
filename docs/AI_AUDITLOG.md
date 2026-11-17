@@ -10465,3 +10465,15 @@ Date: 2026-11-17
 
 Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
 
+[RIS-ATS-RESULT-TRANSPORT-GATE-01 / PHASE B — DELIVERY SEMANTICS + READ-BACK HARDENING]
+Status: LOCAL FIXES COMPLETE / NO APPLY.
+Date: 2026-11-17
+- COMPLETED is now explicitly separated from delivered: after the conditional result write, the worker records orderResultDelivery on the work row with SENT, NOT_CONFIGURED, SKIPPED, REJECTED or RETRYING plus attempt, messageId and reason code. The marker is best effort and never turns a successful send into a redelivery.
+- The crash window between result persistence and SQS send stays covered by the deterministic re-emit on COMPLETED duplicates. Missing configuration and permanent TransportError are now visible on the row instead of only in logs; sender errors still raise for redelivery/DLQ.
+- Fixed a real wire bug: DynamoDB Decimals were serialized as strings on the re-emit path ({"sum":"42"}), so the first body Orders ever received after a crash had the wrong types. The sender now uses a Decimal-aware JSON encoder; the signature still covers the exact sent body.
+- Reader: PATCH now binds ownerKey in the conditional update (no TOCTOU between precheck and write); token_use is required (id/access); GET /orders projects agent orders without retail fields instead of raising KeyError/500; withheld payloads log the field path only.
+- Tests: worker pipeline pins SENT/NOT_CONFIGURED/SKIPPED/RETRYING; the transport contract pins numeric Decimals and signature-over-body; the reader pins required token_use, owner-bound PATCH condition and agent-order list projection; the MO handoff pins that a delivered result records processing but never advances the order status.
+- Full suite 2638 passed / 128 skipped with the same 29 pre-existing failures and 4 collection errors; no new failure. No AWS apply.
+
+Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
+

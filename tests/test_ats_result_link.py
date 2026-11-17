@@ -300,7 +300,7 @@ class AtsResultLinkTest(unittest.TestCase):
             "correlationId": "corr-link1", "apiProfileId": "profile-a",
         }
         _forward_order_result(
-            item=item, attempt=1,
+            table=None, item=item, attempt=1,
             result={"success": True, "data": {"api_key": "ris_" + "A" * 47}},
             sender=self.sent.append)
         self.assertEqual(self.sent, [])

@@ -14,7 +14,23 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from decimal import Decimal
 from typing import Any, Callable, Dict, Optional
+
+
+def _json_default(value: Any) -> Any:
+    """Keep DynamoDB Decimals numeric on the wire (re-emit path).
+
+    Items read back from DynamoDB return every number as ``Decimal``. A plain
+    ``default=str`` would sign and send ``"42"`` instead of ``42``, so the first
+    body after a crash would differ in type from a fresh execution.
+    """
+    if isinstance(value, Decimal):
+        if value == value.to_integral_value():
+            return int(value)
+        return float(value)
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
 
 
 def sign_result(secret: str, message_id: str, body: str) -> str:
@@ -46,7 +62,7 @@ def make_sender(
         return cached_secret["value"]
 
     def _send(envelope: Dict[str, Any]) -> None:
-        body = json.dumps(envelope, separators=(",", ":"), default=str)
+        body = json.dumps(envelope, separators=(",", ":"), default=_json_default)
         signature = sign_result(_secret(), envelope["messageId"], body)
         client = sqs_client
         if client is None:

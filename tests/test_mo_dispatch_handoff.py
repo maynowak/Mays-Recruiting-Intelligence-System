@@ -96,6 +96,8 @@ class TestDispatchHandoff(unittest.TestCase):
         self.assertEqual(42, agent_result["data"]["sum"])
 
         result = self._result_envelope(validated, work_item, agent_result)
+        status_before_result = self.service.get_order(
+            self.order_id, self.alice)["status"]
         applied = self.service.apply_result(
             self.mo_result.validate_result_envelope(result))
         self.assertEqual(42, applied["result"]["sum"])
@@ -103,6 +105,9 @@ class TestDispatchHandoff(unittest.TestCase):
         owner_view = self.service.get_order(self.order_id, self.alice)
         self.assertEqual("COMPLETED", owner_view["processing"]["status"])
         self.assertEqual(42, owner_view["processing"]["result"]["sum"])
+        # A delivered result records processing, it never advances the fachliche
+        # order lifecycle (that stays PROCESSING until a status PATCH).
+        self.assertEqual(status_before_result, owner_view["status"])
 
     def test_work_id_is_stable_across_repeated_dispatch_attempts(self):
         first, _ = self._dispatch()
