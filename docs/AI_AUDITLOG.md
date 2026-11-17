@@ -10245,3 +10245,25 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
   `terraform fmt`/`validate` PASS.
 - Auth remains blocked (no valid authorized test token/identity); no production
   verification claimed. Report: `docs/reports/RIS-CONSENT-DEPLOYMENT-UNBLOCK-03.md`.
+
+## 2026-11-17 — RIS-CONSENT-DEPLOYMENT-UNBLOCK-04
+
+**Status:** `A — SAFE PLAN READY` / no apply
+
+- Variant B implemented on `feature/ris-consent-deployment-unblock-03`:
+  deterministic build adapter adds optional `ORDER_DISPATCH_QUEUE_URL` to the
+  generated Orders handler configuration; the existing `ris-dev` dispatch URL
+  is supplied from the site overlay. No Orders business logic/resource change.
+- Existing agent/result transport, IAM policies (legacy Orders dispatch policy
+  moved to root), S3-CORS and Lambda env are preserved. Consent enforcement,
+  pilot allowlist, Cognito, CloudFront and DNS unchanged.
+- Final plan: **0 add / 8 change / 0 destroy / 0 replace**, SHA-256
+  `b56bb49f122186ed1d64b002bff0ee59bebffbbefc24fc7150ae5aeb9d844fb6`.
+  No IAM-policy changes or lost Lambda env in the final plan.
+- Agent bundle contains `application-storage/1.0 = APPROVED` with
+  `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`.
+- Tests: focused Terraform/security **58 PASS / 8 skipped**; full RIS
+  **2629 PASS / 104 skipped / 5 known baseline failures**; fmt/validate PASS.
+- No AWS/Terraform apply, no deployment, no Main merge. Authenticated live E2E
+  remains blocked by missing valid test identity/token; no production status
+  claimed. Report: `docs/reports/RIS-CONSENT-DEPLOYMENT-UNBLOCK-04.md`.
