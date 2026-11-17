@@ -10535,5 +10535,17 @@ Date: 2026-11-17
 
 Report: docs/reports/RIS-ATS-TRANSPORT-CONSUMER-FIX-03.md
 
+[RIS-ATS-TRANSPORT-CONSUMER-FIX-03 / PHASE D — PLAN]
+Status: PLAN REVIEWED / NO APPLY.
+Date: 2026-11-17
+- Reconciliation: STS arn:aws:iam::262370457690:user/devnemo, workspace ris-dev2, orders_lifecycle managed, backend ris-dev2-tf-state-dev / env:/ris-dev2/dev/terraform.tfstate, lineage a0bd361d-..., serial 58 before and after, no active lock.
+- Generated module rebuilt from pin 016cdfd: manifest source matches, lambda/dist/lambda.zip sha256 48ddd5e5..., 23 outputs. RIS bundles rebuilt deterministically (agent 4a6603e0..., reader 417e5b5f...).
+- Plan sha256 69F5687CDB2B463DE8B4551A5ADEBD292F927530ACD9412AAACC5804D793A68B: 13 add, 4 change, 0 destroy, 0 replace. The two additional changes versus the previous gate are the Orders HTTP handler and SQS worker, each in-place with only source_code_hash because all three Orders Lambdas share lambda/dist/lambda.zip.
+- No Cognito, CloudFront, Route53/DNS, ACM or S3 change; no secret_version; no delete/replace.
+- Remaining: secret value only after apply; no test identity (both pools empty); ORDERS_ID_TOKEN unset; visibility 60s vs timeout 30s; no ORDER_FAILED; Orders fix commit not pushed.
+- Decision: conditional GO for the transport apply after the Orders fix commit is made available and the plan is regenerated; NO-GO for partner traffic until secret and identity are set.
+
+Report: docs/reports/RIS-ATS-TRANSPORT-CONSUMER-FIX-03.md
+
 Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
 
