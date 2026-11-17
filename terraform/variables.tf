@@ -348,6 +348,30 @@ variable "application_consent_enforced" {
   default     = false
 }
 
+variable "cv_storage_consent_enforced" {
+  description = "Enforce cv-storage consent on durable CV create/upload/update writes. Reads, downloads and deletion stay available."
+  type        = bool
+  default     = false
+}
+
+variable "search_profile_storage_consent_enforced" {
+  description = "Enforce search-profile-storage consent on manual, CV-search and ATS-profile create/update writes. Reads and deletion stay available."
+  type        = bool
+  default     = false
+}
+
+variable "consent_notice_state_enforced" {
+  description = "Reject new consent grants for non-grantable notice states (DRAFT/SUPERSEDED) in the Lambda runtime."
+  type        = bool
+  default     = false
+}
+
+variable "consent_pilot_allowlist" {
+  description = "Comma/newline separated <issuer>|<sub> synthetic pilot identities. Empty means no scoped pilot identity. Non-secret configuration, never a credential."
+  type        = string
+  default     = ""
+}
+
 variable "partner_surface_enabled" {
   description = "Aktiviert die Partner-/Personen-Oberflaeche (Default AUS)."
   type        = bool

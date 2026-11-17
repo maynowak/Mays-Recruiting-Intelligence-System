@@ -78,3 +78,32 @@ def test_consent_table_and_rollout_default():
     assert 'APPLICATION_CONSENT_ENFORCED' in tf
     assert re.search(r'variable "application_consent_enforced"[\s\S]*?default\s*=\s*false',
                      variables)
+
+
+def test_consent_gate_wiring_is_explicit_and_defaults_off():
+    root_vars = (ROOT / "terraform" / "variables.tf").read_text(encoding="utf-8")
+    module_vars = (ROOT / "terraform" / "modules" / "lambda" / "variables.tf").read_text(
+        encoding="utf-8")
+    root = (ROOT / "terraform" / "main.tf").read_text(encoding="utf-8")
+    module = (ROOT / "terraform" / "modules" / "lambda" / "main.tf").read_text(
+        encoding="utf-8")
+
+    for name in ("cv_storage_consent_enforced",
+                 "search_profile_storage_consent_enforced",
+                 "consent_notice_state_enforced"):
+        assert re.search(r'variable "%s"[\s\S]*?default\s*=\s*false' % name,
+                         root_vars)
+        assert re.search(r'variable "%s"[\s\S]*?default\s*=\s*false' % name,
+                         module_vars)
+    assert 'variable "consent_pilot_allowlist"' in root_vars
+    assert 'variable "consent_pilot_allowlist"' in module_vars
+    for name in ("cv_storage_consent_enforced",
+                 "search_profile_storage_consent_enforced",
+                 "consent_notice_state_enforced",
+                 "consent_pilot_allowlist"):
+        assert re.search(r'\b%s\s*=\s*var\.%s\b' % (name, name), root)
+        assert name in module
+    assert 'CV_STORAGE_CONSENT_ENFORCED' in module
+    assert 'SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED' in module
+    assert 'CONSENT_NOTICE_STATE_ENFORCED' in module
+    assert 'CONSENT_PILOT_ALLOWLIST' in module
