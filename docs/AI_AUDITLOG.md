@@ -10505,5 +10505,21 @@ Date: 2026-11-17
 
 Report: docs/reports/RIS-ATS-PRE-APPLY-CHECKPOINT-01.md
 
+[RIS-ATS-TRANSPORT-RELEASE-02 / FINAL RELEASE GATE]
+Status: NO-GO / NO APPLY.
+Date: 2026-11-17
+- Four parallel reviews (Terraform, security, identity design, QA) consolidated into docs/reports/RIS-ATS-TRANSPORT-RELEASE-02.md. No AWS mutation, no secret access, no user creation.
+- Terraform: branch feature/ris-dev2-ats-agent-pinned-core-01 at caa5d6c, clean tree; STS arn:aws:iam::262370457690:user/devnemo; workspace ris-dev2; state bucket ris-dev2-tf-state-dev, key env:/ris-dev2/dev/terraform.tfstate, lineage a0bd361d-..., serial 58 before and after; lock ris-dev2-tf-lock with no active lock; pin dad69ea... clean and matching the manifest.
+- New plan against caa5d6c after a forced generated-module rebuild: sha256 5EA0619EBBEA092E650E66D10B526783165A812698E56E1AD54033A047702FAC, 13 add, 2 change, 0 destroy, 0 replace. No Cognito, CloudFront, Route53/DNS, ACM or S3 change; no secret_version; no secret value. Bundles reproducible (agent 8462e5de..., reader 417e5b5f...).
+- The module rebuild is mandatory: the tracked generated variables.tf stub does not declare enable_agent_transport/ris_result_producer_role_arns, so validate fails without a rebuild. The stub stays untouched.
+- RELEASE BLOCKER B1: the pinned Orders consumer verifies the HMAC over the SQS record messageId (UUID), while the RIS producer signs the envelope messageId (msg_<workId>_order_result). Local cross-SQS proof with the real consumer code: envelope id -> processed=1; SQS uuid -> processed=0/rejected=1. The consumer returns no batchItemFailures, so every result is rejected and deleted. Existing tests hide this by setting record.messageId to the envelope id.
+- RELEASE BLOCKER B2: missing/empty secret makes the consumer return 200 without batchItemFailures, so messages are deleted instead of retried/DLQ.
+- Additional risks: visibility 60s vs consumer timeout 30s; no ORDER_FAILED; both Cognito pools have zero users; ORDERS_ID_TOKEN unset; two-pool model limits read-back to orders created through the RIS facade; empty producer principal list is latent.
+- Secret procedure prepared (post-apply only): single 64-char lowercase hex value, generated with a CSPRNG, written to a restricted temp file, put via file://, temp file deleted, verified via describe/list versions without printing the value; rotation needs recycling both Lambdas (no cache TTL).
+- Test identity proposal (not created): ris-dev2-e2e-rdbk-01@example.invalid in the existing RIS pool, custom:tenant_id tenant-e2e-15, no groups, USER_PASSWORD_AUTH, password out-of-band. Read-back needs no data rows; ATS execute needs entitlement/profile/partner-app/credential.
+- Decision: NO-GO for the transport apply until the consumer signature-domain and silent-drop fixes are implemented on the Orders side, the pin is bumped, and a new plan against the new pin is reviewed. Full suite last recorded at 2639 passed with the same 29 pre-existing failures and 4 collection errors.
+
+Report: docs/reports/RIS-ATS-TRANSPORT-RELEASE-02.md
+
 Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
 
