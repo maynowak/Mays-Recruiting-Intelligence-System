@@ -16,7 +16,7 @@ from agents.ats_agent.contract import (
 )
 
 RESULT_BODY_TYPE = "ATSAnalysisResultBody"
-RESULT_BODY_VERSION = "1.1"
+RESULT_BODY_VERSION = "2.0"
 SOURCE_SYSTEM = "mays-jobsearch"
 
 _REQUIREMENT_FIELDS: Tuple[str, ...] = ("id", "text", "category", "importance", "source")
@@ -51,7 +51,6 @@ _BASIS_FIELDS: Tuple[str, ...] = (
 )
 _METADATA_FIELDS: Tuple[str, ...] = (
     "title",
-    "titleTokens",
     "language",
     "workMode",
     "jobTypes",

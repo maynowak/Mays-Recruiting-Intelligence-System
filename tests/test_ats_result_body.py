@@ -111,8 +111,7 @@ class ResultBodyShapeTest(unittest.TestCase):
             set(self.body["analysis"]["metadata"]),
             {
                 "title",
-                "titleTokens",
-                "language",
+                    "language",
                 "workMode",
                 "jobTypes",
                 "contractType",
@@ -133,8 +132,8 @@ class ResultBodyShapeTest(unittest.TestCase):
         self.assertEqual(self.body["jobTitle"], "QA Engineer")
 
     def test_body_version_is_stable(self):
-        self.assertEqual(RESULT_BODY_VERSION, "1.1")
-        self.assertEqual(self.body["bodyVersion"], "1.1")
+        self.assertEqual(RESULT_BODY_VERSION, "2.0")
+        self.assertEqual(self.body["bodyVersion"], "2.0")
 
 
 class ResultBodyIntegrationTest(unittest.TestCase):

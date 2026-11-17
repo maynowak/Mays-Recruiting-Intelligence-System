@@ -102,7 +102,7 @@ class BoundaryHarness(unittest.TestCase):
 
     def call(self, bearer=None, client_id=CLIENT, tenant=TENANT,
              token_use="access", user=USER, agent_id=AGENT,
-             registry="default", path=None):
+             registry="default", path=None, body=None):
         headers = {"X-Api-Credential": bearer}
         claims = {}
         if client_id is not None:
@@ -117,7 +117,9 @@ class BoundaryHarness(unittest.TestCase):
             "httpMethod": "POST",
             "path": path if path is not None else self.route % (agent_id or ""),
             "headers": headers,
-            "body": json.dumps({"capability": "reference.echo", "payload": {}}),
+            "body": json.dumps(
+                body if body is not None
+                else {"capability": "reference.echo", "payload": {}}),
             "requestContext": {"requestId": "req-t",
                                "http": {"method": "POST",
                                         "path": path if path is not None
@@ -413,6 +415,58 @@ class TestMachineRouteBoundary(TestT01T14):
         self.issue()
         code, _ = self.call(bearer=self.issued["secret"], client_id=None)
         self.assertEqual(code, 401)
+
+
+class TestATSPartnerExecute(BoundaryHarness):
+    """ATS over the real partner execute route (local, no AWS)."""
+
+    def setUp(self):
+        super().setUp()
+        self.catalog = {"ats-agent": "ACTIVE"}
+        self.resolver = Resolver([entitlement(USER, agent="ats-agent")])
+
+    def _body(self):
+        return {
+            "capability": "analyze.job",
+            "payload": {
+                "job": {"title": "Senior Python Engineer"},
+                "profile": {"skills": "Python, AWS"},
+            },
+            "idempotencyKey": "idem-ats-1",
+        }
+
+    def test_ats_execute_is_accepted_and_enqueued(self):
+        self.issue()
+        code, body = self.call(bearer=self.issued["secret"],
+                               agent_id="ats-agent", body=self._body())
+        self.assertEqual(code, 202)
+        self.assertEqual(set(body), {"workId", "status", "requestId"})
+        self.assertEqual(len(self.enqueued), 1)
+        kwargs = self.enqueued[0]
+        self.assertEqual(kwargs["agent_id"], "ats-agent")
+        self.assertEqual(kwargs["capability"], "analyze.job")
+        self.assertEqual(kwargs["payload"], self._body()["payload"])
+        self.assertEqual(kwargs["api_profile_id"], self.pid)
+        self.assertEqual(kwargs["tenant_id"], TENANT)
+        self.assertEqual(kwargs["user_id"], USER)
+
+    def test_ats_not_in_catalog_is_403_and_nothing_enqueued(self):
+        self.catalog = {}
+        self.issue()
+        code, _ = self.call(bearer=self.issued["secret"],
+                            agent_id="ats-agent", body=self._body())
+        self.assertEqual(code, 403)
+        self.assertEqual(self.enqueued, [])
+
+    def test_ats_entitlement_must_match_the_profile(self):
+        self.resolver = Resolver([
+            dict(entitlement(USER, agent="ats-agent"),
+                 apiProfileId="pid-other")])
+        self.issue()
+        code, _ = self.call(bearer=self.issued["secret"],
+                            agent_id="ats-agent", body=self._body())
+        self.assertEqual(code, 403)
+        self.assertEqual(self.enqueued, [])
 
 
 if __name__ == "__main__":

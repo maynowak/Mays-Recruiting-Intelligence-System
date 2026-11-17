@@ -10389,3 +10389,13 @@ Date: 2026-11-17
 - Added docs/xrepo/MAYS-XR-ATS-001-DRAFT.md: proposed task ID, direction (jobsearch -> RIS for contract 1.2), required MAYS-XREPO-V1 fields, issue binding, evidence rules, sequential handoff and the explicit no-dispatch boundary.
 - Existing tasks MAYS-XR-E2E-001 and MAYS-SCV-RC3-001 were not touched. Another agent remains active in xrepo.
 - No GitHub issue, repository_dispatch, AWS or installation change.
+
+
+[RIS-ATS-AGENT-01 / CATALOG SEED + TRANSPORT-SAFE BODY]
+Status: LOCAL FIXES COMPLETE / LIVE APPLY PENDING.
+Date: 2026-11-17
+- Subagent findings: the public partner execute route supports ats-agent/analyze.job only up to 202 + asynchronous execution; ats-agent was missing from the Terraform agent-catalog seed (live route would return 403 agent-not-executable); the ATS result body was rejected by the generic secret scan because analysis.metadata.titleTokens contains the forbidden substring "token"; there is no production result forwarder or public result read-back.
+- Added ats-agent to local.agent_catalog_seed (ACTIVE, analyze.job, 1.0.0, body 1.0.0, python3.14) and a seed/runtime parity test.
+- ATSAnalysisResultBody is now 2.0: analysis.metadata.titleTokens is intentionally not projected (tokenizer artifact, not a secret). The secret scan remains strict; a titleTokens key is still rejected. Docs and tests updated.
+- Added three partner-route tests (202 + enqueue for ats-agent, 403 when absent from catalog, 403 for a profile-bound entitlement mismatch) and two transport tests (ATS body round-trips; titleTokens still rejected).
+- Tests: 508 passed, 8 skipped, 20 subtests. No AWS apply/deploy; the live deployment still carries body 1.1 and the unseeded catalog until a controlled apply.

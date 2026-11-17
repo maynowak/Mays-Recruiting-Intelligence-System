@@ -1,7 +1,7 @@
 # ATSAnalysisResultBody V1
 
-**Status:** implementiert ? **Version:** `1.1`
-**Quelle:** projiziert aus `MAYS-JOBSEARCH-ATS-ANALYSIS-V1` (Contract 1.1)
+**Status:** implementiert · **Version:** `2.0`
+**Quelle:** projiziert aus `MAYS-JOBSEARCH-ATS-ANALYSIS-V1` (Contract 1.2)
 
 Der RIS-Result-Body ist eine **versionierte, RIS-eigene Projektion** der
 Jobsearch-ATS-Antwort. Er enthält nur die Felder, die RIS-Consumer brauchen.
@@ -18,7 +18,7 @@ Jobsearch bleibt die einzige ATS-Implementierung.
     "workId": "…",
     "agentVersion": "1.0.0",
     "contractVersion": "1.2",
-    "resultBodyVersion": "1.1"
+    "resultBodyVersion": "2.0"
   }
 }
 ```
@@ -28,7 +28,7 @@ Jobsearch bleibt die einzige ATS-Implementierung.
 ```json
 {
   "bodyType": "ATSAnalysisResultBody",
-  "bodyVersion": "1.1",
+  "bodyVersion": "2.0",
   "analysis": {
     "score": 50,
     "keywordCoverage": { "overall": 50 },
@@ -38,7 +38,6 @@ Jobsearch bleibt die einzige ATS-Implementierung.
     "analysisStatus": "limited",
     "metadata": {
       "title": "QA Engineer",
-      "titleTokens": ["Engineer"],
       "language": "en",
       "workMode": null,
       "jobTypes": [],
@@ -85,12 +84,20 @@ Jobsearch bleibt die einzige ATS-Implementierung.
 }
 ```
 
+## Änderung 2.0 — `titleTokens` entfernt
+
+`analysis.metadata.titleTokens` wird **nicht mehr** in den RIS-Body projiziert.
+Das Feld ist ein Tokenizer-Artefakt und kein Secret; der generische
+Secret-Scan lehnt jedoch jeden Schlüssel mit dem Teilstring `token` ab und
+würde den gesamten ATS-Result-Transport blockieren. Der Scan bleibt
+unverändert streng; entfernt wird nur das nicht benötigte Projektionsfeld.
+
 ## Feldregeln
 
 | Feld | Regel |
 |---|---|
 | `bodyType` | konstant `ATSAnalysisResultBody` |
-| `bodyVersion` | `1.1`; eigener Versionszyklus, unabh?ngig vom API-Contract |
+| `bodyVersion` | `2.0`; eigener Versionszyklus, unabh?ngig vom API-Contract |
 | `analysis.score` | int 0–100 |
 | `analysis.keywordCoverage.overall` | int 0–100 |
 | `analysis.requirementCoverage` | int 0–100 (Alias des API-Feldes) |
@@ -98,7 +105,7 @@ Jobsearch bleibt die einzige ATS-Implementierung.
 | `analysis.roleMatch` | int 0–100 oder `null` |
 | `analysis.analysisStatus` | `complete`, `limited`, `insufficient` |
 | `analysis.basis` | vier Zähl-/Flag-Felder |
-| `analysis.metadata` | Job-Metadaten: Titel, Tokens, Sprache, WorkMode, JobTypes, ContractType |
+| `analysis.metadata` | Job-Metadaten: Titel, Sprache, WorkMode, JobTypes, ContractType |
 | `analysis.criticalGaps[]` | `{id,text,category,importance,source}` |
 | `analysis.requirements[]` | `{id,text,category,importance,source}` |
 | `analysis.matches[]` | `{requirementId,status,confidence}`; Status `MATCHED/PARTIAL/UNKNOWN` |
@@ -124,6 +131,7 @@ Jobsearch bleibt die einzige ATS-Implementierung.
 | Änderung | Version |
 |---|---|
 | Additives Feld, abwärtskompatibel | minor, z. B. `1.1` |
+| Feld entfernt/umbenannt | major, z. B. `2.0` |
 | Feld entfernt/umbenannt oder Typ geändert | major, z. B. `2.0` |
 
 Der Body ist unabhängig vom API-Contract versioniert: Jobsearch kann Contract

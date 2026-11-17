@@ -155,7 +155,7 @@ git clone https://github.com/maynowak/mays-jobsearch.git \
 ## RIS-Client-Validierung (ORCH-03)
 
 `agents/ats_agent/contract.py` prüft die Antwort **fail-closed** gegen Version
-1.1, bevor sie in den Result-Body geht:
+1.2, bevor sie in den Result-Body geht:
 
 - Pflichtfelder, Typen und Wertebereiche (`0..100`),
 - `analysisStatus` ∈ `complete`, `limited`, `insufficient`,
@@ -175,10 +175,12 @@ Fehlercodes im Result:
 
 Der Agent bleibt eine reine Delegation: **keine ATS-Fachlogik in RIS**, keine
 Roh-CV-Daten im Log. Erfolgreiche Ergebnisse tragen
-`metrics.contractVersion = "1.1"`.
+`metrics.contractVersion = "1.2"`.
 
 Der RIS-eigene, versionierte Result-Body ist in
 [`ATS-ANALYSIS-RESULT-BODY-V1.md`](ATS-ANALYSIS-RESULT-BODY-V1.md) beschrieben.
+Der Body ist in **Version 2.0**; `analysis.metadata.titleTokens` wird nicht
+projiziert (Tokenizer-Artefakt, kein Secret). Der Secret-Scan bleibt streng.
 
 ## Lizenz
 

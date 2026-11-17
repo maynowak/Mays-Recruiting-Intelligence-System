@@ -339,6 +339,18 @@ class TestTerraformDeclaration(unittest.TestCase):
         self.assertEqual(declared["status"], "ACTIVE")
         self.assertTrue(is_executable_status(declared["status"]))
 
+    def test_declared_ats_agent_matches_the_runtime(self):
+        """The ATS seed entry must mirror the runtime definition."""
+        from agents.ats_agent.registry import ATS_ANALYZE_CAPABILITY
+
+        declared = _declared_seed("ats-agent")
+        self.assertEqual(declared["agentId"], "ats-agent")
+        self.assertEqual(declared["capabilities"], [ATS_ANALYZE_CAPABILITY])
+        self.assertEqual(declared["supported_bodies"], ["1.0.0"])
+        self.assertEqual(declared["supported_runtimes"], ["python3.14"])
+        self.assertEqual(declared["status"], "ACTIVE")
+        self.assertTrue(is_executable_status(declared["status"]))
+
     def test_every_seeded_agent_is_executable_and_unique(self):
         """Each seed entry is executable, and no agentId is declared twice."""
         entries = _declared_seeds()

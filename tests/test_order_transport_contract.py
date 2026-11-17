@@ -385,6 +385,36 @@ class TestEndToEndThroughAgentBody:
             result_from_work_item(envelope, leaky, now=NOW)
         assert ctx.value.code == "secret_in_transport"
 
+    def _ats_row(self, item):
+        from agents.ats_agent.result_body import build_ats_analysis_result_body
+
+        fixture_path = os.path.join(
+            os.path.dirname(__file__), "fixtures", "ats_result_body",
+            "score-50-partial.json")
+        with open(fixture_path, encoding="utf-8") as handle:
+            fixture = json.load(handle)
+        body = build_ats_analysis_result_body(
+            fixture, job_title="Senior Python Engineer")
+        return {"workId": item["workId"], "status": "COMPLETED",
+                "attempt_no": 1, "result": body}
+
+    def test_ats_body_round_trips_and_drops_title_tokens(self):
+        envelope, item, _result, _row, _body = self._execute()
+        row = self._ats_row(item)
+        assert "titleTokens" not in row["result"]["analysis"]["metadata"]
+        out = result_from_work_item(envelope, row, now=NOW)
+        assert out["payload"]["bodyType"] == "ATSAnalysisResultBody"
+        assert out["payload"]["bodyVersion"] == "2.0"
+        assert out["execution"]["workId"] == item["workId"]
+
+    def test_ats_body_with_title_tokens_is_still_rejected(self):
+        envelope, item, _result, _row, _body = self._execute()
+        row = self._ats_row(item)
+        row["result"]["analysis"]["metadata"]["titleTokens"] = ["Senior"]
+        with pytest.raises(TransportError) as ctx:
+            result_from_work_item(envelope, row, now=NOW)
+        assert ctx.value.code == "secret_in_transport"
+
     def test_no_secret_appears_in_dispatch_work_item_or_result(self):
         envelope, item, _result, row, _body = self._execute()
         out = result_from_work_item(envelope, row, now=NOW)
