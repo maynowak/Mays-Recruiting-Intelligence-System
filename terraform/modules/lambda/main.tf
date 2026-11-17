@@ -306,6 +306,36 @@ resource "aws_iam_role_policy" "lambda_cursor_secret" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_order_result_send" {
+  count = var.agent_result_enabled ? 1 : 0
+  name  = "${var.project_name}-${var.environment}-lambda-order-result-send"
+  role  = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["sqs:SendMessage"]
+      Resource = [var.agent_result_queue_arn]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_order_result_secret" {
+  count = var.agent_result_enabled ? 1 : 0
+  name  = "${var.project_name}-${var.environment}-lambda-order-result-secret"
+  role  = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = [var.agent_result_secret_arn]
+    }]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_privacy_receipts" {
   name = "${var.project_name}-${var.environment}-lambda-dynamodb-privacy-receipts"
   role = aws_iam_role.lambda_execution.id
@@ -614,10 +644,14 @@ resource "aws_lambda_function" "agent" {
       # ARN only. Empty means no secret is provisioned and pagination
       # fails closed instead of falling back to a static key.
       RIS_CURSOR_SECRET_ARN = var.applications_cursor_secret_arn
-      DOCUMENTS_BUCKET      = var.documents_bucket_name
-      API_PROFILES_TABLE    = var.api_profiles_table_name
-      OFFERS_TABLE          = var.offers_table_name
-      CREDENTIALS_TABLE     = var.credentials_table_name
+      # Orders result transport (Transport V1). Both empty => forwarder skips
+      # fail-closed. ARNs only; the HMAC value is fetched at runtime.
+      ORDER_RESULT_QUEUE_URL  = var.agent_result_queue_url
+      ORDER_RESULT_SECRET_ARN = var.agent_result_secret_arn
+      DOCUMENTS_BUCKET        = var.documents_bucket_name
+      API_PROFILES_TABLE      = var.api_profiles_table_name
+      OFFERS_TABLE            = var.offers_table_name
+      CREDENTIALS_TABLE       = var.credentials_table_name
       # Partner Application Registry. Read by resolve_partner_application on
       # every authorized partner/M2M execution. Absent -> registry returns
       # None -> both partner routes fail closed with 403.
@@ -669,6 +703,8 @@ resource "aws_lambda_function" "agent" {
     aws_iam_role_policy.lambda_dynamodb_partner_registry,
     aws_iam_role_policy.lambda_dynamodb_applications,
     aws_iam_role_policy.lambda_cursor_secret,
+    aws_iam_role_policy.lambda_order_result_send,
+    aws_iam_role_policy.lambda_order_result_secret,
     aws_iam_role_policy.lambda_consents,
     aws_iam_role_policy.lambda_documents,
     aws_iam_role_policy.lambda_s3,

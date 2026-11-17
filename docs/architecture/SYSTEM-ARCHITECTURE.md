@@ -77,7 +77,7 @@ Es gilt: Event ≠ WorkItem ≠ Agent Run ≠ Attempt ≠ Business Order.
 
 ## 5. Tenant Isolation / Security
 
-JWT-Tenant (`custom:tenant_id`) + Code-Guards (Repository get/list filtern userId/tenantId; get prüft Besitz). IAM Least-Privilege pro Funktion (nur eigene Tabellen/Queues + Logs). Keine Secrets im Repo (Env-Muster; Temp-Credentials per Shred entsorgt). Bekannte OPENs: SQS-`*`-Policy + fehlende DLQ auf Mays-Orders-Seite (fremd, dokumentiert); kein serverseitiger MO-Idempotency-Key (Retry-Regel dagegen).
+JWT-Tenant (`custom:tenant_id`) + Code-Guards (Repository get/list filtern userId/tenantId; get prüft Besitz). IAM Least-Privilege pro Funktion (nur eigene Tabellen/Queues + Logs). Keine Secrets im Repo (Env-Muster; Temp-Credentials per Shred entsorgt). Bekannte OPENs: SQS-`*`-Policy + fehlende DLQ auf Mays-Orders-Seite (fremd, dokumentiert); kein serverseitiger MO-Idempotency-Key (Retry-Regel dagegen). Result-Transport (managed, gleiches Konto): Queue/DLQ/HMAC-Secret bleiben im generierten Orders-Modul; die Queue-Policy ist auf die RIS-Worker-Rolle als Principal begrenzt, die RIS-Dispatch-Queue ebenso.
 
 ## 6. Status je Bereich (implemented / verified / prepared / open)
 

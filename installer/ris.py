@@ -503,6 +503,7 @@ PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
     "jobsearch_cognito_issuer",
     "jobsearch_cognito_client_id",
     "jobsearch_edge_cors_origins",
+    "orders_agent_result_enabled",
 })
 
 
@@ -734,6 +735,12 @@ _UNCONSUMED_ORDERS_OUTPUTS = frozenset(
         "lambda_function_arn",
         "lambda_function_name",
         "lambda_invoke_arn",
+        # Managed result transport (RIS-ATS-RESULT-TRANSPORT-GATE-01): consumed
+        # by the RIS root through the module reference, not through the -var
+        # handoff, so plan-time unknown values must not block the rehearsal.
+        "results_queue_url",
+        "results_queue_arn",
+        "result_hmac_secret_arn",
     }
 )
 

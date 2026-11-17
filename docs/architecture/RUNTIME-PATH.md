@@ -34,6 +34,10 @@ Keine zweite Queue, kein paralleles Runtime-Modell.
 - Persistenz: via Pipeline (s. 4). Fehler: s. Retry-Regel Gate 5.
 - Retry: Exception → Redelivery → neuer Attempt (attempt+1, gleiche processing_id).
 - Security: Rolle mit DDB/SQS/Logs-Least-Privilege; Env nur Tabellennamen/URLs.
+  Result-Transport (Managed Orders): zusaetzlich `ORDER_RESULT_QUEUE_URL` +
+  `ORDER_RESULT_SECRET_ARN` (ARN only) und count-gated `sqs:SendMessage` auf die
+  Orders-Result-Queue sowie `secretsmanager:GetSecretValue` auf das HMAC-Secret.
+  Beide leer = Forwarder ueberspringt fail-closed.
 
 ## 4. Ecosystem (Registry/Discovery/Eligibility/Selection)
 

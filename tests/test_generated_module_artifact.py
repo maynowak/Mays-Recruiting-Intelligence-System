@@ -170,6 +170,15 @@ class GeneratedModuleArtifactTest(unittest.TestCase):
         self.assertIn('aws_sqs_queue" "results_dlq"', transport)
         self.assertIn('aws_secretsmanager_secret" "result_hmac"', transport)
 
+    def test_ris_transport_outputs_are_exposed_additively(self):
+        outputs = _read("outputs.tf")
+        for name in ("results_queue_url", "results_queue_arn",
+                     "result_hmac_secret_arn"):
+            block = re.search(
+                r'output "%s" \{(.*?)\n\}' % re.escape(name), outputs, re.S)
+            self.assertIsNotNone(block, name)
+            self.assertIn("try(module.agent_transport[0].", block.group(1))
+
 
 if __name__ == "__main__":
     unittest.main()

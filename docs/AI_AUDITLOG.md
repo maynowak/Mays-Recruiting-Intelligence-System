@@ -10449,3 +10449,19 @@ Date: 2026-11-17
 
 Report: docs/reports/RIS-ATS-RESULT-LINK-01.md
 
+[RIS-ATS-RESULT-TRANSPORT-GATE-01 / PHASE A+B — MANAGED RESULT TRANSPORT]
+Status: LOCAL WIRING COMPLETE / PLAN REVIEWED / NO APPLY.
+Date: 2026-11-17
+- Four read-only audits (Orders module, RIS worker, security, QA) confirmed: the Orders module already owns result queue, DLQ and HMAC secret but never exports them; RIS has no result env/IAM; the generated module is rebuilt from pin dad69ea and ignores hand edits.
+- Builder now injects results_queue_url, results_queue_arn and result_hmac_secret_arn additively before contract validation, using try(module.agent_transport[0]..., "") so a disabled transport evaluates to "". If upstream ever exports one of them, the build fails closed. Generated module now has 23 outputs (20 required + 3).
+- RIS root gets one dedicated flag orders_agent_result_enabled (default false), independent of enable_agent_transport (RIS dispatch queue). The managed Orders module receives the flag and ris_result_producer_role_arns=[module.lambda.lambda_role_arn]; queue URL/ARN and secret ARN are consumed as module outputs.
+- Worker lambda gets ORDER_RESULT_QUEUE_URL / ORDER_RESULT_SECRET_ARN plus count-gated IAM: sqs:SendMessage on the result queue only and secretsmanager:GetSecretValue on the result secret only. Count is driven by the plan-known boolean, never by an ARN (Terraform rejects unknown count). Root exports lambda_role_arn so the producer grant uses the worker role, not the health-plane role.
+- The result queue, DLQ, redrive policy and secret stay owned by modules/agent_transport; no new queue, no second contract, no cross-account. The secret remains container-only (no aws_secretsmanager_secret_version anywhere).
+- Installer: result outputs are listed as not-var-handoff outputs so the dry-run never guesses them; orders_agent_result_enabled is an allowed overlay key.
+- Project config ris-dev2.json was stale versus live: orders_lifecycle disabled (live managed), identity_m2m_enabled false (live true), identity_oauth_enabled true (live false). Aligned to live; otherwise the next apply would have destroyed the Cognito M2M client/resource server and enabled OAuth.
+- Local plan (backend ris-dev2-tf-state-dev, key env:/ris-dev2/dev/terraform.tfstate, workspace ris-dev2, serial 58, lineage a0bd361d-...): 13 to add, 2 to change (worker + reader code/env), 0 to destroy, 0 to replace. No Cognito, CloudFront, DNS or ACM change. No secret value in the plan.
+- Full suite: 2638 passed / 128 skipped / 434 subtests with the same 29 pre-existing failures and 4 collection errors as the baseline; targeted transport/static suites green. Bundle rebuild is deterministic (agent 8462e5de..., reader 417e5b5f...).
+- No AWS apply, no merge, no deploy.
+
+Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
+

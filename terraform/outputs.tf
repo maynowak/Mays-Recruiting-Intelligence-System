@@ -116,6 +116,11 @@ output "lambda_invoke_arn" {
   value       = module.lambda.invoke_arn
 }
 
+output "lambda_role_arn" {
+  description = "ARN of the agent worker execution role (producer for the Orders result queue)."
+  value       = module.lambda.lambda_role_arn
+}
+
 # ============================================================
 # Cognito Outputs
 # ============================================================

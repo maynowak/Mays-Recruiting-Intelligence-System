@@ -140,6 +140,30 @@ variable "applications_cursor_secret_arn" {
   default     = ""
 }
 
+variable "agent_result_enabled" {
+  description = "Enable the managed Orders result transport (must be a plan-known boolean so count is deterministic)."
+  type        = bool
+  default     = false
+}
+
+variable "agent_result_queue_url" {
+  description = "SQS URL of the managed Orders agent result queue. Empty = no result forwarding (fail-closed skip)."
+  type        = string
+  default     = ""
+}
+
+variable "agent_result_queue_arn" {
+  description = "ARN of the managed Orders agent result queue (scope for sqs:SendMessage). Empty = no grant."
+  type        = string
+  default     = ""
+}
+
+variable "agent_result_secret_arn" {
+  description = "ARN of the Orders result HMAC secret. ARN only; the value is set out-of-band and must never enter Terraform state, environment variables or logs. Empty = no grant."
+  type        = string
+  default     = ""
+}
+
 variable "user_profile_table_arn" {
   description = "DynamoDB table ARN for user profiles"
   type        = string

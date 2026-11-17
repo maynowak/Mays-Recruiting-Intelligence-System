@@ -434,6 +434,61 @@ def validate_generated_contract(target_dir: Path) -> None:
     print(f"  IAM SQS-dokument OK: keine Wildcard, resources = [var.sqs_queue_arn]")
 
 
+# ---- RIS integration: managed result-transport outputs ----------------
+
+TRANSPORT_OUTPUTS = '''
+# ---------------------------------------------------------------------------
+# RIS integration (additive): managed Orders result-transport bindings.
+# The queue, DLQ and HMAC secret stay owned by modules/agent_transport; this
+# block only re-exports their identifiers so the RIS root can wire the worker
+# env and IAM. Evaluates to "" while enable_agent_transport = false.
+# ---------------------------------------------------------------------------
+output "results_queue_url" {
+  value = try(module.agent_transport[0].results_queue_url, "")
+}
+
+output "results_queue_arn" {
+  value = try(module.agent_transport[0].results_queue_arn, "")
+}
+
+output "result_hmac_secret_arn" {
+  value = try(module.agent_transport[0].result_hmac_secret_arn, "")
+}
+'''
+
+TRANSPORT_OUTPUT_NAMES = (
+    "results_queue_url",
+    "results_queue_arn",
+    "result_hmac_secret_arn",
+)
+
+
+def inject_transport_outputs(module_dir: Path) -> None:
+    """Expose the managed result queue/secret to the RIS root module.
+
+    Additive and deterministic: the generated module is rebuilt from the pin
+    on every run, so this function appends the same three outputs each time.
+    If the upstream module starts exporting one of them itself, the build
+    fails closed instead of silently producing duplicate outputs.
+    """
+    outputs_path = module_dir / "outputs.tf"
+    text = outputs_path.read_text(encoding="utf-8")
+    collisions = [
+        name for name in TRANSPORT_OUTPUT_NAMES
+        if f'output "{name}"' in text
+    ]
+    if collisions:
+        raise RuntimeError(
+            "Upstream-Modul exportiert bereits: {names}. "
+            "RIS-Transport-Output-Injektion entfernen und Vertrag neu prüfen."
+            .format(names=", ".join(sorted(collisions)))
+        )
+    outputs_path.write_text(
+        text.rstrip() + "\n" + TRANSPORT_OUTPUTS, encoding="utf-8")
+    print("  RIS transport outputs injected: {names}".format(
+        names=", ".join(TRANSPORT_OUTPUT_NAMES)))
+
+
 # ---- Patch IAM SQS gate (entfernt aus aktivem Build-Pfad) ----
 
 def patch_iam_sqs_gate():
@@ -553,6 +608,13 @@ def build_module(project_name: str, force: bool):
             cmd.append("--force")
         print("Building module via module_builder from {MAYS_ORDERS_BUILDER_DIR}".format(MAYS_ORDERS_BUILDER_DIR=MAYS_ORDERS_BUILDER_DIR))
         run(cmd, cwd=str(MAYS_ORDERS_BUILDER_DIR))
+
+        # 2b. RIS-Integration: Result-Transport-Outputs additiv ergänzen.
+        # Der Queue-/Secret-Besitz bleibt in modules/agent_transport; hier wird
+        # nur der vom RIS-Root benötigte Ausgang sichtbar gemacht. Der Schritt
+        # läuft VOR der Vertragsprüfung, ist idempotent und fail-closed, falls
+        # das Upstream-Modul die Outputs künftig selbst liefert.
+        inject_transport_outputs(TEMP_MODULE_DIR)
 
         # 3. Vertragsprüfung (CONTENT-BASED, keine nachträglichen Patches)
         validate_generated_contract(TEMP_MODULE_DIR)

@@ -607,3 +607,9 @@ variable "orders_producer_role_arns" {
   type        = list(string)
   default     = []
 }
+
+variable "orders_agent_result_enabled" {
+  description = "Enable the managed Orders result transport (result queue, DLQ and HMAC secret from modules/mays_orders). Default off; independent of the RIS dispatch queue flag."
+  type        = bool
+  default     = false
+}

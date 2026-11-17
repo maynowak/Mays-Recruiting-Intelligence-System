@@ -28,6 +28,14 @@ locals {
   identity_issuer  = local.identity_managed ? "https://${module.cognito[0].user_pool_endpoint}" : var.external_cognito_issuer
   m2m_issuer       = local.identity_managed && !var.identity_m2m_enabled ? var.identity_m2m_fallback_issuer : local.identity_issuer
   m2m_client_id    = local.identity_managed && !var.identity_m2m_enabled ? var.identity_m2m_fallback_client_id : (local.identity_managed ? module.cognito[0].user_pool_m2m_client_id : var.external_cognito_m2m_client_id)
+
+  # Managed Orders result transport (Orders -> RIS worker -> Orders result queue).
+  # Outputs come from the generated module; it must be rebuilt for any plan
+  # (installer/build_mays_orders_module.py injects the three transport outputs).
+  orders_agent_result_enabled = local.orders_managed && var.orders_agent_result_enabled
+  agent_result_queue_url      = local.orders_agent_result_enabled ? try(module.mays_orders[0].results_queue_url, "") : ""
+  agent_result_queue_arn      = local.orders_agent_result_enabled ? try(module.mays_orders[0].results_queue_arn, "") : ""
+  agent_result_secret_arn     = local.orders_agent_result_enabled ? try(module.mays_orders[0].result_hmac_secret_arn, "") : ""
 }
 
 provider "aws" {
@@ -177,6 +185,10 @@ module "lambda" {
   documents_bucket_arn                = module.documents.bucket_arn
   sqs_queue_arn                       = module.sqs.work_queue_arn
   work_queue_url                      = module.sqs.work_queue_url
+  agent_result_enabled                = local.orders_agent_result_enabled
+  agent_result_queue_url              = local.agent_result_queue_url
+  agent_result_queue_arn              = local.agent_result_queue_arn
+  agent_result_secret_arn             = local.agent_result_secret_arn
   tags                                = var.tags
 }
 
@@ -214,6 +226,10 @@ module "mays_orders" {
   monitoring_enabled = var.monitoring_enabled
   log_retention_days = var.lambda_config.log_retention_days
   # external_cognito = null  # MANAGED (Default) oder EXTERNAL
+  # Result transport stays owned by the generated Orders module; only the
+  # producer grant (RIS worker role) and the enable flag cross the boundary.
+  enable_agent_transport        = local.orders_agent_result_enabled
+  ris_result_producer_role_arns = local.orders_agent_result_enabled ? [module.lambda.lambda_role_arn] : []
 }
 # Observability-Foundation: CloudWatch (Runtime) + CloudTrail (Audit),
 # strikt getrennt (s. Modul-Kommentare). Ersetzt die frueheren Inline-Alarme.
