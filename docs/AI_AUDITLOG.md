@@ -10251,3 +10251,6 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
 - Required: reconcile Terraform drift, produce a new 0-delete/0-replace plan,
   separate apply approval, provide authorized test identity, then live E2E.
   Report: `docs/reports/XREPO-RIS-CONSENT-RECOVERY-02.md`.
+- Preflight note: one initial plan invocation used the default AWS account and
+  was discarded before evaluation; the final plan was regenerated with
+  `AWS_PROFILE=mayaws` (`240571105849`). No apply or state write occurred.

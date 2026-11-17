@@ -81,6 +81,11 @@ Agent-Bundle erzeugt. Es wurde **kein Apply** ausgeführt.
 SHA-256: 88aef7470bdacbaa286525e2382af807a1034fafd4ee25be76125c352c1a4a43
 ```
 
+Ein erster Planversuch ohne explizites `AWS_PROFILE` lief gegen den
+Default-Account und wurde vor jeder Auswertung verworfen. Der finale Plan
+wurde mit `mayaws` (`240571105849`) neu erstellt; es gab keinen Apply und
+keinen State-Write.
+
 ### Plan-Ergebnis
 
 ```text
