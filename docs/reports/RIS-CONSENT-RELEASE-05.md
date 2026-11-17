@@ -1,7 +1,7 @@
 # RIS-CONSENT-RELEASE-05
 
-**Status:** `READY FOR CONTROLLED APPLY`  
-**No Terraform apply, no deployment, no authenticated live verification.**
+**Status:** `APPLIED / POST-APPLY PLAN CLEAN / AUTHENTICATED LIVE E2E BLOCKED`
+**Terraform apply executed for `ris-dev`; no general production rollout.**
 
 ## 1. Main-Merge
 
@@ -154,3 +154,68 @@ State-Reparatur erforderlich.
 - Der ursprüngliche Referenzplan `b56bb49f…` ist wegen der fehlenden
   Health-Artefakte nicht mehr der exakte finale Plan; der neue Plan
   `512532f7…` ist maßgeblich.
+
+## 12. Post-Apply 2026-11-17
+
+Auf ausdrückliche Operator-Freigabe wurde exakt der gespeicherte Plan
+angewendet. Kein neuer Plan, kein `-target`, keine State-Manipulation.
+
+```text
+Plan: /tmp/opencode/ris-consent-release-05.tfplan
+SHA-256: 512532f73b7feb6563eeea9ac4bc84e1bb713b90365c87e2f65849e4404bd09c
+
+Apply: 0 added, 8 changed, 0 destroyed
+```
+
+Ergebnis:
+
+```text
+State serial: 78 -> 80
+State lineage: 9cec61e5-c036-1ad5-6ae4-8b48a50122a4 (unverändert)
+State resources: 273 -> 271
+```
+
+Die Differenz der State-Ressourcenzahl ist kein Ressourcenverlust: der Apply
+meldete **0 destroyed**, die frühere `aws_caller_identity`-Datenquelle fiel
+weg und die bestehende Orders-Dispatch-Policy wurde per `moved` auf den
+Root-Pfad verschoben.
+
+Live-Lambda nach Apply:
+
+```text
+ris-dev-dev-agent                  cQFmaERVhZ0cjrqcio/kzaD5ZJB71kS0sa7vB4vJbdU=
+ris-dev-dev-agent-dispatch-ingress cQFmaERVhZ0cjrqcio/kzaD5ZJB71kS0sa7vB4vJbdU=
+ris-dev-dev-orders-reader          5AWFhxgQHbNKjVwSN+NtQaR7fc644Ov/iwG9htHDZuU=
+ris-dev-mays-orders-handler        +lt1pZYKgYDlE66Q9qrtNNawfzebYlbflc4HWVxyAl0=
+ris-dev-mays-orders-sqs-worker     +lt1pZYKgYDlE66Q9qrtNNawfzebYlbflc4HWVxyAl0=
+ris-dev-mays-orders-result-consumer +lt1pZYKgYDlE66Q9qrtNNawfzebYlbflc4HWVxyAl0=
+ris-dev-dev-health-writer          FpQFO+AjYo7osjOz/cc1/Kv1Nc3no5ezLaMUtYXKTuc=
+ris-dev-dev-health-publisher       FSscmHxNfOAKn/4NzewM33LBttaUJQgs+COYvRzlWZQ=
+```
+
+Der live ausgelesene Agent-Code enthält:
+
+```text
+application-storage/1.0 = APPROVED
+legalApprovalRef = JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08
+```
+
+Der Orders-Handler behält `ORDER_DISPATCH_QUEUE_URL`; bestehende Agent-/
+Result-Env-Variablen bleiben vorhanden.
+
+Post-Apply-Kontrollplan:
+
+```text
+No changes. Your infrastructure matches the configuration.
+Plan file: /tmp/opencode/ris-consent-release-05-post-apply.tfplan
+SHA-256: 30c4a15c4acd1e1d3c2bbec7e40b282deeb6143daa1cda73496ef2c2703cce86
+```
+
+BFF-Smoke ohne Token:
+
+```text
+GET https://www.mays-job-matcher.app/api/ris/consents -> 401 unauthenticated
+```
+
+Keine authentifizierte Consent-E2E; keine Testidentität/Token verfügbar.
+Keine Production-Wiederherstellung oder allgemeine Freigabe behauptet.

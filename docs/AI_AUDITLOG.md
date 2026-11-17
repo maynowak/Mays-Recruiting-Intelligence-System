@@ -10293,3 +10293,25 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
 - No Terraform apply, deployment or Production verification. Authenticated
   live E2E remains blocked by missing valid test identity/token.
 - Report: `docs/reports/RIS-CONSENT-RELEASE-05.md`.
+
+## 2026-11-17 — RIS-CONSENT-RELEASE-05 — APPLY
+
+**Status:** `APPLIED / POST-APPLY PLAN CLEAN / AUTH E2E BLOCKED`
+
+- Under explicit operator approval, applied the exact saved plan
+  `512532f73b7feb6563eeea9ac4bc84e1bb713b90365c87e2f65849e4404bd09c`
+  in `ris-dev` (`mayaws`, account `240571105849`).
+- Apply result: **0 added / 8 changed / 0 destroyed**. State serial moved
+  from 78 to 80; lineage unchanged; state resource count 273 -> 271 due to
+  one removed `aws_caller_identity` data source and the moved Orders dispatch
+  policy, not an AWS resource deletion.
+- Live agent code is `cQFmaERV...` and contains
+  `application-storage/1.0 = APPROVED` with
+  `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`. Orders handler retains
+  `ORDER_DISPATCH_QUEUE_URL`; transport env remains.
+- Post-apply plan is clean (no changes), plan SHA-256
+  `30c4a15c4acd1e1d3c2bbec7e40b282deeb6143daa1cda73496ef2c2703cce86`.
+- Unauthenticated BFF smoke returns 401, not 503. Authenticated live E2E is
+  still blocked by missing valid test identity/token; no Production
+  verification claimed. No general rollout.
+- Report: `docs/reports/RIS-CONSENT-RELEASE-05.md`.
