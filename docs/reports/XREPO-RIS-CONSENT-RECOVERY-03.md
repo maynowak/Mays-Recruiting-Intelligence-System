@@ -119,6 +119,11 @@ Ergebnis:
 0 Replace
 ```
 
+Reproduktion: Der Plan verwendet den gepinnten Mays-Orders-Builder
+`122ec65ac7ab5a044d2b2576ae6b7e4c325246b8` sowie die unveränderten
+Health-/Reader-Bundles mit den oben genannten Hashes. Die lokale
+Plan-Variablendatei enthält keine Secrets und wird nicht committet.
+
 ### Änderungen
 
 | Ressource | Änderung |
