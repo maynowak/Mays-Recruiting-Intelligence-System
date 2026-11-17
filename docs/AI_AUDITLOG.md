@@ -10441,3 +10441,25 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
 - No code/Terraform change and no new plan; old `153d1212…` remains
   SUPERSEDED. State unchanged; no apply/deployment/main merge.
 - Shared report: `docs/reports/RIS-CONSENT-RELEASE-GATE-05.md`.
+
+## 2026-11-17 — RIS-CONSENT-PILOT-RELEASE-06
+
+**Status:** `GO READY — LIMITED BETA PILOT` / no apply
+
+- Added minimal Terraform wiring for `CV_STORAGE_CONSENT_ENFORCED`,
+  `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED`, `CONSENT_NOTICE_STATE_ENFORCED`
+  and `CONSENT_PILOT_ALLOWLIST`; defaults stay false/empty. Pilot plan sets
+  ApplicationV1 and all three storage gates to true and uses the existing
+  allowlist only.
+- Feature branch `feature/ris-erasure-recovery-02`, commit `a0f16a8`.
+  Focused consent/route 65 PASS; route/privacy 46 PASS; full RIS 2828 PASS /
+  104 skipped / 18 known baseline failures; fmt/validate PASS.
+- New plan `/tmp/opencode/ris-consent-pilot-06.tfplan`, SHA-256
+  `e62370c0536af74b630a810585d95b12fba637a79ba428a13447b01ec07d1b68`,
+  state serial 80: **1 add / 5 change / 0 destroy / 0 replace**. Add is the
+  partner erasure route; agent env adds four consent keys and flips
+  `APPLICATION_CONSENT_ENFORCED` to true; no IAM/Cognito/DNS/data-store
+  changes.
+- Old `e9bc7157…` and `153d1212…` plans are SUPERSEDED. No apply, state push,
+  import/remove or deployment. Shared report:
+  `docs/reports/RIS-CONSENT-PILOT-RELEASE-06.md`.
