@@ -10437,3 +10437,15 @@ Date: 2026-11-17
 
 Report: docs/reports/RIS-ATS-RESULT-LINK-01.md
 
+[RIS-ATS-RESULT-LINK-01 / PHASE 4 — LOCAL INTEGRATION]
+Status: LOCAL INTEGRATION COMPLETE / HARD STOP.
+Date: 2026-11-17
+- Added tests/test_ats_result_link.py: partner work item -> real worker pipeline -> ats-agent -> ATSAnalysisResultBody 2.0 -> persisted row -> reconstructed ORDER_RESULT -> Orders-side application -> authorized read-back through the real orders_reader handler. Only infrastructure boundaries are faked (work table, order table, sender capture, ATS HTTP client).
+- Positive assertions: result envelope is ORDER_RESULT with the dispatch orderId/correlationId and execution {workId, attempt}, payload is the body (not the {success,data} wrapper) with bodyVersion 2.0 and score 50; the owner reads it back with agentOrder.target.agentId=ats-agent.
+- Negative matrix: foreign owner -> 404 with no result leakage; foreign issuer -> 401; missing correlation -> no send, row stays COMPLETED; duplicate delivery -> same messageId/idempotencyKey twice; missing transport configuration -> no send and no claimed delivery; unknown order -> 404 ORDER_NOT_FOUND; secret-shaped result -> never forwarded and the reader withholds it as 500 without content.
+- The addition and ATS direct paths are covered by the existing suites, which remain green (tests/test_worker_pipeline.py, tests/test_ats_agent.py, tests/test_lambda_bridge_e2e.py).
+- Regression: targeted suites 183 passed / 24 skipped / 318 subtests; full suite 2621 passed / 127 skipped / 434 subtests with the same 29 pre-existing failures and 4 pre-existing collection errors as the baseline. terraform fmt -check exit 0; terraform validate success (warnings only).
+- No AWS apply/deploy, no merge, no production deployment.
+
+Report: docs/reports/RIS-ATS-RESULT-LINK-01.md
+
