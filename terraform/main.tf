@@ -196,6 +196,7 @@ module "lambda" {
   agent_result_secret_arn             = local.agent_result_secret_arn
   orders_base_url                     = module.api.api_endpoint
   ats_api_base_url                    = var.ats_api_base_url
+  timeout_seconds                     = var.agent_execution_timeout_seconds
   tags                                = var.tags
 }
 
@@ -437,6 +438,7 @@ module "agent_transport" {
   orders_producer_role_arns = local.agent_dispatch_enabled ? [module.orders_reader[0].role_arn] : var.orders_producer_role_arns
 
   ats_api_base_url         = var.ats_api_base_url
+  timeout_seconds          = var.agent_execution_timeout_seconds
   result_transport_enabled = local.orders_agent_result_enabled
   order_result_queue_url   = local.agent_result_queue_url
   order_result_queue_arn   = local.agent_result_queue_arn

@@ -164,6 +164,12 @@ variable "agent_result_secret_arn" {
   default     = ""
 }
 
+variable "timeout_seconds" {
+  description = "Optional execution timeout override for the agent worker (ATS headroom). Null keeps lambda_config.timeout."
+  type        = number
+  default     = null
+}
+
 variable "ats_api_base_url" {
   description = "ATS analysis endpoint for the ATS agent (never empty)."
   type        = string

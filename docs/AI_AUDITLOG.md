@@ -10561,6 +10561,13 @@ Date: 2026-11-17
 
 Report: docs/reports/RIS-ATS-TRANSPORT-RELEASE-READY-04.md
 
+[RIS-AGENT-INSTALLATION-ORCHESTRATION-08 / TIMEOUT HARDENING]
+Status: LOCAL FIX / TESTS PASS.
+Date: 2026-11-18
+- ATS executes inline in the worker and in the dispatch ingress; both had 30 s Lambda timeouts while the ATS HTTP client is also 30 s (zero headroom).
+- Added root `agent_execution_timeout_seconds` (default 60), passed to the worker Lambda (optional override) and the dispatch ingress. Result consumer/visibility unchanged.
+- Static contract test added; plan resource counts unchanged (worker is already a change, ingress is a create).
+
 [RIS-ATS-PRODUCT-READINESS-07 / PREFLIGHT + PLAN]
 Status: PLAN REVIEWED / NO APPLY.
 Date: 2026-11-17

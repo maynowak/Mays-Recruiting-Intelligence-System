@@ -46,6 +46,12 @@ variable "dispatch_batch_window_seconds" {
   default = 0
 }
 
+variable "timeout_seconds" {
+  description = "Execution timeout for the inline dispatch ingress (ATS headroom)."
+  type        = number
+  default     = 60
+}
+
 variable "ats_api_base_url" {
   description = "ATS analysis endpoint used by the inline ATS agent."
   type        = string
@@ -183,7 +189,7 @@ resource "aws_lambda_function" "dispatch_ingress" {
     var.lambda_zip_path != "" ? filebase64sha256(var.lambda_zip_path) : null
   )
 
-  timeout     = 30
+  timeout     = var.timeout_seconds
   memory_size = 256
 
   environment {

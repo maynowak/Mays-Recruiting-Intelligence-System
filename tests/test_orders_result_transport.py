@@ -250,3 +250,15 @@ def test_ats_api_base_url_is_pinned_and_wired():
     assert "ATS_API_BASE_URL        = var.ats_api_base_url" in ingress
     assert "ats_api_base_url                    = var.ats_api_base_url" in root
     assert "ats_api_base_url         = var.ats_api_base_url" in root
+
+def test_ats_lambdas_have_execution_headroom():
+    root = text(ROOT_MAIN)
+    variables = text(ROOT_VARS)
+    worker = text(LAMBDA_MAIN)
+    ingress = text(TF / "modules" / "agent_transport" / "lambda.tf")
+    assert 'variable "agent_execution_timeout_seconds"' in variables
+    assert "default     = 60" in variables
+    assert "var.timeout_seconds" in worker
+    assert "timeout     = var.timeout_seconds" in ingress
+    assert "timeout_seconds                     = var.agent_execution_timeout_seconds" in root
+    assert "timeout_seconds          = var.agent_execution_timeout_seconds" in root

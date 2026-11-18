@@ -624,3 +624,14 @@ variable "ats_api_base_url" {
     error_message = "ats_api_base_url must be a non-empty https URL"
   }
 }
+
+variable "agent_execution_timeout_seconds" {
+  description = "Execution timeout for the ATS-executing RIS Lambdas (worker + dispatch ingress)."
+  type        = number
+  default     = 60
+
+  validation {
+    condition     = var.agent_execution_timeout_seconds >= 30
+    error_message = "agent_execution_timeout_seconds must be at least 30"
+  }
+}

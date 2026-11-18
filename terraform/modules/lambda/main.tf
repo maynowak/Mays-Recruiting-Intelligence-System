@@ -625,8 +625,10 @@ resource "aws_lambda_function" "agent" {
   role          = aws_iam_role.lambda_execution.arn
   handler       = var.lambda_config.handler
   runtime       = var.lambda_config.runtime
-  timeout       = var.lambda_config.timeout
-  memory_size   = var.lambda_config.memory_size
+  timeout = (var.timeout_seconds != null
+    ? var.timeout_seconds
+  : var.lambda_config.timeout)
+  memory_size = var.lambda_config.memory_size
 
   filename         = var.lambda_config.filename
   source_code_hash = filebase64sha256(var.lambda_config.filename)
