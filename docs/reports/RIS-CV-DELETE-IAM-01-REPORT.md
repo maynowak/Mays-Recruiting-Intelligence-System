@@ -103,6 +103,22 @@ Freigabegegenstand.
 
 Es wurde **kein Apply** ausgeführt; State und ETag wurden nicht geschrieben.
 
+### Apply-Preflight 2026-11-18
+
+```text
+AWS-Profil:  mayaws
+Account:     240571105849
+Workspace:   ris-dev
+Serial:      82
+Lineage:     9cec61e5-c036-1ad5-6ae4-8b48a50122a4
+Plan-SHA:    754770b44e4f63d386f962a12e6701e04e3b1c94a53cbc3d2858b9e871afbf5d
+Drift:       0 Add / 1 Change / 0 Destroy / 0 Replace
+```
+
+Der frische Drift-Plan bestätigt ausschließlich die Änderung an
+`module.lambda.aws_iam_role_policy.lambda_dynamodb_partner_profiles`.
+Kein Apply wurde gestartet; der State blieb unverändert.
+
 ## 5. Tests / Gates
 
 ```text

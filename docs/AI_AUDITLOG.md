@@ -10334,3 +10334,16 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
 - Focused 46 PASS; full RIS 2829 PASS / 104 skipped / 18 known baseline
   failures; fmt/validate PASS. Synthetic delete E2E is prepared but not
   executed. Report: `docs/reports/RIS-CV-DELETE-IAM-01-REPORT.md`.
+
+## 2026-11-18 — RIS-CV-DELETE-IAM-02 — APPLY PREFLIGHT
+
+**Status:** `PREPARED — AWAITING EXPLICIT GO APPLY`
+
+- Re-verified `mayaws` / account `240571105849` / `eu-central-1`, workspace
+  `ris-dev`, state serial `82`, lineage `9cec61e5…`; no state write.
+- Fresh drift plan against the prepared IAM branch shows only **0 add /
+  1 change / 0 destroy / 0 replace**. Plan SHA remains
+  `754770b44e4f63d386f962a12e6701e04e3b1c94a53cbc3d2858b9e871afbf5d`.
+- IAM simulation still shows `dynamodb:ConditionCheckItem = implicitDeny`
+  before apply. Focused tests 46 PASS. No Apply, no other Terraform resource
+  and no Jobsearch change.
