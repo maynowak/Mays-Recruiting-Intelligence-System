@@ -10674,3 +10674,14 @@ Date: 2026-11-18
 - REQUIRED BEFORE PRODUCTION: reader POST idempotency, profile expiry check, ingress ownerUserId precedence and fail-closed queue ARN/entitlement resolver, secret-shape enforcement, cross-tenant/duplicate-workId integrity, worker-role split, dispatch subject-fence parity, DLQ replay, worker ESM partial-batch, ingress concurrency cap.
 - Live evidence retained: ATS order ord_0d23d52e98fb4c557e7aa920 score 67; addition order ord_71c3c1003ce9492d5acbb601 sum 42; ATS regression ord_ac7755a61dd172ed0a0046a9 score 100; both work COMPLETED/SENT, Orders processing COMPLETED, owner boundaries 200/404/401.
 - No AWS apply/mutation, no secret/user change, no ris-dev/production change, no push/merge.
+
+[RIS-AGENT-LIFECYCLE-10 / LIFECYCLE CONTRACT]
+Status: IMPLEMENTED + TESTED (LOCAL) / LIVE GATE NOT WIRED.
+Date: 2026-11-18
+- Added installer/agent_lifecycle.py with INSTALL/UPDATE/DISABLE/ENABLE/DETACH_PARTNER/UNINSTALL/PURGE/STATUS/VERIFY: dry-run plan, impact report, dependency/identity check, resume idempotency, actor/approval audit (JSONL) and result manifest. The module never calls AWS; PURGE requires exact agentId, prior UNINSTALL, inactive catalog, inventory and a grace window.
+- installer.agent_install.py delegates --action to the lifecycle module (single entry point). Added .gitignore rules for local lifecycle state/audit/result evidence.
+- Extended ats-agent and addition-agent with lifecycle.yaml, uninstall.md, partner-bindings.md and retention.md; corrected ats-agent manifest deactivation/rollback (shared flags must not decommission one agent).
+- Reconciled with four reviews: only two agent-scoped levers exist (catalog row via Terraform, entitlement row); the worker and the orders reader never read the catalog. addition_agent is dispatch-only and declares visibility ABSENT.
+- Tests: tests/test_agent_lifecycle.py 17 passed; lifecycle+orchestrator+installer 59 passed; agent/orders/partner regression 201 passed + 15 subtests; all package YAML parses.
+- Reports: docs/reports/RIS-AGENT-LIFECYCLE-10.md, docs/releases/ris-agent-lifecycle-10.json.
+- No AWS apply/mutation, no PURGE, no secret/user change, no ris-dev/production change, no push/merge.

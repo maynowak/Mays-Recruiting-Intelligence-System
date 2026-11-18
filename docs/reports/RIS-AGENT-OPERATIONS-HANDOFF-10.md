@@ -54,6 +54,26 @@ addition agent has no external dependency. Neither needs its own AWS resource.
    (`WORK_ADMISSION_STATE_UNSAFE`).
 4. **No `ORDER_FAILED`:** terminal agent/entitlement failures leave Orders with
    no `processing`; owners cannot distinguish running from failed.
+5. **Catalog is not a worker execution gate:** `agents/runtime/pipeline.py` and
+   `lambda/orders_reader.py` never read the catalog. DISABLE/UNINSTALL only
+   stops execution by withdrawing the agent entitlement; a catalog status
+   change alone is cosmetic for the dispatch path.
+
+### AGENT LIFECYCLE STATUS (RIS-AGENT-LIFECYCLE-10)
+
+- Contract implemented and tested locally: `installer/agent_lifecycle.py`
+  with INSTALL/UPDATE/DISABLE/ENABLE/DETACH_PARTNER/UNINSTALL/PURGE/STATUS/VERIFY,
+  dry-run, impact, dependency check, idempotency (`already_uninstalled`),
+  actor/approval audit and result manifest. It never calls AWS.
+- Both packages now carry `lifecycle.yaml`, `uninstall.md`,
+  `partner-bindings.md` and `retention.md`.
+- Corrected legacy guidance: `enable_agent_transport=false` /
+  `orders_agent_result_enabled=false` are shared switches and must not be used
+  to decommission one agent.
+- Still open: live enforcement (catalog/entitlement gate in the reader and
+  worker), `addition_agent` catalog seed (dispatch-only today), and PURGE
+  (blocked until retention is approved).
+
 
 ### REQUIRED BEFORE PRODUCTION
 

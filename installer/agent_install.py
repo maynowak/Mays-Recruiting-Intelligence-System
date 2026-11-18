@@ -20,10 +20,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from installer import agent_lifecycle as _lifecycle
+
 STAGES = [
     "discover", "analyze", "compatibility", "risk-review", "package",
     "validate", "plan", "apply", "e2e", "handoff",
 ]
+# Lifecycle actions are owned by installer.agent_lifecycle (single source).
+LIFECYCLE_ACTIONS = _lifecycle.ACTIONS
 REQUIRED_FILES = ("manifest.yaml", "risks.md", "operations.md", "handoff.md")
 REQUIRED_DIRS = ("contracts", "tests")
 REQUIRED_MANIFEST_KEYS = (
@@ -190,10 +194,31 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--allow-apply", action="store_true")
     parser.add_argument("--yes", action="store_true")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--action",
+        choices=[a.lower() for a in LIFECYCLE_ACTIONS]
+        + [a.lower().replace("_", "-") for a in LIFECYCLE_ACTIONS],
+        help="run an agent lifecycle action instead of an install stage")
+    parser.add_argument("--inventory", help="JSON inventory for lifecycle impact")
+    parser.add_argument("--lifecycle-state")
+    parser.add_argument("--lifecycle-audit")
+    parser.add_argument("--purge-confirm", help="exact agentId to confirm PURGE")
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
     try:
+        if args.action:
+            if not args.agent:
+                raise AgentInstallError("--agent is required with --action")
+            result = _lifecycle.run(
+                args.action, root / args.agent, execute=args.execute,
+                inventory_path=Path(args.inventory) if args.inventory else None,
+                state_path=Path(args.lifecycle_state) if args.lifecycle_state else None,
+                audit_path=(Path(args.lifecycle_audit)
+                            if args.lifecycle_audit else None),
+                purge_confirm=args.purge_confirm)
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0 if result["status"] != "BLOCKED" else 2
         if args.stage:
             if not args.agent:
                 raise AgentInstallError("--agent is required with --stage")

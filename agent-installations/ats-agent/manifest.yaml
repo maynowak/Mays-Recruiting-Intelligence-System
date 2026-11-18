@@ -116,10 +116,17 @@ activation:
     - keep partner traffic disabled until separate approval
 deactivation:
   procedure:
-    - stop partner traffic
-    - set orders_agent_result_enabled=false / enable_agent_transport=false via reviewed plan
-    - revoke test identity/profile/entitlement
-    - keep secret container or schedule reviewed deletion
+    - stop partner traffic at the external producer/partner UI
+    - withdraw the agent-scoped entitlement rows (stops dispatch execution)
+    - set agent-catalog status INACTIVE via a reviewed Terraform plan
+    - never flip enable_agent_transport / orders_agent_result_enabled for one agent
+      (both are shared and remove transport for every agent)
+    - keep the HMAC secret container; schedule deletion only by separate review
+  shared_resources_retained:
+    - agent-dispatch queue and DLQ
+    - dispatch-ingress Lambda
+    - result queue, DLQ and result consumer
+    - worker, reader and orders tables
 ownership:
   team: ris-dev
   escalation: ris-dev platform owner
@@ -130,7 +137,9 @@ risk:
     - results visibility 60s vs consumer timeout 30s.
     - no ORDER_FAILED and no DLQ alarms.
     - reader POST has no request-level idempotency.
+    - the catalog is not a worker execution gate; only entitlement removal stops dispatch.
 rollback:
-  - Disable both flags via reviewed plan; queues/Lambdas are removed by Terraform.
-  - Restore previous Lambda bundles via the prior plan/commit.
+  - Restore the previous Lambda bundles via a reviewed plan (shared bundle, both agents).
+  - Re-grant the agent entitlements, then set the catalog status ACTIVE via reviewed plan.
+  - Do not use terraform destroy or flip shared feature flags to roll back one agent.
   - Revoke test data; never print or restore the secret from local files.
