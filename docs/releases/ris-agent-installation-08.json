@@ -103,6 +103,7 @@
     "foreignOwnerRead": 404,
     "invalidToken": 401,
     "duplicate": "no second write; version unchanged",
+    "invalidSignature": "rejected, no write, no DLQ copy",
     "retail": "create 201 / read 200",
     "dispatchDlqDepth": 0,
     "resultDlqDepth": 0,
