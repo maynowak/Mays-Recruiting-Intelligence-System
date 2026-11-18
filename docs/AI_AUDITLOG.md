@@ -10623,3 +10623,14 @@ Report: docs/reports/RIS-ATS-ORDER-DISPATCH-LINK-06.md
 
 Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
 
+
+[RIS-AGENT-INSTALLATION-ORCHESTRATION-08 / LIVE ROLLOUT]
+Status: APPLIED to ris-dev2 test scope / LIVE E2E PASS.
+Date: 2026-11-18
+- Applied the reviewed plan (24 add / 4 change / 0 destroy / 0 replace; pre-apply SHA 66AD66AA...) after timeout hardening (worker + dispatch ingress 60s). State serial advanced; no protected resource changed.
+- Verified live: dispatch queue/DLQ (vis 300s, maxReceive 3), result queue/DLQ (vis 60s, maxReceive 3), dispatch ingress (handler dispatch_ingress.handler, 60s, ATS_API_BASE_URL, result env), result consumer (result_consumer.handler, 30s), reader env (RIS_DISPATCH_QUEUE_URL, API_PROFILES_TABLE, Cognito issuer/client), worker env (result queue/secret, ATS URL), both ESMs enabled with ReportBatchItemFailures, ats-agent catalog seed active.
+- Secret provisioned in-memory (64 lowercase hex, never printed): exactly one AWSCURRENT, no AWSPENDING, no KMS key. No secret value in Git/state/logs/reports.
+- Synthetic identity: two RIS-pool users created via AdminCreateUser/SetPassword, no groups; ACTIVE API profile bound to ownerUserId; user-wide ats-agent entitlement. Users and entitlement deleted after the run; profiles revoked.
+- Live canary: POST /orders (agent.execution, ats-agent/analyze.job, synthetic job) -> ORDER_DISPATCH -> ingress -> WorkItem -> ATS -> ORDER_RESULT -> Orders consumer -> persisted order. Evidence: work COMPLETED + orderResultDelivery SENT; Orders processing COMPLETED + bodyVersion 2.0 + numeric score 67; order status PENDING; owner GET 200, foreign owner 404, invalid token 401; duplicate dispatch no second write (version unchanged 2); retail POST 201/read 200; queues and DLQs 0; log scan found no ownerKey, ris_ prefix, email or invalid-signature lines.
+- Fixed a missing package export: agents.transport now exports build_dispatch_envelope.
+- No partner traffic enabled; no ris-dev/production change.
