@@ -1,0 +1,87 @@
+schemaVersion: "1.0"
+package:
+  name: "<agent-id>"
+  version: "0.1.0"
+  status: template
+  classification: development
+agent:
+  agentId: "<agent-id>"
+  capability: "<domain.action>"
+  workType: "agent_<agent-id>"
+  runtimeAgentVersion: "1.0.0"
+source:
+  repository: mays-ris
+  path: "agents/<agent-package>"
+  sha: "<RIS_SOURCE_SHA>"
+  branch: "<branch>"
+  ordersRepository: maynowak/mays-order-aws
+  ordersPin: 016cdfd6ac62565dcec9a2fee78cb898fb919e59
+versions:
+  workItem: "1.0"
+  agentOrder: "1.0"
+  transport: "1"
+  resultBody: "<result-body-version>"
+  agentRuntime: "1.0.0"
+contracts:
+  transport: agents/transport/order_transport.py
+  agentOrder: agents/orders/agent_order.py
+  required:
+    - ORDER_DISPATCH (mays-orders -> ris)
+    - ORDER_RESULT (ris -> mays-orders)
+    - "AgentOrder 1.0 with metadata.requestId and metadata.apiProfileRef"
+infrastructure:
+  awsAccount: "262370457690"
+  region: eu-central-1
+  workspace: ris-dev2
+  resources:
+    - "<reuse existing dispatch/result transport unless the manifest proves a new resource is required>"
+  protected:
+    - Cognito pools/clients/domain/authorizers
+    - CloudFront, Route53/DNS, ACM
+    - existing users and non-test data
+configuration:
+  env:
+    - "<ENV_NAME>"
+  secrets:
+    - name: ris-dev2-mays-orders-agent-result-hmac
+      storage: Secrets Manager, container only
+      format: bare 64-char lowercase hex
+      valueInGitTerraformStateLogsReports: forbidden
+dependencies:
+  platform:
+    - RIS runtime pipeline
+    - dispatch ingress
+    - result consumer
+compatibility:
+  risRuntime: ">=1.0"
+  transport: "1"
+  ordersPin: 016cdfd6ac62565dcec9a2fee78cb898fb919e59
+install:
+  steps:
+    - Validate this package with installer/agent_install.py.
+    - Run local contract/agent tests.
+    - Reuse the existing transport; add no queue without proof.
+    - Plan/apply only in an explicitly approved test scope.
+    - Provision synthetic identity/profile/entitlement.
+    - Run an isolated canary.
+tests:
+  local:
+    - "<pytest command>"
+  live:
+    - work COMPLETED and orderResultDelivery=SENT
+    - Orders processing COMPLETED
+    - owner 200 / foreign 404 / invalid 401
+activation:
+  procedure:
+    - "<approved activation steps>"
+deactivation:
+  procedure:
+    - stop traffic; revoke test data; reuse the shared transport teardown
+ownership:
+  team: ris-dev
+risk:
+  classification: "<low|medium|high>"
+  notes:
+    - "<known risks>"
+rollback:
+  - "<rollback steps>"

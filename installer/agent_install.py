@@ -43,7 +43,8 @@ def _now() -> str:
 def discover(root: Path) -> List[Path]:
     if not root.is_dir():
         raise AgentInstallError(f"package root not found: {root}")
-    packages = sorted(p.parent for p in root.glob("*/manifest.yaml"))
+    packages = sorted(p.parent for p in root.glob("*/manifest.yaml")
+                      if not p.parent.name.startswith("_"))
     if not packages:
         raise AgentInstallError(f"no agent packages under {root}")
     return packages

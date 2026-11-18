@@ -50,6 +50,10 @@ class OrchestratorTest(unittest.TestCase):
             info = agent_install.analyze(package)
             self.assertTrue(agent_install.validate(package, info)["validated"])
 
+    def test_template_is_not_discovered_as_an_agent(self):
+        packages = agent_install.discover(agent_install.DEFAULT_ROOT)
+        self.assertNotIn("_template", {p.name for p in packages})
+
     def test_stages_are_idempotent_and_resumable(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

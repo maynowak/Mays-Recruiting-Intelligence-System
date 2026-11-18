@@ -10658,3 +10658,10 @@ Date: 2026-11-18
 - ATS regression through the same runtime: order ord_ac7755a61dd172ed0a0046a9, work COMPLETED/SENT, Orders processing COMPLETED, bodyVersion 2.0, score 100.
 - Targeted tests 54 passed / 10 skipped; orchestrator 5 passed. Synthetic users and entitlements deleted; profiles revoked; evidence orders/work rows remain; secret still one AWSCURRENT.
 - Updated addition package handoff/operations/risks, added docs/releases/ris-agent-installation-09-addition.json and docs/reports/RIS-AGENT-INSTALLATION-09-ADDITION-PILOT.md.
+
+[RIS-AGENT-INSTALLATION-10 / AGENT FACTORY BASELINE]
+Status: TEMPLATE + ORCHESTRATOR GAP CLOSED / TESTS PASS.
+Date: 2026-11-18
+- Added agent-installations/_template with manifest, contracts, tests, risks, operations and handoff placeholders; added agent-installations/README.md describing the package convention and stages.
+- Orchestrator discovery now excludes _template (never a deployable agent package). Added a regression test; orchestrator suite 6 passed. Real packages ats-agent and addition-agent remain discoverable/valid.
+- No agent enabled, no AWS change, no secret/user mutation.
