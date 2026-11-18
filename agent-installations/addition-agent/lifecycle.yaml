@@ -9,9 +9,11 @@ discovery:
   # API-discoverable. Adding a row is an explicit INSTALL change request.
   visibility: ABSENT
   apiReachable: false
-  executionPath: dispatch-only
-  blockNewOrdersOnDisable: false
-  blockNewOrdersNote: orders_reader does not consult the catalog; only entitlement removal stops execution
+  executionPath: reader-gate+dispatch-only
+  # Enforced since RIS-AGENT-LIFECYCLE-11: the reader rejects with 403 before
+  # persisting when the entitlement is missing, even without a catalog row.
+  blockNewOrdersOnDisable: true
+  blockNewOrdersEnforcedBy: lambda/orders_reader.py admission gate
 sharedResources:
   - ris-dev2-dev-agent-dispatch
   - ris-dev2-dev-agent-dispatch-dlq

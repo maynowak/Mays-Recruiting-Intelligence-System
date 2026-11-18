@@ -5,11 +5,13 @@ the shared infrastructure.
 
 ## 1. Stop intake at the real producer
 
-`POST /orders` persists the order **before** dispatch and `lambda/orders_reader.py`
-does not consult the agent catalog. Therefore:
+Since RIS-AGENT-LIFECYCLE-11 the reader enforces the agent entitlement:
+with no valid entitlement `POST /orders` returns **403 AGENT_ORDER_REJECTED
+before the order row is persisted**. The catalog is still not consulted, so a
+catalog-only change does not stop intake.
 
 - stop `agent.execution` orders for `ats-agent`/`analyze.job` at the external
-  partner/producer *first*;
+  partner/producer as the earliest gate;
 - `orders_agent_result_enabled=false` does **not** block intake — it only stops
   result forwarding and strands the order;
 - `enable_agent_transport=false` destroys the shared dispatch queue/DLQ/ingress

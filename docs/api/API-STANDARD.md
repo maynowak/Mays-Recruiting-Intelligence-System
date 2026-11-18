@@ -337,12 +337,17 @@ Issuer/Client (`ORDERS_COGNITO_ISSUER`/`ORDERS_COGNITO_CLIENT_ID`).
 |---|---|---|---|
 | `GET /orders` | JWT + Owner | 200 | 400 (`limit` nicht Integer oder nicht 1..100), 401, 503 |
 | `GET /orders/{orderId}` | JWT + Owner | 200 | 400, 401, 404 `ORDER_NOT_FOUND`, 500 (nicht freigebbarer Inhalt), 503 |
-| `POST /orders` | JWT + Owner | 201 (`PENDING` + SQS-Anstoß) | 400, 401, 503 |
+| `POST /orders` | JWT + Owner | 201 (`PENDING` + SQS-Anstoß) | 400, 401, 403 (`AGENT_ORDER_REJECTED`), 503 |
 | `PATCH /orders/{orderId}/status` | JWT + Owner | 200 | 400, 401, 404, 409 (`INVALID_TRANSITION`, `CONFLICT`), 503 |
 
 `401 UNAUTHORIZED`: keine/ungültige verifizierte Identität, falscher Issuer,
 falscher Client oder `token_use` nicht `id`/`access`.
-`503 SERVICE_UNAVAILABLE`: Identitätskonfiguration fehlt (fail-closed) oder der
+`403 AGENT_ORDER_REJECTED`: Agentenauftrag (`agent.execution`) ohne gültige
+agentenspezifische Berechtigung — der Agent ist DISABLED/DETACHED, das Profil
+ist nicht aktiv/fremd, Mandant oder Gültigkeitsfenster passen nicht. Die
+Prüfung erfolgt **vor** dem Persistieren der Order (RIS-AGENT-LIFECYCLE-11).
+`503 SERVICE_UNAVAILABLE`: Identitätskonfiguration fehlt (fail-closed), der
+Entitlement-Store ist nicht konfiguriert/nicht erreichbar, oder der
 Owner-Index `gsi3` ist nicht verfügbar; es gibt keinen globalen Listen-Fallback.
 
 Owner-Bindung: `POST /orders` persistiert `ownerIssuer`, `ownerSubject`,

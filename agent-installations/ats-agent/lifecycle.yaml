@@ -6,11 +6,12 @@ discovery:
   catalog: ris-dev2-dev-agent-catalog
   visibility: ACTIVE
   apiReachable: true
-  executionPath: catalog+dispatch
-  # Declared intent. Not enforceable in code today: lambda/orders_reader.py
-  # does not consult the catalog, so only entitlement removal stops execution.
-  blockNewOrdersOnDisable: false
-  blockNewOrdersPending: reader catalog/entitlement gate
+  executionPath: reader-gate+dispatch+worker
+  # Enforced since RIS-AGENT-LIFECYCLE-11: the reader rejects an agent order
+  # with 403 before persisting when no valid entitlement exists. The catalog
+  # still gates API discovery, not execution.
+  blockNewOrdersOnDisable: true
+  blockNewOrdersEnforcedBy: lambda/orders_reader.py admission gate
 sharedResources:
   - ris-dev2-dev-agent-dispatch
   - ris-dev2-dev-agent-dispatch-dlq

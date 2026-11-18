@@ -5,8 +5,10 @@ API route, so its only runtime gate is the entitlement row.
 
 ## 1. Stop intake
 
-Stop `math.add` / `addition_agent` orders at the producer. The reader does not
-gate on catalog status, so this step is not optional.
+Since RIS-AGENT-LIFECYCLE-11 the reader enforces the entitlement: with no valid
+entitlement `POST /orders` returns **403 before persisting**. Stop `math.add` /
+`addition_agent` orders at the producer as the earliest gate; a catalog change
+does nothing because this agent has no catalog row.
 
 ## 2. Withdraw the agent entitlement
 

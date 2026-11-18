@@ -10685,3 +10685,15 @@ Date: 2026-11-18
 - Tests: tests/test_agent_lifecycle.py 17 passed; lifecycle+orchestrator+installer 60 passed; agent/orders/partner regression 238 passed / 6 skipped + 15 subtests; all package YAML parses.
 - Reports: docs/reports/RIS-AGENT-LIFECYCLE-10.md, docs/releases/ris-agent-lifecycle-10.json.
 - No AWS apply/mutation, no PURGE, no secret/user change, no ris-dev/production change, no push/merge.
+
+[RIS-AGENT-LIFECYCLE-11 / RUNTIME ENFORCEMENT]
+Status: ENFORCEMENT LIVE IN RIS-DEV2 / PARTNER TRAFFIC NO-GO.
+Date: 2026-11-18
+- Gap closed: lambda/orders_reader.py now evaluates check_worker_entitlement after profile resolution and before persisting an agent order. Missing/invalid entitlement -> 403 AGENT_ORDER_REJECTED (no order row); store missing/unreachable -> 503 (fail-closed). The worker/dispatch path already re-checked the same entitlement and terminates DEAD_LETTER/ENTITLEMENT_DENIED.
+- Reader bundle includes agents/ecosystem/worker_authorization.py (stdlib only) with repo/flat import fallback. Terraform orders_reader gets ENTITLEMENTS_TABLE plus read-only Query on the entitlements table and index/*; root passes the existing DynamoDB outputs.
+- Reviewed plan sha256 47862CF869763E20734969595915ECACFF7A44F837E2BFB1761595F561BA5E0B: 2 change, 0 add/destroy/replace (reader IAM policy + reader Lambda). Applied in ris-dev2; post-apply plan no changes; state serial 63 -> 64, lineage a0bd361d-... unchanged, 266 resources.
+- Live canary (synthetic profile/subject, removed afterwards): ENABLED order ord_dce286fa42aa192773f67276 -> 201, work work-def684e6d16c0d11 COMPLETED sum 42, delivery SENT, Orders processing COMPLETED. DISABLED -> 403 and no order row. Direct work work-lc11-direct -> DEAD_LETTER/no-entitlement. ATS ord_120536c300e188f7c0a244dd COMPLETED bodyVersion 2.0. Retail ord_8945fb4ee8d7e65b820c381e -> 201. Re-enabled ord_e79d7cc716b61af254bc8577 -> 201, COMPLETED sum 42, processing COMPLETED.
+- Shared resources unchanged: worker and dispatch-ingress code SHA UljJnuYr... unchanged; all queues 0/0; all 21 tables present; HMAC secret one AWSCURRENT; offers 0; entitlements 2; api-profiles 4; catalog unchanged.
+- Tests: new reader gate suite 10 passed + 7 subtests; regression 180 passed / 8 skipped / 13 subtests; flat reader bundle import PASS.
+- Docs: new docs/reports/RIS-AGENT-LIFECYCLE-11.md and docs/releases/ris-agent-lifecycle-11.json; API-STANDARD documents 403 AGENT_ORDER_REJECTED; package lifecycle/uninstall docs state the enforced reader gate; operations handoff updated.
+- No PURGE, no foreign-repo change, no secret value read, no ris-dev/production change, no push/merge.

@@ -59,19 +59,24 @@ addition agent has no external dependency. Neither needs its own AWS resource.
    stops execution by withdrawing the agent entitlement; a catalog status
    change alone is cosmetic for the dispatch path.
 
-### AGENT LIFECYCLE STATUS (RIS-AGENT-LIFECYCLE-10)
+### AGENT LIFECYCLE STATUS (RIS-AGENT-LIFECYCLE-10 / -11)
 
 - Contract implemented and tested locally: `installer/agent_lifecycle.py`
   with INSTALL/UPDATE/DISABLE/ENABLE/DETACH_PARTNER/UNINSTALL/PURGE/STATUS/VERIFY,
   dry-run, impact, dependency check, idempotency (`already_uninstalled`),
   actor/approval audit and result manifest. It never calls AWS.
-- Both packages now carry `lifecycle.yaml`, `uninstall.md`,
+- Both packages carry `lifecycle.yaml`, `uninstall.md`,
   `partner-bindings.md` and `retention.md`.
-- Corrected legacy guidance: `enable_agent_transport=false` /
-  `orders_agent_result_enabled=false` are shared switches and must not be used
-  to decommission one agent.
-- Still open: live enforcement (catalog/entitlement gate in the reader and
-  worker), `addition_agent` catalog seed (dispatch-only today), and PURGE
+- **Enforcement is live in ris-dev2 (RIS-AGENT-LIFECYCLE-11):**
+  `POST /orders` evaluates the agent entitlement before persisting and returns
+  403 for a DISABLED/DETACHED agent; the dispatch ingress and worker re-check
+  the same entitlement and terminate with `DEAD_LETTER`/`ENTITLEMENT_DENIED`.
+  Canonical live proof: enabled 201 + COMPLETED, disabled 403 with no order
+  row, direct work item `DEAD_LETTER`, ATS and retail unaffected, re-enabled
+  201 + COMPLETED.
+- Remaining boundary: the catalog still gates discovery/API, not execution.
+  DISABLE must withdraw the entitlement; a catalog-only change is cosmetic.
+- Still open: `addition_agent` catalog seed (dispatch-only today) and PURGE
   (blocked until retention is approved).
 
 
