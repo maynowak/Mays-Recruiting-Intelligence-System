@@ -1,11 +1,11 @@
 # JM-CV-UX-08 — CV DELETE FIX & CARD UX
 
-**Status:** `PRODUCTION DEPLOYED — CHILD-CONFLICT FIX READY — FOLLOW-UP APPROVAL PENDING`
+**Status:** `PRODUCTION VERIFIED`
 **Jobsearch branch:** `feature/jm-cv-ux-08-cv-delete-ux`
 **Base:** previous CV fix branch `feature/jm-cv-ux-07-persistence-delete-editor-return` (`04ef910`)
 **Code:** `bce210c`
-**PR:** [#37](https://github.com/maynowak/mays-jobsearch/pull/37) merged as `939d650`; follow-up [#38](https://github.com/maynowak/mays-jobsearch/pull/38) Draft
-**Production deployment verified. X/reload/confirmation/delete E2E PASS. Child-conflict BFF fix in PR #38; no RIS/AWS/Terraform/Cognito/Consent change.**
+**PR:** [#37](https://github.com/maynowak/mays-jobsearch/pull/37) merged as `939d650`; follow-up [#38](https://github.com/maynowak/mays-jobsearch/pull/38) merged as `720f290`
+**Production `720f290` verified. All five synthetic E2E checks PASS. No RIS/AWS/Terraform/Cognito/Consent change.**
 
 ## 1. Delete-Verhalten
 
@@ -198,7 +198,7 @@ identity and run the authenticated synthetic E2E:
 
 ## 8. Controlled Integration Result (2026-11-18)
 
-**Status:** `PRODUCTION DEPLOYED — CHILD-CONFLICT FIX READY — FOLLOW-UP APPROVAL PENDING`
+**Status:** `RESOLVED — PRODUCTION VERIFIED`
 
 - Release approval: explicit operator approval received.
 - PR #37 merged with merge commit `939d650`; feature branch retained.
@@ -229,7 +229,7 @@ After login, run the five synthetic checks and only then change this report to
 
 ## 9. Production E2E Finding & Follow-up Fix (2026-11-18)
 
-**Status:** `PRODUCTION DEPLOYED — CHILD-CONFLICT FIX READY — FOLLOW-UP APPROVAL PENDING`
+**Status:** `RESOLVED — PRODUCTION VERIFIED`
 
 ### Production run (synthetic only)
 
@@ -263,13 +263,34 @@ received `conflict` and displayed the version-conflict message.
 
 - Branch: `feature/jm-cv-ux-08-child-conflict-fix`
 - Code: `306eb1c`
-- PR: [#38](https://github.com/maynowak/mays-jobsearch/pull/38) (Draft)
+- PR: [#38](https://github.com/maynowak/mays-jobsearch/pull/38) merged as `720f290`
 - 409 + `s3Touched:false` now takes precedence and maps to
   `CV_HAS_CHILD_PROFILES`; a real version conflict remains `conflict`.
 - Test fixture now uses the exact RIS production shape including
   `code:"conflict"`; a separate test covers the true version conflict.
 - Focused 36 PASS; full **1965 PASS / 11 skipped**; build PASS.
 
-No follow-up merge or Production deployment has occurred. A separate explicit
-approval is required. After deployment, repeat the five synthetic checks and
-only then mark `PRODUCTION VERIFIED`.
+Follow-up PR #38 was approved, merged as `720f290` and the five synthetic checks
+were repeated successfully. See section 10.
+
+
+## 10. Final Production Verification (2026-11-18)
+
+**Status:** `PRODUCTION VERIFIED`
+
+- PR #38 merged as `720f290`; automatic Production deployments for both
+  Vercel projects: **SUCCESS**.
+- Production footer: `Version 2.2.0 · production · main · 720f290`.
+- Authenticated synthetic Production E2E: **PASS**
+  - X hides the card locally with **0 DELETE requests**
+  - Reload restores the card
+  - Permanent delete shows the exact filename and supports cancel
+  - Confirmed delete removes the card and the RIS list entry
+  - Child-profile conflict shows the correct message, keeps the card and the
+    RIS list entry
+- Cleanup: child profile DELETE 204, synthetic CV DELETE 200, already-deleted
+  synthetic CV 404; both synthetic CVs absent; list returned to **3**.
+- No existing CV or application was touched. No real applicant data was used.
+- No RIS/AWS/Terraform/Cognito/Consent change.
+
+**Final result: `PRODUCTION VERIFIED`.**

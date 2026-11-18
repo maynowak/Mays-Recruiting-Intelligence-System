@@ -10427,3 +10427,17 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
   36 PASS; full **1965 PASS / 11 skipped**; build PASS.
 - Synthetic data cleaned up; no real CV/application data touched. RIS unchanged;
   no AWS/Terraform/Cognito/Consent change.
+
+## 2026-11-18 — JM-CV-UX-08 — PRODUCTION VERIFIED
+
+**Status:** `PRODUCTION VERIFIED`
+
+- Jobsearch PR #38 merged as `720f290` after explicit follow-up approval.
+  Automatic Production deployments: **SUCCESS**; footer
+  `Version 2.2.0 · production · main · 720f290`.
+- Authenticated synthetic Production E2E **PASS** for all five checks: X hide
+  without DELETE; reload restores; filename confirmation/cancel; confirmed
+  delete removes card/list entry; child-profile conflict shows correct message
+  and keeps card/list entry.
+- Synthetic data cleaned up; list back to 3; no real CV/application data.
+  RIS unchanged; no AWS/Terraform/Cognito/Consent change.
