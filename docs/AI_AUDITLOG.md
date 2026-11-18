@@ -10665,3 +10665,12 @@ Date: 2026-11-18
 - Added agent-installations/_template with manifest, contracts, tests, risks, operations and handoff placeholders; added agent-installations/README.md describing the package convention and stages.
 - Orchestrator discovery now excludes _template (never a deployable agent package). Added a regression test; orchestrator suite 6 passed. Real packages ats-agent and addition-agent remain discoverable/valid.
 - No agent enabled, no AWS change, no secret/user mutation.
+
+[RIS-AGENT-INSTALLATION-10 / OPERATIONS HANDOFF]
+Status: CONSOLIDATED / RIS-DEV2 TEST LIVE / PARTNER TRAFFIC NO-GO.
+Date: 2026-11-18
+- Four independent risk reviews (SQS/visibility/DLQ, ORDER_FAILED, reader idempotency/ingress timeout, IAM/tenant/owner) consolidated into docs/reports/RIS-AGENT-OPERATIONS-HANDOFF-10.md and docs/releases/ris-agent-operations-handoff-10.json.
+- BLOCKER: no alarm notification path (empty AlarmActions, no SNS, no agent queue/DLQ alarms); permanent rejects deleted without artifact/metric; batch 5 x ATS 30s in a 60s Lambda can leave a permanent RUNNING row; no ORDER_FAILED/failure projection.
+- REQUIRED BEFORE PRODUCTION: reader POST idempotency, profile expiry check, ingress ownerUserId precedence and fail-closed queue ARN/entitlement resolver, secret-shape enforcement, cross-tenant/duplicate-workId integrity, worker-role split, dispatch subject-fence parity, DLQ replay, worker ESM partial-batch, ingress concurrency cap.
+- Live evidence retained: ATS order ord_0d23d52e98fb4c557e7aa920 score 67; addition order ord_71c3c1003ce9492d5acbb601 sum 42; ATS regression ord_ac7755a61dd172ed0a0046a9 score 100; both work COMPLETED/SENT, Orders processing COMPLETED, owner boundaries 200/404/401.
+- No AWS apply/mutation, no secret/user change, no ris-dev/production change, no push/merge.
