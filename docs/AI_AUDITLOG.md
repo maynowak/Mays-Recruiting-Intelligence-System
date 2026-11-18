@@ -10410,3 +10410,20 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
   login in the open Chromium window.
 - RIS unchanged; no AWS/Terraform/Cognito/Consent change.
 - Report synced: `docs/reports/JM-CV-UX-08-CV-DELETE-CARD-UX-REPORT.md`.
+
+## 2026-11-18 — JM-CV-UX-08 — PRODUCTION CHILD-CONFLICT FINDING
+
+**Status:** `PRODUCTION DEPLOYED — CHILD-CONFLICT FIX READY — FOLLOW-UP APPROVAL PENDING`
+
+- Authenticated synthetic Production E2E: X hide without DELETE, reload,
+  filename confirmation/cancel and successful delete PASS; existing CV count
+  restored to 3. Child-profile conflict FAILED with generic version message.
+- Root cause: RIS 409 included `code:"conflict"` and `s3Touched:false`; the
+  Jobsearch BFF prioritized `result.data.code`, masking the child-specific
+  signal. No RIS change required.
+- Follow-up Jobsearch branch `feature/jm-cv-ux-08-child-conflict-fix`, code
+  `306eb1c`, Draft PR #38: 409 + `s3Touched:false` now maps to
+  `CV_HAS_CHILD_PROFILES`; true version conflict remains `conflict`. Focused
+  36 PASS; full **1965 PASS / 11 skipped**; build PASS.
+- Synthetic data cleaned up; no real CV/application data touched. RIS unchanged;
+  no AWS/Terraform/Cognito/Consent change.

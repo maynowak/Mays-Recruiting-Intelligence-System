@@ -1,11 +1,11 @@
 # JM-CV-UX-08 — CV DELETE FIX & CARD UX
 
-**Status:** `PRODUCTION DEPLOYED — AUTHENTICATED E2E BLOCKED — LOGIN REQUIRED`
+**Status:** `PRODUCTION DEPLOYED — CHILD-CONFLICT FIX READY — FOLLOW-UP APPROVAL PENDING`
 **Jobsearch branch:** `feature/jm-cv-ux-08-cv-delete-ux`
 **Base:** previous CV fix branch `feature/jm-cv-ux-07-persistence-delete-editor-return` (`04ef910`)
 **Code:** `bce210c`
-**PR:** [#37](https://github.com/maynowak/mays-jobsearch/pull/37) — MERGED as `939d650`
-**Production deployment verified. Authenticated E2E pending login. No RIS/AWS/Terraform/Cognito/Consent change.**
+**PR:** [#37](https://github.com/maynowak/mays-jobsearch/pull/37) merged as `939d650`; follow-up [#38](https://github.com/maynowak/mays-jobsearch/pull/38) Draft
+**Production deployment verified. X/reload/confirmation/delete E2E PASS. Child-conflict BFF fix in PR #38; no RIS/AWS/Terraform/Cognito/Consent change.**
 
 ## 1. Delete-Verhalten
 
@@ -198,7 +198,7 @@ identity and run the authenticated synthetic E2E:
 
 ## 8. Controlled Integration Result (2026-11-18)
 
-**Status:** `PRODUCTION DEPLOYED — AUTHENTICATED E2E BLOCKED — LOGIN REQUIRED`
+**Status:** `PRODUCTION DEPLOYED — CHILD-CONFLICT FIX READY — FOLLOW-UP APPROVAL PENDING`
 
 - Release approval: explicit operator approval received.
 - PR #37 merged with merge commit `939d650`; feature branch retained.
@@ -225,3 +225,51 @@ Therefore the authenticated production E2E remains **blocked until a human logs
 in** in the open Chromium window at `https://www.mays-job-matcher.app/`.
 After login, run the five synthetic checks and only then change this report to
 `PRODUCTION VERIFIED`.
+
+
+## 9. Production E2E Finding & Follow-up Fix (2026-11-18)
+
+**Status:** `PRODUCTION DEPLOYED — CHILD-CONFLICT FIX READY — FOLLOW-UP APPROVAL PENDING`
+
+### Production run (synthetic only)
+
+| Check | Result |
+|---|---|
+| X hides card without DELETE request | **PASS** (0 DELETE requests) |
+| Reload restores card | **PASS** |
+| Permanent delete shows filename and can be cancelled | **PASS** |
+| Confirmed delete removes card and RIS list entry | **PASS** |
+| Child-profile conflict message | **FAIL — generic version message** |
+
+Synthetic setup: two CVs and one CV-search child profile, all created for this
+run. No existing CV was touched. The failed run was cleaned up: child profile
+DELETE 204, synthetic CV DELETE 200, second synthetic CV already gone (404),
+list count returned to the original **3**.
+
+### Actual defect
+
+RIS returned the correct child guard response:
+
+```json
+{ "error": "CV has child search profiles; delete refused",
+  "code": "conflict", "s3Touched": false }
+```
+
+The Jobsearch BFF evaluated `result.data.code` first, so the present
+`code:"conflict"` masked the child-specific `s3Touched:false` signal. The UI
+received `conflict` and displayed the version-conflict message.
+
+### Fix
+
+- Branch: `feature/jm-cv-ux-08-child-conflict-fix`
+- Code: `306eb1c`
+- PR: [#38](https://github.com/maynowak/mays-jobsearch/pull/38) (Draft)
+- 409 + `s3Touched:false` now takes precedence and maps to
+  `CV_HAS_CHILD_PROFILES`; a real version conflict remains `conflict`.
+- Test fixture now uses the exact RIS production shape including
+  `code:"conflict"`; a separate test covers the true version conflict.
+- Focused 36 PASS; full **1965 PASS / 11 skipped**; build PASS.
+
+No follow-up merge or Production deployment has occurred. A separate explicit
+approval is required. After deployment, repeat the five synthetic checks and
+only then mark `PRODUCTION VERIFIED`.
