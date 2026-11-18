@@ -10364,3 +10364,18 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
   / 18 baseline failures; fmt/validate PASS. No additional infrastructure
   apply, Main merge or Jobsearch product change.
 - Shared report: `docs/reports/RIS-CV-DELETE-IAM-02-PILOT-VERIFICATION.md`.
+
+## 2026-11-18 — JM-CV-UX-08 — CV DELETE & CARD UX
+
+**Status:** `A — IMPLEMENTED & VERIFIED — READY FOR CONTROLLED INTEGRATION`
+
+- X is now a local view-hide action (40×40, 24-px icon, accessible label,
+  focus/hover) and never calls RIS. Durable deletion is a separate confirmed
+  action with filename, cancel-without-API and retryable errors.
+- Delete 409s now distinguish child-profile conflicts (`CV_HAS_CHILD_PROFILES`)
+  from true version conflicts; the list refreshes on 409 without automatic
+  retry. Successful DELETE removes the card immediately and refreshes from RIS.
+- Tests: focused 35 PASS; full frontend **1963 PASS / 11 skipped**; build PASS;
+  local `profile-ux-final` E2E PASS including X hide/reload and confirmed
+  delete. No RIS/AWS/Cognito/Terraform/Consent change, no Main merge/deploy.
+- Shared report: `docs/reports/JM-CV-UX-08-CV-DELETE-CARD-UX-REPORT.md`.
