@@ -10682,6 +10682,6 @@ Date: 2026-11-18
 - installer.agent_install.py delegates --action to the lifecycle module (single entry point). Added .gitignore rules for local lifecycle state/audit/result evidence.
 - Extended ats-agent and addition-agent with lifecycle.yaml, uninstall.md, partner-bindings.md and retention.md; corrected ats-agent manifest deactivation/rollback (shared flags must not decommission one agent).
 - Reconciled with four reviews: only two agent-scoped levers exist (catalog row via Terraform, entitlement row); the worker and the orders reader never read the catalog. addition_agent is dispatch-only and declares visibility ABSENT.
-- Tests: tests/test_agent_lifecycle.py 17 passed; lifecycle+orchestrator+installer 59 passed; agent/orders/partner regression 201 passed + 15 subtests; all package YAML parses.
+- Tests: tests/test_agent_lifecycle.py 17 passed; lifecycle+orchestrator+installer 60 passed; agent/orders/partner regression 238 passed / 6 skipped + 15 subtests; all package YAML parses.
 - Reports: docs/reports/RIS-AGENT-LIFECYCLE-10.md, docs/releases/ris-agent-lifecycle-10.json.
 - No AWS apply/mutation, no PURGE, no secret/user change, no ris-dev/production change, no push/merge.

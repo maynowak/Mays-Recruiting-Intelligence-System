@@ -77,8 +77,8 @@
   ],
   "tests": {
     "lifecycle": "17 passed",
-    "lifecycle_orchestrator_installer": "59 passed",
-    "agent_orders_partner_regression": "201 passed, 15 subtests",
+    "lifecycle_orchestrator_installer": "60 passed",
+    "agent_orders_partner_regression": "238 passed, 6 skipped, 15 subtests",
     "yamlParse": "5 files OK"
   },
   "openBlockers": [

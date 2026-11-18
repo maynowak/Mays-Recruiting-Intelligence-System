@@ -135,8 +135,8 @@ decommission one agent.
 | Suite | Result |
 |---|---|
 | `tests/test_agent_lifecycle.py` | **17 passed** |
-| Lifecycle + orchestrator + installer | 59 passed |
-| Agent/orders/partner regression (10 files) | **201 passed, 15 subtests passed** |
+| Lifecycle + orchestrator + installer | 60 passed |
+| Agent/orders/partner regression (12 files) | **238 passed, 6 skipped, 15 subtests passed** |
 | YAML parse of all `agent-installations/*/*.yaml` | 5 files OK |
 
 Covered contract cases:
