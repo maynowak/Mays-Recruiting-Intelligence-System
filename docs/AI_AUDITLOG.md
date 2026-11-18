@@ -10649,3 +10649,12 @@ Date: 2026-11-18
 - Live deployment: plan 66AD66AA... applied (24 add / 4 change / 0 destroy / 0 replace), post-apply plan reports no changes, state serial 63, lineage unchanged. No Cognito/CloudFront/DNS/ACM/S3 changes.
 - Live E2E PASS with synthetic data: order ord_0d23d52e98fb4c557e7aa920, work work-a818f56a2f5ec0d0, COMPLETED/SENT, Orders processing COMPLETED bodyVersion 2.0 score 67, status PENDING, owner 200/foreign 404/invalid 401, duplicate no second write, retail 201/200, queues+DLQs 0, logs clean.
 - Test users deleted, entitlement deleted, test profiles revoked; synthetic evidence orders/work rows remain. Secret has exactly one AWSCURRENT; no value in Git/state/logs/reports. Partner traffic not enabled; ris-dev/production untouched.
+
+[RIS-AGENT-INSTALLATION-09 / ADDITION PILOT]
+Status: PASS / ris-dev2 test scope / no new AWS resources.
+Date: 2026-11-18
+- Reused agent-installations/addition-agent and installer/agent_install.py. Stages discover/analyze/compatibility/risk-review/package/validate passed; validate re-run returned SKIPPED (resume/idempotency). Post-apply Terraform plan: no changes.
+- Live canary through the deployed path: order ord_71c3c1003ce9492d5acbb601, work work-efc33036efaece37, work COMPLETED, orderResultDelivery SENT, Orders processing COMPLETED, sum 42, order status PENDING; owner 200, foreign 404, invalid token 401; duplicate no second write; dispatch/result DLQs 0.
+- ATS regression through the same runtime: order ord_ac7755a61dd172ed0a0046a9, work COMPLETED/SENT, Orders processing COMPLETED, bodyVersion 2.0, score 100.
+- Targeted tests 54 passed / 10 skipped; orchestrator 5 passed. Synthetic users and entitlements deleted; profiles revoked; evidence orders/work rows remain; secret still one AWSCURRENT.
+- Updated addition package handoff/operations/risks, added docs/releases/ris-agent-installation-09-addition.json and docs/reports/RIS-AGENT-INSTALLATION-09-ADDITION-PILOT.md.
