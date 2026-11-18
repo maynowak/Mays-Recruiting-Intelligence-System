@@ -1,11 +1,11 @@
 # JM-CV-UX-08 — CV DELETE FIX & CARD UX
 
-**Status:** `A — RELEASE APPROVAL PENDING — PR #37 CLEAN`
+**Status:** `PRODUCTION DEPLOYED — AUTHENTICATED E2E BLOCKED — LOGIN REQUIRED`
 **Jobsearch branch:** `feature/jm-cv-ux-08-cv-delete-ux`
 **Base:** previous CV fix branch `feature/jm-cv-ux-07-persistence-delete-editor-return` (`04ef910`)
 **Code:** `bce210c`
-**PR:** [#37](https://github.com/maynowak/mays-jobsearch/pull/37) — Draft, `MERGEABLE` / `CLEAN`
-**No Main merge, no Production deployment, no RIS/AWS/Cognito/Terraform/Consent change.**
+**PR:** [#37](https://github.com/maynowak/mays-jobsearch/pull/37) — MERGED as `939d650`
+**Production deployment verified. Authenticated E2E pending login. No RIS/AWS/Terraform/Cognito/Consent change.**
 
 ## 1. Delete-Verhalten
 
@@ -144,7 +144,7 @@ Der frühere IAM-Plan ist angewendet; keine weitere Infrastrukturänderung.
 
 ## 7. Controlled Integration Preflight (2026-11-18)
 
-**Status:** `A — RELEASE APPROVAL PENDING — PR #37 CLEAN`
+**Status:** `RELEASE APPROVED — PR #37 MERGED — PRODUCTION DEPLOYED`
 
 - `origin/main`: `6fc40d2` (Merge PR #36)
 - Merge-Base: `6fc40d2`; branch is **0 behind / 7 ahead** of `origin/main`
@@ -194,3 +194,34 @@ identity and run the authenticated synthetic E2E:
 - permanent delete requires confirmation
 - successful delete removes the card
 - child-profile conflict shows the correct message
+
+
+## 8. Controlled Integration Result (2026-11-18)
+
+**Status:** `PRODUCTION DEPLOYED — AUTHENTICATED E2E BLOCKED — LOGIN REQUIRED`
+
+- Release approval: explicit operator approval received.
+- PR #37 merged with merge commit `939d650`; feature branch retained.
+- Automatic Vercel Production deployments:
+  - `Vercel – mays-job-matcher`: **SUCCESS**
+  - `Vercel – mays-jobsearch`: **SUCCESS**
+  - `Vercel Deployments – Maymilly`: **SUCCESS**
+- Production domains return HTTP 200 and expose footer `Version 2.2.0 · production · main · 939d650`.
+- Production bundles contain the new strings/markers:
+  `Aus aktueller Ansicht entfernen`, `CV_HAS_CHILD_PROFILES`,
+  `cv-storage-card__hide`, `Dauerhaft löschen` and the child-profile message.
+- No real CV or application data was changed. No RIS/AWS/Terraform/Cognito/Consent change.
+
+### Authenticated E2E gate
+
+The previously stored operator session could not be used:
+
+- No authenticated tab/session was present in the Chromium profile.
+- The stored access/id tokens were expired.
+- A normal Cognito refresh grant returned `invalid_grant`.
+- No token was exported, no auth bypass was used and no new session was fabricated.
+
+Therefore the authenticated production E2E remains **blocked until a human logs
+in** in the open Chromium window at `https://www.mays-job-matcher.app/`.
+After login, run the five synthetic checks and only then change this report to
+`PRODUCTION VERIFIED`.
