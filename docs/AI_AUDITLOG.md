@@ -10315,3 +10315,22 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
   still blocked by missing valid test identity/token; no Production
   verification claimed. No general rollout.
 - Report: `docs/reports/RIS-CONSENT-RELEASE-05.md`.
+
+## 2026-11-18 — RIS-CV-DELETE-IAM-01
+
+**Status:** `READY FOR CONTROLLED IAM APPLY`
+
+- Target `ris-dev`: role `ris-dev-dev-agent`, table
+  `ris-dev-dev-partner-profiles`, state serial 82 / lineage
+  `9cec61e5…`. The existing partner-profile policy lacked
+  `dynamodb:ConditionCheckItem`; IAM simulation returned `implicitDeny`.
+  This explains the CV-delete `cv delete reservation failed` / 500 path.
+- Minimal Terraform diff: add only `dynamodb:ConditionCheckItem` to the
+  existing policy, same role/effect/table/index resources; no wildcard, new
+  resource, Cognito/CloudFront or Jobsearch change.
+- Fresh plan `/tmp/opencode/ris-cv-delete-iam-01.tfplan` SHA-256
+  `754770b44e4f63d386f962a12e6701e04e3b1c94a53cbc3d2858b9e871afbf5d`,
+  state 82: **0 add / 1 change / 0 destroy / 0 replace**. No apply.
+- Focused 46 PASS; full RIS 2829 PASS / 104 skipped / 18 known baseline
+  failures; fmt/validate PASS. Synthetic delete E2E is prepared but not
+  executed. Report: `docs/reports/RIS-CV-DELETE-IAM-01-REPORT.md`.
