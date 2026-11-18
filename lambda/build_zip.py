@@ -143,6 +143,9 @@ READER_FILES = [
     "lambda/orders_reader.py",
     "agents/transport/order_transport.py",
     "agents/orders/agent_order.py",
+    # Flat bundle module: the reader gate uses the same entitlement decision
+    # as worker/dispatch. worker_authorization only imports stdlib.
+    "agents/ecosystem/worker_authorization.py",
 ]
 
 

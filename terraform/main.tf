@@ -228,6 +228,8 @@ module "orders_reader" {
   dispatch_queue_arn      = local.agent_dispatch_queue_arn
   api_profiles_table_name = module.dynamodb.api_profiles_table_name
   api_profiles_table_arn  = module.dynamodb.api_profiles_table_arn
+  entitlements_table_name = module.dynamodb.entitlements_table_name
+  entitlements_table_arn  = module.dynamodb.entitlements_table_arn
 }
 
 

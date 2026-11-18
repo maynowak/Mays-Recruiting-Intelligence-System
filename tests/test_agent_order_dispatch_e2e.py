@@ -235,7 +235,8 @@ class TestAgentOrderDispatchE2E(unittest.TestCase):
     def _create_agent_order(self, body=None):
         return orders_reader.handler(
             event("POST /orders", body=body or agent_body()), None,
-            self.orders, profile_table=self.profile_table)
+            self.orders, profile_table=self.profile_table,
+            entitlement_resolver=self.entitlements)
 
     def _dispatch(self, envelope, message_id="sqs-dispatch-1"):
         return dispatch_ingress.handler({"Records": [{

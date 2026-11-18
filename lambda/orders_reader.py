@@ -46,10 +46,22 @@ except ImportError:  # Lambda reader bundle (flat contract modules)
         build_dispatch_envelope,
     )
 
+try:  # repository layout / tests
+    from agents.ecosystem.worker_authorization import (
+        DynamoDBEntitlementResolver,
+        check_worker_entitlement,
+    )
+except ImportError:  # Lambda reader bundle (flat module)
+    from worker_authorization import (
+        DynamoDBEntitlementResolver,
+        check_worker_entitlement,
+    )
+
 ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "")
 ORDERS_SQS_QUEUE_URL = os.environ.get("ORDERS_SQS_QUEUE_URL", "")
 RIS_DISPATCH_QUEUE_URL = os.environ.get("RIS_DISPATCH_QUEUE_URL", "")
 API_PROFILES_TABLE = os.environ.get("API_PROFILES_TABLE", "")
+ENTITLEMENTS_TABLE = os.environ.get("ENTITLEMENTS_TABLE", "")
 # Validate non-empty binding (fail-closed: reject missing binding at runtime)
 if not ORDERS_TABLE:
     raise RuntimeError("ORDERS_TABLE environment variable must be set")
@@ -405,6 +417,7 @@ def _valid_order_id(value: Any) -> Optional[str]:
 
 
 _profile_table = None
+_entitlement_resolver = None
 
 
 class AgentOrderRejected(Exception):
@@ -452,6 +465,49 @@ def _load_profile(profile_id: str, identity: Dict[str, Any],
     return profile
 
 
+def _get_entitlement_resolver():
+    global _entitlement_resolver
+    if _entitlement_resolver is None:  # pragma: no cover - live path
+        _entitlement_resolver = DynamoDBEntitlementResolver(
+            table_name=ENTITLEMENTS_TABLE)
+    return _entitlement_resolver
+
+
+def _require_agent_entitlement(agent_id: str, profile: Dict[str, Any],
+                               profile_ref: str, identity: Dict[str, Any],
+                               resolver: Any = None) -> None:
+    """Fail-closed admission: without a valid entitlement no order is created.
+
+    Uses the same decision function as the worker and dispatch ingress, so a
+    DISABLED/DETACHED agent is rejected before the order row is persisted.
+    """
+    if resolver is None:
+        if not ENTITLEMENTS_TABLE:
+            raise AgentOrderRejected(503, "SERVICE_UNAVAILABLE",
+                                     "Agent entitlement store is not configured")
+        resolver = _get_entitlement_resolver()
+    try:
+        decision = check_worker_entitlement(
+            user_id=profile.get("ownerUserId") or identity["subject"],
+            tenant_id=profile.get("tenantId"),
+            agent_id=agent_id,
+            work_id=None,
+            resolver=resolver,
+            api_profile_id=profile_ref,
+        )
+    except Exception as exc:
+        print(f"agent entitlement check unavailable: {type(exc).__name__}")
+        raise AgentOrderRejected(
+            503, "SERVICE_UNAVAILABLE",
+            "Agent authorization is temporarily unavailable") from exc
+    if not decision.authorized:
+        # Detailed reason stays in the log; the client gets a stable code.
+        print(f"agent order rejected: agent={agent_id} "
+              f"reason={decision.reason}")
+        raise AgentOrderRejected(403, "AGENT_ORDER_REJECTED",
+                                 "Agent is not enabled for this API profile")
+
+
 def _send_order_dispatch(envelope: Dict[str, Any]) -> None:
     """Send the existing ORDER_DISPATCH contract to the RIS ingress queue."""
     if not RIS_DISPATCH_QUEUE_URL:
@@ -484,7 +540,8 @@ def _set_dispatch_state(table: Any, order_id: str,
 
 def _create_agent_order(table: Any, raw: Dict[str, Any],
                         identity: Dict[str, Any],
-                        profile_table: Any = None) -> Dict[str, Any]:
+                        profile_table: Any = None,
+                        entitlement_resolver: Any = None) -> Dict[str, Any]:
     """Validate, persist and dispatch an agent order through Transport V1."""
     import secrets
     from datetime import datetime, timezone
@@ -510,6 +567,9 @@ def _create_agent_order(table: Any, raw: Dict[str, Any],
                                  "agentOrder.metadata.apiProfileRef is required")
 
     profile = _load_profile(profile_ref, identity, table=profile_table)
+    _require_agent_entitlement(agent_order["target"]["agentId"], profile,
+                               profile_ref, identity,
+                               resolver=entitlement_resolver)
 
     order_id = f"{ORDER_ID_PREFIX}{secrets.token_hex(12)}"
     work_id = f"work-{secrets.token_hex(8)}"
@@ -659,7 +719,8 @@ def _create_order(table: Any, data: Dict[str, Any],
 
 
 def handler(event: Dict[str, Any], context: Any, table: Any = None,
-            profile_table: Any = None) -> Dict[str, Any]:
+            profile_table: Any = None,
+            entitlement_resolver: Any = None) -> Dict[str, Any]:
     """HTTP-API-v2-Einstieg (routeKey). Tabellen nur fuer Unit-Tests injizierbar."""
     tbl = table if table is not None else _get_table()
     try:
@@ -678,7 +739,8 @@ def handler(event: Dict[str, Any], context: Any, table: Any = None,
                     or raw.get("orderType") == "agent.execution"):
                 try:
                     created = _create_agent_order(
-                        tbl, raw, identity, profile_table=profile_table)
+                        tbl, raw, identity, profile_table=profile_table,
+                        entitlement_resolver=entitlement_resolver)
                 except AgentOrderRejected as exc:
                     return _err(exc.status_code, exc.code, exc.message)
                 return _ok(201, created)

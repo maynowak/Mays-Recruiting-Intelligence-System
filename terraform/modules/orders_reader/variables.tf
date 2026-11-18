@@ -156,3 +156,15 @@ variable "api_profiles_table_arn" {
   type        = string
   default     = ""
 }
+
+variable "entitlements_table_name" {
+  description = "Entitlements table for the reader agent-admission gate."
+  type        = string
+  default     = ""
+}
+
+variable "entitlements_table_arn" {
+  description = "Entitlements table ARN (read-only Query scope)."
+  type        = string
+  default     = ""
+}

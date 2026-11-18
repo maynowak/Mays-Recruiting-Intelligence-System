@@ -230,6 +230,7 @@ def test_reader_bundle_ships_the_flat_dispatch_contract():
     assert "lambda/orders_reader.py" in READER_FILES
     assert "agents/transport/order_transport.py" in READER_FILES
     assert "agents/orders/agent_order.py" in READER_FILES
+    assert "agents/ecosystem/worker_authorization.py" in READER_FILES
 
 def test_dispatch_ingress_entitlement_query_covers_the_gsi():
     transport = text(TF / "modules" / "agent_transport" / "lambda.tf")

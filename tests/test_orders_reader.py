@@ -147,6 +147,16 @@ class ProfileTable:
         return {"Item": dict(item)} if item else {}
 
 
+class EntitlementResolver:
+    """Read-only resolver with the DynamoDB resolver's contract."""
+
+    def __init__(self, rows):
+        self.rows = rows
+
+    def find_entitlements(self, user_id):
+        return [dict(r) for r in self.rows if r.get("userId") == user_id]
+
+
 def event(route, order_id=None, body=None, params=None, claims="default"):
     ev = {"routeKey": route}
     if claims is not None:
@@ -479,6 +489,10 @@ class TestAgentOrderCreate(unittest.TestCase):
             "tenantId": "tenant-a",
         }])
         self.sent = []
+        self.entitlements = EntitlementResolver([{
+            "userId": OWNER_SUB, "tenantId": "tenant-a",
+            "agentId": "ats-agent", "entitlementId": "ent-test",
+        }])
         self._patch = patch.object(orders_reader, "_send_order_dispatch",
                                    side_effect=self.sent.append)
         self._patch.start()
@@ -507,7 +521,8 @@ class TestAgentOrderCreate(unittest.TestCase):
 
         return orders_reader.handler(
             event("POST /orders", body=body), None, self.table,
-            profile_table=profile_table or self.profile_table)
+            profile_table=profile_table or self.profile_table,
+            entitlement_resolver=self.entitlements)
 
     def test_valid_agent_order_is_persisted_and_dispatched(self):
         from agents.transport.order_transport import (
@@ -621,7 +636,11 @@ class TestAgentOrderDispatchConfiguration(unittest.TestCase):
         with patch.object(orders_reader, "RIS_DISPATCH_QUEUE_URL", ""):
             resp = orders_reader.handler(
                 event("POST /orders", body=body), None, table,
-                profile_table=profile)
+                profile_table=profile,
+                entitlement_resolver=EntitlementResolver([{
+                    "userId": OWNER_SUB, "tenantId": "tenant-a",
+                    "agentId": "ats-agent", "entitlementId": "ent-test",
+                }]))
         self.assertEqual(503, resp["statusCode"])
         self.assertEqual(1, len(table._items))
 

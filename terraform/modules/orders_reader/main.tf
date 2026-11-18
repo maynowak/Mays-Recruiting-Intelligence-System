@@ -48,6 +48,15 @@ resource "aws_iam_role_policy" "reader_agent_dispatch" {
         Action   = ["dynamodb:GetItem"]
         Resource = [var.api_profiles_table_arn]
       },
+      {
+        # Reader admission gate: read-only entitlement lookup (gsi-user).
+        Effect = "Allow"
+        Action = ["dynamodb:Query"]
+        Resource = [
+          var.entitlements_table_arn,
+          "${var.entitlements_table_arn}/index/*"
+        ]
+      },
     ]
   })
 }
@@ -111,6 +120,7 @@ resource "aws_lambda_function" "reader" {
       ORDERS_COGNITO_CLIENT_ID = var.cognito_client_id
       RIS_DISPATCH_QUEUE_URL   = var.dispatch_queue_url
       API_PROFILES_TABLE       = var.api_profiles_table_name
+      ENTITLEMENTS_TABLE       = var.entitlements_table_name
     }
   }
 
