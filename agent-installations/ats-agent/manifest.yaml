@@ -1,0 +1,136 @@
+schemaVersion: "1.0"
+package:
+  name: ats-agent
+  version: "1.0.0"
+  status: active
+  classification: controlled-test
+agent:
+  agentId: ats-agent
+  capability: analyze.job
+  workType: ats_process
+  runtimeAgentVersion: "1.0.0"
+source:
+  repository: mays-ris
+  path: agents/ats_agent
+  sha: f0c707c6e80638a6489194b3be98374718a6a522
+  branch: feature/ris-dev2-ats-agent-pinned-core-01
+  ordersRepository: maynowak/mays-order-aws
+  ordersPin: 016cdfd6ac62565dcec9a2fee78cb898fb919e59
+versions:
+  workItem: "1.0"
+  agentOrder: "1.0"
+  transport: "1"
+  atsContract: "1.2"
+  resultBody: "2.0"
+  agentRuntime: "1.0.0"
+contracts:
+  order: docs/contracts/JOBSEARCH-ATS-ANALYSIS-V1.md
+  resultBody: docs/contracts/ATS-ANALYSIS-RESULT-BODY-V1.md
+  transport: agents/transport/order_transport.py
+  agentOrder: agents/orders/agent_order.py
+  required:
+    - ORDER_DISPATCH (mays-orders -> ris)
+    - ORDER_RESULT (ris -> mays-orders)
+    - AgentOrder 1.0 with metadata.requestId and metadata.apiProfileRef
+    - ATSAnalysisResultBody 2.0
+infrastructure:
+  awsAccount: "262370457690"
+  region: eu-central-1
+  workspace: ris-dev2
+  ordersLifecycle: managed
+  resources:
+    - ris-dev2-dev-agent-dispatch (+ dlq)
+    - ris-dev2-dev-agent-dispatch-ingress (60s, ESM batch 5)
+    - ris-dev2-mays-orders-agent-results (+ dlq)
+    - ris-dev2-mays-orders-agent-result-consumer (30s, ESM batch 10)
+    - ris-dev2-mays-orders-agent-result-hmac (container only)
+    - ris-dev2-dev-orders-reader (env + dispatch IAM)
+    - worker IAM: sqs:SendMessage on results, secretsmanager:GetSecretValue
+    - ingress IAM: work-items, api-profiles, entitlements incl. gsi-user, dispatch receive, result send/secret
+  protected:
+    - Cognito pools/clients/domain/authorizers
+    - CloudFront, Route53/DNS, ACM
+    - existing users and non-test data
+configuration:
+  env:
+    - ATS_API_BASE_URL
+    - ORDER_RESULT_QUEUE_URL
+    - ORDER_RESULT_SECRET_ARN
+    - RIS_DISPATCH_QUEUE_URL
+    - API_PROFILES_TABLE
+    - WORK_ITEMS_TABLE
+    - ENTITLEMENTS_TABLE
+  secrets:
+    - name: ris-dev2-mays-orders-agent-result-hmac
+      storage: Secrets Manager, container only
+      format: bare 64-char lowercase hex
+      valueInGitTerraformStateLogsReports: forbidden
+  dataPrerequisites:
+    - Cognito user in RIS pool OYN9QiHc5
+    - ACTIVE API profile (ownerUserId=sub, tenantId)
+    - user-wide entitlement (userId=sub, agentId=ats-agent, tenantId)
+dependencies:
+  agents:
+    - orders_function (dispatch producer path via facade)
+  platform:
+    - RIS runtime pipeline
+    - Mays-Orders generated module (pin above)
+    - dispatch ingress
+    - result consumer
+compatibility:
+  risRuntime: ">=1.0"
+  ordersModule: "016cdfd6ac62565dcec9a2fee78cb898fb919e59"
+  transport: "1"
+  body: "2.0"
+  incompatible:
+    - Orders main branch consumers using hmac_contract.py (different contract)
+install:
+  steps:
+    - Validate manifest and package files.
+    - Build bundles: python lambda/build_zip.py --bundle all
+    - Build generated module: python -m installer.build_mays_orders_module --project-name ris-dev2 --force
+    - terraform plan with orders_agent_result_enabled=true and enable_agent_transport=true
+    - Review 24/4/0/0 and absence of protected-resource changes.
+    - Apply the saved plan.
+    - Provision secret out-of-band (bare hex).
+    - Provision test user/profile/entitlement.
+    - Run isolated canary and verify Orders persistence.
+tests:
+  local:
+    - python -m pytest tests/test_agent_order_dispatch_e2e.py -q (MO_ORDERS_SRC required)
+    - python -m pytest tests/test_orders_reader.py tests/test_dispatch_ingress_lambda.py -q
+  live:
+    - work item COMPLETED and orderResultDelivery=SENT
+    - orders processing COMPLETED, bodyVersion 2.0, numeric score
+    - owner 200, foreign owner 404, invalid token 401
+    - duplicate dispatch no second write
+activation:
+  prerequisites:
+    - reviewed plan applied
+    - secret AWSCURRENT verified
+    - identity/profile/entitlement verified
+  procedure:
+    - POST /orders with agent.execution + ats-agent/analyze.job
+    - observe dispatch SENT and work completion
+    - verify Orders processing and read-back
+    - keep partner traffic disabled until separate approval
+deactivation:
+  procedure:
+    - stop partner traffic
+    - set orders_agent_result_enabled=false / enable_agent_transport=false via reviewed plan
+    - revoke test identity/profile/entitlement
+    - keep secret container or schedule reviewed deletion
+ownership:
+  team: ris-dev
+  escalation: ris-dev platform owner
+risk:
+  classification: medium
+  notes:
+    - ATS upstream is the production contract host; synthetic data only.
+    - results visibility 60s vs consumer timeout 30s.
+    - no ORDER_FAILED and no DLQ alarms.
+    - reader POST has no request-level idempotency.
+rollback:
+  - Disable both flags via reviewed plan; queues/Lambdas are removed by Terraform.
+  - Restore previous Lambda bundles via the prior plan/commit.
+  - Revoke test data; never print or restore the secret from local files.

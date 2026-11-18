@@ -10634,3 +10634,10 @@ Date: 2026-11-18
 - Live canary: POST /orders (agent.execution, ats-agent/analyze.job, synthetic job) -> ORDER_DISPATCH -> ingress -> WorkItem -> ATS -> ORDER_RESULT -> Orders consumer -> persisted order. Evidence: work COMPLETED + orderResultDelivery SENT; Orders processing COMPLETED + bodyVersion 2.0 + numeric score 67; order status PENDING; owner GET 200, foreign owner 404, invalid token 401; duplicate dispatch no second write (version unchanged 2); retail POST 201/read 200; queues and DLQs 0; log scan found no ownerKey, ris_ prefix, email or invalid-signature lines.
 - Fixed a missing package export: agents.transport now exports build_dispatch_envelope.
 - No partner traffic enabled; no ris-dev/production change.
+
+[RIS-AGENT-INSTALLATION-ORCHESTRATION-08 / PACKAGES + ORCHESTRATOR]
+Status: IMPLEMENTED / TESTED locally.
+Date: 2026-11-18
+- Added agent-installations/ats-agent and agent-installations/addition-agent with manifest.yaml, contracts/, tests/, risks.md, operations.md and handoff.md. Manifests pin the RIS source SHA f0c707c6e80638a6489194b3be98374718a6a522 and Orders pin 016cdfd; no secret values, no automatic enablement.
+- Added installer/agent_install.py: DISCOVER -> ANALYZE -> COMPATIBILITY -> RISK REVIEW -> PACKAGE -> VALIDATE -> PLAN -> APPLY -> E2E -> HANDOFF, with a JSON status/evidence file, idempotent stage skips, resume via status file, and an apply gate that refuses unless --execute --allow-apply --yes is supplied. Package creation alone never enables an agent.
+- Tests: tests/test_agent_install_orchestrator.py 5 passed (real packages discoverable/valid, idempotent/resumable status, apply gate refusal, missing manifest key, incomplete package). Both real packages validate.

@@ -1,0 +1,81 @@
+schemaVersion: "1.0"
+package:
+  name: addition-agent
+  version: "1.0.0"
+  status: active
+  classification: reference
+agent:
+  agentId: addition_agent
+  capability: math.add
+  workType: agent_addition_agent
+  runtimeAgentVersion: "1.0.0"
+source:
+  repository: mays-ris
+  path: agents/addition_agent
+  sha: f0c707c6e80638a6489194b3be98374718a6a522
+  branch: feature/ris-dev2-ats-agent-pinned-core-01
+versions:
+  workItem: "1.0"
+  agentOrder: "1.0"
+  transport: "1"
+  resultBody: "1"
+contracts:
+  transport: agents/transport/order_transport.py
+  agentOrder: agents/orders/agent_order.py
+  required:
+    - ORDER_DISPATCH (mays-orders -> ris)
+    - ORDER_RESULT (ris -> mays-orders)
+    - payload {left, right} -> result {sum}
+infrastructure:
+  awsAccount: "262370457690"
+  region: eu-central-1
+  workspace: ris-dev2
+  resources:
+    - same dispatch/result transport as ats-agent
+  protected:
+    - Cognito pools/clients/domain
+    - CloudFront, Route53/DNS, ACM
+configuration:
+  env:
+    - ORDER_RESULT_QUEUE_URL
+    - ORDER_RESULT_SECRET_ARN
+    - RIS_DISPATCH_QUEUE_URL
+    - API_PROFILES_TABLE
+  secrets:
+    - name: ris-dev2-mays-orders-agent-result-hmac
+      storage: Secrets Manager, container only
+      format: bare 64-char lowercase hex
+dependencies:
+  platform:
+    - RIS runtime pipeline
+    - dispatch ingress
+    - result consumer
+compatibility:
+  risRuntime: ">=1.0"
+  transport: "1"
+  ordersPin: 016cdfd6ac62565dcec9a2fee78cb898fb919e59
+install:
+  steps:
+    - No separate infrastructure; reuse the ats-agent transport.
+    - Validate the manifest and run the local addition tests.
+    - Dispatch an agent order or a test work item with capability math.add.
+tests:
+  local:
+    - python -m pytest tests/test_worker_pipeline.py tests/test_mo_dispatch_handoff.py -q
+  live:
+    - work item COMPLETED, result sum 42, Orders processing COMPLETED
+activation:
+  procedure:
+    - Use the same reviewed transport plan; no new resources.
+    - Route a synthetic order/work item to addition_agent/math.add.
+deactivation:
+  procedure:
+    - Stop traffic; do not delete shared transport resources for this agent.
+ownership:
+  team: ris-dev
+risk:
+  classification: low
+  notes:
+    - Reference agent; no external dependency.
+rollback:
+  - Remove the work item/order correlation; shared transport stays unchanged.
