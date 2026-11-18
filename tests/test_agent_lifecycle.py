@@ -14,13 +14,19 @@ from installer import agent_lifecycle as lifecycle  # noqa: E402
 
 def inventory():
     return {
-        "agents": {"ats-agent": {"catalog": "ACTIVE"},
-                   "addition_agent": {"catalog": "ACTIVE"}},
+        "agents": {"ats-agent": {"catalog": "ACTIVE",
+                                 "allowlist": ["ats-agent"],
+                                 "entitlement": "present"},
+                   "addition_agent": {"catalog": "ACTIVE",
+                                      "allowlist": [],
+                                      "entitlement": "present"}},
         "partnerBindings": [
             {"agentId": "ats-agent", "type": "entitlement", "id": "ent-ats",
              "managedBy": "ris"},
             {"agentId": "ats-agent", "type": "api-profile", "id": "prof-ats",
              "managedBy": "ris"},
+            {"agentId": "ats-agent", "type": "partner-application",
+             "id": "app-ats", "managedBy": "ris"},
             {"agentId": "ats-agent", "type": "external-ui", "id": "ui-ats",
              "managedBy": "external"},
             {"agentId": "addition_agent", "type": "entitlement",
@@ -29,6 +35,7 @@ def inventory():
              "managedBy": "ris"},
         ],
         "openOrders": [],
+        "openResults": [],
         "sharedResources": ["dispatch", "results", "consumer"],
         "retailOrders": 3,
         "secret": "ris_do_not_leak",
@@ -236,6 +243,81 @@ class LifecycleTest(unittest.TestCase):
             "--lifecycle-audit", str(self.audit),
         ])
         self.assertEqual(2, code)
+
+    # --- LIFECYCLE-12: shared infrastructure and partner impact ----------
+
+    def test_catalog_only_disable_is_documented_as_non_blocking(self):
+        result = self.run_action("ats-agent", "disable")
+        self.assertIn("catalog_is_not_a_worker_execution_gate",
+                      result["warnings"])
+        self.assertIn("entitlement_withdraw_required_to_stop_dispatch",
+                      result["warnings"])
+        gates = result["impact"]["executionGates"]
+        self.assertFalse(gates["catalogAloneBlocksExecution"])
+        self.assertEqual("entitlement+registry", gates["worker"])
+        self.assertEqual("entitlement+registry", gates["orderDispatch"])
+
+    def test_disable_removes_no_binding_and_keeps_shared(self):
+        result = self.run_action("ats-agent", "disable", execute=True)
+        self.assertEqual([], result["impact"]["bindingsToRemove"])
+        self.assertEqual([{"id": "ent-ats"}],
+                         result["impact"]["entitlementsToWithdraw"])
+        self.assertTrue(result["impact"]["entitlementWithdrawRequired"])
+        self.assertIn("ris-dev2-dev-agent-dispatch",
+                      result["impact"]["sharedResourcesRetained"])
+        self.assertFalse(result["impact"]["retailOrdersAffected"])
+
+    def test_detach_keeps_partner_application_and_notifies_partner(self):
+        result = self.run_action("ats-agent", "detach-partner", execute=True)
+        self.assertEqual(["ent-ats"],
+                         [b["id"] for b in result["impact"]["bindingsToRemove"]])
+        self.assertEqual(["app-ats"],
+                         [a["id"] for a in
+                          result["impact"]["partnerApplicationsAffected"]])
+        self.assertEqual("retained",
+                         result["impact"]["partnerApplicationsAffected"][0]["action"])
+        impact = result["removalImpact"]
+        self.assertIn("partner-team", impact["notifications"])
+        self.assertIn("security-privacy", impact["notifications"])
+        self.assertEqual(["ui-ats"],
+                         [p["id"] for p in impact["pendingExternalChanges"]])
+        self.assertTrue(all(p["status"] == "PENDING"
+                            for p in impact["pendingExternalChanges"]))
+
+    def test_removal_impact_reports_orders_results_allowlist(self):
+        data = inventory()
+        data["openOrders"] = [{"orderId": "ord_open", "agentId": "ats-agent",
+                               "status": "PENDING"}]
+        data["openResults"] = [{"orderId": "ord_open", "agentId": "ats-agent",
+                                "status": "PENDING"}]
+        self.inv.write_text(json.dumps(data), encoding="utf-8")
+        result = self.run_action("ats-agent", "status")
+        impact = result["removalImpact"]
+        self.assertEqual(["ord_open"], [o["orderId"] for o in impact["openOrders"]])
+        self.assertEqual(["ord_open"], [o["orderId"] for o in impact["openResults"]])
+        self.assertEqual(["ats-agent"], impact["agentAllowlist"]["entries"])
+        self.assertEqual("present", impact["entitlementStatus"])
+        self.assertIn("operations", impact["notifications"])
+
+    def test_repeated_disable_is_idempotent(self):
+        first = self.run_action("ats-agent", "disable", execute=True)
+        second = self.run_action("ats-agent", "disable", execute=True)
+        self.assertEqual(first["status"], second["status"])
+        state = json.loads(self.state.read_text(encoding="utf-8"))
+        self.assertEqual("disabled", state["status"])
+        self.assertFalse(state["catalog"])
+        self.assertEqual(2, len(state["history"]))
+        self.assertTrue(state["history"][0]["action"] == "DISABLE")
+
+    def test_uninstall_keeps_history_and_retail(self):
+        result = self.run_action("addition-agent", "uninstall", execute=True)
+        self.assertTrue(result["impact"]["historyRetained"])
+        self.assertFalse(result["impact"]["retailOrdersAffected"])
+        self.assertFalse(result["impact"]["secretValueRead"])
+        self.assertIn("ris-dev2-mays-orders",
+                      result["impact"]["sharedResourcesRetained"])
+        self.assertIn("security-privacy",
+                      result["removalImpact"]["notifications"])
 
 
 if __name__ == "__main__":

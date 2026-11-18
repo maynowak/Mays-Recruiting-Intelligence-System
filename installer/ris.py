@@ -39,6 +39,7 @@ from typing import Any, Dict, List, Optional
 import boto3
 
 from installer.state_mirror import MirrorEntry, StateMirror
+from installer.shared_infra_guard import evaluate_plan as evaluate_shared_infra_plan
 from installer.terraform_runner import (
     BackendConfig,
     TerraformResult,
@@ -1079,6 +1080,10 @@ class RisInstallContext:
     # tests set composite=False to assert pure-RIS terraform sequencing.
     composite: bool = True
     stop_through: Optional[str] = None
+    #: Explicit approval reference for deliberately destroying shared
+    #: infrastructure. Without it a plan that deletes shared resources is
+    #: refused (fail closed). Never inferred from a missing flag.
+    shared_teardown_intent: Optional[str] = None
     # Per-project isolation (computed, not user-configurable)
     _workdir_base: str = field(default="", repr=False)
     _workdir: str = field(default="", repr=False)
@@ -1347,13 +1352,47 @@ def _cmd_validate(ctx: RisInstallContext) -> List[TerraformResult]:
     ]
 
 
+def _load_plan_for_guard(runner, plan_file: Optional[str]) -> Dict[str, Any]:
+    """Plan JSON for the local guards; empty when no saved plan exists.
+
+    Unreadable plans are returned with a marker so the guard fails closed
+    instead of silently allowing an unread plan.
+    """
+    if not plan_file or not os.path.exists(plan_file):
+        return {"resource_changes": []}
+    try:
+        return runner.show_json(plan_file)
+    except Exception as exc:  # pragma: no cover - environment failure
+        return {"_guardError": f"{type(exc).__name__}: {exc}"}
+
+
+def _guard_shared_infra(runner, plan_file: Optional[str],
+                        ctx: "RisInstallContext"):
+    if plan_file and os.path.exists(plan_file):
+        plan_json = _load_plan_for_guard(runner, plan_file)
+    else:
+        plan_json = {"resource_changes": []}
+    if plan_json.get("_guardError"):
+        from installer.shared_infra_guard import GuardDecision
+        return GuardDecision(
+            safe=False, code="GUARD_UNREADABLE",
+            message=("plan JSON could not be read, refusing to proceed: "
+                     + str(plan_json["_guardError"])),
+        )
+    return evaluate_shared_infra_plan(
+        plan_json, ctx.shared_teardown_intent,
+        protected_names=["work-items", "mays-orders", "agent-dispatch",
+                         "agent-results", "agent-catalog", "entitlements",
+                         "api-profiles"])
+
+
 def _cmd_plan(
     ctx: RisInstallContext, out_file: Optional[str] = None, diagnostic_no_lock: bool = False
 ) -> List[TerraformResult]:
     if ctx.aws_context is None:
         ctx.aws_context = validate_aws_context(profile=ctx.aws_profile, region=ctx.aws_region)
     runner = ctx.make_runner()
-    return [
+    results = [
         runner.init(backend_config=ctx.backend_config(), reconfigure=True),
         runner.plan(
             out_file=out_file,
@@ -1362,6 +1401,15 @@ def _cmd_plan(
             ensure_workspace=not diagnostic_no_lock,
         ),
     ]
+    if results[-1].returncode == 0 and out_file:
+        decision = _guard_shared_infra(runner, out_file, ctx)
+        print(f"Shared infrastructure gate: {decision.message}")
+        if not decision.safe:
+            print(f"error: {decision.message}", file=sys.stderr)
+            results.append(TerraformResult(
+                command=["shared-infra-guard"], returncode=1,
+                stderr=decision.message))
+    return results
 
 
 def _cmd_apply(ctx: RisInstallContext, out_file: Optional[str] = None) -> List[TerraformResult]:
@@ -1380,12 +1428,30 @@ def _cmd_apply(ctx: RisInstallContext, out_file: Optional[str] = None) -> List[T
         return [init_res, plan_res]
     
     # Safety gate: inspect plan before apply
-    plan_json = load_plan_json(plan_file)
+    plan_json = _load_plan_for_guard(runner, plan_file)
+    if plan_json.get("_guardError"):
+        msg = ("plan JSON could not be read, refusing to apply: "
+               + str(plan_json["_guardError"]))
+        print(f"error: {msg}", file=sys.stderr)
+        return [init_res, TerraformResult(
+            command=["shared-infra-guard"], returncode=1, stderr=msg)]
     safe, msg = is_plan_safe(plan_json, ctx.project_name, ctx.environment)
     print(f"Safety gate: {msg}")
     if not safe:
         print(f"error: {msg}", file=sys.stderr)
         return [init_res, TerraformResult(command=["terraform", "plan"], returncode=1, stderr=msg)]
+
+    shared = evaluate_shared_infra_plan(
+        plan_json, ctx.shared_teardown_intent,
+        protected_names=["work-items", "mays-orders", "agent-dispatch",
+                         "agent-results", "agent-catalog", "entitlements",
+                         "api-profiles"])
+    print(f"Shared infrastructure gate: {shared.message}")
+    if not shared.safe:
+        print(f"error: {shared.message}", file=sys.stderr)
+        return [init_res, TerraformResult(
+            command=["shared-infra-guard"], returncode=1,
+            stderr=shared.message)]
     
     # Local mirror of the pre-apply state (S3-outage fallback, mirrors the
     # component's .backups rotation). Advisory: never blocks apply.
@@ -2348,6 +2414,7 @@ def _cmd_install(
             dry_run=ctx.dry_run,
             extra_vars=merged_extra,
             composite=ctx.composite,
+            shared_teardown_intent=ctx.shared_teardown_intent,
         )
         ctx.stop_through = through
     else:
@@ -2513,6 +2580,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Stop after the specified phase (for phased apply).",
     )
     parser.add_argument(
+        "--shared-teardown-intent",
+        default=None,
+        help=(
+            "Explicit approval reference (ticket) that authorizes a plan to "
+            "delete shared infrastructure. Without it such a plan is refused."
+        ),
+    )
+    parser.add_argument(
         "--diagnostic-no-lock",
         action="store_true",
         help="Disable state locking for diagnostic plan only. WARNING: disables Terraform state locking. Use only for debugging stale locks. Never use for deployment planning.",
@@ -2594,6 +2669,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             dry_run=not parsed.yes,
             extra_vars=extra_vars,
             composite=parsed.composite,
+            shared_teardown_intent=parsed.shared_teardown_intent,
             _workdir_base=parsed.workdir_base or "",
         )
     except ValueError as exc:

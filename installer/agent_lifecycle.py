@@ -201,9 +201,15 @@ def _impact(action: str, package: Path, state: Dict[str, Any],
     shared = _shared_resources(package)
     detach_types = _detach_types(package)
     bindings = _bindings(inventory, agent)
+    removing_actions = ("DETACH_PARTNER", "UNINSTALL", "PURGE")
     removable = [b for b in bindings
                  if b.get("managedBy") == "ris"
-                 and b.get("type") in detach_types]
+                 and b.get("type") in detach_types] \
+        if action in removing_actions else []
+    entitlements = [b for b in bindings
+                    if b.get("managedBy") == "ris"
+                    and b.get("type") == "entitlement"]
+    withdraw_actions = ("DISABLE", "DETACH_PARTNER", "UNINSTALL", "PURGE")
     pending = [b for b in bindings if b.get("managedBy") == "external"]
     open_orders = [o for o in inventory.get("openOrders", [])
                    if str(o.get("agentId")) == agent]
@@ -212,6 +218,15 @@ def _impact(action: str, package: Path, state: Dict[str, Any],
         "DISABLE": False, "UNINSTALL": False, "DETACH_PARTNER": False,
         "ENABLE": True, "INSTALL": True, "PURGE": False,
     }.get(action, catalog_before)
+    partner_apps = [b for b in bindings
+                    if b.get("type") == "partner-application"]
+    open_results = [r for r in inventory.get("openResults", [])
+                    if str(r.get("agentId")) == agent]
+    agent_record = (inventory.get("agents") or {}).get(agent) or {}
+    allowlist = agent_record.get("allowlist") or []
+    entitlement_state = agent_record.get("entitlement") or (
+        "present" if any(b.get("type") == "entitlement" for b in bindings)
+        else "absent")
     return {
         "agentId": agent,
         "action": action,
@@ -219,10 +234,22 @@ def _impact(action: str, package: Path, state: Dict[str, Any],
         "catalogAfter": catalog_after,
         "bindingsToRemove": [{"type": b.get("type"), "id": b.get("id")}
                              for b in removable],
+        "entitlementsToWithdraw": [
+            {"id": b.get("id")} for b in entitlements
+        ] if action in withdraw_actions else [],
+        "entitlementWithdrawRequired": bool(entitlements)
+        and action in withdraw_actions,
+        "partnerApplicationsAffected": [
+            {"id": b.get("id"), "action": "retained"} for b in partner_apps],
         "externalPartnerPending": [
             {"type": b.get("type"), "id": b.get("id")} for b in pending],
+        "agentAllowlist": {"entries": list(allowlist),
+                           "source": "inventory"},
+        "entitlementStatus": entitlement_state,
         "openOrders": [{"orderId": o.get("orderId"),
                         "status": o.get("status")} for o in open_orders],
+        "openResults": [{"orderId": r.get("orderId"),
+                         "status": r.get("status")} for r in open_results],
         "sharedResourcesRetained": shared,
         "historyRetained": _retention_retains(lifecycle),
         "retailOrdersAffected": False,
@@ -233,7 +260,56 @@ def _impact(action: str, package: Path, state: Dict[str, Any],
             "apiIngress": "catalog+entitlement",
             "orderDispatch": "entitlement+registry",
             "catalogSource": "terraform",
+            "catalogAloneBlocksExecution": False,
         },
+    }
+
+
+def _notifications(action: str, impact: Dict[str, Any]) -> List[str]:
+    """Target only components with a real impact (no broadcast)."""
+    targets: List[str] = []
+    if action in ("INSTALL", "UPDATE", "DISABLE", "ENABLE", "UNINSTALL",
+                  "DETACH_PARTNER"):
+        targets.append("ris-runtime-team")
+    if action in ("DISABLE", "UNINSTALL") or impact["openOrders"] \
+            or impact["openResults"]:
+        targets.append("operations")
+    if impact["externalPartnerPending"] \
+            or impact["partnerApplicationsAffected"]:
+        targets.append("partner-team")
+    if action in ("DETACH_PARTNER", "UNINSTALL", "PURGE"):
+        targets.append("security-privacy")
+    return targets
+
+
+def removal_impact(action: str, package: Path, state: Dict[str, Any],
+                   inventory: Dict[str, Any]) -> Dict[str, Any]:
+    """Standalone removal-impact report (Phase 3 of LIFECYCLE-12)."""
+    agent = _manifest_agent(package)
+    impact = _impact(action, package, state, inventory, agent)
+    return {
+        "schemaVersion": "1.0",
+        "agentId": agent,
+        "action": action,
+        "generatedAt": _now(),
+        "partnerApplications": impact["partnerApplicationsAffected"],
+        "remainingExternalReferences": impact["externalPartnerPending"],
+        "agentAllowlist": impact["agentAllowlist"],
+        "entitlementStatus": impact["entitlementStatus"],
+        "entitlementsToWithdraw": impact["entitlementsToWithdraw"],
+        "entitlementWithdrawRequired": impact["entitlementWithdrawRequired"],
+        "openOrders": impact["openOrders"],
+        "openResults": impact["openResults"],
+        "notifications": _notifications(action, impact),
+        "pendingExternalChanges": [
+            {"id": p.get("id"), "type": p.get("type"),
+             "status": "PENDING"} for p in impact["externalPartnerPending"]],
+        "retained": {
+            "sharedResources": impact["sharedResourcesRetained"],
+            "history": impact["historyRetained"],
+        },
+        "retailOrdersAffected": False,
+        "secretValueRead": False,
     }
 
 
@@ -332,6 +408,7 @@ def plan(action: str, package: Path, state: Dict[str, Any],
         "impact": impact,
         "blockers": blockers,
         "warnings": _warnings(action, package, inventory, agent),
+        "removalImpact": removal_impact(action, package, state, inventory),
         "sharedInfrastructureTouched": False,
         "secretsIncluded": False,
     }
@@ -460,6 +537,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--actor", help="operator identity for the audit log")
     parser.add_argument("--approval", help="approval/ticket reference")
     parser.add_argument("--reason", help="short reason for the action")
+    parser.add_argument("--impact-report",
+                        help="write the removal-impact report as JSON here")
     args = parser.parse_args(argv)
     package = Path(args.root).resolve() / args.agent
     try:
@@ -471,6 +550,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                      purge_grace_days=args.purge_grace_days,
                      actor=args.actor, approval=args.approval,
                      reason=args.reason)
+        if args.impact_report:
+            path = Path(args.impact_report)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(result["removalImpact"], indent=2, sort_keys=True)
+                + "\n", encoding="utf-8")
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0 if result["status"] != "BLOCKED" else 2
     except LifecycleError as exc:

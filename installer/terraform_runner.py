@@ -27,7 +27,7 @@ import os
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 DEFAULT_WORKSPACE = "default"
 
@@ -260,6 +260,19 @@ class TerraformRunner:
             stdout=proc.stdout,
             stderr=proc.stderr,
         )
+
+    def show_json(self, plan_file: str) -> Dict[str, Any]:
+        """Parse a saved plan (`terraform show -json`) in the runner context."""
+        import json
+
+        result = self.run_and_get_result(
+            ["show", "-json", str(Path(plan_file).resolve())],
+            ensure_workspace=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"terraform show -json failed: {result.stderr or result.stdout}")
+        return json.loads(result.stdout or "{}")
 
     def init(
         self,
