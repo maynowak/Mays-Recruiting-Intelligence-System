@@ -10641,3 +10641,11 @@ Date: 2026-11-18
 - Added agent-installations/ats-agent and agent-installations/addition-agent with manifest.yaml, contracts/, tests/, risks.md, operations.md and handoff.md. Manifests pin the RIS source SHA f0c707c6e80638a6489194b3be98374718a6a522 and Orders pin 016cdfd; no secret values, no automatic enablement.
 - Added installer/agent_install.py: DISCOVER -> ANALYZE -> COMPATIBILITY -> RISK REVIEW -> PACKAGE -> VALIDATE -> PLAN -> APPLY -> E2E -> HANDOFF, with a JSON status/evidence file, idempotent stage skips, resume via status file, and an apply gate that refuses unless --execute --allow-apply --yes is supplied. Package creation alone never enables an agent.
 - Tests: tests/test_agent_install_orchestrator.py 5 passed (real packages discoverable/valid, idempotent/resumable status, apply gate refusal, missing manifest key, incomplete package). Both real packages validate.
+
+[RIS-AGENT-INSTALLATION-ORCHESTRATION-08 / HANDOFF]
+Status: COMPLETE / TEST-DEPLOYED ris-dev2.
+Date: 2026-11-18
+- Added docs/releases/ris-agent-installation-08.json (machine-readable release manifest) and docs/reports/RIS-AGENT-INSTALLATION-08-HANDOFF.md (human handoff) with source pins, resources, live evidence, risks, decisions, rollback and installation/deactivation/update steps.
+- Live deployment: plan 66AD66AA... applied (24 add / 4 change / 0 destroy / 0 replace), post-apply plan reports no changes, state serial 63, lineage unchanged. No Cognito/CloudFront/DNS/ACM/S3 changes.
+- Live E2E PASS with synthetic data: order ord_0d23d52e98fb4c557e7aa920, work work-a818f56a2f5ec0d0, COMPLETED/SENT, Orders processing COMPLETED bodyVersion 2.0 score 67, status PENDING, owner 200/foreign 404/invalid 401, duplicate no second write, retail 201/200, queues+DLQs 0, logs clean.
+- Test users deleted, entitlement deleted, test profiles revoked; synthetic evidence orders/work rows remain. Secret has exactly one AWSCURRENT; no value in Git/state/logs/reports. Partner traffic not enabled; ris-dev/production untouched.
