@@ -1,9 +1,10 @@
 # JM-CV-UX-08 — CV DELETE FIX & CARD UX
 
-**Status:** `A — IMPLEMENTED & VERIFIED — READY FOR CONTROLLED INTEGRATION`  
-**Jobsearch branch:** `feature/jm-cv-ux-08-cv-delete-ux`  
-**Base:** previous CV fix branch `feature/jm-cv-ux-07-persistence-delete-editor-return` (`04ef910`)  
-**Code:** `bce210c`  
+**Status:** `A — RELEASE APPROVAL PENDING — PR #37 CLEAN`
+**Jobsearch branch:** `feature/jm-cv-ux-08-cv-delete-ux`
+**Base:** previous CV fix branch `feature/jm-cv-ux-07-persistence-delete-editor-return` (`04ef910`)
+**Code:** `bce210c`
+**PR:** [#37](https://github.com/maynowak/mays-jobsearch/pull/37) — Draft, `MERGEABLE` / `CLEAN`
 **No Main merge, no Production deployment, no RIS/AWS/Cognito/Terraform/Consent change.**
 
 ## 1. Delete-Verhalten
@@ -140,3 +141,56 @@ Der frühere IAM-Plan ist angewendet; keine weitere Infrastrukturänderung.
 - X ist ausschließlich eine lokale Ansichtsaktion.
 
 **Ergebnis:** `A — IMPLEMENTED & VERIFIED — READY FOR CONTROLLED INTEGRATION`
+
+## 7. Controlled Integration Preflight (2026-11-18)
+
+**Status:** `A — RELEASE APPROVAL PENDING — PR #37 CLEAN`
+
+- `origin/main`: `6fc40d2` (Merge PR #36)
+- Merge-Base: `6fc40d2`; branch is **0 behind / 7 ahead** of `origin/main`
+- No conflicts; fast-forward/mergeable
+- PR: [#37](https://github.com/maynowak/mays-jobsearch/pull/37), still **Draft**
+- GitHub checks:
+  - CodeQL Analysis: **PASS**
+  - Vercel – mays-job-matcher Preview: **PASS**
+  - Vercel – mays-jobsearch Preview: **PASS**
+  - Vercel Deployments – Maymilly: **PASS**
+- Local verification on the final branch:
+  - `npm run build`: **PASS**
+  - Full frontend suite: **1964 PASS / 11 skipped**
+  - `node --check api/_lib/ris/cvsHandler.mjs`: **PASS**
+  - `git diff --check`: **PASS**
+- Preview deployments are not Production; no real CV data or tokens were used.
+
+### Deployment impact
+
+`vercel.json` sets:
+
+```json
+"git": { "deploymentEnabled": { "main": true } }
+```
+
+Therefore a merge to `main` starts **automatic Production deployments** for
+both Vercel projects. No manual `vercel --prod` is planned. The release
+approval must explicitly cover both:
+
+1. merge of PR #37 into `main`, and
+2. the resulting automatic Production deployment.
+
+### Rollback
+
+No schema, data migration, RIS, AWS, Cognito, Terraform or consent change.
+Rollback is a revert of the merge commit or re-promotion of the previous
+Production deployment. The existing RIS CV delete contract remains unchanged.
+
+### Required approval
+
+**STOP — no merge and no Production deployment until explicit release
+approval is given.** After approval: merge PR #37, verify Production build
+identity and run the authenticated synthetic E2E:
+
+- X hides a card without an API delete
+- reload restores the card
+- permanent delete requires confirmation
+- successful delete removes the card
+- child-profile conflict shows the correct message
