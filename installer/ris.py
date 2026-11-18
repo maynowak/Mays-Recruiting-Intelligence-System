@@ -1043,11 +1043,13 @@ def is_plan_safe(plan_json: dict, project_name: str, environment: str) -> tuple[
 
 
 def load_plan_json(plan_file: str) -> dict:
-    """Load and parse a Terraform plan file as JSON."""
+    """Load and parse a Terraform plan file as JSON.
+
+    Fails closed: a missing or unreadable plan is an error, never an empty
+    plan that passes a safety gate.
+    """
     if not os.path.exists(plan_file):
-        # In test environments, the plan file may not exist (mocked)
-        # Return an empty plan that passes the safety gate
-        return {"resource_changes": []}
+        raise RuntimeError(f"plan file not found: {plan_file}")
     import subprocess
     result = subprocess.run(
         ["terraform", "show", "-json", plan_file],
@@ -1352,26 +1354,50 @@ def _cmd_validate(ctx: RisInstallContext) -> List[TerraformResult]:
     ]
 
 
-def _load_plan_for_guard(runner, plan_file: Optional[str]) -> Dict[str, Any]:
-    """Plan JSON for the local guards; empty when no saved plan exists.
+def _resolve_plan_path(runner, plan_file: str) -> Path:
+    """Terraform writes `-out` relative to the runner cwd, not ours."""
+    path = Path(plan_file)
+    if path.is_absolute():
+        return path
+    return Path(runner.working_dir) / path
 
-    Unreadable plans are returned with a marker so the guard fails closed
-    instead of silently allowing an unread plan.
+
+def _load_plan_for_guard(runner, plan_file: Optional[str],
+                         required: bool = False) -> Dict[str, Any]:
+    """Plan JSON for the local guards.
+
+    A missing plan is only acceptable when no saved plan was requested. When a
+    plan is required, a missing or unreadable file is an error marker so both
+    gates fail closed instead of treating "unread" as "no changes".
     """
-    if not plan_file or not os.path.exists(plan_file):
+    if not plan_file:
+        return {"_guardError": "no saved plan file was requested"} \
+            if required else {"resource_changes": []}
+    path = _resolve_plan_path(runner, plan_file)
+    if not path.exists():
+        if required:
+            return {"_guardError": f"plan file not found: {path}"}
         return {"resource_changes": []}
     try:
-        return runner.show_json(plan_file)
+        return runner.show_json(str(path))
     except Exception as exc:  # pragma: no cover - environment failure
         return {"_guardError": f"{type(exc).__name__}: {exc}"}
 
 
+def _sha256_file(path: Path) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _guard_shared_infra(runner, plan_file: Optional[str],
-                        ctx: "RisInstallContext"):
-    if plan_file and os.path.exists(plan_file):
-        plan_json = _load_plan_for_guard(runner, plan_file)
-    else:
-        plan_json = {"resource_changes": []}
+                        ctx: "RisInstallContext", required: bool = False):
+    path = _resolve_plan_path(runner, plan_file) if plan_file else None
+    plan_json = _load_plan_for_guard(runner, plan_file, required=required)
     if plan_json.get("_guardError"):
         from installer.shared_infra_guard import GuardDecision
         return GuardDecision(
@@ -1379,11 +1405,56 @@ def _guard_shared_infra(runner, plan_file: Optional[str],
             message=("plan JSON could not be read, refusing to proceed: "
                      + str(plan_json["_guardError"])),
         )
+    digest = _sha256_file(path) if path and path.exists() else None
     return evaluate_shared_infra_plan(
         plan_json, ctx.shared_teardown_intent,
         protected_names=["work-items", "mays-orders", "agent-dispatch",
                          "agent-results", "agent-catalog", "entitlements",
-                         "api-profiles"])
+                         "api-profiles", "work_items", "mays_orders",
+                         "agent_dispatch", "agent_results", "agent_catalog",
+                         "api_profiles"],
+        plan_sha256=digest)
+
+
+def _plan_unchanged(runner, plan_file: Optional[str], decision) -> Optional[str]:
+    """Refuse when the plan file changed between guard and apply (TOCTOU)."""
+    if not plan_file or not decision.plan_sha256:
+        return None
+    path = _resolve_plan_path(runner, plan_file)
+    if not path.exists():
+        return f"plan file disappeared before apply: {path}"
+    current = _sha256_file(path)
+    if current != decision.plan_sha256:
+        return ("plan file changed after the safety gate "
+                f"(reviewed {decision.plan_sha256}, now {current})")
+    return None
+
+
+def _redact_command(command: List[str]) -> str:
+    """Render a terraform command without leaking `-var` values."""
+    redacted: List[str] = []
+    hide_next = False
+    for part in command:
+        if hide_next:
+            name = part.split("=", 1)[0]
+            redacted.append(f"{name}=<redacted>")
+            hide_next = False
+            continue
+        if part == "-var":
+            hide_next = True
+            redacted.append(part)
+            continue
+        if part.startswith("-var="):
+            name = part[len("-var="):].split("=", 1)[0]
+            redacted.append(f"-var={name}=<redacted>")
+            continue
+        redacted.append(part)
+    return " ".join(redacted)
+
+
+def _print_command(result, prefix: str = "$") -> None:
+    print(f"{prefix} {_redact_command(result.command)} "
+          f"-> exit {result.returncode}")
 
 
 def _cmd_plan(
@@ -1392,17 +1463,18 @@ def _cmd_plan(
     if ctx.aws_context is None:
         ctx.aws_context = validate_aws_context(profile=ctx.aws_profile, region=ctx.aws_region)
     runner = ctx.make_runner()
+    plan_out = out_file or f"{ctx.workspace}-plan.tfplan"
     results = [
         runner.init(backend_config=ctx.backend_config(), reconfigure=True),
         runner.plan(
-            out_file=out_file,
+            out_file=plan_out,
             var=ctx.terraform_vars(),
             lock=not diagnostic_no_lock,
             ensure_workspace=not diagnostic_no_lock,
         ),
     ]
-    if results[-1].returncode == 0 and out_file:
-        decision = _guard_shared_infra(runner, out_file, ctx)
+    if results[-1].returncode == 0:
+        decision = _guard_shared_infra(runner, plan_out, ctx, required=True)
         print(f"Shared infrastructure gate: {decision.message}")
         if not decision.safe:
             print(f"error: {decision.message}", file=sys.stderr)
@@ -1423,12 +1495,12 @@ def _cmd_apply(ctx: RisInstallContext, out_file: Optional[str] = None) -> List[T
     # Generate plan file for safety gate inspection
     plan_file = out_file or f"{ctx.workspace}-apply.tfplan"
     plan_res = runner.plan(out_file=plan_file, var=ctx.terraform_vars())
-    print(f"$ {' '.join(plan_res.command)} -> exit {plan_res.returncode}")
+    _print_command(plan_res)
     if plan_res.returncode != 0:
         return [init_res, plan_res]
     
     # Safety gate: inspect plan before apply
-    plan_json = _load_plan_for_guard(runner, plan_file)
+    plan_json = _load_plan_for_guard(runner, plan_file, required=True)
     if plan_json.get("_guardError"):
         msg = ("plan JSON could not be read, refusing to apply: "
                + str(plan_json["_guardError"]))
@@ -1441,17 +1513,18 @@ def _cmd_apply(ctx: RisInstallContext, out_file: Optional[str] = None) -> List[T
         print(f"error: {msg}", file=sys.stderr)
         return [init_res, TerraformResult(command=["terraform", "plan"], returncode=1, stderr=msg)]
 
-    shared = evaluate_shared_infra_plan(
-        plan_json, ctx.shared_teardown_intent,
-        protected_names=["work-items", "mays-orders", "agent-dispatch",
-                         "agent-results", "agent-catalog", "entitlements",
-                         "api-profiles"])
+    shared = _guard_shared_infra(runner, plan_file, ctx, required=True)
     print(f"Shared infrastructure gate: {shared.message}")
     if not shared.safe:
         print(f"error: {shared.message}", file=sys.stderr)
         return [init_res, TerraformResult(
             command=["shared-infra-guard"], returncode=1,
             stderr=shared.message)]
+    changed = _plan_unchanged(runner, plan_file, shared)
+    if changed:
+        print(f"error: {changed}", file=sys.stderr)
+        return [init_res, TerraformResult(
+            command=["shared-infra-guard"], returncode=1, stderr=changed)]
     
     # Local mirror of the pre-apply state (S3-outage fallback, mirrors the
     # component's .backups rotation). Advisory: never blocks apply.
@@ -1650,16 +1723,33 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
         return 1
 
     # Safety gate: inspect destroy plan before apply
-    plan_json = load_plan_json(plan_file)
+    plan_json = _load_plan_for_guard(runner, plan_file, required=True)
+    if plan_json.get("_guardError"):
+        msg = ("destroy plan JSON could not be read, refusing to apply: "
+               + str(plan_json["_guardError"]))
+        print(f"error: {msg}", file=sys.stderr)
+        return 1
     safe, msg = is_plan_safe(plan_json, ctx.project_name, ctx.environment)
     print(f"RIS destroy safety gate: {msg}")
     if not safe:
         print(f"error: RIS destroy plan unsafe: {msg}", file=sys.stderr)
         return 1
 
+    shared = _guard_shared_infra(runner, plan_file, ctx, required=True)
+    print(f"Shared infrastructure gate: {shared.message}")
+    if not shared.safe:
+        print(f"error: destroy is a shared teardown; pass "
+              f"--shared-teardown-intent <reference>. {shared.message}",
+              file=sys.stderr)
+        return 1
+    changed = _plan_unchanged(runner, plan_file, shared)
+    if changed:
+        print(f"error: {changed}", file=sys.stderr)
+        return 1
+
     apply_res = runner.run_and_get_result(["apply", plan_file],
                                           ensure_workspace=True)
-    print(f"$ {' '.join(apply_res.command)} -> exit {apply_res.returncode}")
+    _print_command(apply_res)
     if apply_res.returncode != 0:
         return 1
 
@@ -2451,28 +2541,43 @@ def _cmd_install(
         # and apply use the prefixed one.
         workspace_key_prefix=RIS_WORKSPACE_KEY_PREFIX,
     )
+    plan_out = out_file or f"{ctx.workspace}-install.tfplan"
     for result in (
         runner.init(backend_config=config, reconfigure=True),
         runner.validate(),
-        runner.plan(out_file=out_file, var=ctx.terraform_vars()),
+        runner.plan(out_file=plan_out, var=ctx.terraform_vars()),
     ):
-        print(f"$ {' '.join(result.command)} -> exit {result.returncode}")
+        _print_command(result)
         if result.returncode != 0:
             return 1
 
     # Safety gate: inspect plan before apply
-    plan_file = out_file or f"{ctx.workspace}-apply.tfplan"
-    plan_json = load_plan_json(plan_file)
+    plan_json = _load_plan_for_guard(runner, plan_out, required=True)
+    if plan_json.get("_guardError"):
+        msg = ("plan JSON could not be read, refusing to apply: "
+               + str(plan_json["_guardError"]))
+        print(f"error: {msg}", file=sys.stderr)
+        return 1
     safe, msg = is_plan_safe(plan_json, ctx.project_name, ctx.environment)
     print(f"Safety gate: {msg}")
     if not safe:
         print(f"error: {msg}", file=sys.stderr)
         return 1
 
+    shared = _guard_shared_infra(runner, plan_out, ctx, required=True)
+    print(f"Shared infrastructure gate: {shared.message}")
+    if not shared.safe:
+        print(f"error: {shared.message}", file=sys.stderr)
+        return 1
+    changed = _plan_unchanged(runner, plan_out, shared)
+    if changed:
+        print(f"error: {changed}", file=sys.stderr)
+        return 1
+
     apply_res = runner.run_and_get_result(
-        ["apply", plan_file], ensure_workspace=True
+        ["apply", plan_out], ensure_workspace=True
     )
-    print(f"$ {' '.join(apply_res.command)} -> exit {apply_res.returncode}")
+    _print_command(apply_res)
     return 1 if apply_res.returncode != 0 else 0
 
 
@@ -2702,7 +2807,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         elif parsed.command == "package":
             return _cmd_package(ctx, bundle=parsed.bundle)
         else:
-            results = _cmd_apply(ctx)
+            results = _cmd_apply(ctx, out_file=parsed.out)
     except (ValueError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

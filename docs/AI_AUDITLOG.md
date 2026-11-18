@@ -10697,3 +10697,17 @@ Date: 2026-11-18
 - Tests: new reader gate suite 10 passed + 7 subtests; regression 180 passed / 8 skipped / 13 subtests; flat reader bundle import PASS.
 - Docs: new docs/reports/RIS-AGENT-LIFECYCLE-11.md and docs/releases/ris-agent-lifecycle-11.json; API-STANDARD documents 403 AGENT_ORDER_REJECTED; package lifecycle/uninstall docs state the enforced reader gate; operations handoff updated.
 - No PURGE, no foreign-repo change, no secret value read, no ris-dev/production change, no push/merge.
+
+[RIS-AGENT-LIFECYCLE-12 / SHARED INFRASTRUCTURE SAFETY]
+Status: GUARD IMPLEMENTED + HARDENED / NO AWS MUTATION.
+Date: 2026-11-18
+- Root cause: `agent_dispatch_enabled = var.enable_agent_transport && local.orders_enabled`; the flag defaults to false, so a plan without it destroys module.agent_transport (11 resources) while the live state still has it. Same class of hazard for orders_agent_result_enabled and orders_lifecycle.
+- Added installer/shared_infra_guard.py (pure): delete/replace/forget of shared modules/types is refused unless --shared-teardown-intent is supplied; missing/false transport flags are named as the cause. Strict plan-shape validation, intent charset/length validation, plan SHA-256 binding, printable-only messages.
+- Wired into installer plan/apply/install/destroy: plan always writes and guards a plan file; relative paths resolve in the runner workdir; missing/unreadable plans are refused; the plan hash is re-checked immediately before apply (TOCTOU); -var values are redacted from all command prints; destroy requires the teardown reference.
+- Live plan proof (read-only): missing enable_agent_transport -> exit 1, MISSING_OR_FALSE_TRANSPORT_FLAG, 11 dispatch resources listed; correct flags -> exit 0, NO_SHARED_DESTROY, 0 changes. No apply, no state mutation.
+- Lifecycle: only scope: agent bindings are removable; inventory openOrders must be a list; removal impact now reports partner applications, external PENDING references, allowlist, entitlement status/withdrawal, open orders/results, targeted notifications, declared-vs-observed evidence; audit is written before state mutation with plan/lifecycle/inventory digests; agent_install --action forwards actor/approval/reason.
+- Dispatch ingress fails closed when ENTITLEMENTS_TABLE is missing. State mirror files/dir are chmod 0600/0700 (best effort).
+- Independent QA + security reviews: P0 plan-path bypass, install/destroy gaps, -var leakage; P1 classification and plan-shape holes, weak intent; fixed. Accepted: state push bypasses the plan guard; intent is plan-wide; line-based YAML parsing; mirror project-name charset.
+- Tests: shared_infra_guard 31, agent_lifecycle 24, dispatch_ingress_env 3, installer/guard/state 93, combined 129 passed. Four composite tests still fail at HEAD because the mayaws profile is absent.
+- Docs: docs/reports/RIS-AGENT-LIFECYCLE-12.md, docs/releases/ris-agent-lifecycle-12.json, operations handoff updated.
+- No PURGE, no AWS mutation, no secret value read, no foreign repo, no ris-dev/production change, no push/merge.

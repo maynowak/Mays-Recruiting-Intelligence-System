@@ -3,6 +3,7 @@
 import os
 import sys
 import unittest
+from pathlib import Path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -10,6 +11,7 @@ sys.path.insert(0, ROOT)
 from installer.shared_infra_guard import (  # noqa: E402
     evaluate_plan,
 )
+from installer import ris  # noqa: E402
 
 
 def plan(*changes, variables=None):
@@ -64,7 +66,8 @@ class TestSharedInfraGuard(unittest.TestCase):
         decision = evaluate_plan(plan(
             change(TRANSPORT, ["delete"], "aws_sqs_queue"),
             variables={"enable_agent_transport": {"value": True},
-                       "orders_agent_result_enabled": {"value": True}},
+                       "orders_agent_result_enabled": {"value": True},
+                       "orders_lifecycle": {"value": "managed"}},
         ))
         self.assertFalse(decision.safe)
         self.assertEqual("SHARED_DESTROY_WITHOUT_INTENT", decision.code)
@@ -88,8 +91,7 @@ class TestSharedInfraGuard(unittest.TestCase):
 
     def test_unrelated_delete_is_safe(self):
         decision = evaluate_plan(plan(
-            change("module.health.aws_cloudwatch_log_group.stale",
-                   ["delete"], "aws_cloudwatch_log_group")))
+            change("aws_s3_object.stale", ["delete"], "aws_s3_object")))
         self.assertTrue(decision.safe)
 
     def test_shared_table_delete_blocks_even_outside_module(self):
@@ -105,8 +107,8 @@ class TestSharedInfraGuard(unittest.TestCase):
         # generic type already protected
         self.assertFalse(decision.safe)
         decision = evaluate_plan(
-            plan(change("module.custom.aws_cloudwatch_log_group.shared-x",
-                        ["delete"], "aws_cloudwatch_log_group")),
+            plan(change("module.custom.aws_s3_object.shared-x",
+                        ["delete"], "aws_s3_object")),
             protected_names=["shared-x"])
         self.assertFalse(decision.safe)
         self.assertTrue(any(f.protection == "explicit:protected_name"
@@ -122,108 +124,241 @@ class TestSharedInfraGuard(unittest.TestCase):
         self.assertFalse(decision.safe)
         self.assertIn("orders_agent_result_enabled", decision.message)
 
+    def test_orders_lifecycle_external_blocks_and_names_flag(self):
+        decision = evaluate_plan(plan(
+            change("module.mays_orders[0].aws_lambda_function.handler",
+                   ["delete"], "aws_lambda_function"),
+            variables={"enable_agent_transport": {"value": True},
+                       "orders_agent_result_enabled": {"value": True},
+                       "orders_lifecycle": {"value": "external"}},
+        ))
+        self.assertFalse(decision.safe)
+        self.assertIn("orders_lifecycle", decision.message)
+
+    def test_malformed_actions_shape_is_refused(self):
+        decision = evaluate_plan({
+            "resource_changes": [{
+                "address": TRANSPORT, "type": "aws_sqs_queue",
+                "change": {"actions": "delete"}}],
+        })
+        self.assertFalse(decision.safe)
+        self.assertEqual("PLAN_SHAPE_INVALID", decision.code)
+
+    def test_missing_resource_changes_is_refused(self):
+        decision = evaluate_plan({"values": {}})
+        self.assertFalse(decision.safe)
+        self.assertEqual("PLAN_SHAPE_INVALID", decision.code)
+
+    def test_null_change_is_refused(self):
+        decision = evaluate_plan({
+            "resource_changes": [{"address": TRANSPORT, "change": None}]})
+        self.assertFalse(decision.safe)
+        self.assertEqual("PLAN_SHAPE_INVALID", decision.code)
+
+    def test_errored_plan_is_refused(self):
+        decision = evaluate_plan({"resource_changes": [], "errored": True})
+        self.assertFalse(decision.safe)
+        self.assertEqual("PLAN_SHAPE_INVALID", decision.code)
+
+    def test_forget_requires_intent(self):
+        decision = evaluate_plan(plan(
+            change(TRANSPORT, ["forget"], "aws_sqs_queue")))
+        self.assertFalse(decision.safe)
+        self.assertIn("shared infrastructure", decision.message.lower())
+
+    def test_create_before_destroy_replace_blocks(self):
+        decision = evaluate_plan(plan(
+            change(TRANSPORT, ["create", "delete"], "aws_sqs_queue")))
+        self.assertFalse(decision.safe)
+
+    def test_editing_iam_module_is_protected(self):
+        decision = evaluate_plan(plan(
+            change("module.iam.aws_iam_role.lambda_role", ["delete"],
+                   "aws_iam_role")))
+        self.assertFalse(decision.safe)
+
+    def test_lambda_permission_delete_is_protected(self):
+        decision = evaluate_plan(plan(
+            change("aws_lambda_permission.api_invoke", ["delete"],
+                   "aws_lambda_permission")))
+        self.assertFalse(decision.safe)
+
+    def test_underscore_marker_matches_terraform_labels(self):
+        decision = evaluate_plan(plan(
+            change("aws_s3_object.work_items_export", ["delete"],
+                   "aws_s3_object")))
+        self.assertFalse(decision.safe)
+
+    def test_short_intent_is_rejected(self):
+        decision = evaluate_plan(
+            plan(change(TRANSPORT, ["delete"], "aws_sqs_queue")), "x")
+        self.assertFalse(decision.safe)
+        self.assertEqual("TEARDOWN_INTENT_INVALID", decision.code)
+
+    def test_zero_width_intent_is_rejected(self):
+        decision = evaluate_plan(
+            plan(change(TRANSPORT, ["delete"], "aws_sqs_queue")),
+            "CHG-\u200b-001")
+        self.assertFalse(decision.safe)
+        self.assertEqual("TEARDOWN_INTENT_INVALID", decision.code)
+
+    def test_blank_intent_is_not_authorization(self):
+        decision = evaluate_plan(
+            plan(change(TRANSPORT, ["delete"], "aws_sqs_queue"),
+                 variables={"enable_agent_transport": {"value": True},
+                            "orders_agent_result_enabled": {"value": True},
+                            "orders_lifecycle": {"value": "managed"}}),
+            "   ")
+        self.assertFalse(decision.safe)
+        self.assertEqual("SHARED_DESTROY_WITHOUT_INTENT", decision.code)
+
+    def test_valid_intent_records_plan_digest(self):
+        decision = evaluate_plan(
+            plan(change(TRANSPORT, ["delete"], "aws_sqs_queue")),
+            "CHG-RIS-001 teardown",
+            plan_sha256="a" * 64)
+        self.assertTrue(decision.safe)
+        self.assertEqual("a" * 64, decision.plan_sha256)
+        self.assertIn("a" * 64, decision.message)
+        self.assertTrue(decision.authorized_teardown)
+
+
+class FakeRunner:
+    """Minimal runner that writes a real plan file into `working_dir`."""
+
+    def __init__(self, working_dir, plan_json=None):
+        self.working_dir = str(working_dir)
+        self.plan_json = plan_json or {"resource_changes": []}
+        self.applies = 0
+        self.last_plan = None
+
+    def _write(self, out_file):
+        if not out_file:
+            return
+        path = Path(out_file)
+        if not path.is_absolute():
+            path = Path(self.working_dir) / path
+        path.write_text("plan-bytes", encoding="utf-8")
+        self.last_plan = path
+
+    def init(self, **kwargs):
+        return ris.TerraformResult(["init"], 0)
+
+    def plan(self, out_file=None, **kwargs):
+        self._write(out_file)
+        return ris.TerraformResult(["plan"], 0)
+
+    def show_json(self, path):
+        return self.plan_json
+
+    def run_and_get_result(self, args, **kwargs):
+        if args and args[0] == "apply":
+            self.applies += 1
+        return ris.TerraformResult(args, 0)
+
 
 class TestPlanAndApplyWiring(unittest.TestCase):
-    def _ctx(self, dry_run=False):
-        from installer import ris
+    def setUp(self):
+        import tempfile
+        from installer import ris as ris_module
 
-        ctx = ris.RisInstallContext(project_name="ris-dev2",
-                                    environment="dev", dry_run=dry_run)
+        self.ris = ris_module
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def _ctx(self, dry_run=False):
+        ctx = self.ris.RisInstallContext(project_name="ris-dev2",
+                                         environment="dev", dry_run=dry_run)
         ctx.aws_context = object()
-        return ctx, ris
+        return ctx
 
     def _destructive(self):
         return plan(change(TRANSPORT, ["delete"], "aws_sqs_queue"))
 
     def test_plan_blocks_destructive_transport_plan(self):
-        import tempfile
-
-        ctx, ris = self._ctx()
-
-        class Runner:
-            def init(self, **kwargs):
-                return ris.TerraformResult(["init"], 0)
-
-            def plan(self, **kwargs):
-                return ris.TerraformResult(["plan"], 0)
-
-            def show_json(self, path):
-                return self._plan
-
-        runner = Runner()
-        runner._plan = self._destructive()
+        ctx = self._ctx()
+        runner = FakeRunner(self.tmp.name, self._destructive())
         ctx.make_runner = lambda: runner
-        with tempfile.NamedTemporaryFile(suffix=".tfplan", delete=False) as fh:
-            out = fh.name
-        self.addCleanup(lambda: os.unlink(out))
-        results = ris._cmd_plan(ctx, out_file=out)
+        results = self.ris._cmd_plan(ctx, out_file="p.tfplan")
         self.assertEqual(3, len(results))
         self.assertEqual(1, results[-1].returncode)
         self.assertIn("shared infrastructure", results[-1].stderr.lower())
 
-    def test_no_saved_plan_does_not_block(self):
-        ctx, ris = self._ctx()
+    def test_plan_without_out_still_writes_and_guards(self):
+        ctx = self._ctx()
+        runner = FakeRunner(self.tmp.name, self._destructive())
+        ctx.make_runner = lambda: runner
+        results = self.ris._cmd_plan(ctx)
+        self.assertEqual(3, len(results))
+        self.assertEqual(1, results[-1].returncode)
+        self.assertIsNotNone(runner.last_plan)
+        self.assertTrue(runner.last_plan.name.endswith("-plan.tfplan"))
 
-        class Runner:
-            def init(self, **kwargs):
-                return ris.TerraformResult(["init"], 0)
-
-            def plan(self, **kwargs):
-                return ris.TerraformResult(["plan"], 0)
-
-        ctx.make_runner = lambda: Runner()
-        results = ris._cmd_plan(ctx)
-        self.assertEqual(2, len(results))
+    def test_plan_reads_relative_out_from_runner_workdir(self):
+        ctx = self._ctx()
+        runner = FakeRunner(self.tmp.name, self._destructive())
+        ctx.make_runner = lambda: runner
+        results = self.ris._cmd_plan(ctx, out_file="relative.tfplan")
+        self.assertEqual(1, results[-1].returncode)
+        self.assertEqual(Path(self.tmp.name) / "relative.tfplan",
+                         runner.last_plan)
 
     def test_apply_refuses_destructive_plan_before_apply(self):
-        ctx, ris = self._ctx(dry_run=False)
-        calls = {"apply": 0}
-
-        class Runner:
-            def init(self, **kwargs):
-                return ris.TerraformResult(["init"], 0)
-
-            def plan(self, **kwargs):
-                return ris.TerraformResult(["plan"], 0)
-
-            def run_and_get_result(self, args, **kwargs):
-                calls["apply"] += 1
-                return ris.TerraformResult(args, 0)
-
-        ctx.make_runner = lambda: Runner()
-        original = ris._load_plan_for_guard
-        ris._load_plan_for_guard = lambda runner, path: self._destructive()
-        self.addCleanup(setattr, ris, "_load_plan_for_guard", original)
-        results = ris._cmd_apply(ctx, out_file="ignored.tfplan")
-        self.assertEqual(0, calls["apply"])
+        ctx = self._ctx(dry_run=False)
+        runner = FakeRunner(self.tmp.name, self._destructive())
+        ctx.make_runner = lambda: runner
+        results = self.ris._cmd_apply(ctx, out_file="apply.tfplan")
+        self.assertEqual(0, runner.applies)
         self.assertEqual(1, results[-1].returncode)
         self.assertIn("shared", results[-1].stderr.lower())
 
     def test_apply_allows_normal_plan(self):
-        ctx, ris = self._ctx(dry_run=False)
-        calls = {"apply": 0}
-
-        class Runner:
-            def init(self, **kwargs):
-                return ris.TerraformResult(["init"], 0)
-
-            def plan(self, **kwargs):
-                return ris.TerraformResult(["plan"], 0)
-
-            def run_and_get_result(self, args, **kwargs):
-                calls["apply"] += 1
-                return ris.TerraformResult(args, 0)
-
-        ctx.make_runner = lambda: Runner()
-        original_load = ris._load_plan_for_guard
-        original_mirror = ris.mirror_project_state
-        ris._load_plan_for_guard = lambda runner, path: plan()
-        ris.mirror_project_state = lambda *a, **k: None
-        self.addCleanup(setattr, ris, "_load_plan_for_guard", original_load)
-        self.addCleanup(setattr, ris, "mirror_project_state", original_mirror)
-        results = ris._cmd_apply(ctx, out_file="ignored.tfplan")
-        self.assertEqual(1, calls["apply"])
+        ctx = self._ctx(dry_run=False)
+        runner = FakeRunner(self.tmp.name, plan())
+        ctx.make_runner = lambda: runner
+        original_mirror = self.ris.mirror_project_state
+        self.ris.mirror_project_state = lambda *a, **k: None
+        self.addCleanup(setattr, self.ris, "mirror_project_state",
+                        original_mirror)
+        results = self.ris._cmd_apply(ctx, out_file="apply.tfplan")
+        self.assertEqual(1, runner.applies)
         self.assertEqual(0, results[-1].returncode)
+
+    def test_apply_refuses_changed_plan_file(self):
+        ctx = self._ctx(dry_run=False)
+        runner = FakeRunner(self.tmp.name, plan())
+        ctx.make_runner = lambda: runner
+        original_mirror = self.ris.mirror_project_state
+        self.ris.mirror_project_state = lambda *a, **k: None
+        self.addCleanup(setattr, self.ris, "mirror_project_state",
+                        original_mirror)
+        original_guard = self.ris._guard_shared_infra
+
+        def guard_then_tamper(r, path, c, required=False):
+            decision = original_guard(r, path, c, required=required)
+            p = self.ris._resolve_plan_path(r, path)
+            p.write_text("tampered", encoding="utf-8")
+            return decision
+
+        self.ris._guard_shared_infra = guard_then_tamper
+        self.addCleanup(setattr, self.ris, "_guard_shared_infra",
+                        original_guard)
+        results = self.ris._cmd_apply(ctx, out_file="apply.tfplan")
+        self.assertEqual(0, runner.applies)
+        self.assertEqual(1, results[-1].returncode)
+        self.assertIn("changed", results[-1].stderr.lower())
+
+    def test_apply_missing_plan_is_refused(self):
+        ctx = self._ctx(dry_run=False)
+        runner = FakeRunner(self.tmp.name, plan())
+        ctx.make_runner = lambda: runner
+        original = self.ris._load_plan_for_guard
+        self.ris._load_plan_for_guard = lambda r, p, required=False: {
+            "_guardError": "plan file not found"}
+        self.addCleanup(setattr, self.ris, "_load_plan_for_guard", original)
+        results = self.ris._cmd_apply(ctx, out_file="apply.tfplan")
+        self.assertEqual(0, runner.applies)
+        self.assertEqual(1, results[-1].returncode)
 
 
 if __name__ == "__main__":

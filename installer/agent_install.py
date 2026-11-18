@@ -203,6 +203,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--lifecycle-state")
     parser.add_argument("--lifecycle-audit")
     parser.add_argument("--purge-confirm", help="exact agentId to confirm PURGE")
+    parser.add_argument("--actor", help="operator identity for the audit log")
+    parser.add_argument("--approval", help="approval/ticket reference")
+    parser.add_argument("--reason", help="short reason for the action")
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
@@ -216,7 +219,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                 state_path=Path(args.lifecycle_state) if args.lifecycle_state else None,
                 audit_path=(Path(args.lifecycle_audit)
                             if args.lifecycle_audit else None),
-                purge_confirm=args.purge_confirm)
+                purge_confirm=args.purge_confirm,
+                actor=args.actor, approval=args.approval,
+                reason=args.reason)
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0 if result["status"] != "BLOCKED" else 2
         if args.stage:

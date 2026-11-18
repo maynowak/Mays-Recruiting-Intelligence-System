@@ -76,14 +76,19 @@ def _dependencies() -> Dict[str, Any]:
     profile_table = os.environ.get("API_PROFILES_TABLE")
     if not profile_table:
         raise RuntimeError("API_PROFILES_TABLE is not configured")
+    entitlements_table = os.environ.get("ENTITLEMENTS_TABLE")
+    if not entitlements_table:
+        # Fail closed: a dispatch without execution authorization is not
+        # allowed. The pipeline's resolver-less mode is test-only.
+        raise RuntimeError(
+            "ENTITLEMENTS_TABLE is required for dispatch authorization")
     return {
         "profile_store": DynamoDBApiProfileStore(table_name=profile_table),
         "registry": AgentRegistry(),
         "body": AgentBody(),
         "table": None,  # pipeline resolves WORK_ITEMS_TABLE itself
-        "entitlement_resolver": (DynamoDBEntitlementResolver()
-                                 if os.environ.get("ENTITLEMENTS_TABLE")
-                                 else None),
+        "entitlement_resolver": DynamoDBEntitlementResolver(
+            table_name=entitlements_table),
     }
 
 

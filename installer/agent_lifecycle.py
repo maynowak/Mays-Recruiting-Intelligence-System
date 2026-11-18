@@ -128,8 +128,24 @@ def _load_inventory(path: Optional[Path]) -> Dict[str, Any]:
         raise LifecycleError("inventory must be a JSON object")
     # An inventory without an explicit openOrders list is not evidence of
     # "nothing is open" — it is missing evidence. Treat it as not provided.
-    value["_provided"] = "openOrders" in value
+    value["_provided"] = (
+        isinstance(value.get("openOrders"), list)
+        and all(isinstance(o, dict) for o in value.get("openOrders"))
+    )
     return value
+
+
+def _binding_scopes(package: Path) -> Dict[str, str]:
+    """type -> scope from the package's partnerBindings block."""
+    scopes: Dict[str, str] = {}
+    current: Optional[str] = None
+    for line in _read(package / "lifecycle.yaml").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- type:"):
+            current = stripped.split(":", 1)[1].strip()
+        elif current and stripped.startswith("scope:"):
+            scopes[current] = stripped.split(":", 1)[1].strip()
+    return scopes
 
 
 def _bindings(inventory: Dict[str, Any], agent: str) -> List[Dict[str, Any]]:
@@ -201,14 +217,17 @@ def _impact(action: str, package: Path, state: Dict[str, Any],
     shared = _shared_resources(package)
     detach_types = _detach_types(package)
     bindings = _bindings(inventory, agent)
+    scopes = _binding_scopes(package)
     removing_actions = ("DETACH_PARTNER", "UNINSTALL", "PURGE")
     removable = [b for b in bindings
                  if b.get("managedBy") == "ris"
-                 and b.get("type") in detach_types] \
+                 and b.get("type") in detach_types
+                 and scopes.get(str(b.get("type"))) == "agent"] \
         if action in removing_actions else []
     entitlements = [b for b in bindings
                     if b.get("managedBy") == "ris"
-                    and b.get("type") == "entitlement"]
+                    and b.get("type") == "entitlement"
+                    and scopes.get("entitlement") == "agent"]
     withdraw_actions = ("DISABLE", "DETACH_PARTNER", "UNINSTALL", "PURGE")
     pending = [b for b in bindings if b.get("managedBy") == "external"]
     open_orders = [o for o in inventory.get("openOrders", [])
@@ -223,7 +242,8 @@ def _impact(action: str, package: Path, state: Dict[str, Any],
     open_results = [r for r in inventory.get("openResults", [])
                     if str(r.get("agentId")) == agent]
     agent_record = (inventory.get("agents") or {}).get(agent) or {}
-    allowlist = agent_record.get("allowlist") or []
+    raw_allowlist = agent_record.get("allowlist")
+    allowlist = list(raw_allowlist) if isinstance(raw_allowlist, list) else []
     entitlement_state = agent_record.get("entitlement") or (
         "present" if any(b.get("type") == "entitlement" for b in bindings)
         else "absent")
@@ -243,7 +263,7 @@ def _impact(action: str, package: Path, state: Dict[str, Any],
             {"id": b.get("id"), "action": "retained"} for b in partner_apps],
         "externalPartnerPending": [
             {"type": b.get("type"), "id": b.get("id")} for b in pending],
-        "agentAllowlist": {"entries": list(allowlist),
+        "agentAllowlist": {"entries": allowlist, "count": len(allowlist),
                            "source": "inventory"},
         "entitlementStatus": entitlement_state,
         "openOrders": [{"orderId": o.get("orderId"),
@@ -253,11 +273,22 @@ def _impact(action: str, package: Path, state: Dict[str, Any],
         "sharedResourcesRetained": shared,
         "historyRetained": _retention_retains(lifecycle),
         "retailOrdersAffected": False,
+        "observedRetailOrders": inventory.get("retailOrders"),
+        "evidenceSources": {
+            "openOrders": "observed-inventory"
+            if inventory.get("_provided") else "missing",
+            "openResults": "observed-inventory"
+            if isinstance(inventory.get("openResults"), list) else "missing",
+            "retailImpact": "declared",
+            "historyRetention": "package-declared",
+            "sharedResources": "package-declared",
+        },
         "secretValueRead": False,
         "irreversible": action == "PURGE",
         "executionGates": {
             "worker": "entitlement+registry",
-            "apiIngress": "catalog+entitlement",
+            "apiIngress": "entitlement",
+            "agentApi": "catalog+entitlement",
             "orderDispatch": "entitlement+registry",
             "catalogSource": "terraform",
             "catalogAloneBlocksExecution": False,
@@ -267,15 +298,15 @@ def _impact(action: str, package: Path, state: Dict[str, Any],
 
 def _notifications(action: str, impact: Dict[str, Any]) -> List[str]:
     """Target only components with a real impact (no broadcast)."""
-    targets: List[str] = []
-    if action in ("INSTALL", "UPDATE", "DISABLE", "ENABLE", "UNINSTALL",
-                  "DETACH_PARTNER"):
-        targets.append("ris-runtime-team")
-    if action in ("DISABLE", "UNINSTALL") or impact["openOrders"] \
-            or impact["openResults"]:
+    has_open_work = bool(impact["openOrders"] or impact["openResults"])
+    if action in ("STATUS", "VERIFY"):
+        return ["operations"] if has_open_work else []
+    targets: List[str] = ["ris-runtime-team"]
+    if action in ("DISABLE", "UNINSTALL", "PURGE") or has_open_work:
         targets.append("operations")
-    if impact["externalPartnerPending"] \
-            or impact["partnerApplicationsAffected"]:
+    if action in ("DETACH_PARTNER", "UNINSTALL", "PURGE") and (
+            impact["externalPartnerPending"]
+            or impact["partnerApplicationsAffected"]):
         targets.append("partner-team")
     if action in ("DETACH_PARTNER", "UNINSTALL", "PURGE"):
         targets.append("security-privacy")
@@ -309,6 +340,8 @@ def removal_impact(action: str, package: Path, state: Dict[str, Any],
             "history": impact["historyRetained"],
         },
         "retailOrdersAffected": False,
+        "observedRetailOrders": impact["observedRetailOrders"],
+        "evidenceSources": impact["evidenceSources"],
         "secretValueRead": False,
     }
 
@@ -479,6 +512,7 @@ def run(action: str, package: Path, *, execute: bool = False,
         plan_doc["idempotent"] = True
         plan_doc["result"] = "already_uninstalled"
 
+    applied_now = False
     if action in ("STATUS", "VERIFY"):
         plan_doc["status"] = "REPORTED"
     elif execute:
@@ -488,16 +522,22 @@ def run(action: str, package: Path, *, execute: bool = False,
             # Idempotent: no second state write, no reset grace window.
             plan_doc["status"] = "APPLIED"
         else:
-            _apply(action, state, plan_doc)
-            state_file.parent.mkdir(parents=True, exist_ok=True)
-            state_file.write_text(
-                json.dumps(state, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8")
             plan_doc["status"] = "APPLIED"
+            applied_now = True
     else:
         plan_doc["status"] = "DRY_RUN"
 
     audit = audit_path or (package / ".lifecycle-audit.jsonl")
+    plan_digest = _digest({
+        key: plan_doc.get(key) for key in
+        ("agentId", "action", "impact", "blockers", "warnings",
+         "removalImpact")
+    })
+    try:
+        lifecycle_digest = hashlib.sha256(
+            (package / "lifecycle.yaml").read_bytes()).hexdigest()
+    except OSError:
+        lifecycle_digest = None
     _audit(audit, {
         "at": _now(), "agentId": plan_doc["agentId"], "action": action,
         "status": plan_doc["status"], "dryRun": plan_doc["dryRun"],
@@ -508,9 +548,19 @@ def run(action: str, package: Path, *, execute: bool = False,
         "pendingPartner": len(plan_doc["impact"]["externalPartnerPending"]),
         "inventoryDigest": plan_doc["evidence"]["inventoryDigest"],
         "inventoryProvided": plan_doc["evidence"]["inventoryProvided"],
+        "planDigest": plan_digest,
+        "lifecycleDigest": lifecycle_digest,
         "idempotent": plan_doc.get("idempotent", False),
         "blockers": plan_doc["blockers"],
     })
+
+    # Mutate state only after the audit line exists (no unrecorded APPLIED).
+    if applied_now:
+        _apply(action, state, plan_doc)
+        state_file.parent.mkdir(parents=True, exist_ok=True)
+        state_file.write_text(
+            json.dumps(state, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8")
 
     result_path = state_file.with_suffix(".result.json")
     result_path.write_text(

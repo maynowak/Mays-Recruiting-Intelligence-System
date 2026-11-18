@@ -320,5 +320,15 @@ class LifecycleTest(unittest.TestCase):
                       result["removalImpact"]["notifications"])
 
 
+    def test_malformed_open_orders_is_not_evidence(self):
+        data = inventory()
+        data["openOrders"] = {}
+        self.inv.write_text(json.dumps(data), encoding="utf-8")
+        result = self.run_action("ats-agent", "uninstall", execute=True)
+        self.assertEqual("BLOCKED", result["status"])
+        self.assertIn("inventory_required_for_impact", result["blockers"])
+        self.assertFalse(self.state.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

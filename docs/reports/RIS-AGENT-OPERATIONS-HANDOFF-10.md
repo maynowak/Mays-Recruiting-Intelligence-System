@@ -76,6 +76,13 @@ addition agent has no external dependency. Neither needs its own AWS resource.
   201 + COMPLETED.
 - Remaining boundary: the catalog still gates discovery/API, not execution.
   DISABLE must withdraw the entitlement; a catalog-only change is cosmetic.
+- **Shared-infrastructure guard (RIS-AGENT-LIFECYCLE-12):** plan/apply/install/
+  destroy refuse any delete/replace/forget of shared modules or resource types
+  unless `--shared-teardown-intent <ref>` is supplied. A missing/false
+  `enable_agent_transport`/`orders_agent_result_enabled`/`orders_lifecycle`
+  is reported as the cause, not treated as a teardown request. Live proof:
+  the Lifecycle-11 hazard plan now exits 1 with the 11 dispatch resources
+  listed; the correct flags produce `NO_SHARED_DESTROY` and 0 changes.
 - Still open: `addition_agent` catalog seed (dispatch-only today) and PURGE
   (blocked until retention is approved).
 
