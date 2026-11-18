@@ -90,7 +90,7 @@ sichtbar. Der Regressionstest aus `JM-CV-UX-07` bleibt bestehen.
 Fokussiert:
 
 ```text
-PersistentCvList + usePersistentCvStorage + Persistence + BFF: 35 PASS
+PersistentCvList + usePersistentCvStorage + Persistence + BFF: 36 PASS
 ```
 
 Abgedeckt:
@@ -108,7 +108,7 @@ Gesamt:
 
 ```text
 npm run build:                  PASS
-npx vitest run --maxWorkers=2:  1963 PASS / 11 skipped
+npx vitest run --maxWorkers=2:  1964 PASS / 11 skipped
 profile-ux-final E2E:           PASS
 ```
 
