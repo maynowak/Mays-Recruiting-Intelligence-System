@@ -1,0 +1,185 @@
+{
+  "schemaVersion": "1.0",
+  "releaseId": "ris-agent-factory-13",
+  "date": "2026-11-19",
+  "status": "BASELINE CONSOLIDATED / PARTNER TRAFFIC NO-GO",
+  "scope": {
+    "system": "ris-dev2",
+    "awsAccount": "262370457690",
+    "region": "eu-central-1",
+    "workspace": "ris-dev2",
+    "ordersLifecycle": "managed",
+    "productionChange": false,
+    "awsMutationInThisRelease": false
+  },
+  "source": {
+    "repository": "mays-ris",
+    "branch": "feature/ris-dev2-ats-agent-pinned-core-01",
+    "baselineCommit": "fd38288ddffc36ee7380cd36bc5a63f9501ac78a",
+    "agentSourceSha": "fd38288ddffc36ee7380cd36bc5a63f9501ac78a",
+    "ordersModulePin": "016cdfd6ac62565dcec9a2fee78cb898fb919e59",
+    "ordersBuilderPin": "016cdfd6ac62565dcec9a2fee78cb898fb919e59",
+    "ordersComponentClonePin": "5cf50a0a8e4221348c264c59432ff4c8dc580c8b",
+    "ordersComponentNote": "clone pin belongs to the composite component path; the deployed managed module is the builder pin 016cdfd6. Align before any composite path use.",
+    "jobsearchReferencePin": "29d8b730bb0660d48d1ba774c773e88d9aa7142e",
+    "bundles": {
+      "agent": "5258c99ee62b4e66da25874d2941b18cd14871796baadbdb0e1fe5751eb98e1",
+      "reader": "464b991f784f0ea14da761fca355e676490f9a399209d4d3c2149165c25b1c4d"
+    }
+  },
+  "agents": [
+    {
+      "agentId": "ats-agent",
+      "capability": "analyze.job",
+      "workType": "ats_process",
+      "version": "1.0.0",
+      "package": "agent-installations/ats-agent",
+      "classification": "controlled-test",
+      "catalogRow": "ACTIVE",
+      "status": "LIVE VERIFIED",
+      "externalDependency": "ATS contract 1.2 @ mays-jobsearch.vercel.app"
+    },
+    {
+      "agentId": "addition_agent",
+      "capability": "math.add",
+      "workType": "agent_addition_agent",
+      "version": "1.0.0",
+      "package": "agent-installations/addition-agent",
+      "classification": "reference",
+      "catalogRow": "ABSENT",
+      "status": "LIVE VERIFIED",
+      "note": "dispatch-only, no API route"
+    },
+    {
+      "agentId": "reference_agent",
+      "capability": "reference.echo",
+      "package": null,
+      "catalogRow": "ACTIVE",
+      "status": "CATALOG ONLY"
+    },
+    {
+      "agentId": "jobsearch-agent",
+      "capability": "jobsearch.*",
+      "package": null,
+      "catalogRow": "ACTIVE",
+      "status": "CATALOG ONLY"
+    }
+  ],
+  "contracts": {
+    "workItem": "1.0",
+    "agentOrder": "1.0",
+    "transport": "1",
+    "agentRuntime": "1.0.0",
+    "atsContract": "1.2",
+    "atsResultBody": "2.0",
+    "additionResultBody": "1 (manifest; the agent emits no bodyType/bodyVersion)"
+  },
+  "gates": {
+    "catalog": ["GET /agents", "partner/m2m execute", "introspection"],
+    "entitlement": ["reader POST /orders", "dispatch ingress", "worker execution"],
+    "catalogAloneBlocksExecution": false,
+    "readerRejectsBeforePersist": true,
+    "dispatchFailsClosedWithoutResolver": true
+  },
+  "lifecycle": {
+    "module": "installer/agent_lifecycle.py",
+    "actions": ["INSTALL", "UPDATE", "DISABLE", "ENABLE", "DETACH_PARTNER", "UNINSTALL", "PURGE", "STATUS", "VERIFY"],
+    "installerActions": ["plan", "apply", "install", "destroy"],
+    "sharedGuard": "installer/shared_infra_guard.py",
+    "guardCodes": [
+      "NO_SHARED_DESTROY",
+      "MISSING_OR_FALSE_TRANSPORT_FLAG",
+      "SHARED_DESTROY_WITHOUT_INTENT",
+      "SHARED_TEARDOWN_AUTHORIZED",
+      "TEARDOWN_INTENT_INVALID",
+      "PLAN_SHAPE_INVALID",
+      "GUARD_UNREADABLE"
+    ],
+    "teardownIntentRequiredFor": ["destroy", "composite destroy", "any shared delete/replace/forget"],
+    "purge": {
+      "status": "BLOCKED",
+      "reason": "no retention approval and no agent deletion ledger",
+      "blocker": "purge_blocked_no_deletion_ledger"
+    }
+  },
+  "liveState": {
+    "stateSerial": 64,
+    "stateLineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "resources": 266,
+    "lambdaCodeSha256": {
+      "worker": "UljJnuYrTmbaJYdNKUGxjNFIcXlrqtvb8OH+V1HrmOE=",
+      "dispatchIngress": "UljJnuYrTmbaJYdNKUGxjNFIcXlrqtvb8OH+V1HrmOE=",
+      "ordersReader": "RkuZH3hPDqFNp2H8o1XmdkkPmjmSCdTTwhSRZcJbHE0="
+    },
+    "timeoutsSeconds": {"worker": 60, "dispatchIngress": 60, "ordersReader": 10, "resultConsumer": 30},
+    "catalogItems": {"ats-agent": "ACTIVE", "reference_agent": "ACTIVE", "jobsearch-agent": "ACTIVE"},
+    "counts": {"entitlements": 2, "apiProfiles": 4, "offers": 0, "orders": 10, "workItems": 12},
+    "queuesEmpty": true,
+    "queues": ["agent-dispatch", "agent-dispatch-dlq", "work-queue", "work-dlq", "agent-results", "agent-results-dlq", "orders-queue"],
+    "alarms": {"total": 20, "withActions": 0},
+    "snsTopics": 0,
+    "hmacSecretVersions": 1,
+    "hmacSecretStage": "AWSCURRENT"
+  },
+  "tests": {
+    "command": "python -m pytest tests/test_shared_infra_guard.py tests/test_agent_lifecycle.py tests/test_agent_install_orchestrator.py tests/test_dispatch_ingress_env.py tests/test_ris_installer.py tests/test_ris_plan_guard.py tests/test_state_mirror.py tests/test_orders_reader.py tests/test_orders_reader_agent_gate.py tests/test_dispatch_ingress_lambda.py tests/test_addition_agent.py tests/test_ats_domain_agent.py tests/test_ats_result_body.py tests/test_ats_result_link.py tests/test_agent_order_body.py tests/test_worker_entitlement_recheck.py tests/test_worker_pipeline.py tests/test_multi_agent_ecosystem.py tests/test_partner_security_boundary.py tests/test_agent_catalog_terraform_seed.py tests/test_orders_result_transport.py -q",
+    "result": "456 passed, 18 subtests",
+    "suites": {
+      "sharedInfraGuard": 31,
+      "agentLifecycle": 25,
+      "agentInstallOrchestrator": 9,
+      "ordersReaderAgentGate": 10,
+      "dispatchIngressEnv": 3
+    },
+    "environmentSkipped": "agent order E2E requires MO_ORDERS_SRC; not run without the Orders source checkout"
+  },
+  "risks": {
+    "BLOCKER": [
+      "No alarm notification path: 20 alarms, 0 alarm actions, 0 SNS topics; dispatch/result queues and DLQs have no alarms",
+      "Permanent rejects are consumed without DLQ artifact or metric (dispatch ingress and result handler)",
+      "Batch 5 x ATS 30s inside a 60s Lambda; a timeout can leave a RUNNING work row permanently unprocessable",
+      "No ORDER_FAILED projection: owners see PENDING with no processing/error for a failed agent execution",
+      "Partner async result retrieval has no route (GET /work not exposed), so 202 execution cannot be reconciled"
+    ],
+    "REQUIRED_BEFORE_PRODUCTION": [
+      "Reader POST /orders is not request-idempotent; retry creates a second order and dispatch",
+      "Profile expiresAt/derived EXPIRED is ignored at reader and ingress",
+      "Monitoring thresholds are uncalibrated (8s duration vs 60s timeout) and cover only the worker",
+      "API-enqueued work is not executable (QUEUED pre-write vs WORK_ADMISSION_STATE_UNSAFE)",
+      "Eligibility fails open on body/runtime mismatch; descriptors are declarative",
+      "Entitlement rows without tenantId are tenant-global; unparsable validity bounds fail open",
+      "No Terraform-native prevent_destroy/deletion protection; protection is installer-only",
+      "Direct terraform apply/destroy/state push outside installer.ris is unguarded",
+      "Composite Orders component destroy is guarded only by the intent requirement, not plan inspection",
+      "PURGE has no retention approval gate and no deletion ledger"
+    ],
+    "OPTIONAL": [
+      "Work-item TTL 30d vs matrix 90d; order-correlated rows omit expiresAt",
+      "ATS workType ats_process differs from canonical agent_ats-agent; routing relies on agentId/capability",
+      "Addition manifest resultBody 1 has no code counterpart",
+      "Manifest env lists omit ENTITLEMENTS_TABLE/WORK_ITEMS_TABLE (addition) and DISPATCH_QUEUE_ARN (ATS)",
+      "Line-based lifecycle YAML parsing; project-name charset validation in mirror paths"
+    ]
+  },
+  "artifacts": {
+    "report": "docs/reports/RIS-AGENT-FACTORY-RELEASE-13.md",
+    "runbook": "docs/operations/RIS-AGENT-FACTORY-RUNBOOK.md",
+    "handoff": "docs/handoffs/RIS-DEV-AGENT-FACTORY-13.md",
+    "packagesReadme": "agent-installations/README.md",
+    "priorReleases": [
+      "docs/releases/ris-agent-installation-08.json",
+      "docs/releases/ris-agent-installation-09-addition.json",
+      "docs/releases/ris-agent-lifecycle-10.json",
+      "docs/releases/ris-agent-lifecycle-11.json",
+      "docs/releases/ris-agent-lifecycle-12.json",
+      "docs/releases/ris-agent-operations-handoff-10.json"
+    ]
+  },
+  "safety": {
+    "awsMutation": false,
+    "purge": false,
+    "risDevOrProduction": false,
+    "mainMerge": false,
+    "push": false
+  }
+}

@@ -606,6 +606,13 @@ def test_apply_forwards_vars():
     assert all(r.returncode == 0 for r in results)
 
 
+def test_install_refuses_unsupported_through():
+    import installer.ris as ris_mod
+
+    ctx = RisInstallContext(project_name="mays-ris", dry_run=False)
+    assert ris_mod._cmd_install(ctx, through="orders-deploy") == 1
+
+
 def test_destroy_refuses_dry_run():
     with patch.dict(os.environ, _clean_env(), clear=True):
         ctx = RisInstallContext(project_name="mays-ris-lifecycle", environment="dev")

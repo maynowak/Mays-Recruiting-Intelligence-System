@@ -978,8 +978,11 @@ def is_plan_safe(plan_json: dict, project_name: str, environment: str) -> tuple[
     """
     test_prefix = f"{project_name}-{environment}-"
     production_prefixes = PRODUCTION_RESOURCE_PREFIXES
-    
-    for change in plan_json.get("resource_changes", []):
+    changes = plan_json.get("resource_changes")
+    if not isinstance(plan_json, dict) or not isinstance(changes, list):
+        return False, "plan JSON has no list-shaped resource_changes"
+
+    for change in changes:
         actions = change.get("change", {}).get("actions", [])
         before = change.get("change", {}).get("before") or {}
         after = change.get("change", {}).get("after") or {}
@@ -1712,13 +1715,13 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
     # --- 1. RIS foundation destroy ---
     runner = ctx.make_runner()
     init_res = runner.init(backend_config=ctx.backend_config(), reconfigure=True)
-    print(f"$ {' '.join(init_res.command)} -> exit {init_res.returncode}")
+    _print_command(init_res)
     if init_res.returncode != 0:
         return 1
     plan_file = out_file or f"{ctx.workspace}-destroy.tfplan"
     plan_res = runner.plan(out_file=plan_file, destroy=True,
                            var=ctx.terraform_vars())
-    print(f"$ {' '.join(plan_res.command)} -> exit {plan_res.returncode}")
+    _print_command(plan_res)
     if plan_res.returncode != 0:
         return 1
 
@@ -1755,6 +1758,12 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
 
     # --- 2. Orders component destroy (only its own project name) ---
     if ctx.composite:
+        if not (ctx.shared_teardown_intent or "").strip():
+            print(
+                "error: composite destroy also tears down the shared Orders "
+                "component; pass --shared-teardown-intent <reference>.",
+                file=sys.stderr)
+            return 1
         orchestrator = RISInstaller(dry_run=False)
         env_extra = {
             "ALLOW_AWS_OPERATIONS": "true",
@@ -2423,6 +2432,14 @@ def _cmd_install(
     preflight and in _run_orders_component(). Two STS calls and two
     10-check validations per install. Pure overhead, no behaviour.
     """
+    through = through or ctx.stop_through
+    if through:
+        print(
+            "error: --through is not implemented in this baseline; run the "
+            "phases explicitly (preflight, plan, apply). Refusing to continue "
+            "silently with a full install.",
+            file=sys.stderr)
+        return 1
     # PHASE A — preflight (read-only identity + component validation).
     try:
         aws_ctx = validate_aws_context(
@@ -2813,7 +2830,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 1
     failed = [r for r in results if r.returncode != 0]
     for result in results:
-        print(f"$ {' '.join(result.command)} -> exit {result.returncode}")
+        _print_command(result)
     return 1 if failed else 0
 
 

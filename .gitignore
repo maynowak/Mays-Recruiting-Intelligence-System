@@ -88,3 +88,6 @@ installer/ris.py.work_in_progress
 *.lifecycle-state.json
 *.lifecycle.result.json
 agent-installations/**/.lifecycle-*
+
+# Agent package local evidence (never commit)
+agent-installations/**/install-status.json

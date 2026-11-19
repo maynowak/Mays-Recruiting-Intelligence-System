@@ -69,6 +69,13 @@ def _manifest_agent(package: Path) -> str:
     raise LifecycleError("manifest.yaml has no agentId")
 
 
+def _manifest_version(package: Path) -> str:
+    manifest = package / "manifest.yaml"
+    if not manifest.is_file():
+        return "unknown"
+    return _field(_read(manifest), "version") or "unknown"
+
+
 def _shared_resources(package: Path) -> List[str]:
     lines = _read(package / "lifecycle.yaml").splitlines()
     resources: List[str] = []
@@ -185,7 +192,7 @@ def _warnings(action: str, package: Path, inventory: Dict[str, Any],
     if visibility == "ABSENT":
         warnings.append("package_declares_no_catalog_visibility")
     if action in ("DISABLE", "UNINSTALL") and \
-            "blockNewOrdersPending" in lifecycle:
+            "blockNewOrdersOnDisable: false" in lifecycle:
         warnings.append("block_new_orders_not_enforced_in_reader")
     if action == "UNINSTALL":
         warnings.append("inventory_must_come_from_read_only_order_scan")
@@ -233,10 +240,16 @@ def _impact(action: str, package: Path, state: Dict[str, Any],
     open_orders = [o for o in inventory.get("openOrders", [])
                    if str(o.get("agentId")) == agent]
     catalog_before = state.get("catalog", True)
-    catalog_after = {
-        "DISABLE": False, "UNINSTALL": False, "DETACH_PARTNER": False,
-        "ENABLE": True, "INSTALL": True, "PURGE": False,
-    }.get(action, catalog_before)
+    visibility = (_field(lifecycle, "visibility") or "").upper()
+    if action in ("DETACH_PARTNER",):
+        catalog_after = catalog_before
+    elif visibility == "ABSENT":
+        catalog_after = catalog_before
+    else:
+        catalog_after = {
+            "DISABLE": False, "UNINSTALL": False, "ENABLE": True,
+            "INSTALL": True, "PURGE": False,
+        }.get(action, catalog_before)
     partner_apps = [b for b in bindings
                     if b.get("type") == "partner-application"]
     open_results = [r for r in inventory.get("openResults", [])
@@ -356,7 +369,14 @@ def _blockers(action: str, state: Dict[str, Any], impact: Dict[str, Any],
         blockers.append("inventory_required_for_impact")
     if action == "UNINSTALL" and impact["openOrders"]:
         blockers.append("open_orders_must_drain_or_cancel")
+    if action == "UNINSTALL" and impact["openResults"]:
+        blockers.append("open_results_must_drain")
+    if action == "PURGE" and impact["openResults"]:
+        blockers.append("open_results_must_drain")
     if action == "PURGE":
+        # No retention approval and no agent deletion ledger exist yet.
+        # PURGE stays blocked unconditionally in this baseline.
+        blockers.append("purge_blocked_no_deletion_ledger")
         if purge_confirm != agent:
             blockers.append("purge_confirmation_required")
         if state.get("status") not in ("uninstalled", "purged"):
@@ -503,7 +523,7 @@ def run(action: str, package: Path, *, execute: bool = False,
         "inventoryDigest": _digest(
             {k: v for k, v in inventory.items() if k != "_provided"}),
         "inventoryProvided": bool(inventory.get("_provided")),
-        "packageVersion": state.get("version"),
+        "packageVersion": _manifest_version(package),
     }
 
     already = (action == "UNINSTALL"

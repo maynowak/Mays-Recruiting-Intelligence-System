@@ -1,0 +1,58 @@
+schemaVersion: "1.0"
+# Template for a new agent package. Replace every <placeholder>.
+agentId: <agent-id>
+owner: ris-dev
+version: "0.1.0"
+discovery:
+  catalog: ris-dev2-dev-agent-catalog
+  # Set ACTIVE only after a catalog seed exists; ABSENT = dispatch-only.
+  visibility: <ACTIVE|ABSENT>
+  apiReachable: <true|false>
+  executionPath: <reader-gate+dispatch+worker>
+  blockNewOrdersOnDisable: true
+  blockNewOrdersEnforcedBy: lambda/orders_reader.py admission gate
+sharedResources:
+  - ris-dev2-dev-agent-dispatch
+  - ris-dev2-dev-agent-dispatch-dlq
+  - ris-dev2-dev-agent-dispatch-ingress
+  - ris-dev2-mays-orders-agent-results
+  - ris-dev2-mays-orders-agent-results-dlq
+  - ris-dev2-mays-orders-agent-result-consumer
+  - ris-dev2-dev-agent
+  - ris-dev2-dev-orders-reader
+  - ris-dev2-dev-work-items
+  - ris-dev2-mays-orders
+  - ris-dev2-mays-orders-agent-result-hmac
+exclusiveResources: []
+partnerBindings:
+  - type: entitlement
+    scope: agent
+    managedBy: ris
+    deleteOnDetach: true
+  - type: api-profile
+    scope: shared
+    managedBy: ris
+    deleteOnDetach: false
+  - type: credential
+    scope: shared
+    managedBy: ris
+    deleteOnDetach: false
+  - type: partner-application
+    scope: shared
+    managedBy: ris
+    deleteOnDetach: false
+uninstall:
+  blockNewOrders: true
+  inFlight: drain
+  catalogVisibility: INACTIVE
+  keepHistory: true
+  keepSharedResources: true
+retention:
+  orders: retain
+  workItems: retain
+  results: retain
+  auditLogs: retain
+purge:
+  requiresExplicitConfirmation: true
+  deletes: [lifecycle-state, agent-specific-history-markers]
+  neverDeletes: [orders, workItems, results, sharedResources]

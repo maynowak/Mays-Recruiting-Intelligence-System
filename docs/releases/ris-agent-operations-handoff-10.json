@@ -9,13 +9,13 @@
     "region": "eu-central-1",
     "workspace": "ris-dev2",
     "stateLineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
-    "stateSerial": 63
+    "stateSerial": 64
   },
   "source": {
     "risSha": "f0c707c6e80638a6489194b3be98374718a6a522",
     "ordersPin": "016cdfd6ac62565dcec9a2fee78cb898fb919e59",
     "agentBundleSha256": "5258c99ee62b4e66da25874d2941b18cd14871796baadbdb0e1fe5751eb98e1",
-    "readerBundleSha256": "55366e35f82e1fbb063d2020bcb02054b5f3504d4906f55802bcbef0ea87fcbe"
+    "readerBundleSha256": "464b991f784f0ea14da761fca355e676490f9a399209d4d3c2149165c25b1c4d"
   },
   "agents": [
     {
@@ -115,9 +115,9 @@
     },
     {
       "id": "OPS-07",
-      "title": "Ingress prefers userId over ownerUserId; queue ARN pin can be skipped when env is absent; entitlement resolver can be None",
+      "title": "Ingress prefers userId over ownerUserId; queue ARN pin can be skipped when env is absent (entitlement resolver now fails closed)",
       "class": "REQUIRED BEFORE PRODUCTION",
-      "evidence": "dispatch_ingress.py:53-58,74-86,109-115; pipeline.py:633-636"
+      "evidence": "dispatch_ingress.py:53-58,79-84; pipeline.py:633-636; LIFECYCLE-12 fail-closed fix"
     },
     {
       "id": "OPS-08",
@@ -193,5 +193,6 @@
     "Run local tests, then an isolated synthetic canary with identity/profile/entitlement",
     "Do not enable automatically; separate approval required"
   ],
-  "noProductionChange": true
+  "noProductionChange": true,
+  "updatedBy": "ris-agent-factory-13"
 }

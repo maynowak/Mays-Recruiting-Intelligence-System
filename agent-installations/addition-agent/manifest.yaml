@@ -12,7 +12,7 @@ agent:
 source:
   repository: mays-ris
   path: agents/addition_agent
-  sha: f0c707c6e80638a6489194b3be98374718a6a522
+  sha: fd38288ddffc36ee7380cd36bc5a63f9501ac78a
   branch: feature/ris-dev2-ats-agent-pinned-core-01
 versions:
   workItem: "1.0"

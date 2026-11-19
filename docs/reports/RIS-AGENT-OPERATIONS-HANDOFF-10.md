@@ -15,7 +15,7 @@ are closed. No ris-dev/production change.
 
 - RIS source: `f0c707c6e80638a6489194b3be98374718a6a522`
 - Orders pin: `016cdfd6ac62565dcec9a2fee78cb898fb919e59`
-- Agent bundle `5258c99e…`; reader bundle `55366e35…`; state serial 63.
+- Agent bundle `5258c99e…`; reader bundle `464b991f…` (RIS-AGENT-LIFECYCLE-11); state serial 64.
 
 ## 2. Live E2E evidence
 
@@ -160,7 +160,7 @@ canary data, source-SHA and compatibility updates.
 ## 10. Decision
 
 **GO for the already-deployed ris-dev2 test infrastructure.**
-**NO-GO for partner traffic/production** until the four BLOCKERs and the
+**NO-GO for partner traffic/production** until the five BLOCKERs and the
 REQUIRED items are closed and the monitoring path is proven with a real
 notification.
 

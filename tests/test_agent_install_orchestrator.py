@@ -40,6 +40,15 @@ class OrchestratorTest(unittest.TestCase):
                                       encoding="utf-8")
         (pkg / "operations.md").write_text("ops\n", encoding="utf-8")
         (pkg / "handoff.md").write_text("handoff\n", encoding="utf-8")
+        (pkg / "lifecycle.yaml").write_text(
+            "agentId: demo-agent\nsharedResources:\n  - q\n"
+            "exclusiveResources: []\npartnerBindings:\n  - type: entitlement\n"
+            "    scope: agent\nuninstall:\n  retain: true\n"
+            "retention:\n  orders: retain\n  workItems: retain\n"
+            "  results: retain\n", encoding="utf-8")
+        (pkg / "uninstall.md").write_text("uninstall\n", encoding="utf-8")
+        (pkg / "partner-bindings.md").write_text("bindings\n", encoding="utf-8")
+        (pkg / "retention.md").write_text("retention\n", encoding="utf-8")
         return pkg
 
     def test_real_packages_are_discoverable_and_valid(self):
@@ -90,6 +99,32 @@ class OrchestratorTest(unittest.TestCase):
             (pkg / "operations.md").unlink()
             with self.assertRaises(agent_install.AgentInstallError):
                 agent_install.package_check(pkg)
+
+    def test_missing_lifecycle_artifacts_are_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pkg = self.make_package(root)
+            (pkg / "retention.md").unlink()
+            with self.assertRaises(agent_install.AgentInstallError):
+                agent_install.package_check(pkg)
+
+    def test_template_package_is_refused_by_run_stage(self):
+        status = Path(tempfile.gettempdir()) / "template-status.json"
+        self.addCleanup(lambda: status.exists() and status.unlink())
+        with self.assertRaises(agent_install.AgentInstallError):
+            agent_install.run_stage(
+                "validate", agent_install.DEFAULT_ROOT / "_template", status)
+
+    def test_placeholder_pin_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pkg = self.make_package(
+                root, MANIFEST.replace(
+                    "0123456789abcdef0123456789abcdef01234567",
+                    "<RIS_SOURCE_SHA>"))
+            info = agent_install.analyze(pkg)
+            with self.assertRaises(agent_install.AgentInstallError):
+                agent_install.validate(pkg, info)
 
 
 if __name__ == "__main__":

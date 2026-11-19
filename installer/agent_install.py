@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,7 +29,10 @@ STAGES = [
 ]
 # Lifecycle actions are owned by installer.agent_lifecycle (single source).
 LIFECYCLE_ACTIONS = _lifecycle.ACTIONS
-REQUIRED_FILES = ("manifest.yaml", "risks.md", "operations.md", "handoff.md")
+REQUIRED_FILES = (
+    "manifest.yaml", "risks.md", "operations.md", "handoff.md",
+    "lifecycle.yaml", "uninstall.md", "partner-bindings.md", "retention.md",
+)
 REQUIRED_DIRS = ("contracts", "tests")
 REQUIRED_MANIFEST_KEYS = (
     "agentId", "capability", "sha", "transport", "resultBody", "ordersPin",
@@ -104,6 +108,12 @@ def validate(package: Path, info: Dict[str, Any]) -> Dict[str, Any]:
     compatibility(package, info)
     package_check(package)
     risk_review(package)
+    for key in ("sha", "ordersPin"):
+        value = _value(info["manifest"], key)
+        if not re.fullmatch(r"[0-9a-f]{40}", value or ""):
+            raise AgentInstallError(
+                f"{package.name}: {key} must be a full 40-char lowercase git "
+                f"SHA, got {value!r}")
     return {"validated": True, "agentId": _value(info["manifest"], "agentId")}
 
 
@@ -136,6 +146,11 @@ def run_stage(stage: str, package: Path, status_path: Path, *,
               yes: bool = False, force: bool = False) -> Dict[str, Any]:
     if stage not in STAGES:
         raise AgentInstallError(f"unknown stage {stage!r}")
+    manifest_text = _read(package / "manifest.yaml") if (package / "manifest.yaml").is_file() else ""
+    if package.name == "_template" or "\n  status: template" in manifest_text \
+            or manifest_text.startswith("package:\n  status: template"):
+        raise AgentInstallError(
+            "_template and template-status packages are scaffolds, not deployable agents")
     status = _load_status(status_path)
     previous = status["stages"].get(stage, {})
     if previous.get("status") == "PASSED" and not force:
@@ -169,7 +184,13 @@ def run_stage(stage: str, package: Path, status_path: Path, *,
             raise AgentInstallError(
                 "apply requires --execute --allow-apply --yes and a separate "
                 "approval gate; package creation never enables an agent")
-        result.update({"executed": True, "scope": "ris-dev2 test only"})
+        result.update({
+            "executed": False,
+            "scope": "ris-dev2 test only",
+            "requires": "reviewed terraform plan + --shared-teardown-intent "
+                        "when shared infrastructure would change",
+            "note": "this stage records approval only; it runs no terraform",
+        })
     elif stage == "e2e":
         result.update({"executed": bool(execute),
                        "checklist": "docs/reports/RIS-AGENT-INSTALLATION-HANDOFF-08.md"})

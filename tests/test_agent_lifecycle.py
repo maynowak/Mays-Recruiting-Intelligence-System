@@ -70,7 +70,10 @@ class LifecycleTest(unittest.TestCase):
         self.assertNotIn("dispatch", result["impact"]["bindingsToRemove"])
         state = json.loads(self.state.read_text(encoding="utf-8"))
         self.assertEqual("uninstalled", state["status"])
-        self.assertFalse(state["catalog"])
+        # addition declares visibility: ABSENT -> there is no catalog row to
+        # change, so UNINSTALL must keep the local catalog flag untouched.
+        self.assertTrue(state["catalog"])
+        self.assertTrue(result["impact"]["catalogAfter"])
 
     def test_ats_disable_keeps_retail_and_shared(self):
         result = self.run_action("ats-agent", "disable", execute=True)
@@ -102,6 +105,16 @@ class LifecycleTest(unittest.TestCase):
         self.assertIn("open_orders_must_drain_or_cancel", result["blockers"])
         self.assertFalse(self.state.exists())
 
+    def test_open_results_block_uninstall(self):
+        data = inventory()
+        data["openResults"] = [{"orderId": "ord_open", "agentId": "ats-agent",
+                                "status": "PENDING"}]
+        self.inv.write_text(json.dumps(data), encoding="utf-8")
+        result = self.run_action("ats-agent", "uninstall", execute=True)
+        self.assertEqual("BLOCKED", result["status"])
+        self.assertIn("open_results_must_drain", result["blockers"])
+        self.assertFalse(self.state.exists())
+
     def test_no_secret_or_owner_leak_in_evidence(self):
         self.run_action("ats-agent", "status", execute=True)
         result = json.loads(Path(
@@ -129,12 +142,14 @@ class LifecycleTest(unittest.TestCase):
         blocked = self.run_action("ats-agent", "purge", execute=True)
         self.assertEqual("BLOCKED", blocked["status"])
         self.assertIn("purge_confirmation_required", blocked["blockers"])
+        self.assertIn("purge_blocked_no_deletion_ledger", blocked["blockers"])
         self.run_action("ats-agent", "uninstall", execute=True)
         purged = self.run_action("ats-agent", "purge", execute=True,
                                  confirm="ats-agent")
-        self.assertEqual("APPLIED", purged["status"])
-        self.assertEqual("purged",
-                         json.loads(self.state.read_text())["status"])
+        self.assertEqual("BLOCKED", purged["status"])
+        self.assertIn("purge_blocked_no_deletion_ledger", purged["blockers"])
+        state = json.loads(self.state.read_text(encoding="utf-8"))
+        self.assertEqual("uninstalled", state["status"])
 
     def test_purge_grace_window_blocks_immediate_purge(self):
         self.run_action("ats-agent", "uninstall", execute=True)
@@ -145,6 +160,7 @@ class LifecycleTest(unittest.TestCase):
             purge_grace_days=30)
         self.assertEqual("BLOCKED", blocked["status"])
         self.assertIn("purge_grace_window_not_elapsed", blocked["blockers"])
+        self.assertIn("purge_blocked_no_deletion_ledger", blocked["blockers"])
 
     def test_destructive_action_requires_inventory(self):
         for action in ("disable", "detach-partner", "uninstall"):
