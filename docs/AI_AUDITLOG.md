@@ -10315,3 +10315,19 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
   still blocked by missing valid test identity/token; no Production
   verification claimed. No general rollout.
 - Report: `docs/reports/RIS-CONSENT-RELEASE-05.md`.
+
+## 2026-11-19 — JM-RIS-CV-ATS-API-01 — CONTRACT REVIEW
+
+**Status:** `CONTRACT READY FOR IMPLEMENTATION — SECURITY/PRIVACY GATES OPEN`
+
+- RIS ATS agent only implements `analyze.job` and delegates to Jobsearch
+  `/api/ats-analysis`; its `ATSHttpClient` has no service credential. No CV
+  parse or matching capability/client is implemented; `job_matching` is only a
+  chain template.
+- Jobsearch ATS/matching are reusable server modules, but existing HTTP
+  endpoints lack auth/tenant/version/consent proof. CV PDF extraction is
+  browser-bound; pure parser logic needs extraction.
+- Proposed versioned analysis contracts and service-auth/separation; auth,
+  tenant isolation and analysis consent remain blockers. No endpoints,
+  AWS/Terraform, auth, consent, storage or product changes.
+- Report: `docs/reports/JM-RIS-CV-ATS-API-01-CONTRACT-REVIEW.md`.
