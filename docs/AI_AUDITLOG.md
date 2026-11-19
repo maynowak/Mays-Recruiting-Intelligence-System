@@ -10315,3 +10315,71 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
   still blocked by missing valid test identity/token; no Production
   verification claimed. No general rollout.
 - Report: `docs/reports/RIS-CONSENT-RELEASE-05.md`.
+
+## 2026-11-17 — XREPO-JM-RIS-CONSENT-FINAL-01
+
+**Status:** `B — XREPO CONTRACT VERIFIED / AUTH E2E BLOCKED`
+
+- Cross-repo contract verified from existing evidence and focused tests:
+  Jobsearch BFF 40 PASS; RIS consent focused 27 PASS. No new architecture,
+  Terraform apply or production deployment.
+- Jobsearch Main/Production: `92ca1fc690adcb1c6db3b392f710b3456c324e04`.
+  RIS code Main `00363977…`; state serial 80; live agent contains
+  `application-storage/1.0 = APPROVED`; post-apply plan clean.
+- ApplicationV1 and CV consent contracts remain separate; `specialCategoriesConsent`,
+  notice/text mapping and fail-closed error handling are verified in code/tests.
+- Authenticated live E2E remains blocked by the exact missing prerequisite: a
+  valid authorized synthetic-session token for the existing server-side
+  `RIS_TEST_USER_ALLOWLIST` identity. No auth bypass, test identity creation,
+  real data change or token logging.
+- No Main merge, new Production deployment, Terraform/AWS/RIS/Cognito/
+  CloudFront/DNS change. Shared report:
+  `docs/reports/XREPO-JM-RIS-CONSENT-FINAL-01.md`.
+
+## 2026-11-17 — XREPO-JM-RIS-CONSENT-LIVE-E2E-02
+
+**Status:** `C — PRODUCT DEFECT CONFIRMED / FIX PREPARED`
+
+- Die operatorseitig geöffnete, bereits allowlistete Pilot-Session wurde über
+  den normalen Cognito-Refresh-Flow im Browser erneuert; keine Token-/PII-Werte
+  geloggt. Der BFF akzeptierte die Identität (`grantAllowed=true`,
+  `noticeState=APPROVED`, `textState=APPROVED`, Status `GRANTED`).
+- ApplicationV1 live: Withdraw/Regrant über die Produktions-UI erfolgreich,
+  Reload/Status `GRANTED`. Der Art.-9-/Text-Nachweis fehlt jedoch nach Reload
+  (`specialCategoriesConsent=false`, `externalTextVersion=null`); die UI zeigt
+  „Art.-9-Einwilligung: nicht erteilt“. Kein Bewerberdatensatz angelegt;
+  finaler Consent-Status `GRANTED`.
+- CV-/Search-Profile live: `GET /api/ris/cv-consents` und
+  `GET /api/ris/search-profile-consents` liefern `404 UNKNOWN_PURPOSE`.
+  CV-Grant/Upload/Download/404 wurden daher nicht behauptet.
+- Ursache ist RIS-Main `00363977…`: nur `application-storage` im
+  Consent-Vertrag, keine Proof-Felder im Repository/Handler und keine
+  CV-/Search-Consent-Gates. Kein XRepo- oder Jobsearch-BFF-Fehler.
+- Fix vorbereitet: RIS-Branch `fix/xrepo-ris-consent-contract-02`, Commit
+  `fd02722`, Basis `b193b71`; Vertrag/Repository/Handler und Tests
+  wiederhergestellt. RIS fokussiert **232 PASS**; vollständig **2823 PASS /
+  104 skipped / 19 identische Clean-Main-Baseline-Fehler**; Jobsearch
+  BFF/Consent/UI-Libs **53 PASS**.
+- Kein Main-Merge, kein neues Deployment, keine Terraform-/AWS-/Cognito-/
+  CloudFront-/DNS-Änderung. Report:
+  `docs/reports/XREPO-JM-RIS-CONSENT-LIVE-E2E-02.md`.
+
+## 2026-11-17 — XREPO-RIS-CONSENT-RECOVERY-03
+
+**Status:** `D — FIX MERGED / PLAN TECHNICALLY CLEAN / APPLY NOT SAFE FOR COMPLETE CONSENT GATES`
+
+- RIS PR #15 reviewed: 3 product files plus tests, no Terraform/AWS changes.
+  Proof fields and both profile purposes are restored; merged regularly as
+  `e95fe48573cb61151a84f448e9e6376f4a7833d6`.
+- Merged-main verification: focused 77 PASS; full 2823 PASS / 104 skipped /
+  19 identical clean-main baseline failures; Jobsearch BFF/consent/UI 53 PASS.
+- Notices: application v4, CV v1 and search-profile v2 are complete and
+  approved for the limited pilot; no general legal approval invented.
+- Terraform plan `/tmp/opencode/ris-consent-recovery-03.tfplan`, SHA-256
+  `153d121260bf5340a63b4d091abe5541732e853891db2f00f6d8b1694baf312c`,
+  state serial 80, 0 add / 5 change / 0 destroy / 0 replace; no state write.
+- Release blocker: Terraform main/live do not wire
+  `CV_STORAGE_CONSENT_ENFORCED`, `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED`,
+  `CONSENT_NOTICE_STATE_ENFORCED` or `CONSENT_PILOT_ALLOWLIST`; plan adds no
+  env keys, so gates remain inactive. No apply executed.
+- Shared report: `docs/reports/XREPO-RIS-CONSENT-RECOVERY-03.md`.
