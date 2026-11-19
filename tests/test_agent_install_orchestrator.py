@@ -54,7 +54,9 @@ class OrchestratorTest(unittest.TestCase):
     def test_real_packages_are_discoverable_and_valid(self):
         packages = agent_install.discover(agent_install.DEFAULT_ROOT)
         names = {p.name for p in packages}
-        self.assertEqual({"ats-agent", "addition-agent"}, names)
+        self.assertEqual(
+            {"ats-agent", "addition-agent", "cv-parser-agent",
+             "job-parser-agent"}, names)
         for package in packages:
             info = agent_install.analyze(package)
             self.assertTrue(agent_install.validate(package, info)["validated"])

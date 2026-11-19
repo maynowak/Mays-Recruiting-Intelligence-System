@@ -73,8 +73,12 @@ Plans are hash-checked before apply; unreadable or incomplete plans stop.
 
 - `ats-agent` 1.0.0 — live E2E PASS on ris-dev2, catalog ACTIVE.
 - `addition-agent` 1.0.0 — live E2E PASS, catalog ABSENT (dispatch-only).
+- `cv-parser-agent` 1.0.0 — LOCAL VERIFIED (`parse.cv`), catalog ABSENT.
+  Live enablement PENDING: the Python Lambda has no node runtime.
+- `job-parser-agent` 1.0.0 — LOCAL VERIFIED (`parse.job`), catalog ABSENT.
+  Live enablement PENDING (same runtime gap).
 
-Both use the same dispatch/result transport; there are no per-agent queues.
+All four use the same dispatch/result transport; there are no per-agent queues.
 
 ## Adding an agent
 

@@ -10722,3 +10722,14 @@ Date: 2026-11-19
 - Tests: 456 passed, 18 subtests across guard (31), lifecycle (25), orchestrator (9), reader gate (10), dispatch env (3), ATS/addition/reader/worker/partner/catalog regression. Agent-order E2E skipped without MO_ORDERS_SRC.
 - Artifacts: docs/releases/ris-agent-factory-13.json, docs/reports/RIS-AGENT-FACTORY-RELEASE-13.md, docs/operations/RIS-AGENT-FACTORY-RUNBOOK.md, docs/handoffs/RIS-DEV-AGENT-FACTORY-13.md, agent-installations/README.md; operations handoff serial/bundle/blocker count corrected.
 - No AWS mutation, no PURGE, no ris-dev/production change, no main merge, no push.
+
+[RIS-JM-AGENT-STANDARDIZATION-01 / PARSER AGENTS]
+Status: LOCAL VERIFIED / RUNTIME PENDING / NO AWS MUTATION.
+Date: 2026-11-19
+- Jobsearch (maynowak/mays-jobsearch, branch feature/ris-parser-library-01, commit d330179, pushed): new api/_lib/parsers/ris.mjs v1.0.0 with deterministic parse.job and parse.cv, reusing api/_lib/ats.mjs; CLI scripts/ris-parser-cli.mjs (stdin/stdout JSON, exit 2/3); tests/parsers/ris-parser.test.mjs (6 passed); docs/RIS-PARSER-LIBRARY.md. Fixed a pre-existing hang: EXPERIENCE_PATTERN and the education regex lacked g inside while(exec()) loops.
+- RIS (branch feature/ris-jm-agent-standardization-01): agents/parsers/node_adapter.py (single boundary, size/timeout/error mapping, fail-closed), cv-parser-agent (parse.cv) and job-parser-agent (parse.job) with registry descriptors and AgentBody routes; pipeline registers both; packages with manifest/lifecycle/uninstall/partner-bindings/retention/risks/operations/handoff/contracts/tests.
+- Gates: both are dispatch-only (visibility ABSENT, no catalog seed), entitlement-gated through reader/dispatch/worker; no new queue/table/Lambda/secret/HTTP endpoint; no EventHook, so no follow-up orders or cost.
+- Tests: 16 parser/adapter tests including a real jobsearch CLI round trip; regression 272 passed / 13 subtests; orchestrator validates all four real packages.
+- Runtime PENDING: Python 3.14 Lambda has no node; options documented (Node Lambda/container invocation, Node runtime switch, vendored node). No ris-dev2 enablement, no AWS/Terraform/Cognito/DNS change, no installer pin change.
+- Docs: docs/architecture/AGENT-PARSERS.md, agent-installations/README.md updated.
+- No AWS mutation, no PURGE, no ris-dev/production change, no main merge.

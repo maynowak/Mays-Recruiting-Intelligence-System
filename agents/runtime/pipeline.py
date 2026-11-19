@@ -152,6 +152,12 @@ def ensure_reference_agent(
     # Gate G03 (RIS-MO-ADDITION-AGENT-E2E-01): deterministischer math.add-Agent.
     from agents.addition_agent.registry import register_addition_agent
     register_addition_agent(registry, body)
+    # RIS-JM-AGENT-STANDARDIZATION-01: deterministic parser agents reusing the
+    # shared jobsearch parser library (parse.cv / parse.job).
+    from agents.cv_parser_agent.registry import register_cv_parser_agent
+    from agents.job_parser_agent.registry import register_job_parser_agent
+    register_cv_parser_agent(registry, body)
+    register_job_parser_agent(registry, body)
     return registry, body
 
 
