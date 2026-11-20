@@ -10947,3 +10947,12 @@ Date: 2026-11-20
 - IAM/runtime: parser logs-only role; analysis role InvokeFunction only; nodejs22.x arm64, 512 MB, 15 s (60 s max), logs 14 days; no API Gateway/function URL/CloudFront; no SQS/Secrets/DynamoDB.
 - Jobsearch e77ee94 adds the handler CV-path test (in-process PDF) and the deterministic build/SHA documentation. Tests: 5 artifact-verifier invariants + 8 deployment-preparation tests.
 
+[RIS-ANALYSIS-CANARY-10A / STEP C — SYNTHETIC CANARY PREPARATION]
+Status: matrix prepared and executed locally; no real data, no live token.
+Date: 2026-11-20
+- Fixtures: tests/fixtures/analysis/synthetic-canary-cv.pdf (generated, CANARY APPLICANT only; SHA-256 70e4076f…) and synthetic-job.json (fictional ad; SHA-256 26c320d7…). No e-mail, phone, address, photo or employer identity.
+- tests/test_analysis_canary_matrix.py (15 tests, real Node CLI): CV-only, job-only, ATS-only, comparison, full, full-with-PDF, idempotent replay; negatives for entitlement_denied, cv_access_denied (cross-tenant, no loader call), consent_required, consent_notice_not_approved, partner_mismatch, job_text_too_large, job_not_found, invalid_requested_results.
+- Temporary job store: fake-S3 tests verify 2 h default, 4 h hard cap, expiry after 2 h/4 h, cleanup, extend cap, cross-tenant key not found, SSE AES256 + tenant/user metadata, >1 MiB rejected.
+- Authenticated canary identity documented (existing dev pool/client, custom:tenant_id=tenant-canary, synthetic sub); no Cognito change and no live token in this package.
+- docs/operations/RIS-ANALYSIS-CANARY-MATRIX.md records matrix, observed results, TTL evidence, claims and explicit non-actions. No consent/entitlement bypass.
+
