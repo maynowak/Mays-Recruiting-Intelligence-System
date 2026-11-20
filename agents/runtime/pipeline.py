@@ -95,6 +95,7 @@ def _utcnow() -> str:
 def ensure_reference_agent(
     registry: Optional[AgentRegistry] = None,
     body: Any = None,
+    analysis_agent: Any = None,
 ) -> Tuple[AgentRegistry, Any]:
     """ReferenceAgent (+ Orders-Function) in Registry + Body-Router verankern.
 
@@ -160,7 +161,7 @@ def ensure_reference_agent(
     register_job_parser_agent(registry, body)
     # RIS-AGENT-ANALYSIS-ORCHESTRATION-04: thin analysis orchestration.
     from agents.analysis_agent.registry import register_analysis_agent
-    register_analysis_agent(registry, body)
+    register_analysis_agent(registry, body, agent=analysis_agent)
     return registry, body
 
 
@@ -490,6 +491,7 @@ def process_record(
     subject_fence_table: Any = None,
     require_subject_fence: bool = False,
     result_sender: Optional[Any] = None,
+    analysis_agent: Any = None,
 ) -> Dict[str, Any]:
     """Einen SQS-Record durch den Runtime-Pfad fuehren (Worker-Einstieg).
 
@@ -535,7 +537,8 @@ def process_record(
         erasure_admission(work, "before_registration")
 
     table = table if table is not None else _resolve_table()
-    registry, body = ensure_reference_agent(registry, body)
+    registry, body = ensure_reference_agent(registry, body,
+                                            analysis_agent=analysis_agent)
 
     hook = EventHook()
     envelope = hook.handle_event(_to_event(work, record.get("messageId")))

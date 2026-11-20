@@ -58,13 +58,24 @@ class AnalysisAgent(AgentBase):
             raise ContractError(
                 "analysis_identity_not_configured",
                 "analysis entitlements are not configured")
+        # The runtime pipeline nests the original WorkItem as the invocation
+        # payload; identity belongs to that original item, never to the
+        # invocation wrapper.
+        source = work_item
+        nested = work_item.get("payload")
+        if (isinstance(nested, dict) and nested.get("workId")
+                and ("userId" in nested or "tenantId" in nested)):
+            source = nested
         return Identity(
-            tenant_id=str(work_item.get("tenantId") or ""),
-            user_id=str(work_item.get("userId") or ""),
+            tenant_id=str(source.get("tenantId")
+                          or work_item.get("tenantId") or ""),
+            user_id=str(source.get("userId")
+                        or work_item.get("userId") or ""),
             entitlements=frozenset(entitlements),
             consent=bool(config.get("consent", False)),
-            partner_application_id=work_item.get("partnerApplicationId"),
-            issuer=work_item.get("issuer"),
+            partner_application_id=source.get("partnerApplicationId")
+            or work_item.get("partnerApplicationId"),
+            issuer=source.get("issuer") or work_item.get("issuer"),
             caller_partner_id=config.get("caller_partner_id"),
             consent_purpose=config.get("consent_purpose",
                                        ANALYSIS_CONSENT_PURPOSE),
@@ -85,8 +96,15 @@ class AnalysisAgent(AgentBase):
         if not isinstance(payload, dict):
             return self._error(
                 "Field 'payload' must be an object", "ValidationError")
-        request = payload.get("request") if isinstance(payload.get("request"), dict) \
-            else payload
+        # The runtime pipeline nests the original WorkItem as the invocation
+        # payload (AgentBody), while direct calls pass the request itself.
+        request = payload.get("request")
+        if not isinstance(request, dict):
+            nested = payload.get("payload")
+            request = nested if isinstance(nested, dict) else payload
+        if not isinstance(request, dict):
+            return self._error(
+                "Field 'payload' must be an object", "ValidationError")
         try:
             identity = self._identity(work_item)
             response = self._orchestrator.run(
