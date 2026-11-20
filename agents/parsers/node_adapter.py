@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 PARSER_SCHEMA_VERSION = "1.0"
-SUPPORTED_CAPABILITIES = ("parse.cv", "parse.job")
+SUPPORTED_CAPABILITIES = ("parse.cv", "parse.job", "parse.ats")
 MAX_PAYLOAD_CHARS = 100_000
 DEFAULT_TIMEOUT_SECONDS = 15
 

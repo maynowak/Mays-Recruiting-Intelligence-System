@@ -56,7 +56,7 @@ class OrchestratorTest(unittest.TestCase):
         names = {p.name for p in packages}
         self.assertEqual(
             {"ats-agent", "addition-agent", "cv-parser-agent",
-             "job-parser-agent"}, names)
+             "job-parser-agent", "analysis-agent"}, names)
         for package in packages:
             info = agent_install.analyze(package)
             self.assertTrue(agent_install.validate(package, info)["validated"])

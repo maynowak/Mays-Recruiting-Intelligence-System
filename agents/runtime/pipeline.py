@@ -158,6 +158,9 @@ def ensure_reference_agent(
     from agents.job_parser_agent.registry import register_job_parser_agent
     register_cv_parser_agent(registry, body)
     register_job_parser_agent(registry, body)
+    # RIS-AGENT-ANALYSIS-ORCHESTRATION-04: thin analysis orchestration.
+    from agents.analysis_agent.registry import register_analysis_agent
+    register_analysis_agent(registry, body)
     return registry, body
 
 

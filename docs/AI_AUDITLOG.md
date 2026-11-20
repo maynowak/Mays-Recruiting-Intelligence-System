@@ -10733,3 +10733,13 @@ Date: 2026-11-19
 - Runtime PENDING: Python 3.14 Lambda has no node; options documented (Node Lambda/container invocation, Node runtime switch, vendored node). No ris-dev2 enablement, no AWS/Terraform/Cognito/DNS change, no installer pin change.
 - Docs: docs/architecture/AGENT-PARSERS.md, agent-installations/README.md updated.
 - No AWS mutation, no PURGE, no ris-dev/production change, no main merge.
+
+[RIS-AGENT-ANALYSIS-ORCHESTRATION-04 / CV-JOB-ATS-COMPARISON]
+Status: LOCAL VERIFIED / LIVE PENDING / NO AWS MUTATION.
+Date: 2026-11-20
+- Jobsearch (branch feature/ris-analysis-parser-cli-04 from origin/main, commits 8f88962 + 40a5db2, pushed): scripts/ris-parser-cli.mjs wraps the EXISTING parseCvBuffer (pdf.mjs + cvParser.mjs), extractAtsRequirements and analyzeAts; no second parser, no HTTP v1 dependency, no network/AI. parse.cv takes PDF base64 and returns cvTags/skills/experience/education/languages/confidence plus the document sha256; parse.job returns jobTags/required/preferred/experience/workMode/location/stableId; parse.ats returns atsTags/score/status. Tests: 3 passed incl. a real CV PDF fixture; npm run test:parsers.
+- RIS (branch feature/ris-agent-analysis-orchestration-04): agents/analysis with versioned request validation, result bodies (CVParserResultBody 1.0, JobParserResultBody 1.0, ATSAnalysisResultBody 2.0 additive atsTags, ComparisonResultBody 1.0), deterministic alias map + weighted comparison, temporary job store (2h default/4h max/1 MiB/opaque refs/SSE/cleanup), CV bridge (structured data or RIS documents S3 PDF, owner/tenant/status checks), and AnalysisOrchestrator that runs only requested parsers. analysis-agent (analysis.run) registered in the existing Agent Body; package added.
+- Tests: 25 pipeline tests (CV/job/ATS/comparison/full, invalid choice, missing inputs, cross-tenant, consent, entitlement, idempotency, expiry, 2h/4h, 1 MiB, no document in result, parser failure, cleanup, ATS 2.0, determinism, agent/registration); combined regression 298 passed + 13 subtests; installer validates all five packages.
+- Blockers: Python Lambda has no node (live PENDING); job bucket Terraform/IAM not applied; concrete RIS CV repository wiring must be injected by the service layer; RIS branch is 14 commits behind origin/main and needs a rebase before merge.
+- Docs: docs/reports/RIS-AGENT-ANALYSIS-ORCHESTRATION-04.md, agent-installations/analysis-agent.
+- No AWS/Terraform/Cognito/CloudFront/DNS change, no PURGE, no production deployment, no main merge.

@@ -77,6 +77,8 @@ Plans are hash-checked before apply; unreadable or incomplete plans stop.
   Live enablement PENDING: the Python Lambda has no node runtime.
 - `job-parser-agent` 1.0.0 — LOCAL VERIFIED (`parse.job`), catalog ABSENT.
   Live enablement PENDING (same runtime gap).
+- `analysis-agent` 1.0.0 — LOCAL VERIFIED (`analysis.run`: cv/job/ats/
+  comparison orchestration). Live enablement PENDING (Node runtime, job bucket).
 
 All four use the same dispatch/result transport; there are no per-agent queues.
 

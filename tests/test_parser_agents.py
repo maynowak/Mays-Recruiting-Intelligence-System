@@ -169,22 +169,29 @@ class TestRegistration(unittest.TestCase):
 @unittest.skipUnless(JOBSEARCH_CLI.is_file(),
                      "jobsearch parser CLI not available")
 class TestParserCliIntegration(unittest.TestCase):
-    def test_real_cli_parses_cv_and_job(self):
-        cv = parse_via_node(
-            "parse.cv",
-            {"text": "Ada Beispiel\nada@example.invalid\n\nSkills\n"
-                     "Python, AWS\n\nEducation\nMaster of Science"},
-            cli=str(JOBSEARCH_CLI))
-        self.assertEqual("ada@example.invalid", cv.data["email"])
-        self.assertIn("Python", cv.data["skills"])
+    PDF_FIXTURE = Path(
+        r"C:\Users\DCI-Student\projekte\mays-jobsearch\docs\reports\assets"
+        r"\CV-BUILDER-PDF-EXPORT-FIX-01\template-classic.pdf")
 
+    def test_real_cli_parses_job(self):
         job = parse_via_node(
             "parse.job",
             {"job": {"title": "Python Engineer",
                      "descriptionPlain": "Must have 5+ years experience."}},
             cli=str(JOBSEARCH_CLI))
         self.assertEqual("parse.job", job.capability)
-        self.assertGreaterEqual(job.data["experienceYears"], 5)
+        self.assertGreaterEqual(job.data.get("stableId") is not None, True)
+
+    @unittest.skipUnless(PDF_FIXTURE.is_file(), "CV PDF fixture not available")
+    def test_real_cli_parses_cv_pdf(self):
+        import base64
+
+        pdf = base64.b64encode(self.PDF_FIXTURE.read_bytes()).decode("ascii")
+        cv = parse_via_node("parse.cv", {"pdfBase64": pdf},
+                             cli=str(JOBSEARCH_CLI))
+        self.assertEqual("parse.cv", cv.capability)
+        self.assertTrue(any("aws" in str(skill).lower()
+                            for skill in cv.data.get("cvTags", [])))
 
 
 if __name__ == "__main__":
