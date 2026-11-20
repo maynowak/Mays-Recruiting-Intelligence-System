@@ -1,7 +1,7 @@
 # RIS-ANALYSIS-INTEGRATION-07 — Release Candidate
 
 **Date:** 2026-11-20
-**Verdict:** **BLOCKED — controlled transport migration approval required.**
+**Verdict:** **SUPERSEDED by RIS-ANALYSIS-INTERNAL-PARTNER-08** (transport policies retained additively; 0 destroys). Original RC verdict: BLOCKED — controlled transport migration approval required.
 All application-level checks are green; the only blocker is the upstream
 Mays-Orders transport refactor, which replaces four shared IAM policies.
 

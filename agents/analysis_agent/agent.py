@@ -11,7 +11,12 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 
-from agents.analysis.contracts import ContractError, Identity
+from agents.analysis.contracts import (
+    ANALYSIS_CONSENT_PURPOSE,
+    ANALYSIS_NOTICE_VERSION,
+    ContractError,
+    Identity,
+)
 from agents.analysis.orchestrator import AnalysisOrchestrator
 from agents.base import AgentBase
 from agents.parsers.node_adapter import ParserUnavailable
@@ -58,6 +63,13 @@ class AnalysisAgent(AgentBase):
             consent=bool(config.get("consent", False)),
             partner_application_id=work_item.get("partnerApplicationId"),
             issuer=work_item.get("issuer"),
+            caller_partner_id=config.get("caller_partner_id"),
+            consent_purpose=config.get("consent_purpose",
+                                       ANALYSIS_CONSENT_PURPOSE),
+            consent_notice_version=config.get(
+                "consent_notice_version", ANALYSIS_NOTICE_VERSION),
+            consent_notice_approved=bool(
+                config.get("consent_notice_approved", False)),
         )
 
     def process_work(self, work_item: Dict[str, Any]) -> Dict[str, Any]:

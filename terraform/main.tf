@@ -341,6 +341,19 @@ module "documents" {
   tags         = var.tags
 }
 
+# Dedicated analysis runtime identity + private temporary job storage
+# (RIS-ANALYSIS-INTERNAL-PARTNER-08). No shared transport policy is replaced.
+module "analysis_runtime" {
+  source = "./modules/analysis_runtime"
+
+  project_name         = var.project_name
+  environment          = var.environment
+  tags                 = var.tags
+  documents_bucket_arn = module.documents.bucket_arn
+  job_retention_days   = 1
+  log_retention_days   = 14
+}
+
 resource "aws_s3_bucket" "data" {
   bucket = "${local.prefix}-data"
 
@@ -462,6 +475,8 @@ module "agent_transport" {
   order_result_secret_arn   = var.order_result_secret_arn
   ats_api_base_url          = var.ats_api_base_url
   timeout_seconds           = var.agent_execution_timeout_seconds
+  # Keep the legacy result-policy addresses alive (no shared IAM migration).
+  result_transport_enabled = var.enable_agent_transport
 
   lambda_zip_path = "${path.root}/lambda.zip"
 

@@ -19,6 +19,7 @@ from agents.analysis.contracts import (
 )
 from agents.analysis.cv_bridge import CvInput, CvResolver, RequestCvResolver
 from agents.analysis.job_store import JobStoreError
+from agents.analysis.partner import assert_internal_partner
 from agents.analysis.tags import compare_tags
 
 
@@ -69,6 +70,7 @@ class AnalysisOrchestrator:
     def run(self, payload: Dict[str, Any], identity: Identity,
             request_id: Optional[str] = None) -> Dict[str, Any]:
         request = validate_request(payload)
+        assert_internal_partner(payload, identity)
         require_capabilities(request["requestedResults"], identity)
 
         key = None

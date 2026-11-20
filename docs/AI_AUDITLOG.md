@@ -10757,6 +10757,17 @@ Date: 2026-11-20
 - Verdict: BLOCKED by the shared-infrastructure guard requiring an explicit reviewed intent for those four IAM policy replacements; Node runtime for the Python Lambda remains PENDING. Report: docs/reports/RIS-ANALYSIS-INTEGRATION-07.md.
 - No AWS apply, no PURGE, no Cognito/CloudFront/DNS change, no production deployment, no main merge.
 
+[RIS-ANALYSIS-INTERNAL-PARTNER-08 / INTERNAL PARTNER + PRIVACY]
+Status: READY FOR CONTROLLED DEPLOYMENT REVIEW / NO APPLY.
+Date: 2026-11-20
+- Internal partner: ris-internal / ris-internal-analysis / analysis-agent; caller partner from the verified runtime context only; CV owner/tenant-only; cross-partner/tenant fail closed (agents/analysis/partner.py, tests).
+- Dedicated infra (plan only): terraform/modules/analysis_runtime with a dedicated analysis IAM role/policy (documents tenant/* read, jobs bucket RW, logs), a private jobs bucket (Public Access Block, SSE AES256, 1-day lifecycle backup) and log group. Shared transport policies are retained additively; no IAM migration.
+- Plan: 11 add / 2 change / 0 destroy; shared guard NO_SHARED_DESTROY. terraform fmt and validate PASS (direct plan with the installer variable set; the installer wrapper plan hit PowerShell list-var quoting).
+- Privacy: purpose analysis-processing v1.0 registered DRAFT without legal approval; orchestrator requires consent, purpose, notice version and approval flag; existing consents are not extended. Draft: docs/privacy/ANALYSIS-PROCESSING-NOTICE-DRAFT.md.
+- Pipeline: full synthetic E2E with the real Node CLI (cv/job/ats/comparison 100/100/100, atsTags 4, idempotent replay). Tests: analysis 31, parser 17, focused RIS 161 + 13 subtests, Jobsearch CLI 3.
+- Open: legal/operator notice approval, Node execution path for the dedicated runtime, apply approval, CV resolver injection, entitlement/catalog decision.
+- No AWS apply, no PURGE, no Cognito/CloudFront/DNS change, no production deployment, no main merge.
+
 ## 2026-11-17 — XREPO-RIS-CONSENT-RECOVERY-01
 
 **Status:** `A — FIX VERIFIED LOCAL / PRODUCTION ACTIVATION PENDING`

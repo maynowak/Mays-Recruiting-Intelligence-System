@@ -306,6 +306,38 @@ resource "aws_iam_role_policy" "lambda_cursor_secret" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_order_result_send" {
+  # Legacy address retained so the live policy is not replaced. The new
+  # order_result_transport policy covers the same grant during migration.
+  count = var.order_result_queue_arn != "" ? 1 : 0
+  name  = "${var.project_name}-${var.environment}-lambda-order-result-send"
+  role  = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["sqs:SendMessage"]
+      Resource = [var.order_result_queue_arn]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_order_result_secret" {
+  count = var.order_result_secret_arn != "" ? 1 : 0
+  name  = "${var.project_name}-${var.environment}-lambda-order-result-secret"
+  role  = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = [var.order_result_secret_arn]
+    }]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_privacy_receipts" {
   name = "${var.project_name}-${var.environment}-lambda-dynamodb-privacy-receipts"
   role = aws_iam_role.lambda_execution.id

@@ -17,6 +17,8 @@ RESULT_CAPABILITY = {
     "comparison": "compare.tags",
 }
 MAX_INLINE_JOB_CHARS = 32 * 1024
+ANALYSIS_CONSENT_PURPOSE = "analysis-processing"
+ANALYSIS_NOTICE_VERSION = "1.0"
 
 
 class ContractError(ValueError):
@@ -107,6 +109,10 @@ class Identity:
     consent: bool = True
     partner_application_id: Optional[str] = None
     issuer: Optional[str] = None
+    caller_partner_id: Optional[str] = None
+    consent_purpose: Optional[str] = None
+    consent_notice_version: Optional[str] = None
+    consent_notice_approved: bool = False
 
     def entitled(self, capability: str) -> bool:
         return capability in self.entitlements
@@ -116,6 +122,13 @@ def require_capabilities(requested: Iterable[str], identity: Identity) -> None:
     if not identity.consent:
         raise ContractError("consent_required",
                             "analysis processing consent is required")
+    if identity.consent_purpose != ANALYSIS_CONSENT_PURPOSE:
+        raise ContractError("consent_purpose_mismatch",
+                            f"consent for {ANALYSIS_CONSENT_PURPOSE} is required")
+    if not identity.consent_notice_approved:
+        raise ContractError(
+            "consent_notice_not_approved",
+            "the analysis-processing notice is a draft; legal approval is required")
     needed = {RESULT_CAPABILITY[item] for item in requested}
     if "comparison" in requested:
         needed.update({"parse.cv", "parse.job"})

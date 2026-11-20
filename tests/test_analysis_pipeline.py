@@ -8,7 +8,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from agents.analysis.contracts import ContractError, Identity  # noqa: E402
+from agents.analysis.contracts import (  # noqa: E402
+    ANALYSIS_CONSENT_PURPOSE,
+    ANALYSIS_NOTICE_VERSION,
+    ContractError,
+    Identity,
+)
 from agents.analysis.job_store import (  # noqa: E402
     MAX_JOB_BYTES,
     MAX_TTL_SECONDS,
@@ -86,8 +91,13 @@ class FakeParser:
 
 
 def identity(entitlements=ALL, consent=True, tenant="tenant-a", user="user-1"):
-    return Identity(tenant_id=tenant, user_id=user,
-                    entitlements=entitlements, consent=consent)
+    return Identity(
+        tenant_id=tenant, user_id=user, entitlements=entitlements,
+        consent=consent,
+        consent_purpose=ANALYSIS_CONSENT_PURPOSE,
+        consent_notice_version=ANALYSIS_NOTICE_VERSION,
+        consent_notice_approved=True,
+    )
 
 
 def payload(results, cv=None, job=None, profile=None, idem=None):
@@ -299,7 +309,8 @@ class AnalysisPipelineTest(unittest.TestCase):
         from agents.analysis_agent.agent import AnalysisAgent
 
         agent = AnalysisAgent(config={
-            "entitlements": sorted(ALL), "consent": True},
+            "entitlements": sorted(ALL), "consent": True,
+                                      "consent_notice_approved": True},
             orchestrator=AnalysisOrchestrator(parser=self.parser,
                                               job_store=self.store))
         out = agent.process_work({
@@ -321,7 +332,8 @@ class AnalysisPipelineTest(unittest.TestCase):
 
         parser = FakeParser(fail=ParserUnavailable("node missing"))
         agent = AnalysisAgent(config={"entitlements": sorted(ALL),
-                                      "consent": True},
+                                      "consent": True,
+                                      "consent_notice_approved": True},
                               orchestrator=AnalysisOrchestrator(parser=parser))
         with self.assertRaises(ParserUnavailable):
             agent.process_work({
@@ -337,6 +349,68 @@ class AnalysisPipelineTest(unittest.TestCase):
 
         registry, _ = ensure_reference_agent()
         self.assertTrue(registry.is_registered("analysis-agent"))
+
+
+    def test_wrong_consent_purpose_denied(self):
+        from dataclasses import replace
+
+        with self.assertRaises(ContractError) as ctx:
+            self.run_request(
+                payload(["cv.tags"], cv=structured_cv()),
+                replace(identity(), consent_purpose="application-storage"))
+        self.assertEqual("consent_purpose_mismatch", ctx.exception.code)
+
+    def test_draft_notice_not_approved_denied(self):
+        from dataclasses import replace
+
+        with self.assertRaises(ContractError) as ctx:
+            self.run_request(
+                payload(["cv.tags"], cv=structured_cv()),
+                replace(identity(), consent_notice_approved=False))
+        self.assertEqual("consent_notice_not_approved", ctx.exception.code)
+
+    def test_claimed_external_partner_denied(self):
+        body = payload(["cv.tags"], cv=structured_cv())
+        body["partnerId"] = "external-partner"
+        with self.assertRaises(ContractError) as ctx:
+            self.run_request(body)
+        self.assertEqual("partner_mismatch", ctx.exception.code)
+
+    def test_caller_partner_mismatch_denied(self):
+        from dataclasses import replace
+
+        with self.assertRaises(ContractError) as ctx:
+            self.run_request(
+                payload(["cv.tags"], cv=structured_cv()),
+                replace(identity(), caller_partner_id="external-partner"))
+        self.assertEqual("partner_mismatch", ctx.exception.code)
+
+    def test_cv_owner_and_tenant_are_owner_only(self):
+        from agents.analysis.partner import assert_cv_owner
+
+        assert_cv_owner(identity(), "user-1", "tenant-a")
+        with self.assertRaises(ContractError) as ctx:
+            assert_cv_owner(identity(), "user-2", "tenant-a")
+        self.assertEqual("cv_owner_mismatch", ctx.exception.code)
+        with self.assertRaises(ContractError) as ctx:
+            assert_cv_owner(identity(), "user-1", "tenant-b")
+        self.assertEqual("cv_tenant_mismatch", ctx.exception.code)
+
+
+    def test_analysis_consent_purpose_is_draft_and_separate(self):
+        from jobsearch.consent_contract import (
+            CONSENT_PURPOSES,
+            NOTICE_DRAFT,
+            NOTICE_REGISTRY,
+        )
+
+        self.assertIn("analysis-processing", CONSENT_PURPOSES)
+        self.assertEqual({"1.0"}, set(CONSENT_PURPOSES["analysis-processing"]))
+        entry = NOTICE_REGISTRY["analysis-processing"]["1.0"]
+        self.assertEqual(NOTICE_DRAFT, entry.state)
+        # Existing purposes are not extended by the analysis notice.
+        self.assertNotIn("analysis-processing",
+                         CONSENT_PURPOSES["application-storage"])
 
 
 if __name__ == "__main__":
