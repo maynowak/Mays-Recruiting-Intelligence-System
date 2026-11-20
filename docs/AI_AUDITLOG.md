@@ -10901,3 +10901,12 @@ Date: 2026-11-20
 - No shared IAM or transport policy is referenced, replaced or deleted; no Cognito/CloudFront/DNS change; no apply.
 - Jobsearch commit c40bf78; RIS STEP A commit follows.
 
+[RIS-ANALYSIS-READINESS-09 / STEP B — CV SERVICE WIRING]
+Status: complete locally; no live CV data used.
+Date: 2026-11-20
+- RequestCvResolver is wired to the existing PartnerProfileRepository and a documents loader (production: S3 `tenant/<tenant>/users/<user>/documents/<docId>`); `build_cv_resolver(config)` lets the service inject both, with lazy defaults for production.
+- AnalysisAgent builds its default orchestrator with the configured resolver; structured CVs skip repository and parser.
+- Owner and tenant are re-checked against the record (`cv_access_denied`), then ready/document/PDF (`cv_not_ready`, `cv_unsupported`). Deleted/erased/purged/withdrawn CVs fail closed with `cv_not_available`; repository/loader failures map to `cv_not_accessible`.
+- No CV bytes or PII in WorkItems, result bodies, logs or error messages (test asserts base64 and extracted text are absent).
+- Tests `tests/test_cv_service_wiring.py` (15): happy path, structured skip, owner/tenant denial, not-ready, deleted/erased, unknown/unreadable, non-PDF/empty, missing ref, full pipeline PDF forwarding, structured reuse, foreign owner before parsing, agent injection.
+

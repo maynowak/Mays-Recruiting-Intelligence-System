@@ -30,6 +30,20 @@ class CvInput:
 DocumentLoader = Callable[[str, str, str], bytes]
 
 
+def build_cv_resolver(config: Optional[Dict[str, Any]] = None) -> "RequestCvResolver":
+    """Build the CV resolver from the service/runtime configuration.
+
+    Production injects the existing ``PartnerProfileRepository`` and the
+    documents loader; tests use fakes. Missing injection keeps the lazy
+    defaults so no new credentials are required at import time.
+    """
+    cfg = config or {}
+    return RequestCvResolver(
+        document_loader=cfg.get("cv_document_loader"),
+        repository=cfg.get("cv_repository"),
+    )
+
+
 class CvResolver:
     def resolve(self, cv: Dict[str, Any], identity: Any) -> CvInput:
         raise NotImplementedError
@@ -98,6 +112,14 @@ class RequestCvResolver(CvResolver):
             raise ContractError("cv_not_accessible", "CV cannot be resolved") from exc
         if record is None:
             raise ContractError("cv_not_found", "CV not found")
+        for attr in ("deleted_at", "erased_at", "purged_at"):
+            if getattr(record, attr, None):
+                raise ContractError("cv_not_available",
+                                    "CV was deleted or erased")
+        state = str(getattr(record, "status", "") or "").lower()
+        if state in ("deleted", "erased", "purged", "withdrawn"):
+            raise ContractError("cv_not_available",
+                                "CV is no longer available")
         owner = getattr(record, "user_id", None) or getattr(record, "owner_user_id", None)
         rec_tenant = getattr(record, "tenant_id", None)
         if owner and owner != user:

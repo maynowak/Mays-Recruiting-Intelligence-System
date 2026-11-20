@@ -17,6 +17,7 @@ from agents.analysis.contracts import (
     ContractError,
     Identity,
 )
+from agents.analysis.cv_bridge import build_cv_resolver
 from agents.analysis.orchestrator import AnalysisOrchestrator
 from agents.base import AgentBase
 from agents.parsers.node_adapter import ParserUnavailable
@@ -38,7 +39,8 @@ class AnalysisAgent(AgentBase):
         super().__init__(config)
         self.name = ANALYSIS_AGENT_ID
         self.version = ANALYSIS_AGENT_VERSION
-        self._orchestrator = orchestrator or AnalysisOrchestrator()
+        self._orchestrator = orchestrator or AnalysisOrchestrator(
+            cv_resolver=build_cv_resolver(self.config))
         self._identity_resolver = identity_resolver
 
     @staticmethod
