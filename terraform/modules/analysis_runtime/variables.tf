@@ -64,3 +64,53 @@ variable "parser_memory_size" {
     error_message = "parser_memory_size must be between 128 and 3008 MB."
   }
 }
+
+variable "analysis_zip_path" {
+  description = "Agent bundle containing analysis_runner.py at the root (absolute path in isolated workdirs)."
+  type        = string
+  default     = ""
+}
+
+variable "analysis_timeout_seconds" {
+  description = "Dedicated analysis Lambda timeout; must cover parser (15 s) plus storage reads."
+  type        = number
+  default     = 60
+
+  validation {
+    condition     = var.analysis_timeout_seconds >= 15 && var.analysis_timeout_seconds <= 900
+    error_message = "analysis_timeout_seconds must be between 15 and 900."
+  }
+}
+
+variable "analysis_memory_size" {
+  type    = number
+  default = 512
+}
+
+variable "documents_bucket_name" {
+  type = string
+}
+
+variable "work_items_table_name" {
+  type = string
+}
+
+variable "work_items_table_arn" {
+  type = string
+}
+
+variable "entitlements_table_name" {
+  type = string
+}
+
+variable "entitlements_table_arn" {
+  type = string
+}
+
+variable "partner_profiles_table_name" {
+  type = string
+}
+
+variable "partner_profiles_table_arn" {
+  type = string
+}

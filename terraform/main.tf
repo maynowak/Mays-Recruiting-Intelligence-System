@@ -356,6 +356,15 @@ module "analysis_runtime" {
   # Gated (default false): the baseline plan stays 11/2/0.
   enable_analysis_runtime = var.enable_analysis_runtime
   parser_artifact_path    = var.analysis_parser_zip_path
+  analysis_zip_path       = var.analysis_lambda_zip_path
+
+  documents_bucket_name       = module.documents.bucket_name
+  work_items_table_name       = module.dynamodb.work_items_table_name
+  work_items_table_arn        = module.dynamodb.work_items_table_arn
+  entitlements_table_name     = module.dynamodb.entitlements_table_name
+  entitlements_table_arn      = module.dynamodb.entitlements_table_arn
+  partner_profiles_table_name = module.dynamodb.partner_profiles_table_name
+  partner_profiles_table_arn  = module.dynamodb.partner_profiles_table_arn
 }
 
 resource "aws_s3_bucket" "data" {

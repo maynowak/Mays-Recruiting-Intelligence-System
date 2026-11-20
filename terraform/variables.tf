@@ -614,6 +614,12 @@ variable "analysis_parser_zip_path" {
   default     = ""
 }
 
+variable "analysis_lambda_zip_path" {
+  description = "Path to the dedicated analysis Lambda bundle (python lambda/build_zip.py --bundle analysis). Only used when enable_analysis_runtime is true."
+  type        = string
+  default     = ""
+}
+
 variable "orders_producer_role_arns" {
   description = "Mays-Orders role ARNs allowed to enqueue agent dispatches."
   type        = list(string)

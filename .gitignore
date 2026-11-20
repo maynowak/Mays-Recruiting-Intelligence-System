@@ -91,3 +91,4 @@ agent-installations/**/.lifecycle-*
 
 # Agent package local evidence (never commit)
 agent-installations/**/install-status.json
+terraform/analysis-lambda.zip

@@ -206,3 +206,93 @@ resource "aws_lambda_permission" "parser_invoke_analysis" {
   function_name = aws_lambda_function.parser[0].function_name
   principal     = aws_iam_role.analysis.arn
 }
+
+# --- Dedicated analysis compute (internal partner) --------------------------
+#
+# Separate function identity from the shared worker. Reuses the existing
+# WorkItem/entitlement/result contracts through agents.runtime.pipeline and the
+# dedicated analysis role. No public endpoint and no shared transport change.
+
+resource "aws_iam_role_policy" "analysis_runtime_data" {
+  count = var.enable_analysis_runtime ? 1 : 0
+  name  = "${local.name}-runtime-data"
+  role  = aws_iam_role.analysis.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "WorkItems"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query",
+        ]
+        Resource = [
+          var.work_items_table_arn,
+          "${var.work_items_table_arn}/index/*",
+        ]
+      },
+      {
+        Sid    = "EntitlementRecheck"
+        Effect = "Allow"
+        Action = ["dynamodb:GetItem", "dynamodb:Query"]
+        Resource = [
+          var.entitlements_table_arn,
+          "${var.entitlements_table_arn}/index/*",
+        ]
+      },
+      {
+        Sid    = "OwnedPartnerProfiles"
+        Effect = "Allow"
+        Action = ["dynamodb:GetItem", "dynamodb:Query"]
+        Resource = [
+          var.partner_profiles_table_arn,
+          "${var.partner_profiles_table_arn}/index/*",
+        ]
+      },
+    ]
+  })
+}
+
+resource "aws_lambda_function" "analysis" {
+  count = var.enable_analysis_runtime ? 1 : 0
+
+  function_name = local.name
+  role          = aws_iam_role.analysis.arn
+  runtime       = "python3.14"
+  handler       = "analysis_runner.handler"
+  filename      = var.analysis_zip_path
+
+  source_code_hash = filebase64sha256(var.analysis_zip_path)
+  timeout          = var.analysis_timeout_seconds
+  memory_size      = var.analysis_memory_size
+
+  environment {
+    variables = {
+      RIS_PARSER_MODE            = "lambda"
+      RIS_PARSER_FUNCTION        = aws_lambda_function.parser[0].function_name
+      RIS_PARSER_TIMEOUT_SECONDS = "15"
+      DOCUMENTS_BUCKET           = var.documents_bucket_name
+      ANALYSIS_JOBS_BUCKET       = aws_s3_bucket.jobs.bucket
+      WORK_ITEMS_TABLE           = var.work_items_table_name
+      ENTITLEMENTS_TABLE         = var.entitlements_table_name
+      PARTNER_PROFILE_TABLE      = var.partner_profiles_table_name
+      # Approval-gated: defaults deny until the operator sets these explicitly.
+      ANALYSIS_ENTITLEMENTS      = ""
+      ANALYSIS_CONSENT           = "false"
+      ANALYSIS_NOTICE_APPROVED   = "false"
+      ANALYSIS_CALLER_PARTNER_ID = "ris-internal"
+    }
+  }
+
+  depends_on = [
+    aws_cloudwatch_log_group.analysis,
+    aws_iam_role_policy.analysis_runtime_data,
+  ]
+
+  tags = merge({ "Project" = var.project_name,
+  "Purpose" = "internal-analysis" }, var.tags)
+}

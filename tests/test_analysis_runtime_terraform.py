@@ -78,6 +78,50 @@ class ParserRuntimeGateTest(unittest.TestCase):
         self.assertIn("var.parser_timeout_seconds <= 60", self.variables)
         self.assertIn("default     = 15", self.variables)
 
+    def test_dedicated_analysis_compute_is_gated_and_internal(self):
+        self.assertIn('resource "aws_lambda_function" "analysis"', self.module)
+        self.assertIn('handler       = "analysis_runner.handler"', self.module)
+        self.assertIn('runtime       = "python3.14"', self.module)
+        self.assertIn("role          = aws_iam_role.analysis.arn", self.module)
+        self.assertIn("RIS_PARSER_MODE            = \"lambda\"", self.module)
+        self.assertIn("RIS_PARSER_FUNCTION        = aws_lambda_function.parser[0].function_name",
+                      self.module)
+        for forbidden in ("aws_apigateway", "aws_lambda_function_url",
+                          "aws_cloudfront", "aws_sqs", "aws_secretsmanager"):
+            self.assertNotIn(forbidden, self.module)
+
+    def test_analysis_configuration_defaults_deny(self):
+        for name, value in ((("ANALYSIS_ENTITLEMENTS"), '""'),
+                            (("ANALYSIS_CONSENT"), '"false"'),
+                            (("ANALYSIS_NOTICE_APPROVED"), '"false"')):
+            self.assertRegex(self.module, name + r"\s*=\s*" + value)
+        self.assertNotRegex(self.module, r"ANALYSIS_CONSENT\s*=\s*\"true\"")
+
+    def test_data_policy_is_dedicated_and_least_privilege(self):
+        block = self.module.split('resource "aws_iam_role_policy" "analysis_runtime_data"', 1)[1]
+        block = block.split('resource "', 1)[0]
+        self.assertIn('name  = "${local.name}-runtime-data"', block)
+        self.assertIn("role  = aws_iam_role.analysis.id", block)
+        for table in ("work_items_table_arn", "entitlements_table_arn",
+                      "partner_profiles_table_arn"):
+            self.assertIn(f"var.{table}", block)
+        self.assertIn("dynamodb:PutItem", block)
+        for forbidden in ("s3:", "sqs:", "secretsmanager:", "lambda:"):
+            self.assertNotIn(forbidden, block)
+
+    def test_build_bundle_contains_the_analysis_runner(self):
+        import importlib.util
+
+        path = os.path.join(ROOT, "lambda", "build_zip.py")
+        spec = importlib.util.spec_from_file_location("ris_build_zip", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        collected = module._collect(
+            __import__("pathlib").Path(ROOT),
+            ["lambda/analysis_runner.py"] + module.AGENT_DIRS)
+        self.assertIn("lambda/analysis_runner.py", collected)
+        self.assertNotIn("lambda/analysis_runner.py", module.AGENT_FILES)
+
     def test_limits_are_enforced_in_python_too(self):
         from agents.parsers import lambda_adapter, node_adapter
 
@@ -102,6 +146,12 @@ class ParserRuntimeRootWiringTest(unittest.TestCase):
                       block)
         self.assertIn("parser_artifact_path    = var.analysis_parser_zip_path",
                       block)
+        self.assertIn("analysis_zip_path       = var.analysis_lambda_zip_path",
+                      block)
+        for table in ("work_items_table", "entitlements_table",
+                      "partner_profiles_table"):
+            self.assertIn(f"module.dynamodb.{table}_name", block)
+            self.assertIn(f"module.dynamodb.{table}_arn", block)
 
     def test_no_shared_policy_is_replaced(self):
         module = module_source()
