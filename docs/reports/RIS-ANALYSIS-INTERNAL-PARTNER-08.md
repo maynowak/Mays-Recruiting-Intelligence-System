@@ -62,15 +62,15 @@ WorkItems, SQS, logs or errors.
 
 - `terraform fmt -recursive` **PASS**, `init -backend=false` + `validate`
   **PASS** (deprecation warnings only).
-- Read-only plan (installer variable set, ris-dev2):
-  **11 add / 2 change / 0 destroy**.
-- Shared-infrastructure guard on the plan JSON: **`NO_SHARED_DESTROY`, safe**.
+- Read-only plan via the standard installer workflow (no PowerShell list
+  quoting workaround): **11 add / 2 change / 0 destroy**.
+- Shared-infrastructure guard: **`plan deletes/replaces no shared infrastructure`** (`NO_SHARED_DESTROY`).
 - No IAM policy migration, no queue/Lambda/table/secret deletion.
 - Adds: analysis role/policy/bucket/log group, `orders_agent_dispatch`,
   documents CORS; changes: two Lambda in-place updates.
-- Note: the installer CLI plan wrapper returned exit 1 under PowerShell list
-  `--var` quoting; the direct `terraform plan` with the identical variable set
-  succeeded. The plan JSON is the evidence for the guard.
+- The ris-dev2 overlay now carries the non-secret live transport references
+  (enable flag, producer role ARNs, dispatch/result queue URLs and ARNs); only
+  the result secret **ARN** is passed as a single `--var` (no list quoting).
 
 ## 4. Privacy and consent contract
 

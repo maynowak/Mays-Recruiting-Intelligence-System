@@ -10766,6 +10766,7 @@ Date: 2026-11-20
 - Privacy: purpose analysis-processing v1.0 registered DRAFT without legal approval; orchestrator requires consent, purpose, notice version and approval flag; existing consents are not extended. Draft: docs/privacy/ANALYSIS-PROCESSING-NOTICE-DRAFT.md.
 - Pipeline: full synthetic E2E with the real Node CLI (cv/job/ats/comparison 100/100/100, atsTags 4, idempotent replay). Tests: analysis 31, parser 17, focused RIS 161 + 13 subtests, Jobsearch CLI 3.
 - Open: legal/operator notice approval, Node execution path for the dedicated runtime, apply approval, CV resolver injection, entitlement/catalog decision.
+- Plan reproducibility: ris-dev2 overlay now carries the non-secret transport refs; standard installer plan exits 0 with 11 add / 2 change / 0 destroy and the guard reports NO_SHARED_DESTROY; only the result secret ARN is passed as a single --var.
 - No AWS apply, no PURGE, no Cognito/CloudFront/DNS change, no production deployment, no main merge.
 
 ## 2026-11-17 — XREPO-RIS-CONSENT-RECOVERY-01
