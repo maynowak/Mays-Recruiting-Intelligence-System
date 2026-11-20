@@ -352,6 +352,10 @@ module "analysis_runtime" {
   documents_bucket_arn = module.documents.bucket_arn
   job_retention_days   = 1
   log_retention_days   = 14
+
+  # Gated (default false): the baseline plan stays 11/2/0.
+  enable_analysis_runtime = var.enable_analysis_runtime
+  parser_artifact_path    = var.analysis_parser_zip_path
 }
 
 resource "aws_s3_bucket" "data" {

@@ -10891,3 +10891,13 @@ Date: 2026-11-20
   verification claimed. No general rollout.
 - Report: `docs/reports/RIS-CONSENT-RELEASE-05.md`.
 
+[RIS-ANALYSIS-READINESS-09 / STEP A — DEDICATED NODE RUNTIME]
+Status: code complete; Terraform-gated (no apply, flag default false).
+Date: 2026-11-20
+- Node CLI now exports `runParser`; `lambda/ris_parser_handler.mjs` (jobsearch c40bf78) reuses the same parser in-process for synchronous internal invoke. No public HTTP endpoint.
+- `agents/parsers/lambda_adapter.py` invokes the internal parser Lambda with the same envelope/limits; `NodeParser` selects `RIS_PARSER_MODE=cli` (default) or `lambda`. Unsupported mode fails closed.
+- Tests `tests/test_parser_runtime_modes.py` (16): success contract, env function name, missing function, invalid-input vs retryable errors, FunctionError, client exception, non-200, invalid JSON, wrong capability, oversize payload, mode selection, no CLI call in lambda mode, cv/job/ats share the transport.
+- Terraform: `analysis_runtime` gains gated parser role/log group/Lambda (nodejs22.x, 15 s default, arm64), analysis->parser invoke policy and Lambda permission. `enable_analysis_runtime` default false, so the reviewed baseline plan stays 11/2/0. Static tests: `tests/test_analysis_runtime_terraform.py` (11).
+- No shared IAM or transport policy is referenced, replaced or deleted; no Cognito/CloudFront/DNS change; no apply.
+- Jobsearch commit c40bf78; RIS STEP A commit follows.
+

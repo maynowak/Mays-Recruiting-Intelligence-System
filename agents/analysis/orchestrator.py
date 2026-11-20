@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Optional, Protocol
@@ -30,16 +31,58 @@ class ParserPort(Protocol):
                   profile: Dict[str, Any]) -> Dict[str, Any]: ...
 
 
-class NodeParser:
-    """Adapter to the shared Node CLI (single JS execution boundary)."""
+PARSER_MODES = ("cli", "lambda")
+DEFAULT_PARSER_TIMEOUT_SECONDS = 15
 
-    def __init__(self, runner: Optional[Callable] = None):
+
+class NodeParser:
+    """Adapter to the shared Node parser (single JS execution boundary).
+
+    ``RIS_PARSER_MODE`` selects the transport:
+
+    - ``cli`` (default): the local/self-hosted Node CLI,
+    - ``lambda``: the internal parser Lambda.
+
+    Both transports use the same envelope and limits; neither exposes a public
+    HTTP endpoint and neither needs a shared IAM/transport policy.
+    """
+
+    def __init__(self, runner: Optional[Callable] = None,
+                 mode: Optional[str] = None, client: Any = None,
+                 function_name: Optional[str] = None,
+                 timeout: Optional[int] = None):
+        from agents.parsers.node_adapter import ParserInputError
+
+        selected = (mode or os.environ.get("RIS_PARSER_MODE") or "cli")
+        self._mode = str(selected).strip().lower()
+        if self._mode not in PARSER_MODES:
+            raise ParserInputError(
+                f"unsupported RIS_PARSER_MODE: {self._mode!r}")
         self._runner = runner
+        self._client = client
+        self._function_name = function_name
+        self._timeout = int(timeout or DEFAULT_PARSER_TIMEOUT_SECONDS)
+
+    @property
+    def mode(self) -> str:
+        return self._mode
 
     def _call(self, capability: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-        from agents.parsers.node_adapter import parse_via_node
+        if self._mode == "lambda":
+            from agents.parsers.lambda_adapter import parse_via_lambda
 
-        result = parse_via_node(capability, payload, runner=self._runner)
+            result = parse_via_lambda(
+                capability, payload,
+                function_name=self._function_name,
+                client=self._client,
+                timeout=self._timeout,
+            )
+        else:
+            from agents.parsers.node_adapter import parse_via_node
+
+            result = parse_via_node(capability, payload,
+                                    runner=self._runner,
+                                    timeout=self._timeout)
         return result.data
 
     def parse_cv(self, pdf_base64: str) -> Dict[str, Any]:

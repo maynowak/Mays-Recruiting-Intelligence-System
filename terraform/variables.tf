@@ -602,6 +602,18 @@ variable "enable_agent_transport" {
   default     = false
 }
 
+variable "enable_analysis_runtime" {
+  description = "Create the dedicated Node parser Lambda for the internal analysis partner. Off by default so the reviewed plan baseline is unchanged."
+  type        = bool
+  default     = false
+}
+
+variable "analysis_parser_zip_path" {
+  description = "Path to the deterministic parser Lambda artifact (built from the pinned jobsearch commit). Only used when enable_analysis_runtime is true."
+  type        = string
+  default     = ""
+}
+
 variable "orders_producer_role_arns" {
   description = "Mays-Orders role ARNs allowed to enqueue agent dispatches."
   type        = list(string)
