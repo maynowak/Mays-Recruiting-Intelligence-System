@@ -10967,3 +10967,15 @@ Date: 2026-11-20
 - Rollback: reviewed reverse plan; runtime flag off destroys only the 6 parser resources; CLI mode fallback; no shared resource touched.
 - No apply, no merge, no production deployment, no PURGE, no Cognito/CloudFront/DNS change, no consent/entitlement grant, no agent activation. CANARY-10B not started.
 
+[RIS-ANALYSIS-CANARY-10B / STEP A — FINAL PREFLIGHT]
+Status: AWAITING EXPLICIT APPLY APPROVAL; no apply performed.
+Date: 2026-11-20
+- Verified: RIS a75f59b, Jobsearch e77ee94, AWS account 262370457690 (devnemo), region eu-central-1, backend ris-dev2-tf-state-dev/dev/terraform.tfstate/lock ris-dev2-tf-lock, workspace ris-dev2, state serial 64, lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082, Terraform 1.17.0.
+- Fresh runtime plan: 17 add / 2 change / 0 destroy / 0 replace; plan SHA-256 e64a6272ac212dce54123c2b9533d42175f85ccc8d34ec2b6e26c3b39d15e676; JSON SHA-256 66a954763dae6662974bdc7338a7d69f59b76102773fa4b8d75330976a8c9f31; guard NO_SHARED_DESTROY.
+- Artifact unchanged and verified: 412 files, 17 937 176 bytes, SHA-256 fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a (c40bf78).
+- In-place updates inspected: dispatch_ingress adds only the work-items GSI `index/*` resource to the existing WorkItems statement (same actions); mays-orders handler adds only ORDER_DISPATCH_QUEUE_URL, Cognito issuer/client unchanged. No replacement.
+- Protected services: 0 Cognito/CloudFront/Route53/ACM resources; no shared queue/policy/secret/table delete or replacement.
+- Readiness: analysis role (documents tenant/* read, jobs/* RW, logs), parser role logs-only, parser Lambda nodejs22.x/arm64/512MB/15s, invoke scoped to analysis role, private jobs bucket (PAB, SSE, 1-day lifecycle), 14-day logs, no public endpoint. Known gap: the analysis role is not yet attached to a deployed compute component; STEP C can use the deployed parser Lambda + local orchestrator.
+- Approval pack: docs/reports/RIS-ANALYSIS-CANARY-10B-PREFLIGHT.md and the machine-readable manifest docs/reports/analysis-canary-10b-plan-manifest.json; tests/test_analysis_apply_preflight.py (7 tests, saved-plan SHA check included).
+- Rollback, costs and stop conditions documented. STEP B/C not started.
+
