@@ -10995,3 +10995,29 @@ Date: 2026-11-20
 - Tests: 254 passed + 13 subtests (16 files); Jobsearch CLI/handler 4 passed; preflight manifest 7 passed.
 - Report: docs/reports/RIS-ANALYSIS-CANARY-10B.md. Remaining blockers: legal notice approval, entitlement/catalog decision, deployed analysis compute, live authenticated canary, Lambda 15 s timeout test.
 
+[RIS-ANALYSIS-AGENT-RUNTIME-11 / STEP A — DEDICATED ANALYSIS COMPUTE]
+Status: code + Terraform prepared; no apply.
+Date: 2026-11-20
+- New lambda/analysis_runner.py: dedicated internal compute using the existing runtime pipeline (WorkItem registration, entitlement re-check, attempt/idempotency, WorkItems result persistence). No public endpoint, no new queue, no shared policy.
+- Config is approval-driven and defaults deny: ANALYSIS_ENTITLEMENTS empty, ANALYSIS_CONSENT false, ANALYSIS_NOTICE_APPROVED false; caller ris-internal; parser mode lambda with the existing parser function. Identity is read from the original nested WorkItem, never the request body.
+- Dedicated bundle `python lambda/build_zip.py --bundle analysis` → terraform/analysis-lambda.zip (111 files, 287 919 bytes, SHA-256 f3c2f1a20d4af4b3d6c818222ae0edb5d59c985e37c074c4e025e797700a2314), separate from the shared agent bundle.
+- Terraform (gated enable_analysis_runtime): analysis Lambda ris-dev2-dev-analysis (python3.14, 512 MB, 60 s, handler analysis_runner.handler, role analysis) and a dedicated least-privilege data policy (WorkItems RW, Entitlements read, PartnerProfiles read). Root table/bucket wiring added. Parser invoke stays scoped to the analysis role.
+- Tests: 9 runner-wiring tests + extended Terraform invariants. No apply.
+
+[RIS-ANALYSIS-AGENT-RUNTIME-11 / STEP B — INTERNAL PARTNER EXECUTION]
+Status: factory integration + pipeline execution verified locally.
+Date: 2026-11-20
+- `process_record(..., analysis_agent=...)` and `ensure_reference_agent(..., analysis_agent=...)` now accept the configured agent, so the pipeline does not replace it with a default AnalysisAgent.
+- AnalysisAgent unwraps the runtime-nested WorkItem payload and reads tenant/user/partner application/issuer from the original item. Direct calls keep the existing request shape.
+- 7 pipeline integration tests: authorized completion + persisted result, idempotent replay without re-execution, CV PDF processed with no bytes persisted, entitlement denial, consent denial, cross-tenant CV denial, SQS record shape. No consent/entitlement bypass.
+- No shared IAM/queue/secret/table change; no catalog/entitlement grant.
+
+[RIS-ANALYSIS-AGENT-RUNTIME-11 / STEP C — RUNTIME AND SECURITY]
+Status: local timeout/error/security checks passed; fmt/validate PASS.
+Date: 2026-11-20
+- Timeout drill: Node CLI sleeper with a 1 s timeout and a botocore read timeout both map to ParserUnavailable; adapter timeout 15 s with zero retries; analysis Lambda budget 60 s (≥15 s validation); parser 15 s. The deployed Lambda's own 15 s timeout remains configuration-pinned, not exercised (no controllable slow path).
+- Payload limits: parser transport 100 000 chars, inline job 32 000 chars, temporary jobs 1 MiB.
+- Logging: runner logs only the failure type; no WorkItem/CV/job content. Parser logs already verified as START/END/REPORT only.
+- Terraform fmt -check PASS, validate PASS. Static tests pin gated compute, default-deny config, dedicated data policy, and the separate analysis bundle.
+- Read-only plan: 2 add / 0 change / 0 destroy / 0 replace (analysis Lambda + data policy); guard NO_SHARED_DESTROY. No apply.
+
