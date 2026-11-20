@@ -1,0 +1,72 @@
+schemaVersion: "1.0"
+agentId: analysis-agent
+partner:
+  partnerId: ris-internal
+  applicationId: ris-internal-analysis
+  agentId: analysis-agent
+  version: "1.0.0"
+status: PENDING_APPROVAL
+activation: false
+catalog:
+  visibility: ABSENT
+  seed: null
+  note: >-
+    No catalog seed and no entitlement grant are created by this package.
+    Adding a catalog entry or granting entitlements is a separate, reviewed
+    change that requires the approvals below.
+entitlements:
+  grantPolicy: explicit-approval-only
+  autoGrant: false
+  inheritExistingConsents: false
+  grants: []
+  capabilities:
+    - id: parse.cv
+      scope: owner
+      consentPurpose: analysis-processing
+      consentVersion: "1.0"
+    - id: parse.job
+      scope: caller
+      consentPurpose: analysis-processing
+      consentVersion: "1.0"
+    - id: analyze.job
+      scope: caller
+      consentPurpose: analysis-processing
+      consentVersion: "1.0"
+    - id: compare.tags
+      scope: owner
+      consentPurpose: analysis-processing
+      consentVersion: "1.0"
+consent:
+  purpose: analysis-processing
+  version: "1.0"
+  state: DRAFT
+  grantable: false
+  legalApprovalRef: ""
+  extendExistingPurposes: false
+approvalsRequired:
+  - id: legal-notice-approval
+    owner: legal
+    status: PENDING
+    unblocks: consent.grantable
+    evidence: docs/privacy/ANALYSIS-PROCESSING-APPROVAL-PACK.md
+  - id: operator-entitlement-approval
+    owner: operator
+    status: PENDING
+    unblocks: entitlements.grants
+    evidence: agent-installations/analysis-agent/partner-bindings.md
+  - id: terraform-apply-approval
+    owner: operator
+    status: PENDING
+    unblocks: activation
+    evidence: docs/reports/RIS-ANALYSIS-READINESS-09.md
+  - id: catalog-seed-approval
+    owner: operator
+    status: PENDING
+    unblocks: catalog.visibility
+    evidence: agent-installations/analysis-agent/lifecycle.yaml
+runtime:
+  parserModeDefault: cli
+  parserModeDedicated: lambda
+  parserFunctionFlag: RIS_PARSER_FUNCTION
+  publicEndpoint: false
+  sharedTransportPolicy: false

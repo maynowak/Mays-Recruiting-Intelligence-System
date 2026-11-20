@@ -53,3 +53,17 @@ The analysis agent is the internal partner `ris-internal` /
 context; the CV owner must equal the authenticated user and tenant. Cross-tenant
 and cross-partner access fail closed (`cv_owner_mismatch`, `cv_tenant_mismatch`,
 `partner_mismatch`).
+
+## Runtime
+
+Parsing runs in the internal Node runtime: the local CLI (`RIS_PARSER_MODE=cli`,
+default) or the dedicated internal parser Lambda (`RIS_PARSER_MODE=lambda`,
+`RIS_PARSER_FUNCTION`). Both use the same parser, envelope and limits; there is
+no public parser HTTP endpoint and no shared transport policy.
+
+## Approval
+
+See `docs/privacy/ANALYSIS-PROCESSING-APPROVAL-PACK.md`. All four gates are
+**PENDING**; this document and the registry entry remain DRAFT until legal
+records the basis and `legal_approval_ref`. No consent is granted automatically
+and existing purposes are not extended.

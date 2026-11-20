@@ -10910,3 +10910,12 @@ Date: 2026-11-20
 - No CV bytes or PII in WorkItems, result bodies, logs or error messages (test asserts base64 and extracted text are absent).
 - Tests `tests/test_cv_service_wiring.py` (15): happy path, structured skip, owner/tenant denial, not-ready, deleted/erased, unknown/unreadable, non-PDF/empty, missing ref, full pipeline PDF forwarding, structured reuse, foreign owner before parsing, agent injection.
 
+[RIS-ANALYSIS-READINESS-09 / STEP C — ENTITLEMENTS + PRIVACY]
+Status: approval-gated configuration only; nothing granted or activated.
+Date: 2026-11-20
+- New `agent-installations/analysis-agent/entitlements.yaml`: partner `ris-internal` / `ris-internal-analysis` / `analysis-agent`; status PENDING_APPROVAL, activation false, `autoGrant: false`, `inheritExistingConsents: false`, no grants, catalog visibility ABSENT. Capabilities parse.cv/parse.job/analyze.job/compare.tags each bound to analysis-processing 1.0.
+- Manifest status changed from `active` to `pending-approval`; runtime documents RIS_PARSER_MODE=cli|lambda, RIS_PARSER_FUNCTION, no public endpoint and no shared transport policy. Lifecycle gains activation PENDING_APPROVAL with four approvals.
+- New `docs/privacy/ANALYSIS-PROCESSING-APPROVAL-PACK.md`: roles, data, legal basis REVIEW REQUIRED, retention/erasure/withdrawal, approval record (all PENDING), activation gate and rollback. Notice draft references the pack and the internal Node runtime.
+- `analysis-processing` v1.0 stays DRAFT with an empty legal_approval_ref; existing purposes are not extended; no consent is granted automatically.
+- Tests `tests/test_analysis_entitlements.py` (11) + installer discovery/validation still pass.
+

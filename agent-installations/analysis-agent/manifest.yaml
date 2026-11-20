@@ -2,7 +2,7 @@ schemaVersion: "1.0"
 package:
   name: analysis-agent
   version: "1.0.0"
-  status: active
+  status: pending-approval
   classification: controlled-test
 agent:
   agentId: analysis-agent
@@ -37,8 +37,15 @@ contracts:
     - payload.input.cv and/or payload.input.job
 runtime:
   adapter: agents/parsers/node_adapter.py
-  requires: RIS_PARSER_CLI (+ optional RIS_PARSER_NODE)
-  nodeInPythonLambda: PENDING
+  modeEnv: RIS_PARSER_MODE
+  modes:
+    cli: agents/parsers/node_adapter.py
+    lambda: agents/parsers/lambda_adapter.py
+  parserFunctionEnv: RIS_PARSER_FUNCTION
+  runtimeArtifact: lambda/ris_parser_handler.mjs (nodejs22.x)
+  publicEndpoint: false
+  sharedTransportPolicy: false
+  nodeInPythonLambda: PENDING (dedicated parser Lambda is Terraform-gated)
 infrastructure:
   awsAccount: "262370457690"
   region: eu-central-1

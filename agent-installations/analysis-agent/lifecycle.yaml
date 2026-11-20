@@ -39,6 +39,14 @@ partnerBindings:
     scope: shared
     managedBy: ris
     deleteOnDetach: false
+lifecycle:
+  activation: PENDING_APPROVAL
+  entitlements: agent-installations/analysis-agent/entitlements.yaml
+  approvalsRequired:
+    - legal-notice-approval
+    - operator-entitlement-approval
+    - terraform-apply-approval
+    - catalog-seed-approval
 uninstall:
   blockNewOrders: true
   inFlight: drain
