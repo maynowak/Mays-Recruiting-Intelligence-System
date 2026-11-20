@@ -10928,3 +10928,13 @@ Date: 2026-11-20
 - Report: docs/reports/RIS-ANALYSIS-READINESS-09.md (runtime, CV wiring, entitlements, privacy, plan/guard, cost/security/rollback, apply/canary plan, blockers).
 - Verdict READY FOR CONTROLLED APPLY REVIEW; live enablement still requires legal notice approval, entitlement approval, apply approval and a catalog decision. No apply, no merge, no production change, no PURGE.
 
+[RIS-ANALYSIS-CANARY-10A / STEP A — TERRAFORM DEPLOYMENT RECONCILIATION]
+Status: read-only plans produced; no state change, no apply.
+Date: 2026-11-20
+- Backend/state (read-only pull): bucket `ris-dev2-tf-state-dev`, region `eu-central-1`, key `dev/terraform.tfstate`, lock table `ris-dev2-tf-lock`, workspace `ris-dev2`; serial 64, lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082, Terraform 1.17.0.
+- Baseline plan (flag false): 11 add / 2 change / 0 destroy; plan SHA-256 02c9d1c023d2ae90f43167b4e1f6312eeb8cc4607bf26cadac1c8908c0740d2f; guard NO_SHARED_DESTROY.
+- Runtime plan (`enable_analysis_runtime=true`, artifact path): 17 add / 2 change / 0 destroy; plan SHA-256 ea0e3298c3cb73bd32c5883e896bbd219ce2f587b79248ff11a56bfa720236f7; guard NO_SHARED_DESTROY. The only delta vs baseline is the six parser resources (role, logs policy, log group, function, analysis invoke policy, Lambda permission); both updates stay the two existing Lambda in-place updates.
+- Runtime Lambda: nodejs22.x, arm64, handler `lambda/ris_parser_handler.handler`, 512 MB, 15 s, log group 14 days. Parser role is logs-only; invoke is scoped to the analysis role. No SQS/Secrets/DynamoDB/API Gateway/function URL/CloudFront reference in the module.
+- Artifact built from pinned jobsearch c40bf78 as plan input: `lambda/dist/analysis-parser.zip`, 412 files, SHA-256 fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a, 17 937 176 bytes, canvas platform linux-arm64 only. Rebuild is byte-identical.
+- New `tools/build_analysis_parser_artifact.py` (deterministic zip, fixed timestamps, required-closure checks, platform package mapping) and `tests/test_analysis_deployment_prep.py` (8 tests). Plans are not committed (backend/state-specific).
+
