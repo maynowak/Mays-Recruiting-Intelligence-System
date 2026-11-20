@@ -10919,3 +10919,12 @@ Date: 2026-11-20
 - `analysis-processing` v1.0 stays DRAFT with an empty legal_approval_ref; existing purposes are not extended; no consent is granted automatically.
 - Tests `tests/test_analysis_entitlements.py` (11) + installer discovery/validation still pass.
 
+[RIS-ANALYSIS-READINESS-09 / STEP D — RELEASE GATE]
+Status: READY FOR CONTROLLED APPLY REVIEW; live analysis BLOCKED by approvals.
+Date: 2026-11-20
+- Focused regression: 218 passed + 13 subtests across 12 files (analysis 31, runtime modes 16, CV wiring 15, entitlements 11, Terraform static 11, parser 17, installer/guard/transport/orders/partner/overlay). Jobsearch CLI+handler: 4 passed.
+- `terraform fmt -check -recursive` PASS; `init -backend=false` + `validate` PASS; standard installer plan exits 0 with the shared guard message. Plan compare to baseline: 11 add / 2 change / 0 destroy, no deviation; guard NO_SHARED_DESTROY. Parser Lambda stays gated off (+6 resources only in a separate enable plan).
+- Synthetic full pipeline with the real Node CLI: cv/job/ats/comparison, 100/100/100, atsTags 4, idempotent replay.
+- Report: docs/reports/RIS-ANALYSIS-READINESS-09.md (runtime, CV wiring, entitlements, privacy, plan/guard, cost/security/rollback, apply/canary plan, blockers).
+- Verdict READY FOR CONTROLLED APPLY REVIEW; live enablement still requires legal notice approval, entitlement approval, apply approval and a catalog decision. No apply, no merge, no production change, no PURGE.
+

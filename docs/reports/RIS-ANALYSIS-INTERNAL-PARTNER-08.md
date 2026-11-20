@@ -4,6 +4,10 @@
 **Verdict:** **READY FOR CONTROLLED DEPLOYMENT REVIEW** (with explicit PENDING
 approvals; not LIVE, no apply).
 
+> Follow-up: `docs/reports/RIS-ANALYSIS-READINESS-09.md` completes the dedicated
+> Node runtime, CV service wiring and entitlement/privacy approval pack. The
+> plan baseline remains 11/2/0 and the guard still returns `NO_SHARED_DESTROY`.
+
 ---
 
 ## 1. Internal partner architecture
