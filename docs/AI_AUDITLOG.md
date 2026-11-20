@@ -10938,3 +10938,12 @@ Date: 2026-11-20
 - Artifact built from pinned jobsearch c40bf78 as plan input: `lambda/dist/analysis-parser.zip`, 412 files, SHA-256 fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a, 17 937 176 bytes, canvas platform linux-arm64 only. Rebuild is byte-identical.
 - New `tools/build_analysis_parser_artifact.py` (deterministic zip, fixed timestamps, required-closure checks, platform package mapping) and `tests/test_analysis_deployment_prep.py` (8 tests). Plans are not committed (backend/state-specific).
 
+[RIS-ANALYSIS-CANARY-10A / STEP B — PARSER RUNTIME ARTIFACT]
+Status: artifact built and verified locally; not deployed.
+Date: 2026-11-20
+- Build is deterministic from jobsearch code commit c40bf78: 412 files, 17 937 176 bytes, SHA-256 fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a; a second build is byte-identical. Jobsearch e77ee94 changes only tests/docs, not packaged code.
+- Closure: handler, scripts/ris-parser-cli.mjs, api/_lib/**, pdfjs-dist/** and @napi-rs/canvas. pdfjs-dist needs the native optional dependency (otherwise DOMMatrix is undefined); the Lambda is linux-arm64, so only @napi-rs/canvas-linux-arm64-gnu@1.0.6 (package-lock pin) ships. No web bundle, maps or tests.
+- Verification: tools/verify_analysis_parser_artifact.py checks SHA/closure/forbidden entries/single linux-arm64 native, extracts the deployment zip and runs the real Node handler (host canvas added only to the staging copy). Observed: job stableId 64 + 6 tags, CV stableId 64 + Python/AWS/Terraform/Docker/Linux/SQL, 2 ATS tags, invalid_input and unsupported_capability.
+- IAM/runtime: parser logs-only role; analysis role InvokeFunction only; nodejs22.x arm64, 512 MB, 15 s (60 s max), logs 14 days; no API Gateway/function URL/CloudFront; no SQS/Secrets/DynamoDB.
+- Jobsearch e77ee94 adds the handler CV-path test (in-process PDF) and the deterministic build/SHA documentation. Tests: 5 artifact-verifier invariants + 8 deployment-preparation tests.
+
