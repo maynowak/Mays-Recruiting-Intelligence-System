@@ -11021,3 +11021,13 @@ Date: 2026-11-20
 - Terraform fmt -check PASS, validate PASS. Static tests pin gated compute, default-deny config, dedicated data policy, and the separate analysis bundle.
 - Read-only plan: 2 add / 0 change / 0 destroy / 0 replace (analysis Lambda + data policy); guard NO_SHARED_DESTROY. No apply.
 
+[RIS-ANALYSIS-AGENT-RUNTIME-11 / STEP D — DEPLOYMENT PREPARATION]
+Status: READY FOR CONTROLLED SYNTHETIC DEPLOYMENT REVIEW; no apply.
+Date: 2026-11-20
+- Read-only plan for enable_analysis_runtime=true: 2 add / 0 change / 0 destroy / 0 replace (analysis Lambda + analysis_runtime_data policy). Plan SHA-256 b892d17a0168cac8df0278890323d1a1b10bbc7cc38dd14536239e776d4f700d; JSON SHA-256 0a1bb40cff4aee5fed9c3d6bdcc5a0167a4bb77c399fc65ad2fecf316a068861; guard NO_SHARED_DESTROY.
+- State serial 67 / lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082; backend ris-dev2-tf-state-dev / dev/terraform.tfstate / ris-dev2-tf-lock / workspace ris-dev2; 283 resources.
+- Compute: ris-dev2-dev-analysis, python3.14, 512 MB, 60 s, analysis role, parser mode lambda. Dedicated bundle 111 files / 287 919 bytes / SHA-256 f3c2f1a2…a2314. No public endpoint; no shared bundle/function change.
+- Default-deny config means the deployed function denies until a separately approved synthetic env configuration (entitlements/consent) is applied. Privacy gates unchanged: DRAFT, PENDING_APPROVAL, ABSENT, activation false.
+- Tests: 296 passed + 13 subtests (19 files) incl. runner integration, timeout drill and Terraform invariants; fmt/validate PASS. Commits 89929c5, af55b67, 87a8e5e.
+- Open: apply approval for 2/0/0, synthetic env config approval, legal notice, entitlement/catalog, live token. No apply, no merge, no PURGE, no Cognito/CloudFront/DNS change.
+
