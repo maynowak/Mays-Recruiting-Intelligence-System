@@ -13,12 +13,12 @@ source:
   repository: mays-ris
   path: agents/analysis_agent
   sha: ca407494fe829ea8407866a91fcb7b45b913e3ca
-  branch: feature/ris-agent-analysis-orchestration-04
+  branch: feature/ris-analysis-integration-07
   parserLibrary:
     repository: maynowak/mays-jobsearch
     cli: scripts/ris-parser-cli.mjs
     branch: feature/ris-analysis-parser-cli-04
-    commit: 40a5db2
+    commit: aaa260c
   ordersRepository: maynowak/mays-order-aws
   ordersPin: 016cdfd6ac62565dcec9a2fee78cb898fb919e59
 versions:

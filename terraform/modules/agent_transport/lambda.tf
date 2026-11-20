@@ -59,24 +59,9 @@ variable "ats_api_base_url" {
 }
 
 variable "result_transport_enabled" {
-  description = "Wire the existing result queue/secret into the dispatch ingress so ORDER_RESULT can be forwarded."
+  description = "Deprecated compatibility flag; result wiring is driven by the order_result_* values."
   type        = bool
   default     = false
-}
-
-variable "order_result_queue_url" {
-  type    = string
-  default = ""
-}
-
-variable "order_result_queue_arn" {
-  type    = string
-  default = ""
-}
-
-variable "order_result_secret_arn" {
-  type    = string
-  default = ""
 }
 
 locals {
@@ -128,14 +113,19 @@ resource "aws_iam_role_policy" "dispatch_ingress" {
         Effect = "Allow"
         Action = ["dynamodb:GetItem", "dynamodb:PutItem",
         "dynamodb:UpdateItem", "dynamodb:Query"]
-        Resource = var.work_items_table_arn
+        Resource = [
+          var.work_items_table_arn,
+          "${var.work_items_table_arn}/index/*",
+        ]
       },
       {
         Sid    = "Entitlements"
         Effect = "Allow"
         Action = ["dynamodb:GetItem", "dynamodb:Query"]
-        Resource = [var.entitlements_table_arn,
-        "${var.entitlements_table_arn}/index/*"]
+        Resource = [
+          var.entitlements_table_arn,
+          "${var.entitlements_table_arn}/index/*",
+        ]
       },
       {
         Sid    = "ConsumeDispatchQueue"
@@ -193,16 +183,20 @@ resource "aws_lambda_function" "dispatch_ingress" {
   memory_size = 256
 
   environment {
-    variables = {
+    variables = merge({
       WORK_ITEMS_TABLE   = var.work_items_table_name
       API_PROFILES_TABLE = var.api_profiles_table_name
       ENTITLEMENTS_TABLE = var.entitlements_table_name
       DISPATCH_QUEUE_ARN = aws_sqs_queue.dispatch.arn
-      # Result transport for the inline pipeline execution.
-      ORDER_RESULT_QUEUE_URL  = var.order_result_queue_url
-      ORDER_RESULT_SECRET_ARN = var.order_result_secret_arn
-      ATS_API_BASE_URL        = var.ats_api_base_url
-    }
+      ATS_API_BASE_URL   = var.ats_api_base_url
+      },
+      var.order_result_queue_url != "" ? {
+        ORDER_RESULT_QUEUE_URL = var.order_result_queue_url
+      } : {},
+      var.order_result_secret_arn != "" ? {
+        ORDER_RESULT_SECRET_ARN = var.order_result_secret_arn
+      } : {},
+    )
   }
 
   depends_on = [

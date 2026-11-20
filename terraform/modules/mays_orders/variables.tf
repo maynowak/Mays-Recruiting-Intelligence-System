@@ -81,3 +81,9 @@ variable "external_cognito" {
     error_message = "external_cognito erfordert einen vollstaendigen user_pool_endpoint im Format 'cognito-idp.<region>.amazonaws.com/<pool-id>' (ohne https://) und eine nicht leere user_pool_client_id - unvollstaendige Referenzen werden fail-closed abgelehnt."
   }
 }
+
+variable "order_dispatch_queue_url" {
+  description = "Optional existing RIS dispatch queue URL for the order handler env."
+  type        = string
+  default     = ""
+}

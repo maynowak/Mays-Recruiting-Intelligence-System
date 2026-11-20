@@ -306,36 +306,6 @@ resource "aws_iam_role_policy" "lambda_cursor_secret" {
   })
 }
 
-resource "aws_iam_role_policy" "lambda_order_result_send" {
-  count = var.agent_result_enabled ? 1 : 0
-  name  = "${var.project_name}-${var.environment}-lambda-order-result-send"
-  role  = aws_iam_role.lambda_execution.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["sqs:SendMessage"]
-      Resource = [var.agent_result_queue_arn]
-    }]
-  })
-}
-
-resource "aws_iam_role_policy" "lambda_order_result_secret" {
-  count = var.agent_result_enabled ? 1 : 0
-  name  = "${var.project_name}-${var.environment}-lambda-order-result-secret"
-  role  = aws_iam_role.lambda_execution.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["secretsmanager:GetSecretValue"]
-      Resource = [var.agent_result_secret_arn]
-    }]
-  })
-}
-
 resource "aws_iam_role_policy" "lambda_privacy_receipts" {
   name = "${var.project_name}-${var.environment}-lambda-dynamodb-privacy-receipts"
   role = aws_iam_role.lambda_execution.id
@@ -620,6 +590,31 @@ resource "aws_iam_role_policy" "lambda_logs" {
   })
 }
 
+resource "aws_iam_role_policy" "order_result_transport" {
+  count = var.order_result_queue_arn != "" && var.order_result_secret_arn != "" ? 1 : 0
+
+  name = "${local.lambda_name}-order-result"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "SendOrderResult"
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = var.order_result_queue_arn
+      },
+      {
+        Sid      = "ReadOrderResultSecret"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.order_result_secret_arn
+      },
+    ]
+  })
+}
+
 resource "aws_lambda_function" "agent" {
   function_name = local.lambda_name
   role          = aws_iam_role.lambda_execution.arn
@@ -634,7 +629,7 @@ resource "aws_lambda_function" "agent" {
   source_code_hash = filebase64sha256(var.lambda_config.filename)
 
   environment {
-    variables = {
+    variables = merge({
       WORK_ITEMS_TABLE      = var.dynamodb_table_name
       USER_PROFILE_TABLE    = var.user_profile_table_name
       AGENT_CATALOG_TABLE   = var.agent_catalog_table_name
@@ -646,14 +641,12 @@ resource "aws_lambda_function" "agent" {
       # ARN only. Empty means no secret is provisioned and pagination
       # fails closed instead of falling back to a static key.
       RIS_CURSOR_SECRET_ARN = var.applications_cursor_secret_arn
-      # Orders result transport (Transport V1). Both empty => forwarder skips
+      # Orders result transport (Transport V1). Empty => forwarder skips
       # fail-closed. ARNs only; the HMAC value is fetched at runtime.
-      ORDER_RESULT_QUEUE_URL  = var.agent_result_queue_url
-      ORDER_RESULT_SECRET_ARN = var.agent_result_secret_arn
-      DOCUMENTS_BUCKET        = var.documents_bucket_name
-      API_PROFILES_TABLE      = var.api_profiles_table_name
-      OFFERS_TABLE            = var.offers_table_name
-      CREDENTIALS_TABLE       = var.credentials_table_name
+      DOCUMENTS_BUCKET   = var.documents_bucket_name
+      API_PROFILES_TABLE = var.api_profiles_table_name
+      OFFERS_TABLE       = var.offers_table_name
+      CREDENTIALS_TABLE  = var.credentials_table_name
       # Partner Application Registry. Read by resolve_partner_application on
       # every authorized partner/M2M execution. Absent -> registry returns
       # None -> both partner routes fail closed with 403.
@@ -687,11 +680,17 @@ resource "aws_lambda_function" "agent" {
       APPLICATION_CONSENT_ENFORCED = var.application_consent_enforced ? "true" : "false"
       DELETION_LEDGER_TABLE        = var.deletion_ledger_table_name
       LOG_LEVEL                    = var.log_level
-      # Project-owned Orders facade base URL. Without it agents/orders/real.py
-      # falls back to a deleted API host and every orders.* call fails.
+      # Project-owned Orders facade + ATS endpoint for the domain agent.
       ORDERS_BASE_URL  = var.orders_base_url
       ATS_API_BASE_URL = var.ats_api_base_url
-    }
+      },
+      var.order_result_queue_url != "" ? {
+        ORDER_RESULT_QUEUE_URL = var.order_result_queue_url
+      } : {},
+      var.order_result_secret_arn != "" ? {
+        ORDER_RESULT_SECRET_ARN = var.order_result_secret_arn
+      } : {},
+    )
   }
 
   depends_on = [
@@ -709,8 +708,6 @@ resource "aws_lambda_function" "agent" {
     aws_iam_role_policy.lambda_dynamodb_partner_registry,
     aws_iam_role_policy.lambda_dynamodb_applications,
     aws_iam_role_policy.lambda_cursor_secret,
-    aws_iam_role_policy.lambda_order_result_send,
-    aws_iam_role_policy.lambda_order_result_secret,
     aws_iam_role_policy.lambda_consents,
     aws_iam_role_policy.lambda_documents,
     aws_iam_role_policy.lambda_s3,

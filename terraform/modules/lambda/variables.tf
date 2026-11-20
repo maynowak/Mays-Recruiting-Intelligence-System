@@ -217,6 +217,24 @@ variable "work_queue_url" {
   type        = string
 }
 
+variable "order_result_queue_url" {
+  description = "Existing Mays-Orders result queue URL for the agent result link."
+  type        = string
+  default     = ""
+}
+
+variable "order_result_queue_arn" {
+  description = "Existing Mays-Orders result queue ARN for the agent result IAM policy."
+  type        = string
+  default     = ""
+}
+
+variable "order_result_secret_arn" {
+  description = "Existing Mays-Orders result HMAC secret ARN for the agent result link."
+  type        = string
+  default     = ""
+}
+
 variable "s3_bucket_arn" {
   description = "S3 bucket ARN for data storage"
   type        = string

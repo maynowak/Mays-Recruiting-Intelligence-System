@@ -608,10 +608,34 @@ variable "orders_producer_role_arns" {
   default     = []
 }
 
-variable "orders_agent_result_enabled" {
-  description = "Enable the managed Orders result transport (result queue, DLQ and HMAC secret from modules/mays_orders). Default off; independent of the RIS dispatch queue flag."
-  type        = bool
-  default     = false
+variable "ris_result_producer_role_arns" {
+  description = "RIS role ARNs allowed to enqueue results to the Mays-Orders result queue."
+  type        = list(string)
+  default     = []
+}
+
+variable "order_dispatch_queue_url" {
+  description = "Existing RIS dispatch queue URL exposed to the Mays-Orders handler."
+  type        = string
+  default     = ""
+}
+
+variable "order_result_queue_url" {
+  description = "Existing Mays-Orders result queue URL exposed to the RIS agent Lambda."
+  type        = string
+  default     = ""
+}
+
+variable "order_result_queue_arn" {
+  description = "Existing Mays-Orders result queue ARN used by the transport IAM policies."
+  type        = string
+  default     = ""
+}
+
+variable "order_result_secret_arn" {
+  description = "Existing Mays-Orders result HMAC secret ARN exposed to the RIS agent Lambda."
+  type        = string
+  default     = ""
 }
 
 variable "ats_api_base_url" {

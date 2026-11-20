@@ -11,7 +11,6 @@
     "identity_m2m_fallback_issuer": "https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_ojbmoiYGM",
     "identity_m2m_fallback_client_id": "82ji073smu1b3fsvj96sonso",
     "orders_lifecycle": "managed",
-    "orders_agent_result_enabled": "false",
     "identity_oauth_enabled": "false",
     "identity_oauth_scopes": "[\"openid\",\"email\",\"profile\"]",
     "identity_oauth_callback_urls": "[\"http://localhost:5173/auth/callback\"]",

@@ -532,6 +532,77 @@ def ensure_repo():
 
 # ---- Build module ---------------------------------------------------
 
+def apply_ris_order_dispatch_env_patch(module_dir: Path) -> None:
+    """Add the existing RIS dispatch URL as an optional Orders handler env.
+
+    This is a deterministic, build-time compatibility patch for the already
+    deployed transport contract. It adds no resource and no business logic;
+    the value remains empty (and the env key absent) unless the RIS root
+    supplies it.
+    """
+    parent_variables = module_dir / "variables.tf"
+    parent_main = module_dir / "main.tf"
+    lambda_variables = module_dir / "modules" / "lambda" / "variables.tf"
+    lambda_main = module_dir / "modules" / "lambda" / "main.tf"
+
+    var_block = '''
+variable "order_dispatch_queue_url" {
+  description = "Optional existing RIS dispatch queue URL for the order handler env."
+  type        = string
+  default     = ""
+}
+'''
+    variables = parent_variables.read_text(encoding="utf-8")
+    if 'variable "order_dispatch_queue_url"' not in variables:
+        parent_variables.write_text(variables + var_block, encoding="utf-8")
+
+    variables = lambda_variables.read_text(encoding="utf-8")
+    if 'variable "order_dispatch_queue_url"' not in variables:
+        lambda_variables.write_text(variables + var_block, encoding="utf-8")
+
+    main = parent_main.read_text(encoding="utf-8")
+    marker = "  queue_url           = module.sqs.queue_url\n"
+    if main.count(marker) != 1:
+        raise RuntimeError(
+            "generated Orders parent no longer has the expected queue_url wiring"
+        )
+    if "order_dispatch_queue_url = var.order_dispatch_queue_url" not in main:
+        main = main.replace(
+            marker,
+            marker + "  order_dispatch_queue_url = var.order_dispatch_queue_url\n",
+            1,
+        )
+    parent_main.write_text(main, encoding="utf-8")
+
+    main = lambda_main.read_text(encoding="utf-8")
+    marker = "    variables = {\n"
+    if main.count(marker) != 1:
+        raise RuntimeError(
+            "generated Orders lambda env no longer has the expected variables block"
+        )
+    if "ORDER_DISPATCH_QUEUE_URL" not in main:
+        main = main.replace(marker, "    variables = merge({\n", 1)
+        closing = (
+            "      ORDERS_COGNITO_CLIENT_ID = var.cognito_client_id\n"
+            "    }\n"
+        )
+        if main.count(closing) != 1:
+            raise RuntimeError(
+                "generated Orders lambda env no longer has the expected closing block"
+            )
+        main = main.replace(
+            closing,
+            "      ORDERS_COGNITO_CLIENT_ID = var.cognito_client_id\n"
+            "    },\n"
+            "    var.order_dispatch_queue_url != \"\" ? {\n"
+            "      ORDER_DISPATCH_QUEUE_URL = var.order_dispatch_queue_url\n"
+            "    } : {},\n"
+            "  )\n",
+            1,
+        )
+    lambda_main.write_text(main, encoding="utf-8")
+
+
 def build_module(project_name: str, force: bool):
     """Build the orders-service module and validate the contract.
 
@@ -609,12 +680,9 @@ def build_module(project_name: str, force: bool):
         print("Building module via module_builder from {MAYS_ORDERS_BUILDER_DIR}".format(MAYS_ORDERS_BUILDER_DIR=MAYS_ORDERS_BUILDER_DIR))
         run(cmd, cwd=str(MAYS_ORDERS_BUILDER_DIR))
 
-        # 2b. RIS-Integration: Result-Transport-Outputs additiv ergänzen.
-        # Der Queue-/Secret-Besitz bleibt in modules/agent_transport; hier wird
-        # nur der vom RIS-Root benötigte Ausgang sichtbar gemacht. Der Schritt
-        # läuft VOR der Vertragsprüfung, ist idempotent und fail-closed, falls
-        # das Upstream-Modul die Outputs künftig selbst liefert.
-        inject_transport_outputs(TEMP_MODULE_DIR)
+        # Build-time compatibility adapter for the existing RIS transport
+        # contract. It adds one optional env key, never a resource or logic.
+        apply_ris_order_dispatch_env_patch(TEMP_MODULE_DIR)
 
         # 3. Vertragsprüfung (CONTENT-BASED, keine nachträglichen Patches)
         validate_generated_contract(TEMP_MODULE_DIR)

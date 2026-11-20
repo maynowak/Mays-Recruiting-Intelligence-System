@@ -23,6 +23,24 @@ variable "orders_producer_role_arns" {
   default     = []
 }
 
+variable "order_result_queue_url" {
+  description = "Existing Mays-Orders result queue URL for the dispatch ingress result link."
+  type        = string
+  default     = ""
+}
+
+variable "order_result_queue_arn" {
+  description = "Existing Mays-Orders result queue ARN for the dispatch ingress result link."
+  type        = string
+  default     = ""
+}
+
+variable "order_result_secret_arn" {
+  description = "Existing Mays-Orders result HMAC secret ARN for the dispatch ingress result link."
+  type        = string
+  default     = ""
+}
+
 variable "visibility_timeout_seconds" {
   type    = number
   default = 300
@@ -78,6 +96,34 @@ resource "aws_sqs_queue_policy" "dispatch" {
         Principal = { AWS = var.orders_producer_role_arns }
         Action    = ["sqs:SendMessage"]
         Resource  = aws_sqs_queue.dispatch.arn
+      },
+    ]
+  })
+}
+
+# Existing out-of-band result hand-off permission. Keep the resource when the
+# site-specific result transport values are configured; default empty values
+# create no policy on stacks without that link.
+resource "aws_iam_role_policy" "order_result" {
+  count = var.order_result_queue_arn != "" && var.order_result_secret_arn != "" ? 1 : 0
+
+  name = "${var.project_name}-${var.environment}-agent-dispatch-ingress-order-result"
+  role = aws_iam_role.dispatch_ingress.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "SendOrderResult"
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = var.order_result_queue_arn
+      },
+      {
+        Sid      = "ReadOrderResultSecret"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.order_result_secret_arn
       },
     ]
   })

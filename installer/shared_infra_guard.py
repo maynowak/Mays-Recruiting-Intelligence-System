@@ -31,15 +31,19 @@ from typing import Any, Dict, List, Optional, Tuple
 #: Flags that gate shared transport. False/absent must never mean "teardown".
 TRANSPORT_FLAGS = (
     "enable_agent_transport",
-    "orders_agent_result_enabled",
     "orders_lifecycle",
+    "orders_agent_result_enabled",
 )
 
-#: Value that counts as "transport available" per flag.
+#: Required value per flag (absent keys are problems only when required).
 TRANSPORT_FLAG_EXPECTED = {
     "enable_agent_transport": "true",
-    "orders_agent_result_enabled": "true",
     "orders_lifecycle": "managed",
+}
+
+#: Optional legacy flag: only checked when the plan actually carries it.
+OPTIONAL_TRANSPORT_FLAG_EXPECTED = {
+    "orders_agent_result_enabled": "true",
 }
 
 #: Modules whose children are shared platform infrastructure.
@@ -269,6 +273,10 @@ def _flag_problems(flags: Dict[str, str]) -> List[str]:
     problems: List[str] = []
     for name, expected in TRANSPORT_FLAG_EXPECTED.items():
         if flags.get(name) != expected:
+            problems.append(name)
+    for name, expected in OPTIONAL_TRANSPORT_FLAG_EXPECTED.items():
+        value = flags.get(name)
+        if value not in (None, "<absent>") and value != expected:
             problems.append(name)
     return problems
 

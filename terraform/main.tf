@@ -29,14 +29,6 @@ locals {
   m2m_issuer       = local.identity_managed && !var.identity_m2m_enabled ? var.identity_m2m_fallback_issuer : local.identity_issuer
   m2m_client_id    = local.identity_managed && !var.identity_m2m_enabled ? var.identity_m2m_fallback_client_id : (local.identity_managed ? module.cognito[0].user_pool_m2m_client_id : var.external_cognito_m2m_client_id)
 
-  # Managed Orders result transport (Orders -> RIS worker -> Orders result queue).
-  # Outputs come from the generated module; it must be rebuilt for any plan
-  # (installer/build_mays_orders_module.py injects the three transport outputs).
-  orders_agent_result_enabled = local.orders_managed && var.orders_agent_result_enabled
-  agent_result_queue_url      = local.orders_agent_result_enabled ? try(module.mays_orders[0].results_queue_url, "") : ""
-  agent_result_queue_arn      = local.orders_agent_result_enabled ? try(module.mays_orders[0].results_queue_arn, "") : ""
-  agent_result_secret_arn     = local.orders_agent_result_enabled ? try(module.mays_orders[0].result_hmac_secret_arn, "") : ""
-
   # Dispatch (Orders -> RIS) uses the existing agent_transport module.
   agent_dispatch_enabled   = var.enable_agent_transport && local.orders_enabled
   agent_dispatch_queue_url = local.agent_dispatch_enabled ? try(module.agent_transport[0].dispatch_queue_url, "") : ""
@@ -190,14 +182,15 @@ module "lambda" {
   documents_bucket_arn                = module.documents.bucket_arn
   sqs_queue_arn                       = module.sqs.work_queue_arn
   work_queue_url                      = module.sqs.work_queue_url
-  agent_result_enabled                = local.orders_agent_result_enabled
-  agent_result_queue_url              = local.agent_result_queue_url
-  agent_result_queue_arn              = local.agent_result_queue_arn
-  agent_result_secret_arn             = local.agent_result_secret_arn
-  orders_base_url                     = module.api.api_endpoint
-  ats_api_base_url                    = var.ats_api_base_url
-  timeout_seconds                     = var.agent_execution_timeout_seconds
-  tags                                = var.tags
+  # Existing RIS -> Mays-Orders result transport. Empty values preserve the
+  # previous absence of these variables for installations without the link.
+  order_result_queue_url  = var.order_result_queue_url
+  order_result_queue_arn  = var.order_result_queue_arn
+  order_result_secret_arn = var.order_result_secret_arn
+  orders_base_url         = module.api.api_endpoint
+  ats_api_base_url        = var.ats_api_base_url
+  timeout_seconds         = var.agent_execution_timeout_seconds
+  tags                    = var.tags
 }
 
 # Gate 4 — eigene Order-Fassade (orders_reader) auf unserer API.
@@ -241,12 +234,39 @@ module "mays_orders" {
   tags               = var.tags
   monitoring_enabled = var.monitoring_enabled
   log_retention_days = var.lambda_config.log_retention_days
+  # Preserve the existing RIS -> Orders result/dispatch transport when enabled.
+  enable_agent_transport        = var.enable_agent_transport
+  ris_result_producer_role_arns = var.ris_result_producer_role_arns
+  order_dispatch_queue_url      = var.order_dispatch_queue_url
   # external_cognito = null  # MANAGED (Default) oder EXTERNAL
-  # Result transport stays owned by the generated Orders module; only the
-  # producer grant (RIS worker role) and the enable flag cross the boundary.
-  enable_agent_transport        = local.orders_agent_result_enabled
-  ris_result_producer_role_arns = local.orders_agent_result_enabled ? [module.lambda.lambda_role_arn] : []
 }
+# Preserve the legacy Orders-handler -> RIS dispatch queue permission. It
+# exists in the live state but is emitted by an older generated Orders module;
+# moving it to the root keeps the AWS resource instead of planning a destroy.
+moved {
+  from = module.mays_orders[0].module.iam.aws_iam_role_policy.agent_dispatch[0]
+  to   = aws_iam_role_policy.orders_agent_dispatch[0]
+}
+
+resource "aws_iam_role_policy" "orders_agent_dispatch" {
+  count = local.orders_managed && var.enable_agent_transport ? 1 : 0
+
+  name = "${var.project_name}-mays-orders-handler-agent-dispatch-policy"
+  role = module.mays_orders[0].iam_handler_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "SendOrderDispatch"
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = module.agent_transport[0].dispatch_queue_arn
+      },
+    ]
+  })
+}
+
 # Observability-Foundation: CloudWatch (Runtime) + CloudTrail (Audit),
 # strikt getrennt (s. Modul-Kommentare). Ersetzt die frueheren Inline-Alarme.
 module "monitoring" {
@@ -436,15 +456,12 @@ module "agent_transport" {
   environment  = var.environment
   tags         = var.tags
 
-  # The reader is the ORDER_DISPATCH producer; Orders itself is not.
-  orders_producer_role_arns = local.agent_dispatch_enabled ? [module.orders_reader[0].role_arn] : var.orders_producer_role_arns
-
-  ats_api_base_url         = var.ats_api_base_url
-  timeout_seconds          = var.agent_execution_timeout_seconds
-  result_transport_enabled = local.orders_agent_result_enabled
-  order_result_queue_url   = local.agent_result_queue_url
-  order_result_queue_arn   = local.agent_result_queue_arn
-  order_result_secret_arn  = local.agent_result_secret_arn
+  orders_producer_role_arns = var.orders_producer_role_arns
+  order_result_queue_url    = var.order_result_queue_url
+  order_result_queue_arn    = var.order_result_queue_arn
+  order_result_secret_arn   = var.order_result_secret_arn
+  ats_api_base_url          = var.ats_api_base_url
+  timeout_seconds           = var.agent_execution_timeout_seconds
 
   lambda_zip_path = "${path.root}/lambda.zip"
 

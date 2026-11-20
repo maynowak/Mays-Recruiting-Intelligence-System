@@ -13,14 +13,14 @@ source:
   repository: mays-ris
   path: agents/job_parser_agent
   sha: fd38288ddffc36ee7380cd36bc5a63f9501ac78a
-  branch: feature/ris-jm-agent-standardization-01
+  branch: feature/ris-analysis-integration-07
   parserLibrary:
     repository: maynowak/mays-jobsearch
     path: api/_lib/parsers/ris.mjs
     cli: scripts/ris-parser-cli.mjs
     version: "1.0.0"
-    branch: feature/ris-parser-library-01
-    commit: d330179
+    branch: feature/ris-analysis-parser-cli-04
+    commit: aaa260c
   ordersRepository: maynowak/mays-order-aws
   ordersPin: 016cdfd6ac62565dcec9a2fee78cb898fb919e59
 versions:

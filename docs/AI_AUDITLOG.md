@@ -10195,6 +10195,7 @@ Date: 2026-11-15
 Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
 
 
+
 [RIS-ATS-AGENT-01 / ORCH-00 BASELINE]
 Status: ORCH-00 COMPLETE (read-only baseline).
 Date: 2026-11-15
@@ -10743,3 +10744,138 @@ Date: 2026-11-20
 - Blockers: Python Lambda has no node (live PENDING); job bucket Terraform/IAM not applied; concrete RIS CV repository wiring must be injected by the service layer; RIS branch is 14 commits behind origin/main and needs a rebase before merge.
 - Docs: docs/reports/RIS-AGENT-ANALYSIS-ORCHESTRATION-04.md, agent-installations/analysis-agent.
 - No AWS/Terraform/Cognito/CloudFront/DNS change, no PURGE, no production deployment, no main merge.
+
+[RIS-ANALYSIS-INTEGRATION-07 / RELEASE CANDIDATE]
+Status: BLOCKED — controlled transport migration approval required.
+Date: 2026-11-20
+- Git: RIS integration branch feature/ris-analysis-integration-07 merges local agent-factory work with origin/main e95fe48 (no rebase/force); Jobsearch feature/ris-analysis-parser-cli-04 @ aaa260c, 3 ahead / 0 behind origin/main 81db09a. Both pushed; working trees clean.
+- Conflicts resolved in 7 files: adopted main's order_result_* transport model and its generated-module patch; kept ATS/timeout wiring; de-duplicated agent_transport variables; unioned the append-only audit log; removed the superseded agent_result_* test.
+- Pins: cv/job/analysis manifests now point to feature/ris-analysis-parser-cli-04 @ aaa260c; RIS source branch integration-07. All five packages validate.
+- Synthetic E2E with the real Node CLI: cv.tags, job.tags, ats.tags (score 100), comparison (100/100/100) and idempotent replay. CV PDF fixture path also verified.
+- Tests: analysis pipeline 25 passed, parser agents 17 passed, focused RIS regression 180 passed + 13 subtests, Jobsearch parser CLI 3 passed.
+- Terraform: init -backend=false + validate PASS, fmt -check PASS. Read-only ris-dev2 plan: 4 add / 2 change / 4 destroy. The destroys are four shared IAM policies replaced one-for-one by equivalent new policies (agent_transport dispatch_result_* -> order_result; lambda lambda_order_result_* -> order_result_transport). No queue/Lambda/table/secret/data resource destroyed.
+- Verdict: BLOCKED by the shared-infrastructure guard requiring an explicit reviewed intent for those four IAM policy replacements; Node runtime for the Python Lambda remains PENDING. Report: docs/reports/RIS-ANALYSIS-INTEGRATION-07.md.
+- No AWS apply, no PURGE, no Cognito/CloudFront/DNS change, no production deployment, no main merge.
+
+## 2026-11-17 — XREPO-RIS-CONSENT-RECOVERY-01
+
+**Status:** `A — FIX VERIFIED LOCAL / PRODUCTION ACTIVATION PENDING`
+
+- Read-only dataflow review: Jobsearch `StorageConsentLive` → `risConsentApi`
+  → `/api/ris/consents` → RIS `/v1/partner/me/consents` → consent repository.
+- Confirmed contract regression on RIS `origin/main` `ae08267`:
+  `application-storage/1.0` was `DRAFT`/`noticeApproved=false`/
+  `legalApprovalRef=null`. With production-style
+  `CONSENT_NOTICE_STATE_ENFORCED=true`, `acceptedForNewGrant=false`; the
+  Jobsearch BFF correctly returns `grantAllowed=false` / `notice_not_active`
+  and blocks the UI/POST.
+- The existing documented limited-beta approval `6bfb71f`
+  (`JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`) and the approved v4 text
+  mapping were only on pilot branches, not on `origin/main`.
+- Minimal fix on `feature/xrepo-ris-consent-recovery-01`: restore
+  `application-storage/1.0` to `APPROVED`, retain the existing legal reference,
+  and map `application-storage-consent-2026-11-07-v4` to `1.0`. No gate
+  bypass, no new approval, no env/flag change, no AWS/Terraform change.
+- Tests: RIS focused consent **27 PASS**; full RIS **2620 PASS / 104 skipped /
+  6 baseline failures** (same failures on clean `origin/main`). Jobsearch
+  focused consent **63 PASS**. No Jobsearch product change.
+- Authenticated live GET/POST **not executed**: operator refresh token returned
+  `invalid_grant`; no valid test identity was available. No token, personal
+  data or consent history was logged. Production status is not claimed.
+- Deployment and live smoke require separate approval. Report:
+  `docs/reports/XREPO-RIS-CONSENT-RECOVERY-01.md`.
+
+## 2026-11-17 — RIS-CONSENT-DEPLOYMENT-UNBLOCK-03
+
+**Status:** `C — ADDITIONAL DECISION REQUIRED` / `0 add, 9 change, 0 destroy`
+
+- Read-only live check: `ris-dev-dev-agent` still runs `application-storage/1.0`
+  as `DRAFT` (LastModified `2026-11-16T19:35:14Z`, CodeSha256
+  `9p67rKjkp0h0DAFS6Kht/GN5tc7YImQjjAnXw56Ub8A=`).
+- Identified missing site-specific bindings for existing agent/result transport,
+  IAM policies, S3-CORS and result env. Added the existing RG values to
+  `installer/project-configs/ris-dev.json`, wired transport values through the
+  root/modules, moved the legacy Orders dispatch IAM policy to a root resource,
+  and restored the documents CORS contract. No consent enforcement/allowlist
+  changes.
+- Final plan: `0 add / 9 change / 0 destroy / 0 replace`, SHA-256
+  `aa7ec40ee2ccaa79942ba3c573c7c7c2d8e7e03c16d8dcab3725cca6d1433eb5`.
+  Remaining decision: the existing Orders handler env `ORDER_DISPATCH_QUEUE_URL`
+  would be removed because the current generated Orders module does not emit it.
+  No apply or deployment.
+- Tests: focused Terraform/security **57 passed / 8 skipped**; full RIS
+  **2628 passed / 104 skipped / 5 failed** (known baseline; clean main six).
+  `terraform fmt`/`validate` PASS.
+- Auth remains blocked (no valid authorized test token/identity); no production
+  verification claimed. Report: `docs/reports/RIS-CONSENT-DEPLOYMENT-UNBLOCK-03.md`.
+
+## 2026-11-17 — RIS-CONSENT-DEPLOYMENT-UNBLOCK-04
+
+**Status:** `A — SAFE PLAN READY` / no apply
+
+- Variant B implemented on `feature/ris-consent-deployment-unblock-03`:
+  deterministic build adapter adds optional `ORDER_DISPATCH_QUEUE_URL` to the
+  generated Orders handler configuration; the existing `ris-dev` dispatch URL
+  is supplied from the site overlay. No Orders business logic/resource change.
+- Existing agent/result transport, IAM policies (legacy Orders dispatch policy
+  moved to root), S3-CORS and Lambda env are preserved. Consent enforcement,
+  pilot allowlist, Cognito, CloudFront and DNS unchanged.
+- Final plan: **0 add / 8 change / 0 destroy / 0 replace**, SHA-256
+  `b56bb49f122186ed1d64b002bff0ee59bebffbbefc24fc7150ae5aeb9d844fb6`.
+  No IAM-policy changes or lost Lambda env in the final plan.
+- Agent bundle contains `application-storage/1.0 = APPROVED` with
+  `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`.
+- Tests: focused Terraform/security **58 PASS / 8 skipped**; full RIS
+  **2629 PASS / 104 skipped / 5 known baseline failures**; fmt/validate PASS.
+- No AWS/Terraform apply, no deployment, no Main merge. Authenticated live E2E
+  remains blocked by missing valid test identity/token; no production status
+  claimed. Report: `docs/reports/RIS-CONSENT-DEPLOYMENT-UNBLOCK-04.md`.
+
+## 2026-11-17 — RIS-CONSENT-RELEASE-05
+
+**Status:** `READY FOR CONTROLLED APPLY` / no apply
+
+- PR #12 merged regularly into `main` as
+  `00363977ede1417c4992933b2639ac442a70a4b0`; feature tree equals main tree.
+- No CI checks are configured/reported for RIS PR #12. No conflicts; no
+  force-push or history rewrite.
+- AWS identity verified: profile `mayaws`, account `240571105849`, region
+  `eu-central-1`, workspace `ris-dev`, state bucket `mays-ris-tf-state-dev`,
+  key `env:/ris-dev/dev/terraform.tfstate`, serial `78`, lineage
+  `9cec61e5-c036-1ad5-6ae4-8b48a50122a4`. State unchanged; ETag
+  `a7d6a2155823ec8605585c68f38cca95`.
+- Final plan: **0 add / 8 change / 0 destroy / 0 replace**, SHA-256
+  `512532f73b7feb6563eeea9ac4bc84e1bb713b90365c87e2f65849e4404bd09c`.
+  Eight expected Lambda bundle updates; no IAM-policy change, no lost Lambda
+  env, no Cognito/CloudFront/DNS change.
+- Agent bundle contains `application-storage/1.0 = APPROVED` and
+  `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`. Health bundles are unchanged
+  live artifacts; exact hashes documented in the release report.
+- Tests: focused Terraform/security 58 PASS / 8 skipped; full RIS 2629 PASS /
+  104 skipped / 5 known baseline failures; fmt/validate PASS.
+- No Terraform apply, deployment or Production verification. Authenticated
+  live E2E remains blocked by missing valid test identity/token.
+- Report: `docs/reports/RIS-CONSENT-RELEASE-05.md`.
+
+## 2026-11-17 — RIS-CONSENT-RELEASE-05 — APPLY
+
+**Status:** `APPLIED / POST-APPLY PLAN CLEAN / AUTH E2E BLOCKED`
+
+- Under explicit operator approval, applied the exact saved plan
+  `512532f73b7feb6563eeea9ac4bc84e1bb713b90365c87e2f65849e4404bd09c`
+  in `ris-dev` (`mayaws`, account `240571105849`).
+- Apply result: **0 added / 8 changed / 0 destroyed**. State serial moved
+  from 78 to 80; lineage unchanged; state resource count 273 -> 271 due to
+  one removed `aws_caller_identity` data source and the moved Orders dispatch
+  policy, not an AWS resource deletion.
+- Live agent code is `cQFmaERV...` and contains
+  `application-storage/1.0 = APPROVED` with
+  `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08`. Orders handler retains
+  `ORDER_DISPATCH_QUEUE_URL`; transport env remains.
+- Post-apply plan is clean (no changes), plan SHA-256
+  `30c4a15c4acd1e1d3c2bbec7e40b282deeb6143daa1cda73496ef2c2703cce86`.
+- Unauthenticated BFF smoke returns 401, not 503. Authenticated live E2E is
+  still blocked by missing valid test identity/token; no Production
+  verification claimed. No general rollout.
+- Report: `docs/reports/RIS-CONSENT-RELEASE-05.md`.
+

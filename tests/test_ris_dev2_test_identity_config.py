@@ -19,7 +19,6 @@ def test_ris_dev2_identity_overlay_is_managed_and_non_secret():
     assert values["identity_m2m_fallback_issuer"].endswith("eu-central-1_ojbmoiYGM")
     assert values["identity_m2m_fallback_client_id"] == "82ji073smu1b3fsvj96sonso"
     assert values["orders_lifecycle"] == "managed"
-    assert values["orders_agent_result_enabled"] == "false"
     assert values["identity_oauth_enabled"] == "false"
     assert values["identity_custom_domain_enabled"] == "false"
     assert values["identity_oauth_callback_urls"] == '["http://localhost:5173/auth/callback"]'
@@ -33,7 +32,6 @@ def test_installer_loads_only_the_dedicated_ris_dev2_overlay():
     assert values["identity_mode"] == "managed"
     assert values["identity_m2m_enabled"] == "true"
     assert values["orders_lifecycle"] == "managed"
-    assert values["orders_agent_result_enabled"] == "false"
     assert values["identity_oauth_enabled"] == "false"
     assert values["identity_custom_domain_enabled"] == "false"
     assert "identity_google_client_secret" not in values
