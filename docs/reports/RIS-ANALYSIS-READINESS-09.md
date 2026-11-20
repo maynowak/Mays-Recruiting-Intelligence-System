@@ -8,6 +8,10 @@ unchanged (11/2/0) and locally verified. **Live analysis stays BLOCKED** until
 the legal, entitlement and apply approvals below are recorded. No apply, no
 merge, no production change.
 
+> Follow-up: `docs/reports/RIS-ANALYSIS-CANARY-10A.md` prepares the controlled
+> synthetic apply (baseline 11/2/0, runtime 17/2/0, pinned artifact, 15-case
+> canary matrix).
+
 ---
 
 ## 1. Runtime status

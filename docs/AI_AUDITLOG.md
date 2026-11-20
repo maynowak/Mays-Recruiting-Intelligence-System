@@ -10956,3 +10956,14 @@ Date: 2026-11-20
 - Authenticated canary identity documented (existing dev pool/client, custom:tenant_id=tenant-canary, synthetic sub); no Cognito change and no live token in this package.
 - docs/operations/RIS-ANALYSIS-CANARY-MATRIX.md records matrix, observed results, TTL evidence, claims and explicit non-actions. No consent/entitlement bypass.
 
+[RIS-ANALYSIS-CANARY-10A / STEP D — RELEASE DECISION PACKAGE]
+Status: READY FOR CONTROLLED SYNTHETIC APPLY REVIEW.
+Date: 2026-11-20
+- Report docs/reports/RIS-ANALYSIS-CANARY-10A.md: baseline 11/2/0 (plan SHA 02c9d1c0…), runtime 17/2/0 (plan SHA ea0e3298…), diff exactly +6 parser resources, both guards NO_SHARED_DESTROY, state serial 64 / lineage a0bd361d…, backend ris-dev2-tf-state-dev/dev/terraform.tfstate.
+- Artifact: 412 files, 17 937 176 bytes, SHA-256 fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a, nodejs22.x arm64, verified with the real Node handler.
+- Tests: 246 passed + 13 subtests (15 files) including the 15-case canary matrix with the real CLI; Jobsearch handler/CLI 4 passed; fmt/validate PASS.
+- Approvals separated: (1) technical infra PENDING, (2) privacy/operator PENDING before real data, (3) entitlement/catalog PENDING before activation, (4) real personal data NOT GRANTED. Synthetic canary needs only (1); real data needs all four.
+- Costs: no idle spend beyond cents for bucket/logs; parser Lambda pay-per-use (≈ $0.00002–0.0001/invoke, ≈ $0.01–0.10 per 1 000 synthetic runs).
+- Rollback: reviewed reverse plan; runtime flag off destroys only the 6 parser resources; CLI mode fallback; no shared resource touched.
+- No apply, no merge, no production deployment, no PURGE, no Cognito/CloudFront/DNS change, no consent/entitlement grant, no agent activation. CANARY-10B not started.
+
