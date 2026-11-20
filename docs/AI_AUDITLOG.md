@@ -10979,3 +10979,19 @@ Date: 2026-11-20
 - Approval pack: docs/reports/RIS-ANALYSIS-CANARY-10B-PREFLIGHT.md and the machine-readable manifest docs/reports/analysis-canary-10b-plan-manifest.json; tests/test_analysis_apply_preflight.py (7 tests, saved-plan SHA check included).
 - Rollback, costs and stop conditions documented. STEP B/C not started.
 
+[RIS-ANALYSIS-CANARY-10B / STEP B+C — CONTROLLED APPLY + SYNTHETIC AWS CANARY]
+Status: HYBRID SYNTHETIC E2E VERIFIED (component: AWS PARSER RUNTIME VERIFIED). No live agent claim.
+Date: 2026-11-20
+- Operator approval applied for exactly plan e64a6272ac212dce54123c2b9533d42175f85ccc8d34ec2b6e26c3b39d15e676 (JSON 66a95476…8c9f31). Pre-apply re-check: plan/JSON/artifact hashes matched, manifest matched, guard NO_SHARED_DESTROY, state serial 64 / lineage a0bd361d…, caller devnemo in 262370457690/eu-central-1.
+- Apply (saved plan only, locking on, no targets/vars): exit 0, 17 added / 2 changed / 0 destroyed. State serial 64 -> 67, lineage unchanged, resources 266 -> 283. No Cognito/CloudFront/Route53/ACM change, no delete/replace.
+- Updates verified live: dispatch_ingress adds only work-items index/* to the existing WorkItems statement (same actions); mays-orders handler env adds only ORDER_DISPATCH_QUEUE_URL with both Cognito values unchanged.
+- Parser Lambda live: ris-dev2-dev-analysis-parser, nodejs22.x, arm64, 512 MB, 15 s, code SHA-256 matches artifact fb741fb2… (Lambda base64 +3Qfsl58…), no function URL, permission principal analysis role. Dedicated analysis role policies verified (tenant/* read, jobs/* RW, invoke parser only); parser role logs-only.
+- Hybrid E2E with real Lambda: CV-only (CVParserResultBody 1.0, PDF SHA matches fixture), job-only 1.0, ATS 2.0, comparison 1.0 (76.9 overall), full four bodies, idempotent replay, invalid capability and timeout controlled (ParserUnavailable), cross-tenant/entitlement/consent/expired jobRef/oversize denied.
+- Adapter timeout now enforced via botocore connect/read timeout and zero retries (unit-tested). Real 0.01 s invoke produced a controlled ParserUnavailable; the Lambda's own 15 s timeout was not exercised.
+- Job S3 (real bucket): 7200 s default / 14400 s max, SSE AES256, tenant/user/sha256/expiry metadata, cross-tenant not found, >1 MiB rejected, expired at 2 h and 4 h with controlled clock, explicit delete, cleanup removed the expired object only, 0 objects remain. Physical 4 h deletion NOT claimed (lifecycle 1 day is backup only).
+- CloudWatch: 17 invocations, 0 errors, logs only START/END/REPORT, no PDF/base64/CV/job markers; analysis log group 0 events; retention 14 d. Existing agent/orders-reader/ingress active and unchanged; mays-orders env update as approved.
+- Post-apply read-only plan: 0 changes, guard NO_SHARED_DESTROY (plan SHA 46a1e563…6839150, JSON ae632074…36e9af2). Not applied.
+- Privacy state unchanged: analysis-processing DRAFT, entitlements PENDING_APPROVAL, catalog ABSENT, activation false; no real data, synthetic objects removed, no PURGE.
+- Tests: 254 passed + 13 subtests (16 files); Jobsearch CLI/handler 4 passed; preflight manifest 7 passed.
+- Report: docs/reports/RIS-ANALYSIS-CANARY-10B.md. Remaining blockers: legal notice approval, entitlement/catalog decision, deployed analysis compute, live authenticated canary, Lambda 15 s timeout test.
+

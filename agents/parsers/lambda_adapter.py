@@ -46,8 +46,15 @@ def parse_via_lambda(
             "RIS_PARSER_FUNCTION is not configured for the Lambda parser mode")
     if client is None:
         import boto3
+        from botocore.config import Config
 
-        client = boto3.client("lambda")
+        # Enforce the adapter timeout on the real invoke; no SDK retries so a
+        # slow parser fails once instead of multiplying the caller timeout.
+        client = boto3.client("lambda", config=Config(
+            connect_timeout=timeout,
+            read_timeout=timeout,
+            retries={"max_attempts": 0},
+        ))
 
     try:
         response = client.invoke(

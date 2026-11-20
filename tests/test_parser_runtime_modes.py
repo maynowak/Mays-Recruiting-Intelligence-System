@@ -152,6 +152,17 @@ class LambdaAdapterTest(unittest.TestCase):
                              function_name=FUNCTION, client=FakeLambda())
 
 
+    def test_timeout_is_enforced_on_the_real_client(self):
+        client = FakeLambda()
+        with patch("boto3.client", return_value=client) as factory:
+            parse_via_lambda("parse.job", {"job": {}},
+                             function_name=FUNCTION, timeout=7)
+        config = factory.call_args.kwargs["config"]
+        self.assertEqual(7, config.connect_timeout)
+        self.assertEqual(7, config.read_timeout)
+        self.assertEqual({"max_attempts": 0}, config.retries)
+
+
 class NodeParserModeTest(unittest.TestCase):
     def test_default_mode_is_cli(self):
         with patch.dict(os.environ, {}, clear=False):
