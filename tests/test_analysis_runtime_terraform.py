@@ -93,7 +93,8 @@ class ParserRuntimeGateTest(unittest.TestCase):
     def test_analysis_configuration_defaults_deny(self):
         for name, value in ((("ANALYSIS_ENTITLEMENTS"), '""'),
                             (("ANALYSIS_CONSENT"), '"false"'),
-                            (("ANALYSIS_NOTICE_APPROVED"), '"false"')):
+                            (("ANALYSIS_NOTICE_APPROVED"), '"false"'),
+                            (("ANALYSIS_SYNTHETIC_MODE"), '"false"')):
             self.assertRegex(self.module, name + r"\s*=\s*" + value)
         self.assertNotRegex(self.module, r"ANALYSIS_CONSENT\s*=\s*\"true\"")
 

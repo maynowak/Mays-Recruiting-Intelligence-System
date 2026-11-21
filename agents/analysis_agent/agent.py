@@ -53,7 +53,9 @@ class AnalysisAgent(AgentBase):
             return self._identity_resolver(work_item)
         config = self.config or {}
         entitlements = config.get("entitlements")
-        if not entitlements:
+        synthetic = config.get("synthetic") or {}
+        if not entitlements and not (synthetic.get("enabled")
+                                     and synthetic.get("entitlements")):
             # Fail closed: no configured entitlements means no analysis.
             raise ContractError(
                 "analysis_identity_not_configured",
@@ -66,6 +68,26 @@ class AnalysisAgent(AgentBase):
         if (isinstance(nested, dict) and nested.get("workId")
                 and ("userId" in nested or "tenantId" in nested)):
             source = nested
+        synthetic = config.get("synthetic") or {}
+        if (synthetic.get("enabled")
+                and self._matches_synthetic(source, synthetic)):
+            # A synthetic exact-match identity is authorized only for the
+            # explicitly configured test profile. It is NOT real consent or
+            # notice approval: the flag stays synthetic=True and the result
+            # contract marks it as test data.
+            return Identity(
+                tenant_id=synthetic["tenant_id"],
+                user_id=synthetic["user_id"],
+                entitlements=frozenset(synthetic["entitlements"]),
+                consent=True,
+                partner_application_id=synthetic["partner_application_id"],
+                issuer=synthetic["issuer"],
+                caller_partner_id=config.get("caller_partner_id"),
+                consent_purpose=ANALYSIS_CONSENT_PURPOSE,
+                consent_notice_version=ANALYSIS_NOTICE_VERSION,
+                consent_notice_approved=False,
+                synthetic=True,
+            )
         return Identity(
             tenant_id=str(source.get("tenantId")
                           or work_item.get("tenantId") or ""),
@@ -84,6 +106,21 @@ class AnalysisAgent(AgentBase):
             consent_notice_approved=bool(
                 config.get("consent_notice_approved", False)),
         )
+
+    @staticmethod
+    def _matches_synthetic(source: Dict[str, Any],
+                           synthetic: Dict[str, Any]) -> bool:
+        """All four identity fields must match exactly and be non-empty."""
+        for key in ("tenant_id", "user_id", "partner_application_id",
+                    "issuer"):
+            expected = str(synthetic.get(key) or "")
+            actual = str(source.get(
+                {"tenant_id": "tenantId", "user_id": "userId",
+                 "partner_application_id": "partnerApplicationId",
+                 "issuer": "issuer"}[key]) or "")
+            if not expected or actual != expected:
+                return False
+        return True
 
     def process_work(self, work_item: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(work_item, dict):

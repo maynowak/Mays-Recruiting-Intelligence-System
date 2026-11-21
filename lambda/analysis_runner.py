@@ -60,6 +60,40 @@ def _as_list(value: Any) -> List[str]:
     return [item.strip() for item in str(value or "").split(",") if item.strip()]
 
 
+def _synthetic_profile(env: Dict[str, str]) -> Dict[str, Any]:
+    """Exact-match synthetic test profile; disabled on any ambiguity."""
+    enabled = _as_bool(env.get("ANALYSIS_SYNTHETIC_MODE"))
+    if not enabled:
+        return {"enabled": False}
+    fields = {
+        "tenant_id": (env.get("ANALYSIS_SYNTHETIC_TENANT_ID") or "").strip(),
+        "user_id": (env.get("ANALYSIS_SYNTHETIC_USER_ID") or "").strip(),
+        "partner_application_id": (
+            env.get("ANALYSIS_SYNTHETIC_PARTNER_APPLICATION_ID") or "").strip(),
+        "issuer": (env.get("ANALYSIS_SYNTHETIC_ISSUER") or "").strip(),
+    }
+    entitlements = _as_list(env.get("ANALYSIS_SYNTHETIC_ENTITLEMENTS"))
+    expires_raw = (env.get("ANALYSIS_SYNTHETIC_EXPIRES_AT") or "").strip()
+    if not all(fields.values()) or not entitlements or not expires_raw:
+        return {"enabled": False, "reason": "incomplete"}
+    try:
+        from datetime import datetime, timezone
+
+        expires = datetime.fromisoformat(expires_raw.replace("Z", "+00:00"))
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires <= datetime.now(timezone.utc):
+            return {"enabled": False, "reason": "expired"}
+    except ValueError:
+        return {"enabled": False, "reason": "invalid_expiry"}
+    return {
+        "enabled": True,
+        **fields,
+        "entitlements": entitlements,
+        "expires_at": expires.isoformat(),
+    }
+
+
 def analysis_config_from_env(env: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     """Explicit, approval-driven analysis configuration (defaults deny)."""
     env = env or os.environ
@@ -79,6 +113,7 @@ def analysis_config_from_env(env: Optional[Dict[str, str]] = None) -> Dict[str, 
                                    ANALYSIS_CONSENT_PURPOSE),
         "consent_notice_version": env.get("ANALYSIS_NOTICE_VERSION",
                                           ANALYSIS_NOTICE_VERSION),
+        "synthetic": _synthetic_profile(env),
     }
 
 

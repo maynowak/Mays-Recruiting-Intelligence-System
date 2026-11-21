@@ -113,6 +113,7 @@ class Identity:
     consent_purpose: Optional[str] = None
     consent_notice_version: Optional[str] = None
     consent_notice_approved: bool = False
+    synthetic: bool = False
 
     def entitled(self, capability: str) -> bool:
         return capability in self.entitlements
@@ -125,7 +126,7 @@ def require_capabilities(requested: Iterable[str], identity: Identity) -> None:
     if identity.consent_purpose != ANALYSIS_CONSENT_PURPOSE:
         raise ContractError("consent_purpose_mismatch",
                             f"consent for {ANALYSIS_CONSENT_PURPOSE} is required")
-    if not identity.consent_notice_approved:
+    if not identity.consent_notice_approved and not identity.synthetic:
         raise ContractError(
             "consent_notice_not_approved",
             "the analysis-processing notice is a draft; legal approval is required")

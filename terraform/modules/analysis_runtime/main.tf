@@ -259,6 +259,7 @@ resource "aws_lambda_function" "analysis" {
       ANALYSIS_ENTITLEMENTS      = ""
       ANALYSIS_CONSENT           = "false"
       ANALYSIS_NOTICE_APPROVED   = "false"
+      ANALYSIS_SYNTHETIC_MODE    = "false"
       ANALYSIS_CALLER_PARTNER_ID = "ris-internal"
     }
   }
