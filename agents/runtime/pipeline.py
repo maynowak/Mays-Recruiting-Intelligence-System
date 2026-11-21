@@ -448,6 +448,32 @@ def _persist_failure(table: Any, work_id: str, attempt: int,
     )
 
 
+def _claim_queued_work(table: Any, work_id: str) -> Optional[Dict[str, Any]]:
+    """Claim a pre-persisted QUEUED WorkItem for its first attempt.
+
+    The dispatch ingress persists QUEUED and enqueues; the worker must turn
+    that row into RUNNING exactly once. Returns the updated item or None when
+    another delivery won the claim.
+    """
+    try:
+        table.update_item(
+            Key={"workId": work_id},
+            UpdateExpression=("SET #status = :running, attempt_no = :attempt, "
+                              "updatedAt = :u"),
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={
+                ":running": "RUNNING", ":attempt": 1, ":u": _utcnow(),
+                ":queued": "QUEUED",
+            },
+            ConditionExpression="#status = :queued",
+        )
+    except Exception as exc:  # noqa: BLE001 - boundary
+        if _is_conditional_failed(exc):
+            return None
+        raise
+    return table.get_item(Key={"workId": work_id}).get("Item")
+
+
 def _start_retry_attempt(table: Any, existing: Dict[str, Any]) -> Dict[str, Any]:
     """Bestehendes FAILED-Processing als neuer Attempt fortfuehren."""
     attempt = int(existing.get("attempt_no", 1)) + 1
@@ -579,6 +605,7 @@ def process_record(
                 item.get("status"),
             )
             delivery = None
+            failure_delivery = None
             if item.get("status") == "COMPLETED":
                 # Crash window between persist and send: re-emit the same
                 # deterministic ORDER_RESULT; the Order side de-duplicates.
@@ -587,6 +614,16 @@ def process_record(
                     item=item,
                     attempt=int(item.get("attempt_no") or 1),
                     result=item.get("result"),
+                    sender=result_sender,
+                )
+            elif item.get("status") == "DEAD_LETTER":
+                # Crash window between terminal failure and send: re-emit the
+                # same deterministic ORDER_FAILED.
+                failure_delivery = _forward_order_failure(
+                    table=table,
+                    item=item,
+                    attempt=int(item.get("attempt_no") or 1),
+                    error=item.get("error") or {"message": "work item failed"},
                     sender=result_sender,
                 )
             response = {
@@ -598,8 +635,22 @@ def process_record(
             }
             if delivery is not None:
                 response["order_result_delivery"] = delivery
+            if failure_delivery is not None:
+                response["order_failure_delivery"] = failure_delivery
             return response
-        if item.get("status") != "FAILED":
+        if item.get("status") == "RUNNING":
+            # Another delivery owns the run; do not execute twice.
+            return {"workId": work["workId"], "status": "RUNNING",
+                    "duplicate": True, "suppressed": True,
+                    "attempt_no": item.get("attempt_no", 1)}
+        if item.get("status") == "QUEUED":
+            claimed = _claim_queued_work(table, work["workId"])
+            if claimed is None:
+                return {"workId": work["workId"], "status": "RUNNING",
+                        "duplicate": True, "suppressed": True,
+                        "attempt_no": item.get("attempt_no", 1)}
+            item = claimed
+        elif item.get("status") != "FAILED":
             raise RuntimeError("WORK_ADMISSION_STATE_UNSAFE")
         try:
             resumed = _start_retry_attempt(table, item)
@@ -619,11 +670,16 @@ def process_record(
     api_profile_id = work.get("apiProfileId") or None
     partner_application_id = work.get("partnerApplicationId") or None
     if partner_application_id and not api_profile_id:
-        _persist_failure(
-            table, work["workId"], attempt,
-            {"message": "Partner-scoped work item carries no verified "
-                        "apiProfileId",
-             "type": "IDENTITY_BINDING_MISSING"}, terminal=True)
+        binding_error = {
+            "message": "Partner-scoped work item carries no verified "
+                       "apiProfileId",
+            "type": "IDENTITY_BINDING_MISSING",
+        }
+        _persist_failure(table, work["workId"], attempt,
+                         binding_error, terminal=True)
+        failure_delivery = _forward_order_failure(
+            table=table, item=work, attempt=attempt, error=binding_error,
+            sender=result_sender)
         logger.warning(
             "worker identity binding DENIED (workId=%s, partnerApplication=%s)",
             work["workId"], partner_application_id)
@@ -636,6 +692,7 @@ def process_record(
             "denied": True,
             "reason": "api-profile-binding-missing",
             "result_reference": f"work:{work['workId']}:attempt:{attempt}",
+            "order_failure_delivery": failure_delivery,
         }
 
     # Execution-Time-Entitlement-Re-check (Gate 08): SQS ist
@@ -689,6 +746,11 @@ def process_record(
                 table, work["workId"], attempt,
                 {"message": f"Worker entitlement denied [{auth.reason}]",
                  "type": "ENTITLEMENT_DENIED"}, terminal=True)
+            failure_delivery = _forward_order_failure(
+                table=table, item=work, attempt=attempt,
+                error={"message": f"Worker entitlement denied [{auth.reason}]",
+                       "type": "ENTITLEMENT_DENIED"},
+                sender=result_sender)
             logger.warning(
                 "worker entitlement DENIED (workId=%s, agent=%s, reason=%s, "
                 "attempt=%s)", work["workId"], decision.agent_id,
@@ -702,6 +764,7 @@ def process_record(
                 "denied": True,
                 "reason": auth.reason,
                 "result_reference": f"work:{work['workId']}:attempt:{attempt}",
+                "order_failure_delivery": failure_delivery,
             }
 
     current = table.get_item(Key={"workId": work["workId"]}).get("Item")
@@ -734,6 +797,7 @@ def process_record(
 
     terminal = False
     delivery = None
+    failure_delivery = None
     if not result.get("success", False):
         error = result.get("error", {"message": "Agent meldete Fehler"})
         _health("record_failure",
@@ -745,6 +809,10 @@ def process_record(
                 attempt_id=str(attempt))
         terminal = isinstance(error, dict) and error.get("type") in PERMANENT_ERROR_CODES
         _persist_failure(table, work["workId"], attempt, error, terminal=terminal)
+        if terminal:
+            failure_delivery = _forward_order_failure(
+                table=table, item=work, attempt=attempt, error=error,
+                sender=result_sender)
         if not terminal:
             # Unerwarteter Fehler -> Retry via SQS-Redelivery (neuer Attempt).
             raise RuntimeError(
@@ -776,6 +844,8 @@ def process_record(
     }
     if delivery is not None:
         response["order_result_delivery"] = delivery
+    if failure_delivery is not None:
+        response["order_failure_delivery"] = failure_delivery
     return response
 
 
@@ -815,7 +885,8 @@ def _resolve_result_sender() -> Optional[Any]:
 def _record_result_delivery(table: Any, work_id: str, *, status: str,
                             attempt: int,
                             message_id: Optional[str] = None,
-                            code: Optional[str] = None) -> None:
+                            code: Optional[str] = None,
+                            field: str = "orderResultDelivery") -> None:
     """Persist the transport outcome next to the completed work item.
 
     ``COMPLETED`` only proves that the agent result was persisted. This marker
@@ -839,7 +910,7 @@ def _record_result_delivery(table: Any, work_id: str, *, status: str,
             Key={"workId": work_id},
             UpdateExpression="SET #delivery = :delivery",
             ExpressionAttributeNames={
-                "#delivery": "orderResultDelivery"},
+                "#delivery": field},
             ExpressionAttributeValues={":delivery": marker},
             ConditionExpression="attribute_exists(workId)",
         )
@@ -913,6 +984,75 @@ def _forward_order_result(*, table: Any, item: Dict[str, Any], attempt: int,
         raise
     _record_result_delivery(table, work_id, status="SENT", attempt=attempt,
                             message_id=envelope.get("messageId"))
+    return "SENT"
+
+
+def _forward_order_failure(*, table: Any, item: Dict[str, Any], attempt: int,
+                           error: Any,
+                           sender: Optional[Any] = None) -> str:
+    """Forward a terminal order failure as the existing ORDER_FAILED type.
+
+    Returns ``SENT``, ``NOT_ORDER``, ``NOT_CONFIGURED``, ``SKIPPED`` or
+    ``REJECTED``. Only a sender exception is re-raised (SQS redelivery).
+    The error is reduced to the persisted failure fields; no payload or secret
+    is copied into the envelope.
+    """
+    work_id = item.get("workId", "")
+    if not item.get("orderId"):
+        return "NOT_ORDER"
+    if not item.get("correlationId"):
+        logger.warning("order failure not forwarded: missing correlationId")
+        _record_result_delivery(table, work_id, status="SKIPPED",
+                                attempt=attempt, code="missing_correlation",
+                                field="orderFailureDelivery")
+        return "SKIPPED"
+    if not item.get("apiProfileId"):
+        logger.warning("order failure not forwarded: missing apiProfileId")
+        _record_result_delivery(table, work_id, status="SKIPPED",
+                                attempt=attempt, code="missing_api_profile",
+                                field="orderFailureDelivery")
+        return "SKIPPED"
+    sender = sender if sender is not None else _resolve_result_sender()
+    if sender is None:
+        logger.warning(
+            "order failure not forwarded: result transport not configured")
+        _record_result_delivery(table, work_id, status="NOT_CONFIGURED",
+                                attempt=attempt, code="transport_not_configured",
+                                field="orderFailureDelivery")
+        return "NOT_CONFIGURED"
+
+    from agents.transport import ORDER_FAILED, TransportError, result_from_work_item
+
+    safe_error = error if isinstance(error, dict) else {"message": str(error)}
+    safe_error = {
+        "message": str(safe_error.get("message") or "work item failed")[:500],
+        "type": str(safe_error.get("type") or "RuntimeError")[:100],
+    }
+    try:
+        envelope = result_from_work_item(
+            _dispatch_carrier(item),
+            {"workId": work_id, "status": "FAILED",
+             "attempt_no": attempt, "error": safe_error},
+            message_type=ORDER_FAILED,
+        )
+    except TransportError as exc:
+        code = getattr(exc, "code", "transport")
+        logger.error("order failure not forwarded: %s", code)
+        _record_result_delivery(table, work_id, status="REJECTED",
+                                attempt=attempt, code=code,
+                                field="orderFailureDelivery")
+        return "REJECTED"
+    try:
+        sender(envelope)
+    except Exception as exc:
+        _record_result_delivery(
+            table, work_id, status="RETRYING", attempt=attempt,
+            message_id=envelope.get("messageId"),
+            code=type(exc).__name__, field="orderFailureDelivery")
+        raise
+    _record_result_delivery(
+        table, work_id, status="SENT", attempt=attempt,
+        message_id=envelope.get("messageId"), field="orderFailureDelivery")
     return "SENT"
 
 

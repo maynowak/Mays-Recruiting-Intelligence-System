@@ -75,6 +75,16 @@ variable "analysis_remote_timeout_seconds" {
   default = 60
 }
 
+variable "work_queue_url" {
+  description = "Existing shared RIS work queue; ORDER_DISPATCH persists then enqueues here."
+  type        = string
+}
+
+variable "work_queue_arn" {
+  description = "ARN of the existing shared RIS work queue (send permission only)."
+  type        = string
+}
+
 locals {
   ingress_name = "${var.project_name}-${var.environment}-agent-dispatch-ingress"
 }
@@ -145,6 +155,12 @@ resource "aws_iam_role_policy" "dispatch_ingress" {
         "sqs:GetQueueAttributes"]
         Resource = aws_sqs_queue.dispatch.arn
       },
+      {
+        Sid      = "SendToWorkQueue"
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = var.work_queue_arn
+      },
     ]
   })
 }
@@ -200,6 +216,7 @@ resource "aws_lambda_function" "dispatch_ingress" {
       ENTITLEMENTS_TABLE = var.entitlements_table_name
       DISPATCH_QUEUE_ARN = aws_sqs_queue.dispatch.arn
       ATS_API_BASE_URL   = var.ats_api_base_url
+      WORK_QUEUE_URL     = var.work_queue_url
       },
       var.order_result_queue_url != "" ? {
         ORDER_RESULT_QUEUE_URL = var.order_result_queue_url

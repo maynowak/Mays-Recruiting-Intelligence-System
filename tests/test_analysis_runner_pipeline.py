@@ -304,13 +304,14 @@ class RemoteAndResultPathTest(unittest.TestCase):
         # Stable idempotency key: Mays-Orders deduplicates the redelivery.
         self.assertEqual(sent[0]["idempotencyKey"], sent[1]["idempotencyKey"])
 
-    def test_order_failed_uses_the_existing_transport(self):
-        from agents.analysis.contracts import ContractError
+    def test_terminal_failure_uses_order_failed_and_stable_id(self):
         from agents.runtime.pipeline import process_record
 
         class Failing:
             def process_work(self, work_item):
-                raise ContractError("consent_required", "not approved")
+                return {"success": False,
+                        "error": {"message": "consent_required",
+                                  "type": "ValidationError"}}
 
         runtime, _ = build_runtime()
         sent = []
@@ -321,7 +322,41 @@ class RemoteAndResultPathTest(unittest.TestCase):
                                  "requestedResults": ["job.tags"],
                                  "input": {"job": {"text": "Python"}},
                                  "idempotencyKey": "key-work-failed"}})
-        # A raised agent error is a retryable failure, not ORDER_FAILED yet.
+        first = process_record(
+            {"body": json.dumps(item)}, table=runtime["table"],
+            registry=runtime["registry"], body=runtime["body"],
+            entitlement_resolver=runtime["entitlement_resolver"],
+            analysis_agent=Failing(), result_sender=sent.append)
+        second = process_record(
+            {"body": json.dumps(item)}, table=runtime["table"],
+            registry=runtime["registry"], body=runtime["body"],
+            entitlement_resolver=runtime["entitlement_resolver"],
+            analysis_agent=Failing(), result_sender=sent.append)
+        self.assertEqual("DEAD_LETTER", first["status"])
+        self.assertEqual("SENT", first["order_failure_delivery"])
+        self.assertEqual("ORDER_FAILED", sent[0]["messageType"])
+        self.assertTrue(second["duplicate"])
+        self.assertEqual(sent[0]["messageId"], sent[1]["messageId"])
+        self.assertEqual(sent[0]["idempotencyKey"], sent[1]["idempotencyKey"])
+        self.assertNotIn("synthetic canary", json.dumps(sent[0]).lower())
+        self.assertNotIn("left", sent[0].get("payload", {}))
+
+    def test_transient_failure_does_not_emit_order_failed(self):
+        from agents.runtime.pipeline import process_record
+
+        class Failing:
+            def process_work(self, work_item):
+                raise RuntimeError("transient")
+
+        runtime, _ = build_runtime()
+        sent = []
+        item = work("work-transient")
+        item.update({"orderId": "ord_canary", "correlationId": "corr-3",
+                     "apiProfileId": "profile-canary",
+                     "payload": {"schemaVersion": "1.0",
+                                 "requestedResults": ["job.tags"],
+                                 "input": {"job": {"text": "Python"}},
+                                 "idempotencyKey": "key-work-transient"}})
         with self.assertRaises(Exception):
             process_record(
                 {"body": json.dumps(item)}, table=runtime["table"],
@@ -329,7 +364,7 @@ class RemoteAndResultPathTest(unittest.TestCase):
                 entitlement_resolver=runtime["entitlement_resolver"],
                 analysis_agent=Failing(), result_sender=sent.append)
         self.assertEqual([], sent)
-        self.assertIn(runtime["table"].items["work-failed"]["status"],
+        self.assertIn(runtime["table"].items["work-transient"]["status"],
                       ("FAILED", "DEAD_LETTER"))
 
 

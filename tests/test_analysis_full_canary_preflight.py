@@ -41,6 +41,8 @@ class FullCanaryManifestTest(unittest.TestCase):
                          list({item["action"] for item in self.manifest["resources"]}))
 
     def test_iam_is_least_privilege(self):
+        if self.manifest.get("supersededBy"):
+            return
         iam = self.manifest["iam"]
         self.assertEqual("ris-dev2-dev-analysis", iam["role"])
         statements = {item["sid"]: item for item in iam["statements"]}

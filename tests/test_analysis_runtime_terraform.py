@@ -102,10 +102,11 @@ class ParserRuntimeGateTest(unittest.TestCase):
         block = block.split('resource "', 1)[0]
         self.assertIn('name  = "${local.name}-runtime-data"', block)
         self.assertIn("role  = aws_iam_role.analysis.id", block)
-        for table in ("work_items_table_arn", "entitlements_table_arn",
-                      "partner_profiles_table_arn"):
-            self.assertIn(f"var.{table}", block)
-        self.assertIn("dynamodb:PutItem", block)
+        self.assertIn("var.partner_profiles_table_arn", block)
+        # Remote execution needs no WorkItems write, no Entitlements read.
+        self.assertNotIn("var.work_items_table_arn", block)
+        self.assertNotIn("var.entitlements_table_arn", block)
+        self.assertNotIn("dynamodb:PutItem", block)
         for forbidden in ("s3:", "sqs:", "secretsmanager:", "lambda:"):
             self.assertNotIn(forbidden, block)
 

@@ -513,6 +513,8 @@ module "agent_transport" {
   timeout_seconds                 = var.agent_execution_timeout_seconds
   analysis_function_name          = module.analysis_runtime.analysis_function_name
   analysis_remote_timeout_seconds = 60
+  work_queue_url                  = module.sqs.work_queue_url
+  work_queue_arn                  = module.sqs.work_queue_arn
   # Keep the legacy result-policy addresses alive (no shared IAM migration).
   result_transport_enabled = var.enable_agent_transport
 

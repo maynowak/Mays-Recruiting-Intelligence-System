@@ -89,15 +89,26 @@ def dispatch_envelope(**overrides):
     return envelope
 
 
+class FakeSQS:
+    def __init__(self, fail=False):
+        self.fail = fail
+        self.sent = []
+
+    def send_message(self, **kwargs):
+        if self.fail:
+            raise RuntimeError("sqs unavailable")
+        self.sent.append(kwargs)
+
+
 class IngressHarness(unittest.TestCase):
     def setUp(self):
         self.table = Table()
+        self.sqs = FakeSQS()
         self.deps = {
             "profile_store": ProfileStore(),
-            "registry": AgentRegistry(),
-            "body": AgentBody(),
             "table": self.table,
-            "entitlement_resolver": None,
+            "sqs_client": self.sqs,
+            "work_queue_url": "https://sqs.eu-central-1.amazonaws.com/1/work",
         }
         self.patch = patch.object(dispatch_ingress, "_dependencies",
                                   return_value=self.deps)
@@ -122,18 +133,34 @@ class IngressHarness(unittest.TestCase):
 
 
 class TestValidDispatch(IngressHarness):
-    def test_valid_dispatch_executes_the_addition_agent(self):
-        result = self.run_handler(self.record())
+    def test_valid_dispatch_enqueues_without_executing(self):
+        calls = []
+        real = AdditionAgent.process_work
+
+        def spy(agent_self, work_item):
+            calls.append(work_item["workId"])
+            return real(agent_self, work_item)
+
+        with patch.object(AdditionAgent, "process_work", spy):
+            result = self.run_handler(self.record())
         self.assertEqual([], result["batchItemFailures"])
         stored = self.table.items["work-1"]
-        self.assertEqual("COMPLETED", stored["status"])
-        self.assertEqual(42, stored["result"]["data"]["sum"])
+        self.assertEqual("QUEUED", stored["status"])
+        self.assertIn("enqueuedAt", stored)
+        self.assertEqual(1, len(self.sqs.sent))
+        self.assertEqual([], calls)
+        body = json.loads(self.sqs.sent[0]["MessageBody"])
+        self.assertEqual("work-1", body["workId"])
+        self.assertEqual("addition_agent", body["agentId"])
+        self.assertEqual("ord_abc123", body["orderId"])
 
     def test_bound_work_id_is_preserved(self):
         self.run_handler(self.record())
         self.assertIn("work-1", self.table.items)
+        self.assertEqual("work-1",
+                         json.loads(self.sqs.sent[0]["MessageBody"])["workId"])
 
-    def test_duplicate_dispatch_does_not_execute_twice(self):
+    def test_duplicate_dispatch_does_not_enqueue_or_execute_twice(self):
         calls = []
         real = AdditionAgent.process_work
 
@@ -144,7 +171,27 @@ class TestValidDispatch(IngressHarness):
         with patch.object(AdditionAgent, "process_work", spy):
             self.run_handler(self.record())
             self.run_handler(self.record(message_id="msg-2"))
-        self.assertEqual(["work-1"], calls)
+        self.assertEqual(1, len(self.sqs.sent))
+        self.assertEqual(["work-1"], list(self.table.items))
+        self.assertEqual([], calls)
+
+    def test_terminal_duplicate_is_not_requeued(self):
+        self.run_handler(self.record())
+        self.table.items["work-1"]["status"] = "COMPLETED"
+        self.run_handler(self.record(message_id="msg-2"))
+        self.assertEqual(1, len(self.sqs.sent))
+
+    def test_queue_failure_is_retried_without_losing_the_work_item(self):
+        self.deps["sqs_client"] = FakeSQS(fail=True)
+        result = self.run_handler(self.record())
+        self.assertEqual([{"itemIdentifier": "msg-1"}],
+                         result["batchItemFailures"])
+        self.assertIn("work-1", self.table.items)
+        self.assertNotIn("enqueuedAt", self.table.items["work-1"])
+        self.deps["sqs_client"] = FakeSQS()
+        retry = self.run_handler(self.record(message_id="msg-2"))
+        self.assertEqual([], retry["batchItemFailures"])
+        self.assertEqual(1, len(self.deps["sqs_client"].sent))
 
     def test_production_profile_store_shape_is_supported(self):
         class ProductionShapeStore:
@@ -155,7 +202,7 @@ class TestValidDispatch(IngressHarness):
         self.deps["profile_store"] = ProductionShapeStore()
         result = self.run_handler(self.record())
         self.assertEqual([], result["batchItemFailures"])
-        self.assertEqual("COMPLETED", self.table.items["work-1"]["status"])
+        self.assertEqual("QUEUED", self.table.items["work-1"]["status"])
 
 
 class TestRejectedDispatch(IngressHarness):
@@ -184,10 +231,15 @@ class TestRejectedDispatch(IngressHarness):
         self._assert_rejected(self.record(dispatch_envelope(
             identity={"contextRef": "profile-other"})))
 
-    def test_unsupported_capability(self):
+    def test_unknown_capability_is_queued_for_worker_validation(self):
+        # Ingress validates transport/identity; capability/agent selection is
+        # the worker's registry/eligibility decision.
         envelope = dispatch_envelope()
         envelope["recipient"]["capability"] = "math.divide"
-        self._assert_rejected(self.record(envelope))
+        result = self.run_handler(self.record(envelope))
+        self.assertEqual([], result["batchItemFailures"])
+        self.assertEqual("QUEUED", self.table.items["work-1"]["status"])
+        self.assertEqual(1, len(self.sqs.sent))
 
     def test_missing_work_id(self):
         envelope = dispatch_envelope()

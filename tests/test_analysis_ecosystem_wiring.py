@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-for path in (ROOT, ROOT / "tests"):
+for path in (ROOT, ROOT / "tests", ROOT / "lambda"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
@@ -26,12 +26,14 @@ def source(relative):
 
 
 class StaticWiringTest(unittest.TestCase):
-    def test_worker_and_ingress_use_the_remote_adapter(self):
+    def test_worker_uses_remote_adapter_and_ingress_enqueues(self):
         worker = source("lambda/handler.py")
         ingress = source("lambda/dispatch_ingress.py")
-        for body in (worker, ingress):
-            self.assertIn("build_analysis_executor", body)
-            self.assertIn("analysis_agent=", body)
+        self.assertIn("build_analysis_executor", worker)
+        self.assertIn("analysis_agent=", worker)
+        self.assertIn("enqueue_work_item", ingress)
+        self.assertNotIn("process_record", ingress)
+        self.assertNotIn("build_analysis_executor", ingress)
         self.assertIn("executionMode", source("agents/runtime/remote_agent.py"))
 
     def test_no_new_queue_or_transport(self):
@@ -155,13 +157,16 @@ class SharedPipelineTest(unittest.TestCase):
 
 
 class ManifestPinTest(unittest.TestCase):
+    RemoteClient = SharedPipelineTest.RemoteClient
+    resolver = SharedPipelineTest.resolver
+
     def test_plan_and_bundle_manifest(self):
         import hashlib
 
-        path = ROOT / "docs" / "reports" / "analysis-ecosystem-integration-13-manifest.json"
+        path = ROOT / "docs" / "reports" / "analysis-ecosystem-correction-14-manifest.json"
         manifest = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(4, manifest["plan"]["adds"])
-        self.assertEqual(2, manifest["plan"]["changes"])
+        self.assertEqual(3, manifest["plan"]["changes"])
         self.assertEqual(0, manifest["plan"]["destroys"])
         self.assertEqual("NO_SHARED_DESTROY", manifest["plan"]["guard"])
         self.assertFalse(manifest["plan"]["applyApproved"])
@@ -174,6 +179,70 @@ class ManifestPinTest(unittest.TestCase):
                 manifest["bundles"][key]["sha256"],
                 hashlib.sha256(artifact.read_bytes()).hexdigest(),
                 relative)
+
+
+    def test_dispatch_queue_to_work_queue_to_worker_for_both_agents(self):
+        import json
+        from unittest.mock import patch
+
+        import dispatch_ingress
+        from test_dispatch_ingress_lambda import (
+            FakeSQS,
+            ProfileStore,
+            dispatch_envelope,
+            QUEUE_ARN,
+        )
+
+        runtime, _ = build_runtime()
+        client = self.RemoteClient()
+        runtime["analysis_agent"] = LambdaAgentHandler(
+            "ris-dev2-dev-analysis", client=client)
+        runtime["entitlement_resolver"] = self.resolver()
+        table = FakeTable()
+        sqs = FakeSQS()
+        deps = {"profile_store": ProfileStore(tenant="tenant-canary",
+                                               user="user-canary"),
+                "table": table, "sqs_client": sqs,
+                "work_queue_url": "https://sqs.eu-central-1.amazonaws.com/1/work"}
+
+        def record(envelope, message_id):
+            return {"messageId": message_id, "eventSourceARN": QUEUE_ARN,
+                    "body": json.dumps(envelope)}
+
+        addition = dispatch_envelope()
+        analysis = dispatch_envelope(
+            messageId="msg-2", idempotencyKey="idem-2",
+            recipient={"system": "ris", "agentId": "analysis-agent",
+                       "capability": "analysis.run"},
+            payload={"schemaVersion": "1.0",
+                     "requestedResults": ["job.tags"],
+                     "input": {"job": {"text": "Synthetic Python"}},
+                     "idempotencyKey": "analysis-key"},
+            execution={"workId": "work-analysis"})
+        with patch.object(dispatch_ingress, "_dependencies", return_value=deps):
+            out = dispatch_ingress.handler(
+                {"Records": [record(addition, "msg-1"),
+                             record(analysis, "msg-2")]}, None)
+        self.assertEqual([], out["batchItemFailures"])
+        self.assertEqual(2, len(sqs.sent))
+        self.assertEqual("QUEUED", table.items["work-1"]["status"])
+        self.assertEqual("QUEUED", table.items["work-analysis"]["status"])
+
+        for message in sqs.sent:
+            body = json.loads(message["MessageBody"])
+            result = process_record(
+                {"body": json.dumps(body)}, table=table,
+                registry=runtime["registry"], body=runtime["body"],
+                entitlement_resolver=runtime["entitlement_resolver"],
+                analysis_agent=runtime["analysis_agent"])
+            self.assertEqual("COMPLETED", result["status"])
+            if body["agentId"] == "addition_agent":
+                self.assertEqual("addition_agent", result["agent_id"])
+                self.assertEqual(42, table.items[body["workId"]]["result"]
+                                 ["data"]["sum"])
+            else:
+                self.assertEqual("analysis-agent", result["agent_id"])
+                self.assertTrue(client.calls >= 1)
 
 
 if __name__ == "__main__":
