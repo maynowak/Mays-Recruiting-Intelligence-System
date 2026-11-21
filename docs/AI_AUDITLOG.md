@@ -11084,6 +11084,17 @@ Date: 2026-11-21
 - Tests: 349 passed, 9 skipped (24 files). Report docs/reports/RIS-ANALYSIS-ECOSYSTEM-CORRECTION-14.md; manifest analysis-ecosystem-correction-14-manifest.json.
 - Open: apply approval, synthetic env approval, DLQ-exhaustion decision. No apply, no merge, no real data.
 
+[RIS-ANALYSIS-OFFER-E2E-15 / CV · JOB · MATCHING PRODUCT READINESS]
+Status: READY FOR CONTROLLED AWS CANARY APPROVAL; no apply, no activation.
+Date: 2026-11-21
+- Three offers prepared in agent-installations/analysis-agent/offers.yaml (DRAFT, activation false, catalog ABSENT, pricing owned by Mays-Orders, no price defined): analysis.cv (CVParserResultBody 1.0, parse.cv), analysis.job (JobParserResultBody 1.0, parse.job), analysis.match (ComparisonResultBody 1.0 + optional ATSAnalysisResultBody 2.0, parse.cv/parse.job/compare.tags, optional analyze.job). Call paths are the existing API execute and Mays agentOrder→dispatch→work queue→worker.
+- ATS agent remains the full ATS product; analysis only exposes the shared parser projection and never mixes its score into deterministic coverage (provenance.atsScore separate). No second ATS implementation.
+- New tests/test_analysis_offers.py (14): CV PDF/structured fields, missing/invalid/foreign refs; job required/preferred/experience/location/work mode and no invented education field; matching full/partial/missing-must/preferred/aliases/unknown, explainable gaps, ATS separate.
+- Ecosystem regression remains 363 passed, 9 skipped (25 files), incl. addition/analysis dispatch→work→worker, replay/claim, entitlement revoke, consent, fence/cross-tenant, ORDER_RESULT/ORDER_FAILED. DLQ-exhaustion ORDER_FAILED remains open.
+- New plan after the 45 s remote-timeout headroom change: 4 add / 3 change / 0 destroy, plan 11fb32d8…, JSON caeaea14…, state 67, guard NO_SHARED_DESTROY. Bundles worker 0d49527e…, analysis 83eef8e6…, parser fb741fb2….
+- AWS preflight read-only: caller devnemo/262370457690/eu-central-1, backend ris-dev2-tf-state-dev, work queue visibility 300 s/maxReceive 3, mappings enabled, worker/ingress 60 s, parser 15 s, analysis remote 45 s. Mays consumer supports ORDER_RESULT/ORDER_FAILED.
+- No apply; synthetic env, legal notice, entitlement/catalog and pricing/activation remain separate approvals.
+
 [RIS-ARCH-DOCS / CORRECTION-14 ARCHITECTURE PACKAGE]
 Status: imported; no code/Terraform change.
 Date: 2026-11-21
