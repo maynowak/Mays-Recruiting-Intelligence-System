@@ -1,0 +1,71 @@
+schemaVersion: "1.0"
+agentId: analysis-agent
+partner:
+  partnerId: ris-internal
+  applicationId: ris-internal-analysis
+status: DRAFT
+activation: false
+pricing:
+  owner: mays-orders
+  definedHere: false
+  note: >-
+    No price, billing, subscription or currency is defined by RIS. A paid
+    offer requires a separate Mays-Orders contract and operator approval.
+catalog:
+  visibility: ABSENT
+  seed: false
+offers:
+  - id: analysis.cv
+    name: CV Analysis
+    status: DRAFT
+    requestedResults: ["cv.tags"]
+    input:
+      cv: [cvId, structured]
+      job: not-required
+    capabilities: [parse.cv]
+    resultBodies:
+      - bodyType: CVParserResultBody
+        bodyVersion: "1.0"
+    consentPurpose: analysis-processing
+    consentVersion: "1.0"
+    activationRequires: [legal-notice, entitlement, catalog, apply]
+  - id: analysis.job
+    name: Job Advertisement Analysis
+    status: DRAFT
+    requestedResults: ["job.tags"]
+    input:
+      cv: not-required
+      job: [text, jobRef]
+    capabilities: [parse.job]
+    resultBodies:
+      - bodyType: JobParserResultBody
+        bodyVersion: "1.0"
+    consentPurpose: analysis-processing
+    consentVersion: "1.0"
+    activationRequires: [legal-notice, entitlement, catalog, apply]
+  - id: analysis.match
+    name: CV-Job Matching
+    status: DRAFT
+    requestedResults: ["comparison"]
+    optionalResults: ["ats.tags"]
+    input:
+      cv: [cvId, structured]
+      job: [text, jobRef]
+    capabilities: [parse.cv, parse.job, compare.tags]
+    optionalCapabilities: [analyze.job]
+    resultBodies:
+      - bodyType: ComparisonResultBody
+        bodyVersion: "1.0"
+      - bodyType: ATSAnalysisResultBody
+        bodyVersion: "2.0"
+        optional: true
+    consentPurpose: analysis-processing
+    consentVersion: "1.0"
+    activationRequires: [legal-notice, entitlement, catalog, apply]
+notOffer:
+  ats-agent:
+    reason: >-
+      Full ATS analysis remains owned by the existing ats-agent / external ATS
+      API. Analysis returns the shared parser's deterministic ATS projection
+      only when requested; it is not a second ATS implementation and never
+      replaces or re-scores the ATS agent.

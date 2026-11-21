@@ -191,7 +191,7 @@ module "lambda" {
   ats_api_base_url                = var.ats_api_base_url
   timeout_seconds                 = var.agent_execution_timeout_seconds
   analysis_function_name          = module.analysis_runtime.analysis_function_name
-  analysis_remote_timeout_seconds = 60
+  analysis_remote_timeout_seconds = 45
   tags                            = var.tags
 }
 
@@ -512,7 +512,7 @@ module "agent_transport" {
   ats_api_base_url                = var.ats_api_base_url
   timeout_seconds                 = var.agent_execution_timeout_seconds
   analysis_function_name          = module.analysis_runtime.analysis_function_name
-  analysis_remote_timeout_seconds = 60
+  analysis_remote_timeout_seconds = 45
   work_queue_url                  = module.sqs.work_queue_url
   work_queue_arn                  = module.sqs.work_queue_arn
   # Keep the legacy result-policy addresses alive (no shared IAM migration).

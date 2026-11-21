@@ -31,6 +31,7 @@ versions:
 contracts:
   order: docs/reports/RIS-AGENT-ANALYSIS-ORCHESTRATION-04.md
   transport: agents/transport/order_transport.py
+  offers: agent-installations/analysis-agent/offers.yaml
   required:
     - WorkItem 1.0 with workId, type, tenantId, idempotencyKey
     - payload.schemaVersion 1.0 and requestedResults

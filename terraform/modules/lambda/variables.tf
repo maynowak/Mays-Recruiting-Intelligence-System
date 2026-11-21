@@ -329,7 +329,7 @@ variable "analysis_function_name" {
 
 variable "analysis_remote_timeout_seconds" {
   type    = number
-  default = 60
+  default = 45
 }
 
 variable "tags" {

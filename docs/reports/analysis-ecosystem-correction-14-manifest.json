@@ -1,6 +1,7 @@
 {
   "schemaVersion": "1.0",
   "release": "RIS-ANALYSIS-ECOSYSTEM-CORRECTION-14",
+  "supersededBy": "RIS-ANALYSIS-OFFER-E2E-15",
   "generatedAt": "2026-11-21",
   "verdict": "READY FOR FULL ECOSYSTEM CANARY REVIEW",
   "state": {

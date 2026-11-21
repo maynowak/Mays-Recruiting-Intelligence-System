@@ -163,7 +163,7 @@ class ManifestPinTest(unittest.TestCase):
     def test_plan_and_bundle_manifest(self):
         import hashlib
 
-        path = ROOT / "docs" / "reports" / "analysis-ecosystem-correction-14-manifest.json"
+        path = ROOT / "docs" / "reports" / "analysis-offer-e2e-15-manifest.json"
         manifest = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(4, manifest["plan"]["adds"])
         self.assertEqual(3, manifest["plan"]["changes"])
