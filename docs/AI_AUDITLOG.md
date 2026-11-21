@@ -11072,3 +11072,15 @@ Date: 2026-11-21
 - New read-only plan (old 2/0/0 retired): 4 add / 2 change / 0 destroy, plan 78d6c5ec…, JSON ec77372c…, state 67, guard NO_SHARED_DESTROY. Adds two resource-based invoke permissions + analysis Lambda + data policy; updates worker and ingress env/code only. No queue/IAM-policy change.
 - Open: ORDER_FAILED emission, dispatch-to-work-queue decision, apply approval, synthetic env approval. No apply.
 
+[RIS-ANALYSIS-ECOSYSTEM-CORRECTION-14 / DISPATCH→WORK-SQS + ORDER_FAILED]
+Status: READY FOR FULL ECOSYSTEM CANARY REVIEW; no apply.
+Date: 2026-11-21
+- dispatch_ingress no longer executes. It persists the canonical WorkItem with the fence transaction, sends to ris-dev2-dev-work-queue, and sets enqueuedAt. Duplicate dispatch with marker is not re-sent; terminal duplicates are not re-sent; send failure returns batchItemFailure and retry recovers. IAM adds only sqs:SendMessage on the existing work queue.
+- Worker accepts pre-persisted QUEUED rows via conditional QUEUED→RUNNING claim; concurrent RUNNING is suppressed, FAILED uses the existing retry attempt, terminal states unchanged. No new state machine or exactly-once claim.
+- Terminal ORDER_FAILED added at the existing boundary for order-linked items: identity-binding missing, entitlement denial, permanent agent ValidationError. Stable msg_<workId>_order_failed id/key; retryable errors do not send; non-order items return NOT_ORDER. DLQ-exhaustion cannot emit ORDER_FAILED (no DLQ consumer) — documented limit.
+- Security: analysis data policy reduced to PartnerProfiles read only; no WorkItems write/Entitlements read. Worker/ingress invoke analysis via resource permissions; no shared IAM change.
+- E2E synthetic: dispatch→work→worker for addition and analysis, registry selection, idempotent replay, entitlement revoke, fence/tenant, ORDER_RESULT and terminal ORDER_FAILED; Mays result consumer supports both types.
+- Plan (not applied): 4 add / 3 change / 0 destroy, plan 4a0a02f5…, JSON e13e7631…, state 67, guard NO_SHARED_DESTROY. Bundles worker 0d49527e…, analysis 83eef8e6….
+- Tests: 349 passed, 9 skipped (24 files). Report docs/reports/RIS-ANALYSIS-ECOSYSTEM-CORRECTION-14.md; manifest analysis-ecosystem-correction-14-manifest.json.
+- Open: apply approval, synthetic env approval, DLQ-exhaustion decision. No apply, no merge, no real data.
+
