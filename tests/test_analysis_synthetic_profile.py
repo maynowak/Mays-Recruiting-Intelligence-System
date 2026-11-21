@@ -58,13 +58,19 @@ ATS = {
 
 
 class Parser:
+    def __init__(self):
+        self.calls = []
+
     def parse_cv(self, pdf_base64):  # pragma: no cover - structured path
+        self.calls.append("parse.cv")
         raise AssertionError("structured CV must not be parsed")
 
     def parse_job(self, job):
+        self.calls.append("parse.job")
         return dict(JOB)
 
     def parse_ats(self, job, profile):
+        self.calls.append("parse.ats")
         return dict(ATS)
 
 
@@ -82,6 +88,8 @@ def env(**overrides):
         "ANALYSIS_SYNTHETIC_ISSUER": ISSUER,
         "ANALYSIS_SYNTHETIC_ENTITLEMENTS": ALL,
         "ANALYSIS_SYNTHETIC_EXPIRES_AT": FUTURE,
+        "ANALYSIS_SYNTHETIC_INSTALLATION": "ris-dev2",
+        "PROJECT_NAME": "ris-dev2",
     }
     base.update(overrides)
     return base
@@ -114,9 +122,18 @@ def work(payload, tenant=TENANT, user=USER, partner=PARTNER, issuer=ISSUER):
     }
 
 
-def agent(environment):
+def verifier(work_id, identity):
+    return (work_id == "work-synthetic"
+            and identity == {"tenant_id": TENANT, "user_id": USER,
+                             "partner_application_id": PARTNER,
+                             "issuer": ISSUER})
+
+
+def agent(environment, synthetic_verifier=verifier):
+    config = analysis_config_from_env(environment)
+    config["synthetic_verifier"] = synthetic_verifier
     return AnalysisAgent(
-        analysis_config_from_env(environment),
+        config,
         orchestrator=AnalysisOrchestrator(
             parser=Parser(),
             cv_resolver=RequestCvResolver(document_loader=Loader(),
@@ -189,7 +206,50 @@ class SyntheticIdentityTest(unittest.TestCase):
                       tenant="tenant-other", user="user-other")
         top = work(nested)
         out = agent(env()).process_work(top)
+        self.assertFalse(out["success"])
+        self.assertTrue("identity_conflict" in out["error"]["message"]
+                        or "consent_required" in out["error"]["message"])
+
+    def test_outer_real_nested_synthetic_is_denied_without_parser(self):
+        parser = Parser()
+        config = analysis_config_from_env(env())
+        config["synthetic_verifier"] = verifier
+        agent_with_parser = AnalysisAgent(
+            config, orchestrator=AnalysisOrchestrator(
+                parser=parser,
+                cv_resolver=RequestCvResolver(
+                    document_loader=Loader(), repository=None)))
+        nested = work(request(["job.tags"], job={"text": "Python"}))
+        outer = {
+            "workId": "work-outer", "type": "agent_analysis_agent",
+            "tenantId": "tenant-real-a", "userId": "user-real-a",
+            "idempotencyKey": "outer", "capability": "analysis.run",
+            "agentId": "analysis-agent",
+            "partnerApplicationId": "real-partner",
+            "issuer": "https://issuer.real",
+            "payload": nested,
+        }
+        out = agent_with_parser.process_work(outer)
+        self.assertFalse(out["success"])
+        self.assertIn("identity_conflict", out["error"]["message"])
+        self.assertNotIn("parse.job", parser.calls)
+
+    def test_persisted_identity_mismatch_denies_even_if_event_matches(self):
+        out = agent(env(), synthetic_verifier=lambda *a: False).process_work(
+            work(request(["cv.tags"], cv=structured())))
         self.assertTrue(is_denied(out, "consent_required"))
+
+    def test_wrong_installation_disables_synthetic_mode(self):
+        for overrides in (
+                {"PROJECT_NAME": "ris-prod"},
+                {"ANALYSIS_SYNTHETIC_INSTALLATION": "ris-dev"},
+                {"ANALYSIS_SYNTHETIC_INSTALLATION": ""}):
+            self.assertFalse(
+                analysis_config_from_env(env(**overrides))["synthetic"]["enabled"],
+                overrides)
+            out = agent(env(**overrides)).process_work(work(
+                request(["cv.tags"], cv=structured())))
+            self.assertFalse(out["success"], overrides)
 
     def test_real_identity_with_mode_active_is_denied(self):
         out = agent(env()).process_work(work(
@@ -204,16 +264,20 @@ class SyntheticIdentityTest(unittest.TestCase):
                 request(["cv.tags"], cv=structured())))
         self.assertTrue(is_denied(out, "entitlement_denied"))
 
-    def test_direct_invoke_without_allowlist_context_is_denied(self):
-        out = handler({"executionMode": "agent", "workItem": {
-            "workId": "direct", "type": "agent_analysis_agent",
-            "tenantId": TENANT, "userId": USER,
-            "capability": "analysis.run", "agentId": "analysis-agent",
-            "payload": request(["cv.tags"], cv=structured())}})
+    def test_direct_invoke_without_trusted_binding_is_denied(self):
+        from unittest import mock
+        import os
+
+        with mock.patch.dict(os.environ, env(), clear=False):
+            out = handler({"executionMode": "agent", "workItem": {
+                "workId": "direct", "type": "agent_analysis_agent",
+                "tenantId": TENANT, "userId": USER,
+                "partnerApplicationId": PARTNER, "issuer": ISSUER,
+                "capability": "analysis.run", "agentId": "analysis-agent",
+                "payload": request(["cv.tags"], cv=structured())}})
         self.assertFalse(out["success"])
-        self.assertTrue("consent_required" in out["error"]["message"]
-                        or "analysis_identity_not_configured"
-                        in out["error"]["message"])
+        # No persisted RUNNING WorkItem -> no synthetic verifier.
+        self.assertIn("consent_required", out["error"]["message"])
 
     def test_synthetic_identity_requires_real_consent_for_normal_path(self):
         synthetic = Identity(

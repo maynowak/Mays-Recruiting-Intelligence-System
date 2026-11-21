@@ -72,10 +72,13 @@ def _synthetic_profile(env: Dict[str, str]) -> Dict[str, Any]:
             env.get("ANALYSIS_SYNTHETIC_PARTNER_APPLICATION_ID") or "").strip(),
         "issuer": (env.get("ANALYSIS_SYNTHETIC_ISSUER") or "").strip(),
     }
+    installation = (env.get("ANALYSIS_SYNTHETIC_INSTALLATION") or "").strip()
+    project = (env.get("PROJECT_NAME") or "").strip()
     entitlements = _as_list(env.get("ANALYSIS_SYNTHETIC_ENTITLEMENTS"))
     expires_raw = (env.get("ANALYSIS_SYNTHETIC_EXPIRES_AT") or "").strip()
-    if not all(fields.values()) or not entitlements or not expires_raw:
-        return {"enabled": False, "reason": "incomplete"}
+    if (installation != "ris-dev2" or project != "ris-dev2"
+            or not all(fields.values()) or not entitlements or not expires_raw):
+        return {"enabled": False, "reason": "incomplete_or_wrong_installation"}
     try:
         from datetime import datetime, timezone
 
@@ -115,6 +118,44 @@ def analysis_config_from_env(env: Optional[Dict[str, str]] = None) -> Dict[str, 
                                           ANALYSIS_NOTICE_VERSION),
         "synthetic": _synthetic_profile(env),
     }
+
+
+def _build_synthetic_verifier(env: Dict[str, str]):
+    """Verify the synthetic identity against the persisted RUNNING WorkItem.
+
+    The event payload is not authoritative. Only a row written by the trusted
+    ingress/worker with the same identity and status RUNNING authorizes the
+    synthetic profile.
+    """
+    table_name = (env.get("WORK_ITEMS_TABLE") or "").strip()
+    if not table_name:
+        return None
+    try:
+        import boto3
+
+        table = boto3.resource("dynamodb").Table(table_name)
+    except Exception:  # noqa: BLE001 - fail closed
+        return None
+
+    def verify(work_id: str, identity: Dict[str, str]) -> bool:
+        if not work_id:
+            return False
+        try:
+            item = table.get_item(
+                Key={"workId": work_id}, ConsistentRead=True).get("Item")
+        except Exception:  # noqa: BLE001 - fail closed
+            return False
+        if not isinstance(item, dict) or item.get("status") != "RUNNING":
+            return False
+        return all(
+            str(item.get(field) or "") == identity[field]
+            for field in ("tenantId", "userId", "partnerApplicationId",
+                          "issuer")
+        ) and all(identity[field] for field in
+                  ("tenant_id", "user_id", "partner_application_id",
+                   "issuer"))
+
+    return verify
 
 
 def build_orchestrator(env: Optional[Dict[str, str]] = None) -> Any:
@@ -208,8 +249,9 @@ def _execute_agent(work: Any) -> Dict[str, Any]:
         return {"success": False,
                 "error": {"message": "analysis work type required",
                           "type": "ValidationError"}}
-    agent = AnalysisAgent(analysis_config_from_env(),
-                          orchestrator=build_orchestrator())
+    config = analysis_config_from_env()
+    config["synthetic_verifier"] = _build_synthetic_verifier(os.environ)
+    agent = AnalysisAgent(config, orchestrator=build_orchestrator())
     return agent.process_work(work)
 
 

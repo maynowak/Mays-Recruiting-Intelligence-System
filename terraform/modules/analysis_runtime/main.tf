@@ -230,6 +230,12 @@ resource "aws_iam_role_policy" "analysis_runtime_data" {
           "${var.partner_profiles_table_arn}/index/*",
         ]
       },
+      {
+        Sid      = "SyntheticWorkItemReadback"
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem"]
+        Resource = var.work_items_table_arn
+      },
     ]
   })
 }
@@ -254,6 +260,8 @@ resource "aws_lambda_function" "analysis" {
       RIS_PARSER_TIMEOUT_SECONDS = "15"
       DOCUMENTS_BUCKET           = var.documents_bucket_name
       ANALYSIS_JOBS_BUCKET       = aws_s3_bucket.jobs.bucket
+      WORK_ITEMS_TABLE           = var.work_items_table_name
+      PROJECT_NAME               = var.project_name
       PARTNER_PROFILE_TABLE      = var.partner_profiles_table_name
       # Approval-gated: defaults deny until the operator sets these explicitly.
       ANALYSIS_ENTITLEMENTS      = ""

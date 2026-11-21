@@ -68,26 +68,51 @@ class AnalysisAgent(AgentBase):
         if (isinstance(nested, dict) and nested.get("workId")
                 and ("userId" in nested or "tenantId" in nested)):
             source = nested
+            for outer_key, inner_key in (
+                    ("tenantId", "tenantId"), ("userId", "userId"),
+                    ("partnerApplicationId", "partnerApplicationId"),
+                    ("issuer", "issuer")):
+                outer = work_item.get(outer_key)
+                inner = nested.get(inner_key)
+                if outer and inner and str(outer) != str(inner):
+                    raise ContractError(
+                        "identity_conflict",
+                        "outer and nested work item identities disagree")
         synthetic = config.get("synthetic") or {}
+        verifier = config.get("synthetic_verifier")
         if (synthetic.get("enabled")
-                and self._matches_synthetic(source, synthetic)):
-            # A synthetic exact-match identity is authorized only for the
-            # explicitly configured test profile. It is NOT real consent or
-            # notice approval: the flag stays synthetic=True and the result
-            # contract marks it as test data.
-            return Identity(
-                tenant_id=synthetic["tenant_id"],
-                user_id=synthetic["user_id"],
-                entitlements=frozenset(synthetic["entitlements"]),
-                consent=True,
-                partner_application_id=synthetic["partner_application_id"],
-                issuer=synthetic["issuer"],
-                caller_partner_id=config.get("caller_partner_id"),
-                consent_purpose=ANALYSIS_CONSENT_PURPOSE,
-                consent_notice_version=ANALYSIS_NOTICE_VERSION,
-                consent_notice_approved=False,
-                synthetic=True,
-            )
+                and self._matches_synthetic(source, synthetic)
+                and callable(verifier)):
+            candidate = {
+                "tenant_id": str(source.get("tenantId") or ""),
+                "user_id": str(source.get("userId") or ""),
+                "partner_application_id": str(
+                    source.get("partnerApplicationId") or ""),
+                "issuer": str(source.get("issuer") or ""),
+            }
+            try:
+                verified = bool(verifier(str(source.get("workId") or ""),
+                                         candidate))
+            except Exception:  # noqa: BLE001 - fail closed
+                verified = False
+            if verified:
+                # A synthetic exact-match identity is authorized only for the
+                # explicitly configured test profile AND a persisted RUNNING
+                # WorkItem with the same verified identity. It is NOT real
+                # consent or notice approval.
+                return Identity(
+                    tenant_id=synthetic["tenant_id"],
+                    user_id=synthetic["user_id"],
+                    entitlements=frozenset(synthetic["entitlements"]),
+                    consent=True,
+                    partner_application_id=synthetic["partner_application_id"],
+                    issuer=synthetic["issuer"],
+                    caller_partner_id=config.get("caller_partner_id"),
+                    consent_purpose=ANALYSIS_CONSENT_PURPOSE,
+                    consent_notice_version=ANALYSIS_NOTICE_VERSION,
+                    consent_notice_approved=False,
+                    synthetic=True,
+                )
         return Identity(
             tenant_id=str(source.get("tenantId")
                           or work_item.get("tenantId") or ""),
