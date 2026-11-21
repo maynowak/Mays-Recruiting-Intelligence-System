@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "1.0",
+  "release": "RIS-ANALYSIS-FULL-AWS-CANARY-12",
+  "generatedAt": "2026-11-21",
+  "aws": {
+    "account": "262370457690",
+    "callerArn": "arn:aws:iam::262370457690:user/devnemo",
+    "region": "eu-central-1"
+  },
+  "backend": {
+    "bucket": "ris-dev2-tf-state-dev",
+    "region": "eu-central-1",
+    "key": "dev/terraform.tfstate",
+    "lockTable": "ris-dev2-tf-lock",
+    "workspace": "ris-dev2"
+  },
+  "state": {
+    "serialBefore": 67,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "resources": 283,
+    "terraformVersion": "1.17.0"
+  },
+  "plan": {
+    "path": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc11/plan.out",
+    "sha256": "b892d17a0168cac8df0278890323d1a1b10bbc7cc38dd14536239e776d4f700d",
+    "jsonSha256": "0a1bb40cff4aee5fed9c3d6bdcc5a0167a4bb77c399fc65ad2fecf316a068861",
+    "adds": 2,
+    "changes": 0,
+    "destroys": 0,
+    "replacements": 0,
+    "guard": "NO_SHARED_DESTROY",
+    "runtimeFlag": true
+  },
+  "resources": [
+    {
+      "action": "create",
+      "address": "module.analysis_runtime.aws_iam_role_policy.analysis_runtime_data[0]",
+      "awsName": "ris-dev2-dev-analysis-runtime-data",
+      "role": "ris-dev2-dev-analysis"
+    },
+    {
+      "action": "create",
+      "address": "module.analysis_runtime.aws_lambda_function.analysis[0]",
+      "awsName": "ris-dev2-dev-analysis"
+    }
+  ],
+  "iam": {
+    "role": "ris-dev2-dev-analysis",
+    "policy": "ris-dev2-dev-analysis-runtime-data",
+    "statements": [
+      {
+        "sid": "WorkItems",
+        "actions": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"],
+        "resources": [
+          "arn:aws:dynamodb:eu-central-1:262370457690:table/ris-dev2-dev-work-items",
+          "arn:aws:dynamodb:eu-central-1:262370457690:table/ris-dev2-dev-work-items/index/*"
+        ]
+      },
+      {
+        "sid": "EntitlementRecheck",
+        "actions": ["dynamodb:GetItem", "dynamodb:Query"],
+        "resources": [
+          "arn:aws:dynamodb:eu-central-1:262370457690:table/ris-dev2-dev-entitlements",
+          "arn:aws:dynamodb:eu-central-1:262370457690:table/ris-dev2-dev-entitlements/index/*"
+        ]
+      },
+      {
+        "sid": "OwnedPartnerProfiles",
+        "actions": ["dynamodb:GetItem", "dynamodb:Query"],
+        "resources": [
+          "arn:aws:dynamodb:eu-central-1:262370457690:table/ris-dev2-dev-partner-profiles",
+          "arn:aws:dynamodb:eu-central-1:262370457690:table/ris-dev2-dev-partner-profiles/index/*"
+        ]
+      }
+    ],
+    "forbidden": ["sqs:", "secretsmanager:", "lambda:", "s3:"]
+  },
+  "lambda": {
+    "functionName": "ris-dev2-dev-analysis",
+    "handler": "analysis_runner.handler",
+    "runtime": "python3.14",
+    "architecture": "x86_64",
+    "memorySize": 512,
+    "timeoutSeconds": 60,
+    "role": "arn:aws:iam::262370457690:role/ris-dev2-dev-analysis",
+    "publicEndpoint": false,
+    "env": {
+      "RIS_PARSER_MODE": "lambda",
+      "RIS_PARSER_FUNCTION": "ris-dev2-dev-analysis-parser",
+      "RIS_PARSER_TIMEOUT_SECONDS": "15",
+      "WORK_ITEMS_TABLE": "ris-dev2-dev-work-items",
+      "ENTITLEMENTS_TABLE": "ris-dev2-dev-entitlements",
+      "PARTNER_PROFILE_TABLE": "ris-dev2-dev-partner-profiles",
+      "DOCUMENTS_BUCKET": "ris-dev2-dev-documents",
+      "ANALYSIS_JOBS_BUCKET": "ris-dev2-dev-analysis-jobs",
+      "ANALYSIS_CALLER_PARTNER_ID": "ris-internal",
+      "ANALYSIS_ENTITLEMENTS": "",
+      "ANALYSIS_CONSENT": "false",
+      "ANALYSIS_NOTICE_APPROVED": "false"
+    }
+  },
+  "bundle": {
+    "path": "terraform/analysis-lambda.zip",
+    "sha256": "f3c2f1a20d4af4b3d6c818222ae0edb5d59c985e37c074c4e025e797700a2314",
+    "size": 287919,
+    "files": 111,
+    "source": "lambda/analysis_runner.py + agents/ + jobsearch/"
+  },
+  "parser": {
+    "functionName": "ris-dev2-dev-analysis-parser",
+    "codeSha256Base64": "+3Qfsl580pIypDpjE3puKoyg6UjMLv32dkuHeRGfMBo=",
+    "runtime": "nodejs22.x",
+    "architecture": "arm64",
+    "timeoutSeconds": 15,
+    "changedByPlan": false
+  },
+  "stopConditions": [
+    "plan SHA-256 differs from b892d17a…f700d or JSON differs from 0a1bb40c…68861",
+    "state serial/lineage differs from 67 / a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "any change outside the two manifest resources",
+    "parser Lambda is modified",
+    "any Cognito/CloudFront/Route53/ACM change",
+    "any shared queue/policy/secret/table delete or replacement",
+    "analysis bundle SHA-256 differs from f3c2f1a2…a2314",
+    "guard is not NO_SHARED_DESTROY"
+  ]
+}

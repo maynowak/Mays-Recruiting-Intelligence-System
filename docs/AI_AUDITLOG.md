@@ -11031,3 +11031,13 @@ Date: 2026-11-20
 - Tests: 296 passed + 13 subtests (19 files) incl. runner integration, timeout drill and Terraform invariants; fmt/validate PASS. Commits 89929c5, af55b67, 87a8e5e.
 - Open: apply approval for 2/0/0, synthetic env config approval, legal notice, entitlement/catalog, live token. No apply, no merge, no PURGE, no Cognito/CloudFront/DNS change.
 
+[RIS-ANALYSIS-FULL-AWS-CANARY-12 / STEP A — FINAL PREFLIGHT]
+Status: AWAITING NEW EXPLICIT APPLY APPROVAL; no apply.
+Date: 2026-11-21
+- Verified RIS 90810f7, Jobsearch e77ee94, caller devnemo, account 262370457690, region eu-central-1, backend ris-dev2-tf-state-dev/dev/terraform.tfstate/lock ris-dev2-tf-lock, workspace ris-dev2, state serial 67, lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082, 283 resources, Terraform 1.17.0.
+- Saved plan re-checked from the exact file: Plan SHA-256 b892d17a0168cac8df0278890323d1a1b10bbc7cc38dd14536239e776d4f700d, JSON SHA-256 0a1bb40cff4aee5fed9c3d6bdcc5a0167a4bb77c399fc65ad2fecf316a068861; 2 add / 0 change / 0 destroy / 0 replace; guard NO_SHARED_DESTROY. Analysis Lambda is absent; parser Lambda unchanged (nodejs22.x/arm64/15 s, code SHA +3Qfsl58…).
+- Only two creates: ris-dev2-dev-analysis (python3.14, 512 MB, 60 s, analysis_runner.handler, dedicated analysis role) and ris-dev2-dev-analysis-runtime-data (WorkItems RW; Entitlements/PartnerProfiles read; no SQS/Secrets/Lambda/S3). Analysis bundle 111 files / 287 919 bytes / SHA-256 f3c2f1a20d4af4b3d6c818222ae0edb5d59c985e37c074c4e025e797700a2314.
+- Deploy env is deny-by-default (empty entitlements, consent false, notice false). A green STEP C requires a separately approved synthetic env configuration; without it only deny paths can be proven.
+- WorkItem reject/DEAD_LETTER semantics re-verified (authorized COMPLETED, duplicate, entitlement/consent/cross-tenant DEAD_LETTER, invalid REJECTED, unexpected raise). Focused set 56 passed; 7 new preflight invariants.
+- Approval pack: docs/reports/RIS-ANALYSIS-FULL-AWS-CANARY-12-PREFLIGHT.md and docs/reports/analysis-full-canary-12-manifest.json. STEP B/C not started.
+
