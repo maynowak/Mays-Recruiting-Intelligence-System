@@ -11084,3 +11084,10 @@ Date: 2026-11-21
 - Tests: 349 passed, 9 skipped (24 files). Report docs/reports/RIS-ANALYSIS-ECOSYSTEM-CORRECTION-14.md; manifest analysis-ecosystem-correction-14-manifest.json.
 - Open: apply approval, synthetic env approval, DLQ-exhaustion decision. No apply, no merge, no real data.
 
+[RIS-ARCH-DOCS / CORRECTION-14 ARCHITECTURE PACKAGE]
+Status: imported; no code/Terraform change.
+Date: 2026-11-21
+- Added `docs/architecture/RIS-MAYS-ORDERS-MODULES.md` (binding ownership/module register), `docs/architecture/AGENT-DEVELOPMENT-RULES.md`, the editable diagrams `diagrams/korrektur14_ablauf.svg|.dot` and `diagrams/modul_ownership.svg|.dot`, the reference ODT, and the historical consolidation PDF under `reference/`.
+- Updated `AGENTS.md` (sources of truth), `docs/architecture/SYSTEM-ARCHITECTURE.md` (Correction-14 addendum + actual dispatch→work path), `docs/architecture/RUNTIME-PATH.md` (dispatch→work queue, QUEUED claim, addition/analysis agents).
+- Markdown image links point to the SVG sources; no PNG dependency. The documents state clearly that Correction-14 is prepared, not applied (plan 4/3/0 unapproved, DLQ-exhaustion ORDER_FAILED open).
+

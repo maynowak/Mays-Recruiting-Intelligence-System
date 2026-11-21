@@ -4,6 +4,13 @@ Ergänzt `SYSTEM-ARCHITECTURE.md`. Jede Stufe: Verantwortung, Input/Output,
 Persistenz, Fehler, Idempotency/Retry, Tenant/Security, AWS-Komponente.
 Keine zweite Queue, kein paralleles Runtime-Modell.
 
+> **Correction-14 (Feature-Stand, nicht deployed):** ORDER_DISPATCH wird im
+> `dispatch_ingress` validiert, als WorkItem mit Subject-Fence persistiert und
+> in die bestehende Work-Queue enqueued. Der Worker claimt vorpersistierte
+> `QUEUED`-Zeilen konditional (`QUEUED → RUNNING`). Verbindliche Details:
+> `RIS-MAYS-ORDERS-MODULES.md`, `AGENT-DEVELOPMENT-RULES.md`,
+> `../reports/RIS-ANALYSIS-ECOSYSTEM-CORRECTION-14.md`.
+
 ## 1. API (HTTP API V2, Payload 2.0)
 
 - Identität: Cognito JWT (Hauptweg E-Mail + Passwort). Optional (Gate 13A, AUS):
@@ -27,11 +34,25 @@ Keine zweite Queue, kein paralleles Runtime-Modell.
 - Tenant: Pflichtfeld tenantId + userId; Isolation im Repository.
 - AWS: `mays-ris-dev-work-queue` (Visibility 300s, SSE) + `mays-ris-dev-dlq`.
 
+### 2a. Order-Dispatch-Ingress → Work-Queue (Correction-14)
+
+- Mays-Orders sendet `ORDER_DISPATCH` an `ris-dev2-dev-agent-dispatch`.
+- `dispatch_ingress` validiert Transport V1 und den serverseitig aufgelösten
+  `VerifiedContext`, bildet das kanonische WorkItem (pre-bound `workId`,
+  `orderId`, `correlationId`), persistiert es mit der Subject-Fence-Transaktion
+  und sendet es an die bestehende Work-Queue (`enqueuedAt`-Marker).
+- Keine fachliche Ausführung im Ingress. Duplikate mit Marker/terminalem Status
+  werden nicht erneut gesendet; Sendefehler erzeugen Partial-Batch-Failures.
+- IAM: Ingress-Rolle nur `sqs:SendMessage` auf der bestehenden Work-Queue.
+
 ## 3. Worker (Lambda `mays-ris-dev-agent`, Mapping Batch 5, Enabled)
 
 - Verantwortung: Records → Pipeline; Fehler-Re-Raise (sonst löscht SQS trotz Fehler).
 - Input: SQS-Event. Output: 200 pro Batch oder Raise (Redelivery).
 - Persistenz: via Pipeline (s. 4). Fehler: s. Retry-Regel Gate 5.
+- Vorpersistierte `QUEUED`-WorkItems werden konditional auf `RUNNING` geclaimt;
+  eine parallele Zustellung verliert den Claim und wird unterdrückt. `FAILED`
+  startet den bestehenden neuen Attempt; terminale Zustände bleiben unverändert.
 - Retry: Exception → Redelivery → neuer Attempt (attempt+1, gleiche processing_id).
 - Security: Rolle mit DDB/SQS/Logs-Least-Privilege; Env nur Tabellennamen/URLs.
   Result-Transport (Managed Orders): zusaetzlich `ORDER_RESULT_QUEUE_URL` +
@@ -46,7 +67,7 @@ Keine zweite Queue, kein paralleles Runtime-Modell.
 - Persistenz: keine (Runtime-Registry, In-Memory; Katalog-Adapter lädt DDB-Katalog beim Start).
 - Fehler: keine Kandidaten → ValueError (kontrolliert, kein Run).
 - Tenant: tenant_id fliesst in Envelope/Eligibility-Kontext (harte Entitlement-Regeln: OPEN).
-- Registriert: reference_agent, orders_function, ats-agent, jobsearch-agent, dummy-a/b (DEV).
+- Registriert: reference_agent, orders_function, ats-agent, jobsearch-agent, addition_agent, analysis-agent, dummy-a/b (DEV).
 
 ## 5. Agent Body (Context/Router/Executor/Invoker)
 
@@ -64,6 +85,8 @@ Keine zweite Queue, kein paralleles Runtime-Modell.
 | ats | analyze.job | job{title,description}+profile → analysis | keine | ATS-API (urllib-Fallback) |
 | jobsearch | create/get/list | Name/IDs → JobSearch-Datensätze | jobsearches-Tabelle (Tenant-isoliert) | nein |
 | orders-function | orders.* | Delegation an Port | keine | via Adapter |
+| addition | math.add | Operanden -> Summe | keine | nein |
+| analysis | analysis.run | CV/Job/ATS/Comparison -> Result-Bodies | keine (WorkItem/Result via Runtime) | Parser-Lambda; remote execution-only |
 | dummy-a/b | dummy-a/b | Marker+Echo (DEV) | keine | nein |
 
 ## 7. OrdersPort + RealMaysOrdersAdapter

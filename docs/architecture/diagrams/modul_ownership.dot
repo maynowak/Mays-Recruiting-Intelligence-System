@@ -1,0 +1,22 @@
+digraph OWNERSHIP {
+ graph [rankdir=TB, bgcolor="white", pad=0.22, nodesep=0.25, ranksep=0.37, fontname="DejaVu Sans", label="Wo wird bei neuen Agenten entwickelt? | Verbindliche Ownership", labelloc=t, fontsize=20, fontcolor="#17354B"];
+ node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=12, margin="0.22,0.17", color="#D3DFE6", penwidth=1.4];
+ edge [arrowsize=0.7, color="#6D8BA2", penwidth=1.5];
+ req [label="NEUER WUNSCH / FEHLER\nz. B. ATS-Matching für Jobsearch", fillcolor="#E8F3FE", color="#8DBAE2"];
+ judge [shape=diamond, label="Wessen Verantwortung\nist betroffen?", fillcolor="#F3F7F9", color="#9BAFBB"];
+ domain [label="RIS DOMAIN-AGENT\nATS / Analysis / Parser / Scoring\nFachlogik + ResultBody", fillcolor="#E5F5E8", color="#85BC8D"];
+ ecosystem [label="RIS ECOSYSTEM / RUNTIME\nRegistry · Eligibility · WorkItems\nSQS · Worker · Retry · AgentBody", fillcolor="#E7F1FD", color="#86B9E5"];
+ transport [label="RIS TRANSPORT V1\nORDER_DISPATCH / RESULT / FAILED\nEnvelope · SQS Übergänge", fillcolor="#E7F1FD", color="#86B9E5"];
+ orders [label="MAYS-ORDERS\nGenerische Order · Pricing · Owner\nLifecycle · Consumer · Abruf", fillcolor="#E4F3EE", color="#76B5A6"];
+ security [label="RIS SECURITY / PARTNER\nJWT · APIProfile · RIS-Key serverseitig\nTenant · Consent · Grants", fillcolor="#FAF2E4", color="#DABB84"];
+ infra [label="INFRA / TERRAFORM\nIAM · Compute · Queue-Mapping\nseparater Plan / Apply-Freigabe", fillcolor="#F3EAFB", color="#B6A1CF"];
+ contract [label="VORHANDENEN VERTRAG PRÜFEN\nMinimal in der zuständigen Schicht ändern\nCross-Repo-Tests · Audit · Commit + Push", fillcolor="#F4F7F9", color="#9EAFBA"];
+ req -> judge;
+ judge -> domain [label="Fachregel"];
+ judge -> ecosystem [label="Execution"];
+ judge -> transport [label="Nachricht"];
+ judge -> orders [label="Order"];
+ judge -> security [label="Zugriff"];
+ judge -> infra [label="Provisionierung"];
+ {domain ecosystem transport orders security infra} -> contract;
+}

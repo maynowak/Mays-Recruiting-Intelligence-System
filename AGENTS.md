@@ -7,6 +7,11 @@ installation context before any AWS-backed Terraform command.
 ## Sources of truth
 
 - `README.md`: supported installer workflow and current project status.
+- `docs/architecture/RIS-MAYS-ORDERS-MODULES.md`: binding Mays-Orders /
+  RIS ownership and module register (Correction-14; diagrams under
+  `docs/architecture/diagrams/`).
+- `docs/architecture/AGENT-DEVELOPMENT-RULES.md`: binding rules for agent work
+  and coding agents.
 - `docs/architecture/SYSTEM-ARCHITECTURE.md` and `RUNTIME-PATH.md`: runtime wiring.
 - `docs/api/API-STANDARD.md`: routes, authentication, and error contract.
 - `terraform/`, `installer/`, `lambda/`, and tests are authoritative for behavior.

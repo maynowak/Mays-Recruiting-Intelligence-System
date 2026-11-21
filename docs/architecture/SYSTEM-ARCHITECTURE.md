@@ -5,6 +5,36 @@ Status: VERIFIED (Code + Gate-Nachweise G5–G9). Ersetzt Detail-Aussagen aus
 MO-Verbindung", „Persistenz UNWIRED", „TF validate nicht grün") — Historie
 bleibt erhalten, diese Datei ist maßgeblich für den aktuellen Stand.
 
+## 0. Correction-14 Baseline (verbindlich für neue Agenten)
+
+Für neue Agenten- und Integrationsaufträge gilt zusätzlich:
+
+- `RIS-MAYS-ORDERS-MODULES.md` — Ownership-, Modul- und SQS-Register,
+- `AGENT-DEVELOPMENT-RULES.md` — Regeln für Domain-Agenten/Coding-Agenten,
+- `diagrams/korrektur14_ablauf.svg` / `.dot` und
+  `diagrams/modul_ownership.svg` / `.dot`,
+- `reference/RIS_Mays_Orders_Modulregister_Correction14.odt` (bearbeitbar),
+- Code-/Testnachweis: `../reports/RIS-ANALYSIS-ECOSYSTEM-CORRECTION-14.md`.
+
+Tatsächlicher Codepfad (Feature-Stand, nicht deployed):
+
+```text
+Mays-Orders ORDER_DISPATCH
+  → ris-dev2-dev-agent-dispatch
+  → dispatch_ingress (Transport/Identität, WorkItem persistieren + Fence, Enqueue)
+  → ris-dev2-dev-work-queue
+  → shared Worker ris-dev2-dev-agent (QUEUED→RUNNING-Claim, Recheck, Attempt/Retry)
+  → Agent Ecosystem / AgentBody
+  → Domain-Agent (Addition lokal; Analysis execution-only remote)
+  → WorkItems COMPLETED → ORDER_RESULT / terminal → ORDER_FAILED
+  → Mays-Orders Result Consumer
+```
+
+Bei Widerspruch zu älteren Abschnitten dieses Dokuments gelten Abschnitt 0 und
+das Modulregister. Mays-Orders bleibt Eigentümer von Order, Preis und Lifecycle;
+RIS besitzt WorkItems, Queue/Worker, Ecosystem und Transport. Kein neuer
+Agent bekommt eine eigene Queue oder Order-State-Machine.
+
 ## 1. Systemgrenze
 
 Mays-RIS ist die Agent-Runtime-Plattform (AWS, eu-central-1). Externe

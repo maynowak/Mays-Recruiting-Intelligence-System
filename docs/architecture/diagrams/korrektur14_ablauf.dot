@@ -1,0 +1,27 @@
+digraph RIS_C14 {
+ graph [rankdir=TB, bgcolor="#FFFFFF", pad=0.23, nodesep=0.26, ranksep=0.31, splines=ortho, fontname="DejaVu Sans", label="RIS × Mays-Orders | tatsächlicher Codepfad nach Correction-14", labelloc=t, fontsize=21, fontcolor="#123047"];
+ node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=12, margin="0.18,0.11", color="#CCDCE5", fillcolor="#F3F8FB", fontcolor="#17354B", penwidth=1.4];
+ edge [color="#4C819B", arrowsize=0.65, penwidth=1.5];
+ mo [label="MAYS-ORDERS\nOrder-Lifecycle · agentOrder V1\nOwner / Preise / Persistenz", fillcolor="#E6F4F1", color="#67B6A4"];
+ dispatch [label="SQS TRANSPORT · ORDER_DISPATCH\nris-dev2-dev-agent-dispatch", fillcolor="#E8F3FE", color="#8BBCE5"];
+ ingress [label="RIS DISPATCH INGRESS\nTransport + Identität prüfen\nWorkItem persistieren + Subject-Fence\nEnqueue / enqueuedAt", fillcolor="#F0F7FF"];
+ work [label="GEMEINSAME RIS WORK SQS\nris-dev2-dev-work-queue\nEvent / ProcessingEnvelope", fillcolor="#E8F3FE", color="#8BBCE5"];
+ worker [label="RIS SHARED WORKER\nris-dev2-dev-agent\nFresh Entitlement · Subject-Fence\nAttempt / Retry / WorkItem-State", fillcolor="#F0F7FF"];
+ eco [label="AGENT ECOSYSTEM + AGENT RUN BODY\nRegistry · Discovery · Eligibility\nRouting · ExecutionEngine · AgentBody", fillcolor="#F0F7FF"];
+ addition [label="ADDITION AGENT\nfachliche Ausführung (lokal)", fillcolor="#E4F6EB", color="#77BB93"];
+ analysis [label="ANALYSIS AGENT · DEDIZIERTE LAMBDA\nRemote process_work / analysis.run\nNOCH NICHT DEPLOYED", style="rounded,filled,dashed", fillcolor="#FFF6DE", color="#E3B65A"];
+ parser [label="PARSER LAMBDA\nCV · Job · ATS · Comparison\nAWS-synthetisch verifiziert", fillcolor="#FFF6DE", color="#E3B65A"];
+ result [label="RIS RESULT-/WORKITEM-ABSCHLUSS\nCOMPLETED → ORDER_RESULT\nTerminaler Fehler → ORDER_FAILED\nRetry ≠ terminal", fillcolor="#F0F7FF"];
+ resultq [label="SQS TRANSPORT · RESULT\nris-dev2-mays-orders-agent-results", fillcolor="#E8F3FE", color="#8BBCE5"];
+ consumer [label="MAYS-ORDERS RESULT CONSUMER\nSignatur/Korrelation · Dedup · Lifecycle\nErgebnisabruf", fillcolor="#E6F4F1", color="#67B6A4"];
+ api [label="RIS API Execute\nvorhandener zweiter Producer", fillcolor="#F5F5FA", color="#C2C2DB"];
+ dlq [label="WORK DLQ / OPERATOR\nErschöpfung: kein automatisches\nORDER_FAILED nachgewiesen", fillcolor="#FDEDED", color="#E6A0A0"];
+ mo -> dispatch -> ingress -> work -> worker -> eco;
+ api -> work [style=dashed,color="#8C85B8"];
+ eco -> addition; eco -> analysis [style=dashed, color="#D0A14C"];
+ analysis -> parser [style=dashed, color="#D0A14C"];
+ addition -> result;
+ parser -> result [style=dashed, color="#D0A14C"];
+ result -> resultq -> consumer;
+ worker -> dlq [style=dashed, color="#D28C8C", constraint=false];
+}
