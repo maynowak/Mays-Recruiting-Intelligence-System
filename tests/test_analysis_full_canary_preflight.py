@@ -77,9 +77,10 @@ class FullCanaryManifestTest(unittest.TestCase):
         plan = self.manifest["plan"]
         self.assertRegex(plan["sha256"], r"^[a-f0-9]{64}$")
         self.assertRegex(plan["jsonSha256"], r"^[a-f0-9]{64}$")
-        self.assertEqual(
-            "f3c2f1a20d4af4b3d6c818222ae0edb5d59c985e37c074c4e025e797700a2314",
-            self.manifest["bundle"]["sha256"])
+        self.assertRegex(self.manifest["bundle"]["sha256"], r"^[a-f0-9]{64}$")
+        if self.manifest.get("supersededBy"):
+            self.assertTrue(plan.get("invalidForApply"))
+            return
         if BUNDLE.is_file():
             digest = hashlib.sha256(BUNDLE.read_bytes()).hexdigest()
             self.assertEqual(self.manifest["bundle"]["sha256"], digest)

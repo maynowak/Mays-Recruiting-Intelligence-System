@@ -43,7 +43,8 @@ class ConfigTest(unittest.TestCase):
 
 class EventParsingTest(unittest.TestCase):
     def test_direct_wrapped_and_sqs_events(self):
-        work = {"workId": "w1", "type": "agent_analysis_agent"}
+        work = {"workId": "w1", "type": "agent_analysis_agent",
+                "capability": "analysis.run", "agentId": "analysis-agent"}
         calls = []
 
         def process(record, **kwargs):
@@ -60,6 +61,22 @@ class EventParsingTest(unittest.TestCase):
         self.assertEqual(1, handler(sqs, runtime=runtime)["processed"])
         self.assertEqual("m3", calls[-1][0]["messageId"])
 
+    def test_orders_work_is_rejected_before_the_pipeline(self):
+        calls = []
+
+        def process(record, **kwargs):  # pragma: no cover - must not run
+            calls.append(record)
+            return {"status": "COMPLETED"}
+
+        order_work = {"workId": "order-1", "type": "agent_orders",
+                      "capability": "orders.create",
+                      "agentId": "orders_function",
+                      "payload": {"customer": {"name": "x", "email": "x@y"}}}
+        out = handler(order_work, runtime={"process": process})
+        self.assertEqual("REJECTED", out["results"][0]["status"])
+        self.assertEqual("work_type_not_allowed", out["results"][0]["reason"])
+        self.assertEqual([], calls)
+
     def test_invalid_event_fails_closed(self):
         with self.assertRaises(ValueError):
             handler({"nothing": True}, runtime={"process": lambda *a, **k: {}})
@@ -75,10 +92,11 @@ class EventParsingTest(unittest.TestCase):
             return {"status": "COMPLETED"}
 
         marker = object()
-        handler({"workId": "w1"}, runtime={
-            "process": process, "table": marker, "registry": marker,
-            "body": marker, "entitlement_resolver": marker,
-            "analysis_agent": marker})
+        handler({"workId": "w1", "type": "agent_analysis_agent",
+                 "capability": "analysis.run", "agentId": "analysis-agent"},
+                runtime={"process": process, "table": marker, "registry": marker,
+                         "body": marker, "entitlement_resolver": marker,
+                         "analysis_agent": marker})
         self.assertIs(marker, seen["table"])
         self.assertIs(marker, seen["analysis_agent"])
 
@@ -89,7 +107,9 @@ class EventParsingTest(unittest.TestCase):
             raise ValueError(sentinel)
 
         with self.assertLogs("analysis_runner", level="WARNING") as logs:
-            out = handler({"workId": "w1", "payload": sentinel},
+            out = handler({"workId": "w1", "type": "agent_analysis_agent",
+                           "capability": "analysis.run",
+                           "agentId": "analysis-agent", "payload": sentinel},
                           runtime={"process": process})
         self.assertEqual("REJECTED", out["results"][0]["status"])
         self.assertNotIn(sentinel, "\n".join(logs.output))
@@ -99,7 +119,9 @@ class EventParsingTest(unittest.TestCase):
             raise RuntimeError("transient")
 
         with self.assertRaises(RuntimeError):
-            handler({"workId": "w1"}, runtime={"process": process})
+            handler({"workId": "w1", "type": "agent_analysis_agent",
+                     "capability": "analysis.run", "agentId": "analysis-agent"},
+                    runtime={"process": process})
 
 
 class BuildRuntimeTest(unittest.TestCase):

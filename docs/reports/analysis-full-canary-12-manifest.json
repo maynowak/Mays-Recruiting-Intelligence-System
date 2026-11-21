@@ -1,6 +1,8 @@
 {
   "schemaVersion": "1.0",
   "release": "RIS-ANALYSIS-FULL-AWS-CANARY-12",
+  "supersededBy": "RIS-ANALYSIS-ORDER-BOUNDARY-AUDIT-12A",
+  "applyApproved": false,
   "generatedAt": "2026-11-21",
   "aws": {
     "account": "262370457690",
@@ -29,7 +31,9 @@
     "destroys": 0,
     "replacements": 0,
     "guard": "NO_SHARED_DESTROY",
-    "runtimeFlag": true
+    "runtimeFlag": true,
+    "invalidForApply": true,
+    "reason": "analysis bundle changed by RIS-ANALYSIS-ORDER-BOUNDARY-AUDIT-12A"
   },
   "resources": [
     {

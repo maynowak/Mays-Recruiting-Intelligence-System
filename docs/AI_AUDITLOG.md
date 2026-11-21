@@ -11041,3 +11041,13 @@ Date: 2026-11-21
 - WorkItem reject/DEAD_LETTER semantics re-verified (authorized COMPLETED, duplicate, entitlement/consent/cross-tenant DEAD_LETTER, invalid REJECTED, unexpected raise). Focused set 56 passed; 7 new preflight invariants.
 - Approval pack: docs/reports/RIS-ANALYSIS-FULL-AWS-CANARY-12-PREFLIGHT.md and docs/reports/analysis-full-canary-12-manifest.json. STEP B/C not started.
 
+[RIS-ANALYSIS-ORDER-BOUNDARY-AUDIT-12A / ORDER OWNERSHIP BOUNDARY]
+Status: CORRECTION REQUIRED — latent gate fixed; stored 12 plan invalid; no apply.
+Date: 2026-11-21
+- Ownership verified: Mays-Orders owns creation/validation/totals (order_service.py:125, :131-144; validation.py:40), status transitions (state_machine.py:15, order_service.py:201), persistence and result consumption (result_consumer.py). RIS owns the transport/WorkItem/execution/result-send side only (order_transport.py, dispatch_ingress.py, pipeline.py:482, order_result_sender.py).
+- Analysis path checked transitively: no order creation/status/pricing/billing/delivery/ack, no SQS client, no ORDER_*/ORDERS_* env, no agents.orders import. Result path returns order_result_delivery NOT_ORDER and never resolves the result sender (test-pinned). WorkItem idempotency/result persistence unchanged.
+- Finding: analysis_runner accepted any WorkItem; process_record registers the ecosystem including orders_function, so order work could have been routed through the analysis Lambda. No analysis Lambda is deployed (no live exposure).
+- Minimal fix: _is_analysis_work gate (type agent_analysis_agent, capability analysis.run, agentId analysis-agent) rejects all other work with REJECTED/work_type_not_allowed before the pipeline. 10 boundary tests, 17 runner tests, 314 focused tests + 13 subtests pass. No order architecture added or changed.
+- Historical 10B changes are existing ecosystem integration, not analysis-owned: dispatch_ingress WorkItems index/* (5438256), Mays ORDER_DISPATCH_QUEUE_URL (5438256), orders_agent_dispatch (7146d24), order_result_transport (7146d24/c24f734). None used by the analysis role/env.
+- Because the runner changed, the 12 plan is invalid: old bundle f3c2f1a2… / plan b892d17a…; new bundle fff25f1e2b80ecbd216746cc37fa98567295347710283ce1d64b04705686d0b6 (288 213 bytes), new plan 7258bd8b… 2/0/0, JSON f33c27aa…, state 67, guard NO_SHARED_DESTROY. A new approval is required; nothing applied.
+

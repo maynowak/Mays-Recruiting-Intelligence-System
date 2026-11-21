@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "1.0",
+  "release": "RIS-ANALYSIS-ORDER-BOUNDARY-AUDIT-12A",
+  "generatedAt": "2026-11-21",
+  "verdict": "CORRECTION REQUIRED",
+  "aws": {
+    "account": "262370457690",
+    "callerArn": "arn:aws:iam::262370457690:user/devnemo",
+    "region": "eu-central-1"
+  },
+  "state": {
+    "serial": 67,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "resources": 283,
+    "workspace": "ris-dev2"
+  },
+  "invalidatedPlan": {
+    "release": "RIS-ANALYSIS-FULL-AWS-CANARY-12",
+    "sha256": "b892d17a0168cac8df0278890323d1a1b10bbc7cc38dd14536239e776d4f700d",
+    "jsonSha256": "0a1bb40cff4aee5fed9c3d6bdcc5a0167a4bb77c399fc65ad2fecf316a068861",
+    "reason": "analysis bundle changed by the boundary fix; plan must not be applied"
+  },
+  "plan": {
+    "path": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc12a2/plan.out",
+    "sha256": "7258bd8b1f0f00936dcb5ff4a2851dc0e1832ab20437486523e14b3b73468b81",
+    "jsonSha256": "f33c27aa9ea215155ce5d486e4e9ddbc7321f53684329378146459461820554d",
+    "adds": 2,
+    "changes": 0,
+    "destroys": 0,
+    "replacements": 0,
+    "guard": "NO_SHARED_DESTROY",
+    "applyApproved": false
+  },
+  "resources": [
+    "module.analysis_runtime.aws_iam_role_policy.analysis_runtime_data[0]",
+    "module.analysis_runtime.aws_lambda_function.analysis[0]"
+  ],
+  "bundle": {
+    "path": "terraform/analysis-lambda.zip",
+    "sha256": "fff25f1e2b80ecbd216746cc37fa98567295347710283ce1d64b04705686d0b6",
+    "size": 288213,
+    "files": 111
+  },
+  "boundary": {
+    "gate": "_is_analysis_work",
+    "allowed": {
+      "type": "agent_analysis_agent",
+      "capability": "analysis.run",
+      "agentId": "analysis-agent"
+    },
+    "rejected": [
+      "agent_orders",
+      "orders.create",
+      "orders_function",
+      "any other ecosystem agent"
+    ]
+  },
+  "stopConditions": [
+    "any plan other than the new 2/0/0 plan is used",
+    "the invalidated b892d17a plan is applied",
+    "analysis WorkItem gate is removed",
+    "any orders creation/status/pricing/delivery code is added to analysis",
+    "Cognito/CloudFront/Route53/ACM or shared policy change",
+    "real personal data"
+  ]
+}

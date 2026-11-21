@@ -29,6 +29,26 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 
 PERMANENT_ERRORS = (ValueError,)
 
+#: The dedicated function executes analysis WorkItems only.
+ANALYSIS_AGENT_ID = "analysis-agent"
+ANALYSIS_CAPABILITY = "analysis.run"
+ANALYSIS_WORK_TYPE = "agent_analysis_agent"
+
+
+def _is_analysis_work(work: Dict[str, Any]) -> bool:
+    """Reject every non-analysis WorkItem before the runtime pipeline.
+
+    The pipeline also registers existing ecosystem agents (including the
+    Mays-Orders function); the dedicated analysis compute must never be used
+    to execute order work.
+    """
+    if work.get("type") != ANALYSIS_WORK_TYPE:
+        return False
+    if work.get("capability") != ANALYSIS_CAPABILITY:
+        return False
+    agent_id = work.get("agentId")
+    return agent_id in (None, "", ANALYSIS_AGENT_ID)
+
 
 def _as_bool(value: Any) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
@@ -147,6 +167,12 @@ def handler(event: Any, context: Any = None,
     process = runtime.get("process")
     results: List[Dict[str, Any]] = []
     for message_id, work in _items(event):
+        if not _is_analysis_work(work):
+            logger.warning("analysis work rejected: work_type_not_allowed")
+            results.append({"workId": work.get("workId"),
+                            "status": "REJECTED",
+                            "reason": "work_type_not_allowed"})
+            continue
         record = {"body": json.dumps(work)}
         if message_id:
             record["messageId"] = message_id
