@@ -11105,6 +11105,15 @@ Date: 2026-11-21
 - Full AWS E2E procedure, evidence IDs, stop conditions, cleanup/rollback and DLQ-exhaustion limitation documented in docs/reports/RIS-ANALYSIS-OFFER-E2E-15-CANARY-GATE.md. Focused gate tests: 70 passed.
 - Verdict SYNTHETIC TEST DESIGN NEEDS APPROVAL; technical plan may be approved separately. No apply, no merge, no real data.
 
+[RIS-ANALYSIS-OFFER-E2E-15 / STEP E1 — SYNTHETIC ISOLATION]
+Status: READY FOR CONTROLLED AWS CANARY APPROVAL; no apply.
+Date: 2026-11-21
+- Identity boundary: tenant/user/partner/issuer come from the verified server context; payload is data only. Synthetic mode is env-only and cannot be enabled by WorkItem/API/SQS fields. Direct invoke remains IAM-scoped to worker/ingress.
+- Implemented ANALYSIS_SYNTHETIC_MODE=false default; when enabled it requires exact non-empty tenant, user, partner application, issuer, explicit synthetic entitlements and a future expiry. Match happens in AnalysisAgent._matches_synthetic; only the matched identity gets synthetic entitlements and Identity.synthetic=True. Real identities keep deny; real consent/notice remain false and DRAFT.
+- Tests: 12 synthetic profile tests (disabled/missing/expired, each identity mismatch, manipulated nested WorkItem, real identity, missing entitlement, direct invoke, positive CV/job/comparison/ATS). Broad set 375 passed, 9 skipped.
+- New plan (old 11fb32d8… invalid): 4 add / 3 change / 0 destroy, plan b432e8f4…, JSON d91423e2…, state 67, guard NO_SHARED_DESTROY. Bundles worker 5a0f3305…, analysis 1897a68e…, parser fb741fb2…. Analysis env adds ANALYSIS_SYNTHETIC_MODE=false.
+- Separate approvals: A technical plan, B synthetic profile values. Cleanup: disable mode, remove allowlist/expiry/entitlement, delete test data, post-plan drift. DLQ-exhaustion ORDER_FAILED still open.
+
 [RIS-ARCH-DOCS / CORRECTION-14 ARCHITECTURE PACKAGE]
 Status: imported; no code/Terraform change.
 Date: 2026-11-21
