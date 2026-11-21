@@ -11114,6 +11114,15 @@ Date: 2026-11-21
 - New plan (old 11fb32d8… invalid): 4 add / 3 change / 0 destroy, plan b432e8f4…, JSON d91423e2…, state 67, guard NO_SHARED_DESTROY. Bundles worker 5a0f3305…, analysis 1897a68e…, parser fb741fb2…. Analysis env adds ANALYSIS_SYNTHETIC_MODE=false.
 - Separate approvals: A technical plan, B synthetic profile values. Cleanup: disable mode, remove allowlist/expiry/entitlement, delete test data, post-plan drift. DLQ-exhaustion ORDER_FAILED still open.
 
+[RIS-ANALYSIS-OFFER-E2E-15 / STEP E1A — TRUSTED IDENTITY GATE]
+Status: READY FOR EXACT-PLAN APPLY APPROVAL; no apply.
+Date: 2026-11-21
+- Identity path: verified context → persisted WorkItem → worker → AgentBody → remote adapter → analysis Lambda → AnalysisAgent. Payload is not authoritative; outer/nested identity conflicts now raise identity_conflict; synthetic mode requires both exact env profile and a persisted RUNNING WorkItem with the same four identity fields (DynamoDB GetItem only).
+- Synthetic mode is bound to PROJECT_NAME=ris-dev2 and ANALYSIS_SYNTHETIC_INSTALLATION=ris-dev2; expiry is re-checked per execution; direct invoke without the persisted binding is denied; no global consent, catalog/offer seed or real entitlement grant. analysis-processing remains DRAFT.
+- Mandatory outer-real/nested-synthetic test denies with no parser call; mismatch/expiry/installation/direct-invoke/entitlement negatives pass. Broad set 378 passed, 9 skipped.
+- New plan (previous b432e8f4… invalid): 4 add / 3 change / 0 destroy, plan 7426ba4a…, JSON 5649a311…, state 67, guard NO_SHARED_DESTROY. Bundles worker 28125fe1…, analysis a9323301…, parser fb741fb2…. IAM adds only WorkItems GetItem; env adds WORK_ITEMS_TABLE, PROJECT_NAME, ANALYSIS_SYNTHETIC_MODE=false.
+- Two approvals remain separate: A exact technical apply, B exact synthetic profile. Cleanup/reset and DLQ limitation documented.
+
 [RIS-ARCH-DOCS / CORRECTION-14 ARCHITECTURE PACKAGE]
 Status: imported; no code/Terraform change.
 Date: 2026-11-21
