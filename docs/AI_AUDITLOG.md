@@ -11051,3 +11051,12 @@ Date: 2026-11-21
 - Historical 10B changes are existing ecosystem integration, not analysis-owned: dispatch_ingress WorkItems index/* (5438256), Mays ORDER_DISPATCH_QUEUE_URL (5438256), orders_agent_dispatch (7146d24), order_result_transport (7146d24/c24f734). None used by the analysis role/env.
 - Because the runner changed, the 12 plan is invalid: old bundle f3c2f1a2… / plan b892d17a…; new bundle fff25f1e2b80ecbd216746cc37fa98567295347710283ce1d64b04705686d0b6 (288 213 bytes), new plan 7258bd8b… 2/0/0, JSON f33c27aa…, state 67, guard NO_SHARED_DESTROY. A new approval is required; nothing applied.
 
+[RIS-ANALYSIS-VS-ADDITION-AGENT / INTEGRATION COMPARISON]
+Status: INTEGRATION GAP — CORRECTION REQUIRED; no code/Terraform change.
+Date: 2026-11-21
+- Addition agent is the reference: ORDER_DISPATCH from the stored Mays order → shared dispatch queue → dispatch_ingress → process_record → registry/AgentBody; results use the existing ORDER_RESULT_QUEUE_URL/SECRET. It has no own compute, queue or transport and no order ownership.
+- Analysis agent reuses the same runtime contracts (registration, WorkItem idempotency, persistence, entitlement/consent gates) but is not bound to the dispatch queue/ingress and is not invoked by it. The dedicated Lambda has the parser env but no ORDER_RESULT transport; dispatch_ingress has the result transport but lacks ANALYSIS_* and RIS_PARSER_* config.
+- Consequence: an agentOrder targeting analysis-agent would be selected by ingress but end in a controlled rejection/DEAD_LETTER; the dedicated Lambda would produce a result but not deliver it to Mays. No order-boundary violation: analysis has no order creation/status/pricing/delivery code, no orders import, no queue, no duplicated idempotency.
+- Options: A route analysis WorkItems from dispatch_ingress to the dedicated Lambda and use the existing result transport (recommended if Mays orders target analysis); B run analysis in the dispatch function exactly like addition (add parser/analysis env + invoke); C keep direct-invoke internal-only and drop the order-E2E expectation.
+- Plan unchanged and still unapproved: bundle fff25f1e…, plan 7258bd8b… 2/0/0, guard NO_SHARED_DESTROY, state 67. Any transport wiring needs a new plan/approval.
+
