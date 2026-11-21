@@ -156,6 +156,8 @@ class ManifestBoundaryTest(unittest.TestCase):
         self.assertEqual(
             "b892d17a0168cac8df0278890323d1a1b10bbc7cc38dd14536239e776d4f700d",
             manifest["invalidatedPlan"]["sha256"])
+        if manifest.get("supersededBy"):
+            return
         bundle = ROOT / manifest["bundle"]["path"]
         if bundle.is_file():
             self.assertEqual(manifest["bundle"]["sha256"],

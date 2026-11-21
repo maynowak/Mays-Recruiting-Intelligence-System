@@ -3,6 +3,7 @@
 import json
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -146,6 +147,58 @@ class BuildRuntimeTest(unittest.TestCase):
         runtime = build_runtime({})
         self.assertIsNone(runtime["entitlement_resolver"])
         self.assertEqual([], runtime["analysis_agent"].config["entitlements"])
+
+
+class ExecutionModeTest(unittest.TestCase):
+    class Parser:
+        def parse_cv(self, pdf_base64):  # pragma: no cover - not used
+            return {}
+
+        def parse_job(self, job):
+            return {"stableId": "b" * 64, "jobTags": ["Python"],
+                    "parserVersion": "fake-1.0"}
+
+        def parse_ats(self, job, profile):  # pragma: no cover - not used
+            return {}
+
+    def test_execution_mode_runs_only_the_agent(self):
+        from agents.analysis.orchestrator import AnalysisOrchestrator
+
+        orchestrator = AnalysisOrchestrator(parser=self.Parser())
+        work = {
+            "workId": "w-exec", "type": "agent_analysis_agent",
+            "tenantId": "tenant-canary", "userId": "user-canary",
+            "idempotencyKey": "key", "capability": "analysis.run",
+            "agentId": "analysis-agent",
+            "payload": {"schemaVersion": "1.0",
+                        "requestedResults": ["job.tags"],
+                        "input": {"job": {"text": "Synthetic: Python"}}},
+        }
+        env = {
+            "ANALYSIS_ENTITLEMENTS": "parse.job",
+            "ANALYSIS_CONSENT": "true",
+            "ANALYSIS_NOTICE_APPROVED": "true",
+        }
+        with mock.patch.dict("os.environ", env, clear=False), \
+                mock.patch(
+                    "analysis_runner.build_orchestrator",
+                    return_value=orchestrator):
+            result = handler({"executionMode": "agent", "workItem": work},
+                             runtime={"process": self.fail})
+        self.assertTrue(result["success"])
+        self.assertIn("job.tags", result["data"]["results"])
+
+    def test_execution_mode_rejects_order_work(self):
+        result = handler({
+            "executionMode": "agent",
+            "workItem": {"type": "agent_orders", "capability": "orders.create",
+                         "agentId": "orders_function", "workId": "o1"}})
+        self.assertFalse(result["success"])
+        self.assertEqual("ValidationError", result["error"]["type"])
+
+    def test_execution_mode_rejects_invalid_event(self):
+        result = handler({"executionMode": "agent", "workItem": "x"})
+        self.assertFalse(result["success"])
 
 
 if __name__ == "__main__":

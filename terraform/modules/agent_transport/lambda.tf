@@ -64,6 +64,17 @@ variable "result_transport_enabled" {
   default     = false
 }
 
+variable "analysis_function_name" {
+  description = "Dedicated analysis Lambda invoked through the Agent Body remote handler; empty disables remote execution."
+  type        = string
+  default     = ""
+}
+
+variable "analysis_remote_timeout_seconds" {
+  type    = number
+  default = 60
+}
+
 locals {
   ingress_name = "${var.project_name}-${var.environment}-agent-dispatch-ingress"
 }
@@ -196,6 +207,10 @@ resource "aws_lambda_function" "dispatch_ingress" {
       var.order_result_secret_arn != "" ? {
         ORDER_RESULT_SECRET_ARN = var.order_result_secret_arn
       } : {},
+      var.analysis_function_name != "" ? {
+        ANALYSIS_FUNCTION_NAME          = var.analysis_function_name
+        ANALYSIS_REMOTE_TIMEOUT_SECONDS = tostring(var.analysis_remote_timeout_seconds)
+      } : {},
     )
   }
 
@@ -218,4 +233,8 @@ resource "aws_lambda_event_source_mapping" "dispatch" {
 
 output "ingress_function_name" {
   value = aws_lambda_function.dispatch_ingress.function_name
+}
+
+output "dispatch_ingress_role_arn" {
+  value = aws_iam_role.dispatch_ingress.arn
 }

@@ -17,3 +17,11 @@ output "jobs_bucket_arn" {
 output "log_group_name" {
   value = aws_cloudwatch_log_group.analysis.name
 }
+
+output "analysis_function_name" {
+  value = var.enable_analysis_runtime ? aws_lambda_function.analysis[0].function_name : ""
+}
+
+output "analysis_function_arn" {
+  value = var.enable_analysis_runtime ? aws_lambda_function.analysis[0].arn : ""
+}

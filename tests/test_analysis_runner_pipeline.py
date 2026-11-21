@@ -250,5 +250,88 @@ class InternalPartnerExecutionTest(unittest.TestCase):
         self.assertEqual("COMPLETED", runtime["table"].items["work-sqs"]["status"])
 
 
+class RemoteAndResultPathTest(unittest.TestCase):
+    def test_remote_handler_runs_inside_the_existing_pipeline(self):
+        from agents.runtime.remote_agent import LambdaAgentHandler
+        import io
+
+        class Client:
+            def invoke(self, **kwargs):
+                body = {"success": True,
+                        "data": {"schemaVersion": "1.0",
+                                 "results": {"job.tags": {"jobTags": ["Python"]}}}}
+                return {"StatusCode": 200,
+                        "Payload": io.BytesIO(json.dumps(body).encode())}
+
+        runtime, _ = build_runtime()
+        runtime["analysis_agent"] = LambdaAgentHandler(
+            "ris-dev2-dev-analysis", client=Client())
+        out = handler(work("work-remote"), runtime=runtime)
+        self.assertEqual("COMPLETED", out["results"][0]["status"])
+        self.assertEqual(["Python"], runtime["table"].items["work-remote"]
+                         ["result"]["data"]["results"]["job.tags"]["jobTags"])
+
+    def test_order_result_uses_the_existing_transport_and_stable_id(self):
+        from agents.runtime.pipeline import process_record
+
+        runtime, _ = build_runtime()
+        sent = []
+        item = work("work-order")
+        item.update({"orderId": "ord_canary", "correlationId": "corr-1",
+                     "apiProfileId": "profile-canary",
+                     "payload": {"schemaVersion": "1.0",
+                                 "requestedResults": ["job.tags"],
+                                 "input": {"job": {"text": "Python"}},
+                                 "idempotencyKey": "key-work-order"}})
+        record = {"body": json.dumps(item)}
+        first = process_record(
+            record, table=runtime["table"], registry=runtime["registry"],
+            body=runtime["body"],
+            entitlement_resolver=runtime["entitlement_resolver"],
+            analysis_agent=runtime["analysis_agent"],
+            result_sender=sent.append)
+        second = process_record(
+            record, table=runtime["table"], registry=runtime["registry"],
+            body=runtime["body"],
+            entitlement_resolver=runtime["entitlement_resolver"],
+            analysis_agent=runtime["analysis_agent"],
+            result_sender=sent.append)
+        self.assertEqual("COMPLETED", first["status"])
+        self.assertEqual("SENT", first["order_result_delivery"])
+        self.assertEqual("ORDER_RESULT", sent[0]["messageType"])
+        self.assertEqual(sent[0]["messageId"], sent[1]["messageId"])
+        self.assertTrue(second["duplicate"])
+        # Stable idempotency key: Mays-Orders deduplicates the redelivery.
+        self.assertEqual(sent[0]["idempotencyKey"], sent[1]["idempotencyKey"])
+
+    def test_order_failed_uses_the_existing_transport(self):
+        from agents.analysis.contracts import ContractError
+        from agents.runtime.pipeline import process_record
+
+        class Failing:
+            def process_work(self, work_item):
+                raise ContractError("consent_required", "not approved")
+
+        runtime, _ = build_runtime()
+        sent = []
+        item = work("work-failed")
+        item.update({"orderId": "ord_canary", "correlationId": "corr-2",
+                     "apiProfileId": "profile-canary",
+                     "payload": {"schemaVersion": "1.0",
+                                 "requestedResults": ["job.tags"],
+                                 "input": {"job": {"text": "Python"}},
+                                 "idempotencyKey": "key-work-failed"}})
+        # A raised agent error is a retryable failure, not ORDER_FAILED yet.
+        with self.assertRaises(Exception):
+            process_record(
+                {"body": json.dumps(item)}, table=runtime["table"],
+                registry=runtime["registry"], body=runtime["body"],
+                entitlement_resolver=runtime["entitlement_resolver"],
+                analysis_agent=Failing(), result_sender=sent.append)
+        self.assertEqual([], sent)
+        self.assertIn(runtime["table"].items["work-failed"]["status"],
+                      ("FAILED", "DEAD_LETTER"))
+
+
 if __name__ == "__main__":
     unittest.main()

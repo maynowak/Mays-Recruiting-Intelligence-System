@@ -1,6 +1,7 @@
 {
   "schemaVersion": "1.0",
   "release": "RIS-ANALYSIS-ORDER-BOUNDARY-AUDIT-12A",
+  "supersededBy": "RIS-ANALYSIS-ECOSYSTEM-INTEGRATION-13",
   "generatedAt": "2026-11-21",
   "verdict": "CORRECTION REQUIRED",
   "aws": {

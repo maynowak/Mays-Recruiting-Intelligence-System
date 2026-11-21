@@ -321,6 +321,17 @@ variable "deletion_ledger_table_arn" {
   type        = string
 }
 
+variable "analysis_function_name" {
+  description = "Dedicated analysis Lambda invoked through the Agent Body remote handler; empty disables remote execution."
+  type        = string
+  default     = ""
+}
+
+variable "analysis_remote_timeout_seconds" {
+  type    = number
+  default = 60
+}
+
 variable "tags" {
   description = "Additional tags for resources"
   type        = map(string)

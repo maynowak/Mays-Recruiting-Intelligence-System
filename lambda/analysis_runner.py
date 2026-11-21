@@ -156,13 +156,39 @@ def _items(event: Any) -> Iterator[Tuple[Optional[str], Dict[str, Any]]]:
     raise ValueError("analysis event carries no WorkItem")
 
 
+def _execute_agent(work: Any) -> Dict[str, Any]:
+    """Execution-only entrypoint used by the shared worker adapter.
+
+    No WorkItem registration, no attempt/retry, no result transport: the
+    worker owns those. The function only runs the analysis agent.
+    """
+    from agents.analysis_agent.agent import AnalysisAgent
+
+    if not isinstance(work, dict):
+        return {"success": False,
+                "error": {"message": "work item must be an object",
+                          "type": "ValidationError"}}
+    if not _is_analysis_work(work):
+        logger.warning("analysis work rejected: work_type_not_allowed")
+        return {"success": False,
+                "error": {"message": "analysis work type required",
+                          "type": "ValidationError"}}
+    agent = AnalysisAgent(analysis_config_from_env(),
+                          orchestrator=build_orchestrator())
+    return agent.process_work(work)
+
+
 def handler(event: Any, context: Any = None,
             runtime: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Process WorkItems through the existing runtime pipeline.
 
-    Validation failures are permanent rejections; unexpected failures raise so
-    the existing retry/attempt semantics stay unchanged.
+    ``executionMode == "agent"`` runs only the agent function for the shared
+    worker (no WorkItem state, no result transport). Otherwise the standalone
+    runner path manages WorkItem persistence itself.
     """
+    if isinstance(event, dict) and event.get("executionMode") == "agent":
+        return _execute_agent(event.get("workItem"))
+
     runtime = runtime or build_runtime()
     process = runtime.get("process")
     results: List[Dict[str, Any]] = []

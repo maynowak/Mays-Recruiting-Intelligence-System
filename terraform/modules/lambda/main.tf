@@ -722,6 +722,10 @@ resource "aws_lambda_function" "agent" {
       var.order_result_secret_arn != "" ? {
         ORDER_RESULT_SECRET_ARN = var.order_result_secret_arn
       } : {},
+      var.analysis_function_name != "" ? {
+        ANALYSIS_FUNCTION_NAME          = var.analysis_function_name
+        ANALYSIS_REMOTE_TIMEOUT_SECONDS = tostring(var.analysis_remote_timeout_seconds)
+      } : {},
     )
   }
 

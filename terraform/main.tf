@@ -184,13 +184,15 @@ module "lambda" {
   work_queue_url                      = module.sqs.work_queue_url
   # Existing RIS -> Mays-Orders result transport. Empty values preserve the
   # previous absence of these variables for installations without the link.
-  order_result_queue_url  = var.order_result_queue_url
-  order_result_queue_arn  = var.order_result_queue_arn
-  order_result_secret_arn = var.order_result_secret_arn
-  orders_base_url         = module.api.api_endpoint
-  ats_api_base_url        = var.ats_api_base_url
-  timeout_seconds         = var.agent_execution_timeout_seconds
-  tags                    = var.tags
+  order_result_queue_url          = var.order_result_queue_url
+  order_result_queue_arn          = var.order_result_queue_arn
+  order_result_secret_arn         = var.order_result_secret_arn
+  orders_base_url                 = module.api.api_endpoint
+  ats_api_base_url                = var.ats_api_base_url
+  timeout_seconds                 = var.agent_execution_timeout_seconds
+  analysis_function_name          = module.analysis_runtime.analysis_function_name
+  analysis_remote_timeout_seconds = 60
+  tags                            = var.tags
 }
 
 # Gate 4 — eigene Order-Fassade (orders_reader) auf unserer API.
@@ -367,6 +369,27 @@ module "analysis_runtime" {
   partner_profiles_table_arn  = module.dynamodb.partner_profiles_table_arn
 }
 
+# The shared worker/ingress invoke the dedicated analysis function through the
+# existing Agent Body remote handler. Resource-based permissions only; no
+# shared IAM policy is modified.
+resource "aws_lambda_permission" "analysis_invoke_worker" {
+  count = var.enable_analysis_runtime ? 1 : 0
+
+  statement_id  = "AllowRisWorkerInvokeAnalysis"
+  action        = "lambda:InvokeFunction"
+  function_name = module.analysis_runtime.analysis_function_name
+  principal     = module.lambda.lambda_role_arn
+}
+
+resource "aws_lambda_permission" "analysis_invoke_ingress" {
+  count = var.enable_analysis_runtime && var.enable_agent_transport ? 1 : 0
+
+  statement_id  = "AllowRisIngressInvokeAnalysis"
+  action        = "lambda:InvokeFunction"
+  function_name = module.analysis_runtime.analysis_function_name
+  principal     = module.agent_transport[0].dispatch_ingress_role_arn
+}
+
 resource "aws_s3_bucket" "data" {
   bucket = "${local.prefix}-data"
 
@@ -482,12 +505,14 @@ module "agent_transport" {
   environment  = var.environment
   tags         = var.tags
 
-  orders_producer_role_arns = var.orders_producer_role_arns
-  order_result_queue_url    = var.order_result_queue_url
-  order_result_queue_arn    = var.order_result_queue_arn
-  order_result_secret_arn   = var.order_result_secret_arn
-  ats_api_base_url          = var.ats_api_base_url
-  timeout_seconds           = var.agent_execution_timeout_seconds
+  orders_producer_role_arns       = var.orders_producer_role_arns
+  order_result_queue_url          = var.order_result_queue_url
+  order_result_queue_arn          = var.order_result_queue_arn
+  order_result_secret_arn         = var.order_result_secret_arn
+  ats_api_base_url                = var.ats_api_base_url
+  timeout_seconds                 = var.agent_execution_timeout_seconds
+  analysis_function_name          = module.analysis_runtime.analysis_function_name
+  analysis_remote_timeout_seconds = 60
   # Keep the legacy result-policy addresses alive (no shared IAM migration).
   result_transport_enabled = var.enable_agent_transport
 

@@ -72,6 +72,7 @@ def _dependencies() -> Dict[str, Any]:
     from agents.ecosystem.api_profiles import DynamoDBApiProfileStore
     from agents.ecosystem.registry import AgentRegistry
     from agents.ecosystem.worker_authorization import DynamoDBEntitlementResolver
+    from agents.runtime.remote_agent import build_analysis_executor
 
     profile_table = os.environ.get("API_PROFILES_TABLE")
     if not profile_table:
@@ -89,6 +90,7 @@ def _dependencies() -> Dict[str, Any]:
         "table": None,  # pipeline resolves WORK_ITEMS_TABLE itself
         "entitlement_resolver": DynamoDBEntitlementResolver(
             table_name=entitlements_table),
+        "analysis_agent": build_analysis_executor(),
     }
 
 
@@ -134,6 +136,7 @@ def handler(event: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
                 registry=dependencies["registry"],
                 body=dependencies["body"],
                 entitlement_resolver=dependencies.get("entitlement_resolver"),
+                analysis_agent=dependencies.get("analysis_agent"),
             )
             processed += 1
         except (DispatchRejected, transport.TransportError, ValueError) as exc:
