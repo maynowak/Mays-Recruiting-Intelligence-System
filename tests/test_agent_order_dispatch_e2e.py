@@ -191,6 +191,14 @@ def agent_body(**overrides):
     return body
 
 
+class FakeSQS:
+    def __init__(self):
+        self.sent = []
+
+    def send_message(self, **kwargs):
+        self.sent.append(kwargs)
+
+
 @unittest.skipUnless(MO_SRC, "MO_ORDERS_SRC is required for the consumer")
 class TestAgentOrderDispatchE2E(unittest.TestCase):
     def setUp(self):
@@ -203,17 +211,19 @@ class TestAgentOrderDispatchE2E(unittest.TestCase):
         self.entitlements = Entitlements([{
             "userId": OWNER, "tenantId": "tenant-e2e",
             "agentId": "ats-agent", "entitlementId": "ent-e2e"}])
+        self.registry = AgentRegistry()
+        self.body = AgentBody()
         self.dispatched = []
         self.results = []
+        self.sqs = FakeSQS()
         self._patches = [
             patch.object(orders_reader, "_send_order_dispatch",
                          side_effect=self.dispatched.append),
             patch.object(dispatch_ingress, "_dependencies", return_value={
                 "profile_store": self.profile_store,
-                "registry": AgentRegistry(),
-                "body": AgentBody(),
                 "table": self.work,
-                "entitlement_resolver": self.entitlements,
+                "sqs_client": self.sqs,
+                "work_queue_url": "https://sqs.eu-central-1.amazonaws.com/1/work",
             }),
             patch.object(pipeline_module, "_resolve_result_sender",
                          return_value=self.results.append),
@@ -239,11 +249,21 @@ class TestAgentOrderDispatchE2E(unittest.TestCase):
             entitlement_resolver=self.entitlements)
 
     def _dispatch(self, envelope, message_id="sqs-dispatch-1"):
-        return dispatch_ingress.handler({"Records": [{
+        result = dispatch_ingress.handler({"Records": [{
             "messageId": message_id,
             "eventSourceARN": QUEUE_ARN,
             "body": json.dumps(envelope),
         }]}, None)
+        # The ingress persists + enqueues; the shared worker executes the
+        # queued work item in this harness.
+        for message in self.sqs.sent:
+            pipeline_module.process_record(
+                {"body": message["MessageBody"]},
+                table=self.work, registry=self.registry, body=self.body,
+                entitlement_resolver=self.entitlements,
+                result_sender=self.results.append)
+        self.sqs.sent.clear()
+        return result
 
     def test_agent_order_round_trip_and_authorized_read_back(self):
         from result_envelope import sign
@@ -358,7 +378,8 @@ class TestAgentOrderDispatchE2E(unittest.TestCase):
         self._create_agent_order()
         with patch.object(ATSHttpClient, "analyze",
                           side_effect=AssertionError("must not execute")):
-            self._dispatch(self.dispatched[0])
+            if self.dispatched:
+                self._dispatch(self.dispatched[0])
         self.assertEqual([], self.results)
         self.assertTrue(all(
             item.get("status") != "COMPLETED" for item in self.work.items.values()))

@@ -1,6 +1,7 @@
 {
   "schemaVersion": "1.0",
   "release": "RIS-ANALYSIS-OFFER-E2E-15-IDENTITY-GATE",
+  "supersededBy": "RIS-ANALYSIS-OFFER-E2E-15-FINAL-CANARY-GATE",
   "generatedAt": "2026-11-21",
   "verdict": "READY FOR EXACT-PLAN APPLY APPROVAL",
   "state": {

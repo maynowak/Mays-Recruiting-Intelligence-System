@@ -22,6 +22,7 @@ from agents.analysis.cv_bridge import RequestCvResolver  # noqa: E402
 from agents.analysis.orchestrator import AnalysisOrchestrator  # noqa: E402
 from agents.analysis_agent.agent import AnalysisAgent  # noqa: E402
 from analysis_runner import (  # noqa: E402
+    _build_synthetic_verifier,
     analysis_config_from_env,
     handler,
 )
@@ -181,6 +182,70 @@ class SyntheticConfigTest(unittest.TestCase):
 
 
 class SyntheticIdentityTest(unittest.TestCase):
+    def test_persisted_verifier_maps_camelcase_fields(self):
+        class Table:
+            def __init__(self, item=None, error=None):
+                self.item = item
+                self.error = error
+                self.calls = []
+
+            def get_item(self, Key, ConsistentRead=False):
+                self.calls.append((Key, ConsistentRead))
+                if self.error:
+                    raise self.error
+                return {"Item": dict(self.item)} if self.item else {}
+
+        row = {
+            "workId": "work-synthetic", "status": "RUNNING",
+            "tenantId": TENANT, "userId": USER,
+            "partnerApplicationId": PARTNER, "issuer": ISSUER,
+        }
+        identity = {"tenant_id": TENANT, "user_id": USER,
+                    "partner_application_id": PARTNER, "issuer": ISSUER}
+        verify = _build_synthetic_verifier({}, table=Table(row))
+        self.assertTrue(verify("work-synthetic", identity))
+
+        for status in ("QUEUED", "COMPLETED", "FAILED", "CANCELLED"):
+            self.assertFalse(_build_synthetic_verifier(
+                {}, table=Table({**row, "status": status}))(
+                    "work-synthetic", identity), status)
+
+        self.assertFalse(_build_synthetic_verifier(
+            {}, table=Table(None))("work-synthetic", identity))
+        self.assertFalse(_build_synthetic_verifier(
+            {}, table=Table(error=RuntimeError("denied")))(
+                "work-synthetic", identity))
+
+        for item_field, wrong in (("tenantId", "tenant-other"),
+                                  ("userId", "user-other"),
+                                  ("partnerApplicationId", "other"),
+                                  ("issuer", "other")):
+            self.assertFalse(_build_synthetic_verifier(
+                {}, table=Table({**row, item_field: wrong}))(
+                    "work-synthetic", identity), item_field)
+
+    def test_real_verifier_drives_the_analysis_agent(self):
+        class Table:
+            def get_item(self, Key, ConsistentRead=False):
+                return {"Item": {
+                    "workId": "work-synthetic", "status": "RUNNING",
+                    "tenantId": TENANT, "userId": USER,
+                    "partnerApplicationId": PARTNER, "issuer": ISSUER,
+                }}
+
+        config = analysis_config_from_env(env())
+        config["synthetic_verifier"] = _build_synthetic_verifier(
+            {}, table=Table())
+        agent_with_verifier = AnalysisAgent(
+            config, orchestrator=AnalysisOrchestrator(
+                parser=Parser(), cv_resolver=RequestCvResolver(
+                    document_loader=Loader(), repository=None)))
+        out = agent_with_verifier.process_work(work(
+            request(["cv.tags"], cv=structured())))
+        self.assertTrue(out["success"])
+        self.assertEqual("CVParserResultBody",
+                         out["data"]["results"]["cv.tags"]["bodyType"])
+
     def test_exact_identity_gets_a_synthetic_identity(self):
         ident = agent(env())._identity(work(
             request(["cv.tags"], cv=structured())))

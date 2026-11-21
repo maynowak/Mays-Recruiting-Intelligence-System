@@ -120,22 +120,35 @@ def analysis_config_from_env(env: Optional[Dict[str, str]] = None) -> Dict[str, 
     }
 
 
-def _build_synthetic_verifier(env: Dict[str, str]):
+def _build_synthetic_verifier(env: Optional[Dict[str, str]] = None,
+                              table: Any = None):
     """Verify the synthetic identity against the persisted RUNNING WorkItem.
 
     The event payload is not authoritative. Only a row written by the trusted
     ingress/worker with the same identity and status RUNNING authorizes the
     synthetic profile.
     """
-    table_name = (env.get("WORK_ITEMS_TABLE") or "").strip()
-    if not table_name:
-        return None
-    try:
-        import boto3
+    env = env or os.environ
+    if table is None:
+        table_name = (env.get("WORK_ITEMS_TABLE") or "").strip()
+        if not table_name:
+            return None
+        try:
+            import boto3
 
-        table = boto3.resource("dynamodb").Table(table_name)
-    except Exception:  # noqa: BLE001 - fail closed
-        return None
+            table = boto3.resource("dynamodb").Table(table_name)
+        except Exception:  # noqa: BLE001 - fail closed
+            return None
+
+    # Explicit mapping between the Identity contract (snake_case) and the
+    # persisted WorkItem schema (camelCase). Never index the identity dict
+    # with the DynamoDB field name.
+    field_pairs = (
+        ("tenantId", "tenant_id"),
+        ("userId", "user_id"),
+        ("partnerApplicationId", "partner_application_id"),
+        ("issuer", "issuer"),
+    )
 
     def verify(work_id: str, identity: Dict[str, str]) -> bool:
         if not work_id:
@@ -147,13 +160,13 @@ def _build_synthetic_verifier(env: Dict[str, str]):
             return False
         if not isinstance(item, dict) or item.get("status") != "RUNNING":
             return False
-        return all(
-            str(item.get(field) or "") == identity[field]
-            for field in ("tenantId", "userId", "partnerApplicationId",
-                          "issuer")
-        ) and all(identity[field] for field in
-                  ("tenant_id", "user_id", "partner_application_id",
-                   "issuer"))
+        for item_field, identity_field in field_pairs:
+            expected = str(identity.get(identity_field) or "")
+            if not expected:
+                return False
+            if str(item.get(item_field) or "") != expected:
+                return False
+        return True
 
     return verify
 
