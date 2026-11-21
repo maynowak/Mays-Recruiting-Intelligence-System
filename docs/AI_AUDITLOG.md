@@ -11060,3 +11060,15 @@ Date: 2026-11-21
 - Options: A route analysis WorkItems from dispatch_ingress to the dedicated Lambda and use the existing result transport (recommended if Mays orders target analysis); B run analysis in the dispatch function exactly like addition (add parser/analysis env + invoke); C keep direct-invoke internal-only and drop the order-E2E expectation.
 - Plan unchanged and still unapproved: bundle fff25f1e…, plan 7258bd8b… 2/0/0, guard NO_SHARED_DESTROY, state 67. Any transport wiring needs a new plan/approval.
 
+[RIS-ANALYSIS-ECOSYSTEM-INTEGRATION-13 / SHARED WORKER + ECOSYSTEM]
+Status: CORRECTION REQUIRED — integration implemented; ORDER_FAILED gap; no apply.
+Date: 2026-11-21
+- Actual topology: dispatch queue ris-dev2-dev-agent-dispatch -> dispatch_ingress (event source); API execute -> work queue ris-dev2-dev-work-queue -> shared worker ris-dev2-dev-agent; results via ris-dev2-mays-orders-agent-results. DLQs unchanged. Divergence documented: ORDER_DISPATCH executes in ingress directly, not via the work queue (pre-existing).
+- Integration: generic agents/runtime/remote_agent.py LambdaAgentHandler implements the Agent Body process_work contract and synchronously invokes the dedicated analysis Lambda in execution-only mode ({"executionMode":"agent","workItem":…}). Worker and dispatch_ingress pass it via process_record(analysis_agent=…). No new queue, dispatcher, WorkItem/retry/DLQ or result transport.
+- Analysis Lambda execution mode runs only AnalysisAgent.process_work; no WorkItem persistence; _is_analysis_work retained. Standalone runner remains for internal/synthetic use.
+- AgentInvoker/ExecutionEngine unchanged; remote handler is injected through the existing body registration. Bundle: worker e51b1757… (114 files), analysis b0538e71… (112 files).
+- Result path: worker/ingress persists and forwards ORDER_RESULT via existing result_from_work_item with stable msg_<workId>_order_result id; duplicate replay re-emits the same id (Mays dedupe). No exactly-once claim. Gap: runtime does not emit ORDER_FAILED on terminal failure (transport supports it); pre-existing.
+- Tests: remote adapter 7, execution mode 3, ecosystem wiring 8, pipeline result path 3, existing worker/dispatch/fence/entitlement/transport 96; broad set 339 passed, 9 skipped.
+- New read-only plan (old 2/0/0 retired): 4 add / 2 change / 0 destroy, plan 78d6c5ec…, JSON ec77372c…, state 67, guard NO_SHARED_DESTROY. Adds two resource-based invoke permissions + analysis Lambda + data policy; updates worker and ingress env/code only. No queue/IAM-policy change.
+- Open: ORDER_FAILED emission, dispatch-to-work-queue decision, apply approval, synthetic env approval. No apply.
+
