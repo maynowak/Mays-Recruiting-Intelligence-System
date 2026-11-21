@@ -11123,6 +11123,16 @@ Date: 2026-11-21
 - New plan (previous b432e8f4… invalid): 4 add / 3 change / 0 destroy, plan 7426ba4a…, JSON 5649a311…, state 67, guard NO_SHARED_DESTROY. Bundles worker 28125fe1…, analysis a9323301…, parser fb741fb2…. IAM adds only WorkItems GetItem; env adds WORK_ITEMS_TABLE, PROJECT_NAME, ANALYSIS_SYNTHETIC_MODE=false.
 - Two approvals remain separate: A exact technical apply, B exact synthetic profile. Cleanup/reset and DLQ limitation documented.
 
+[RIS-ANALYSIS-OFFER-E2E-15 / STEP E1B — BINDING FIX + RIS_KEY GATE]
+Status: CORRECTION REQUIRED (Mays-Orders apiProfileRef finding); technical apply ready; no apply.
+Date: 2026-11-21
+- Fixed the synthetic verifier mapping: Identity snake_case fields now compare explicitly to persisted WorkItem camelCase fields (tenantId/userId/partnerApplicationId/issuer). Missing row, non-RUNNING, any mismatch or DynamoDB error denies.
+- Real verifier tests (17 synthetic-profile tests): exact RUNNING row passes; missing/Queued/Completed/Failed/Cancelled, each field mismatch, DynamoDB error, outer A/nested B conflict (no parser), direct invoke and positive CV all covered. Broad final run 414 passed + 6 subtests.
+- RIS API path verified: Cognito access JWT + X-Api-Credential, verify_api_credential, partner registry apiProfile/tenant binding, entitlement/catalog, verified context to WorkItem; no key in SQS/WorkItems/results/logs.
+- Mays finding: agentOrder.metadata.apiProfileRef is client-supplied; create/prepare_dispatch check only order ownership, and dispatch_ingress resolves any ACTIVE contextRef. A Mays user could reference another active profile → RIS would execute under that tenant/owner. Owner Mays-Orders; bind/validate apiProfileRef to owner/partner or use a signed binding. No Mays change made.
+- New plan (7426ba4a… invalid): 4 add / 3 change / 0 destroy, plan 9a0324a0…, JSON c1360c51…, state 67, guard NO_SHARED_DESTROY. Bundles worker 28125fe1…, analysis fcc2a008…, parser fb741fb2…. IAM WorkItems GetItem only.
+- Approvals: A exact apply, B exact synthetic profile, C Mays apiProfileRef correction. DLQ exhaustion open. No apply/real data.
+
 [RIS-ARCH-DOCS / CORRECTION-14 ARCHITECTURE PACKAGE]
 Status: imported; no code/Terraform change.
 Date: 2026-11-21
