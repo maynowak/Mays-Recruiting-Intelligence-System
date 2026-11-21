@@ -11095,6 +11095,16 @@ Date: 2026-11-21
 - AWS preflight read-only: caller devnemo/262370457690/eu-central-1, backend ris-dev2-tf-state-dev, work queue visibility 300 s/maxReceive 3, mappings enabled, worker/ingress 60 s, parser 15 s, analysis remote 45 s. Mays consumer supports ORDER_RESULT/ORDER_FAILED.
 - No apply; synthetic env, legal notice, entitlement/catalog and pricing/activation remain separate approvals.
 
+[RIS-ANALYSIS-OFFER-E2E-15 / STEP E0 — CANARY GATE]
+Status: SYNTHETIC TEST DESIGN NEEDS APPROVAL; no apply.
+Date: 2026-11-21
+- Re-verified exact plan 11fb32d8… / JSON caeaea14…, 4 add / 3 change / 0 destroy, state 67 / lineage a0bd361d…, guard NO_SHARED_DESTROY; bundles worker 0d49527e…, analysis 83eef8e6…, parser fb741fb2…. Analysis Lambda still not deployed.
+- IAM/resources: only two resource-based invoke permissions, the analysis Lambda, the reduced PartnerProfiles-only data policy, ingress SendMessage on the existing work queue, and worker/ingress env/code updates. No new queue/IAM policy.
+- Isolation finding: ANALYSIS_ENTITLEMENTS/ANALYSIS_CONSENT/ANALYSIS_NOTICE_APPROVED are function-global (analysis_runner.py:72-79) and applied to every WorkItem (agent.py:59-83). A positive test would globally activate consent/notice; a test-user entitlement alone does not scope it. Deny-by-default plan is safe; positive synthetic profile is not.
+- Minimal proposal (not implemented): allowlist-gated synthetic tenant+user profile applied only when both match, deny otherwise; separate plan/env approval; no new Lambda/queue. Alternative separate test Lambda not recommended.
+- Full AWS E2E procedure, evidence IDs, stop conditions, cleanup/rollback and DLQ-exhaustion limitation documented in docs/reports/RIS-ANALYSIS-OFFER-E2E-15-CANARY-GATE.md. Focused gate tests: 70 passed.
+- Verdict SYNTHETIC TEST DESIGN NEEDS APPROVAL; technical plan may be approved separately. No apply, no merge, no real data.
+
 [RIS-ARCH-DOCS / CORRECTION-14 ARCHITECTURE PACKAGE]
 Status: imported; no code/Terraform change.
 Date: 2026-11-21
