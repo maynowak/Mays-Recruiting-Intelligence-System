@@ -144,6 +144,87 @@ class TestRealAdapterContract(unittest.TestCase):
         self.assertIn("UNSUPPORTED_CAPABILITY", r.reason)
 
 
+class TestOrderStatusSemantics(unittest.TestCase):
+    """HTTP success and business completion are separate signals."""
+
+    def _order(self, status="PENDING", processing=None):
+        body = order_payload("ord_x1", status)
+        if processing is not None:
+            body["processing"] = processing
+        return body
+
+    def test_accepted_order_without_processing_stays_pending(self):
+        t = FakeTransport()
+        t.when("GET", "/orders/ord_x1", 200, self._order("PENDING"))
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertTrue(r.success)  # HTTP GET succeeded
+        self.assertEqual(r.result_type, OrdersResultType.PENDING)
+        self.assertNotEqual(r.result_type, OrdersResultType.APPROVED)
+        self.assertEqual(r.data["order_status"], "PENDING")
+        self.assertEqual(r.data["processing_status"], "")
+
+    def test_completed_processing_is_approved_with_result(self):
+        t = FakeTransport()
+        result = {"bodyType": "ComparisonResultBody", "bodyVersion": "1.0"}
+        t.when("GET", "/orders/ord_x1", 200, self._order(
+            "PENDING", {"status": "COMPLETED", "attempt": 1,
+                        "completedAt": "2026-10-01T00:00:05.000Z",
+                        "result": result}))
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertTrue(r.success)
+        self.assertEqual(r.result_type, OrdersResultType.APPROVED)
+        self.assertEqual(r.data["processing"]["result"], result)
+        self.assertEqual(r.data["processing_status"], "COMPLETED")
+
+    def test_failed_processing_is_rejected_with_error(self):
+        t = FakeTransport()
+        t.when("GET", "/orders/ord_x1", 200, self._order(
+            "PENDING", {"status": "FAILED", "attempt": 1,
+                        "error": {"message": "agent rejected the input"},
+                        "completedAt": "2026-10-01T00:00:05.000Z"}))
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertTrue(r.success)
+        self.assertEqual(r.result_type, OrdersResultType.REJECTED)
+        self.assertIn("agent rejected the input", r.reason)
+        self.assertEqual(r.data["processing"]["error"]["message"],
+                         "agent rejected the input")
+
+    def test_completed_without_result_is_a_contract_error(self):
+        t = FakeTransport()
+        t.when("GET", "/orders/ord_x1", 200, self._order(
+            "PENDING", {"status": "COMPLETED", "attempt": 1,
+                        "completedAt": "2026-10-01T00:00:05.000Z"}))
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertTrue(r.success)
+        self.assertEqual(r.result_type, OrdersResultType.ERROR)
+        self.assertEqual(r.data["contract_error"], "missing_processing_result")
+        self.assertNotEqual(r.result_type, OrdersResultType.APPROVED)
+
+    def test_success_without_order_id_is_controlled_error(self):
+        t = FakeTransport()
+        t.when("GET", "/orders/ord_x1", 200, {"status": "COMPLETED"})
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertFalse(r.success)
+        self.assertEqual(r.result_type, OrdersResultType.ERROR)
+
+    def test_transient_status_raises(self):
+        t = FakeTransport()
+        t.when("GET", "/orders/ord_x1", 503, {"error": {"code": "BUSY"}})
+        with self.assertRaises(TransientOrdersError):
+            adapter(t).get_order_status("ord_x1")
+
+    def test_status_result_contains_no_transport_credentials(self):
+        t = FakeTransport()
+        t.when("GET", "/orders/ord_x1", 200, self._order(
+            "PENDING", {"status": "COMPLETED", "attempt": 1,
+                        "result": {"ok": True}}))
+        r = adapter(t, token="tok-secret").get_order_status("ord_x1")
+        serialized = json.dumps(r.data, sort_keys=True)
+        self.assertNotIn("tok-secret", serialized)
+        self.assertNotIn("Authorization", serialized)
+        self.assertNotIn("Bearer", serialized)
+
+
 class TestOrdersFunction(unittest.TestCase):
     def test_status_delegates_to_port(self):
         seen = {}
@@ -162,6 +243,64 @@ class TestOrdersFunction(unittest.TestCase):
         self.assertTrue(out["success"])
         self.assertEqual(seen["order_id"], "ord_f1")
         self.assertEqual(out["agentId"], "orders_function")
+
+    def test_status_keeps_pending_and_business_state(self):
+        class FakeAdapter:
+            port_id = "fake"
+
+            def get_order_status(self, order_id):
+                return OrderResult(
+                    True, order_id, OrdersResultType.PENDING, "processing not started",
+                    {"order": {"orderId": order_id, "status": "PENDING"},
+                     "processing": {}, "processing_status": "",
+                     "order_status": "PENDING", "http_status": 200})
+
+        out = process_orders_work(
+            {"workId": "w-f", "capability": "orders.status",
+             "payload": {"orderId": "ord_f1"}},
+            adapter_factory=lambda work: FakeAdapter())
+        self.assertTrue(out["success"])
+        self.assertEqual(out["data"]["result_type"], "PENDING")
+        self.assertEqual(out["data"]["http_status"], 200)
+        self.assertEqual(out["data"]["processing_status"], "")
+
+    def test_status_failed_processing_is_rejected_but_query_succeeds(self):
+        class FakeAdapter:
+            port_id = "fake"
+
+            def get_order_status(self, order_id):
+                return OrderResult(
+                    True, order_id, OrdersResultType.REJECTED, "processing failed",
+                    {"order": {"orderId": order_id, "status": "PENDING"},
+                     "processing": {"status": "FAILED",
+                                    "error": {"message": "bad"}},
+                     "processing_status": "FAILED",
+                     "order_status": "PENDING", "http_status": 200})
+
+        out = process_orders_work(
+            {"workId": "w-f", "capability": "orders.status",
+             "payload": {"orderId": "ord_f1"}},
+            adapter_factory=lambda work: FakeAdapter())
+        self.assertTrue(out["success"])
+        self.assertEqual(out["data"]["result_type"], "REJECTED")
+        self.assertEqual(out["data"]["processing_status"], "FAILED")
+
+    def test_status_output_contains_no_token(self):
+        class FakeAdapter:
+            port_id = "fake"
+            token = "tok-secret"
+
+            def get_order_status(self, order_id):
+                return OrderResult(
+                    True, order_id, OrdersResultType.PENDING, "not started",
+                    {"order": {"orderId": order_id, "status": "PENDING"},
+                     "processing": {}, "http_status": 200})
+
+        out = process_orders_work(
+            {"workId": "w-f", "capability": "orders.status",
+             "payload": {"orderId": "ord_f1", "auth": {"idToken": "tok-secret"}}},
+            adapter_factory=lambda work: FakeAdapter())
+        self.assertNotIn("tok-secret", json.dumps(out))
 
     def test_transient_propagates_for_retry(self):
         class FakeAdapter:

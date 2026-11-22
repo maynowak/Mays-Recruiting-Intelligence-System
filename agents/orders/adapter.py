@@ -34,7 +34,14 @@ class OrdersResultType(Enum):
 
 @dataclass
 class OrderResult:
-    """Result from order processing."""
+    """Result from order processing.
+
+    ``success`` is the **technical** port/API success (for example a valid
+    HTTP 2xx response). ``result_type`` is the **business** state of the
+    order/processing: APPROVED/REJECTED are terminal, PENDING is not, ERROR is
+    a controlled technical/contract failure. Do not infer completion from a
+    successful HTTP GET alone.
+    """
     success: bool
     order_id: Optional[str] = None
     result_type: Optional[OrdersResultType] = None

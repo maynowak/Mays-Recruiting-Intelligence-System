@@ -11165,3 +11165,12 @@ Date: 2026-11-22
 - New report `docs/reports/RIS-AGENT-FACTORY-PNP-ANALYSIS-16A.md` with evidence matrix IMPLEMENTED / LOCAL TESTED / AWS VERIFIED / PENDING / BLOCKED, exact pins and the pin-file vs generated-module vs local-checkout distinction.
 - Validation: analysis package VALIDATED; core analysis tests 83 passed; broader focused factory/analysis/auth run 567 passed, 41 skipped, 6 subtests. No analysis Lambda deployed, no AWS canary, no apply, no real data.
 
+[RIS-AGENT-FACTORY-PNP-ANALYSIS-16B / STEP A — ORDER STATUS CONTRACT FIX]
+Status: minimal RIS OrdersPort fix + local tests; no AWS mutation.
+Date: 2026-11-22
+- Confirmed defect: `RealMaysOrdersAdapter.get_order_status()` mapped every HTTP 2xx with `orderId` to `OrdersResultType.APPROVED`, so an accepted but unprocessed order looked completed. `OrderResult.success` (technical port/API success) and `result_type` (business state) are now documented separately.
+- Fix: `orders.status` maps only `processing.status=COMPLETED` with a result body to APPROVED; `FAILED` with error to REJECTED; `CANCELLED` to REJECTED; `DELIVERED` to APPROVED; otherwise PENDING. `COMPLETED` without a result body is a controlled ERROR (`missing_processing_result`). Unexpected response bodies are no longer echoed into the result.
+- `orders_function` now forwards `processing`, `processing_status`, `order_status`, `http_status` and `contract_error`; an HTTP 200 status query stays PENDING/REJECTED as appropriate. No new queue, result consumer, order state machine or Mays lifecycle change.
+- Entry-point audit: RIS `orders_reader` agent-order path binds `apiProfileRef` to `ownerUserId`, requires ACTIVE profile and entitlement; Mays generated module `016cdfd` `prepare_dispatch` checks order ownership but not profile ownership (Mays-owned gap C). RIS OrdersPort `orders.create` remains retail-only; no agent-order create path added.
+- Tests: adapter/reader/agent-gate 86 passed + 7 subtests; broader factory/analysis/auth run 533 passed, 30 skipped, 13 subtests. No AWS verification, no apply, no real data.
+

@@ -366,6 +366,15 @@ class TestOrdersReaderProjection(unittest.TestCase):
         self.assertNotIn("totalAmount", entry)
         self.assertEqual(entry["status"], "PROCESSING")
 
+    def test_pending_order_has_no_fabricated_processing_result(self):
+        table = FakeTable([ddb_like_order("ord_pending", "PENDING")])
+        resp = orders_reader.handler(
+            event("GET /orders/{orderId}", "ord_pending"), None, table)
+        self.assertEqual(resp["statusCode"], 200)
+        body = json.loads(resp["body"])
+        self.assertEqual(body["status"], "PENDING")
+        self.assertNotIn("processing", body)
+
     def test_secret_shaped_result_returns_500_without_leak(self):
         item = ddb_like_order()
         item["processing"] = {

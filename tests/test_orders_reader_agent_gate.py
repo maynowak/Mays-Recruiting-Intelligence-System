@@ -167,6 +167,21 @@ class TestReaderAgentGate(unittest.TestCase):
         self.assertEqual(403, resp["statusCode"])
         self.assertEqual([], self.table.puts)
 
+    def test_profile_owned_by_another_user_is_rejected(self):
+        self.profile_table = ProfileTable([profile(owner="owner-2")])
+        resp = self.post(body(), [entitlement()])
+        self.assertEqual(403, resp["statusCode"])
+        self.assertIn("AGENT_ORDER_REJECTED", resp["body"])
+        self.assertEqual([], self.table.puts)
+        self.assertEqual([], self.sent)
+
+    def test_inactive_profile_is_rejected(self):
+        self.profile_table = ProfileTable([profile(status="DISABLED")])
+        resp = self.post(body(), [entitlement()])
+        self.assertEqual(403, resp["statusCode"])
+        self.assertEqual([], self.table.puts)
+        self.assertEqual([], self.sent)
+
     def test_missing_entitlement_store_fails_closed(self):
         with patch.object(orders_reader, "ENTITLEMENTS_TABLE", ""):
             resp = orders_reader.handler(
