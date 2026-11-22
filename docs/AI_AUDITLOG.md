@@ -11198,3 +11198,15 @@ Date: 2026-11-22
 - Tests: new static preflight 10 passed; focused suite 98 passed + 7 subtests; broad factory/analysis/auth run 560 passed, 30 skipped, 13 subtests. Only read-only `sts get-caller-identity` and S3 state `get-object` were used; no writes. No deployment, no activation, no real data.
 - Required next step: rebuild bundles (done locally, ignored) and generate a new exact plan; fold approved B into the new plan; keep C blocked for the Mays path.
 
+[RIS-ANALYSIS-16C1 / FRESH PLAN & CANARY APPROVAL GATE]
+Status: fresh plan created; A ready for approval; B proposed/not active; C blocked. No apply.
+Date: 2026-11-22
+- Baseline RIS `50ead67`; account 262370457690, region eu-central-1, workspace ris-dev2; remote state serial 67, lineage `a0bd361d…`, 283 resources, last modified 2026-11-20. Mays pin `5cf50a0`, generated module `016cdfd`, local checkout `9627eb2`; Jobsearch `e77ee94`, parser artifact source `c40bf78`.
+- Old plan `9a0324a0…` marked STALE_SUPERSEDED. Bundles rebuilt: worker `85775f68…`, analysis `420bf861…`, parser `fb741fb2…` (runtime files identical to c40bf78), reader `464b991f…`.
+- Fresh plan `73934457…` / JSON `12527f56…`, timestamp 2026-11-22T10:08:44Z, 4 add / 3 change / 0 destroy / 0 replace, guard `NO_SHARED_DESTROY`. No Cognito/CloudFront/Route53/ACM/SQS/DynamoDB/secret changes; all 35 Mays resources no-op. Analysis env `ANALYSIS_SYNTHETIC_MODE=false`, consent/notice/entitlements deny. IAM PartnerProfiles read + WorkItems GetItem only.
+- First fresh attempt produced 4/4 due only to a Windows backslash parser `filename`; `source_code_hash` unchanged. It was rejected; analysis paths were normalized to forward slashes and the final plan is 4/3.
+- A: READY_FOR_APPROVAL for the exact plan, not applied. B: PROPOSED_NOT_ACTIVE (tenant/user/partner/issuer/entitlements/expiry/window documented), requires a new plan; no activation. C: BLOCKED, Mays-owned `apiProfileRef` binding; no synthetic-field bypass.
+- Canary stages: isolated analysis executor (BLOCKED_PENDING_A_B), authenticated RIS API/worker (BLOCKED_PENDING_A_B), Mays transport (BLOCKED_C). All `awsVerified=false`; three offers with success/error/replay/result/denial/cleanup defined.
+- Tests: new 16C1 static gate 10 passed; broad focused run 570 passed, 30 skipped, 13 subtests. 16C0 count reconciled: 533 was the pre-16C0 baseline; actual 16C0 broad was 560. No apply, no synthetic activation, no real data.
+- AWS access was read-only (STS, S3 state GET, Terraform plan/lock/refresh). No resource mutation.
+

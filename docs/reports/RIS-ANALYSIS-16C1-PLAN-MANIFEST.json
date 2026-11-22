@@ -1,0 +1,186 @@
+{
+  "schemaVersion": "1.0",
+  "release": "RIS-ANALYSIS-16C1",
+  "date": "2026-11-22",
+  "base": "50ead67",
+  "oldPlan": {
+    "sha256": "9a0324a0523486b9d4850c9215030a084c35b8807508a6a55bd2e26596a4c7a6",
+    "status": "STALE_SUPERSEDED",
+    "reason": "16B/16C0 changed agents/orders; the old plan pins the pre-change worker and analysis bundles. Do not apply."
+  },
+  "plan": {
+    "path": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc19/plan-final.out",
+    "jsonPath": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc19/plan-final.json",
+    "logPath": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc19/plan-final.log",
+    "timestamp": "2026-11-22T10:08:44Z",
+    "terraformVersion": "1.17.0",
+    "sha256": "7393445789d92bdb15ebcc9ea3ae85a9e98cb068c27ad84bc6fd982d3ba0f64a",
+    "jsonSha256": "12527f565b263b377381145a646700df76363866590fb2c61155357063305e75",
+    "adds": 4,
+    "changes": 3,
+    "destroys": 0,
+    "replacements": 0,
+    "guard": "NO_SHARED_DESTROY",
+    "applyApproved": false,
+    "analysisSyntheticMode": "false",
+    "addsList": [
+      "aws_lambda_permission.analysis_invoke_ingress[0]",
+      "aws_lambda_permission.analysis_invoke_worker[0]",
+      "module.analysis_runtime.aws_iam_role_policy.analysis_runtime_data[0]",
+      "module.analysis_runtime.aws_lambda_function.analysis[0]"
+    ],
+    "changesList": [
+      "module.agent_transport[0].aws_iam_role_policy.dispatch_ingress",
+      "module.agent_transport[0].aws_lambda_function.dispatch_ingress",
+      "module.lambda.aws_lambda_function.agent"
+    ],
+    "protectedChanges": 0,
+    "ordersChanges": 0
+  },
+  "state": {
+    "account": "262370457690",
+    "region": "eu-central-1",
+    "workspace": "ris-dev2",
+    "bucket": "ris-dev2-tf-state-dev",
+    "key": "env:/ris-dev2/dev/terraform.tfstate",
+    "serial": 67,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "resources": 283,
+    "lastModified": "2026-11-20T17:02:21+00:00"
+  },
+  "bundles": {
+    "worker": {
+      "sha256": "85775f685eda57fbd2f49e6351b40f59301de0150c63cb67289fb5c324897096",
+      "files": 115
+    },
+    "analysis": {
+      "sha256": "420bf8610920e03868daf8e593a71c2a9de7cc637ca006a5192dd2800a4a0c9e",
+      "files": 113
+    },
+    "parser": {
+      "sha256": "fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a",
+      "files": 412,
+      "runtime": "nodejs22.x",
+      "architecture": "arm64",
+      "sourceRepository": "maynowak/mays-jobsearch",
+      "sourceCommit": "e77ee94",
+      "artifactSourceCommit": "c40bf78",
+      "runtimeFilesIdenticalToArtifactCommit": true
+    },
+    "reader": {
+      "sha256": "464b991f784f0ea14da761fca355e676490f9a399209d4d3c2149165c25b1c4d",
+      "files": 4
+    },
+    "healthWriter": {
+      "sha256": "2260581dedf4e08b6fbc4bbb10496fa0fd5a2d67737bdd3cf81cb75e8a7cd52c"
+    },
+    "healthPublisher": {
+      "sha256": "b0a189b8ae1862b05b3d19bbf3b2dc4f8db3298789e4fc5483f6eeaeaab29a81"
+    }
+  },
+  "approvals": {
+    "A": {
+      "status": "READY_FOR_APPROVAL",
+      "scope": "ris-dev2 analysis runtime, exact plan 7393445789d92bdb15ebcc9ea3ae85a9e98cb068c27ad84bc6fd982d3ba0f64a",
+      "applyApproved": false,
+      "conditions": [
+        "plan SHA and state serial/lineage must still match at approval time",
+        "no shared destroy/replace; guard NO_SHARED_DESTROY",
+        "ANALYSIS_SYNTHETIC_MODE=false remains the default"
+      ]
+    },
+    "B": {
+      "status": "PROPOSED_NOT_ACTIVE",
+      "requiresNewPlan": true,
+      "proposal": {
+        "tenantId": "tenant-ris-canary-16c1",
+        "userId": "user-ris-canary-16c1",
+        "partnerApplicationId": "ris-internal-analysis-canary-16c1",
+        "issuer": "https://issuer.invalid/synthetic-ris-16c1",
+        "entitlements": [
+          "parse.cv",
+          "parse.job",
+          "compare.tags",
+          "analyze.job"
+        ],
+        "expiresAt": "2026-11-24T18:00:00Z",
+        "activationWindow": "2026-11-24T09:00:00Z/2026-11-24T13:00:00Z",
+        "installation": "ris-dev2",
+        "modeDefault": false
+      },
+      "conditions": [
+        "No activation in this release",
+        "Values are a proposal; the operator must confirm them before a new plan",
+        "If the window moves, generate a new plan with the new expiry",
+        "No real consent, no catalog seed, no public offer"
+      ]
+    },
+    "C": {
+      "status": "BLOCKED",
+      "owner": "mays-orders",
+      "finding": "Mays generated module 016cdfd stores the client-supplied agentOrder.metadata.apiProfileRef, prepare_dispatch checks order ownership only, and dispatch.py copies the ref to identity.contextRef. RIS dispatch_ingress resolves any ACTIVE profile and cannot prove it belongs to the order owner/partner.",
+      "required": "Server-side bind/validate apiProfileRef to the order owner/partner, or a signed server binding.",
+      "noBypass": "Do not satisfy C with synthetic identity fields; that would hide the cross-repo gap."
+    }
+  },
+  "canaryStages": [
+    {
+      "id": "isolated-analysis-executor",
+      "name": "Isolated Analysis Executor Canary",
+      "status": "BLOCKED_PENDING_A_B",
+      "requires": ["A", "B", "synthetic RUNNING WorkItem seed"],
+      "awsVerified": false,
+      "scope": "Direct analysis Lambda invoke with synthetic context; no API Gateway, no worker, no Mays order."
+    },
+    {
+      "id": "authenticated-ris-api-worker",
+      "name": "Authenticated RIS API/Worker Canary",
+      "status": "BLOCKED_PENDING_A_B",
+      "requires": ["A", "B", "Cognito access JWT", "APIProfile", "entitlement", "consent"],
+      "awsVerified": false,
+      "scope": "Verified API execute path through work queue and shared worker; no Mays order."
+    },
+    {
+      "id": "mays-orders-transport",
+      "name": "Full Mays-Orders Transport Canary",
+      "status": "BLOCKED_C",
+      "requires": ["A", "B", "C"],
+      "awsVerified": false,
+      "scope": "Mays agent order, dispatch ingress, work queue, worker, result consumer, GET order."
+    }
+  ],
+  "canaryCases": [
+    {
+      "offerId": "analysis.cv",
+      "success": "synthetic structured CV or owner PDF -> CVParserResultBody 1.0",
+      "error": "missing_cv / cv_access_denied",
+      "replay": "same idempotencyKey -> idempotent=true, one parse",
+      "result": "WorkItem result or Mays processing.result.bodyType=CVParserResultBody",
+      "denial": "no parse.cv -> entitlement_denied; consent=false -> consent_required; foreign partner -> partner_mismatch",
+      "cleanup": "delete synthetic CV object/job object, WorkItem and entitlement; restore deny env"
+    },
+    {
+      "offerId": "analysis.job",
+      "success": "synthetic job text -> JobParserResultBody 1.0",
+      "error": "missing_job / job_text_too_large / job_ref_expired",
+      "replay": "same idempotencyKey -> idempotent=true, one parse",
+      "result": "WorkItem result or Mays processing.result.bodyType=JobParserResultBody",
+      "denial": "no parse.job -> entitlement_denied; consent=false -> consent_required; foreign partner -> partner_mismatch",
+      "cleanup": "delete synthetic job object, WorkItem and entitlement; restore deny env"
+    },
+    {
+      "offerId": "analysis.match",
+      "success": "structured CV + job -> ComparisonResultBody 1.0; optional ats.tags -> ATSAnalysisResultBody 2.0",
+      "error": "missing_cv / missing_job / missing_comparison_inputs",
+      "replay": "same idempotencyKey -> idempotent=true, one CV + one job parse",
+      "result": "WorkItem result or Mays processing.result.bodyType=ComparisonResultBody",
+      "denial": "no compare.tags -> entitlement_denied; ats.tags without analyze.job -> entitlement_denied; consent=false -> consent_required",
+      "cleanup": "delete synthetic CV/job objects, WorkItem and entitlement; restore deny env"
+    }
+  ],
+  "regressionReconciliation": {
+    "16C0ReportBroad": 533,
+    "16C0ActualBroad": 560,
+    "explanation": "533 was the pre-16C0 16B baseline quoted in the 16C0 report. The actual 16C0 broad run, including the new static preflight and the DELIVERED edge-case tests, was 560 passed, 30 skipped, 13 subtests. 16C1 uses the actual 560 figure."
+  }
+}
