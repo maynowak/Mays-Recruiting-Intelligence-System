@@ -11149,3 +11149,11 @@ Date: 2026-11-22
 - Corrected stale pins/counts (31 pipeline tests, 14 offer tests, 17 synthetic-profile tests; E1B broad run 414 passed + 6 subtests). Open: apply A, synthetic profile B, Mays `apiProfileRef` binding C, DLQ exhaustion, legal/entitlement/catalog.
 - Validation: `installer.agent_install --agent analysis-agent --stage validate` PASSED; analysis pipeline/offers/entitlements 57 passed. No apply, no real data.
 
+[RIS-AGENT-FACTORY-PNP-ANALYSIS-16A / STEP B — COMPOSITE TEMPLATE]
+Status: documentation/template only; no runtime/AWS change.
+Date: 2026-11-22
+- `agent-installations/README.md` now documents the composite-agent model: one agent with multiple offers, one outer order/WorkItem, internal parser subfunctions, shared registry/AgentBody/WorkItems/SQS/worker/result transport, verified identity/APIProfile/entitlement/consent, unified status/result/test/lifecycle contracts.
+- `_template` now includes an optional `offers.yaml` scaffold and composite manifest fields (`composite`, `offers`, `internalCapabilities`, `externalEntitlements`). No installer schema change; discovery and required-file validation are unchanged.
+- Reference remains `analysis-agent` with three DRAFT offers and Mays-owned pricing. Automatic parent-agent resume is explicitly excluded.
+- Validation: template YAML parses; root discovery still finds five packages; `_template` remains rejected as non-deployable. No apply, no real data.
+

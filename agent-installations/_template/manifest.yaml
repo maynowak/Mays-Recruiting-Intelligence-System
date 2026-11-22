@@ -9,6 +9,11 @@ agent:
   capability: "<domain.action>"
   workType: "agent_<agent-id>"
   runtimeAgentVersion: "1.0.0"
+  # Composite agents only. Keep false/empty for a single-offer agent.
+  composite: false
+  offers: ""
+  internalCapabilities: []
+  externalEntitlements: []
 source:
   repository: mays-ris
   path: "agents/<agent-package>"
