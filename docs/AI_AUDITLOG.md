@@ -11227,3 +11227,15 @@ Date: 2026-11-22
 - Tests: plan-guard/saved-plan/installer/shared-guard 92 passed. State and resources unchanged; the approved plan is untouched.
 - Retry will use the same plan SHA `73934457…`; no re-plan, no rollback.
 
+[RIS-ANALYSIS-16C2 / STEP C — APPROVED APPLY A + AWS ACCEPTANCE]
+Status: APPLIED; INFRASTRUCTURE AWS VERIFIED; analysis live E2E NOT verified.
+Date: 2026-11-22
+- The exact approved saved plan `73934457…` / JSON `12527f56…` was applied once via the hardened `--apply-saved-plan` path: exit 0, state serial 67 → 69, lineage `a0bd361d…`, resources 283 → 287, 4 created / 3 updated / 0 deleted / 0 replaced, guard `NO_SHARED_DESTROY`.
+- Created: analysis Lambda, analysis runtime-data policy, two analysis invoke permissions. Updated: dispatch-ingress IAM policy, dispatch-ingress Lambda, shared worker. No protected-state changes; 0 Mays non-no-op actions.
+- Analysis Lambda `ris-dev2-dev-analysis`: python3.14, x86_64 (plan unpinned default), 60 s, 512 MB, Active/Successful, code hash `Qgv4YQ…`, no public URL, log retention 14 d. Deny env: `ANALYSIS_SYNTHETIC_MODE=false`, consent/notice false, entitlements empty, parser mode lambda.
+- Parser `ris-dev2-dev-analysis-parser`: nodejs22.x, arm64, 15 s, code hash `+3Qfsl…`. Worker/ingress code hash `hXdfaF…`, analysis env/timeout bound. IAM: PartnerProfiles read + WorkItems GetItem; invoke-parser policy; two resource-policy invoke statements (worker, ingress).
+- Catalog scan has no `analysis.*` offers; entitlement scan has no `analysis-agent` grants. All six dispatch/work/result queues empty; no Lambda errors/throttles datapoints.
+- State freshness finding: S3 state 67 was behind the plan's refreshed `prior_state` for several no-op resources (Mays handler inline policies, documents CORS, analysis jobs lifecycle, parser inline policy). The plan had no Mays non-no-op action; apply persisted refresh (68) + planned changes (69). Read-only post-apply plan: 0 changes (272 no-op), 35 Mays no-op.
+- Tests: all five agent packages VALIDATED; analysis stages DISCOVER→HANDOFF PASSED (apply local record executed=false); lifecycle/install 34 passed; broad relevant regression 739 passed, 41 skipped, 13 subtests; addition/ATS 95 passed + 9 subtests; composite lifecycle 40 passed/3 BLOCKED_ENV (missing local Orders clone); full `tests/` BLOCKED_ENV by missing requests/moto and unrelated ConsentContext NameError.
+- E2E boundaries: infrastructure AWS VERIFIED; isolated analysis executor BLOCKED_B; authenticated RIS API/worker BLOCKED_B; Mays transport BLOCKED_C; automatic resume BLOCKED. No synthetic data, orders, entitlements or catalog offers created; no cleanup required. No rollback, re-plan, main merge or production deployment.
+

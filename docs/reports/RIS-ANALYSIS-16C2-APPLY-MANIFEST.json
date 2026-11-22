@@ -1,0 +1,216 @@
+{
+  "schemaVersion": "1.0",
+  "release": "RIS-ANALYSIS-16C2",
+  "date": "2026-11-22",
+  "base": "50ead67",
+  "approval": {
+    "gate": "A",
+    "reference": "RIS-ANALYSIS-16C2-A-2026-11-22",
+    "approvedPlanSha256": "7393445789d92bdb15ebcc9ea3ae85a9e98cb068c27ad84bc6fd982d3ba0f64a",
+    "applied": true
+  },
+  "installerChanges": {
+    "savedPlanModeCommit": "9ad94ac",
+    "noopGateFixCommit": "a51700f",
+    "savedPlanMode": "applies the exact saved plan once; never calls terraform plan",
+    "negativeTests": 17
+  },
+  "plan": {
+    "path": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc19/plan-final.out",
+    "jsonPath": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc19/plan-final.json",
+    "logPath": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc19/apply-2.log",
+    "timestamp": "2026-11-22T10:08:44Z",
+    "sha256": "7393445789d92bdb15ebcc9ea3ae85a9e98cb068c27ad84bc6fd982d3ba0f64a",
+    "jsonSha256": "12527f565b263b377381145a646700df76363866590fb2c61155357063305e75",
+    "adds": 4,
+    "changes": 3,
+    "destroys": 0,
+    "replacements": 0,
+    "guard": "NO_SHARED_DESTROY",
+    "analysisSyntheticMode": "false"
+  },
+  "apply": {
+    "result": "SUCCESS",
+    "exitCode": 0,
+    "stateSerialBefore": 67,
+    "stateSerialAfter": 69,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "resourcesBefore": 283,
+    "resourcesAfter": 287,
+    "stateLastModified": "2026-11-22T11:52:56+00:00",
+    "created": [
+      "aws_lambda_permission.analysis_invoke_ingress[0]",
+      "aws_lambda_permission.analysis_invoke_worker[0]",
+      "module.analysis_runtime.aws_iam_role_policy.analysis_runtime_data[0]",
+      "module.analysis_runtime.aws_lambda_function.analysis[0]"
+    ],
+    "updated": [
+      "module.agent_transport[0].aws_iam_role_policy.dispatch_ingress",
+      "module.agent_transport[0].aws_lambda_function.dispatch_ingress",
+      "module.lambda.aws_lambda_function.agent"
+    ],
+    "removed": [],
+    "protectedStateChanges": 0,
+    "maysNonNoopActions": 0
+  },
+  "bundles": {
+    "worker": "85775f685eda57fbd2f49e6351b40f59301de0150c63cb67289fb5c324897096",
+    "analysis": "420bf8610920e03868daf8e593a71c2a9de7cc637ca006a5192dd2800a4a0c9e",
+    "parser": "fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a",
+    "reader": "464b991f784f0ea14da761fca355e676490f9a399209d4d3c2149165c25b1c4d"
+  },
+  "awsAcceptance": {
+    "analysisLambda": {
+      "functionName": "ris-dev2-dev-analysis",
+      "runtime": "python3.14",
+      "architecture": "x86_64",
+      "architectureNote": "The plan did not pin an architecture; Terraform/provider default x86_64 was applied. Parser is arm64 as planned.",
+      "handler": "analysis_runner.handler",
+      "timeoutSeconds": 60,
+      "memorySize": 512,
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "codeSha256": "Qgv4YQkg4Dho2vjlk6ccKp3nzGN8oAalGS3SgApKDJ4=",
+      "codeSize": 295959,
+      "lastModified": "2026-11-22T11:52:26.745+0000",
+      "publicFunctionUrl": false,
+      "logGroupRetentionDays": 14,
+      "denyByDefault": {
+        "ANALYSIS_SYNTHETIC_MODE": "false",
+        "ANALYSIS_CONSENT": "false",
+        "ANALYSIS_NOTICE_APPROVED": "false",
+        "ANALYSIS_ENTITLEMENTS": "",
+        "RIS_PARSER_MODE": "lambda"
+      }
+    },
+    "parserLambda": {
+      "functionName": "ris-dev2-dev-analysis-parser",
+      "runtime": "nodejs22.x",
+      "architecture": "arm64",
+      "handler": "lambda/ris_parser_handler.handler",
+      "timeoutSeconds": 15,
+      "memorySize": 512,
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "codeSha256": "+3Qfsl580pIypDpjE3puKoyg6UjMLv32dkuHeRGfMBo=",
+      "codeSize": 17937176,
+      "logGroupRetentionDays": 14
+    },
+    "worker": {
+      "functionName": "ris-dev2-dev-agent",
+      "runtime": "python3.14",
+      "handler": "handler.lambda_handler",
+      "timeoutSeconds": 60,
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "codeSha256": "hXdfaF7aV/vS9J5jUbQPWTAd4BUMY8tnKJ+1wySJcJY=",
+      "codeSize": 348733,
+      "lastModified": "2026-11-22T11:52:45.000+0000",
+      "analysisFunctionName": "ris-dev2-dev-analysis",
+      "analysisRemoteTimeoutSeconds": "45"
+    },
+    "dispatchIngress": {
+      "functionName": "ris-dev2-dev-agent-dispatch-ingress",
+      "runtime": "python3.14",
+      "handler": "dispatch_ingress.handler",
+      "timeoutSeconds": 60,
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "codeSha256": "hXdfaF7aV/vS9J5jUbQPWTAd4BUMY8tnKJ+1wySJcJY=",
+      "codeSize": 348733,
+      "lastModified": "2026-11-22T11:52:39.000+0000",
+      "analysisFunctionName": "ris-dev2-dev-analysis",
+      "analysisRemoteTimeoutSeconds": "45"
+    },
+    "iam": {
+      "runtimeDataPolicy": {
+        "name": "ris-dev2-dev-analysis-runtime-data",
+        "statements": [
+          "PartnerProfiles GetItem/Query",
+          "WorkItems GetItem (SyntheticWorkItemReadback)"
+        ]
+      },
+      "invokeParserPolicy": "ris-dev2-dev-analysis-invoke-parser",
+      "invokePermissions": [
+        "AllowRisIngressInvokeAnalysis -> ris-dev2-dev-agent-dispatch-ingress",
+        "AllowRisWorkerInvokeAnalysis -> ris-dev2-dev-agent"
+      ]
+    },
+    "queues": {
+      "ris-dev2-dev-agent-dispatch": 0,
+      "ris-dev2-dev-agent-dispatch-dlq": 0,
+      "ris-dev2-dev-work-queue": 0,
+      "ris-dev2-dev-dlq": 0,
+      "ris-dev2-mays-orders-agent-results": 0,
+      "ris-dev2-mays-orders-agent-results-dlq": 0
+    },
+    "cloudwatch": {
+      "analysisErrors": "no datapoints",
+      "analysisThrottles": "no datapoints",
+      "parserErrors": "no datapoints",
+      "parserThrottles": "no datapoints",
+      "workerErrors": "no datapoints",
+      "workerThrottles": "no datapoints",
+      "ingressErrors": "no datapoints",
+      "ingressThrottles": "no datapoints"
+    },
+    "catalogAndEntitlements": {
+      "analysisOffers": [],
+      "analysisEntitlements": [],
+      "activation": false
+    }
+  },
+  "drift": {
+    "postApplyPlan": {
+      "path": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc19/drift-post.json",
+      "actions": {"no-op": 272},
+      "applyable": false,
+      "nonNoop": [],
+      "maysNonNoop": 0
+    },
+    "stateRefreshFinding": "The pre-apply S3 state serial 67 was behind the plan's refreshed prior_state for several no-op resources (Mays handler inline policies, documents CORS, analysis jobs lifecycle, parser inline policy). The plan had no non-no-op Mays action. Apply persisted the refresh (serial 68) and the planned changes (serial 69); the post-apply plan is 0 changes. No apply-driven Mays mutation is evidenced.",
+    "protectedStateChanges": 0
+  },
+  "tests": {
+    "agentPackagesValidated": 5,
+    "agentStages": {
+      "discover": "PASSED",
+      "analyze": "PASSED",
+      "compatibility": "PASSED",
+      "risk-review": "PASSED",
+      "package": "PASSED",
+      "validate": "PASSED",
+      "plan": "PASSED (not executed)",
+      "apply": "PASSED (local approval record; executed=false)",
+      "e2e": "PASSED (not executed)",
+      "handoff": "PASSED"
+    },
+    "broadRegression": {"passed": 739, "skipped": 41, "subtests": 13},
+    "additionAtsRegression": {"passed": 95, "subtests": 9},
+    "agentLifecycle": {"passed": 34},
+    "compositeLifecycle": {"passed": 40, "blocked": 3},
+    "fullSuite": {
+      "status": "BLOCKED_ENV",
+      "reason": "Collection errors: missing requests, missing moto/mock_aws, and unrelated ConsentContext NameError."
+    }
+  },
+  "e2e": {
+    "isolatedAnalysisExecutor": {"status": "BLOCKED_B", "awsVerified": false},
+    "authenticatedRisApiWorker": {"status": "BLOCKED_B", "awsVerified": false},
+    "maysTransport": {"status": "BLOCKED_C", "awsVerified": false},
+    "automaticResume": {"status": "BLOCKED", "implemented": false}
+  },
+  "cleanup": {
+    "syntheticDataCreated": false,
+    "ordersCreated": 0,
+    "entitlementsCreated": 0,
+    "catalogOffersCreated": 0,
+    "infrastructureRetained": true,
+    "cleanupRequired": false
+  },
+  "approvals": {
+    "A": "APPLIED",
+    "B": "NOT_ACTIVE",
+    "C": "BLOCKED"
+  }
+}
