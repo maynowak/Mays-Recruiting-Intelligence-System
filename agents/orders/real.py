@@ -140,11 +140,14 @@ class RealMaysOrdersAdapter(OrdersPort):
         processing = processing if isinstance(processing, dict) else {}
         processing_status = str(processing.get("status") or "").upper()
         order_status = str(order.get("status") or "").upper()
+        order_type = str(order.get("orderType") or "").lower()
+        is_agent_order = order_type == "agent.execution"
         order_id = order.get("orderId")
         data: Dict[str, Any] = {
             "order": order,
             "http_status": status,
             "order_status": order_status,
+            "order_type": order_type,
             "processing": processing,
             "processing_status": processing_status,
             **context,
@@ -176,6 +179,16 @@ class RealMaysOrdersAdapter(OrdersPort):
                 result_type=OrdersResultType.REJECTED,
                 reason="order cancelled", data=data)
         if order_status == "DELIVERED":
+            if is_agent_order:
+                # A terminal agent-execution order without a processing result
+                # is a contract inconsistency, not a successful execution.
+                return OrderResult(
+                    success=True, order_id=order_id,
+                    result_type=OrdersResultType.ERROR,
+                    reason=("agent execution delivered without a processing "
+                            "result"),
+                    data={**data,
+                          "contract_error": "missing_processing_result"})
             return OrderResult(
                 success=True, order_id=order_id,
                 result_type=OrdersResultType.APPROVED,

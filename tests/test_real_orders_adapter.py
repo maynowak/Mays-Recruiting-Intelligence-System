@@ -189,6 +189,39 @@ class TestOrderStatusSemantics(unittest.TestCase):
         self.assertEqual(r.data["processing"]["error"]["message"],
                          "agent rejected the input")
 
+    def test_agent_execution_delivered_without_processing_is_not_approved(self):
+        t = FakeTransport()
+        order = self._order("DELIVERED")
+        order["orderType"] = "agent.execution"
+        t.when("GET", "/orders/ord_x1", 200, order)
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertTrue(r.success)
+        self.assertEqual(r.result_type, OrdersResultType.ERROR)
+        self.assertEqual(r.data["contract_error"], "missing_processing_result")
+        self.assertEqual(r.data["order_type"], "agent.execution")
+        self.assertNotEqual(r.result_type, OrdersResultType.APPROVED)
+
+    def test_agent_execution_delivered_with_completed_result_is_approved(self):
+        t = FakeTransport()
+        order = self._order("DELIVERED", {
+            "status": "COMPLETED", "attempt": 1,
+            "result": {"bodyType": "ComparisonResultBody", "bodyVersion": "1.0"},
+        })
+        order["orderType"] = "agent.execution"
+        t.when("GET", "/orders/ord_x1", 200, order)
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertTrue(r.success)
+        self.assertEqual(r.result_type, OrdersResultType.APPROVED)
+
+    def test_retail_delivered_is_approved(self):
+        t = FakeTransport()
+        order = self._order("DELIVERED")
+        order["orderType"] = "retail"
+        t.when("GET", "/orders/ord_x1", 200, order)
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertTrue(r.success)
+        self.assertEqual(r.result_type, OrdersResultType.APPROVED)
+
     def test_completed_without_result_is_a_contract_error(self):
         t = FakeTransport()
         t.when("GET", "/orders/ord_x1", 200, self._order(

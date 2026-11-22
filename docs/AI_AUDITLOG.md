@@ -11181,3 +11181,10 @@ Date: 2026-11-22
 - Verdict: defect fixed locally; HTTP 2xx GET no longer implies APPROVED; COMPLETED+result is APPROVED, FAILED is REJECTED, pending is PENDING, missing result is a controlled ERROR. Mays apiProfileRef binding C, DLQ exhaustion and automatic resume remain open/blocked. No AWS verification.
 - Tests unchanged from STEP A: 86 passed + 7 subtests focused; 533 passed, 30 skipped, 13 subtests broad. No apply, no deployment, no real data.
 
+[RIS-ANALYSIS-16C0 / STEP A — DELIVERED AGENT ORDER EDGE CASE]
+Status: minimal RIS OrdersPort fix + local tests; no AWS mutation.
+Date: 2026-11-22
+- Confirmed boundary: `orderType=agent.execution` + top-level `status=DELIVERED` without `processing.result` was still mapped to APPROVED. Fixed: an agent-execution DELIVERED without a processing result is a controlled ERROR (`contract_error=missing_processing_result`), never APPROVED. Retail DELIVERED remains APPROVED; agent.execution with `processing.status=COMPLETED` and a result body remains APPROVED.
+- `orders_function` forwards `order_type` in addition to the existing processing/HTTP fields. No Mays lifecycle, queue, result consumer or Terraform change.
+- Tests: adapter/reader/agent-gate 79 passed + 7 subtests. No AWS verification, no apply.
+

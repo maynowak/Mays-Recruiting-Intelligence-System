@@ -114,6 +114,7 @@ def process_orders_work(work_item: Dict[str, Any],
                              "processing": data.get("processing"),
                              "processing_status": data.get("processing_status"),
                              "order_status": data.get("order_status"),
+                             "order_type": data.get("order_type"),
                              "http_status": data.get("http_status"),
                              "contract_error": data.get("contract_error"),
                              "workId": work_item.get("workId")}}
