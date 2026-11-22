@@ -93,3 +93,11 @@ verifiziert. Kein Main-Merge.
 - https://github.com/maynowak/Mays-Recruiting-Intelligence-System/blob/550090e/docs/reports/RIS-ANALYSIS-16C2-APPLY-REGRESSION.md
 - https://github.com/maynowak/Mays-Recruiting-Intelligence-System/blob/550090e/docs/reports/RIS-ANALYSIS-16C2-QA2-MODULE-CONTRACT.md
 - https://github.com/maynowak/Mays-Recruiting-Intelligence-System/blob/550090e/.github/workflows/ci-cd.yml
+
+## Addendum 2026-11-22 — Main-CI-Bedingung aufgelöst
+
+`RIS-ANALYSIS-MAIN-CI-PREFLIGHT-FIX-01` hat den invaliden `plan:`-Trigger
+sowie die Auto-Plan-/Auto-Apply-Jobs durch rein lesende statische Prüfungen
+ersetzt; `environment=main` existiert nicht mehr. Evidenz:
+`docs/reports/RIS-ANALYSIS-MAIN-CI-PREFLIGHT-FIX-01.md`, CI-Fix-Commit
+`4d3c439`. Der historische Befund oben bleibt unverändert.

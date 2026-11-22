@@ -11303,3 +11303,13 @@ Status: feature checkpoint pushed; main unchanged; no merge.
 - No Terraform/AWS mutation, target rebuild, RC4 migration, main merge or production deployment. Gate B synthetic profile and Gate C `apiProfileRef` binding remain open.
 - Verdict: **READY FOR CONTROLLED MAIN MERGE REVIEW** with the explicit `MAIN-PUSH CI CONDITION: PLAN ENV=main INVALID`; do not merge until that workflow/plan context is reviewed or the red plan is explicitly accepted.
 
+[RIS-ANALYSIS-MAIN-CI-PREFLIGHT-FIX-01 / MAIN CI READY]
+Date: 2026-11-22
+Status: CI workflow fixed and pushed; no AWS/Terraform mutation, no main merge.
+- Baseline 75d62c1; AGENTS.md and AI_AUDITLOG read. Branch/remote/worktree verified; origin/main e95fe48 unchanged; feature 110 ahead / 0 behind, 301 paths before this task.
+- Root causes: invalid `on: plan` trigger produced zero-job failure runs on every push (e.g. 45037624423, 45037364297); Terraform commands ran at repo root without `*.tf` (no working-directory/-chdir); plan used `environment=main` while root allows only dev|test|prod; partial S3 backend and no AWS credentials in plan; deploy was unreachable and used `apply -auto-approve` without a saved plan; generated `terraform/modules/mays_orders/` is gitignored, so clean-checkout root validate needs a guard.
+- Fix commit 4d3c439: read-only workflow on push main + PR main, contents:read, working-directory terraform, fmt -check -recursive, per-module init -backend=false + validate (15 committed modules), root validate only when generated module present, no plan/apply/secrets. Deployment remains installer saved-plan path. Terraform version aligned to >=1.6,<2.0.
+- Validation: actionlint v1.7.12 PASS; YAML structure PASS; clean detached worktree at 75d62c1: fmt PASS, 15/15 modules validate PASS, root skipped as designed; with ephemeral generated-module copy root init+validate PASS; focused analysis/builder/plan/apply tests 94 passed; git diff --check PASS; secret audit no findings; forbidden pattern scan empty. No new zero-job failure run after 4d3c439; first hosted green run requires PR/main push.
+- Mergeability after docs checkpoint: 112 ahead / 0 behind, 303 changed paths vs origin/main; merge-tree clean. No changes to analysis agent, parsers, contracts, entitlements, consent, Terraform resources, pins, generated target, offers or AWS config. No Terraform apply, AWS deployment, RC4 upgrade, target rebuild or main merge.
+- Verdict: MAIN CI READY. Gate B synthetic activation, Gate C apiProfileRef binding, live E2E, DLQ exhaustion, parent-agent resume and Cognito service principal remain open.
+
