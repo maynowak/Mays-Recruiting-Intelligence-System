@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "1.0",
+  "releaseId": "ris-agent-lifecycle-11",
+  "date": "2026-11-18",
+  "status": "ENFORCEMENT LIVE IN RIS-DEV2 / PARTNER TRAFFIC NO-GO",
+  "baseline": "ris-agent-lifecycle-10",
+  "environment": {
+    "project": "ris-dev2",
+    "awsAccount": "262370457690",
+    "region": "eu-central-1",
+    "workspace": "ris-dev2",
+    "stateLineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "stateSerialBefore": 63,
+    "stateSerialAfter": 64,
+    "stateResources": 266
+  },
+  "enforcement": {
+    "reader": {
+      "route": "POST /orders",
+      "gate": "check_worker_entitlement before persist",
+      "denied": "403 AGENT_ORDER_REJECTED",
+      "unavailable": "503 SERVICE_UNAVAILABLE",
+      "catalogConsulted": false
+    },
+    "dispatchAndWorker": {
+      "gate": "execution-time entitlement re-check",
+      "denied": "DEAD_LETTER / ENTITLEMENT_DENIED",
+      "failOpenOnMissingResolver": false,
+      "note": "resolver presence is enforced by the deployed env"
+    },
+    "apiIngress": "catalog + entitlement (unchanged)",
+    "discovery": "catalog + entitlement (unchanged)"
+  },
+  "changeSet": {
+    "planSha256": "47862CF869763E20734969595915ECACFF7A44F837E2BFB1761595F561BA5E0B",
+    "add": 0,
+    "change": 2,
+    "destroy": 0,
+    "replace": 0,
+    "resources": [
+      "module.orders_reader[0].aws_iam_role_policy.reader_agent_dispatch[0]",
+      "module.orders_reader[0].aws_lambda_function.reader"
+    ],
+    "postApplyPlan": "no changes"
+  },
+  "artifacts": {
+    "readerBundleSha256": "464b991f784f0ea14da761fca355e676490f9a399209d4d3c2149165c25b1c4d",
+    "readerLambdaCodeSha256": "RkuZH3hPDqFNp2H8o1XmdkkPmjmSCdTTwhSRZcJbHE0=",
+    "readerBundleFiles": 4
+  },
+  "liveCanary": {
+    "environment": "ris-dev2",
+    "synthetic": true,
+    "profileRef": "aprof_lc11canary",
+    "subject": "lifecycle11-canary-sub",
+    "tenant": "ris-dev2-lifecycle11",
+    "steps": [
+      {"case": "ENABLED_ORDER", "status": 201, "orderId": "ord_dce286fa42aa192773f67276", "workId": "work-def684e6d16c0d11", "work": "COMPLETED", "sum": 42, "delivery": "SENT", "ordersProcessing": "COMPLETED"},
+      {"case": "DISABLED_ORDER", "status": 403, "code": "AGENT_ORDER_REJECTED", "persisted": false},
+      {"case": "DISABLED_DIRECT_WORK", "workId": "work-lc11-direct", "work": "DEAD_LETTER", "reason": "no-entitlement", "result": false},
+      {"case": "OTHER_AGENT_ATS", "status": 201, "orderId": "ord_120536c300e188f7c0a244dd", "workId": "work-3226944b7be8ecfa", "work": "COMPLETED", "bodyVersion": "2.0", "delivery": "SENT"},
+      {"case": "RETAIL_ORDER", "status": 201, "orderId": "ord_8945fb4ee8d7e65b820c381e"},
+      {"case": "REENABLED_ORDER", "status": 201, "orderId": "ord_e79d7cc716b61af254bc8577", "work": "COMPLETED", "sum": 42, "delivery": "SENT", "ordersProcessing": "COMPLETED"}
+    ],
+    "queues": {"dispatch": 0, "dispatchDlq": 0, "work": 0, "results": 0, "resultsDlq": 0, "orders": 0},
+    "cleanup": ["ent_lc11_ats", "ent_lc11_add", "aprof_lc11canary"],
+    "evidenceRowsRetained": true
+  },
+  "sharedResources": {
+    "workerCodeSha256": "UljJnuYrTmbaJYdNKUGxjNFIcXlrqtvb8OH+V1HrmOE=",
+    "dispatchIngressCodeSha256": "UljJnuYrTmbaJYdNKUGxjNFIcXlrqtvb8OH+V1HrmOE=",
+    "tables": "all present",
+    "secretVersions": ["AWSCURRENT"],
+    "changed": false
+  },
+  "partner": {
+    "entitlementsCountAfter": 2,
+    "apiProfilesCountAfter": 4,
+    "offersCount": 0,
+    "catalog": {"ats-agent": "ACTIVE", "reference_agent": "ACTIVE", "jobsearch-agent": "ACTIVE", "addition_agent": "ABSENT"},
+    "externalChanges": "none",
+    "pending": ["partner API credential/base URL", "hard-coded agent allowlist", "static partner UI bindings", "quota/consent text", "partner Cognito scope"]
+  },
+  "tests": {
+    "newGateSuite": "10 passed, 7 subtests",
+    "regression": "180 passed, 8 skipped, 13 subtests",
+    "readerFlatImport": "PASS"
+  },
+  "openRisks": [
+    "catalog is not an execution gate; DISABLE requires entitlement withdrawal",
+    "no ORDER_FAILED projection for historical stranded orders",
+    "reader POST idempotency is not request-level",
+    "work-item TTL 30d vs matrix 90d; order rows omit expiresAt",
+    "PURGE blocked until retention approval and deletion-ledger support",
+    "reader fails closed with 503 when the entitlement store is unavailable"
+  ],
+  "safety": {
+    "scope": "ris-dev2 only",
+    "purge": false,
+    "foreignRepos": false,
+    "risDevOrProduction": false,
+    "sharedInfrastructureDestroyed": false,
+    "secretsRead": false,
+    "pushOrMerge": false
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "1.0",
+  "release": "RIS-ANALYSIS-OFFER-E2E-15-SYNTHETIC-ISOLATION",
+  "supersededBy": "RIS-ANALYSIS-OFFER-E2E-15-IDENTITY-GATE",
+  "generatedAt": "2026-11-21",
+  "verdict": "READY FOR CONTROLLED AWS CANARY APPROVAL",
+  "state": {
+    "serial": 67,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "resources": 283,
+    "workspace": "ris-dev2"
+  },
+  "plan": {
+    "path": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc16/plan.out",
+    "sha256": "b432e8f417cf99ffb2f1517325246d225860f3eb11a46c2c96ed2474ef9ad28c",
+    "jsonSha256": "d91423e29062929112cb3b7e2493abc79a0079f26aad1c33f8b9fb81a51a449b",
+    "adds": 4,
+    "changes": 3,
+    "destroys": 0,
+    "replacements": 0,
+    "guard": "NO_SHARED_DESTROY",
+    "applyApproved": false
+  },
+  "bundles": {
+    "worker": {
+      "sha256": "5a0f330581517e9c8095b56b5154f656bc5c2b2d3c68e077bccaf872c1a60cf4",
+      "files": 115
+    },
+    "analysis": {
+      "sha256": "1897a68ed5b2fbe754c51b4ad2fa2743a65bc267f8c07bf1329df687e965c2b2",
+      "files": 113
+    },
+    "parser": {
+      "sha256": "fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a",
+      "files": 412
+    }
+  },
+  "syntheticProfile": {
+    "modeEnv": "ANALYSIS_SYNTHETIC_MODE",
+    "default": false,
+    "required": [
+      "ANALYSIS_SYNTHETIC_TENANT_ID",
+      "ANALYSIS_SYNTHETIC_USER_ID",
+      "ANALYSIS_SYNTHETIC_PARTNER_APPLICATION_ID",
+      "ANALYSIS_SYNTHETIC_ISSUER",
+      "ANALYSIS_SYNTHETIC_ENTITLEMENTS",
+      "ANALYSIS_SYNTHETIC_EXPIRES_AT"
+    ],
+    "match": "exact tenant + user + partner application + issuer; non-empty; no wildcard",
+    "noticeApproval": false,
+    "realConsent": false,
+    "iamScope": "worker/ingress invoke only; no public route"
+  },
+  "resources": {
+    "adds": [
+      "aws_lambda_permission.analysis_invoke_ingress[0]",
+      "aws_lambda_permission.analysis_invoke_worker[0]",
+      "module.analysis_runtime.aws_iam_role_policy.analysis_runtime_data[0]",
+      "module.analysis_runtime.aws_lambda_function.analysis[0]"
+    ],
+    "updates": [
+      "module.agent_transport[0].aws_iam_role_policy.dispatch_ingress",
+      "module.agent_transport[0].aws_lambda_function.dispatch_ingress",
+      "module.lambda.aws_lambda_function.agent"
+    ]
+  },
+  "stopConditions": [
+    "plan SHA differs from b432e8f4…",
+    "state serial/lineage differs from 67 / a0bd361d…",
+    "synthetic mode enabled globally or without exact tenant/user/partner/issuer",
+    "expiry missing, invalid or past at execution",
+    "any catalog/offer seed or real entitlement grant",
+    "real CV/job data",
+    "guard is not NO_SHARED_DESTROY"
+  ]
+}

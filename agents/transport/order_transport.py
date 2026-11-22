@@ -488,6 +488,44 @@ def assert_secret_free(value: Any, path: str = "value") -> None:
     _check_payload_size(value, path)
 
 
+def build_dispatch_envelope(
+    *,
+    order_id: str,
+    correlation_id: str,
+    work_id: str,
+    agent_id: str,
+    capability: str,
+    payload: Dict[str, Any],
+    context_ref: str,
+    idempotency_key: str,
+    sender_reference: str = "ris-orders-reader",
+    now: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """Build and validate an ORDER_DISPATCH envelope for the existing ingress.
+
+    This is a producer-side mapping only; the contract itself stays in
+    ``validate_envelope``. The caller must have bound ``work_id`` to the order
+    before sending (the ingress requires it).
+    """
+    created = now or datetime.now(timezone.utc)
+    envelope = {
+        "schemaVersion": SCHEMA_VERSION,
+        "messageId": f"msg_{work_id}_order_dispatch",
+        "messageType": ORDER_DISPATCH,
+        "orderId": order_id,
+        "correlationId": correlation_id,
+        "idempotencyKey": idempotency_key,
+        "sender": {"system": SYSTEM_ORDERS, "reference": sender_reference},
+        "recipient": {"system": SYSTEM_RIS, "agentId": agent_id,
+                      "capability": capability},
+        "identity": {"contextRef": context_ref, "apiProfileId": context_ref},
+        "payload": payload,
+        "createdAt": created.isoformat(),
+        "execution": {"workId": work_id},
+    }
+    return validate_envelope(envelope, expected_type=ORDER_DISPATCH)
+
+
 __all__ = [
     "SCHEMA_VERSION",
     "ACCEPTED_SCHEMA_VERSIONS",
@@ -505,6 +543,7 @@ __all__ = [
     "VerifiedContext",
     "validate_envelope",
     "dispatch_to_work_item",
+    "build_dispatch_envelope",
     "result_from_work_item",
     "is_stale_attempt",
     "accepted_message_types",

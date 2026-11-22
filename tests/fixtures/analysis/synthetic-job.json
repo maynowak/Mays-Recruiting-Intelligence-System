@@ -1,0 +1,9 @@
+{
+  "title": "Synthetic Canary Cloud Engineer",
+  "company": "Canary Systems GmbH",
+  "location": ["Berlin"],
+  "remote": true,
+  "jobTypes": ["full-time"],
+  "descriptionPlain": "Synthetic canary job ad. No real employer or contact data.\nRequired: Python, AWS and Terraform. Docker and Linux are required. Kubernetes is a nice to have.\nMust have 5+ years of experience in cloud engineering.",
+  "tags": ["Python", "AWS", "Terraform"]
+}

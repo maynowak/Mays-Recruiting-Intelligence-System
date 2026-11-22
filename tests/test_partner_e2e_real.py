@@ -41,6 +41,13 @@ class PartnerE2E(unittest.TestCase):
         from agents.transport import VerifiedContext
         from demo_core import DemoService
 
+        # This test binds the standalone Orders app. Restore the process env
+        # afterwards so later tests do not inherit ORDERS_TABLE=orders.
+        self._saved_env = {
+            key: os.environ.get(key) for key in (
+                "ORDERS_TABLE", "ORDERS_COGNITO_ISSUER",
+                "ORDERS_COGNITO_CLIENT_ID", "ORDER_RESULT_SERVICE_SECRET")
+        }
         os.environ["ORDERS_TABLE"] = "orders"
         os.environ["ORDERS_COGNITO_ISSUER"] = (
             "https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_P")
@@ -101,6 +108,11 @@ class PartnerE2E(unittest.TestCase):
     def tearDown(self):
         for p in getattr(self, "_patches", []):
             p.stop()
+        for key, value in getattr(self, "_saved_env", {}).items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
     # -- helpers ---------------------------------------------------------
     def _order(self, left=17, right=25):

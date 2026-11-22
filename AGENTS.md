@@ -7,6 +7,11 @@ installation context before any AWS-backed Terraform command.
 ## Sources of truth
 
 - `README.md`: supported installer workflow and current project status.
+- `docs/architecture/RIS-MAYS-ORDERS-MODULES.md`: binding Mays-Orders /
+  RIS ownership and module register (Correction-14; diagrams under
+  `docs/architecture/diagrams/`).
+- `docs/architecture/AGENT-DEVELOPMENT-RULES.md`: binding rules for agent work
+  and coding agents.
 - `docs/architecture/SYSTEM-ARCHITECTURE.md` and `RUNTIME-PATH.md`: runtime wiring.
 - `docs/api/API-STANDARD.md`: routes, authentication, and error contract.
 - `terraform/`, `installer/`, `lambda/`, and tests are authoritative for behavior.
@@ -58,7 +63,10 @@ as if it were RIS infrastructure.
 - `terraform/modules/mays_orders/` is generated and ignored. Never hand-edit
   it; rebuild it from the pinned upstream source.
 - The builder enforces component naming `<project>-mays-orders`, patches the
-  plan-known SQS IAM gate, and runs Terraform formatting/validation.
+  plan-known SQS IAM gate, and runs Terraform formatting/validation. It also
+  injects the RIS-owned result-transport outputs (`results_queue_url`,
+  `results_queue_arn`, `result_hmac_secret_arn`) additively and fails closed if
+  the upstream module starts exporting one of them itself.
 - External clone pins are recorded in
   `installer/mays-orders-clone.pinned.json` and
   `installer/mays-jobsearch-clone.pinned.json`; update pins only deliberately

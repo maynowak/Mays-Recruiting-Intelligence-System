@@ -96,6 +96,8 @@ class TestDispatchHandoff(unittest.TestCase):
         self.assertEqual(42, agent_result["data"]["sum"])
 
         result = self._result_envelope(validated, work_item, agent_result)
+        status_before_result = self.service.get_order(
+            self.order_id, self.alice)["status"]
         applied = self.service.apply_result(
             self.mo_result.validate_result_envelope(result))
         self.assertEqual(42, applied["result"]["sum"])
@@ -103,6 +105,9 @@ class TestDispatchHandoff(unittest.TestCase):
         owner_view = self.service.get_order(self.order_id, self.alice)
         self.assertEqual("COMPLETED", owner_view["processing"]["status"])
         self.assertEqual(42, owner_view["processing"]["result"]["sum"])
+        # A delivered result records processing, it never advances the fachliche
+        # order lifecycle (that stays PROCESSING until a status PATCH).
+        self.assertEqual(status_before_result, owner_view["status"])
 
     def test_work_id_is_stable_across_repeated_dispatch_attempts(self):
         first, _ = self._dispatch()
@@ -178,6 +183,7 @@ class TestDispatchHandoff(unittest.TestCase):
         result = self._result_envelope(validated, work_item,
                                        {"data": {"sum": 42}})
         import json
+        previous_table = os.environ.get("ORDERS_TABLE")
         os.environ["ORDERS_TABLE"] = "t"
         os.environ["ORDER_RESULT_SERVICE_SECRET"] = "s3cret"
         record = {"messageId": "m1", "body": json.dumps(result),
@@ -186,6 +192,10 @@ class TestDispatchHandoff(unittest.TestCase):
             response = self.mo_result_handler.handler({"Records": [record]}, None)
         finally:
             os.environ.pop("ORDER_RESULT_SERVICE_SECRET", None)
+            if previous_table is None:
+                os.environ.pop("ORDERS_TABLE", None)
+            else:
+                os.environ["ORDERS_TABLE"] = previous_table
         self.assertEqual(1, json.loads(response["body"])["rejected"])
 
 

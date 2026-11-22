@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "1.0",
+  "release": "RIS-ANALYSIS-OFFER-E2E-15",
+  "supersededBy": "RIS-ANALYSIS-OFFER-E2E-15-SYNTHETIC-ISOLATION",
+  "generatedAt": "2026-11-21",
+  "verdict": "READY FOR CONTROLLED AWS CANARY APPROVAL",
+  "state": {
+    "serial": 67,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "resources": 283,
+    "workspace": "ris-dev2"
+  },
+  "plan": {
+    "path": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc15/plan.out",
+    "sha256": "11fb32d81b68780f1cdaa3a9856287a3282552af2c6a648d41cb3fe8f802cee2",
+    "jsonSha256": "caeaea14bde50c8333a9db2a646a5e6c2c4af9e659cae279b3233b2b42a98cb4",
+    "adds": 4,
+    "changes": 3,
+    "destroys": 0,
+    "replacements": 0,
+    "guard": "NO_SHARED_DESTROY",
+    "applyApproved": false
+  },
+  "resources": {
+    "adds": [
+      "aws_lambda_permission.analysis_invoke_ingress[0]",
+      "aws_lambda_permission.analysis_invoke_worker[0]",
+      "module.analysis_runtime.aws_iam_role_policy.analysis_runtime_data[0]",
+      "module.analysis_runtime.aws_lambda_function.analysis[0]"
+    ],
+    "updates": [
+      "module.agent_transport[0].aws_iam_role_policy.dispatch_ingress",
+      "module.agent_transport[0].aws_lambda_function.dispatch_ingress",
+      "module.lambda.aws_lambda_function.agent"
+    ]
+  },
+  "bundles": {
+    "worker": {
+      "sha256": "0d49527e3a74c7e84d0a7ac9c6e0fcfa3673ae510a17ad075848f2e30fc61b37",
+      "size": 346895
+    },
+    "analysis": {
+      "sha256": "83eef8e691e15ada27bd9afa109b551c00dae766fe0b8a57c4ce1fc637df1184",
+      "size": 293061
+    },
+    "parser": {
+      "sha256": "fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a",
+      "size": 17937176
+    }
+  },
+  "timeouts": {
+    "workerSeconds": 60,
+    "ingressSeconds": 60,
+    "analysisSeconds": 60,
+    "analysisRemoteSeconds": 45,
+    "parserSeconds": 15,
+    "workQueueVisibilitySeconds": 300,
+    "workQueueMaxReceiveCount": 3
+  },
+  "offers": {
+    "file": "agent-installations/analysis-agent/offers.yaml",
+    "status": "DRAFT",
+    "activation": false,
+    "catalog": "ABSENT",
+    "pricingOwner": "mays-orders"
+  },
+  "stopConditions": [
+    "plan SHA differs from 11fb32d8…",
+    "state serial/lineage differs from 67 / a0bd361d…",
+    "any new SQS queue or queue replacement",
+    "any Mays-Orders lifecycle/pricing change",
+    "any real CV/job data",
+    "analysis gets WorkItems write or ORDERS_* transport permissions",
+    "consent/notice activated globally as a test shortcut",
+    "guard is not NO_SHARED_DESTROY"
+  ]
+}

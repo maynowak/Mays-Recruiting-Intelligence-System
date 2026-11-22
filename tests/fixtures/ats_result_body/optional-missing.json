@@ -1,0 +1,55 @@
+{
+  "analysis": {
+    "score": 0,
+    "keywordCoverage": {
+      "overall": 0
+    },
+    "requirementCoverage": 0,
+    "profileEvidenceCoverage": 0,
+    "roleMatch": null,
+    "analysisStatus": "limited",
+    "basis": {
+      "requirementCount": 1,
+      "titleRequirementCount": 1,
+      "hasDescription": false,
+      "roleMatchAvailable": false
+    },
+    "criticalGaps": [],
+    "requirements": [
+      {
+        "id": "title_0",
+        "text": "Engineer",
+        "category": "keyword",
+        "importance": "medium",
+        "source": "title",
+        "normalized": "engineer",
+        "explicitness": "implicit"
+      }
+    ],
+    "matches": [
+      {
+        "requirementId": "title_0",
+        "status": "UNKNOWN",
+        "confidence": "LOW"
+      }
+    ],
+    "metadata": {
+      "title": "Engineer",
+      "titleTokens": [
+        "Engineer"
+      ],
+      "language": null,
+      "workMode": null,
+      "jobTypes": [],
+      "contractType": null,
+      "contractTypeNoData": true
+    }
+  },
+  "recommendations": [],
+  "ai": {
+    "requested": false,
+    "executed": false,
+    "consentRequired": true,
+    "consentGiven": false
+  }
+}

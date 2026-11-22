@@ -144,6 +144,120 @@ class TestRealAdapterContract(unittest.TestCase):
         self.assertIn("UNSUPPORTED_CAPABILITY", r.reason)
 
 
+class TestOrderStatusSemantics(unittest.TestCase):
+    """HTTP success and business completion are separate signals."""
+
+    def _order(self, status="PENDING", processing=None):
+        body = order_payload("ord_x1", status)
+        if processing is not None:
+            body["processing"] = processing
+        return body
+
+    def test_accepted_order_without_processing_stays_pending(self):
+        t = FakeTransport()
+        t.when("GET", "/orders/ord_x1", 200, self._order("PENDING"))
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertTrue(r.success)  # HTTP GET succeeded
+        self.assertEqual(r.result_type, OrdersResultType.PENDING)
+        self.assertNotEqual(r.result_type, OrdersResultType.APPROVED)
+        self.assertEqual(r.data["order_status"], "PENDING")
+        self.assertEqual(r.data["processing_status"], "")
+
+    def test_completed_processing_is_approved_with_result(self):
+        t = FakeTransport()
+        result = {"bodyType": "ComparisonResultBody", "bodyVersion": "1.0"}
+        t.when("GET", "/orders/ord_x1", 200, self._order(
+            "PENDING", {"status": "COMPLETED", "attempt": 1,
+                        "completedAt": "2026-10-01T00:00:05.000Z",
+                        "result": result}))
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertTrue(r.success)
+        self.assertEqual(r.result_type, OrdersResultType.APPROVED)
+        self.assertEqual(r.data["processing"]["result"], result)
+        self.assertEqual(r.data["processing_status"], "COMPLETED")
+
+    def test_failed_processing_is_rejected_with_error(self):
+        t = FakeTransport()
+        t.when("GET", "/orders/ord_x1", 200, self._order(
+            "PENDING", {"status": "FAILED", "attempt": 1,
+                        "error": {"message": "agent rejected the input"},
+                        "completedAt": "2026-10-01T00:00:05.000Z"}))
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertTrue(r.success)
+        self.assertEqual(r.result_type, OrdersResultType.REJECTED)
+        self.assertIn("agent rejected the input", r.reason)
+        self.assertEqual(r.data["processing"]["error"]["message"],
+                         "agent rejected the input")
+
+    def test_agent_execution_delivered_without_processing_is_not_approved(self):
+        t = FakeTransport()
+        order = self._order("DELIVERED")
+        order["orderType"] = "agent.execution"
+        t.when("GET", "/orders/ord_x1", 200, order)
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertTrue(r.success)
+        self.assertEqual(r.result_type, OrdersResultType.ERROR)
+        self.assertEqual(r.data["contract_error"], "missing_processing_result")
+        self.assertEqual(r.data["order_type"], "agent.execution")
+        self.assertNotEqual(r.result_type, OrdersResultType.APPROVED)
+
+    def test_agent_execution_delivered_with_completed_result_is_approved(self):
+        t = FakeTransport()
+        order = self._order("DELIVERED", {
+            "status": "COMPLETED", "attempt": 1,
+            "result": {"bodyType": "ComparisonResultBody", "bodyVersion": "1.0"},
+        })
+        order["orderType"] = "agent.execution"
+        t.when("GET", "/orders/ord_x1", 200, order)
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertTrue(r.success)
+        self.assertEqual(r.result_type, OrdersResultType.APPROVED)
+
+    def test_retail_delivered_is_approved(self):
+        t = FakeTransport()
+        order = self._order("DELIVERED")
+        order["orderType"] = "retail"
+        t.when("GET", "/orders/ord_x1", 200, order)
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertTrue(r.success)
+        self.assertEqual(r.result_type, OrdersResultType.APPROVED)
+
+    def test_completed_without_result_is_a_contract_error(self):
+        t = FakeTransport()
+        t.when("GET", "/orders/ord_x1", 200, self._order(
+            "PENDING", {"status": "COMPLETED", "attempt": 1,
+                        "completedAt": "2026-10-01T00:00:05.000Z"}))
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertTrue(r.success)
+        self.assertEqual(r.result_type, OrdersResultType.ERROR)
+        self.assertEqual(r.data["contract_error"], "missing_processing_result")
+        self.assertNotEqual(r.result_type, OrdersResultType.APPROVED)
+
+    def test_success_without_order_id_is_controlled_error(self):
+        t = FakeTransport()
+        t.when("GET", "/orders/ord_x1", 200, {"status": "COMPLETED"})
+        r = adapter(t).get_order_status("ord_x1")
+        self.assertFalse(r.success)
+        self.assertEqual(r.result_type, OrdersResultType.ERROR)
+
+    def test_transient_status_raises(self):
+        t = FakeTransport()
+        t.when("GET", "/orders/ord_x1", 503, {"error": {"code": "BUSY"}})
+        with self.assertRaises(TransientOrdersError):
+            adapter(t).get_order_status("ord_x1")
+
+    def test_status_result_contains_no_transport_credentials(self):
+        t = FakeTransport()
+        t.when("GET", "/orders/ord_x1", 200, self._order(
+            "PENDING", {"status": "COMPLETED", "attempt": 1,
+                        "result": {"ok": True}}))
+        r = adapter(t, token="tok-secret").get_order_status("ord_x1")
+        serialized = json.dumps(r.data, sort_keys=True)
+        self.assertNotIn("tok-secret", serialized)
+        self.assertNotIn("Authorization", serialized)
+        self.assertNotIn("Bearer", serialized)
+
+
 class TestOrdersFunction(unittest.TestCase):
     def test_status_delegates_to_port(self):
         seen = {}
@@ -162,6 +276,64 @@ class TestOrdersFunction(unittest.TestCase):
         self.assertTrue(out["success"])
         self.assertEqual(seen["order_id"], "ord_f1")
         self.assertEqual(out["agentId"], "orders_function")
+
+    def test_status_keeps_pending_and_business_state(self):
+        class FakeAdapter:
+            port_id = "fake"
+
+            def get_order_status(self, order_id):
+                return OrderResult(
+                    True, order_id, OrdersResultType.PENDING, "processing not started",
+                    {"order": {"orderId": order_id, "status": "PENDING"},
+                     "processing": {}, "processing_status": "",
+                     "order_status": "PENDING", "http_status": 200})
+
+        out = process_orders_work(
+            {"workId": "w-f", "capability": "orders.status",
+             "payload": {"orderId": "ord_f1"}},
+            adapter_factory=lambda work: FakeAdapter())
+        self.assertTrue(out["success"])
+        self.assertEqual(out["data"]["result_type"], "PENDING")
+        self.assertEqual(out["data"]["http_status"], 200)
+        self.assertEqual(out["data"]["processing_status"], "")
+
+    def test_status_failed_processing_is_rejected_but_query_succeeds(self):
+        class FakeAdapter:
+            port_id = "fake"
+
+            def get_order_status(self, order_id):
+                return OrderResult(
+                    True, order_id, OrdersResultType.REJECTED, "processing failed",
+                    {"order": {"orderId": order_id, "status": "PENDING"},
+                     "processing": {"status": "FAILED",
+                                    "error": {"message": "bad"}},
+                     "processing_status": "FAILED",
+                     "order_status": "PENDING", "http_status": 200})
+
+        out = process_orders_work(
+            {"workId": "w-f", "capability": "orders.status",
+             "payload": {"orderId": "ord_f1"}},
+            adapter_factory=lambda work: FakeAdapter())
+        self.assertTrue(out["success"])
+        self.assertEqual(out["data"]["result_type"], "REJECTED")
+        self.assertEqual(out["data"]["processing_status"], "FAILED")
+
+    def test_status_output_contains_no_token(self):
+        class FakeAdapter:
+            port_id = "fake"
+            token = "tok-secret"
+
+            def get_order_status(self, order_id):
+                return OrderResult(
+                    True, order_id, OrdersResultType.PENDING, "not started",
+                    {"order": {"orderId": order_id, "status": "PENDING"},
+                     "processing": {}, "http_status": 200})
+
+        out = process_orders_work(
+            {"workId": "w-f", "capability": "orders.status",
+             "payload": {"orderId": "ord_f1", "auth": {"idToken": "tok-secret"}}},
+            adapter_factory=lambda work: FakeAdapter())
+        self.assertNotIn("tok-secret", json.dumps(out))
 
     def test_transient_propagates_for_retry(self):
         class FakeAdapter:
@@ -182,7 +354,16 @@ class TestOrdersFunction(unittest.TestCase):
 
 
 class TestReaderPost(unittest.TestCase):
+    ISSUER = "https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_TEST"
+    CLIENT = "client-test"
+
     def _reader(self):
+        os.environ.setdefault("ORDERS_TABLE", "mays-orders")
+        os.environ.setdefault(
+            "ORDERS_SQS_QUEUE_URL",
+            "https://sqs.eu-central-1.amazonaws.com/240571105849/mays-orders-orders-queue")
+        os.environ.setdefault("ORDERS_COGNITO_ISSUER", self.ISSUER)
+        os.environ.setdefault("ORDERS_COGNITO_CLIENT_ID", self.CLIENT)
         spec = importlib.util.spec_from_file_location(
             "orders_reader_uut",
             os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -191,6 +372,19 @@ class TestReaderPost(unittest.TestCase):
         sys.modules["orders_reader_uut"] = mod
         spec.loader.exec_module(mod)
         return mod
+
+    def _event(self, route, body):
+        return {
+            "routeKey": route,
+            "body": json.dumps(body),
+            "requestContext": {"authorizer": {"jwt": {"claims": {
+                "iss": self.ISSUER,
+                "sub": "reader-post-user",
+                "token_use": "access",
+                "client_id": self.CLIENT,
+                "aud": self.CLIENT,
+            }}}},
+        }
 
     def test_post_validates_and_returns_201(self):
         mod = self._reader()
@@ -202,9 +396,9 @@ class TestReaderPost(unittest.TestCase):
 
         mod._send_order_created = lambda order_id: sent.setdefault("sqs", order_id)
         resp = mod.handler(
-            {"routeKey": "POST /orders",
-             "body": json.dumps({"customer": {"name": "T", "email": "t@x.io"},
-                                 "items": [{"sku": "S", "quantity": 2, "unitPrice": 100}]})},
+            self._event("POST /orders",
+                        {"customer": {"name": "T", "email": "t@x.io"},
+                         "items": [{"sku": "S", "quantity": 2, "unitPrice": 100}]}),
             None, table=FakeTable())
         self.assertEqual(resp["statusCode"], 201)
         body = json.loads(resp["body"])
@@ -212,6 +406,10 @@ class TestReaderPost(unittest.TestCase):
         self.assertEqual(body["totalAmount"], 200)
         self.assertTrue(body["orderId"].startswith("ord_"))
         self.assertEqual(sent["sqs"], body["orderId"])
+        # The create path binds the caller as owner (read-back precondition).
+        self.assertEqual(sent["item"]["ownerIssuer"], self.ISSUER)
+        self.assertEqual(sent["item"]["ownerSubject"], "reader-post-user")
+        self.assertEqual(sent["item"]["gsi3pk"], sent["item"]["ownerKey"])
 
     def test_post_rejects_float_price(self):
         mod = self._reader()
@@ -221,9 +419,9 @@ class TestReaderPost(unittest.TestCase):
                 raise AssertionError("darf nicht speichern")
 
         resp = mod.handler(
-            {"routeKey": "POST /orders",
-             "body": json.dumps({"customer": {"name": "T", "email": "t@x.io"},
-                                 "items": [{"sku": "S", "quantity": 1, "unitPrice": 1.0}]})},
+            self._event("POST /orders",
+                        {"customer": {"name": "T", "email": "t@x.io"},
+                         "items": [{"sku": "S", "quantity": 1, "unitPrice": 1.0}]}),
             None, table=FakeTable())
         self.assertEqual(resp["statusCode"], 400)
 
@@ -235,8 +433,8 @@ class TestReaderPost(unittest.TestCase):
                 raise AssertionError("darf nicht speichern")
 
         resp = mod.handler(
-            {"routeKey": "POST /orders",
-             "body": json.dumps({"customer": {"name": "T", "email": "t@x.io"}, "items": []})},
+            self._event("POST /orders",
+                        {"customer": {"name": "T", "email": "t@x.io"}, "items": []}),
             None, table=FakeTable())
         self.assertEqual(resp["statusCode"], 400)
 

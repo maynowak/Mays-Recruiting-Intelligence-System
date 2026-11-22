@@ -88,6 +88,10 @@ class StateMirror:
         is a real state file, not a re-serialised guess.
         """
         self.mirror_dir.mkdir(parents=True, exist_ok=True)
+        try:  # state can contain plaintext secrets: keep it owner-only
+            os.chmod(self.mirror_dir, 0o700)
+        except OSError:
+            pass
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         # Keep alphanumerics plus dash/underscore. "." is allowed inside a name
         # but never as a leading run, so "../../etc/passwd" cannot survive
@@ -119,6 +123,10 @@ class StateMirror:
         # therefore the recorded digest) before they reach disk.
         with open(target, "x", encoding="utf-8", newline="") as handle:
             handle.write(raw)
+        try:  # owner-only: the state may contain plaintext secrets
+            os.chmod(target, 0o600)
+        except OSError:
+            pass
 
         # Windows filesystems can assign the same mtime to several rapid
         # creates.  Make write order observable for rotation while retaining

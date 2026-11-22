@@ -324,20 +324,64 @@ nicht konfiguriert.
 
 ## 3. Orders-Routen (orders-reader)
 
+Alle Orders-Routen verlangen ein verifiziertes Cognito-JWT **und** die
+serverseitige Owner-Bindung. Ein gültiges JWT allein genügt nicht: der Reader
+leitet den Owner-Key aus `iss` + `sub` ab (`sha256(normalize(iss) + "\x00" + sub)`,
+identisch zum Orders-Modul) und liefert fremde, fehlende oder legacy-ungebundene
+Orders als `404 ORDER_NOT_FOUND` — nicht als `403`, damit die Existenz nicht
+leckbar ist. `custom:tenant_id` wird nicht gegen die Order geprüft, weil
+Orders-Items kein `tenantId` tragen; die Tenant-Grenze ist der gepinnte
+Issuer/Client (`ORDERS_COGNITO_ISSUER`/`ORDERS_COGNITO_CLIENT_ID`).
+
 | Route | Auth | Erfolg | Weitere Codes |
 |---|---|---|---|
-| `GET /orders` | JWT | 200 | 400 (`limit` nicht Integer oder nicht 1..100) |
-| `GET /orders/{orderId}` | JWT | 200 | 400, 404 `ORDER_NOT_FOUND` |
-| `POST /orders` | JWT | 201 (`PENDING` + SQS-Anstoß) | 400, 500 |
-| `PATCH /orders/{orderId}/status` | JWT | 200 | 400, 404, 409 (`INVALID_TRANSITION`, `CONFLICT`) |
+| `GET /orders` | JWT + Owner | 200 | 400 (`limit` nicht Integer oder nicht 1..100), 401, 503 |
+| `GET /orders/{orderId}` | JWT + Owner | 200 | 400, 401, 404 `ORDER_NOT_FOUND`, 500 (nicht freigebbarer Inhalt), 503 |
+| `POST /orders` | JWT + Owner | 201 (`PENDING` + SQS-Anstoß) | 400, 401, 403 (`AGENT_ORDER_REJECTED`), 503 |
+| `PATCH /orders/{orderId}/status` | JWT + Owner | 200 | 400, 401, 404, 409 (`INVALID_TRANSITION`, `CONFLICT`), 503 |
+
+`401 UNAUTHORIZED`: keine/ungültige verifizierte Identität, falscher Issuer,
+falscher Client oder `token_use` nicht `id`/`access`.
+`403 AGENT_ORDER_REJECTED`: Agentenauftrag (`agent.execution`) ohne gültige
+agentenspezifische Berechtigung — der Agent ist DISABLED/DETACHED, das Profil
+ist nicht aktiv/fremd, Mandant oder Gültigkeitsfenster passen nicht. Die
+Prüfung erfolgt **vor** dem Persistieren der Order (RIS-AGENT-LIFECYCLE-11).
+`503 SERVICE_UNAVAILABLE`: Identitätskonfiguration fehlt (fail-closed), der
+Entitlement-Store ist nicht konfiguriert/nicht erreichbar, oder der
+Owner-Index `gsi3` ist nicht verfügbar; es gibt keinen globalen Listen-Fallback.
+
+Owner-Bindung: `POST /orders` persistiert `ownerIssuer`, `ownerSubject`,
+`ownerKey`, `ownerClientId`, `actorType`, `actorId`, `gsi3pk`, `gsi3sk`.
+`GET /orders` liest ausschließlich über `gsi3pk = ownerKey`.
 
 `GET /orders` Antwort: `{"orders": [...], "count": number}`, Query-Parameter
 `limit` (Default 20, 1..100).
+
+Öffentliche Projektion: Antworten sind Allowlists (Retail-Felder plus
+`agentOrder.{target,input,metadata,resultContract}` und
+`processing.{status,attempt,completedAt,result,error.message}`). Interne Felder
+(`pk`, `sk`, `gsi*`, `version`, `subjectId`, `owner*`, `actor*`,
+`agentOrderFingerprint`, `expectedWorkId`, `dispatch`,
+`processing.{workId,messageId,idempotencyKey,executionId}`,
+`agentOrder.processing`, `metadata.{apiProfileRef,partnerApplicationRef,idempotencyKey}`)
+werden nie ausgeliefert. Ein Ergebnis mit credential-förmigem Schlüssel oder Wert
+wird nicht freigegeben (`500 INTERNAL_ERROR`, ohne Inhalt).
 
 Statuswerte: `PENDING`, `CONFIRMED`, `PROCESSING`, `SHIPPED`, `DELIVERED`,
 `CANCELLED`. Übergänge: `PENDING→{CONFIRMED,CANCELLED}`,
 `CONFIRMED→{PROCESSING,CANCELLED}`, `PROCESSING→{SHIPPED}`, `SHIPPED→{DELIVERED}`;
 `DELIVERED` und `CANCELLED` sind Endzustände.
+
+Transport-Semantik (RIS-ATS-RESULT-TRANSPORT-GATE-01): `processing.status =
+COMPLETED` belegt, dass Orders ein Agent-Result konsumiert und unter
+`processing.result` abgelegt hat. Es ist kein Liefer- und kein Versandstatus:
+der fachliche Order-Status wechselt ausschliesslich ueber
+`PATCH /orders/{orderId}/status` (`PROCESSING -> SHIPPED -> DELIVERED`).
+Auf RIS-Seite trennt `orderResultDelivery.status` auf der Work-Row
+(`SENT`, `NOT_CONFIGURED`, `SKIPPED`, `REJECTED`, `RETRYING`) den
+WorkItem-Status `COMPLETED` von der tatsaechlichen Uebergabe an die
+Orders-Result-Queue. Ein `COMPLETED`-WorkItem ohne `SENT` gilt als nicht
+zugestellt.
 
 ## 4. Fehlerformat — zwei Formen, ehrlich benannt
 

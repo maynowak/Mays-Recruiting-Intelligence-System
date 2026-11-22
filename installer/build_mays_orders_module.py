@@ -104,7 +104,7 @@ TARGET_MODULE_DIR = RIS_ROOT / "terraform" / "modules" / "mays_orders"
 BUILDER_PIN_FILE = RIS_ROOT / "installer" / "mays-orders-builder.pinned.json"
 CLONE_PIN_FILE = RIS_ROOT / "installer" / "mays-orders-clone.pinned.json"
 
-PINNED_COMMIT = "122ec65ac7ab5a044d2b2576ae6b7e4c325246b8"
+PINNED_COMMIT = "016cdfd6ac62565dcec9a2fee78cb898fb919e59"
 """Verbindlicher MO-Commit (40-stellig), ab welchem der Builder zu
 Generieren ist. Wird in der Builder-Pin-Datei MAYDS-ORDERS-BUILDER-PINNED-COMMIT
 hinterlegt; die Composite-Clone-Pin-Datei bleibt als historische Referenz erhalten."""
@@ -329,6 +329,7 @@ def validate_generated_contract(target_dir: Path) -> None:
     main_tf = (target_dir / "main.tf").read_text(encoding="utf-8")
     outputs_tf = (target_dir / "outputs.tf").read_text(encoding="utf-8")
     vars_tf = (target_dir / "variables.tf").read_text(encoding="utf-8")
+    validate_transport_outputs(outputs_tf)
     iam_main = (target_dir / "modules" / "iam" / "main.tf").read_text(encoding="utf-8")
     iam_vars = (target_dir / "modules" / "iam" / "variables.tf").read_text(encoding="utf-8")
 
@@ -354,12 +355,14 @@ def validate_generated_contract(target_dir: Path) -> None:
         print(f"  Zusätzliche Inputs (erlaubt): {extra_str}")
     print(f"  Inputs OK: {sorted(actual_inputs)} (mindestens {len(required_inputs)} Pflicht-Inputs, {len(actual_inputs)} insgesamt)")
 
-    # Mindestens 20 Outputs (zusätzliche Outputs erlaubt)
-    required_outputs_count = 20
+    # Mindestens 23 Outputs: 20 Orders-Service + 3 RIS result-transport
+    # re-exports (additive, no resources/permissions/secrets).
+    required_outputs_count = 23
     actual_outputs_count = len(outputs)
     has_sqs_queue_name = "sqs_queue_name" in outputs
-    # Pflicht-Outputs für den Orders-Service-Vertrag
-    required_outputs = {"sqs_queue_name", "api_gateway_id", "api_gateway_authorizer_id", "dynamodb_table_name", "dynamodb_table_arn", "iam_handler_role_name", "iam_handler_role_arn", "lambda_function_name", "lambda_function_arn", "lambda_invoke_arn", "cognito_user_pool_id", "cognito_user_pool_arn", "cognito_user_pool_endpoint", "cognito_user_pool_client_id", "cognito_user_pool_group_name", "api_gateway_endpoint", "api_gateway_stage_name", "sqs_queue_url", "sqs_queue_arn", "sqs_worker_lambda_arn"}
+    # Pflicht-Outputs für den Orders-Service-Vertrag plus die drei
+    # RIS-Managed-Result-Transport-Referenzen.
+    required_outputs = {"sqs_queue_name", "api_gateway_id", "api_gateway_authorizer_id", "dynamodb_table_name", "dynamodb_table_arn", "iam_handler_role_name", "iam_handler_role_arn", "lambda_function_name", "lambda_function_arn", "lambda_invoke_arn", "cognito_user_pool_id", "cognito_user_pool_arn", "cognito_user_pool_endpoint", "cognito_user_pool_client_id", "cognito_user_pool_group_name", "api_gateway_endpoint", "api_gateway_stage_name", "sqs_queue_url", "sqs_queue_arn", "sqs_worker_lambda_arn", "results_queue_url", "results_queue_arn", "result_hmac_secret_arn"}
     missing_outputs = required_outputs - set(outputs)
     if missing_outputs:
         missing_str = ", ".join(sorted(missing_outputs))
@@ -432,6 +435,88 @@ def validate_generated_contract(target_dir: Path) -> None:
                 "Vertragsbruch; kein Build."
             )
     print(f"  IAM SQS-dokument OK: keine Wildcard, resources = [var.sqs_queue_arn]")
+
+
+# ---- RIS integration: managed result-transport outputs ----------------
+
+TRANSPORT_OUTPUTS = '''
+# ---------------------------------------------------------------------------
+# RIS integration (additive): managed Orders result-transport bindings.
+# The queue, DLQ and HMAC secret stay owned by modules/agent_transport; this
+# block only re-exports their identifiers so the RIS root can wire the worker
+# env and IAM. Evaluates to "" while enable_agent_transport = false.
+# ---------------------------------------------------------------------------
+output "results_queue_url" {
+  value = try(module.agent_transport[0].results_queue_url, "")
+}
+
+output "results_queue_arn" {
+  value = try(module.agent_transport[0].results_queue_arn, "")
+}
+
+output "result_hmac_secret_arn" {
+  value = try(module.agent_transport[0].result_hmac_secret_arn, "")
+}
+'''
+
+TRANSPORT_OUTPUT_NAMES = (
+    "results_queue_url",
+    "results_queue_arn",
+    "result_hmac_secret_arn",
+)
+
+
+def inject_transport_outputs(module_dir: Path) -> None:
+    """Expose the managed result queue/secret to the RIS root module.
+
+    Additive and deterministic: the generated module is rebuilt from the pin
+    on every run, so this function appends the same three outputs each time.
+    If the upstream module starts exporting one of them itself, the build
+    fails closed instead of silently producing duplicate outputs.
+    """
+    outputs_path = module_dir / "outputs.tf"
+    text = outputs_path.read_text(encoding="utf-8")
+    collisions = [
+        name for name in TRANSPORT_OUTPUT_NAMES
+        if f'output "{name}"' in text
+    ]
+    if collisions:
+        raise RuntimeError(
+            "Upstream-Modul exportiert bereits: {names}. "
+            "RIS-Transport-Output-Injektion entfernen und Vertrag neu prüfen."
+            .format(names=", ".join(sorted(collisions)))
+        )
+    outputs_path.write_text(
+        text.rstrip() + "\n" + TRANSPORT_OUTPUTS, encoding="utf-8")
+    print("  RIS transport outputs injected: {names}".format(
+        names=", ".join(TRANSPORT_OUTPUT_NAMES)))
+
+
+def validate_transport_outputs(outputs_tf: str) -> None:
+    """Require the three additive result-transport outputs and exact refs."""
+    expected = {
+        "results_queue_url":
+            "module.agent_transport[0].results_queue_url",
+        "results_queue_arn":
+            "module.agent_transport[0].results_queue_arn",
+        "result_hmac_secret_arn":
+            "module.agent_transport[0].result_hmac_secret_arn",
+    }
+    for name, reference in expected.items():
+        blocks = re.findall(
+            r'^output\s+"%s"\s*\{(.*?)^\}' % re.escape(name),
+            outputs_tf, re.M | re.S)
+        if len(blocks) != 1:
+            raise RuntimeError(
+                "Generierter Modul-Vertrag: Output '%s' muss genau einmal "
+                "vorhanden sein (gefunden: %d). Kein Build."
+                % (name, len(blocks))
+            )
+        if reference not in blocks[0]:
+            raise RuntimeError(
+                "Generierter Modul-Vertrag: Output '%s' referenziert nicht "
+                "'%s'. Kein Build." % (name, reference)
+            )
 
 
 # ---- Patch IAM SQS gate (entfernt aus aktivem Build-Pfad) ----
@@ -628,6 +713,11 @@ def build_module(project_name: str, force: bool):
         # Build-time compatibility adapter for the existing RIS transport
         # contract. It adds one optional env key, never a resource or logic.
         apply_ris_order_dispatch_env_patch(TEMP_MODULE_DIR)
+
+        # Additive re-exports of the managed result queue/DLQ/HMAC secret.
+        # They reference the existing modules/agent_transport resources; no
+        # resource, IAM permission or secret value is created here.
+        inject_transport_outputs(TEMP_MODULE_DIR)
 
         # 3. Vertragsprüfung (CONTENT-BASED, keine nachträglichen Patches)
         validate_generated_contract(TEMP_MODULE_DIR)

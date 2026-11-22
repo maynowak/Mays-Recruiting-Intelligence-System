@@ -140,6 +140,48 @@ variable "applications_cursor_secret_arn" {
   default     = ""
 }
 
+variable "agent_result_enabled" {
+  description = "Enable the managed Orders result transport (must be a plan-known boolean so count is deterministic)."
+  type        = bool
+  default     = false
+}
+
+variable "agent_result_queue_url" {
+  description = "SQS URL of the managed Orders agent result queue. Empty = no result forwarding (fail-closed skip)."
+  type        = string
+  default     = ""
+}
+
+variable "agent_result_queue_arn" {
+  description = "ARN of the managed Orders agent result queue (scope for sqs:SendMessage). Empty = no grant."
+  type        = string
+  default     = ""
+}
+
+variable "agent_result_secret_arn" {
+  description = "ARN of the Orders result HMAC secret. ARN only; the value is set out-of-band and must never enter Terraform state, environment variables or logs. Empty = no grant."
+  type        = string
+  default     = ""
+}
+
+variable "timeout_seconds" {
+  description = "Optional execution timeout override for the agent worker (ATS headroom). Null keeps lambda_config.timeout."
+  type        = number
+  default     = null
+}
+
+variable "ats_api_base_url" {
+  description = "ATS analysis endpoint for the ATS agent (never empty)."
+  type        = string
+  default     = "https://mays-jobsearch.vercel.app"
+}
+
+variable "orders_base_url" {
+  description = "Base URL of the project-owned Orders facade (RIS /orders API). Prevents the dead upstream default in agents/orders/real.py."
+  type        = string
+  default     = ""
+}
+
 variable "user_profile_table_arn" {
   description = "DynamoDB table ARN for user profiles"
   type        = string
@@ -277,6 +319,17 @@ variable "deletion_ledger_table_name" {
 variable "deletion_ledger_table_arn" {
   description = "DynamoDB table ARN for durable R08 deletion evidence."
   type        = string
+}
+
+variable "analysis_function_name" {
+  description = "Dedicated analysis Lambda invoked through the Agent Body remote handler; empty disables remote execution."
+  type        = string
+  default     = ""
+}
+
+variable "analysis_remote_timeout_seconds" {
+  type    = number
+  default = 45
 }
 
 variable "tags" {

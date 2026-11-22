@@ -11,6 +11,7 @@ Registry-/Discovery-/Eligibility-/Router-/Engine-Klassen:
 import sys
 import os
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -378,6 +379,128 @@ class TestWorkerPipeline(unittest.TestCase):
         self.assertEqual(out["status"], "COMPLETED")
         stored = table.items["work-1"]["result"]
         self.assertIsInstance(stored["metrics"]["durationMs"], Decimal)
+
+
+class TestOrderResultForwarding(unittest.TestCase):
+    """ORDER_RESULT is derived from the persisted row, not a second contract."""
+
+    def _wiring(self):
+        from agents.addition_agent import register_addition_agent
+
+        registry, body = AgentRegistry(), AgentBody()
+        register_addition_agent(registry, body)
+        return registry, body
+
+    def _work(self, work_id="work-order-1"):
+        item = work_item(work_id, capability="math.add",
+                         agent_id="addition_agent",
+                         work_type="agent_addition_agent")
+        item.update({
+            "orderId": "ord_abc123",
+            "correlationId": "corr-1",
+            "apiProfileId": "profile-a",
+            "issuer": "issuer-a",
+            "partnerApplicationId": "app-a",
+        })
+        item["payload"] = {"left": 17, "right": 25}
+        return item
+
+    def test_correlation_is_persisted_on_the_row(self):
+        table = FakeTable()
+        registry, body = self._wiring()
+        process_record(record(self._work()), table=table,
+                       registry=registry, body=body)
+        row = table.items["work-order-1"]
+        self.assertEqual(row["orderId"], "ord_abc123")
+        self.assertEqual(row["correlationId"], "corr-1")
+        self.assertEqual(row["apiProfileId"], "profile-a")
+
+    def test_completed_order_work_forwards_one_order_result(self):
+        table = FakeTable()
+        registry, body = self._wiring()
+        sent = []
+        process_record(record(self._work()), table=table, registry=registry,
+                       body=body, result_sender=sent.append)
+        self.assertEqual(len(sent), 1)
+        envelope = sent[0]
+        self.assertEqual(envelope["messageType"], "ORDER_RESULT")
+        self.assertEqual(envelope["orderId"], "ord_abc123")
+        self.assertEqual(envelope["correlationId"], "corr-1")
+        self.assertEqual(envelope["execution"],
+                         {"workId": "work-order-1", "attempt": 1})
+        self.assertEqual(envelope["payload"],
+                         {"left": 17, "right": 25, "sum": 42})
+        self.assertNotIn("success", envelope["payload"])
+        # COMPLETED alone does not prove delivery; the marker does.
+        row = table.items["work-order-1"]
+        self.assertEqual(row["status"], "COMPLETED")
+        self.assertEqual(row["orderResultDelivery"]["status"], "SENT")
+        self.assertEqual(row["orderResultDelivery"]["messageId"],
+                         envelope["messageId"])
+
+    def test_non_order_work_is_not_forwarded(self):
+        table = FakeTable()
+        registry, body = fresh_wiring()
+        sent = []
+        process_record(record(work_item()), table=table, registry=registry,
+                       body=body, result_sender=sent.append)
+        self.assertEqual(sent, [])
+
+    def test_missing_correlation_is_skipped(self):
+        table = FakeTable()
+        registry, body = self._wiring()
+        work = self._work()
+        work.pop("correlationId")
+        sent = []
+        process_record(record(work), table=table, registry=registry,
+                       body=body, result_sender=sent.append)
+        self.assertEqual(sent, [])
+        marker = table.items["work-order-1"]["orderResultDelivery"]
+        self.assertEqual(marker["status"], "SKIPPED")
+        self.assertEqual(marker["code"], "missing_correlation")
+
+    def test_no_result_transport_configuration_skips(self):
+        table = FakeTable()
+        registry, body = self._wiring()
+        with patch.dict(os.environ, {
+            "ORDER_RESULT_QUEUE_URL": "",
+            "ORDER_RESULT_SECRET_ARN": "",
+        }):
+            process_record(record(self._work()), table=table, registry=registry,
+                           body=body)
+        row = table.items["work-order-1"]
+        self.assertEqual(row["status"], "COMPLETED")
+        self.assertEqual(row["orderResultDelivery"]["status"],
+                         "NOT_CONFIGURED")
+
+    def test_sender_failure_keeps_row_completed_and_raises(self):
+        table = FakeTable()
+        registry, body = self._wiring()
+
+        def failing_sender(_envelope):
+            raise RuntimeError("send failed")
+
+        with self.assertRaises(RuntimeError):
+            process_record(record(self._work()), table=table, registry=registry,
+                           body=body, result_sender=failing_sender)
+        row = table.items["work-order-1"]
+        self.assertEqual(row["status"], "COMPLETED")
+        self.assertEqual(row["orderResultDelivery"]["status"], "RETRYING")
+
+    def test_duplicate_delivery_reemits_the_same_result(self):
+        table = FakeTable()
+        registry, body = self._wiring()
+        sent = []
+        process_record(record(self._work()), table=table, registry=registry,
+                       body=body, result_sender=sent.append)
+        process_record(record(self._work(), message_id="msg-2"), table=table,
+                       registry=registry, body=body, result_sender=sent.append)
+        self.assertEqual(len(sent), 2)
+        self.assertEqual(sent[0]["idempotencyKey"], sent[1]["idempotencyKey"])
+        self.assertEqual(sent[0]["messageId"], sent[1]["messageId"])
+        self.assertEqual(
+            table.items["work-order-1"]["orderResultDelivery"]["status"],
+            "SENT")
 
 
 if __name__ == "__main__":

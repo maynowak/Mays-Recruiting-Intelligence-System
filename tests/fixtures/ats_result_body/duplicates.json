@@ -1,0 +1,70 @@
+{
+  "analysis": {
+    "score": 100,
+    "keywordCoverage": {
+      "overall": 100
+    },
+    "requirementCoverage": 100,
+    "profileEvidenceCoverage": 100,
+    "roleMatch": null,
+    "analysisStatus": "complete",
+    "basis": {
+      "requirementCount": 2,
+      "titleRequirementCount": 0,
+      "hasDescription": true,
+      "roleMatchAvailable": false
+    },
+    "criticalGaps": [],
+    "requirements": [
+      {
+        "id": "tag_0",
+        "text": "Python",
+        "category": "skill",
+        "importance": "high",
+        "source": "tags",
+        "normalized": "python",
+        "explicitness": "explicit"
+      },
+      {
+        "id": "tag_0",
+        "text": "Python",
+        "category": "skill",
+        "importance": "high",
+        "source": "tags",
+        "normalized": "python",
+        "explicitness": "explicit"
+      }
+    ],
+    "matches": [
+      {
+        "requirementId": "tag_0",
+        "status": "MATCHED",
+        "confidence": "HIGH"
+      },
+      {
+        "requirementId": "tag_0",
+        "status": "MATCHED",
+        "confidence": "HIGH"
+      }
+    ],
+    "metadata": {
+      "title": "Python Engineer",
+      "titleTokens": [
+        "Python",
+        "Engineer"
+      ],
+      "language": null,
+      "workMode": null,
+      "jobTypes": [],
+      "contractType": null,
+      "contractTypeNoData": true
+    }
+  },
+  "recommendations": [],
+  "ai": {
+    "requested": false,
+    "executed": false,
+    "consentRequired": true,
+    "consentGiven": false
+  }
+}

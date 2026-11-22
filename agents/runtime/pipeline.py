@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -94,6 +95,7 @@ def _utcnow() -> str:
 def ensure_reference_agent(
     registry: Optional[AgentRegistry] = None,
     body: Any = None,
+    analysis_agent: Any = None,
 ) -> Tuple[AgentRegistry, Any]:
     """ReferenceAgent (+ Orders-Function) in Registry + Body-Router verankern.
 
@@ -151,6 +153,15 @@ def ensure_reference_agent(
     # Gate G03 (RIS-MO-ADDITION-AGENT-E2E-01): deterministischer math.add-Agent.
     from agents.addition_agent.registry import register_addition_agent
     register_addition_agent(registry, body)
+    # RIS-JM-AGENT-STANDARDIZATION-01: deterministic parser agents reusing the
+    # shared jobsearch parser library (parse.cv / parse.job).
+    from agents.cv_parser_agent.registry import register_cv_parser_agent
+    from agents.job_parser_agent.registry import register_job_parser_agent
+    register_cv_parser_agent(registry, body)
+    register_job_parser_agent(registry, body)
+    # RIS-AGENT-ANALYSIS-ORCHESTRATION-04: thin analysis orchestration.
+    from agents.analysis_agent.registry import register_analysis_agent
+    register_analysis_agent(registry, body, agent=analysis_agent)
     return registry, body
 
 
@@ -192,8 +203,36 @@ def _is_conditional_failed(exc: Exception) -> bool:
         return True
     resp = getattr(exc, "response", None)
     if isinstance(resp, dict):
-        return resp.get("Error", {}).get("Code") == "ConditionalCheckFailedException"
+        code = resp.get("Error", {}).get("Code")
+        if code == "ConditionalCheckFailedException":
+            return True
+        if code == "TransactionCanceledException":
+            reasons = resp.get("CancellationReasons") or []
+            return any(
+                isinstance(reason, dict)
+                and reason.get("Code") == "ConditionalCheckFailed"
+                for reason in reasons
+            )
     return False
+
+
+def _ddb_transaction_client(table: Any) -> Any:
+    """Return a DynamoDB client that does not apply resource marshalling.
+
+    ``boto3.resource('dynamodb').Table(...).meta.client`` carries the
+    document transformation and therefore double-wraps DynamoDB JSON
+    (``{"workId": {"M": {"S": {"S": "..."}}}}``). The fence transaction
+    passes DynamoDB JSON, so it needs a plain low-level client. Injected
+    fake clients (tests) have no ``service_model`` and are returned as-is.
+    """
+    resource_client = getattr(getattr(table, "meta", None), "client", None)
+    if resource_client is None:
+        return None
+    meta = getattr(resource_client, "meta", None)
+    if getattr(meta, "service_model", None) is None:
+        return resource_client
+    import boto3
+    return boto3.client("dynamodb", region_name=getattr(meta, "region_name", None))
 
 
 def _register_processing(
@@ -227,6 +266,13 @@ def _register_processing(
         "type": work.get("type", ""),
         "capability": work.get("capability", ""),
         "agentId": agent_id,
+        # Transport correlation: ORDER_RESULT needs these after execution.
+        "apiProfileId": work.get("apiProfileId", ""),
+        "partnerApplicationId": work.get("partnerApplicationId", ""),
+        "issuer": work.get("issuer", ""),
+        "orderId": work.get("orderId", ""),
+        "correlationId": work.get("correlationId") or work.get("requestId", ""),
+        "transportMessageId": work.get("transportMessageId", ""),
         "processing_id": envelope.processing_id,
         "execution_id": envelope.execution_id or str(uuid.uuid4()),
         "attempt_id": f"{envelope.processing_id}#1",
@@ -244,30 +290,38 @@ def _register_processing(
     if require_fence:
         if fence_table is None:
             raise SubjectFenceUnavailable("subject fence is required")
-        client = getattr(getattr(fence_table, "meta", None), "client", None)
+        client = _ddb_transaction_client(fence_table)
         table_name = getattr(fence_table, "name", None)
         if client is None or not table_name:
             raise SubjectFenceUnavailable("subject fence transaction is unavailable")
+        fence_key = subject_fence_key(
+            user_id=user_id,
+            tenant_id=work.get("tenantId", ""),
+            partner_application_id=work.get("partnerApplicationId", ""),
+            issuer=work.get("issuer", ""))
+        transact_items = [
+            {"ConditionCheck": {
+                "TableName": table_name,
+                "Key": {"workId": {"S": fence_key}},
+                "ConditionExpression": "attribute_not_exists(workId)",
+            }},
+            {"Put": {
+                "TableName": table_name,
+                "Item": _ddb_client_item(item),
+                "ConditionExpression": "attribute_not_exists(workId)",
+            }},
+        ]
         try:
-            client.transact_write_items(TransactItems=[
-                {"ConditionCheck": {
-                    "TableName": table_name,
-                    "Key": {"workId": {"S": subject_fence_key(
-                        user_id=user_id,
-                        tenant_id=work.get("tenantId", ""),
-                        partner_application_id=work.get("partnerApplicationId", ""),
-                        issuer=work.get("issuer", ""))}},
-                    "ConditionExpression": "attribute_not_exists(workId)",
-                }},
-                {"Put": {
-                    "TableName": table_name,
-                    "Item": _ddb_client_item(item),
-                    "ConditionExpression": "attribute_not_exists(workId)",
-                }},
-            ])
+            client.transact_write_items(TransactItems=transact_items)
             return item, False
         except Exception as exc:
             if not _is_conditional_failed(exc):
+                logger.error(
+                    "subject fence admission failed: %s table=%s fence_key=%s work_id=%s",
+                    repr(exc), table_name, fence_key, item.get("workId"))
+                resp = getattr(exc, "response", None)
+                if isinstance(resp, dict):
+                    logger.error("cancellation=%s", resp.get("CancellationReasons"))
                 raise SubjectFenceUnavailable("subject fence admission failed") from exc
             existing = table.get_item(Key={"workId": work["workId"]}).get("Item", {})
             if existing:
@@ -329,7 +383,7 @@ def _ddb_client_item(value: Dict[str, Any]) -> Dict[str, Any]:
 def _final_fence_admission(table: Any, fence_table: Any,
                            work: Dict[str, Any], attempt: int) -> None:
     """Atomically re-check the subject fence immediately before execution."""
-    client = getattr(getattr(fence_table, "meta", None), "client", None)
+    client = _ddb_transaction_client(fence_table)
     table_name = getattr(fence_table, "name", None)
     if client is None or not table_name:
         raise SubjectFenceUnavailable("subject fence transaction is unavailable")
@@ -394,6 +448,32 @@ def _persist_failure(table: Any, work_id: str, attempt: int,
     )
 
 
+def _claim_queued_work(table: Any, work_id: str) -> Optional[Dict[str, Any]]:
+    """Claim a pre-persisted QUEUED WorkItem for its first attempt.
+
+    The dispatch ingress persists QUEUED and enqueues; the worker must turn
+    that row into RUNNING exactly once. Returns the updated item or None when
+    another delivery won the claim.
+    """
+    try:
+        table.update_item(
+            Key={"workId": work_id},
+            UpdateExpression=("SET #status = :running, attempt_no = :attempt, "
+                              "updatedAt = :u"),
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={
+                ":running": "RUNNING", ":attempt": 1, ":u": _utcnow(),
+                ":queued": "QUEUED",
+            },
+            ConditionExpression="#status = :queued",
+        )
+    except Exception as exc:  # noqa: BLE001 - boundary
+        if _is_conditional_failed(exc):
+            return None
+        raise
+    return table.get_item(Key={"workId": work_id}).get("Item")
+
+
 def _start_retry_attempt(table: Any, existing: Dict[str, Any]) -> Dict[str, Any]:
     """Bestehendes FAILED-Processing als neuer Attempt fortfuehren."""
     attempt = int(existing.get("attempt_no", 1)) + 1
@@ -436,6 +516,8 @@ def process_record(
     erasure_admission: Any = None,
     subject_fence_table: Any = None,
     require_subject_fence: bool = False,
+    result_sender: Optional[Any] = None,
+    analysis_agent: Any = None,
 ) -> Dict[str, Any]:
     """Einen SQS-Record durch den Runtime-Pfad fuehren (Worker-Einstieg).
 
@@ -481,7 +563,8 @@ def process_record(
         erasure_admission(work, "before_registration")
 
     table = table if table is not None else _resolve_table()
-    registry, body = ensure_reference_agent(registry, body)
+    registry, body = ensure_reference_agent(registry, body,
+                                            analysis_agent=analysis_agent)
 
     hook = EventHook()
     envelope = hook.handle_event(_to_event(work, record.get("messageId")))
@@ -521,14 +604,53 @@ def process_record(
                 work["workId"],
                 item.get("status"),
             )
-            return {
+            delivery = None
+            failure_delivery = None
+            if item.get("status") == "COMPLETED":
+                # Crash window between persist and send: re-emit the same
+                # deterministic ORDER_RESULT; the Order side de-duplicates.
+                delivery = _forward_order_result(
+                    table=table,
+                    item=item,
+                    attempt=int(item.get("attempt_no") or 1),
+                    result=item.get("result"),
+                    sender=result_sender,
+                )
+            elif item.get("status") == "DEAD_LETTER":
+                # Crash window between terminal failure and send: re-emit the
+                # same deterministic ORDER_FAILED.
+                failure_delivery = _forward_order_failure(
+                    table=table,
+                    item=item,
+                    attempt=int(item.get("attempt_no") or 1),
+                    error=item.get("error") or {"message": "work item failed"},
+                    sender=result_sender,
+                )
+            response = {
                 "workId": work["workId"],
                 "status": item.get("status"),
                 "duplicate": True,
                 "attempt_no": item.get("attempt_no", 1),
                 "result_reference": item.get("result_reference"),
             }
-        if item.get("status") != "FAILED":
+            if delivery is not None:
+                response["order_result_delivery"] = delivery
+            if failure_delivery is not None:
+                response["order_failure_delivery"] = failure_delivery
+            return response
+        if item.get("status") == "RUNNING":
+            # Another delivery owns the run; do not execute twice.
+            return {"workId": work["workId"], "status": "RUNNING",
+                    "duplicate": True, "suppressed": True,
+                    "attempt_no": item.get("attempt_no", 1)}
+        if item.get("status") == "QUEUED":
+            claimed = _claim_queued_work(table, work["workId"])
+            if claimed is None:
+                return {"workId": work["workId"], "status": "RUNNING",
+                        "duplicate": True, "suppressed": True,
+                        "attempt_no": item.get("attempt_no", 1)}
+            item = claimed
+        elif item.get("status") != "FAILED":
             raise RuntimeError("WORK_ADMISSION_STATE_UNSAFE")
         try:
             resumed = _start_retry_attempt(table, item)
@@ -548,11 +670,16 @@ def process_record(
     api_profile_id = work.get("apiProfileId") or None
     partner_application_id = work.get("partnerApplicationId") or None
     if partner_application_id and not api_profile_id:
-        _persist_failure(
-            table, work["workId"], attempt,
-            {"message": "Partner-scoped work item carries no verified "
-                        "apiProfileId",
-             "type": "IDENTITY_BINDING_MISSING"}, terminal=True)
+        binding_error = {
+            "message": "Partner-scoped work item carries no verified "
+                       "apiProfileId",
+            "type": "IDENTITY_BINDING_MISSING",
+        }
+        _persist_failure(table, work["workId"], attempt,
+                         binding_error, terminal=True)
+        failure_delivery = _forward_order_failure(
+            table=table, item=work, attempt=attempt, error=binding_error,
+            sender=result_sender)
         logger.warning(
             "worker identity binding DENIED (workId=%s, partnerApplication=%s)",
             work["workId"], partner_application_id)
@@ -565,6 +692,7 @@ def process_record(
             "denied": True,
             "reason": "api-profile-binding-missing",
             "result_reference": f"work:{work['workId']}:attempt:{attempt}",
+            "order_failure_delivery": failure_delivery,
         }
 
     # Execution-Time-Entitlement-Re-check (Gate 08): SQS ist
@@ -618,6 +746,11 @@ def process_record(
                 table, work["workId"], attempt,
                 {"message": f"Worker entitlement denied [{auth.reason}]",
                  "type": "ENTITLEMENT_DENIED"}, terminal=True)
+            failure_delivery = _forward_order_failure(
+                table=table, item=work, attempt=attempt,
+                error={"message": f"Worker entitlement denied [{auth.reason}]",
+                       "type": "ENTITLEMENT_DENIED"},
+                sender=result_sender)
             logger.warning(
                 "worker entitlement DENIED (workId=%s, agent=%s, reason=%s, "
                 "attempt=%s)", work["workId"], decision.agent_id,
@@ -631,6 +764,7 @@ def process_record(
                 "denied": True,
                 "reason": auth.reason,
                 "result_reference": f"work:{work['workId']}:attempt:{attempt}",
+                "order_failure_delivery": failure_delivery,
             }
 
     current = table.get_item(Key={"workId": work["workId"]}).get("Item")
@@ -662,6 +796,8 @@ def process_record(
         raise
 
     terminal = False
+    delivery = None
+    failure_delivery = None
     if not result.get("success", False):
         error = result.get("error", {"message": "Agent meldete Fehler"})
         _health("record_failure",
@@ -673,6 +809,10 @@ def process_record(
                 attempt_id=str(attempt))
         terminal = isinstance(error, dict) and error.get("type") in PERMANENT_ERROR_CODES
         _persist_failure(table, work["workId"], attempt, error, terminal=terminal)
+        if terminal:
+            failure_delivery = _forward_order_failure(
+                table=table, item=work, attempt=attempt, error=error,
+                sender=result_sender)
         if not terminal:
             # Unerwarteter Fehler -> Retry via SQS-Redelivery (neuer Attempt).
             raise RuntimeError(
@@ -688,8 +828,11 @@ def process_record(
                 agent_id=decision.agent_id,
                 attempt_id=str(attempt))
         _persist_result(table, work["workId"], attempt, result)
+        delivery = _forward_order_result(
+            table=table, item=item, attempt=attempt, result=result,
+            sender=result_sender)
 
-    return {
+    response = {
         "workId": work["workId"],
         "status": "COMPLETED" if result.get("success", False) else ("DEAD_LETTER" if terminal else "FAILED"),
         "duplicate": False,
@@ -699,6 +842,218 @@ def process_record(
         "result_reference": f"work:{work['workId']}:attempt:{attempt}",
         "result": result,
     }
+    if delivery is not None:
+        response["order_result_delivery"] = delivery
+    if failure_delivery is not None:
+        response["order_failure_delivery"] = failure_delivery
+    return response
+
+
+def _result_body(stored: Any) -> Any:
+    """Unwrap the pipeline's {success,data} envelope exactly once."""
+    if isinstance(stored, dict) and "success" in stored and "data" in stored:
+        return stored.get("data") or {}
+    return stored
+
+
+def _dispatch_carrier(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Minimal dispatch carrier for the existing result_from_work_item mapping."""
+    return {
+        "messageType": "ORDER_DISPATCH",
+        "orderId": item.get("orderId", ""),
+        "correlationId": item.get("correlationId", ""),
+        "identity": {
+            "contextRef": item.get("apiProfileId") or "",
+            "tenantId": item.get("tenantId"),
+            "apiProfileId": item.get("apiProfileId"),
+            "partnerApplicationId": item.get("partnerApplicationId"),
+            "issuer": item.get("issuer"),
+        },
+    }
+
+
+def _resolve_result_sender() -> Optional[Any]:
+    url = os.environ.get("ORDER_RESULT_QUEUE_URL", "").strip()
+    arn = os.environ.get("ORDER_RESULT_SECRET_ARN", "").strip()
+    if not url or not arn:
+        return None
+    from agents.transport.order_result_sender import make_sender
+
+    return make_sender(url, arn)
+
+
+def _record_result_delivery(table: Any, work_id: str, *, status: str,
+                            attempt: int,
+                            message_id: Optional[str] = None,
+                            code: Optional[str] = None,
+                            field: str = "orderResultDelivery") -> None:
+    """Persist the transport outcome next to the completed work item.
+
+    ``COMPLETED`` only proves that the agent result was persisted. This marker
+    makes the difference to "handed to SQS" observable without changing the
+    work lifecycle. It is best effort: a marker failure must never turn a
+    successful send into a redelivery.
+    """
+    if table is None or not work_id:
+        return
+    marker: Dict[str, Any] = {
+        "status": status,
+        "attempt": int(attempt),
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    if message_id:
+        marker["messageId"] = message_id
+    if code:
+        marker["code"] = code
+    try:
+        table.update_item(
+            Key={"workId": work_id},
+            UpdateExpression="SET #delivery = :delivery",
+            ExpressionAttributeNames={
+                "#delivery": field},
+            ExpressionAttributeValues={":delivery": marker},
+            ConditionExpression="attribute_exists(workId)",
+        )
+    except Exception as exc:  # noqa: BLE001 - observability only
+        logger.warning(
+            "order result delivery marker not persisted: %s",
+            type(exc).__name__)
+
+
+def _forward_order_result(*, table: Any, item: Dict[str, Any], attempt: int,
+                          result: Any,
+                          sender: Optional[Any] = None) -> str:
+    """Forward a completed order work item via Transport V1, fail-closed.
+
+    Returns the delivery outcome: ``SENT``, ``NOT_CONFIGURED``, ``SKIPPED``
+    or ``REJECTED``. Only a sender exception is re-raised (SQS redelivery).
+    """
+    work_id = item.get("workId", "")
+    if not item.get("orderId"):
+        return "NOT_ORDER"
+    if not item.get("correlationId"):
+        logger.warning("order result not forwarded: missing correlationId")
+        _record_result_delivery(table, work_id, status="SKIPPED",
+                                attempt=attempt, code="missing_correlation")
+        return "SKIPPED"
+    if not item.get("apiProfileId"):
+        logger.warning("order result not forwarded: missing apiProfileId")
+        _record_result_delivery(table, work_id, status="SKIPPED",
+                                attempt=attempt, code="missing_api_profile")
+        return "SKIPPED"
+    sender = sender if sender is not None else _resolve_result_sender()
+    if sender is None:
+        logger.warning(
+            "order result not forwarded: result transport not configured")
+        _record_result_delivery(table, work_id, status="NOT_CONFIGURED",
+                                attempt=attempt, code="transport_not_configured")
+        return "NOT_CONFIGURED"
+    body = _result_body(result)
+    if not isinstance(body, dict):
+        logger.warning("order result not forwarded: result body is not an object")
+        _record_result_delivery(table, work_id, status="REJECTED",
+                                attempt=attempt, code="invalid_result")
+        return "REJECTED"
+    from agents.transport import (
+        ORDER_RESULT,
+        TransportError,
+        result_from_work_item,
+        validate_envelope,
+    )
+
+    try:
+        envelope = result_from_work_item(
+            _dispatch_carrier(item),
+            {"workId": item["workId"], "status": "COMPLETED",
+             "attempt_no": attempt, "result": body},
+        )
+        validate_envelope(envelope, expected_type=ORDER_RESULT)
+    except TransportError as exc:
+        code = getattr(exc, "code", "transport")
+        logger.error("order result not forwarded: %s", code)
+        _record_result_delivery(table, work_id, status="REJECTED",
+                                attempt=attempt, code=code)
+        return "REJECTED"
+    try:
+        sender(envelope)
+    except Exception as exc:
+        _record_result_delivery(table, work_id, status="RETRYING",
+                                attempt=attempt,
+                                message_id=envelope.get("messageId"),
+                                code=type(exc).__name__)
+        raise
+    _record_result_delivery(table, work_id, status="SENT", attempt=attempt,
+                            message_id=envelope.get("messageId"))
+    return "SENT"
+
+
+def _forward_order_failure(*, table: Any, item: Dict[str, Any], attempt: int,
+                           error: Any,
+                           sender: Optional[Any] = None) -> str:
+    """Forward a terminal order failure as the existing ORDER_FAILED type.
+
+    Returns ``SENT``, ``NOT_ORDER``, ``NOT_CONFIGURED``, ``SKIPPED`` or
+    ``REJECTED``. Only a sender exception is re-raised (SQS redelivery).
+    The error is reduced to the persisted failure fields; no payload or secret
+    is copied into the envelope.
+    """
+    work_id = item.get("workId", "")
+    if not item.get("orderId"):
+        return "NOT_ORDER"
+    if not item.get("correlationId"):
+        logger.warning("order failure not forwarded: missing correlationId")
+        _record_result_delivery(table, work_id, status="SKIPPED",
+                                attempt=attempt, code="missing_correlation",
+                                field="orderFailureDelivery")
+        return "SKIPPED"
+    if not item.get("apiProfileId"):
+        logger.warning("order failure not forwarded: missing apiProfileId")
+        _record_result_delivery(table, work_id, status="SKIPPED",
+                                attempt=attempt, code="missing_api_profile",
+                                field="orderFailureDelivery")
+        return "SKIPPED"
+    sender = sender if sender is not None else _resolve_result_sender()
+    if sender is None:
+        logger.warning(
+            "order failure not forwarded: result transport not configured")
+        _record_result_delivery(table, work_id, status="NOT_CONFIGURED",
+                                attempt=attempt, code="transport_not_configured",
+                                field="orderFailureDelivery")
+        return "NOT_CONFIGURED"
+
+    from agents.transport import ORDER_FAILED, TransportError, result_from_work_item
+
+    safe_error = error if isinstance(error, dict) else {"message": str(error)}
+    safe_error = {
+        "message": str(safe_error.get("message") or "work item failed")[:500],
+        "type": str(safe_error.get("type") or "RuntimeError")[:100],
+    }
+    try:
+        envelope = result_from_work_item(
+            _dispatch_carrier(item),
+            {"workId": work_id, "status": "FAILED",
+             "attempt_no": attempt, "error": safe_error},
+            message_type=ORDER_FAILED,
+        )
+    except TransportError as exc:
+        code = getattr(exc, "code", "transport")
+        logger.error("order failure not forwarded: %s", code)
+        _record_result_delivery(table, work_id, status="REJECTED",
+                                attempt=attempt, code=code,
+                                field="orderFailureDelivery")
+        return "REJECTED"
+    try:
+        sender(envelope)
+    except Exception as exc:
+        _record_result_delivery(
+            table, work_id, status="RETRYING", attempt=attempt,
+            message_id=envelope.get("messageId"),
+            code=type(exc).__name__, field="orderFailureDelivery")
+        raise
+    _record_result_delivery(
+        table, work_id, status="SENT", attempt=attempt,
+        message_id=envelope.get("messageId"), field="orderFailureDelivery")
+    return "SENT"
 
 
 def _resolve_table() -> Any:  # pragma: no cover - live Pfad (Env), Tests injizieren Fake

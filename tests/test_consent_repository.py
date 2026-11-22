@@ -8,9 +8,13 @@ try:
         ConsentContext, ConsentContractError, STATUS_GRANTED,
         STATUS_NOT_GRANTED, STATUS_WITHDRAWN)
     from jobsearch.consent_repository import ConsentConflict, ConsentRepository
-except ImportError:  # pragma: no cover
-    boto3 = None
-    mock_aws = lambda fn: fn
+except ImportError as exc:  # pragma: no cover - dependency-free skip
+    missing = getattr(exc, "name", "") or ""
+    if missing in ("moto", "boto3", "botocore"):
+        import pytest
+        pytest.skip(f"consent test dependencies missing: {exc}",
+                    allow_module_level=True)
+    raise
 
 
 CTX = ConsentContext("u1", "t1", "p1", "https://issuer")

@@ -46,6 +46,45 @@ variable "dispatch_batch_window_seconds" {
   default = 0
 }
 
+variable "timeout_seconds" {
+  description = "Execution timeout for the inline dispatch ingress (ATS headroom)."
+  type        = number
+  default     = 60
+}
+
+variable "ats_api_base_url" {
+  description = "ATS analysis endpoint used by the inline ATS agent."
+  type        = string
+  default     = "https://mays-jobsearch.vercel.app"
+}
+
+variable "result_transport_enabled" {
+  description = "Deprecated compatibility flag; result wiring is driven by the order_result_* values."
+  type        = bool
+  default     = false
+}
+
+variable "analysis_function_name" {
+  description = "Dedicated analysis Lambda invoked through the Agent Body remote handler; empty disables remote execution."
+  type        = string
+  default     = ""
+}
+
+variable "analysis_remote_timeout_seconds" {
+  type    = number
+  default = 45
+}
+
+variable "work_queue_url" {
+  description = "Existing shared RIS work queue; ORDER_DISPATCH persists then enqueues here."
+  type        = string
+}
+
+variable "work_queue_arn" {
+  description = "ARN of the existing shared RIS work queue (send permission only)."
+  type        = string
+}
+
 locals {
   ingress_name = "${var.project_name}-${var.environment}-agent-dispatch-ingress"
 }
@@ -116,7 +155,43 @@ resource "aws_iam_role_policy" "dispatch_ingress" {
         "sqs:GetQueueAttributes"]
         Resource = aws_sqs_queue.dispatch.arn
       },
+      {
+        Sid      = "SendToWorkQueue"
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = var.work_queue_arn
+      },
     ]
+  })
+}
+
+resource "aws_iam_role_policy" "dispatch_result_send" {
+  count = var.result_transport_enabled ? 1 : 0
+  name  = "${local.ingress_name}-result-send"
+  role  = aws_iam_role.dispatch_ingress.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["sqs:SendMessage"]
+      Resource = [var.order_result_queue_arn]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "dispatch_result_secret" {
+  count = var.result_transport_enabled ? 1 : 0
+  name  = "${local.ingress_name}-result-secret"
+  role  = aws_iam_role.dispatch_ingress.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = [var.order_result_secret_arn]
+    }]
   })
 }
 
@@ -131,7 +206,7 @@ resource "aws_lambda_function" "dispatch_ingress" {
     var.lambda_zip_path != "" ? filebase64sha256(var.lambda_zip_path) : null
   )
 
-  timeout     = 30
+  timeout     = var.timeout_seconds
   memory_size = 256
 
   environment {
@@ -140,6 +215,8 @@ resource "aws_lambda_function" "dispatch_ingress" {
       API_PROFILES_TABLE = var.api_profiles_table_name
       ENTITLEMENTS_TABLE = var.entitlements_table_name
       DISPATCH_QUEUE_ARN = aws_sqs_queue.dispatch.arn
+      ATS_API_BASE_URL   = var.ats_api_base_url
+      WORK_QUEUE_URL     = var.work_queue_url
       },
       var.order_result_queue_url != "" ? {
         ORDER_RESULT_QUEUE_URL = var.order_result_queue_url
@@ -147,11 +224,19 @@ resource "aws_lambda_function" "dispatch_ingress" {
       var.order_result_secret_arn != "" ? {
         ORDER_RESULT_SECRET_ARN = var.order_result_secret_arn
       } : {},
+      var.analysis_function_name != "" ? {
+        ANALYSIS_FUNCTION_NAME          = var.analysis_function_name
+        ANALYSIS_REMOTE_TIMEOUT_SECONDS = tostring(var.analysis_remote_timeout_seconds)
+      } : {},
     )
   }
 
-  depends_on = [aws_cloudwatch_log_group.dispatch_ingress]
-  tags       = merge({ "Project" = var.project_name }, var.tags)
+  depends_on = [
+    aws_cloudwatch_log_group.dispatch_ingress,
+    aws_iam_role_policy.dispatch_result_send,
+    aws_iam_role_policy.dispatch_result_secret,
+  ]
+  tags = merge({ "Project" = var.project_name }, var.tags)
 }
 
 resource "aws_lambda_event_source_mapping" "dispatch" {
@@ -165,4 +250,8 @@ resource "aws_lambda_event_source_mapping" "dispatch" {
 
 output "ingress_function_name" {
   value = aws_lambda_function.dispatch_ingress.function_name
+}
+
+output "dispatch_ingress_role_arn" {
+  value = aws_iam_role.dispatch_ingress.arn
 }

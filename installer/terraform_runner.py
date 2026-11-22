@@ -27,7 +27,7 @@ import os
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 DEFAULT_WORKSPACE = "default"
 
@@ -260,6 +260,29 @@ class TerraformRunner:
             stdout=proc.stdout,
             stderr=proc.stderr,
         )
+
+    def show_json(self, plan_file: str) -> Dict[str, Any]:
+        """Parse a saved plan (`terraform show -json`) in the runner context.
+
+        Relative plan names resolve against the runner working directory, the
+        same directory Terraform wrote `-out` into. No workspace operation is
+        performed: inspecting a plan must not take a lock or create a workspace.
+        """
+        import json
+
+        path = Path(plan_file)
+        if not path.is_absolute():
+            path = self.working_dir / path
+        result = self.run_and_get_result(
+            ["show", "-json", str(path)],
+            ensure_workspace=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"terraform show -json failed: {result.stderr or result.stdout}")
+        if not (result.stdout or "").strip():
+            raise RuntimeError("terraform show -json returned no JSON")
+        return json.loads(result.stdout)
 
     def init(
         self,

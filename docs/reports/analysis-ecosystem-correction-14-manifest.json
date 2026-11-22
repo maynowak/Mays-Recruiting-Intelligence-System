@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "1.0",
+  "release": "RIS-ANALYSIS-ECOSYSTEM-CORRECTION-14",
+  "supersededBy": "RIS-ANALYSIS-OFFER-E2E-15",
+  "generatedAt": "2026-11-21",
+  "verdict": "READY FOR FULL ECOSYSTEM CANARY REVIEW",
+  "state": {
+    "serial": 67,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "resources": 283,
+    "workspace": "ris-dev2"
+  },
+  "plan": {
+    "path": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc14/plan.out",
+    "sha256": "4a0a02f5a9bd7f16a1295d046798c314a9faac8425e2864d02ec442ed304d033",
+    "jsonSha256": "e13e7631aa08ed5cf13eb3867060d055076c405eaaeb326d618227e24c1df7a2",
+    "adds": 4,
+    "changes": 3,
+    "destroys": 0,
+    "replacements": 0,
+    "guard": "NO_SHARED_DESTROY",
+    "applyApproved": false
+  },
+  "resources": {
+    "adds": [
+      "aws_lambda_permission.analysis_invoke_ingress[0]",
+      "aws_lambda_permission.analysis_invoke_worker[0]",
+      "module.analysis_runtime.aws_iam_role_policy.analysis_runtime_data[0]",
+      "module.analysis_runtime.aws_lambda_function.analysis[0]"
+    ],
+    "updates": [
+      "module.agent_transport[0].aws_iam_role_policy.dispatch_ingress",
+      "module.agent_transport[0].aws_lambda_function.dispatch_ingress",
+      "module.lambda.aws_lambda_function.agent"
+    ]
+  },
+  "iam": {
+    "ingressPolicyUpdate": {
+      "sid": "SendToWorkQueue",
+      "actions": ["sqs:SendMessage"],
+      "resource": "ris-dev2-dev-work-queue"
+    },
+    "analysisDataPolicy": {
+      "statements": [
+        {
+          "sid": "OwnedPartnerProfiles",
+          "actions": ["dynamodb:GetItem", "dynamodb:Query"],
+          "resources": [
+            "ris-dev2-dev-partner-profiles",
+            "ris-dev2-dev-partner-profiles/index/*"
+          ]
+        }
+      ]
+    },
+    "removedFromAnalysis": [
+      "dynamodb WorkItems Get/Put/Update/Query",
+      "dynamodb Entitlements Get/Query"
+    ],
+    "invokePermissions": [
+      "worker role -> analysis Lambda",
+      "ingress role -> analysis Lambda"
+    ]
+  },
+  "bundles": {
+    "worker": {
+      "sha256": "0d49527e3a74c7e84d0a7ac9c6e0fcfa3673ae510a17ad075848f2e30fc61b37",
+      "files": 115
+    },
+    "analysis": {
+      "sha256": "83eef8e691e15ada27bd9afa109b551c00dae766fe0b8a57c4ce1fc637df1184",
+      "files": 113
+    }
+  },
+  "topology": {
+    "dispatchQueue": "ris-dev2-dev-agent-dispatch",
+    "workQueue": "ris-dev2-dev-work-queue",
+    "resultQueue": "ris-dev2-mays-orders-agent-results",
+    "newQueue": false
+  },
+  "stopConditions": [
+    "plan SHA differs from 4a0a02f5…",
+    "state serial/lineage differs from 67 / a0bd361d…",
+    "any new SQS queue or queue replacement",
+    "any Mays-Orders lifecycle/table change",
+    "any shared IAM policy migration",
+    "analysis gets WorkItems write or ORDER_RESULT transport permissions",
+    "guard is not NO_SHARED_DESTROY"
+  ]
+}

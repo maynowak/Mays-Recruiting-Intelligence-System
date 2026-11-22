@@ -1,5 +1,6 @@
 """Generic order transport (RIS-AGENT-GENERIC-ORDER-TRANSPORT-01)."""
 
+from agents.transport.order_result_sender import make_sender, sign_result
 from agents.transport.order_transport import (
     ACCEPTED_SCHEMA_VERSIONS,
     ORDER_CANCELLED,
@@ -16,6 +17,7 @@ from agents.transport.order_transport import (
     TransportError,
     VerifiedContext,
     accepted_message_types,
+    build_dispatch_envelope,
     dispatch_to_work_item,
     is_stale_attempt,
     result_from_work_item,
@@ -39,7 +41,10 @@ __all__ = [
     "VerifiedContext",
     "validate_envelope",
     "dispatch_to_work_item",
+    "build_dispatch_envelope",
     "result_from_work_item",
     "is_stale_attempt",
     "accepted_message_types",
+    "make_sender",
+    "sign_result",
 ]

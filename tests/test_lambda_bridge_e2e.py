@@ -86,6 +86,26 @@ class ProfileStore:
         return {"apiProfileId": "ctx-partner-a", "status": "ACTIVE",
                 "tenantId": "tenant-a", "userId": "partner-a-user"}
 
+    def get_profile(self, profile_id):
+        return self.get(profile_id)
+
+
+class FakeSQS:
+    def __init__(self):
+        self.sent = []
+
+    def send_message(self, **kwargs):
+        self.sent.append(kwargs)
+
+
+class Entitlements:
+    def __init__(self, agent_id="addition_agent"):
+        self.agent_id = agent_id
+
+    def find_entitlements(self, user_id):
+        return [{"userId": user_id, "tenantId": "tenant-a",
+                 "agentId": self.agent_id, "entitlementId": "ent-bridge"}]
+
 
 @unittest.skipUnless(MO_SRC and os.path.isdir(MO_SRC),
                      "MO_ORDERS_SRC not set")
@@ -98,6 +118,10 @@ class LambdaBridgeE2E(unittest.TestCase):
         import index as mo_index
         import dispatch_ingress
 
+        self._saved_env = {key: os.environ.get(key) for key in (
+            "ORDERS_TABLE", "ORDERS_COGNITO_ISSUER",
+            "ORDERS_COGNITO_CLIENT_ID", "ORDER_RESULT_SECRET_ARN",
+            "DISPATCH_QUEUE_ARN")}
         os.environ.update({
             "ORDERS_TABLE": "orders",
             "ORDERS_COGNITO_ISSUER": ISSUER,
@@ -117,6 +141,17 @@ class LambdaBridgeE2E(unittest.TestCase):
         self.order_table = Table()
         self.work_table = Table()
         self.service = mo_orders.OrderService("orders", client=self.order_table)
+        self.sqs = FakeSQS()
+        self.results = []
+
+        from agents.addition_agent.registry import register_addition_agent
+        from agents.agent_body import AgentBody
+        from agents.ecosystem.registry import AgentRegistry
+
+        self.registry = AgentRegistry()
+        self.body = AgentBody()
+        register_addition_agent(self.registry, self.body)
+        self.entitlements = Entitlements()
 
         result_consumer.reset_cache()
         self.patches = [
@@ -128,12 +163,10 @@ class LambdaBridgeE2E(unittest.TestCase):
                          return_value=[RESULT_SECRET]),
             patch.object(dispatch_ingress, "_dependencies", return_value={
                 "profile_store": ProfileStore(),
-                "registry": __import__("agents.ecosystem.registry",
-                                       fromlist=["AgentRegistry"]).AgentRegistry(),
-                "body": __import__("agents.agent_body",
-                                   fromlist=["AgentBody"]).AgentBody(),
                 "table": self.work_table,
-                "entitlement_resolver": None,
+                "sqs_client": self.sqs,
+                "work_queue_url":
+                    "https://sqs.eu-central-1.amazonaws.com/1/work",
             }),
         ]
         for p in self.patches:
@@ -143,8 +176,11 @@ class LambdaBridgeE2E(unittest.TestCase):
         for p in self.patches:
             p.stop()
         self.mo_result_consumer.reset_cache()
-        for key in ("DISPATCH_QUEUE_ARN", "ORDER_RESULT_SECRET_ARN"):
-            os.environ.pop(key, None)
+        for key, value in self._saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
     # -- helpers ---------------------------------------------------------
     def _event(self, identity, route, **kwargs):
@@ -179,6 +215,7 @@ class LambdaBridgeE2E(unittest.TestCase):
         return order_id, bound["workId"], envelope
 
     def _run_bridge(self):
+        from agents.runtime import pipeline as pipeline_module
         from agents.transport import result_from_work_item
 
         order_id, work_id, envelope = self._create_order()
@@ -187,6 +224,16 @@ class LambdaBridgeE2E(unittest.TestCase):
             {"Records": [{"messageId": "msg-dispatch", "eventSourceARN": QUEUE_ARN,
                           "body": json.dumps(envelope)}]}, None)
         self.assertEqual([], ingress_result["batchItemFailures"])
+
+        # Correction-14: ingress persists and enqueues; the shared worker
+        # executes the queued WorkItem in this harness.
+        for message in self.sqs.sent:
+            pipeline_module.process_record(
+                {"body": message["MessageBody"]},
+                table=self.work_table, registry=self.registry, body=self.body,
+                entitlement_resolver=self.entitlements,
+                result_sender=self.results.append)
+        self.sqs.sent.clear()
 
         stored = self.work_table.items[work_id]
         self.assertEqual("COMPLETED", stored["status"])
@@ -205,11 +252,13 @@ class LambdaBridgeE2E(unittest.TestCase):
     def _result_record(self, envelope, secret=RESULT_SECRET, message_id=None):
         from result_envelope import sign
 
-        mid = message_id or envelope["messageId"]
+        # The signature basis is the envelope id; the SQS record id is a UUID
+        # assigned at send time and is deliberately different here.
+        record_id = message_id or "11111111-2222-3333-4444-555555555555"
         body = json.dumps(envelope)
-        return {"messageId": mid, "body": body,
+        return {"messageId": record_id, "body": body,
                 "messageAttributes": {"serviceSignature": {
-                    "stringValue": sign(secret, mid, body)}}}
+                    "stringValue": sign(secret, envelope["messageId"], body)}}}
 
     # -- tests -----------------------------------------------------------
     def test_full_bridge_returns_42_to_the_owner(self):

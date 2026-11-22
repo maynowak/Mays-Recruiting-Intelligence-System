@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "1.0",
+  "release": "RIS-ANALYSIS-OFFER-E2E-15-FINAL-CANARY-GATE",
+  "generatedAt": "2026-11-21",
+  "verdict": "CORRECTION REQUIRED",
+  "technicalApply": "READY FOR EXACT-PLAN APPLY APPROVAL",
+  "state": {
+    "serial": 67,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "resources": 283,
+    "workspace": "ris-dev2"
+  },
+  "plan": {
+    "path": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc18/plan.out",
+    "sha256": "9a0324a0523486b9d4850c9215030a084c35b8807508a6a55bd2e26596a4c7a6",
+    "jsonSha256": "c1360c511e53f6cadcf48b26f49c94d90d551578e83fc97be8b758ae7f5cb391",
+    "adds": 4,
+    "changes": 3,
+    "destroys": 0,
+    "replacements": 0,
+    "guard": "NO_SHARED_DESTROY",
+    "applyApproved": false
+  },
+  "bundles": {
+    "worker": {
+      "sha256": "28125fe103f39496069bb419586a3f328dc2d60f343f2b4f6f415af65ab433e6",
+      "files": 115
+    },
+    "analysis": {
+      "sha256": "fcc2a008b3234a8dd769e605b6e005a8b6690d06f216c4f391ca16efffb1e75a",
+      "files": 113
+    },
+    "parser": {
+      "sha256": "fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a",
+      "files": 412
+    }
+  },
+  "syntheticBinding": {
+    "verifier": "persisted RUNNING WorkItem, exact tenantId/userId/partnerApplicationId/issuer",
+    "mapping": "snake_case Identity -> camelCase DynamoDB fields (explicit)",
+    "denyOn": ["missing row", "non-RUNNING", "field mismatch", "DynamoDB error", "identity_conflict"],
+    "envScope": "ris-dev2 only, exact profile + future expiry, default mode false",
+    "realConsent": false,
+    "catalogSeed": false
+  },
+  "maysOrdersFinding": {
+    "status": "OPEN_CROSS_REPO",
+    "summary": "Mays-Orders stores user-supplied agentOrder.metadata.apiProfileRef; prepare_dispatch checks order ownership but not that the referenced APIProfile belongs to the order owner/partner. RIS dispatch ingress resolves any ACTIVE contextRef and therefore cannot prove the binding.",
+    "risk": "A Mays user able to create an agent order could reference another active APIProfile; RIS would execute under that profile's tenant/owner.",
+    "owner": "Mays-Orders",
+    "action": "Server-side bind/validate apiProfileRef (and partnerApplicationRef) on order creation/prepare_dispatch, or introduce a signed server binding; do not change RIS to trust payload metadata."
+  },
+  "stopConditions": [
+    "plan SHA differs from 9a0324a0…",
+    "state serial/lineage differs from 67 / a0bd361d…",
+    "synthetic binding accepted without persisted RUNNING row",
+    "Mays apiProfileRef binding remains unverified",
+    "any catalog/offer seed, real grant or global consent",
+    "guard is not NO_SHARED_DESTROY"
+  ]
+}

@@ -1,0 +1,146 @@
+{
+  "schemaVersion": "1.0",
+  "releaseId": "ris-agent-installation-08",
+  "date": "2026-11-18",
+  "status": "TEST-DEPLOYED / LIVE-E2E-PASS",
+  "environment": {
+    "project": "ris-dev2",
+    "awsAccount": "262370457690",
+    "region": "eu-central-1",
+    "workspace": "ris-dev2",
+    "ordersLifecycle": "managed",
+    "backendKey": "env:/ris-dev2/dev/terraform.tfstate",
+    "stateLineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "stateSerialBefore": 58,
+    "stateSerialAfter": 63
+  },
+  "source": {
+    "risRepository": "mays-ris",
+    "risSha": "f0c707c6e80638a6489194b3be98374718a6a522",
+    "risBranch": "feature/ris-dev2-ats-agent-pinned-core-01",
+    "ordersRepository": "maynowak/mays-order-aws",
+    "ordersPin": "016cdfd6ac62565dcec9a2fee78cb898fb919e59"
+  },
+  "artifacts": {
+    "agentBundleSha256": "5258c99ee62b4e66da25874d2941b18cd14871796baadbdb0e1fe5751eb98e1",
+    "readerBundleSha256": "55366e35f82e1fbb063d2020bcb02054b5f3504d4906f55802bcbef0ea87fcbe",
+    "ordersLambdaZipSha256": "48ddd5e52d07b40fc333b67e5e34fb1b67701cf823536e20c7b2816a78a05f94"
+  },
+  "plan": {
+    "sha256": "66AD66AA086CC80B02004343E78E92F28EF2E81CE316A90D8F1506A7ECE1F1C4",
+    "actions": {"add": 24, "change": 4, "destroy": 0, "replace": 0},
+    "protectedChanges": 0,
+    "applied": true,
+    "postApplyPlan": "no changes"
+  },
+  "packages": [
+    {
+      "path": "agent-installations/ats-agent",
+      "agentId": "ats-agent",
+      "version": "1.0.0",
+      "status": "test-deployed",
+      "capability": "analyze.job"
+    },
+    {
+      "path": "agent-installations/addition-agent",
+      "agentId": "addition_agent",
+      "version": "1.0.0",
+      "status": "reference",
+      "capability": "math.add"
+    }
+  ],
+  "infrastructure": {
+    "createdOrUpdated": [
+      "ris-dev2-dev-agent-dispatch",
+      "ris-dev2-dev-agent-dispatch-dlq",
+      "ris-dev2-dev-agent-dispatch-ingress",
+      "ris-dev2-mays-orders-agent-results",
+      "ris-dev2-mays-orders-agent-results-dlq",
+      "ris-dev2-mays-orders-agent-result-consumer",
+      "ris-dev2-mays-orders-agent-result-hmac (container only)",
+      "ris-dev2-dev-orders-reader (env + dispatch IAM)",
+      "ris-dev2-dev-agent (result env/IAM, timeout 60s)",
+      "ris-dev2-dev-agent-catalog seed ats-agent",
+      "Orders handler/worker bundle update"
+    ],
+    "protectedUntouched": [
+      "Cognito pools, clients, domain, authorizers",
+      "CloudFront distribution and OAC",
+      "Route53/DNS and ACM",
+      "existing users and non-test data"
+    ],
+    "queues": {
+      "dispatchVisibilitySeconds": 300,
+      "resultVisibilitySeconds": 60,
+      "retentionSeconds": 345600,
+      "dlqRetentionSeconds": 1209600,
+      "maxReceiveCount": 3
+    },
+    "lambdas": {
+      "workerTimeoutSeconds": 60,
+      "dispatchIngressTimeoutSeconds": 60,
+      "resultConsumerTimeoutSeconds": 30
+    }
+  },
+  "secret": {
+    "name": "ris-dev2-mays-orders-agent-result-hmac",
+    "storage": "AWS Secrets Manager, container only",
+    "format": "bare 64-char lowercase hex",
+    "versions": "exactly one AWSCURRENT, no AWSPENDING",
+    "kms": "AWS-managed",
+    "valueInGitTerraformStateLogsReports": false
+  },
+  "liveEvidence": {
+    "orderId": "ord_0d23d52e98fb4c557e7aa920",
+    "workId": "work-a818f56a2f5ec0d0",
+    "workStatus": "COMPLETED",
+    "orderResultDelivery": "SENT",
+    "ordersProcessing": "COMPLETED",
+    "bodyVersion": "2.0",
+    "score": 67,
+    "orderStatus": "PENDING",
+    "ownerRead": 200,
+    "foreignOwnerRead": 404,
+    "invalidToken": 401,
+    "duplicate": "no second write; version unchanged",
+    "invalidSignature": "rejected, no write, no DLQ copy",
+    "retail": "create 201 / read 200",
+    "dispatchDlqDepth": 0,
+    "resultDlqDepth": 0,
+    "logHygiene": "no ownerKey, ris_ prefix, synthetic email or invalid-signature lines in the recent canary logs"
+  },
+  "tests": {
+    "local": {
+      "agentOrderE2E": "6 passed",
+      "reader": "35 passed",
+      "dispatchIngress": "16 passed",
+      "crossRepo": "192 passed / 2 skipped",
+      "orders": "225 passed",
+      "fullRis": "2654 passed / 134 skipped / 434 subtests; 29 pre-existing failures, 4 collection errors",
+      "orchestrator": "5 passed"
+    },
+    "live": "PASS (see liveEvidence)"
+  },
+  "risks": [
+    "ATS upstream is the production contract host; no non-prod endpoint exists. Synthetic data only.",
+    "Result visibility 60s vs consumer timeout 30s.",
+    "No DLQ alarms/SNS actions for dispatch/result queues.",
+    "No ORDER_FAILED emission; failed runs leave no Orders trace.",
+    "Reader POST has no request-level idempotency.",
+    "Inline dispatch execution within the 60s Lambda.",
+    "Orders main branch has a different consumer contract; pin must not move toward main without producer rework."
+  ],
+  "decisionsForRisDev": [
+    "Approve or reject partner traffic.",
+    "Add DLQ alarms/SNS actions before partner traffic.",
+    "Decide ORDER_FAILED semantics.",
+    "Raise result visibility or accept the 2x ratio.",
+    "Provide a non-production ATS endpoint for hermetic tests.",
+    "Decide whether to delete the synthetic evidence orders/work rows."
+  ],
+  "rollback": {
+    "procedure": "Reviewed plan with orders_agent_result_enabled=false and enable_agent_transport=false; restore previous Lambda bundles; revoke test profile/entitlement; keep or delete the secret only via a reviewed step.",
+    "dataImpact": "Disabling removes queues/Lambdas via Terraform; existing orders/work rows remain unless deleted."
+  },
+  "noProductionChange": true
+}

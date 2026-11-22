@@ -19,7 +19,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-from agents.runtime.pipeline import process_record
+from agents.runtime.work_queue import WorkEnqueueError, enqueue_work_item
 from agents.transport import VerifiedContext
 from agents.transport import order_transport as transport
 
@@ -40,14 +40,18 @@ def resolve_context(context_ref: str, profile_store: Any) -> VerifiedContext:
     if not context_ref:
         raise DispatchRejected("missing_context_ref",
                                "Dispatch carries no identity context reference")
-    profile = profile_store.get(context_ref)
+    # The production store exposes ``get_profile``; test doubles may expose
+    # ``get``. Accept both without weakening the lookup.
+    getter = getattr(profile_store, "get_profile", None)
+    profile = (getter or profile_store.get)(context_ref)
     if not isinstance(profile, dict):
         raise DispatchRejected("unknown_context",
                                "Identity context reference cannot be resolved")
     if profile.get("status") != "ACTIVE":
         raise DispatchRejected("inactive_context",
                                "Identity context is not active")
-    user_id = profile.get("userId")
+    # The store writes ``ownerUserId``; older rows/tests may use ``userId``.
+    user_id = profile.get("userId") or profile.get("ownerUserId")
     tenant_id = profile.get("tenantId")
     if not user_id or not tenant_id:
         raise DispatchRejected("incomplete_context",
@@ -64,22 +68,30 @@ def resolve_context(context_ref: str, profile_store: Any) -> VerifiedContext:
 
 def _dependencies() -> Dict[str, Any]:
     """Production wiring; tests inject the same keys."""
-    from agents.agent_body import AgentBody
+    import boto3
+
     from agents.ecosystem.api_profiles import DynamoDBApiProfileStore
-    from agents.ecosystem.registry import AgentRegistry
-    from agents.ecosystem.worker_authorization import DynamoDBEntitlementResolver
 
     profile_table = os.environ.get("API_PROFILES_TABLE")
     if not profile_table:
         raise RuntimeError("API_PROFILES_TABLE is not configured")
+    entitlements_table = os.environ.get("ENTITLEMENTS_TABLE")
+    if not entitlements_table:
+        # Fail closed: a dispatch without execution authorization is not
+        # allowed.
+        raise RuntimeError(
+            "ENTITLEMENTS_TABLE is required for dispatch authorization")
+    work_table_name = os.environ.get("WORK_ITEMS_TABLE")
+    if not work_table_name:
+        raise RuntimeError("WORK_ITEMS_TABLE is not configured")
+    queue_url = os.environ.get("WORK_QUEUE_URL")
+    if not queue_url:
+        raise RuntimeError("WORK_QUEUE_URL is not configured")
     return {
         "profile_store": DynamoDBApiProfileStore(table_name=profile_table),
-        "registry": AgentRegistry(),
-        "body": AgentBody(),
-        "table": None,  # pipeline resolves WORK_ITEMS_TABLE itself
-        "entitlement_resolver": (DynamoDBEntitlementResolver()
-                                 if os.environ.get("ENTITLEMENTS_TABLE")
-                                 else None),
+        "table": boto3.resource("dynamodb").Table(work_table_name),
+        "sqs_client": boto3.client("sqs"),
+        "work_queue_url": queue_url,
     }
 
 
@@ -119,12 +131,11 @@ def handler(event: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
                 envelope["identity"]["contextRef"], dependencies["profile_store"])
             work_item = transport.dispatch_to_work_item(envelope, verified)
 
-            process_record(
-                {"messageId": message_id, "body": json.dumps(work_item)},
-                table=dependencies.get("table"),
-                registry=dependencies["registry"],
-                body=dependencies["body"],
-                entitlement_resolver=dependencies.get("entitlement_resolver"),
+            enqueue_work_item(
+                work_item,
+                table=dependencies["table"],
+                queue_url=dependencies["work_queue_url"],
+                sqs_client=dependencies.get("sqs_client"),
             )
             processed += 1
         except (DispatchRejected, transport.TransportError, ValueError) as exc:

@@ -36,15 +36,26 @@ variable "log_retention_days" {
   default     = 7
 }
 
-variable "lambda_execution_boundary" {
-  description = "Optional IAM permissions boundary ARN for the SQS worker Lambda role. If null, no permissions boundary is set."
-  type        = string
-  default     = null
+# ---------------------------------------------------------------------------
+# Agent transport boundary (MO-RIS-AWS-INTEGRATION-PLAN-01).
+# Disabled by default: an existing installation plans zero changes.
+# ---------------------------------------------------------------------------
+variable "enable_agent_transport" {
+  description = "Create the agent result queue (Orders side of the boundary)."
+  type        = bool
+  default     = false
+}
 
-  validation {
-    condition     = var.lambda_execution_boundary == null || can(regex("^arn:aws:iam::[0-9]{12}:policy/", var.lambda_execution_boundary))
-    error_message = "lambda_execution_boundary must be null or a valid IAM policy ARN (arn:aws:iam::<12-digit-account-id>:policy/<name>)."
-  }
+variable "ris_result_producer_role_arns" {
+  description = "RIS role ARNs allowed to enqueue agent results."
+  type        = list(string)
+  default     = []
+}
+
+variable "lambda_execution_boundary" {
+  description = "Optionales IAM-Permissions-Boundary fuer Orders-Lambda-Rollen. Leer = kein Boundary; das Boundary ist kontospezifisch."
+  type        = string
+  default     = ""
 }
 
 # Cognito-Bereitstellungsart (MAYS-ORDERS-EXTERNAL-COGNITO-INTEGRATION-01):
@@ -69,4 +80,10 @@ variable "external_cognito" {
     )
     error_message = "external_cognito erfordert einen vollstaendigen user_pool_endpoint im Format 'cognito-idp.<region>.amazonaws.com/<pool-id>' (ohne https://) und eine nicht leere user_pool_client_id - unvollstaendige Referenzen werden fail-closed abgelehnt."
   }
+}
+
+variable "order_dispatch_queue_url" {
+  description = "Optional existing RIS dispatch queue URL for the order handler env."
+  type        = string
+  default     = ""
 }

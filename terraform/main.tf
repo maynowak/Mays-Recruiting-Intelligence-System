@@ -28,6 +28,11 @@ locals {
   identity_issuer  = local.identity_managed ? "https://${module.cognito[0].user_pool_endpoint}" : var.external_cognito_issuer
   m2m_issuer       = local.identity_managed && !var.identity_m2m_enabled ? var.identity_m2m_fallback_issuer : local.identity_issuer
   m2m_client_id    = local.identity_managed && !var.identity_m2m_enabled ? var.identity_m2m_fallback_client_id : (local.identity_managed ? module.cognito[0].user_pool_m2m_client_id : var.external_cognito_m2m_client_id)
+
+  # Dispatch (Orders -> RIS) uses the existing agent_transport module.
+  agent_dispatch_enabled   = var.enable_agent_transport && local.orders_enabled
+  agent_dispatch_queue_url = local.agent_dispatch_enabled ? try(module.agent_transport[0].dispatch_queue_url, "") : ""
+  agent_dispatch_queue_arn = local.agent_dispatch_enabled ? try(module.agent_transport[0].dispatch_queue_arn, "") : ""
 }
 
 provider "aws" {
@@ -179,10 +184,15 @@ module "lambda" {
   work_queue_url                      = module.sqs.work_queue_url
   # Existing RIS -> Mays-Orders result transport. Empty values preserve the
   # previous absence of these variables for installations without the link.
-  order_result_queue_url  = var.order_result_queue_url
-  order_result_queue_arn  = var.order_result_queue_arn
-  order_result_secret_arn = var.order_result_secret_arn
-  tags                    = var.tags
+  order_result_queue_url          = var.order_result_queue_url
+  order_result_queue_arn          = var.order_result_queue_arn
+  order_result_secret_arn         = var.order_result_secret_arn
+  orders_base_url                 = module.api.api_endpoint
+  ats_api_base_url                = var.ats_api_base_url
+  timeout_seconds                 = var.agent_execution_timeout_seconds
+  analysis_function_name          = module.analysis_runtime.analysis_function_name
+  analysis_remote_timeout_seconds = 45
+  tags                            = var.tags
 }
 
 # Gate 4 — eigene Order-Fassade (orders_reader) auf unserer API.
@@ -198,6 +208,8 @@ module "orders_reader" {
   environment       = var.environment
   api_id            = module.api.api_id
   authorizer_id     = module.api.authorizer_id
+  cognito_issuer    = local.identity_issuer
+  cognito_client_id = local.identity_managed ? module.cognito[0].user_pool_client_id : var.external_cognito_human_client_id
   aws_region        = var.aws_region
   filename          = var.filename
   tags              = var.tags
@@ -205,6 +217,14 @@ module "orders_reader" {
   orders_table_arn  = local.orders_managed ? module.mays_orders[0].dynamodb_table_arn : var.external_orders_table_arn
   orders_queue_url  = local.orders_managed ? module.mays_orders[0].sqs_queue_url : var.external_orders_queue_url
   orders_queue_arn  = local.orders_managed ? module.mays_orders[0].sqs_queue_arn : var.external_orders_queue_arn
+
+  dispatch_enabled        = local.agent_dispatch_enabled
+  dispatch_queue_url      = local.agent_dispatch_queue_url
+  dispatch_queue_arn      = local.agent_dispatch_queue_arn
+  api_profiles_table_name = module.dynamodb.api_profiles_table_name
+  api_profiles_table_arn  = module.dynamodb.api_profiles_table_arn
+  entitlements_table_name = module.dynamodb.entitlements_table_name
+  entitlements_table_arn  = module.dynamodb.entitlements_table_arn
 }
 
 
@@ -323,6 +343,53 @@ module "documents" {
   tags         = var.tags
 }
 
+# Dedicated analysis runtime identity + private temporary job storage
+# (RIS-ANALYSIS-INTERNAL-PARTNER-08). No shared transport policy is replaced.
+module "analysis_runtime" {
+  source = "./modules/analysis_runtime"
+
+  project_name         = var.project_name
+  environment          = var.environment
+  tags                 = var.tags
+  documents_bucket_arn = module.documents.bucket_arn
+  job_retention_days   = 1
+  log_retention_days   = 14
+
+  # Gated (default false): the baseline plan stays 11/2/0.
+  enable_analysis_runtime = var.enable_analysis_runtime
+  parser_artifact_path    = var.analysis_parser_zip_path
+  analysis_zip_path       = var.analysis_lambda_zip_path
+
+  documents_bucket_name       = module.documents.bucket_name
+  work_items_table_name       = module.dynamodb.work_items_table_name
+  work_items_table_arn        = module.dynamodb.work_items_table_arn
+  entitlements_table_name     = module.dynamodb.entitlements_table_name
+  entitlements_table_arn      = module.dynamodb.entitlements_table_arn
+  partner_profiles_table_name = module.dynamodb.partner_profiles_table_name
+  partner_profiles_table_arn  = module.dynamodb.partner_profiles_table_arn
+}
+
+# The shared worker/ingress invoke the dedicated analysis function through the
+# existing Agent Body remote handler. Resource-based permissions only; no
+# shared IAM policy is modified.
+resource "aws_lambda_permission" "analysis_invoke_worker" {
+  count = var.enable_analysis_runtime ? 1 : 0
+
+  statement_id  = "AllowRisWorkerInvokeAnalysis"
+  action        = "lambda:InvokeFunction"
+  function_name = module.analysis_runtime.analysis_function_name
+  principal     = module.lambda.lambda_role_arn
+}
+
+resource "aws_lambda_permission" "analysis_invoke_ingress" {
+  count = var.enable_analysis_runtime && var.enable_agent_transport ? 1 : 0
+
+  statement_id  = "AllowRisIngressInvokeAnalysis"
+  action        = "lambda:InvokeFunction"
+  function_name = module.analysis_runtime.analysis_function_name
+  principal     = module.agent_transport[0].dispatch_ingress_role_arn
+}
+
 resource "aws_s3_bucket" "data" {
   bucket = "${local.prefix}-data"
 
@@ -438,10 +505,18 @@ module "agent_transport" {
   environment  = var.environment
   tags         = var.tags
 
-  orders_producer_role_arns = var.orders_producer_role_arns
-  order_result_queue_url    = var.order_result_queue_url
-  order_result_queue_arn    = var.order_result_queue_arn
-  order_result_secret_arn   = var.order_result_secret_arn
+  orders_producer_role_arns       = var.orders_producer_role_arns
+  order_result_queue_url          = var.order_result_queue_url
+  order_result_queue_arn          = var.order_result_queue_arn
+  order_result_secret_arn         = var.order_result_secret_arn
+  ats_api_base_url                = var.ats_api_base_url
+  timeout_seconds                 = var.agent_execution_timeout_seconds
+  analysis_function_name          = module.analysis_runtime.analysis_function_name
+  analysis_remote_timeout_seconds = 45
+  work_queue_url                  = module.sqs.work_queue_url
+  work_queue_arn                  = module.sqs.work_queue_arn
+  # Keep the legacy result-policy addresses alive (no shared IAM migration).
+  result_transport_enabled = var.enable_agent_transport
 
   lambda_zip_path = "${path.root}/lambda.zip"
 

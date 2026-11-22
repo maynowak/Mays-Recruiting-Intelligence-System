@@ -128,7 +128,9 @@ def test_plan_wires_runner_cwd_vars_and_backend():
         "Arn": "arn:aws:iam::123456789012:user/tester"
     }):
         with patch("subprocess.run", side_effect=fake_run):
-            results = ris._cmd_plan(ctx, out_file="tfplan")
+            with patch.object(ris, "_load_plan_for_guard",
+                              return_value={"resource_changes": []}):
+                results = ris._cmd_plan(ctx, out_file="tfplan")
     flat = [" ".join(c) for c in seen["cmds"]]
     assert any(c.startswith("terraform init -backend-config=") for c in flat)
     assert any("terraform plan" in c and "-var project_name=mays-ris" in c for c in flat)
@@ -374,7 +376,9 @@ def test_install_full_order_with_yes():
         v.return_value = MagicMock(account_id="1", region="eu-central-1")
         boot.return_value = {"bucket": {}, "lock_table": {}}
         run.return_value = _completed(["terraform"])
-        assert ris_mod._cmd_install(ctx, out_file="tfplan") == 0
+        with patch.object(ris_mod, "_load_plan_for_guard",
+                          return_value={"resource_changes": []}):
+            assert ris_mod._cmd_install(ctx, out_file="tfplan") == 0
     cmds = [" ".join(c.args[0]) for c in run.call_args_list]
     assert any("terraform init -backend-config=" in c for c in cmds)
     assert any(c == "terraform validate" for c in cmds)
@@ -585,7 +589,11 @@ def test_apply_forwards_vars():
         "Arn": "arn:aws:iam::123456789012:user/tester"
     }):
         with patch("subprocess.run", side_effect=fake_run):
-            results = ris._cmd_apply(ctx)
+            with patch.object(ris, "_load_plan_for_guard",
+                              return_value={"resource_changes": []}), \
+                 patch.object(ris, "mirror_project_state",
+                              return_value=None):
+                results = ris._cmd_apply(ctx)
     flat = [" ".join(c) for c in seen["cmds"]]
     # New behavior: plan phase includes vars, apply phase uses plan file
     plan_cmds = [c for c in flat if c.startswith("terraform plan")]
@@ -596,6 +604,13 @@ def test_apply_forwards_vars():
     assert "-var project_name=mays-ris" in plan_cmds[0]
     assert "apply" in apply_cmds[0] and ".tfplan" in apply_cmds[0]
     assert all(r.returncode == 0 for r in results)
+
+
+def test_install_refuses_unsupported_through():
+    import installer.ris as ris_mod
+
+    ctx = RisInstallContext(project_name="mays-ris", dry_run=False)
+    assert ris_mod._cmd_install(ctx, through="orders-deploy") == 1
 
 
 def test_destroy_refuses_dry_run():
@@ -619,10 +634,17 @@ def test_destroy_plans_and_applies_scope():
             project_name="mays-ris-lifecycle", environment="dev",
             terraform_dir="terraform", backend_bucket="b", backend_region="r",
             dry_run=False, composite=False,
+            shared_teardown_intent="CHG-RIS-DESTROY-01",
         )
+    destroy_plan = {"resource_changes": [{
+        "address": "module.agent_transport[0].aws_sqs_queue.dispatch",
+        "type": "aws_sqs_queue",
+        "change": {"actions": ["delete"], "before": {}, "after": None}}]}
     with patch("subprocess.run", side_effect=fake_run):
         with patch.object(ris, "validate_aws_context", return_value=_aws_ctx()):
-            rc = ris._cmd_destroy(ctx, out_file="gone.tfplan")
+            with patch.object(ris, "_load_plan_for_guard",
+                              return_value=destroy_plan):
+                rc = ris._cmd_destroy(ctx, out_file="gone.tfplan")
     flat = [" ".join(c) for c in seen["cmds"]]
     assert rc == 0
     assert any("terraform plan -destroy" in c and "-out gone.tfplan" in c for c in flat)

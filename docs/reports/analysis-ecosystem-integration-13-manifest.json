@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "1.0",
+  "release": "RIS-ANALYSIS-ECOSYSTEM-INTEGRATION-13",
+  "supersededBy": "RIS-ANALYSIS-ECOSYSTEM-CORRECTION-14",
+  "generatedAt": "2026-11-21",
+  "verdict": "CORRECTION REQUIRED",
+  "state": {
+    "serial": 67,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "resources": 283,
+    "workspace": "ris-dev2"
+  },
+  "plan": {
+    "path": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc13b/plan.out",
+    "sha256": "78d6c5ec3a42fa177f5e25aafe5dd89720ab2016eda864d3ed2ea9fc68af18c7",
+    "jsonSha256": "ec77372c6adda5ec05241b344397730fb4df581d18583c56a2bcd89207c37a0b",
+    "adds": 4,
+    "changes": 2,
+    "destroys": 0,
+    "replacements": 0,
+    "guard": "NO_SHARED_DESTROY",
+    "applyApproved": false
+  },
+  "resources": {
+    "adds": [
+      "aws_lambda_permission.analysis_invoke_ingress[0]",
+      "aws_lambda_permission.analysis_invoke_worker[0]",
+      "module.analysis_runtime.aws_iam_role_policy.analysis_runtime_data[0]",
+      "module.analysis_runtime.aws_lambda_function.analysis[0]"
+    ],
+    "updates": [
+      "module.agent_transport[0].aws_lambda_function.dispatch_ingress",
+      "module.lambda.aws_lambda_function.agent"
+    ],
+    "updateReason": "ANALYSIS_FUNCTION_NAME + ANALYSIS_REMOTE_TIMEOUT_SECONDS env and the updated agent bundle source hash; no IAM policy or queue change"
+  },
+  "bundles": {
+    "worker": {
+      "sha256": "e51b175711ee7e3d919253767cebf9b632124821e2f2e612fbd1f1de387781ed",
+      "files": 114
+    },
+    "analysis": {
+      "sha256": "b0538e71e89cec33f52ef6c865a99aaa19a300ec29e300c0307d5580bc79bc6a",
+      "files": 112
+    }
+  },
+  "topology": {
+    "dispatchQueue": "ris-dev2-dev-agent-dispatch",
+    "dispatchDlq": "ris-dev2-dev-agent-dispatch-dlq",
+    "workQueue": "ris-dev2-dev-work-queue",
+    "workDlq": "ris-dev2-dev-dlq",
+    "resultQueue": "ris-dev2-mays-orders-agent-results",
+    "resultDlq": "ris-dev2-mays-orders-agent-results-dlq"
+  },
+  "openCorrections": [
+    "ORDER_FAILED is supported by the transport but not emitted by the runtime on terminal failure",
+    "ORDER_DISPATCH path executes in dispatch_ingress directly; no work-queue handoff (API execute path uses the work queue)"
+  ]
+}

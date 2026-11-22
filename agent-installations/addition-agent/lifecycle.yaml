@@ -1,0 +1,61 @@
+schemaVersion: "1.0"
+agentId: addition_agent
+owner: ris-dev
+version: "1.0.0"
+discovery:
+  catalog: ris-dev2-dev-agent-catalog
+  # No catalog seed row exists for this agent. Dispatch works through the
+  # runtime registry, not the catalog, so the agent is dispatch-only and not
+  # API-discoverable. Adding a row is an explicit INSTALL change request.
+  visibility: ABSENT
+  apiReachable: false
+  executionPath: reader-gate+dispatch-only
+  # Enforced since RIS-AGENT-LIFECYCLE-11: the reader rejects with 403 before
+  # persisting when the entitlement is missing, even without a catalog row.
+  blockNewOrdersOnDisable: true
+  blockNewOrdersEnforcedBy: lambda/orders_reader.py admission gate
+sharedResources:
+  - ris-dev2-dev-agent-dispatch
+  - ris-dev2-dev-agent-dispatch-dlq
+  - ris-dev2-dev-agent-dispatch-ingress
+  - ris-dev2-mays-orders-agent-results
+  - ris-dev2-mays-orders-agent-results-dlq
+  - ris-dev2-mays-orders-agent-result-consumer
+  - ris-dev2-dev-agent
+  - ris-dev2-dev-orders-reader
+  - ris-dev2-dev-work-items
+  - ris-dev2-mays-orders
+  - ris-dev2-mays-orders-agent-result-hmac
+exclusiveResources: []
+partnerBindings:
+  - type: entitlement
+    scope: agent
+    managedBy: ris
+    deleteOnDetach: true
+  - type: api-profile
+    scope: shared
+    managedBy: ris
+    deleteOnDetach: false
+  - type: credential
+    scope: shared
+    managedBy: ris
+    deleteOnDetach: false
+  - type: partner-application
+    scope: shared
+    managedBy: ris
+    deleteOnDetach: false
+uninstall:
+  blockNewOrders: true
+  inFlight: drain
+  catalogVisibility: INACTIVE
+  keepHistory: true
+  keepSharedResources: true
+retention:
+  orders: retain
+  workItems: retain
+  results: retain
+  auditLogs: retain
+purge:
+  requiresExplicitConfirmation: true
+  deletes: [lifecycle-state, agent-specific-history-markers]
+  neverDeletes: [orders, workItems, results, sharedResources]

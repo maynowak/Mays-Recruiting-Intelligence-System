@@ -1,0 +1,44 @@
+schemaVersion: "1.0"
+# Composite-agent scaffold. Replace every <placeholder>. One agent, one outer
+# order/WorkItem, multiple offers. Internal parser calls are not orders.
+agentId: "<agent-id>"
+partner:
+  partnerId: "<partner-id>"
+  applicationId: "<application-id>"
+status: DRAFT
+activation: false
+pricing:
+  owner: mays-orders
+  definedHere: false
+  note: >-
+    RIS defines no price, billing, subscription or currency. A paid offer
+    requires a separate Mays-Orders contract and operator approval.
+catalog:
+  visibility: ABSENT
+  seed: false
+executionModel:
+  outerOrder: one
+  outerWorkItem: "agent_<agent-id>"
+  outerCapability: "<domain.action>"
+  internalCalls: technical-subfunctions
+  separateOrdersForInternalCalls: false
+  billing: mays-orders
+  runtime: >-
+    Existing registry/AgentBody, shared work queue, worker and result
+    transport; no per-offer or per-parser queue and no second order state
+    machine.
+offers:
+  - id: "<offer-id>"
+    name: "<offer-name>"
+    status: DRAFT
+    requestedResults: ["<result.key>"]
+    input:
+      "<input-key>": ["<field>"]
+    capabilities: ["<external-entitlement>"]
+    internalCapabilities: ["<parser-capability>"]
+    resultBodies:
+      - bodyType: "<ResultBody>"
+        bodyVersion: "1.0"
+    consentPurpose: "<consent-purpose>"
+    consentVersion: "1.0"
+    activationRequires: [legal-notice, entitlement, catalog, apply]

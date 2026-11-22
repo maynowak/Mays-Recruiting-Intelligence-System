@@ -85,10 +85,11 @@ def main():
                         help='Output zip file (default: lambda.zip)')
     parser.add_argument('--validate', '-v', action='store_true',
                         help='Validate the built package')
-    parser.add_argument('--bundle', choices=['agent', 'reader', 'all'],
+    parser.add_argument('--bundle', choices=['agent', 'analysis', 'reader', 'all'],
                         default=None,
                         help='Deterministic RIS bundle(s): agent -> terraform/lambda.zip, '
-                             'reader -> lambda/dist/orders-reader.zip, all -> both. '
+                             'analysis -> terraform/analysis-lambda.zip, '
+                             'reader -> lambda/dist/orders-reader.zip, all -> all three. '
                              'Impliziert validen, reproduzierbaren Inhalt (s. build_bundle).')
 
     args = parser.parse_args()
@@ -96,6 +97,10 @@ def main():
     if args.bundle in ("agent", "all"):
         info = build_agent_bundle()
         print(f"Built agent bundle: {info['output']} "
+              f"({info['files']} files, sha256 {info['sha256'][:16]}...)")
+    if args.bundle in ("analysis", "all"):
+        info = build_analysis_bundle()
+        print(f"Built analysis bundle: {info['output']} "
               f"({info['files']} files, sha256 {info['sha256'][:16]}...)")
     if args.bundle in ("reader", "all"):
         info = build_reader_bundle()
@@ -139,7 +144,14 @@ AGENT_FILES = ["lambda/handler.py", "lambda/documents.py",
 AGENT_DIRS = ["agents", "jobsearch"]
 
 #: Reader-Layout (Einstieg orders_reader.handler am Root).
-READER_FILES = ["lambda/orders_reader.py"]
+READER_FILES = [
+    "lambda/orders_reader.py",
+    "agents/transport/order_transport.py",
+    "agents/orders/agent_order.py",
+    # Flat bundle module: the reader gate uses the same entitlement decision
+    # as worker/dispatch. worker_authorization only imports stdlib.
+    "agents/ecosystem/worker_authorization.py",
+]
 
 
 def _collect(repo_root: Path, rel_paths) -> list:
@@ -215,10 +227,34 @@ def build_agent_bundle(repo_root: str = ".") -> dict:
                         str(repo / "terraform" / "lambda.zip"))
 
 
-def build_reader_bundle(repo_root: str = ".") -> dict:
-    """Reader-Bundle (orders_reader.py) -> lambda/dist/orders-reader.zip."""
+def build_analysis_bundle(repo_root: str = ".") -> dict:
+    """Dedicated analysis bundle -> terraform/analysis-lambda.zip.
+
+    Contains only the analysis runner plus its agent/jobsearch modules, so the
+    shared agent bundle and the shared worker function stay unchanged.
+    """
     repo = Path(repo_root)
-    return build_bundle(repo, READER_FILES, lambda source_rel: "orders_reader.py",
+    files = _collect(repo, ["lambda/analysis_runner.py"] + AGENT_DIRS)
+
+    def arcname(source_rel: str) -> str:
+        if source_rel.startswith("lambda/"):
+            return source_rel[len("lambda/"):]
+        return source_rel
+
+    return build_bundle(repo, files, arcname,
+                        str(repo / "terraform" / "analysis-lambda.zip"))
+
+
+def _reader_arcname(source_rel: str) -> str:
+    if source_rel.replace("\\", "/") == "lambda/orders_reader.py":
+        return "orders_reader.py"
+    return Path(source_rel).name
+
+
+def build_reader_bundle(repo_root: str = ".") -> dict:
+    """Reader-Bundle (orders_reader.py + flat contracts) -> orders-reader.zip."""
+    repo = Path(repo_root)
+    return build_bundle(repo, READER_FILES, _reader_arcname,
                         str(repo / "lambda" / "dist" / "orders-reader.zip"))
 
 

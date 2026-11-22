@@ -126,15 +126,93 @@ class RealMaysOrdersAdapter(OrdersPort):
                            result_type=OrdersResultType.ERROR,
                            reason=f"{code}: {message}", data=data or {})
 
+    @staticmethod
+    def _status_result(status: int, order: Dict[str, Any],
+                       context: Dict) -> OrderResult:
+        """Separate technical HTTP success from the order's business state.
+
+        ``OrderResult.success`` stays True for a valid 2xx response. The
+        business state is ``result_type``: only a terminal
+        ``processing.status=COMPLETED`` with a result body is APPROVED. An
+        accepted-but-unprocessed order is PENDING, never APPROVED.
+        """
+        processing = order.get("processing")
+        processing = processing if isinstance(processing, dict) else {}
+        processing_status = str(processing.get("status") or "").upper()
+        order_status = str(order.get("status") or "").upper()
+        order_type = str(order.get("orderType") or "").lower()
+        is_agent_order = order_type == "agent.execution"
+        order_id = order.get("orderId")
+        data: Dict[str, Any] = {
+            "order": order,
+            "http_status": status,
+            "order_status": order_status,
+            "order_type": order_type,
+            "processing": processing,
+            "processing_status": processing_status,
+            **context,
+        }
+        if processing_status == "COMPLETED":
+            result = processing.get("result")
+            if isinstance(result, dict):
+                return OrderResult(
+                    success=True, order_id=order_id,
+                    result_type=OrdersResultType.APPROVED,
+                    reason="processing completed", data=data)
+            return OrderResult(
+                success=True, order_id=order_id,
+                result_type=OrdersResultType.ERROR,
+                reason="processing completed without a result body",
+                data={**data, "contract_error": "missing_processing_result"})
+        if processing_status == "FAILED":
+            error = processing.get("error")
+            message = (str(error.get("message"))
+                       if isinstance(error, dict) and error.get("message")
+                       else "agent execution failed")
+            return OrderResult(
+                success=True, order_id=order_id,
+                result_type=OrdersResultType.REJECTED,
+                reason=f"processing failed: {message}", data=data)
+        if order_status == "CANCELLED":
+            return OrderResult(
+                success=True, order_id=order_id,
+                result_type=OrdersResultType.REJECTED,
+                reason="order cancelled", data=data)
+        if order_status == "DELIVERED":
+            if is_agent_order:
+                # A terminal agent-execution order without a processing result
+                # is a contract inconsistency, not a successful execution.
+                return OrderResult(
+                    success=True, order_id=order_id,
+                    result_type=OrdersResultType.ERROR,
+                    reason=("agent execution delivered without a processing "
+                            "result"),
+                    data={**data,
+                          "contract_error": "missing_processing_result"})
+            return OrderResult(
+                success=True, order_id=order_id,
+                result_type=OrdersResultType.APPROVED,
+                reason="order delivered", data=data)
+        return OrderResult(
+            success=True, order_id=order_id,
+            result_type=OrdersResultType.PENDING,
+            reason=f"processing {processing_status or 'not started'}",
+            data=data)
+
     def _map_response(self, operation: str, status: int, payload: Any,
                       order_id: Optional[str], context: Dict) -> OrderResult:
         if 200 <= status < 300 and isinstance(payload, dict) and payload.get("orderId"):
             order = payload
+            if operation == "status":
+                return self._status_result(status, order, context)
+            order_status = str(order.get("status") or "").upper()
             rtype = (OrdersResultType.PENDING if operation == "create"
-                     and order.get("status") == "PENDING" else OrdersResultType.APPROVED)
+                     and order_status == "PENDING"
+                     else OrdersResultType.APPROVED)
             return OrderResult(success=True, order_id=order.get("orderId"),
                                result_type=rtype, reason=f"{operation} ok",
-                               data={"order": order, **context})
+                               data={"order": order, "http_status": status,
+                                     "order_status": order_status, **context})
         if isinstance(payload, dict) and "error" in payload:
             err = payload["error"] or {}
             code = err.get("code", f"HTTP_{status}")
@@ -146,9 +224,11 @@ class RealMaysOrdersAdapter(OrdersPort):
             raise TransientOrdersError(f"{operation} HTTP {status}", operation, status)
         if 500 <= status < 600:
             raise TransientOrdersError(f"{operation} HTTP {status}", operation, status)
+        # Never echo an unexpected response body: it may contain foreign or
+        # credential-shaped data. Only the HTTP status/context is retained.
         return self._error_result(order_id, f"HTTP_{status}",
                                   f"Unerwartete Antwort ({status})",
-                                  {"http_status": status, "payload": payload, **context})
+                                  {"http_status": status, **context})
 
     # -- Port -----------------------------------------------------------
     def submit_order(self, work_item: Dict[str, Any], capability: str,

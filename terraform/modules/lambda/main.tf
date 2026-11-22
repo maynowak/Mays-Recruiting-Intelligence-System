@@ -141,6 +141,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb_work" {
         Action = [
           "dynamodb:PutItem",
           "dynamodb:TransactWriteItems",
+          "dynamodb:ConditionCheckItem",
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
           "dynamodb:Query",
@@ -301,6 +302,38 @@ resource "aws_iam_role_policy" "lambda_cursor_secret" {
       Effect   = "Allow"
       Action   = ["secretsmanager:GetSecretValue"]
       Resource = [var.applications_cursor_secret_arn]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_order_result_send" {
+  # Legacy address retained so the live policy is not replaced. The new
+  # order_result_transport policy covers the same grant during migration.
+  count = var.order_result_queue_arn != "" ? 1 : 0
+  name  = "${var.project_name}-${var.environment}-lambda-order-result-send"
+  role  = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["sqs:SendMessage"]
+      Resource = [var.order_result_queue_arn]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_order_result_secret" {
+  count = var.order_result_secret_arn != "" ? 1 : 0
+  name  = "${var.project_name}-${var.environment}-lambda-order-result-secret"
+  role  = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = [var.order_result_secret_arn]
     }]
   })
 }
@@ -619,8 +652,10 @@ resource "aws_lambda_function" "agent" {
   role          = aws_iam_role.lambda_execution.arn
   handler       = var.lambda_config.handler
   runtime       = var.lambda_config.runtime
-  timeout       = var.lambda_config.timeout
-  memory_size   = var.lambda_config.memory_size
+  timeout = (var.timeout_seconds != null
+    ? var.timeout_seconds
+  : var.lambda_config.timeout)
+  memory_size = var.lambda_config.memory_size
 
   filename         = var.lambda_config.filename
   source_code_hash = filebase64sha256(var.lambda_config.filename)
@@ -638,10 +673,12 @@ resource "aws_lambda_function" "agent" {
       # ARN only. Empty means no secret is provisioned and pagination
       # fails closed instead of falling back to a static key.
       RIS_CURSOR_SECRET_ARN = var.applications_cursor_secret_arn
-      DOCUMENTS_BUCKET      = var.documents_bucket_name
-      API_PROFILES_TABLE    = var.api_profiles_table_name
-      OFFERS_TABLE          = var.offers_table_name
-      CREDENTIALS_TABLE     = var.credentials_table_name
+      # Orders result transport (Transport V1). Empty => forwarder skips
+      # fail-closed. ARNs only; the HMAC value is fetched at runtime.
+      DOCUMENTS_BUCKET   = var.documents_bucket_name
+      API_PROFILES_TABLE = var.api_profiles_table_name
+      OFFERS_TABLE       = var.offers_table_name
+      CREDENTIALS_TABLE  = var.credentials_table_name
       # Partner Application Registry. Read by resolve_partner_application on
       # every authorized partner/M2M execution. Absent -> registry returns
       # None -> both partner routes fail closed with 403.
@@ -675,12 +712,19 @@ resource "aws_lambda_function" "agent" {
       APPLICATION_CONSENT_ENFORCED = var.application_consent_enforced ? "true" : "false"
       DELETION_LEDGER_TABLE        = var.deletion_ledger_table_name
       LOG_LEVEL                    = var.log_level
+      # Project-owned Orders facade + ATS endpoint for the domain agent.
+      ORDERS_BASE_URL  = var.orders_base_url
+      ATS_API_BASE_URL = var.ats_api_base_url
       },
       var.order_result_queue_url != "" ? {
         ORDER_RESULT_QUEUE_URL = var.order_result_queue_url
       } : {},
       var.order_result_secret_arn != "" ? {
         ORDER_RESULT_SECRET_ARN = var.order_result_secret_arn
+      } : {},
+      var.analysis_function_name != "" ? {
+        ANALYSIS_FUNCTION_NAME          = var.analysis_function_name
+        ANALYSIS_REMOTE_TIMEOUT_SECONDS = tostring(var.analysis_remote_timeout_seconds)
       } : {},
     )
   }

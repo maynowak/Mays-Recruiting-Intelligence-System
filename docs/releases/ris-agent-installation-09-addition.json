@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "1.0",
+  "releaseId": "ris-agent-installation-09-addition-pilot",
+  "date": "2026-11-18",
+  "status": "PASS",
+  "scope": "ris-dev2 test only",
+  "source": {
+    "risSha": "f0c707c6e80638a6489194b3be98374718a6a522",
+    "ordersPin": "016cdfd6ac62565dcec9a2fee78cb898fb919e59"
+  },
+  "infrastructure": {
+    "newAwsResources": 0,
+    "postApplyTerraformPlan": "no changes",
+    "reused": [
+      "ris-dev2-dev-agent-dispatch (+dlq)",
+      "ris-dev2-dev-agent-dispatch-ingress",
+      "ris-dev2-mays-orders-agent-results (+dlq)",
+      "ris-dev2-mays-orders-agent-result-consumer",
+      "ris-dev2-dev-orders-reader",
+      "ris-dev2-dev-work-items",
+      "ris-dev2-mays-orders"
+    ]
+  },
+  "package": {
+    "path": "agent-installations/addition-agent",
+    "agentId": "addition_agent",
+    "version": "1.0.0",
+    "capability": "math.add"
+  },
+  "orchestrator": {
+    "stagesRun": ["discover", "analyze", "compatibility", "risk-review", "package", "validate"],
+    "idempotentResume": "validate re-run returned SKIPPED",
+    "applyGate": "not executed; package does not enable agents"
+  },
+  "liveEvidence": {
+    "additionOrder": "ord_71c3c1003ce9492d5acbb601",
+    "additionWork": "work-efc33036efaece37",
+    "additionWorkStatus": "COMPLETED",
+    "additionDelivery": "SENT",
+    "additionProcessing": "COMPLETED",
+    "sum": 42,
+    "orderStatus": "PENDING",
+    "ownerRead": 200,
+    "foreignOwnerRead": 404,
+    "invalidToken": 401,
+    "duplicate": "no second write",
+    "atsRegressionOrder": "ord_ac7755a61dd172ed0a0046a9",
+    "atsRegressionWorkStatus": "COMPLETED",
+    "atsRegressionBodyVersion": "2.0",
+    "atsRegressionScore": 100,
+    "dispatchResultDlq": 0
+  },
+  "tests": {
+    "additionLocal": "54 passed / 10 skipped (targeted addition/worker/dispatch/orchestrator)",
+    "orchestrator": "5 passed",
+    "atsLiveRegression": "PASS",
+    "additionLive": "PASS"
+  },
+  "risks": [
+    "Shared transport: an addition-agent change must not alter transport contracts.",
+    "No request-level idempotency on the facade; duplicate dispatch is safe, duplicate create is not.",
+    "Partner traffic remains disabled.",
+    "Synthetic evidence rows remain; users/entitlements cleaned, profiles revoked."
+  ],
+  "reusableFlowForAgentZ": [
+    "Create agent-installations/<agent>/ with manifest, contracts, tests, risks, operations, handoff.",
+    "python -m installer.agent_install --agent <agent> --stage validate --status-file <path> (repeat for resume).",
+    "Run local agent/contract tests.",
+    "Use existing dispatch/result transport; add no queue unless the manifest proves it is required.",
+    "Provision synthetic user, ACTIVE profile and agent-specific entitlement.",
+    "Run isolated canary; verify work COMPLETED/SENT, Orders processing, owner 200/foreign 404.",
+    "Revoke test data; update handoff and release JSON."
+  ]
+}

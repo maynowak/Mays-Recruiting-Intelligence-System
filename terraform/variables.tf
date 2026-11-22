@@ -602,6 +602,24 @@ variable "enable_agent_transport" {
   default     = false
 }
 
+variable "enable_analysis_runtime" {
+  description = "Create the dedicated Node parser Lambda for the internal analysis partner. Off by default so the reviewed plan baseline is unchanged."
+  type        = bool
+  default     = false
+}
+
+variable "analysis_parser_zip_path" {
+  description = "Path to the deterministic parser Lambda artifact (built from the pinned jobsearch commit). Only used when enable_analysis_runtime is true."
+  type        = string
+  default     = ""
+}
+
+variable "analysis_lambda_zip_path" {
+  description = "Path to the dedicated analysis Lambda bundle (python lambda/build_zip.py --bundle analysis). Only used when enable_analysis_runtime is true."
+  type        = string
+  default     = ""
+}
+
 variable "orders_producer_role_arns" {
   description = "Mays-Orders role ARNs allowed to enqueue agent dispatches."
   type        = list(string)
@@ -636,4 +654,26 @@ variable "order_result_secret_arn" {
   description = "Existing Mays-Orders result HMAC secret ARN exposed to the RIS agent Lambda."
   type        = string
   default     = ""
+}
+
+variable "ats_api_base_url" {
+  description = "ATS analysis endpoint for the ATS agent. Must never be empty; the default is the verified contract host."
+  type        = string
+  default     = "https://mays-jobsearch.vercel.app"
+
+  validation {
+    condition     = can(regex("^https://", var.ats_api_base_url))
+    error_message = "ats_api_base_url must be a non-empty https URL"
+  }
+}
+
+variable "agent_execution_timeout_seconds" {
+  description = "Execution timeout for the ATS-executing RIS Lambdas (worker + dispatch ingress)."
+  type        = number
+  default     = 60
+
+  validation {
+    condition     = var.agent_execution_timeout_seconds >= 30
+    error_message = "agent_execution_timeout_seconds must be at least 30"
+  }
 }

@@ -705,6 +705,18 @@ locals {
       risk_level         = "low"
       metadata           = {}
     }
+    "ats-agent" = {
+      agentId            = "ats-agent"
+      name               = "ats-agent"
+      version            = "1.0.0"
+      status             = "ACTIVE"
+      description        = "ATS-Domain-Agent (Delegation an mays-jobsearch)"
+      capabilities       = ["analyze.job"]
+      supported_bodies   = ["1.0.0"]
+      supported_runtimes = ["python3.14"]
+      risk_level         = "low"
+      metadata           = {}
+    }
     "jobsearch-agent" = {
       agentId            = "jobsearch-agent"
       name               = "jobsearch-agent"

@@ -1,0 +1,198 @@
+{
+  "schemaVersion": "1.0",
+  "releaseId": "ris-agent-operations-handoff-10",
+  "date": "2026-11-18",
+  "status": "RIS-DEV2 DEPLOYED / OPERATIONS NO-GO FOR PARTNER TRAFFIC",
+  "environment": {
+    "project": "ris-dev2",
+    "awsAccount": "262370457690",
+    "region": "eu-central-1",
+    "workspace": "ris-dev2",
+    "stateLineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "stateSerial": 64
+  },
+  "source": {
+    "risSha": "f0c707c6e80638a6489194b3be98374718a6a522",
+    "ordersPin": "016cdfd6ac62565dcec9a2fee78cb898fb919e59",
+    "agentBundleSha256": "5258c99ee62b4e66da25874d2941b18cd14871796baadbdb0e1fe5751eb98e1",
+    "readerBundleSha256": "464b991f784f0ea14da761fca355e676490f9a399209d4d3c2149165c25b1c4d"
+  },
+  "agents": [
+    {
+      "agentId": "ats-agent",
+      "capability": "analyze.job",
+      "version": "1.0.0",
+      "package": "agent-installations/ats-agent",
+      "status": "live-tested",
+      "externalDependency": "ATS contract host https://mays-jobsearch.vercel.app (contract 1.2)",
+      "liveEvidence": {
+        "orderId": "ord_0d23d52e98fb4c557e7aa920",
+        "workId": "work-a818f56a2f5ec0d0",
+        "workStatus": "COMPLETED",
+        "delivery": "SENT",
+        "ordersProcessing": "COMPLETED",
+        "bodyVersion": "2.0",
+        "score": 67,
+        "owner": 200,
+        "foreignOwner": 404,
+        "invalidToken": 401
+      }
+    },
+    {
+      "agentId": "addition_agent",
+      "capability": "math.add",
+      "version": "1.0.0",
+      "package": "agent-installations/addition-agent",
+      "status": "live-tested",
+      "externalDependency": "none",
+      "liveEvidence": {
+        "orderId": "ord_71c3c1003ce9492d5acbb601",
+        "workId": "work-efc33036efaece37",
+        "workStatus": "COMPLETED",
+        "delivery": "SENT",
+        "ordersProcessing": "COMPLETED",
+        "sum": 42,
+        "owner": 200,
+        "foreignOwner": 404,
+        "invalidToken": 401,
+        "duplicate": "no second write",
+        "atsRegressionOrder": "ord_ac7755a61dd172ed0a0046a9",
+        "atsRegressionBodyVersion": "2.0",
+        "atsRegressionScore": 100
+      }
+    }
+  ],
+  "sharedInfrastructure": {
+    "queues": [
+      "ris-dev2-dev-agent-dispatch (+dlq, visibility 300s, maxReceive 3)",
+      "ris-dev2-mays-orders-agent-results (+dlq, visibility 60s, maxReceive 3)"
+    ],
+    "lambdas": [
+      "ris-dev2-dev-agent (worker, 60s)",
+      "ris-dev2-dev-agent-dispatch-ingress (60s)",
+      "ris-dev2-mays-orders-agent-result-consumer (30s)"
+    ],
+    "secret": "ris-dev2-mays-orders-agent-result-hmac (container only, one AWSCURRENT, bare 64-hex)",
+    "noPerAgentQueues": true,
+    "postApplyPlan": "no changes"
+  },
+  "risks": [
+    {
+      "id": "OPS-01",
+      "title": "No notification path; all alarms have empty AlarmActions and agent transport queues/DLQs have no alarms",
+      "class": "BLOCKER",
+      "evidence": "terraform/modules/monitoring/main.tf:99,105-225; no SNS topic; dispatch/result queues not wired"
+    },
+    {
+      "id": "OPS-02",
+      "title": "Permanent dispatch/result rejects are consumed with no DLQ artifact or metric",
+      "class": "BLOCKER",
+      "evidence": "lambda/dispatch_ingress.py:134-137; result_handler.py:91-121"
+    },
+    {
+      "id": "OPS-03",
+      "title": "Batch 5 x ATS 30s inside a 60s Lambda; mid-flight timeout leaves a permanent RUNNING row",
+      "class": "BLOCKER",
+      "evidence": "agent_transport/lambda.tf:39-53,219-221; agents/ats_agent/agent.py:80; pipeline.py:590-591"
+    },
+    {
+      "id": "OPS-04",
+      "title": "No ORDER_FAILED/failure projection; Orders cannot distinguish running from failed",
+      "class": "BLOCKER",
+      "evidence": "pipeline.py:573-579,751-753,840-904; dispatch rejects A8"
+    },
+    {
+      "id": "OPS-05",
+      "title": "Reader POST has no request-level idempotency; retry creates a second order/workId",
+      "class": "REQUIRED BEFORE PRODUCTION",
+      "evidence": "lambda/orders_reader.py:502-554; reader timeout 10s"
+    },
+    {
+      "id": "OPS-06",
+      "title": "Profile expiresAt/effective_status is ignored at reader/ingress",
+      "class": "REQUIRED BEFORE PRODUCTION",
+      "evidence": "orders_reader.py:442-451; api_profiles.py:112-129"
+    },
+    {
+      "id": "OPS-07",
+      "title": "Ingress prefers userId over ownerUserId; queue ARN pin can be skipped when env is absent (entitlement resolver now fails closed)",
+      "class": "REQUIRED BEFORE PRODUCTION",
+      "evidence": "dispatch_ingress.py:53-58,79-84; pipeline.py:633-636; LIFECYCLE-12 fail-closed fix"
+    },
+    {
+      "id": "OPS-08",
+      "title": "Secret shape not enforced; rotation JSON silently fails all signatures (permanent rejects, no DLQ)",
+      "class": "REQUIRED BEFORE PRODUCTION",
+      "evidence": "order_result_sender.py:52-64; result_consumer.py:29-50; result_handler.py:103-107"
+    },
+    {
+      "id": "OPS-09",
+      "title": "Cross-tenant profile/entitlement integrity and duplicate-workId owner reuse need enforcement",
+      "class": "REQUIRED BEFORE PRODUCTION",
+      "evidence": "api_profiles.py:305-331; worker_authorization.py:129-136; pipeline.py:341-346,590-598"
+    },
+    {
+      "id": "OPS-10",
+      "title": "Worker role is shared and broad; dispatch path lacks subject-fence/erasure parity",
+      "class": "REQUIRED BEFORE PRODUCTION",
+      "evidence": "terraform/modules/lambda/main.tf:26-90; dispatch_ingress.py:126-132"
+    },
+    {
+      "id": "OPS-11",
+      "title": "No DLQ replay path/break-glass grant; worker ESM lacks partial batch response; no ingress concurrency cap",
+      "class": "REQUIRED BEFORE PRODUCTION",
+      "evidence": "agent_transport/main.tf:46-51; lambda/main.tf:731-735; agent_transport/lambda.tf:216-223"
+    },
+    {
+      "id": "OPS-12",
+      "title": "Optional hardening: log scope, CMK dead variable, visibility ratio, dummy agents in prod, table default",
+      "class": "OPTIONAL",
+      "evidence": "orders_reader/main.tf:63-90; agent_transport/lambda.tf:33-37,100-116; pipeline.py:139-140,912"
+    }
+  ],
+  "monitoringRequirements": [
+    "SNS topic + non-empty alarm_actions before production traffic",
+    "DLQ depth/age alarms for dispatch and result queues",
+    "Lambda errors/timeouts/duration for dispatch ingress and result consumer",
+    "Metric filter/alarm on dispatch rejected, result rejected, invalid service signature, WORK_ADMISSION_STATE_UNSAFE",
+    "Alert on orderResultDelivery not SENT and on failed/dead-letter work rows",
+    "DynamoDB check for RUNNING work items older than 15 minutes"
+  ],
+  "testAndApprovalChecklist": [
+    "Plan reviewed and applied only in ris-dev2 test scope",
+    "Secret one AWSCURRENT, bare 64-hex, consumer recycled after rotation",
+    "Synthetic identity/profile/entitlement only; no real applicant data",
+    "One canary per agent; work COMPLETED/SENT; Orders processing; owner 200/foreign 404/invalid 401",
+    "Duplicate dispatch no second write; invalid signature no write/no DLQ",
+    "Queues and DLQs zero; logs free of secrets, owner keys and synthetic emails",
+    "Separate written approval before partner traffic"
+  ],
+  "recovery": {
+    "stuckRunning": "Set the work row RUNNING -> FAILED (keep attempt_no), then redrive the DLQ message; redelivery takes the attempt+1 path. Do not wait for visibility timeout.",
+    "secretRotation": "Quiesce traffic, put new bare-hex AWSCURRENT, recycle worker and result consumer, canary, keep AWSPREVIOUS for rollback.",
+    "rollback": "Reviewed plan with both flags false; restore previous bundles; revoke test identity/profile/entitlement; keep or delete the secret only via a reviewed step."
+  },
+  "responsibilities": {
+    "ris-dev-platform": [
+      "Own AWS apply/deactivate and alarms",
+      "Decide ORDER_FAILED and idempotency hardening",
+      "Rotate the HMAC secret and recycle consumers",
+      "Approve partner traffic"
+    ],
+    "agent-owners": [
+      "Own package manifest/contracts/tests/risks/operations/handoff",
+      "Provide synthetic canary data and expected result fields",
+      "Update source SHA and compatibility range on every agent change"
+    ]
+  },
+  "agentZPrerequisites": [
+    "Copy agent-installations/_template to agent-installations/<agent>/",
+    "Fill manifest source SHA, capability, body/transport versions and contacts",
+    "Validate with installer/agent_install.py; pass discover/analyze/compatibility/risk-review/package/validate",
+    "Reuse the shared transport; no new queue unless the manifest proves necessity",
+    "Run local tests, then an isolated synthetic canary with identity/profile/entitlement",
+    "Do not enable automatically; separate approval required"
+  ],
+  "noProductionChange": true,
+  "updatedBy": "ris-agent-factory-13"
+}

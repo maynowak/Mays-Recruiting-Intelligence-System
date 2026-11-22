@@ -1,0 +1,83 @@
+{
+  "schemaVersion": "1.0",
+  "release": "RIS-ANALYSIS-CANARY-10B",
+  "generatedAt": "2026-11-20",
+  "aws": {
+    "account": "262370457690",
+    "callerArn": "arn:aws:iam::262370457690:user/devnemo",
+    "region": "eu-central-1"
+  },
+  "backend": {
+    "bucket": "ris-dev2-tf-state-dev",
+    "region": "eu-central-1",
+    "key": "dev/terraform.tfstate",
+    "lockTable": "ris-dev2-tf-lock",
+    "workspace": "ris-dev2"
+  },
+  "state": {
+    "serialBefore": 64,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "terraformVersion": "1.17.0"
+  },
+  "plan": {
+    "path": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc10b/plan.out",
+    "sha256": "e64a6272ac212dce54123c2b9533d42175f85ccc8d34ec2b6e26c3b39d15e676",
+    "jsonSha256": "66a954763dae6662974bdc7338a7d69f59b76102773fa4b8d75330976a8c9f31",
+    "adds": 17,
+    "changes": 2,
+    "destroys": 0,
+    "replacements": 0,
+    "guard": "NO_SHARED_DESTROY",
+    "runtimeFlag": true
+  },
+  "artifact": {
+    "sha256": "fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a",
+    "size": 17937176,
+    "fileCount": 412,
+    "sourceCommit": "c40bf78",
+    "runtime": "nodejs22.x",
+    "architecture": "arm64"
+  },
+  "adds": [
+    "aws_iam_role_policy.orders_agent_dispatch[0]",
+    "module.agent_transport[0].aws_iam_role_policy.order_result[0]",
+    "module.analysis_runtime.aws_cloudwatch_log_group.analysis",
+    "module.analysis_runtime.aws_cloudwatch_log_group.parser[0]",
+    "module.analysis_runtime.aws_iam_role.analysis",
+    "module.analysis_runtime.aws_iam_role.parser[0]",
+    "module.analysis_runtime.aws_iam_role_policy.analysis",
+    "module.analysis_runtime.aws_iam_role_policy.analysis_invoke_parser[0]",
+    "module.analysis_runtime.aws_iam_role_policy.parser_logs[0]",
+    "module.analysis_runtime.aws_lambda_function.parser[0]",
+    "module.analysis_runtime.aws_lambda_permission.parser_invoke_analysis[0]",
+    "module.analysis_runtime.aws_s3_bucket.jobs",
+    "module.analysis_runtime.aws_s3_bucket_lifecycle_configuration.jobs",
+    "module.analysis_runtime.aws_s3_bucket_public_access_block.jobs",
+    "module.analysis_runtime.aws_s3_bucket_server_side_encryption_configuration.jobs",
+    "module.documents.aws_s3_bucket_cors_configuration.documents",
+    "module.lambda.aws_iam_role_policy.order_result_transport[0]"
+  ],
+  "updates": [
+    {
+      "address": "module.agent_transport[0].aws_iam_role_policy.dispatch_ingress",
+      "effect": "in-place IAM policy: adds the work-items GSI resource 'ris-dev2-dev-work-items/index/*' to the existing WorkItems statement; actions unchanged",
+      "destructive": false
+    },
+    {
+      "address": "module.mays_orders[0].module.lambda.aws_lambda_function.handler",
+      "effect": "in-place environment: adds ORDER_DISPATCH_QUEUE_URL; all existing values (including the two Cognito references) unchanged",
+      "destructive": false
+    }
+  ],
+  "protectedServicesUnchanged": [
+    "cognito", "cloudfront", "route53", "acm"
+  ],
+  "stopConditions": [
+    "any plan not byte-identical to the approved SHA-256",
+    "any add/change/destroy/replacement outside this manifest",
+    "state serial or lineage change before apply",
+    "any Cognito, CloudFront, Route53/DNS or ACM change",
+    "any shared transport policy/queue/secret/table delete or replacement",
+    "tracked-artifact SHA-256 mismatch"
+  ]
+}

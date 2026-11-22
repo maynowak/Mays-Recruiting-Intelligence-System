@@ -12,6 +12,42 @@ from agents.ats_agent import (
     register_ats_agent, get_ats_descriptor, is_ats_registered,
     ATS_ANALYZE_CAPABILITY, ATS_WORK_TYPE
 )
+VALID_RESPONSE = {
+    "analysis": {
+        "score": 85,
+        "keywordCoverage": {"overall": 85},
+        "requirementCoverage": 85,
+        "profileEvidenceCoverage": 85,
+        "roleMatch": None,
+        "analysisStatus": "limited",
+        "basis": {
+            "requirementCount": 0,
+            "titleRequirementCount": 0,
+            "hasDescription": False,
+            "roleMatchAvailable": False,
+        },
+        "metadata": {
+            "title": "Test Job",
+            "titleTokens": ["Test", "Job"],
+            "language": None,
+            "workMode": None,
+            "jobTypes": [],
+            "contractType": None,
+            "contractTypeNoData": True,
+        },
+        "criticalGaps": [],
+        "requirements": [],
+        "matches": [],
+    },
+    "recommendations": [],
+    "ai": {
+        "requested": False,
+        "executed": False,
+        "consentRequired": True,
+        "consentGiven": False,
+    },
+}
+
 from agents.ecosystem.registry import AgentRegistry, AgentDescriptor, AgentStatus
 
 
@@ -85,12 +121,7 @@ class TestATSAgentIntegration:
     @patch.object(ATSAgent, 'client')
     def test_workspace_flow(self, mock_client):
         """Test complete workflow through agent."""
-        mock_client.analyze.return_value = {
-            'score': 85,
-            'keywordCoverage': {'overall': 85},
-            'requirements': [],
-            'matches': []
-        }
+        mock_client.analyze.return_value = VALID_RESPONSE
         
         agent = ATSAgent()
         

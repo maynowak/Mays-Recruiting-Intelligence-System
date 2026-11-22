@@ -10194,6 +10194,581 @@ Date: 2026-11-15
 - No code, Terraform, or AWS change. No version pin changed by this docs task.
 Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
 
+
+
+[RIS-ATS-AGENT-01 / ORCH-00 BASELINE]
+Status: ORCH-00 COMPLETE (read-only baseline).
+Date: 2026-11-15
+- Branch feature/ris-dev2-ats-agent-pinned-core-01 created from main ae08267c3871d7bb85b7aa7ed2aed07a75385584; tree clean. The planning document is filed at docs/roadmap/RIS_ATS_AGENT_ORCHESTRIERTER_PROMPTPLAN_2026-11-15.md (sha256 770f5135535c339ad936727efcbc1baf91511f46be74b9f490df3d9d58d1bdf0).
+- Existing ATS agent identity confirmed: ats-agent, capability analyze.job, work type ats_process, version 1.0.0, body 1.0.0, python3.14, LAMBDA, low risk. It currently delegates to the mutable mays-jobsearch HTTP endpoint via ATSHttpClient (httpx -> requests -> urllib); it contains no ATS business logic.
+- Runtime wiring already exists in agents/runtime/pipeline.py (registry + three body registrations); no second registration path and no ATS-specific SQS. A04-A07, transport V1, OrdersPort, agentOrder V1 and addition_agent are explicitly reused and must not be duplicated or changed.
+- Conflict matrix recorded: ats_agent is extended in place; orders/* and addition_agent/* untouched; installer/mays-jobsearch-clone.pinned.json (29d8b730) remains a historical reference and is not repurposed as the ATS package pin; jobsearch stays read-only.
+- Test baseline before changes: tests/test_ats_domain_agent.py + tests/test_jobsearch_agent.py = 13 passed on main ae08267.
+- No AWS, Terraform, Jobsearch mutation, merge or push in this gate.
+Report: docs/reports/RIS-ATS-AGENT-01-ORCH-00-BASELINE.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-01 JOBSEARCH API SNAPSHOT]
+Status: ORCH-01 COMPLETE (read-only).
+Date: 2026-11-15
+- Fresh read-only clone of maynowak/mays-jobsearch at installer/projects/mays_jobsearch_ats_readonly. HEAD a5640d12dba8ca39258484f5212def17eabf4eca (2026-11-13), identical to the plan baseline; no branch/tag/commit/patch in Jobsearch.
+- Historical RIS pin 29d8b730bb0660d48d1ba774c773e88d9aa7142e is an ancestor of HEAD and remains a historical reference; it is not reused as the ATS package pin.
+- Files: api/ats-analysis.mjs (252 lines, unchanged since the pin), api/_lib/ats.mjs (792, +77 net), api/_lib/filter.mjs (262, +47/-21). Import graph: handler -> filter/ai/ats/config; ats -> filter; filter -> none. The deterministic analysis needs only filter.mjs plus ats.mjs.
+- Contract confirmed: POST {job, profile?, ai?}; response analysis{score, keywordCoverage.overall, criticalGaps, requirements[id,text,category,importance], matches[requirementId,status,confidence]} + recommendations[requirementId,changeType,priority,proposedChange,rationale,evidence] + ai{...}. Match statuses are MATCHED/PARTIAL/UNKNOWN; there is no GAP status.
+- Scoring: overall = round(matchedWeight/totalWeight*100) with critical4/high3/medium2/low1 and partial=0.5; keywordCoverage = round((matched+partial)/total*100), 0 when no requirements. 0/50/100 are deterministic.
+- ATS commits since the historical pin: c186619 (normalisation/metadata filter), 4fb852b (docs), 8456b1d (grouped terms). The API handler alone is not the full state.
+- Tests/UI observed: tests/api/ats-analysis.test.js, ats-extraction.test.js, ats-model-selection.test.mjs, filter.test.js; src/components/AtsOverlay(.test).tsx binds score, keywordCoverage.overall, criticalGaps, requirements, matches, recommendations.
+- No PDF/DOCX extraction exists in the API; input is structured job/profile JSON. No Jobsearch mutation, no AWS, no merge, no push.
+Report: docs/reports/RIS-ATS-AGENT-01-ORCH-01-API-SNAPSHOT.md
+
+
+[RIS-ATS-AGENT-01 / XREPO CONSOLIDATION DECISION]
+Status: DECISION RECORDED (no code change).
+Date: 2026-11-16
+- Goal: one ATS implementation. Jobsearch already implements and live-tests ATS for users; RIS must consume it, not duplicate it. This supersedes the ORCH-02 vendor/port approach.
+- Evidence: jobsearch HEAD a5640d12dba8ca39258484f5212def17eabf4eca, endpoint POST /api/ats-analysis, AGPL-3.0-only, ATS core authored solely by maynowak. RIS ats_agent already calls the endpoint and contains no ATS business logic.
+- Decision: no code copy, no npm package, no Python port. RIS integrates via a pinned HTTP contract: commit a5640d12 as contract reference, documented request/response schema, fail-closed client validation, explicit timeouts/error classes, contract fixtures. AGPL remains a service boundary, so no copyleft transfer into RIS.
+- xrepo: MAYS-XREPO-V1 is the coordination channel and its allowlist is exactly RIS + mays-jobsearch. The separate maynowak/mays-xrepo-orchestration repository contains only README.md and LICENSE; the working implementation is in docs/xrepo/ and scripts/xrepo/. Active tasks MAYS-XR-E2E-001 (RIS#7 / jobsearch#3) and MAYS-SCV-RC3-001 (RIS#8 / jobsearch#17) are owned elsewhere; a new MAYS-XR-ATS-001 task would require explicit approval and sequential dispatch.
+- Revised gates: ORCH-02 becomes a contract pin (fixtures, schema validator, contract tests); ORCH-03 becomes client hardening; ORCH-04 (ATSAnalysisResultBody V1) remains valid; ORCH-05/06 unchanged.
+- No code, AWS, Terraform, Jobsearch mutation, merge or push in this step.
+Report: docs/reports/RIS-ATS-AGENT-01-XREPO-CONSOLIDATION.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-02 REVISED - CONTRACT PIN]
+Status: COMPLETE (local). Contract refreshed from a5640d12 to 464783b9.
+Date: 2026-11-16
+- Added installer/jobsearch_api_contract.py with two commands: `check` verifies the pinned commit, file SHA-256 values and contract markers and reports DRIFT; `refresh --commit` pins a reviewed commit and refuses to write when markers are missing. `check --fetch` fetches origin read-only and compares origin/main.
+- Added docs/contracts/JOBSEARCH-ATS-ANALYSIS-V1.{md,json} and docs/contracts/mays-jobsearch-api.manifest.json. The contract is interface metadata only; no AGPL source is copied, so the licence boundary stays a network service boundary.
+- The first real run found drift: origin/main moved to 464783b936647b281df63d6dd8c18b15ad732aa3 (PR #19, "evaluate full job requirements instead of title tokens"). The handler adds requirementCoverage, profileEvidenceCoverage, roleMatch, analysisStatus and basis; scoring now excludes title tokens from requirements, gaps and score. Contract bumped to 1.1 and the pin refreshed after review.
+- File hashes at 464783b9: ats-analysis.mjs caa926f7..., ats.mjs 0c71d135..., filter.mjs 4599583c... (filter unchanged since the previous pin).
+- Tests: tests/test_jobsearch_api_contract.py 8 passed (up-to-date, drift, hash mismatch, missing marker, deterministic refresh, fail-closed refresh, unknown file set, document/manifest agreement); with the existing ATS suites 21 passed.
+- No Jobsearch mutation (read-only clone checkout only), no code copy, no AWS, no merge, no push.
+Docs: docs/contracts/JOBSEARCH-ATS-ANALYSIS-V1.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-03 CONTRACT CLIENT]
+Status: COMPLETE (local). Agent validates contract 1.1 fail-closed.
+Date: 2026-11-16
+- Added agents/ats_agent/contract.py: validates the POST /api/ats-analysis response against the pinned contract 1.1 (required fields, integer 0..100 ranges, analysisStatus complete/limited/insufficient, match status MATCHED/PARTIAL/UNKNOWN, roleMatch null allowed, unknown additive fields allowed). No ATS business logic is implemented in RIS.
+- Hardened agents/ats_agent/agent.py: transport errors now carry stable codes (ATS_TIMEOUT, ATS_UNAVAILABLE, ATS_BAD_REQUEST for 4xx, ATS_UPSTREAM_ERROR for 5xx/other); schema mismatches return ATS_CONTRACT_MISMATCH; successful results include metrics.contractVersion=1.1. Logging records exception types, not payloads.
+- Tests: tests/test_ats_contract_client.py 10 passed (valid, missing field, range, non-integer score, unknown match/analysis status, roleMatch null, additive fields, agent schema mismatch, timeout, status code). Combined ATS/addition suites 54 passed; processing/routing/pipeline/orders regressions 86 passed, 14 skipped; generated-orders artifact plus bridge 13 passed.
+- No ATS logic duplication, no Jobsearch mutation, no AWS/Terraform/merge. Branch will be pushed as a data backup; main stays untouched.
+Contract: docs/contracts/JOBSEARCH-ATS-ANALYSIS-V1.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-04 RESULT BODY]
+Status: COMPLETE (local). ATSAnalysisResultBody V1 emitted.
+Date: 2026-11-16
+- Added agents/ats_agent/result_body.py: versioned projection (bodyType ATSAnalysisResultBody, bodyVersion 1.0) with a whitelist for analysis, requirements, matches, criticalGaps, recommendations, ai and source metadata. Unknown upstream fields and tokenizer internals (normalized, source, explicitness) are dropped; profile input and candidateSkills are never included.
+- Source metadata is minimal: mays-jobsearch, contract MAYS-JOBSEARCH-ATS-ANALYSIS-V1, contractVersion 1.1 and the pinned commit 464783b9. A test asserts the constant matches docs/contracts/mays-jobsearch-api.manifest.json.
+- The agent now returns the body under success/data and adds metrics.resultBodyVersion=1.0 in addition to metrics.contractVersion=1.1. Duplicates from the API are preserved rather than silently deduplicated.
+- Fixtures: tests/fixtures/ats_result_body/{score-0-empty,score-50-partial,score-100-matched,duplicates,optional-missing}.json. tests/test_ats_result_body.py covers projection, versions, source metadata, data minimisation, the success/data/metrics contract and that every fixture passes the contract validator.
+- Docs: docs/contracts/ATS-ANALYSIS-RESULT-BODY-V1.md; linked from the Jobsearch contract.
+- Tests: 174 passed plus 5 subtests (ATS, addition, processing/routing/pipeline, orders contracts, generated artifact and bridge). No AWS, Jobsearch mutation, merge or main change.
+Doc: docs/contracts/ATS-ANALYSIS-RESULT-BODY-V1.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-05 REGRESSION]
+Status: COMPLETE (local). 420 passed, 8 skipped, 14 subtests.
+Date: 2026-11-16
+- Ran 33 targeted suites across ATS contract/body/agent, registry, AgentBody, tenant/consent/privacy, agent-order A04-A07, Orders/transport, runtime, packaging/pinning and the generated Orders artifact. With ORDERS_TABLE and ORDERS_SQS_QUEUE_URL set: 420 passed, 8 skipped, 14 subtests.
+- Environment caveat: without those variables 3 tests in test_real_orders_adapter.py fail at import because lambda/orders_reader.py requires ORDERS_TABLE. Reproduced on main in a separate worktree (3 failed/1 passed without env, 4 passed with env), so it is pre-existing and unrelated to ATS.
+- Built the real RIS bundles: terraform/lambda.zip (93 files, sha256 a0b2eddbbe4a36c9cd950d112a5a4602be183d95f5fa2c6b7005db12c6befc47) and lambda/dist/orders-reader.zip (sha256 a26c19025eeafa6f08b499d55ba51a1538d298b4356e2d8efe9b334ecc291a56). A fresh interpreter with only the agent ZIP on sys.path imports contract/result_body and produces contract 1.1, body 1.0, score 50 and MATCHED/UNKNOWN.
+- Fail-closed covered: missing inputs, unknown capability, foreign tenant (runtime/tenant suites), consent/PII, duplicate delivery, stale expectedWorkId (bridge), contract hash/drift, and no CV raw text/secret in logs (new assertLogs test).
+- Skips are intentional: 6 planned R08 privacy capabilities and 2 live packaging tests that require mayaws credentials.
+- No live Jobsearch call, no AWS/Terraform/ris-dev2, no merge.
+Report: docs/reports/RIS-ATS-AGENT-01-ORCH-05-REGRESSION.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-05 LIVE VERIFICATION - CONTRACT 1.2]
+Status: COMPLETE (local + read-only live check). 425 passed.
+Date: 2026-11-16
+- A real POST to https://mays-jobsearch.vercel.app/api/ats-analysis with synthetic job/profile data returned HTTP 200 and exposed three corrections: analysis.metadata exists, requirements[].source is delivered, and recommendations[].evidence is a string or null rather than an array.
+- The live service was ahead of the previous pin. Jobsearch main had moved to 8456910a9ae64f51ec4a33ea1e9e82068f82bfff (PR #21); after review the contract pin was refreshed to that commit. Contract is now 1.2, result body 1.1.
+- Updated agents/ats_agent/contract.py (metadata, requirement source, evidence string|null), result_body.py (metadata projection, source, body 1.1), and installer/jobsearch_api_contract.py markers. Fixtures and tests updated; new fail-closed cases for metadata, source and evidence.
+- Live validation and body projection pass: score 67, status complete, metadata keys and source present, evidence string.
+- Targeted regression: 425 passed, 8 skipped, 14 subtests. Rebuilt terraform/lambda.zip: 93 files, sha256 b91b74295f1fd1e51b8d47478bda18532dfdd4f18d1c313eb85bdde36c3079d2.
+- Used the default profile (devnemo) only; not mayaws. No AWS mutation, no Jobsearch mutation, no merge.
+Report: docs/reports/RIS-ATS-AGENT-01-ORCH-05-REGRESSION.md
+
+
+[RIS-ATS-AGENT-01 / ORCH-06 HANDOFF]
+Status: COMPLETE. Branch feature/ris-dev2-ats-agent-pinned-core-01 is reviewable; no merge.
+Date: 2026-11-16
+- Final state: RIS consumes the single ATS implementation in mays-jobsearch over the pinned HTTP contract. No code copy, no ATS logic duplication. Contract 1.2 at jobsearch commit 8456910a9ae64f51ec4a33ea1e9e82068f82bfff; ATSAnalysisResultBody 1.1.
+- Artifacts: terraform/lambda.zip 93 files sha256 b91b74295f1fd1e51b8d47478bda18532dfdd4f18d1c313eb85bdde36c3079d2; orders-reader.zip sha256 a26c19025eeafa6f08b499d55ba51a1538d298b4356e2d8efe9b334ecc291a56; generated Orders module zip sha256 1801e9fbe0d8d7dd70f8cc46699ff2eae6d44c2c590c5472804e022854ead222.
+- Targeted regression: 425 passed, 8 skipped, 14 subtests. Skips are 6 planned R08 privacy capabilities and 2 live packaging tests requiring the Orders account; mayaws was not used. Default profile devnemo only.
+- Live check: HTTP 200 against the jobsearch ATS endpoint with synthetic data; contract validation and body projection pass. No SLA/load claim.
+- Open and explicitly separate: no ris-dev2 plan/apply/deploy, no live RIS agent invocation, no scheduled drift monitor, no xrepo task (another agent active), Orders account unreachable (403), cross-account role ARNs unknown, secret not provisioned.
+- No AWS/Terraform/Jobsearch mutation, no merge, no deployment.
+Report: docs/reports/RIS-ATS-AGENT-01-ORCH-06-HANDOFF.md
+
+
+[RIS-ATS-AGENT-01 / RIS-DEV2 PLAN + FULL VERIFICATION]
+Status: PLAN VERIFIED / NO NEW REGRESSION / NO APPLY.
+Date: 2026-11-16
+- Plan for workspace ris-dev2 (backend ris-dev2-tf-state-dev, lock ris-dev2-tf-lock, key dev/terraform.tfstate, prefix env:) with project_name=ris-dev2 and default profile devnemo: 227 to add, 0 to change, 0 to destroy, 6 data reads. Plan sha256 73953f06a25f63488d1a04b40f7b31782165c1235fe3e8798dff0bd9c8ce10ee; plan JSON sha256 8f79f9a2028fd5a996686b18b25823253b6a22361502aa6d206e3c38f3ad5d10.
+- No destructive actions or replacements. 227 creates are a full ris-dev2 rebuild because the state is empty. module.mays_orders contributes 25 resources, module.orders_reader 10, module.agent_transport 0 (enable_agent_transport=false).
+- The generated Orders module was built temporarily from pin 122ec65 for the plan and removed afterwards; the lockfile and placeholder variables.tf were restored. Worktree clean.
+- Full suite comparison: feature 2627 passed / 29 failed / 79 skipped / 4 errors / 434 subtests; main 2533 passed / 31 failed / 126 skipped / 4 errors / 425 subtests. No new failure. Two failures exist only on main (test_lambda_packaging::test_c_exclusions and test_ats_agent::test_analyze_job_calls_api, the latter now skipped because requests is absent).
+- ATS unit tests updated to contract 1.2 / body 1.1: tests/unit/ats_agent 19 passed, 1 skipped.
+- E2E batch 149 passed + 4 subtests (partner addition, partner E2E, bridge, agent-order, generated artifact, MO contract, transport). Live ATS POST returned 200 with contract 1.2 and body 1.1.
+- Security batch 302 passed / 6 skipped / 13 subtests. Secret scan found no AKIA/private keys; only the intentional local DynamoDB test secret and a runtime credential attribute. Bundle has no .env/.pem/.key/.p12. compileall OK.
+- No apply, no deploy, no AWS mutation. Apply remains a separate approval for 227 creates.
+Report: docs/reports/RIS-ATS-AGENT-01-RIS-DEV2-PLAN-AND-VERIFICATION.md
+
+
+[RIS-ATS-AGENT-01 / RIS-DEV2 APPLY + LIVE E2E]
+Status: DEPLOYED / LOCAL VERIFIED / LIVE-E2E BLOCKED WITH EVIDENCE.
+Date: 2026-11-16
+- Applied the ris-dev2 rebuild with the default profile (devnemo): 227 creates, 0 changes, 0 destroys. The original saved plan (73953f06) was rejected due to a dependency-lock mismatch; the replacement plan e2824650 was address- and action-identical (233 addresses) and was applied. State went from serial 36/0 resources to serial 53/242 resources; lineage unchanged.
+- The first apply stopped at module.mays_orders sqs-worker because the generated module hardcoded the Orders-account boundary arn:aws:iam::240571105849:... . Fixed in Orders commit 95f8921 (submodule default empty, conditional boundary, Orders root passes it, builder neutralises the generated default) and pinned in RIS. Delta apply b392e5e2 added 5 resources / 222 no-ops / 0 destroys.
+- Added dynamodb:ConditionCheckItem to the agent role policy (module.lambda.lambda_dynamodb_work) because DynamoDB transactions require it for ConditionCheck. Delta 6db49d0f updated 1 policy.
+- Live E2E: direct Lambda invocation with a synthetic ats_process SQS record. Handler, envelope, eligibility and agent selection pass. Subject-fence admission fails with TransactionCanceledException [ValidationError: The provided key element does not match the schema]. Inside the Lambda even a GetItem with the simple key 'probe-key' fails the same way, although identity is 262370457690, table ris-dev2-dev-work-items, endpoint eu-central-1 and key schema workId (HASH, S). Identical GetItem/TransactWriteItems calls succeed with admin credentials, including the exact captured items. This is recorded as a platform/runtime anomaly, not a contract or agent-code defect.
+- Deployed agent code sha256 bfce06cd...ae29 (CodeSha256 v84GzeWEAuHRehbbLlVTAqd9icPFKLfx6icILZp/rik=). Diagnostics for the fence path were reduced to table/fence_key/work_id/cancellation logging.
+- Local verification after apply: 185 targeted ATS/orders tests; 425-test targeted regression; full suite 2627 passed/29 failed/79 skipped/4 errors versus main 2533/31/126/4 (no new failure); E2E 149 passed; security 302 passed/6 skipped; secret scan clean.
+- No destroy or rollback. The environment remains deployed for the AWS-side investigation.
+Report: docs/reports/RIS-ATS-AGENT-01-RIS-DEV2-APPLY-AND-LIVE-E2E.md
+
+
+[RIS-ATS-AGENT-01 / ORDERS QUEUE POLICY HARDENING]
+Status: FIXED AND DEPLOYED.
+Date: 2026-11-16
+- Found the deployed Orders queue ris-dev2-mays-orders-orders-queue with Principal "*" from the upstream SQS module, which allowed any AWS principal to send/receive/delete. This was the actual foreign-orders exposure; the ris-dev2 state contains zero references to the Orders account 240571105849 after the boundary fix.
+- Fixed in Orders commit dad69ea28e8b952a8e76e9dfb4fb163f7a979b52: the queue policy is restricted to arn:aws:iam::<own-account>:root. RIS builder pin updated to dad69ea; delta plan v13 applied as exactly 1 update, no destroys.
+- Verified policy now: Principal AWS arn:aws:iam::262370457690:root. State remains 242 resources.
+- Live E2E blocker (work-items GetItem key-schema rejection inside the Lambda) is unrelated to Orders and remains open.
+
+
+[RIS-ATS-AGENT-01 / LIVE E2E VERIFIED ON RIS-DEV2]
+Status: DEPLOYED / LIVE E2E VERIFIED.
+Date: 2026-11-16
+- Live ATS work item through the deployed agent Lambda: COMPLETED, ATSAnalysisResultBody 1.1, contract 1.2 at jobsearch commit 8456910, score 67, analysisStatus complete, metadata and matches present, source metadata minimal. The agent called the live jobsearch API over the network.
+- Live addition work item: 17 + 25 = 42, COMPLETED. Duplicate delivery of the same ATS work item: duplicate true, attempt 1, no second agent run.
+- Root causes fixed for the live path: (1) table.meta.client applied the DynamoDB resource document transformation to already-serialized DynamoDB JSON, producing {"workId":{"M":{"S":{"S":...}}}}; _ddb_transaction_client now returns a plain low-level client, with a regression test asserting the serialized body has no "M". (2) _is_conditional_failed now recognizes TransactionCanceledException cancellation reasons with ConditionalCheckFailed, so duplicates follow the idempotent path. (3) the SQS handler serializes DynamoDB Decimal via _application_json_default.
+- Test entitlement rows were created for user-e2e-15 / tenant-e2e-15 (ats-agent analyze.job and addition_agent math.add) solely for the E2E; they remain documented test data, not infrastructure.
+- Deployed agent CodeSha256 94exPsBrUKodt2hkj4qeiPKroyiAdiTWYe/6o1SEKcw=. State serial 58, 243 resources, lineage unchanged, no destroy.
+- Local: 223 focused ATS/orders/handler tests (1 pre-existing platform-handler failure), 425 targeted regression, full suite no new failure vs main, E2E 149, security 302, secret scan clean.
+- Separate findings fixed: Orders boundary portability (95f8921), Orders queue policy wildcard (dad69ea), dynamodb:ConditionCheckItem IAM.
+Report: docs/reports/RIS-ATS-AGENT-01-RIS-DEV2-APPLY-AND-LIVE-E2E.md
+
+
+[RIS-DEV2 PROJECT IDENTITY CHECK]
+Status: VERIFIED.
+Date: 2026-11-16
+- All plan JSONs used project_name=ris-dev2 and environment=dev. The applied plan v2, all delta plans and the final plan show the same values.
+- Workspace is ris-dev2; the remote state is s3://ris-dev2-tf-state-dev/env:/ris-dev2/dev/terraform.tfstate. Deployed names are ris-dev2-dev-* and ris-dev2-mays-orders-*, with the Project tag ris-dev2.
+- No mays-ris-dev-* Lambda, DynamoDB or SQS resources exist. The Maker tag value mays-ris is the template maker tag, not the project name.
+- Future plans/applies must keep project_name=ris-dev2 and TF_WORKSPACE=ris-dev2.
+
+
+[RIS-DEV2 / OWNERSHIP & DYNAMODB FORENSIC-01]
+Status: COMPLETE (read-only). No apply, destroy or rollback.
+Date: 2026-11-16
+- Project boundaries confirmed: default/devnemo account 262370457690, workspace ris-dev2, state serial 58 with 243 resources and unchanged lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082. The applied plan has project_name=ris-dev2, environment=dev and orders_lifecycle=managed.
+- Orders is a local managed instance: table ris-dev2-mays-orders, queue ris-dev2-mays-orders-orders-queue, handler and sqs-worker in 262370457690. The state contains zero references to 240571105849. The 65 mays-ris occurrences are Maker tags only; 188 mays-orders occurrences are the ris-dev2-mays-orders prefix. No mays-ris-dev-* resources exist. Lambda envs, IAM boundaries/trust policies and SQS policies contain no foreign account or wildcard principal. The module source pin dad69ea is a build input, not AWS ownership.
+- DynamoDB forensic: table ris-dev2-dev-work-items has HASH workId (S) and active gsi-user/gsi-status. The Lambda used table.meta.client, whose resource document transformation wrapped the already-serialized key: {"workId":{"M":{"S":{"S":"probe-key"}}}}. The admin plain client sends {"workId":{"S":"probe-key"}}. DynamoDB correctly rejected the malformed Lambda request with ValidationException. This is a client/serializer defect, not an AWS defect.
+- Minimal fix _ddb_transaction_client (plain low-level client) is already deployed; the deployed bundle hash matches the code and the live E2E passes: ATS COMPLETED with ATSAnalysisResultBody 1.1 / contract 1.2, addition 17+25=42, duplicate true with no second run. _is_conditional_failed and the SQS Decimal serialization were fixed alongside.
+- No changes were made in this gate.
+Report: docs/reports/RIS-DEV2-OWNERSHIP-DYNAMODB-FORENSIC-01.md
+
+
+[RIS-ATS-AGENT-01 / ORCHESTRATION COMPLETENESS]
+Status: RIS-DEV2 DIRECT PATH COMPLETE / PRODUCT E2E OPEN.
+Date: 2026-11-16
+- ORCH-00 through ORCH-06 are complete. The direct agent path in ris-dev2 is deployed and live-verified: SQS/WorkItem -> agent Lambda -> registry/discovery/eligibility/routing -> ats-agent -> jobsearch API -> ATSAnalysisResultBody 1.1 -> DynamoDB, including duplicate delivery (duplicate true, no second run) and addition regression (17+25=42).
+- Environment: state serial 58 / 243 resources, agent Lambda ris-dev2-dev-agent Active, CodeSha256 94exPsBrUKodt2hkj4qeiPKroyiAdiTWYe/6o1SEKcw=.
+- Not complete for the full product path: live public partner API with Cognito JWT, Orders-external account 240571105849 (403), live authorized Orders GET, xrepo handoff MAYS-XR-ATS-001, merge to main, and a scheduled contract drift monitor.
+- Local evidence: 425 targeted regression, full suite no new failure vs main, E2E 149, security 302, secret scan clean.
+- No AWS changes in this report.
+Report: docs/reports/RIS-ATS-AGENT-01-ORCHESTRATION-STATUS.md
+
+
+[MAYS-XR-ATS-001 / DRAFT]
+Status: DRAFT ONLY. No issues, no dispatch.
+Date: 2026-11-17
+- Added docs/xrepo/MAYS-XR-ATS-001-DRAFT.md: proposed task ID, direction (jobsearch -> RIS for contract 1.2), required MAYS-XREPO-V1 fields, issue binding, evidence rules, sequential handoff and the explicit no-dispatch boundary.
+- Existing tasks MAYS-XR-E2E-001 and MAYS-SCV-RC3-001 were not touched. Another agent remains active in xrepo.
+- No GitHub issue, repository_dispatch, AWS or installation change.
+
+
+[RIS-ATS-AGENT-01 / CATALOG SEED + TRANSPORT-SAFE BODY]
+Status: LOCAL FIXES COMPLETE / LIVE APPLY PENDING.
+Date: 2026-11-17
+- Subagent findings: the public partner execute route supports ats-agent/analyze.job only up to 202 + asynchronous execution; ats-agent was missing from the Terraform agent-catalog seed (live route would return 403 agent-not-executable); the ATS result body was rejected by the generic secret scan because analysis.metadata.titleTokens contains the forbidden substring "token"; there is no production result forwarder or public result read-back.
+- Added ats-agent to local.agent_catalog_seed (ACTIVE, analyze.job, 1.0.0, body 1.0.0, python3.14) and a seed/runtime parity test.
+- ATSAnalysisResultBody is now 2.0: analysis.metadata.titleTokens is intentionally not projected (tokenizer artifact, not a secret). The secret scan remains strict; a titleTokens key is still rejected. Docs and tests updated.
+- Added three partner-route tests (202 + enqueue for ats-agent, 403 when absent from catalog, 403 for a profile-bound entitlement mismatch) and two transport tests (ATS body round-trips; titleTokens still rejected).
+- Tests: 508 passed, 8 skipped, 20 subtests. No AWS apply/deploy; the live deployment still carries body 1.1 and the unseeded catalog until a controlled apply.
+
+
+[RIS-ATS-AGENT-01 / CONTINUATION 01]
+Status: SAFE LOCAL FIXES COMPLETE / PRODUCT RESULT PATH OPEN.
+Date: 2026-11-17
+- Added ats-agent to the Terraform agent-catalog seed (ACTIVE, analyze.job, 1.0.0, python3.14) and a seed/runtime parity test. The public partner route would still return 403 until a controlled apply seeds the live table.
+- ATSAnalysisResultBody is now 2.0: analysis.metadata.titleTokens is no longer projected so the strict secret scan accepts the body. The scan itself remains unchanged and still rejects a titleTokens key.
+- Added public partner-route tests (202/enqueue, 403 missing catalog, 403 profile-bound entitlement) and transport tests (ATS body round-trip, titleTokens rejected).
+- Local evidence: 508 passed / 8 skipped / 20 subtests; terraform fmt exit 0.
+- Product result path remains open: no production ORDER_RESULT forwarder; work rows lack orderId/correlationId; pipeline stores the {success,data} wrapper while the transport expects the body; no public result read-back; the RIS orders-reader has no owner/tenant check; Orders external account 240571105849 is still 403. xrepo has a draft only (no issues/dispatch).
+- No AWS apply/deploy, merge or main push.
+Report: docs/reports/RIS-ATS-AGENT-01-CONTINUATION-01.md
+
+[RIS-ATS-RESULT-LINK-01 / PHASE 1+2 — CORRELATION + RESULT FORWARDER]
+Status: LOCAL IMPLEMENTATION COMPLETE / NO APPLY.
+Date: 2026-11-17
+- Work rows now persist the transport correlation from the dispatch work item: orderId, correlationId (falling back to requestId), transportMessageId, apiProfileId, partnerApplicationId and issuer. Existing rows without an orderId/correlationId stay valid and are simply not forwarded.
+- Added agents/transport/order_result_sender.py: HMAC-SHA256 signing pinned to the Orders consumer rule (messageId + "\n" + body, SQS attribute serviceSignature) and a thin SQS sender for the existing result queue. No new queue, no new envelope contract, no new transport type.
+- The worker reuses Transport V1 result_from_work_item + validate_envelope. The carrier is reconstructed from the persisted row; the pipeline's {success,data} wrapper is unwrapped exactly once so Orders receives the body.
+- Forwarding runs only after the conditional result write, so a fenced/erased/stale attempt cannot emit a result. The COMPLETED duplicate path re-emits the same deterministic messageId/idempotencyKey, covering the crash window before SendMessage; CANCELLED never forwards.
+- Fail-closed: missing orderId, correlationId, apiProfileId or ORDER_RESULT_QUEUE_URL/ORDER_RESULT_SECRET_ARN skips forwarding and leaves the row COMPLETED; TransportError (bad shape, secret-shaped result) is logged and never sent; sender/config errors raise so SQS redelivery retries.
+- Tests: tests/test_worker_pipeline.py + tests/test_order_transport_contract.py 76 passed (correlation persistence, one result per completion, data-not-wrapper payload, non-order skip, missing correlation, no config, duplicate idempotency, sender failure, pinned HMAC vector).
+- No Terraform apply; production still has no result queue/secret wiring and enable_agent_transport=false.
+
+[RIS-ATS-RESULT-LINK-01 / PHASE 3 — ORDERS READER OWNERSHIP]
+Status: LOCAL IMPLEMENTATION COMPLETE / APPLY PENDING.
+Date: 2026-11-17
+- lambda/orders_reader.py derives identity only from the gateway-verified JWT (requestContext.authorizer.jwt.claims). Issuer and client are re-asserted from ORDERS_COGNITO_ISSUER / ORDERS_COGNITO_CLIENT_ID; missing config returns 503 instead of skipping the check.
+- Owner key matches the Orders module byte-for-byte: sha256(normalize(iss) + "\x00" + sub) with strip().rstrip("/"). Foreign, missing and legacy-unbound orders all return 404 ORDER_NOT_FOUND so existence is not leaked. A valid JWT alone is not authorization.
+- GET/PATCH enforce the owner check before reading status or mutating. GET /orders moved from the global gsi1 list to gsi3pk = ownerKey; an index error fails closed with 503 and never falls back to a global list.
+- POST now persists ownerIssuer, ownerSubject, ownerKey, ownerClientId, actorType, actorId, gsi3pk, gsi3sk, so newly created orders are readable by their owner and by nobody else.
+- Responses are allowlist projections: retail fields plus agentOrder.{target,input,metadata,resultContract} and processing.{status,attempt,completedAt,result,error.message}. gsi*, owner*, actor*, subjectId, version, agentOrderFingerprint, expectedWorkId, dispatch and work/message/execution ids are never emitted. A stored result with a credential-shaped key or value is withheld as 500 without content.
+- Terraform: module gets cognito_issuer/cognito_client_id variables and ORDERS_COGNITO_* env; root wires local.identity_issuer and the human client id. terraform fmt -check exit 0; terraform validate success (warnings only).
+- Tests: tests/test_orders_reader.py 22 passed (401/503/404 matrix, foreign owner, legacy row, gsi3 isolation, PATCH isolation, whitelist leak regression, create+read-back). tests/test_real_orders_adapter.py updated for the identity requirement: 18 passed. Docs: docs/api/API-STANDARD.md documents JWT+owner, 401/503 and the projection.
+- Live reader would fail closed with 503 until an apply supplies the two env vars; no AWS change was made.
+
+Report: docs/reports/RIS-ATS-RESULT-LINK-01.md
+
+[RIS-ATS-RESULT-LINK-01 / PHASE 4 — LOCAL INTEGRATION]
+Status: LOCAL INTEGRATION COMPLETE / HARD STOP.
+Date: 2026-11-17
+- Added tests/test_ats_result_link.py: partner work item -> real worker pipeline -> ats-agent -> ATSAnalysisResultBody 2.0 -> persisted row -> reconstructed ORDER_RESULT -> Orders-side application -> authorized read-back through the real orders_reader handler. Only infrastructure boundaries are faked (work table, order table, sender capture, ATS HTTP client).
+- Positive assertions: result envelope is ORDER_RESULT with the dispatch orderId/correlationId and execution {workId, attempt}, payload is the body (not the {success,data} wrapper) with bodyVersion 2.0 and score 50; the owner reads it back with agentOrder.target.agentId=ats-agent.
+- Negative matrix: foreign owner -> 404 with no result leakage; foreign issuer -> 401; missing correlation -> no send, row stays COMPLETED; duplicate delivery -> same messageId/idempotencyKey twice; missing transport configuration -> no send and no claimed delivery; unknown order -> 404 ORDER_NOT_FOUND; secret-shaped result -> never forwarded and the reader withholds it as 500 without content.
+- The addition and ATS direct paths are covered by the existing suites, which remain green (tests/test_worker_pipeline.py, tests/test_ats_agent.py, tests/test_lambda_bridge_e2e.py).
+- Regression: targeted suites 183 passed / 24 skipped / 318 subtests; full suite 2621 passed / 127 skipped / 434 subtests with the same 29 pre-existing failures and 4 pre-existing collection errors as the baseline. terraform fmt -check exit 0; terraform validate success (warnings only).
+- No AWS apply/deploy, no merge, no production deployment.
+
+Report: docs/reports/RIS-ATS-RESULT-LINK-01.md
+
+[RIS-ATS-RESULT-TRANSPORT-GATE-01 / PHASE A+B — MANAGED RESULT TRANSPORT]
+Status: LOCAL WIRING COMPLETE / PLAN REVIEWED / NO APPLY.
+Date: 2026-11-17
+- Four read-only audits (Orders module, RIS worker, security, QA) confirmed: the Orders module already owns result queue, DLQ and HMAC secret but never exports them; RIS has no result env/IAM; the generated module is rebuilt from pin dad69ea and ignores hand edits.
+- Builder now injects results_queue_url, results_queue_arn and result_hmac_secret_arn additively before contract validation, using try(module.agent_transport[0]..., "") so a disabled transport evaluates to "". If upstream ever exports one of them, the build fails closed. Generated module now has 23 outputs (20 required + 3).
+- RIS root gets one dedicated flag orders_agent_result_enabled (default false), independent of enable_agent_transport (RIS dispatch queue). The managed Orders module receives the flag and ris_result_producer_role_arns=[module.lambda.lambda_role_arn]; queue URL/ARN and secret ARN are consumed as module outputs.
+- Worker lambda gets ORDER_RESULT_QUEUE_URL / ORDER_RESULT_SECRET_ARN plus count-gated IAM: sqs:SendMessage on the result queue only and secretsmanager:GetSecretValue on the result secret only. Count is driven by the plan-known boolean, never by an ARN (Terraform rejects unknown count). Root exports lambda_role_arn so the producer grant uses the worker role, not the health-plane role.
+- The result queue, DLQ, redrive policy and secret stay owned by modules/agent_transport; no new queue, no second contract, no cross-account. The secret remains container-only (no aws_secretsmanager_secret_version anywhere).
+- Installer: result outputs are listed as not-var-handoff outputs so the dry-run never guesses them; orders_agent_result_enabled is an allowed overlay key.
+- Project config ris-dev2.json was stale versus live: orders_lifecycle disabled (live managed), identity_m2m_enabled false (live true), identity_oauth_enabled true (live false). Aligned to live; otherwise the next apply would have destroyed the Cognito M2M client/resource server and enabled OAuth.
+- Local plan (backend ris-dev2-tf-state-dev, key env:/ris-dev2/dev/terraform.tfstate, workspace ris-dev2, serial 58, lineage a0bd361d-...): 13 to add, 2 to change (worker + reader code/env), 0 to destroy, 0 to replace. No Cognito, CloudFront, DNS or ACM change. No secret value in the plan.
+- Full suite: 2638 passed / 128 skipped / 434 subtests with the same 29 pre-existing failures and 4 collection errors as the baseline; targeted transport/static suites green. Bundle rebuild is deterministic (agent 8462e5de..., reader 417e5b5f...).
+- No AWS apply, no merge, no deploy.
+
+Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
+
+[RIS-ATS-RESULT-TRANSPORT-GATE-01 / PHASE B — DELIVERY SEMANTICS + READ-BACK HARDENING]
+Status: LOCAL FIXES COMPLETE / NO APPLY.
+Date: 2026-11-17
+- COMPLETED is now explicitly separated from delivered: after the conditional result write, the worker records orderResultDelivery on the work row with SENT, NOT_CONFIGURED, SKIPPED, REJECTED or RETRYING plus attempt, messageId and reason code. The marker is best effort and never turns a successful send into a redelivery.
+- The crash window between result persistence and SQS send stays covered by the deterministic re-emit on COMPLETED duplicates. Missing configuration and permanent TransportError are now visible on the row instead of only in logs; sender errors still raise for redelivery/DLQ.
+- Fixed a real wire bug: DynamoDB Decimals were serialized as strings on the re-emit path ({"sum":"42"}), so the first body Orders ever received after a crash had the wrong types. The sender now uses a Decimal-aware JSON encoder; the signature still covers the exact sent body.
+- Reader: PATCH now binds ownerKey in the conditional update (no TOCTOU between precheck and write); token_use is required (id/access); GET /orders projects agent orders without retail fields instead of raising KeyError/500; withheld payloads log the field path only.
+- Tests: worker pipeline pins SENT/NOT_CONFIGURED/SKIPPED/RETRYING; the transport contract pins numeric Decimals and signature-over-body; the reader pins required token_use, owner-bound PATCH condition and agent-order list projection; the MO handoff pins that a delivered result records processing but never advances the order status.
+- Full suite 2638 passed / 128 skipped with the same 29 pre-existing failures and 4 collection errors; no new failure. No AWS apply.
+
+Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
+
+[RIS-ATS-RESULT-TRANSPORT-GATE-01 / PHASE C — READINESS + PLAN]
+Status: PLAN REVIEWED / NO APPLY / HARD STOP.
+Date: 2026-11-17
+- Identity: default profile resolves to arn:aws:iam::262370457690:user/devnemo in eu-central-1; no profile named devnemo exists and none was created.
+- Backend: bucket ris-dev2-tf-state-dev, key env:/ris-dev2/dev/terraform.tfstate, lock table ris-dev2-tf-lock, workspace ris-dev2, lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082, serial 58 before and after the plan, no active lock.
+- Pin dad69ea28e8b952a8e76e9dfb4fb163f7a979b52 with a clean pinned worktree; generated module rebuilt and contract-checked (23 outputs).
+- Bundles rebuilt twice with identical hashes: agent 8462e5de6abb65b2..., reader 417e5b5f583e4f37...
+- Plan (sha256 C6EFB189F0F161304186E20E28A2BAA074CF5AED213B03CF4DA32C2BFE22FE1F): 13 add, 2 change (worker and reader Lambda code/env), 0 destroy, 0 replace. No Cognito, CloudFront, DNS or ACM action. No secret_version and no secret value in the plan.
+- The first two plan attempts were rejected and corrected: count on unknown ARNs is invalid (now gated by the plan-known boolean), and a stale project overlay would have destroyed the Cognito M2M client/resource server and enabled OAuth (now aligned to live).
+- Open blockers for the apply gate: secret value must be set out-of-band as a bare hex string; RIS reader pins the RIS pool while Orders has its own pool (orders created directly via the Orders API stay 404 until a scoped identity change); the Orders adapter default base URL points to a deleted API; no ORDER_FAILED forwarding; result queue visibility 60s vs consumer timeout 30s.
+- Recommendation: separate apply gate only with a freshly regenerated plan against the approved commit, secret value pre-set, and the 13/2/0/0 check repeated.
+
+[RIS-ATS-PRE-APPLY-CHECKPOINT-01 / LIVE VERIFICATION + CONFIG CORRECTION]
+Status: READ-ONLY VERIFICATION COMPLETE / ONE LOCAL FIX / NO APPLY.
+Date: 2026-11-17
+- Secret/queue: no `ris-dev2-mays-orders-agent-result-hmac` secret, no `agent-results`/`agent-results-dlq` queue, no result consumer Lambda, and zero Secrets Manager secrets in the account. `module.mays_orders[0].module.agent_transport` is absent from state. The container-only design means an apply still yields no usable key until `put-secret-value` (bare hex).
+- Producer role corrected in the analysis: `module.lambda.lambda_role_arn` resolves to `arn:aws:iam::262370457690:role/ris-dev2-dev-agent` (the live worker role; confirmed by the Lambda Role attribute and the plan output). The `ris-dev2-lambda-role` ARN is the health-plane role and is not used here.
+- Orders API: live are `r95qvhg2p3` (ris-dev2-dev-api), `7ency74vs0` (ris-dev2-mays-orders-api) and a legacy `n4rhy1qpo0`. The adapter default `aboqolpm0f` is deleted (API NotFound + DNS NXDOMAIN), and `ORDERS_BASE_URL` was not set anywhere.
+- RIS live env: worker has no `ORDER_RESULT_*`, no `ORDERS_*`; reader has only `ORDERS_TABLE`/`ORDERS_SQS_QUEUE_URL`, so `/orders` returns 503 before touching DynamoDB. State and live code hashes match (94ex.../omwZ...), serial 58.
+- Identity: RIS pool OYN9QiHc5 and Orders pool GInnOix9P are disjoint and both have zero users; owner-key derivation is byte-identical (`sha256(strip().rstrip("/") + "\x00" + sub)`) and gsi3/gsi3sk agree. The orders table is empty. A delivered result never advances the order status (MO handoff test).
+- Local correction: `ORDERS_BASE_URL` is now wired from `module.api.api_endpoint` into the worker env, so `agents/orders/function.py` no longer falls back to the deleted host. No Cognito, queue or identity change.
+- Rebuilt artifacts are identical to the previous gate (agent 8462e5de..., reader 417e5b5f...). New plan sha256 2ED7B1A5C63E0427719F75500E763025612625D94D8040E7E31CADC6A2AB4C01: 13 add, 2 change, 0 destroy, 0 replace; state serial 58 unchanged.
+- Full suite 2639 passed / 128 skipped / 434 subtests with the same 29 pre-existing failures and 4 collection errors.
+- Blockers: secret value absent until post-apply `put-secret-value`; no human identity exists (both pools empty) and the m2m client is not accepted by the reader audience check, so an end-to-end read-back cannot be demonstrated without an identity decision; `ORDERS_ID_TOKEN` remains unset for token-less work items; result consumer visibility 60s vs timeout 30s.
+- Recommendation: GO for the transport apply with an immediately following out-of-band secret provisioning and no partner traffic; NO-GO for declaring the product read-back complete until an identity path is approved.
+
+Report: docs/reports/RIS-ATS-PRE-APPLY-CHECKPOINT-01.md
+
+[RIS-ATS-TRANSPORT-RELEASE-02 / FINAL RELEASE GATE]
+Status: NO-GO / NO APPLY.
+Date: 2026-11-17
+- Four parallel reviews (Terraform, security, identity design, QA) consolidated into docs/reports/RIS-ATS-TRANSPORT-RELEASE-02.md. No AWS mutation, no secret access, no user creation.
+- Terraform: branch feature/ris-dev2-ats-agent-pinned-core-01 at caa5d6c, clean tree; STS arn:aws:iam::262370457690:user/devnemo; workspace ris-dev2; state bucket ris-dev2-tf-state-dev, key env:/ris-dev2/dev/terraform.tfstate, lineage a0bd361d-..., serial 58 before and after; lock ris-dev2-tf-lock with no active lock; pin dad69ea... clean and matching the manifest.
+- New plan against caa5d6c after a forced generated-module rebuild: sha256 5EA0619EBBEA092E650E66D10B526783165A812698E56E1AD54033A047702FAC, 13 add, 2 change, 0 destroy, 0 replace. No Cognito, CloudFront, Route53/DNS, ACM or S3 change; no secret_version; no secret value. Bundles reproducible (agent 8462e5de..., reader 417e5b5f...).
+- The module rebuild is mandatory: the tracked generated variables.tf stub does not declare enable_agent_transport/ris_result_producer_role_arns, so validate fails without a rebuild. The stub stays untouched.
+- RELEASE BLOCKER B1: the pinned Orders consumer verifies the HMAC over the SQS record messageId (UUID), while the RIS producer signs the envelope messageId (msg_<workId>_order_result). Local cross-SQS proof with the real consumer code: envelope id -> processed=1; SQS uuid -> processed=0/rejected=1. The consumer returns no batchItemFailures, so every result is rejected and deleted. Existing tests hide this by setting record.messageId to the envelope id.
+- RELEASE BLOCKER B2: missing/empty secret makes the consumer return 200 without batchItemFailures, so messages are deleted instead of retried/DLQ.
+- Additional risks: visibility 60s vs consumer timeout 30s; no ORDER_FAILED; both Cognito pools have zero users; ORDERS_ID_TOKEN unset; two-pool model limits read-back to orders created through the RIS facade; empty producer principal list is latent.
+- Secret procedure prepared (post-apply only): single 64-char lowercase hex value, generated with a CSPRNG, written to a restricted temp file, put via file://, temp file deleted, verified via describe/list versions without printing the value; rotation needs recycling both Lambdas (no cache TTL).
+- Test identity proposal (not created): ris-dev2-e2e-rdbk-01@example.invalid in the existing RIS pool, custom:tenant_id tenant-e2e-15, no groups, USER_PASSWORD_AUTH, password out-of-band. Read-back needs no data rows; ATS execute needs entitlement/profile/partner-app/credential.
+- Decision: NO-GO for the transport apply until the consumer signature-domain and silent-drop fixes are implemented on the Orders side, the pin is bumped, and a new plan against the new pin is reviewed. Full suite last recorded at 2639 passed with the same 29 pre-existing failures and 4 collection errors.
+
+Report: docs/reports/RIS-ATS-TRANSPORT-RELEASE-02.md
+
+[RIS-ATS-TRANSPORT-CONSUMER-FIX-03 / B1+B2 FIX + PIN]
+Status: IMPLEMENTED / TESTED locally. No apply, no push, no main merge.
+Date: 2026-11-17
+- Orders commit 016cdfd6ac62565dcec9a2fee78cb898fb919e59 on local branch fix/order-result-signature-domain-01: the consumer verifies the HMAC over the envelope messageId from the JSON body, not the SQS-assigned record messageId. The SQS record id is used only as itemIdentifier for partial batch failures.
+- Missing/unreadable/empty/whitespace secret never returns success: result_consumer.handler reports every record as a batch failure; generic secret read errors are caught and reported the same way. Non-ASCII/non-comparable signatures return False instead of raising; a record without an SQS messageId raises rather than being silently acknowledged.
+- Invalid JSON and a missing/non-string envelope messageId are permanent rejects; invalid signatures never reach apply_result. Infrastructure failures are returned per record as batchItemFailures while successful records are acknowledged.
+- Orders tests: 225 passed (lambda/tests unittest discover), including new envelope-id vs SQS-id positive/negative cases, secret failure batch failures, partial infrastructure retry, invalid JSON/missing id, non-ASCII signature, whitespace secret parsing. Artifact lambda/dist/lambda.zip sha256 48ddd5e52d07b40fc333b67e5e34fb1b67701cf823536e20c7b2816a78a05f94 (13 files).
+- RIS pin updated to 016cdfd in installer/mays-orders-builder.pinned.json and build_mays_orders_module.PINNED_COMMIT. Generated module rebuilt: manifest source 016cdfd, artifact hash 48ddd5e5..., 23 outputs.
+- RIS cross-repo tests: 91 passed (bridge, MO contract, dispatch handoff, transport contract, generated artifact with MO_ORDERS_MODULE). Targeted regression 150 passed / 318 subtests; full suite 2640 passed / 128 skipped with the same 29 pre-existing failures and 4 collection errors.
+- Producer now strips whitespace from the stored HMAC value so both sides normalize identically; a whitespace-only secret still fails closed.
+- No AWS mutation, no secret access, no user change.
+
+Report: docs/reports/RIS-ATS-TRANSPORT-CONSUMER-FIX-03.md
+
+[RIS-ATS-TRANSPORT-CONSUMER-FIX-03 / PHASE D — PLAN]
+Status: PLAN REVIEWED / NO APPLY.
+Date: 2026-11-17
+- Reconciliation: STS arn:aws:iam::262370457690:user/devnemo, workspace ris-dev2, orders_lifecycle managed, backend ris-dev2-tf-state-dev / env:/ris-dev2/dev/terraform.tfstate, lineage a0bd361d-..., serial 58 before and after, no active lock.
+- Generated module rebuilt from pin 016cdfd: manifest source matches, lambda/dist/lambda.zip sha256 48ddd5e5..., 23 outputs. RIS bundles rebuilt deterministically (agent 4a6603e0..., reader 417e5b5f...).
+- Plan sha256 69F5687CDB2B463DE8B4551A5ADEBD292F927530ACD9412AAACC5804D793A68B: 13 add, 4 change, 0 destroy, 0 replace. The two additional changes versus the previous gate are the Orders HTTP handler and SQS worker, each in-place with only source_code_hash because all three Orders Lambdas share lambda/dist/lambda.zip.
+- No Cognito, CloudFront, Route53/DNS, ACM or S3 change; no secret_version; no delete/replace.
+- Remaining: secret value only after apply; no test identity (both pools empty); ORDERS_ID_TOKEN unset; visibility 60s vs timeout 30s; no ORDER_FAILED; Orders fix commit not pushed.
+- Decision: conditional GO for the transport apply after the Orders fix commit is made available and the plan is regenerated; NO-GO for partner traffic until secret and identity are set.
+
+Report: docs/reports/RIS-ATS-TRANSPORT-CONSUMER-FIX-03.md
+
+[RIS-ATS-TRANSPORT-RELEASE-READY-04 / PUBLISHED BASELINE]
+Status: PUBLISHED + PLAN REVIEWED / NO APPLY.
+Date: 2026-11-17
+- Orders fix published: branch fix/order-result-signature-domain-01 at 016cdfd6ac62565dcec9a2fee78cb898fb919e59 pushed to origin; remote main unchanged at 1eaa14ec5ed652a34e1dae4775e0b298be708a6c, no tags on the fix commit.
+- Orders lambda suite 225 passed locally and in a fresh clone. Fresh clone rebuild of lambda/dist/lambda.zip is byte-identical: 48ddd5e52d07b40fc333b67e5e34fb1b67701cf823536e20c7b2816a78a05f94.
+- RIS pin and PINNED_COMMIT are 016cdfd. Module built from the fresh clone via a temporary junction (local clone restored): manifest source 016cdfd, artifact 48ddd5e5..., 23 outputs. RIS bundles agent 4a6603e0..., reader 417e5b5f..., deterministic.
+- Cross-repo tests with fresh clone and generated module: 91 passed. Full RIS suite 2640 passed / 128 skipped / 434 subtests with the same 29 pre-existing failures and 4 collection errors.
+- Plan reconciliation: STS arn:aws:iam::262370457690:user/devnemo, workspace ris-dev2, backend ris-dev2-tf-state-dev / env:/ris-dev2/dev/terraform.tfstate, lineage a0bd361d-..., serial 58 before and after, no active lock. Plan sha256 B6A167308A1FAABBD29C8F13F34F1D05E9FE11A457D9E195DE11D45897D85011: 13 add, 4 change, 0 destroy, 0 replace; no Cognito/CloudFront/DNS/ACM/S3 change, no secret_version.
+- Upstream risk recorded: the Orders fix branch is based on the deployed dad69ea baseline, while origin/main is far ahead and has replaced the result-consumer contract. Any future pin bump toward main requires a producer rework; the current pin remains coherent with the deployed module.
+- Remaining blockers: secret value after apply; no test identity (both pools empty, m2m rejected); ORDERS_ID_TOKEN unset; visibility 60s vs 30s; no ORDER_FAILED; no DLQ alarm; Orders fix not merged to main (intentional).
+- Decision: conditional GO for the transport apply; NO-GO for partner traffic until secret and identity exist.
+
+Report: docs/reports/RIS-ATS-TRANSPORT-RELEASE-READY-04.md
+
+[RIS-AGENT-INSTALLATION-ORCHESTRATION-08 / TIMEOUT HARDENING]
+Status: LOCAL FIX / TESTS PASS.
+Date: 2026-11-18
+- ATS executes inline in the worker and in the dispatch ingress; both had 30 s Lambda timeouts while the ATS HTTP client is also 30 s (zero headroom).
+- Added root `agent_execution_timeout_seconds` (default 60), passed to the worker Lambda (optional override) and the dispatch ingress. Result consumer/visibility unchanged.
+- Static contract test added; plan resource counts unchanged (worker is already a change, ingress is a create).
+
+[RIS-ATS-PRODUCT-READINESS-07 / PREFLIGHT + PLAN]
+Status: PLAN REVIEWED / NO APPLY.
+Date: 2026-11-17
+- Preflight (5 independent reviews): ATS endpoint, identity/profile/entitlement, flags/HMAC, SQS/retry/ops, Terraform baseline. No AWS mutation, no secret access, no user creation.
+- Two real wiring gaps fixed locally: (1) dispatch-ingress entitlement Query now covers the `gsi-user` index (`${table_arn}/index/*`), otherwise the first canary would hit AccessDenied and DLQ; (2) `ATS_API_BASE_URL` is now an explicit non-empty https variable, passed to the worker and the dispatch ingress, defaulting to the verified contract host `https://mays-jobsearch.vercel.app`. No non-production ATS endpoint exists in the repo; a canary must use synthetic job/profile data.
+- Flags remain default-off; the 24/4 plan requires explicit approved input `orders_agent_result_enabled=true` and `enable_agent_transport=true`. `enable_agent_transport` is not an allowed project-overlay key; it must be in the reviewed plan input.
+- Final plan sha256 2EEC7310FD4B642BA70A639C7EC698A183ADD797495D658E08F2988964CEAD04: 24 add, 4 change, 0 destroy, 0 replace. No Cognito/CloudFront/Route53/DNS/ACM/S3 change, no secret_version; state serial 58 and ETag unchanged. State 58 / lineage a0bd361d-... verified.
+- Baseline hazards recorded: the second state object `env/ris-dev2/dev/terraform.tfstate` is an empty legacy state (0 resources, serial 13); init MUST use bucket ris-dev2-tf-state-dev, key dev/terraform.tfstate, workspace prefix env, lock ris-dev2-tf-lock, workspace ris-dev2. Generated module must be rebuilt before plan; its tracked variables.tf stub must not be committed.
+- Identity prerequisites (no Cognito config change): one RIS-pool user, one ACTIVE API profile (`ownerUserId=sub`, tenantId), one user-wide entitlement (`userId=sub`, agentId=ats-agent, tenantId, valid window). Current live: 0 users, 0 profiles, entitlements only expired foreign test rows.
+- Secret: container-only; value after apply as bare 64-hex via CSPRNG/file:// with immediate deletion; one AWSCURRENT, keys=1. Flags enabled without a secret yield RETRYING/DLQ, never success.
+- Ops risks: results visibility 60s vs consumer timeout 30s; no DLQ alarms/SNS actions for dispatch/result queues; no ORDER_FAILED; reader POST has no request-id idempotency; dispatch ingress executes inline within 30s.
+- Decision: GO (conditional) for the infrastructure apply after plan approval; NO-GO for canary/product traffic until user, profile, entitlement and secret are provisioned and verified.
+
+Report: docs/reports/RIS-ATS-PRODUCT-READINESS-07.md
+
+[RIS-ATS-ORDER-DISPATCH-LINK-06 / PHASE B — AGENT ORDER + DISPATCH]
+Status: IMPLEMENTED / TESTED locally. No AWS apply.
+Date: 2026-11-17
+- Dispatch ingress fix (df909c9): resolve_context accepts the production DynamoDB API profile store (get_profile) and the stored ownerUserId, while keeping test doubles with get()/userId working.
+- Reader POST /orders now has an explicit agent.execution branch: validates the existing agentOrder contract (same keys/versions/defaults/fingerprint as Orders), rejects mixed retail/agent bodies and unknown orderType instead of silently creating a retail order.
+- The branch requires metadata.requestId and metadata.apiProfileRef, resolves the API profile from API_PROFILES_TABLE, requires status ACTIVE and ownerUserId == verified JWT sub + tenantId, binds one workId, persists the order with owner binding, agentOrder, fingerprint, expectedWorkId and dispatch state, then builds a validated ORDER_DISPATCH via the existing Transport V1 (new build_dispatch_envelope helper) and sends it to RIS_DISPATCH_QUEUE_URL. Dispatch failures are marked FAILED; retail orders still use the retail path and never dispatch.
+- Reader bundle now ships orders_reader.py plus the flat contract modules order_transport.py and agent_order.py (3 files); agent_order falls back to the flat transport when packaged.
+- Tests: reader 35 (incl. agent create, foreign/inactive profile, mixed conversion, missing correlation/profile, missing queue), dispatch ingress 16, new local E2E 6 (agent order -> dispatch ingress -> ATS -> ORDER_RESULT -> real consumer -> owner read; duplicate, invalid signature, missing entitlement, retail, foreign profile), packaging/transport/worker/ATS/link 178 passed.
+
+[RIS-ATS-TRANSPORT-APPLY-05 / CONTROLLED ROLLOUT PREPARATION]
+Status: NO-GO / NO APPLY / NO SECRET MUTATION.
+Date: 2026-11-17
+- Baseline: RIS 6bb5250, clean; Orders pin 016cdfd; STS arn:aws:iam::262370457690:user/devnemo; workspace ris-dev2; backend ris-dev2-tf-state-dev / env:/ris-dev2/dev/terraform.tfstate; lineage a0bd361d-...; serial 58 before and after; no active lock; no drift.
+- Generated module rebuilt from pin 016cdfd: manifest source matches, lambda.zip 48ddd5e5..., 23 outputs.
+- Fresh plan sha256 9A2DA4209AB002E7DDB10D8F1BE9334910A587DB07F59469340285BE9FE8BC3A: 13 add, 4 change, 0 destroy, 0 replace; no Cognito/CloudFront/DNS/ACM/S3 change, no secret_version, no drift.
+- Zero-traffic proof before apply: work queue 0/0, result queue absent, orders table 0 items, all existing work items without orderId, 0 Cognito users, partner surface disabled, no result DLQ alarm.
+- Four Lambda changes verified individually: RIS agent (bundle + ORDERS_BASE_URL/ORDER_RESULT_*), RIS reader (bundle + Cognito env), Orders handler and SQS worker (source_code_hash only, shared bundle). Two new worker IAM policies are scoped to one action/one ARN each; the 10 agent_transport resources and the ats-agent catalog seed match the documented configuration.
+- Decisive finding: no live order-correlated ingress exists. Partner execute creates a work item without orderId (NOT_ORDER, no send); the ORDER_DISPATCH ingress is not deployed and not part of the plan; the RIS facade POST /orders silently creates a retail order and drops agentOrder. The apply would create an idle result chain and cannot produce actual Orders persistence.
+- Additional blockers: no identity (0 users, m2m rejected), ORDERS_ID_TOKEN unset, two-pool owner mismatch, visibility 60s vs timeout 30s, no DLQ alarm, no ORDER_FAILED, secret value only after apply, project config flag false (override trap), upstream main divergence.
+- Secret procedure documented (bare 64-hex, CSPRNG, restricted file, put-secret-value file://, immediate deletion, one AWSCURRENT, keys=1 shape check); no secret value touched.
+- Decision: NO-GO for the transport apply until an approved order-correlated ingress, an identity decision and a reproducible flag/plan exist. No AWS mutation, no secret mutation, no user creation, no push, no merge.
+
+Report: docs/reports/RIS-ATS-TRANSPORT-APPLY-05.md
+
+[RIS-ATS-ORDER-DISPATCH-LINK-06 / LOCAL INTEGRATION + PLAN]
+Status: IMPLEMENTED / TESTED locally / PLAN REVIEWED. No AWS apply.
+Date: 2026-11-17
+- Reused the existing agentOrder contract, Transport V1, dispatch ingress, pipeline/ATS agent, result forwarder and Orders consumer. No new queue architecture; the existing RIS dispatch module was enabled.
+- Dispatch ingress (df909c9): production API profile store is read via get_profile and ownerUserId; test doubles with get()/userId remain compatible.
+- Reader (4fb5b88): explicit agent.execution branch validates the agent order, rejects mixed retail/agent bodies and unknown orderType, requires requestId/apiProfileRef, authorizes the profile owner against the JWT sub and tenant, persists agentOrder/fingerprint/expectedWorkId/dispatch, and sends a validated ORDER_DISPATCH to RIS_DISPATCH_QUEUE_URL. Retail stays on the retail path. Reader bundle ships the flat order_transport/agent_order contracts.
+- Infra (5d4a3c8): dispatch queue/ingress enabled, reader env RIS_DISPATCH_QUEUE_URL/API_PROFILES_TABLE + SendMessage/GetItem, ingress result env ORDER_RESULT_* + send/secret IAM.
+- Tests (8820ad9): bridge env restored, reader privacy literal removed. Local E2E 6, reader 35, ingress 16, cross-repo 192, Orders 225, full RIS 2654 passed / 134 skipped with the same 29 pre-existing failures and 4 collection errors.
+- New plan sha256 6E2A1077E1459B74A015E91518CB1B302817DD9329337A18EDDEA4BCF89ED17C: 24 add, 4 change, 0 destroy, 0 replace; state serial 58 unchanged; no Cognito/CloudFront/DNS/ACM/S3 change, no secret_version.
+- Remaining: API profile + entitlement rows, test identity (0 users), secret value after apply, ATS base URL, visibility/DLQ alarm/ORDER_FAILED, partner-execute remains a separate non-order path.
+- Decision: conditional GO for the expanded infrastructure apply; NO-GO for partner traffic/product acceptance until identity, profile, entitlement and secret are verified.
+
+Report: docs/reports/RIS-ATS-ORDER-DISPATCH-LINK-06.md
+
+Report: docs/reports/RIS-ATS-RESULT-TRANSPORT-GATE-01.md
+
+
+[RIS-AGENT-INSTALLATION-ORCHESTRATION-08 / LIVE ROLLOUT]
+Status: APPLIED to ris-dev2 test scope / LIVE E2E PASS.
+Date: 2026-11-18
+- Applied the reviewed plan (24 add / 4 change / 0 destroy / 0 replace; pre-apply SHA 66AD66AA...) after timeout hardening (worker + dispatch ingress 60s). State serial advanced; no protected resource changed.
+- Verified live: dispatch queue/DLQ (vis 300s, maxReceive 3), result queue/DLQ (vis 60s, maxReceive 3), dispatch ingress (handler dispatch_ingress.handler, 60s, ATS_API_BASE_URL, result env), result consumer (result_consumer.handler, 30s), reader env (RIS_DISPATCH_QUEUE_URL, API_PROFILES_TABLE, Cognito issuer/client), worker env (result queue/secret, ATS URL), both ESMs enabled with ReportBatchItemFailures, ats-agent catalog seed active.
+- Secret provisioned in-memory (64 lowercase hex, never printed): exactly one AWSCURRENT, no AWSPENDING, no KMS key. No secret value in Git/state/logs/reports.
+- Synthetic identity: two RIS-pool users created via AdminCreateUser/SetPassword, no groups; ACTIVE API profile bound to ownerUserId; user-wide ats-agent entitlement. Users and entitlement deleted after the run; profiles revoked.
+- Live canary: POST /orders (agent.execution, ats-agent/analyze.job, synthetic job) -> ORDER_DISPATCH -> ingress -> WorkItem -> ATS -> ORDER_RESULT -> Orders consumer -> persisted order. Evidence: work COMPLETED + orderResultDelivery SENT; Orders processing COMPLETED + bodyVersion 2.0 + numeric score 67; order status PENDING; owner GET 200, foreign owner 404, invalid token 401; duplicate dispatch no second write (version unchanged 2); retail POST 201/read 200; queues and DLQs 0; log scan found no ownerKey, ris_ prefix, email or invalid-signature lines.
+- Fixed a missing package export: agents.transport now exports build_dispatch_envelope.
+- No partner traffic enabled; no ris-dev/production change.
+
+[RIS-AGENT-INSTALLATION-ORCHESTRATION-08 / PACKAGES + ORCHESTRATOR]
+Status: IMPLEMENTED / TESTED locally.
+Date: 2026-11-18
+- Added agent-installations/ats-agent and agent-installations/addition-agent with manifest.yaml, contracts/, tests/, risks.md, operations.md and handoff.md. Manifests pin the RIS source SHA f0c707c6e80638a6489194b3be98374718a6a522 and Orders pin 016cdfd; no secret values, no automatic enablement.
+- Added installer/agent_install.py: DISCOVER -> ANALYZE -> COMPATIBILITY -> RISK REVIEW -> PACKAGE -> VALIDATE -> PLAN -> APPLY -> E2E -> HANDOFF, with a JSON status/evidence file, idempotent stage skips, resume via status file, and an apply gate that refuses unless --execute --allow-apply --yes is supplied. Package creation alone never enables an agent.
+- Tests: tests/test_agent_install_orchestrator.py 5 passed (real packages discoverable/valid, idempotent/resumable status, apply gate refusal, missing manifest key, incomplete package). Both real packages validate.
+
+[RIS-AGENT-INSTALLATION-ORCHESTRATION-08 / HANDOFF]
+Status: COMPLETE / TEST-DEPLOYED ris-dev2.
+Date: 2026-11-18
+- Added docs/releases/ris-agent-installation-08.json (machine-readable release manifest) and docs/reports/RIS-AGENT-INSTALLATION-08-HANDOFF.md (human handoff) with source pins, resources, live evidence, risks, decisions, rollback and installation/deactivation/update steps.
+- Live deployment: plan 66AD66AA... applied (24 add / 4 change / 0 destroy / 0 replace), post-apply plan reports no changes, state serial 63, lineage unchanged. No Cognito/CloudFront/DNS/ACM/S3 changes.
+- Live E2E PASS with synthetic data: order ord_0d23d52e98fb4c557e7aa920, work work-a818f56a2f5ec0d0, COMPLETED/SENT, Orders processing COMPLETED bodyVersion 2.0 score 67, status PENDING, owner 200/foreign 404/invalid 401, duplicate no second write, retail 201/200, queues+DLQs 0, logs clean.
+- Test users deleted, entitlement deleted, test profiles revoked; synthetic evidence orders/work rows remain. Secret has exactly one AWSCURRENT; no value in Git/state/logs/reports. Partner traffic not enabled; ris-dev/production untouched.
+
+[RIS-AGENT-INSTALLATION-09 / ADDITION PILOT]
+Status: PASS / ris-dev2 test scope / no new AWS resources.
+Date: 2026-11-18
+- Reused agent-installations/addition-agent and installer/agent_install.py. Stages discover/analyze/compatibility/risk-review/package/validate passed; validate re-run returned SKIPPED (resume/idempotency). Post-apply Terraform plan: no changes.
+- Live canary through the deployed path: order ord_71c3c1003ce9492d5acbb601, work work-efc33036efaece37, work COMPLETED, orderResultDelivery SENT, Orders processing COMPLETED, sum 42, order status PENDING; owner 200, foreign 404, invalid token 401; duplicate no second write; dispatch/result DLQs 0.
+- ATS regression through the same runtime: order ord_ac7755a61dd172ed0a0046a9, work COMPLETED/SENT, Orders processing COMPLETED, bodyVersion 2.0, score 100.
+- Targeted tests 54 passed / 10 skipped; orchestrator 5 passed. Synthetic users and entitlements deleted; profiles revoked; evidence orders/work rows remain; secret still one AWSCURRENT.
+- Updated addition package handoff/operations/risks, added docs/releases/ris-agent-installation-09-addition.json and docs/reports/RIS-AGENT-INSTALLATION-09-ADDITION-PILOT.md.
+
+[RIS-AGENT-INSTALLATION-10 / AGENT FACTORY BASELINE]
+Status: TEMPLATE + ORCHESTRATOR GAP CLOSED / TESTS PASS.
+Date: 2026-11-18
+- Added agent-installations/_template with manifest, contracts, tests, risks, operations and handoff placeholders; added agent-installations/README.md describing the package convention and stages.
+- Orchestrator discovery now excludes _template (never a deployable agent package). Added a regression test; orchestrator suite 6 passed. Real packages ats-agent and addition-agent remain discoverable/valid.
+- No agent enabled, no AWS change, no secret/user mutation.
+
+[RIS-AGENT-INSTALLATION-10 / OPERATIONS HANDOFF]
+Status: CONSOLIDATED / RIS-DEV2 TEST LIVE / PARTNER TRAFFIC NO-GO.
+Date: 2026-11-18
+- Four independent risk reviews (SQS/visibility/DLQ, ORDER_FAILED, reader idempotency/ingress timeout, IAM/tenant/owner) consolidated into docs/reports/RIS-AGENT-OPERATIONS-HANDOFF-10.md and docs/releases/ris-agent-operations-handoff-10.json.
+- BLOCKER: no alarm notification path (empty AlarmActions, no SNS, no agent queue/DLQ alarms); permanent rejects deleted without artifact/metric; batch 5 x ATS 30s in a 60s Lambda can leave a permanent RUNNING row; no ORDER_FAILED/failure projection.
+- REQUIRED BEFORE PRODUCTION: reader POST idempotency, profile expiry check, ingress ownerUserId precedence and fail-closed queue ARN/entitlement resolver, secret-shape enforcement, cross-tenant/duplicate-workId integrity, worker-role split, dispatch subject-fence parity, DLQ replay, worker ESM partial-batch, ingress concurrency cap.
+- Live evidence retained: ATS order ord_0d23d52e98fb4c557e7aa920 score 67; addition order ord_71c3c1003ce9492d5acbb601 sum 42; ATS regression ord_ac7755a61dd172ed0a0046a9 score 100; both work COMPLETED/SENT, Orders processing COMPLETED, owner boundaries 200/404/401.
+- No AWS apply/mutation, no secret/user change, no ris-dev/production change, no push/merge.
+
+[RIS-AGENT-LIFECYCLE-10 / LIFECYCLE CONTRACT]
+Status: IMPLEMENTED + TESTED (LOCAL) / LIVE GATE NOT WIRED.
+Date: 2026-11-18
+- Added installer/agent_lifecycle.py with INSTALL/UPDATE/DISABLE/ENABLE/DETACH_PARTNER/UNINSTALL/PURGE/STATUS/VERIFY: dry-run plan, impact report, dependency/identity check, resume idempotency, actor/approval audit (JSONL) and result manifest. The module never calls AWS; PURGE requires exact agentId, prior UNINSTALL, inactive catalog, inventory and a grace window.
+- installer.agent_install.py delegates --action to the lifecycle module (single entry point). Added .gitignore rules for local lifecycle state/audit/result evidence.
+- Extended ats-agent and addition-agent with lifecycle.yaml, uninstall.md, partner-bindings.md and retention.md; corrected ats-agent manifest deactivation/rollback (shared flags must not decommission one agent).
+- Reconciled with four reviews: only two agent-scoped levers exist (catalog row via Terraform, entitlement row); the worker and the orders reader never read the catalog. addition_agent is dispatch-only and declares visibility ABSENT.
+- Tests: tests/test_agent_lifecycle.py 17 passed; lifecycle+orchestrator+installer 60 passed; agent/orders/partner regression 238 passed / 6 skipped + 15 subtests; all package YAML parses.
+- Reports: docs/reports/RIS-AGENT-LIFECYCLE-10.md, docs/releases/ris-agent-lifecycle-10.json.
+- No AWS apply/mutation, no PURGE, no secret/user change, no ris-dev/production change, no push/merge.
+
+[RIS-AGENT-LIFECYCLE-11 / RUNTIME ENFORCEMENT]
+Status: ENFORCEMENT LIVE IN RIS-DEV2 / PARTNER TRAFFIC NO-GO.
+Date: 2026-11-18
+- Gap closed: lambda/orders_reader.py now evaluates check_worker_entitlement after profile resolution and before persisting an agent order. Missing/invalid entitlement -> 403 AGENT_ORDER_REJECTED (no order row); store missing/unreachable -> 503 (fail-closed). The worker/dispatch path already re-checked the same entitlement and terminates DEAD_LETTER/ENTITLEMENT_DENIED.
+- Reader bundle includes agents/ecosystem/worker_authorization.py (stdlib only) with repo/flat import fallback. Terraform orders_reader gets ENTITLEMENTS_TABLE plus read-only Query on the entitlements table and index/*; root passes the existing DynamoDB outputs.
+- Reviewed plan sha256 47862CF869763E20734969595915ECACFF7A44F837E2BFB1761595F561BA5E0B: 2 change, 0 add/destroy/replace (reader IAM policy + reader Lambda). Applied in ris-dev2; post-apply plan no changes; state serial 63 -> 64, lineage a0bd361d-... unchanged, 266 resources.
+- Live canary (synthetic profile/subject, removed afterwards): ENABLED order ord_dce286fa42aa192773f67276 -> 201, work work-def684e6d16c0d11 COMPLETED sum 42, delivery SENT, Orders processing COMPLETED. DISABLED -> 403 and no order row. Direct work work-lc11-direct -> DEAD_LETTER/no-entitlement. ATS ord_120536c300e188f7c0a244dd COMPLETED bodyVersion 2.0. Retail ord_8945fb4ee8d7e65b820c381e -> 201. Re-enabled ord_e79d7cc716b61af254bc8577 -> 201, COMPLETED sum 42, processing COMPLETED.
+- Shared resources unchanged: worker and dispatch-ingress code SHA UljJnuYr... unchanged; all queues 0/0; all 21 tables present; HMAC secret one AWSCURRENT; offers 0; entitlements 2; api-profiles 4; catalog unchanged.
+- Tests: new reader gate suite 10 passed + 7 subtests; regression 180 passed / 8 skipped / 13 subtests; flat reader bundle import PASS.
+- Docs: new docs/reports/RIS-AGENT-LIFECYCLE-11.md and docs/releases/ris-agent-lifecycle-11.json; API-STANDARD documents 403 AGENT_ORDER_REJECTED; package lifecycle/uninstall docs state the enforced reader gate; operations handoff updated.
+- No PURGE, no foreign-repo change, no secret value read, no ris-dev/production change, no push/merge.
+
+[RIS-AGENT-LIFECYCLE-12 / SHARED INFRASTRUCTURE SAFETY]
+Status: GUARD IMPLEMENTED + HARDENED / NO AWS MUTATION.
+Date: 2026-11-18
+- Root cause: `agent_dispatch_enabled = var.enable_agent_transport && local.orders_enabled`; the flag defaults to false, so a plan without it destroys module.agent_transport (11 resources) while the live state still has it. Same class of hazard for orders_agent_result_enabled and orders_lifecycle.
+- Added installer/shared_infra_guard.py (pure): delete/replace/forget of shared modules/types is refused unless --shared-teardown-intent is supplied; missing/false transport flags are named as the cause. Strict plan-shape validation, intent charset/length validation, plan SHA-256 binding, printable-only messages.
+- Wired into installer plan/apply/install/destroy: plan always writes and guards a plan file; relative paths resolve in the runner workdir; missing/unreadable plans are refused; the plan hash is re-checked immediately before apply (TOCTOU); -var values are redacted from all command prints; destroy requires the teardown reference.
+- Live plan proof (read-only): missing enable_agent_transport -> exit 1, MISSING_OR_FALSE_TRANSPORT_FLAG, 11 dispatch resources listed; correct flags -> exit 0, NO_SHARED_DESTROY, 0 changes. No apply, no state mutation.
+- Lifecycle: only scope: agent bindings are removable; inventory openOrders must be a list; removal impact now reports partner applications, external PENDING references, allowlist, entitlement status/withdrawal, open orders/results, targeted notifications, declared-vs-observed evidence; audit is written before state mutation with plan/lifecycle/inventory digests; agent_install --action forwards actor/approval/reason.
+- Dispatch ingress fails closed when ENTITLEMENTS_TABLE is missing. State mirror files/dir are chmod 0600/0700 (best effort).
+- Independent QA + security reviews: P0 plan-path bypass, install/destroy gaps, -var leakage; P1 classification and plan-shape holes, weak intent; fixed. Accepted: state push bypasses the plan guard; intent is plan-wide; line-based YAML parsing; mirror project-name charset.
+- Tests: shared_infra_guard 31, agent_lifecycle 24, dispatch_ingress_env 3, installer/guard/state 93, combined 129 passed. Four composite tests still fail at HEAD because the mayaws profile is absent.
+- Docs: docs/reports/RIS-AGENT-LIFECYCLE-12.md, docs/releases/ris-agent-lifecycle-12.json, operations handoff updated.
+- No PURGE, no AWS mutation, no secret value read, no foreign repo, no ris-dev/production change, no push/merge.
+
+[RIS-AGENT-FACTORY-RELEASE-13 / BASELINE CONSOLIDATION]
+Status: BASELINE CONSOLIDATED / PARTNER TRAFFIC NO-GO.
+Date: 2026-11-19
+- Baseline: branch feature/ris-dev2-ats-agent-pinned-core-01, commit fd38288, clean tree. Packages ats-agent 1.0.0 (analyze.job, catalog ACTIVE) and addition_agent 1.0.0 (math.add, catalog ABSENT/dispatch-only). Orders builder pin 016cdfd6; clone pin 5cf50a0 (composite path, PENDING alignment); jobsearch reference 29d8b37. Manifests source sha updated to fd38288 (previous f0c707c predates the packages).
+- Five read-only reviews (runtime, installer, security, operations, QA). Confirmed blocker set: no alarm notification path (20 alarms, 0 actions, 0 SNS), permanent rejects consumed without artifact, batch/timeout can strand RUNNING, no ORDER_FAILED, no partner result retrieval. Required: reader idempotency, profile expiry, monitoring calibration, API-enqueued work admission, eligibility fail-open, tenant-global entitlements, no Terraform prevent_destroy, unguarded direct terraform/state push, composite destroy plan inspection, PURGE gates.
+- Minimal fixes: redacted all terraform -var prints; composite destroy requires --shared-teardown-intent; --through refused instead of silently ignored; is_plan_safe rejects non-list resource_changes; PURGE unconditionally blocked (purge_blocked_no_deletion_ledger); UNINSTALL blocks on open results; DETACH no longer changes catalog and ABSENT visibility is respected; binding removal requires scope: agent; install validator requires lifecycle/uninstall/partner-bindings/retention, rejects template/placeholder pins, and records apply executed=false; .gitignore covers install-status.json; template completed with all lifecycle artifacts; README updated.
+- Live read-only verification: account 262370457690, state serial 64, lineage a0bd361d..., 266 resources; worker/ingress code UljJnuYr..., reader RkuZH3hP...; queues and DLQs 0/0; catalog 3 (ats/reference/jobsearch), entitlements 2, profiles 4, offers 0, orders 10, work-items 12; HMAC secret one AWSCURRENT; 20 alarms with 0 actions, 0 SNS. Plan proof: missing enable_agent_transport -> exit 1 MISSING_OR_FALSE_TRANSPORT_FLAG with 11 dispatch resources; correct flags -> exit 0 NO_SHARED_DESTROY, 0 changes. No apply.
+- Tests: 456 passed, 18 subtests across guard (31), lifecycle (25), orchestrator (9), reader gate (10), dispatch env (3), ATS/addition/reader/worker/partner/catalog regression. Agent-order E2E skipped without MO_ORDERS_SRC.
+- Artifacts: docs/releases/ris-agent-factory-13.json, docs/reports/RIS-AGENT-FACTORY-RELEASE-13.md, docs/operations/RIS-AGENT-FACTORY-RUNBOOK.md, docs/handoffs/RIS-DEV-AGENT-FACTORY-13.md, agent-installations/README.md; operations handoff serial/bundle/blocker count corrected.
+- No AWS mutation, no PURGE, no ris-dev/production change, no main merge, no push.
+
+[RIS-JM-AGENT-STANDARDIZATION-01 / PARSER AGENTS]
+Status: LOCAL VERIFIED / RUNTIME PENDING / NO AWS MUTATION.
+Date: 2026-11-19
+- Jobsearch (maynowak/mays-jobsearch, branch feature/ris-parser-library-01, commit d330179, pushed): new api/_lib/parsers/ris.mjs v1.0.0 with deterministic parse.job and parse.cv, reusing api/_lib/ats.mjs; CLI scripts/ris-parser-cli.mjs (stdin/stdout JSON, exit 2/3); tests/parsers/ris-parser.test.mjs (6 passed); docs/RIS-PARSER-LIBRARY.md. Fixed a pre-existing hang: EXPERIENCE_PATTERN and the education regex lacked g inside while(exec()) loops.
+- RIS (branch feature/ris-jm-agent-standardization-01): agents/parsers/node_adapter.py (single boundary, size/timeout/error mapping, fail-closed), cv-parser-agent (parse.cv) and job-parser-agent (parse.job) with registry descriptors and AgentBody routes; pipeline registers both; packages with manifest/lifecycle/uninstall/partner-bindings/retention/risks/operations/handoff/contracts/tests.
+- Gates: both are dispatch-only (visibility ABSENT, no catalog seed), entitlement-gated through reader/dispatch/worker; no new queue/table/Lambda/secret/HTTP endpoint; no EventHook, so no follow-up orders or cost.
+- Tests: 16 parser/adapter tests including a real jobsearch CLI round trip; regression 272 passed / 13 subtests; orchestrator validates all four real packages.
+- Runtime PENDING: Python 3.14 Lambda has no node; options documented (Node Lambda/container invocation, Node runtime switch, vendored node). No ris-dev2 enablement, no AWS/Terraform/Cognito/DNS change, no installer pin change.
+- Docs: docs/architecture/AGENT-PARSERS.md, agent-installations/README.md updated.
+- No AWS mutation, no PURGE, no ris-dev/production change, no main merge.
+
+[RIS-AGENT-ANALYSIS-ORCHESTRATION-04 / CV-JOB-ATS-COMPARISON]
+Status: LOCAL VERIFIED / LIVE PENDING / NO AWS MUTATION.
+Date: 2026-11-20
+- Jobsearch (branch feature/ris-analysis-parser-cli-04 from origin/main, commits 8f88962 + 40a5db2, pushed): scripts/ris-parser-cli.mjs wraps the EXISTING parseCvBuffer (pdf.mjs + cvParser.mjs), extractAtsRequirements and analyzeAts; no second parser, no HTTP v1 dependency, no network/AI. parse.cv takes PDF base64 and returns cvTags/skills/experience/education/languages/confidence plus the document sha256; parse.job returns jobTags/required/preferred/experience/workMode/location/stableId; parse.ats returns atsTags/score/status. Tests: 3 passed incl. a real CV PDF fixture; npm run test:parsers.
+- RIS (branch feature/ris-agent-analysis-orchestration-04): agents/analysis with versioned request validation, result bodies (CVParserResultBody 1.0, JobParserResultBody 1.0, ATSAnalysisResultBody 2.0 additive atsTags, ComparisonResultBody 1.0), deterministic alias map + weighted comparison, temporary job store (2h default/4h max/1 MiB/opaque refs/SSE/cleanup), CV bridge (structured data or RIS documents S3 PDF, owner/tenant/status checks), and AnalysisOrchestrator that runs only requested parsers. analysis-agent (analysis.run) registered in the existing Agent Body; package added.
+- Tests: 25 pipeline tests (CV/job/ATS/comparison/full, invalid choice, missing inputs, cross-tenant, consent, entitlement, idempotency, expiry, 2h/4h, 1 MiB, no document in result, parser failure, cleanup, ATS 2.0, determinism, agent/registration); combined regression 298 passed + 13 subtests; installer validates all five packages.
+- Blockers: Python Lambda has no node (live PENDING); job bucket Terraform/IAM not applied; concrete RIS CV repository wiring must be injected by the service layer; RIS branch is 14 commits behind origin/main and needs a rebase before merge.
+- Docs: docs/reports/RIS-AGENT-ANALYSIS-ORCHESTRATION-04.md, agent-installations/analysis-agent.
+- No AWS/Terraform/Cognito/CloudFront/DNS change, no PURGE, no production deployment, no main merge.
+
+[RIS-ANALYSIS-INTEGRATION-07 / RELEASE CANDIDATE]
+Status: BLOCKED — controlled transport migration approval required.
+Date: 2026-11-20
+- Git: RIS integration branch feature/ris-analysis-integration-07 merges local agent-factory work with origin/main e95fe48 (no rebase/force); Jobsearch feature/ris-analysis-parser-cli-04 @ aaa260c, 3 ahead / 0 behind origin/main 81db09a. Both pushed; working trees clean.
+- Conflicts resolved in 7 files: adopted main's order_result_* transport model and its generated-module patch; kept ATS/timeout wiring; de-duplicated agent_transport variables; unioned the append-only audit log; removed the superseded agent_result_* test.
+- Pins: cv/job/analysis manifests now point to feature/ris-analysis-parser-cli-04 @ aaa260c; RIS source branch integration-07. All five packages validate.
+- Synthetic E2E with the real Node CLI: cv.tags, job.tags, ats.tags (score 100), comparison (100/100/100) and idempotent replay. CV PDF fixture path also verified.
+- Tests: analysis pipeline 25 passed, parser agents 17 passed, focused RIS regression 180 passed + 13 subtests, Jobsearch parser CLI 3 passed.
+- Terraform: init -backend=false + validate PASS, fmt -check PASS. Read-only ris-dev2 plan: 4 add / 2 change / 4 destroy. The destroys are four shared IAM policies replaced one-for-one by equivalent new policies (agent_transport dispatch_result_* -> order_result; lambda lambda_order_result_* -> order_result_transport). No queue/Lambda/table/secret/data resource destroyed.
+- Verdict: BLOCKED by the shared-infrastructure guard requiring an explicit reviewed intent for those four IAM policy replacements; Node runtime for the Python Lambda remains PENDING. Report: docs/reports/RIS-ANALYSIS-INTEGRATION-07.md.
+- No AWS apply, no PURGE, no Cognito/CloudFront/DNS change, no production deployment, no main merge.
+
+[RIS-ANALYSIS-INTERNAL-PARTNER-08 / INTERNAL PARTNER + PRIVACY]
+Status: READY FOR CONTROLLED DEPLOYMENT REVIEW / NO APPLY.
+Date: 2026-11-20
+- Internal partner: ris-internal / ris-internal-analysis / analysis-agent; caller partner from the verified runtime context only; CV owner/tenant-only; cross-partner/tenant fail closed (agents/analysis/partner.py, tests).
+- Dedicated infra (plan only): terraform/modules/analysis_runtime with a dedicated analysis IAM role/policy (documents tenant/* read, jobs bucket RW, logs), a private jobs bucket (Public Access Block, SSE AES256, 1-day lifecycle backup) and log group. Shared transport policies are retained additively; no IAM migration.
+- Plan: 11 add / 2 change / 0 destroy; shared guard NO_SHARED_DESTROY. terraform fmt and validate PASS (direct plan with the installer variable set; the installer wrapper plan hit PowerShell list-var quoting).
+- Privacy: purpose analysis-processing v1.0 registered DRAFT without legal approval; orchestrator requires consent, purpose, notice version and approval flag; existing consents are not extended. Draft: docs/privacy/ANALYSIS-PROCESSING-NOTICE-DRAFT.md.
+- Pipeline: full synthetic E2E with the real Node CLI (cv/job/ats/comparison 100/100/100, atsTags 4, idempotent replay). Tests: analysis 31, parser 17, focused RIS 161 + 13 subtests, Jobsearch CLI 3.
+- Open: legal/operator notice approval, Node execution path for the dedicated runtime, apply approval, CV resolver injection, entitlement/catalog decision.
+- Plan reproducibility: ris-dev2 overlay now carries the non-secret transport refs; standard installer plan exits 0 with 11 add / 2 change / 0 destroy and the guard reports NO_SHARED_DESTROY; only the result secret ARN is passed as a single --var.
+- No AWS apply, no PURGE, no Cognito/CloudFront/DNS change, no production deployment, no main merge.
+
 ## 2026-11-17 — XREPO-RIS-CONSENT-RECOVERY-01
 
 **Status:** `A — FIX VERIFIED LOCAL / PRODUCTION ACTIVATION PENDING`
@@ -10315,3 +10890,426 @@ Report/doc: docs/deployment/MAYS-ORDERS-VERSION-RIS-DEV2.md
   still blocked by missing valid test identity/token; no Production
   verification claimed. No general rollout.
 - Report: `docs/reports/RIS-CONSENT-RELEASE-05.md`.
+
+[RIS-ANALYSIS-READINESS-09 / STEP A — DEDICATED NODE RUNTIME]
+Status: code complete; Terraform-gated (no apply, flag default false).
+Date: 2026-11-20
+- Node CLI now exports `runParser`; `lambda/ris_parser_handler.mjs` (jobsearch c40bf78) reuses the same parser in-process for synchronous internal invoke. No public HTTP endpoint.
+- `agents/parsers/lambda_adapter.py` invokes the internal parser Lambda with the same envelope/limits; `NodeParser` selects `RIS_PARSER_MODE=cli` (default) or `lambda`. Unsupported mode fails closed.
+- Tests `tests/test_parser_runtime_modes.py` (16): success contract, env function name, missing function, invalid-input vs retryable errors, FunctionError, client exception, non-200, invalid JSON, wrong capability, oversize payload, mode selection, no CLI call in lambda mode, cv/job/ats share the transport.
+- Terraform: `analysis_runtime` gains gated parser role/log group/Lambda (nodejs22.x, 15 s default, arm64), analysis->parser invoke policy and Lambda permission. `enable_analysis_runtime` default false, so the reviewed baseline plan stays 11/2/0. Static tests: `tests/test_analysis_runtime_terraform.py` (11).
+- No shared IAM or transport policy is referenced, replaced or deleted; no Cognito/CloudFront/DNS change; no apply.
+- Jobsearch commit c40bf78; RIS STEP A commit follows.
+
+[RIS-ANALYSIS-READINESS-09 / STEP B — CV SERVICE WIRING]
+Status: complete locally; no live CV data used.
+Date: 2026-11-20
+- RequestCvResolver is wired to the existing PartnerProfileRepository and a documents loader (production: S3 `tenant/<tenant>/users/<user>/documents/<docId>`); `build_cv_resolver(config)` lets the service inject both, with lazy defaults for production.
+- AnalysisAgent builds its default orchestrator with the configured resolver; structured CVs skip repository and parser.
+- Owner and tenant are re-checked against the record (`cv_access_denied`), then ready/document/PDF (`cv_not_ready`, `cv_unsupported`). Deleted/erased/purged/withdrawn CVs fail closed with `cv_not_available`; repository/loader failures map to `cv_not_accessible`.
+- No CV bytes or PII in WorkItems, result bodies, logs or error messages (test asserts base64 and extracted text are absent).
+- Tests `tests/test_cv_service_wiring.py` (15): happy path, structured skip, owner/tenant denial, not-ready, deleted/erased, unknown/unreadable, non-PDF/empty, missing ref, full pipeline PDF forwarding, structured reuse, foreign owner before parsing, agent injection.
+
+[RIS-ANALYSIS-READINESS-09 / STEP C — ENTITLEMENTS + PRIVACY]
+Status: approval-gated configuration only; nothing granted or activated.
+Date: 2026-11-20
+- New `agent-installations/analysis-agent/entitlements.yaml`: partner `ris-internal` / `ris-internal-analysis` / `analysis-agent`; status PENDING_APPROVAL, activation false, `autoGrant: false`, `inheritExistingConsents: false`, no grants, catalog visibility ABSENT. Capabilities parse.cv/parse.job/analyze.job/compare.tags each bound to analysis-processing 1.0.
+- Manifest status changed from `active` to `pending-approval`; runtime documents RIS_PARSER_MODE=cli|lambda, RIS_PARSER_FUNCTION, no public endpoint and no shared transport policy. Lifecycle gains activation PENDING_APPROVAL with four approvals.
+- New `docs/privacy/ANALYSIS-PROCESSING-APPROVAL-PACK.md`: roles, data, legal basis REVIEW REQUIRED, retention/erasure/withdrawal, approval record (all PENDING), activation gate and rollback. Notice draft references the pack and the internal Node runtime.
+- `analysis-processing` v1.0 stays DRAFT with an empty legal_approval_ref; existing purposes are not extended; no consent is granted automatically.
+- Tests `tests/test_analysis_entitlements.py` (11) + installer discovery/validation still pass.
+
+[RIS-ANALYSIS-READINESS-09 / STEP D — RELEASE GATE]
+Status: READY FOR CONTROLLED APPLY REVIEW; live analysis BLOCKED by approvals.
+Date: 2026-11-20
+- Focused regression: 218 passed + 13 subtests across 12 files (analysis 31, runtime modes 16, CV wiring 15, entitlements 11, Terraform static 11, parser 17, installer/guard/transport/orders/partner/overlay). Jobsearch CLI+handler: 4 passed.
+- `terraform fmt -check -recursive` PASS; `init -backend=false` + `validate` PASS; standard installer plan exits 0 with the shared guard message. Plan compare to baseline: 11 add / 2 change / 0 destroy, no deviation; guard NO_SHARED_DESTROY. Parser Lambda stays gated off (+6 resources only in a separate enable plan).
+- Synthetic full pipeline with the real Node CLI: cv/job/ats/comparison, 100/100/100, atsTags 4, idempotent replay.
+- Report: docs/reports/RIS-ANALYSIS-READINESS-09.md (runtime, CV wiring, entitlements, privacy, plan/guard, cost/security/rollback, apply/canary plan, blockers).
+- Verdict READY FOR CONTROLLED APPLY REVIEW; live enablement still requires legal notice approval, entitlement approval, apply approval and a catalog decision. No apply, no merge, no production change, no PURGE.
+
+[RIS-ANALYSIS-CANARY-10A / STEP A — TERRAFORM DEPLOYMENT RECONCILIATION]
+Status: read-only plans produced; no state change, no apply.
+Date: 2026-11-20
+- Backend/state (read-only pull): bucket `ris-dev2-tf-state-dev`, region `eu-central-1`, key `dev/terraform.tfstate`, lock table `ris-dev2-tf-lock`, workspace `ris-dev2`; serial 64, lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082, Terraform 1.17.0.
+- Baseline plan (flag false): 11 add / 2 change / 0 destroy; plan SHA-256 02c9d1c023d2ae90f43167b4e1f6312eeb8cc4607bf26cadac1c8908c0740d2f; guard NO_SHARED_DESTROY.
+- Runtime plan (`enable_analysis_runtime=true`, artifact path): 17 add / 2 change / 0 destroy; plan SHA-256 ea0e3298c3cb73bd32c5883e896bbd219ce2f587b79248ff11a56bfa720236f7; guard NO_SHARED_DESTROY. The only delta vs baseline is the six parser resources (role, logs policy, log group, function, analysis invoke policy, Lambda permission); both updates stay the two existing Lambda in-place updates.
+- Runtime Lambda: nodejs22.x, arm64, handler `lambda/ris_parser_handler.handler`, 512 MB, 15 s, log group 14 days. Parser role is logs-only; invoke is scoped to the analysis role. No SQS/Secrets/DynamoDB/API Gateway/function URL/CloudFront reference in the module.
+- Artifact built from pinned jobsearch c40bf78 as plan input: `lambda/dist/analysis-parser.zip`, 412 files, SHA-256 fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a, 17 937 176 bytes, canvas platform linux-arm64 only. Rebuild is byte-identical.
+- New `tools/build_analysis_parser_artifact.py` (deterministic zip, fixed timestamps, required-closure checks, platform package mapping) and `tests/test_analysis_deployment_prep.py` (8 tests). Plans are not committed (backend/state-specific).
+
+[RIS-ANALYSIS-CANARY-10A / STEP B — PARSER RUNTIME ARTIFACT]
+Status: artifact built and verified locally; not deployed.
+Date: 2026-11-20
+- Build is deterministic from jobsearch code commit c40bf78: 412 files, 17 937 176 bytes, SHA-256 fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a; a second build is byte-identical. Jobsearch e77ee94 changes only tests/docs, not packaged code.
+- Closure: handler, scripts/ris-parser-cli.mjs, api/_lib/**, pdfjs-dist/** and @napi-rs/canvas. pdfjs-dist needs the native optional dependency (otherwise DOMMatrix is undefined); the Lambda is linux-arm64, so only @napi-rs/canvas-linux-arm64-gnu@1.0.6 (package-lock pin) ships. No web bundle, maps or tests.
+- Verification: tools/verify_analysis_parser_artifact.py checks SHA/closure/forbidden entries/single linux-arm64 native, extracts the deployment zip and runs the real Node handler (host canvas added only to the staging copy). Observed: job stableId 64 + 6 tags, CV stableId 64 + Python/AWS/Terraform/Docker/Linux/SQL, 2 ATS tags, invalid_input and unsupported_capability.
+- IAM/runtime: parser logs-only role; analysis role InvokeFunction only; nodejs22.x arm64, 512 MB, 15 s (60 s max), logs 14 days; no API Gateway/function URL/CloudFront; no SQS/Secrets/DynamoDB.
+- Jobsearch e77ee94 adds the handler CV-path test (in-process PDF) and the deterministic build/SHA documentation. Tests: 5 artifact-verifier invariants + 8 deployment-preparation tests.
+
+[RIS-ANALYSIS-CANARY-10A / STEP C — SYNTHETIC CANARY PREPARATION]
+Status: matrix prepared and executed locally; no real data, no live token.
+Date: 2026-11-20
+- Fixtures: tests/fixtures/analysis/synthetic-canary-cv.pdf (generated, CANARY APPLICANT only; SHA-256 70e4076f…) and synthetic-job.json (fictional ad; SHA-256 26c320d7…). No e-mail, phone, address, photo or employer identity.
+- tests/test_analysis_canary_matrix.py (15 tests, real Node CLI): CV-only, job-only, ATS-only, comparison, full, full-with-PDF, idempotent replay; negatives for entitlement_denied, cv_access_denied (cross-tenant, no loader call), consent_required, consent_notice_not_approved, partner_mismatch, job_text_too_large, job_not_found, invalid_requested_results.
+- Temporary job store: fake-S3 tests verify 2 h default, 4 h hard cap, expiry after 2 h/4 h, cleanup, extend cap, cross-tenant key not found, SSE AES256 + tenant/user metadata, >1 MiB rejected.
+- Authenticated canary identity documented (existing dev pool/client, custom:tenant_id=tenant-canary, synthetic sub); no Cognito change and no live token in this package.
+- docs/operations/RIS-ANALYSIS-CANARY-MATRIX.md records matrix, observed results, TTL evidence, claims and explicit non-actions. No consent/entitlement bypass.
+
+[RIS-ANALYSIS-CANARY-10A / STEP D — RELEASE DECISION PACKAGE]
+Status: READY FOR CONTROLLED SYNTHETIC APPLY REVIEW.
+Date: 2026-11-20
+- Report docs/reports/RIS-ANALYSIS-CANARY-10A.md: baseline 11/2/0 (plan SHA 02c9d1c0…), runtime 17/2/0 (plan SHA ea0e3298…), diff exactly +6 parser resources, both guards NO_SHARED_DESTROY, state serial 64 / lineage a0bd361d…, backend ris-dev2-tf-state-dev/dev/terraform.tfstate.
+- Artifact: 412 files, 17 937 176 bytes, SHA-256 fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a, nodejs22.x arm64, verified with the real Node handler.
+- Tests: 246 passed + 13 subtests (15 files) including the 15-case canary matrix with the real CLI; Jobsearch handler/CLI 4 passed; fmt/validate PASS.
+- Approvals separated: (1) technical infra PENDING, (2) privacy/operator PENDING before real data, (3) entitlement/catalog PENDING before activation, (4) real personal data NOT GRANTED. Synthetic canary needs only (1); real data needs all four.
+- Costs: no idle spend beyond cents for bucket/logs; parser Lambda pay-per-use (≈ $0.00002–0.0001/invoke, ≈ $0.01–0.10 per 1 000 synthetic runs).
+- Rollback: reviewed reverse plan; runtime flag off destroys only the 6 parser resources; CLI mode fallback; no shared resource touched.
+- No apply, no merge, no production deployment, no PURGE, no Cognito/CloudFront/DNS change, no consent/entitlement grant, no agent activation. CANARY-10B not started.
+
+[RIS-ANALYSIS-CANARY-10B / STEP A — FINAL PREFLIGHT]
+Status: AWAITING EXPLICIT APPLY APPROVAL; no apply performed.
+Date: 2026-11-20
+- Verified: RIS a75f59b, Jobsearch e77ee94, AWS account 262370457690 (devnemo), region eu-central-1, backend ris-dev2-tf-state-dev/dev/terraform.tfstate/lock ris-dev2-tf-lock, workspace ris-dev2, state serial 64, lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082, Terraform 1.17.0.
+- Fresh runtime plan: 17 add / 2 change / 0 destroy / 0 replace; plan SHA-256 e64a6272ac212dce54123c2b9533d42175f85ccc8d34ec2b6e26c3b39d15e676; JSON SHA-256 66a954763dae6662974bdc7338a7d69f59b76102773fa4b8d75330976a8c9f31; guard NO_SHARED_DESTROY.
+- Artifact unchanged and verified: 412 files, 17 937 176 bytes, SHA-256 fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a (c40bf78).
+- In-place updates inspected: dispatch_ingress adds only the work-items GSI `index/*` resource to the existing WorkItems statement (same actions); mays-orders handler adds only ORDER_DISPATCH_QUEUE_URL, Cognito issuer/client unchanged. No replacement.
+- Protected services: 0 Cognito/CloudFront/Route53/ACM resources; no shared queue/policy/secret/table delete or replacement.
+- Readiness: analysis role (documents tenant/* read, jobs/* RW, logs), parser role logs-only, parser Lambda nodejs22.x/arm64/512MB/15s, invoke scoped to analysis role, private jobs bucket (PAB, SSE, 1-day lifecycle), 14-day logs, no public endpoint. Known gap: the analysis role is not yet attached to a deployed compute component; STEP C can use the deployed parser Lambda + local orchestrator.
+- Approval pack: docs/reports/RIS-ANALYSIS-CANARY-10B-PREFLIGHT.md and the machine-readable manifest docs/reports/analysis-canary-10b-plan-manifest.json; tests/test_analysis_apply_preflight.py (7 tests, saved-plan SHA check included).
+- Rollback, costs and stop conditions documented. STEP B/C not started.
+
+[RIS-ANALYSIS-CANARY-10B / STEP B+C — CONTROLLED APPLY + SYNTHETIC AWS CANARY]
+Status: HYBRID SYNTHETIC E2E VERIFIED (component: AWS PARSER RUNTIME VERIFIED). No live agent claim.
+Date: 2026-11-20
+- Operator approval applied for exactly plan e64a6272ac212dce54123c2b9533d42175f85ccc8d34ec2b6e26c3b39d15e676 (JSON 66a95476…8c9f31). Pre-apply re-check: plan/JSON/artifact hashes matched, manifest matched, guard NO_SHARED_DESTROY, state serial 64 / lineage a0bd361d…, caller devnemo in 262370457690/eu-central-1.
+- Apply (saved plan only, locking on, no targets/vars): exit 0, 17 added / 2 changed / 0 destroyed. State serial 64 -> 67, lineage unchanged, resources 266 -> 283. No Cognito/CloudFront/Route53/ACM change, no delete/replace.
+- Updates verified live: dispatch_ingress adds only work-items index/* to the existing WorkItems statement (same actions); mays-orders handler env adds only ORDER_DISPATCH_QUEUE_URL with both Cognito values unchanged.
+- Parser Lambda live: ris-dev2-dev-analysis-parser, nodejs22.x, arm64, 512 MB, 15 s, code SHA-256 matches artifact fb741fb2… (Lambda base64 +3Qfsl58…), no function URL, permission principal analysis role. Dedicated analysis role policies verified (tenant/* read, jobs/* RW, invoke parser only); parser role logs-only.
+- Hybrid E2E with real Lambda: CV-only (CVParserResultBody 1.0, PDF SHA matches fixture), job-only 1.0, ATS 2.0, comparison 1.0 (76.9 overall), full four bodies, idempotent replay, invalid capability and timeout controlled (ParserUnavailable), cross-tenant/entitlement/consent/expired jobRef/oversize denied.
+- Adapter timeout now enforced via botocore connect/read timeout and zero retries (unit-tested). Real 0.01 s invoke produced a controlled ParserUnavailable; the Lambda's own 15 s timeout was not exercised.
+- Job S3 (real bucket): 7200 s default / 14400 s max, SSE AES256, tenant/user/sha256/expiry metadata, cross-tenant not found, >1 MiB rejected, expired at 2 h and 4 h with controlled clock, explicit delete, cleanup removed the expired object only, 0 objects remain. Physical 4 h deletion NOT claimed (lifecycle 1 day is backup only).
+- CloudWatch: 17 invocations, 0 errors, logs only START/END/REPORT, no PDF/base64/CV/job markers; analysis log group 0 events; retention 14 d. Existing agent/orders-reader/ingress active and unchanged; mays-orders env update as approved.
+- Post-apply read-only plan: 0 changes, guard NO_SHARED_DESTROY (plan SHA 46a1e563…6839150, JSON ae632074…36e9af2). Not applied.
+- Privacy state unchanged: analysis-processing DRAFT, entitlements PENDING_APPROVAL, catalog ABSENT, activation false; no real data, synthetic objects removed, no PURGE.
+- Tests: 254 passed + 13 subtests (16 files); Jobsearch CLI/handler 4 passed; preflight manifest 7 passed.
+- Report: docs/reports/RIS-ANALYSIS-CANARY-10B.md. Remaining blockers: legal notice approval, entitlement/catalog decision, deployed analysis compute, live authenticated canary, Lambda 15 s timeout test.
+
+[RIS-ANALYSIS-AGENT-RUNTIME-11 / STEP A — DEDICATED ANALYSIS COMPUTE]
+Status: code + Terraform prepared; no apply.
+Date: 2026-11-20
+- New lambda/analysis_runner.py: dedicated internal compute using the existing runtime pipeline (WorkItem registration, entitlement re-check, attempt/idempotency, WorkItems result persistence). No public endpoint, no new queue, no shared policy.
+- Config is approval-driven and defaults deny: ANALYSIS_ENTITLEMENTS empty, ANALYSIS_CONSENT false, ANALYSIS_NOTICE_APPROVED false; caller ris-internal; parser mode lambda with the existing parser function. Identity is read from the original nested WorkItem, never the request body.
+- Dedicated bundle `python lambda/build_zip.py --bundle analysis` → terraform/analysis-lambda.zip (111 files, 287 919 bytes, SHA-256 f3c2f1a20d4af4b3d6c818222ae0edb5d59c985e37c074c4e025e797700a2314), separate from the shared agent bundle.
+- Terraform (gated enable_analysis_runtime): analysis Lambda ris-dev2-dev-analysis (python3.14, 512 MB, 60 s, handler analysis_runner.handler, role analysis) and a dedicated least-privilege data policy (WorkItems RW, Entitlements read, PartnerProfiles read). Root table/bucket wiring added. Parser invoke stays scoped to the analysis role.
+- Tests: 9 runner-wiring tests + extended Terraform invariants. No apply.
+
+[RIS-ANALYSIS-AGENT-RUNTIME-11 / STEP B — INTERNAL PARTNER EXECUTION]
+Status: factory integration + pipeline execution verified locally.
+Date: 2026-11-20
+- `process_record(..., analysis_agent=...)` and `ensure_reference_agent(..., analysis_agent=...)` now accept the configured agent, so the pipeline does not replace it with a default AnalysisAgent.
+- AnalysisAgent unwraps the runtime-nested WorkItem payload and reads tenant/user/partner application/issuer from the original item. Direct calls keep the existing request shape.
+- 7 pipeline integration tests: authorized completion + persisted result, idempotent replay without re-execution, CV PDF processed with no bytes persisted, entitlement denial, consent denial, cross-tenant CV denial, SQS record shape. No consent/entitlement bypass.
+- No shared IAM/queue/secret/table change; no catalog/entitlement grant.
+
+[RIS-ANALYSIS-AGENT-RUNTIME-11 / STEP C — RUNTIME AND SECURITY]
+Status: local timeout/error/security checks passed; fmt/validate PASS.
+Date: 2026-11-20
+- Timeout drill: Node CLI sleeper with a 1 s timeout and a botocore read timeout both map to ParserUnavailable; adapter timeout 15 s with zero retries; analysis Lambda budget 60 s (≥15 s validation); parser 15 s. The deployed Lambda's own 15 s timeout remains configuration-pinned, not exercised (no controllable slow path).
+- Payload limits: parser transport 100 000 chars, inline job 32 000 chars, temporary jobs 1 MiB.
+- Logging: runner logs only the failure type; no WorkItem/CV/job content. Parser logs already verified as START/END/REPORT only.
+- Terraform fmt -check PASS, validate PASS. Static tests pin gated compute, default-deny config, dedicated data policy, and the separate analysis bundle.
+- Read-only plan: 2 add / 0 change / 0 destroy / 0 replace (analysis Lambda + data policy); guard NO_SHARED_DESTROY. No apply.
+
+[RIS-ANALYSIS-AGENT-RUNTIME-11 / STEP D — DEPLOYMENT PREPARATION]
+Status: READY FOR CONTROLLED SYNTHETIC DEPLOYMENT REVIEW; no apply.
+Date: 2026-11-20
+- Read-only plan for enable_analysis_runtime=true: 2 add / 0 change / 0 destroy / 0 replace (analysis Lambda + analysis_runtime_data policy). Plan SHA-256 b892d17a0168cac8df0278890323d1a1b10bbc7cc38dd14536239e776d4f700d; JSON SHA-256 0a1bb40cff4aee5fed9c3d6bdcc5a0167a4bb77c399fc65ad2fecf316a068861; guard NO_SHARED_DESTROY.
+- State serial 67 / lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082; backend ris-dev2-tf-state-dev / dev/terraform.tfstate / ris-dev2-tf-lock / workspace ris-dev2; 283 resources.
+- Compute: ris-dev2-dev-analysis, python3.14, 512 MB, 60 s, analysis role, parser mode lambda. Dedicated bundle 111 files / 287 919 bytes / SHA-256 f3c2f1a2…a2314. No public endpoint; no shared bundle/function change.
+- Default-deny config means the deployed function denies until a separately approved synthetic env configuration (entitlements/consent) is applied. Privacy gates unchanged: DRAFT, PENDING_APPROVAL, ABSENT, activation false.
+- Tests: 296 passed + 13 subtests (19 files) incl. runner integration, timeout drill and Terraform invariants; fmt/validate PASS. Commits 89929c5, af55b67, 87a8e5e.
+- Open: apply approval for 2/0/0, synthetic env config approval, legal notice, entitlement/catalog, live token. No apply, no merge, no PURGE, no Cognito/CloudFront/DNS change.
+
+[RIS-ANALYSIS-FULL-AWS-CANARY-12 / STEP A — FINAL PREFLIGHT]
+Status: AWAITING NEW EXPLICIT APPLY APPROVAL; no apply.
+Date: 2026-11-21
+- Verified RIS 90810f7, Jobsearch e77ee94, caller devnemo, account 262370457690, region eu-central-1, backend ris-dev2-tf-state-dev/dev/terraform.tfstate/lock ris-dev2-tf-lock, workspace ris-dev2, state serial 67, lineage a0bd361d-5cd1-a207-a8c0-e6888f0be082, 283 resources, Terraform 1.17.0.
+- Saved plan re-checked from the exact file: Plan SHA-256 b892d17a0168cac8df0278890323d1a1b10bbc7cc38dd14536239e776d4f700d, JSON SHA-256 0a1bb40cff4aee5fed9c3d6bdcc5a0167a4bb77c399fc65ad2fecf316a068861; 2 add / 0 change / 0 destroy / 0 replace; guard NO_SHARED_DESTROY. Analysis Lambda is absent; parser Lambda unchanged (nodejs22.x/arm64/15 s, code SHA +3Qfsl58…).
+- Only two creates: ris-dev2-dev-analysis (python3.14, 512 MB, 60 s, analysis_runner.handler, dedicated analysis role) and ris-dev2-dev-analysis-runtime-data (WorkItems RW; Entitlements/PartnerProfiles read; no SQS/Secrets/Lambda/S3). Analysis bundle 111 files / 287 919 bytes / SHA-256 f3c2f1a20d4af4b3d6c818222ae0edb5d59c985e37c074c4e025e797700a2314.
+- Deploy env is deny-by-default (empty entitlements, consent false, notice false). A green STEP C requires a separately approved synthetic env configuration; without it only deny paths can be proven.
+- WorkItem reject/DEAD_LETTER semantics re-verified (authorized COMPLETED, duplicate, entitlement/consent/cross-tenant DEAD_LETTER, invalid REJECTED, unexpected raise). Focused set 56 passed; 7 new preflight invariants.
+- Approval pack: docs/reports/RIS-ANALYSIS-FULL-AWS-CANARY-12-PREFLIGHT.md and docs/reports/analysis-full-canary-12-manifest.json. STEP B/C not started.
+
+[RIS-ANALYSIS-ORDER-BOUNDARY-AUDIT-12A / ORDER OWNERSHIP BOUNDARY]
+Status: CORRECTION REQUIRED — latent gate fixed; stored 12 plan invalid; no apply.
+Date: 2026-11-21
+- Ownership verified: Mays-Orders owns creation/validation/totals (order_service.py:125, :131-144; validation.py:40), status transitions (state_machine.py:15, order_service.py:201), persistence and result consumption (result_consumer.py). RIS owns the transport/WorkItem/execution/result-send side only (order_transport.py, dispatch_ingress.py, pipeline.py:482, order_result_sender.py).
+- Analysis path checked transitively: no order creation/status/pricing/billing/delivery/ack, no SQS client, no ORDER_*/ORDERS_* env, no agents.orders import. Result path returns order_result_delivery NOT_ORDER and never resolves the result sender (test-pinned). WorkItem idempotency/result persistence unchanged.
+- Finding: analysis_runner accepted any WorkItem; process_record registers the ecosystem including orders_function, so order work could have been routed through the analysis Lambda. No analysis Lambda is deployed (no live exposure).
+- Minimal fix: _is_analysis_work gate (type agent_analysis_agent, capability analysis.run, agentId analysis-agent) rejects all other work with REJECTED/work_type_not_allowed before the pipeline. 10 boundary tests, 17 runner tests, 314 focused tests + 13 subtests pass. No order architecture added or changed.
+- Historical 10B changes are existing ecosystem integration, not analysis-owned: dispatch_ingress WorkItems index/* (5438256), Mays ORDER_DISPATCH_QUEUE_URL (5438256), orders_agent_dispatch (7146d24), order_result_transport (7146d24/c24f734). None used by the analysis role/env.
+- Because the runner changed, the 12 plan is invalid: old bundle f3c2f1a2… / plan b892d17a…; new bundle fff25f1e2b80ecbd216746cc37fa98567295347710283ce1d64b04705686d0b6 (288 213 bytes), new plan 7258bd8b… 2/0/0, JSON f33c27aa…, state 67, guard NO_SHARED_DESTROY. A new approval is required; nothing applied.
+
+[RIS-ANALYSIS-VS-ADDITION-AGENT / INTEGRATION COMPARISON]
+Status: INTEGRATION GAP — CORRECTION REQUIRED; no code/Terraform change.
+Date: 2026-11-21
+- Addition agent is the reference: ORDER_DISPATCH from the stored Mays order → shared dispatch queue → dispatch_ingress → process_record → registry/AgentBody; results use the existing ORDER_RESULT_QUEUE_URL/SECRET. It has no own compute, queue or transport and no order ownership.
+- Analysis agent reuses the same runtime contracts (registration, WorkItem idempotency, persistence, entitlement/consent gates) but is not bound to the dispatch queue/ingress and is not invoked by it. The dedicated Lambda has the parser env but no ORDER_RESULT transport; dispatch_ingress has the result transport but lacks ANALYSIS_* and RIS_PARSER_* config.
+- Consequence: an agentOrder targeting analysis-agent would be selected by ingress but end in a controlled rejection/DEAD_LETTER; the dedicated Lambda would produce a result but not deliver it to Mays. No order-boundary violation: analysis has no order creation/status/pricing/delivery code, no orders import, no queue, no duplicated idempotency.
+- Options: A route analysis WorkItems from dispatch_ingress to the dedicated Lambda and use the existing result transport (recommended if Mays orders target analysis); B run analysis in the dispatch function exactly like addition (add parser/analysis env + invoke); C keep direct-invoke internal-only and drop the order-E2E expectation.
+- Plan unchanged and still unapproved: bundle fff25f1e…, plan 7258bd8b… 2/0/0, guard NO_SHARED_DESTROY, state 67. Any transport wiring needs a new plan/approval.
+
+[RIS-ANALYSIS-ECOSYSTEM-INTEGRATION-13 / SHARED WORKER + ECOSYSTEM]
+Status: CORRECTION REQUIRED — integration implemented; ORDER_FAILED gap; no apply.
+Date: 2026-11-21
+- Actual topology: dispatch queue ris-dev2-dev-agent-dispatch -> dispatch_ingress (event source); API execute -> work queue ris-dev2-dev-work-queue -> shared worker ris-dev2-dev-agent; results via ris-dev2-mays-orders-agent-results. DLQs unchanged. Divergence documented: ORDER_DISPATCH executes in ingress directly, not via the work queue (pre-existing).
+- Integration: generic agents/runtime/remote_agent.py LambdaAgentHandler implements the Agent Body process_work contract and synchronously invokes the dedicated analysis Lambda in execution-only mode ({"executionMode":"agent","workItem":…}). Worker and dispatch_ingress pass it via process_record(analysis_agent=…). No new queue, dispatcher, WorkItem/retry/DLQ or result transport.
+- Analysis Lambda execution mode runs only AnalysisAgent.process_work; no WorkItem persistence; _is_analysis_work retained. Standalone runner remains for internal/synthetic use.
+- AgentInvoker/ExecutionEngine unchanged; remote handler is injected through the existing body registration. Bundle: worker e51b1757… (114 files), analysis b0538e71… (112 files).
+- Result path: worker/ingress persists and forwards ORDER_RESULT via existing result_from_work_item with stable msg_<workId>_order_result id; duplicate replay re-emits the same id (Mays dedupe). No exactly-once claim. Gap: runtime does not emit ORDER_FAILED on terminal failure (transport supports it); pre-existing.
+- Tests: remote adapter 7, execution mode 3, ecosystem wiring 8, pipeline result path 3, existing worker/dispatch/fence/entitlement/transport 96; broad set 339 passed, 9 skipped.
+- New read-only plan (old 2/0/0 retired): 4 add / 2 change / 0 destroy, plan 78d6c5ec…, JSON ec77372c…, state 67, guard NO_SHARED_DESTROY. Adds two resource-based invoke permissions + analysis Lambda + data policy; updates worker and ingress env/code only. No queue/IAM-policy change.
+- Open: ORDER_FAILED emission, dispatch-to-work-queue decision, apply approval, synthetic env approval. No apply.
+
+[RIS-ANALYSIS-ECOSYSTEM-CORRECTION-14 / DISPATCH→WORK-SQS + ORDER_FAILED]
+Status: READY FOR FULL ECOSYSTEM CANARY REVIEW; no apply.
+Date: 2026-11-21
+- dispatch_ingress no longer executes. It persists the canonical WorkItem with the fence transaction, sends to ris-dev2-dev-work-queue, and sets enqueuedAt. Duplicate dispatch with marker is not re-sent; terminal duplicates are not re-sent; send failure returns batchItemFailure and retry recovers. IAM adds only sqs:SendMessage on the existing work queue.
+- Worker accepts pre-persisted QUEUED rows via conditional QUEUED→RUNNING claim; concurrent RUNNING is suppressed, FAILED uses the existing retry attempt, terminal states unchanged. No new state machine or exactly-once claim.
+- Terminal ORDER_FAILED added at the existing boundary for order-linked items: identity-binding missing, entitlement denial, permanent agent ValidationError. Stable msg_<workId>_order_failed id/key; retryable errors do not send; non-order items return NOT_ORDER. DLQ-exhaustion cannot emit ORDER_FAILED (no DLQ consumer) — documented limit.
+- Security: analysis data policy reduced to PartnerProfiles read only; no WorkItems write/Entitlements read. Worker/ingress invoke analysis via resource permissions; no shared IAM change.
+- E2E synthetic: dispatch→work→worker for addition and analysis, registry selection, idempotent replay, entitlement revoke, fence/tenant, ORDER_RESULT and terminal ORDER_FAILED; Mays result consumer supports both types.
+- Plan (not applied): 4 add / 3 change / 0 destroy, plan 4a0a02f5…, JSON e13e7631…, state 67, guard NO_SHARED_DESTROY. Bundles worker 0d49527e…, analysis 83eef8e6….
+- Tests: 349 passed, 9 skipped (24 files). Report docs/reports/RIS-ANALYSIS-ECOSYSTEM-CORRECTION-14.md; manifest analysis-ecosystem-correction-14-manifest.json.
+- Open: apply approval, synthetic env approval, DLQ-exhaustion decision. No apply, no merge, no real data.
+
+[RIS-ANALYSIS-OFFER-E2E-15 / CV · JOB · MATCHING PRODUCT READINESS]
+Status: READY FOR CONTROLLED AWS CANARY APPROVAL; no apply, no activation.
+Date: 2026-11-21
+- Three offers prepared in agent-installations/analysis-agent/offers.yaml (DRAFT, activation false, catalog ABSENT, pricing owned by Mays-Orders, no price defined): analysis.cv (CVParserResultBody 1.0, parse.cv), analysis.job (JobParserResultBody 1.0, parse.job), analysis.match (ComparisonResultBody 1.0 + optional ATSAnalysisResultBody 2.0, parse.cv/parse.job/compare.tags, optional analyze.job). Call paths are the existing API execute and Mays agentOrder→dispatch→work queue→worker.
+- ATS agent remains the full ATS product; analysis only exposes the shared parser projection and never mixes its score into deterministic coverage (provenance.atsScore separate). No second ATS implementation.
+- New tests/test_analysis_offers.py (14): CV PDF/structured fields, missing/invalid/foreign refs; job required/preferred/experience/location/work mode and no invented education field; matching full/partial/missing-must/preferred/aliases/unknown, explainable gaps, ATS separate.
+- Ecosystem regression remains 363 passed, 9 skipped (25 files), incl. addition/analysis dispatch→work→worker, replay/claim, entitlement revoke, consent, fence/cross-tenant, ORDER_RESULT/ORDER_FAILED. DLQ-exhaustion ORDER_FAILED remains open.
+- New plan after the 45 s remote-timeout headroom change: 4 add / 3 change / 0 destroy, plan 11fb32d8…, JSON caeaea14…, state 67, guard NO_SHARED_DESTROY. Bundles worker 0d49527e…, analysis 83eef8e6…, parser fb741fb2….
+- AWS preflight read-only: caller devnemo/262370457690/eu-central-1, backend ris-dev2-tf-state-dev, work queue visibility 300 s/maxReceive 3, mappings enabled, worker/ingress 60 s, parser 15 s, analysis remote 45 s. Mays consumer supports ORDER_RESULT/ORDER_FAILED.
+- No apply; synthetic env, legal notice, entitlement/catalog and pricing/activation remain separate approvals.
+
+[RIS-ANALYSIS-OFFER-E2E-15 / STEP E0 — CANARY GATE]
+Status: SYNTHETIC TEST DESIGN NEEDS APPROVAL; no apply.
+Date: 2026-11-21
+- Re-verified exact plan 11fb32d8… / JSON caeaea14…, 4 add / 3 change / 0 destroy, state 67 / lineage a0bd361d…, guard NO_SHARED_DESTROY; bundles worker 0d49527e…, analysis 83eef8e6…, parser fb741fb2…. Analysis Lambda still not deployed.
+- IAM/resources: only two resource-based invoke permissions, the analysis Lambda, the reduced PartnerProfiles-only data policy, ingress SendMessage on the existing work queue, and worker/ingress env/code updates. No new queue/IAM policy.
+- Isolation finding: ANALYSIS_ENTITLEMENTS/ANALYSIS_CONSENT/ANALYSIS_NOTICE_APPROVED are function-global (analysis_runner.py:72-79) and applied to every WorkItem (agent.py:59-83). A positive test would globally activate consent/notice; a test-user entitlement alone does not scope it. Deny-by-default plan is safe; positive synthetic profile is not.
+- Minimal proposal (not implemented): allowlist-gated synthetic tenant+user profile applied only when both match, deny otherwise; separate plan/env approval; no new Lambda/queue. Alternative separate test Lambda not recommended.
+- Full AWS E2E procedure, evidence IDs, stop conditions, cleanup/rollback and DLQ-exhaustion limitation documented in docs/reports/RIS-ANALYSIS-OFFER-E2E-15-CANARY-GATE.md. Focused gate tests: 70 passed.
+- Verdict SYNTHETIC TEST DESIGN NEEDS APPROVAL; technical plan may be approved separately. No apply, no merge, no real data.
+
+[RIS-ANALYSIS-OFFER-E2E-15 / STEP E1 — SYNTHETIC ISOLATION]
+Status: READY FOR CONTROLLED AWS CANARY APPROVAL; no apply.
+Date: 2026-11-21
+- Identity boundary: tenant/user/partner/issuer come from the verified server context; payload is data only. Synthetic mode is env-only and cannot be enabled by WorkItem/API/SQS fields. Direct invoke remains IAM-scoped to worker/ingress.
+- Implemented ANALYSIS_SYNTHETIC_MODE=false default; when enabled it requires exact non-empty tenant, user, partner application, issuer, explicit synthetic entitlements and a future expiry. Match happens in AnalysisAgent._matches_synthetic; only the matched identity gets synthetic entitlements and Identity.synthetic=True. Real identities keep deny; real consent/notice remain false and DRAFT.
+- Tests: 12 synthetic profile tests (disabled/missing/expired, each identity mismatch, manipulated nested WorkItem, real identity, missing entitlement, direct invoke, positive CV/job/comparison/ATS). Broad set 375 passed, 9 skipped.
+- New plan (old 11fb32d8… invalid): 4 add / 3 change / 0 destroy, plan b432e8f4…, JSON d91423e2…, state 67, guard NO_SHARED_DESTROY. Bundles worker 5a0f3305…, analysis 1897a68e…, parser fb741fb2…. Analysis env adds ANALYSIS_SYNTHETIC_MODE=false.
+- Separate approvals: A technical plan, B synthetic profile values. Cleanup: disable mode, remove allowlist/expiry/entitlement, delete test data, post-plan drift. DLQ-exhaustion ORDER_FAILED still open.
+
+[RIS-ANALYSIS-OFFER-E2E-15 / STEP E1A — TRUSTED IDENTITY GATE]
+Status: READY FOR EXACT-PLAN APPLY APPROVAL; no apply.
+Date: 2026-11-21
+- Identity path: verified context → persisted WorkItem → worker → AgentBody → remote adapter → analysis Lambda → AnalysisAgent. Payload is not authoritative; outer/nested identity conflicts now raise identity_conflict; synthetic mode requires both exact env profile and a persisted RUNNING WorkItem with the same four identity fields (DynamoDB GetItem only).
+- Synthetic mode is bound to PROJECT_NAME=ris-dev2 and ANALYSIS_SYNTHETIC_INSTALLATION=ris-dev2; expiry is re-checked per execution; direct invoke without the persisted binding is denied; no global consent, catalog/offer seed or real entitlement grant. analysis-processing remains DRAFT.
+- Mandatory outer-real/nested-synthetic test denies with no parser call; mismatch/expiry/installation/direct-invoke/entitlement negatives pass. Broad set 378 passed, 9 skipped.
+- New plan (previous b432e8f4… invalid): 4 add / 3 change / 0 destroy, plan 7426ba4a…, JSON 5649a311…, state 67, guard NO_SHARED_DESTROY. Bundles worker 28125fe1…, analysis a9323301…, parser fb741fb2…. IAM adds only WorkItems GetItem; env adds WORK_ITEMS_TABLE, PROJECT_NAME, ANALYSIS_SYNTHETIC_MODE=false.
+- Two approvals remain separate: A exact technical apply, B exact synthetic profile. Cleanup/reset and DLQ limitation documented.
+
+[RIS-ANALYSIS-OFFER-E2E-15 / STEP E1B — BINDING FIX + RIS_KEY GATE]
+Status: CORRECTION REQUIRED (Mays-Orders apiProfileRef finding); technical apply ready; no apply.
+Date: 2026-11-21
+- Fixed the synthetic verifier mapping: Identity snake_case fields now compare explicitly to persisted WorkItem camelCase fields (tenantId/userId/partnerApplicationId/issuer). Missing row, non-RUNNING, any mismatch or DynamoDB error denies.
+- Real verifier tests (17 synthetic-profile tests): exact RUNNING row passes; missing/Queued/Completed/Failed/Cancelled, each field mismatch, DynamoDB error, outer A/nested B conflict (no parser), direct invoke and positive CV all covered. Broad final run 414 passed + 6 subtests.
+- RIS API path verified: Cognito access JWT + X-Api-Credential, verify_api_credential, partner registry apiProfile/tenant binding, entitlement/catalog, verified context to WorkItem; no key in SQS/WorkItems/results/logs.
+- Mays finding: agentOrder.metadata.apiProfileRef is client-supplied; create/prepare_dispatch check only order ownership, and dispatch_ingress resolves any ACTIVE contextRef. A Mays user could reference another active profile → RIS would execute under that tenant/owner. Owner Mays-Orders; bind/validate apiProfileRef to owner/partner or use a signed binding. No Mays change made.
+- New plan (7426ba4a… invalid): 4 add / 3 change / 0 destroy, plan 9a0324a0…, JSON c1360c51…, state 67, guard NO_SHARED_DESTROY. Bundles worker 28125fe1…, analysis fcc2a008…, parser fb741fb2…. IAM WorkItems GetItem only.
+- Approvals: A exact apply, B exact synthetic profile, C Mays apiProfileRef correction. DLQ exhaustion open. No apply/real data.
+
+[RIS-ARCH-DOCS / CORRECTION-14 ARCHITECTURE PACKAGE]
+Status: imported; no code/Terraform change.
+Date: 2026-11-21
+- Added `docs/architecture/RIS-MAYS-ORDERS-MODULES.md` (binding ownership/module register), `docs/architecture/AGENT-DEVELOPMENT-RULES.md`, the editable diagrams `diagrams/korrektur14_ablauf.svg|.dot` and `diagrams/modul_ownership.svg|.dot`, the reference ODT, and the historical consolidation PDF under `reference/`.
+- Updated `AGENTS.md` (sources of truth), `docs/architecture/SYSTEM-ARCHITECTURE.md` (Correction-14 addendum + actual dispatch→work path), `docs/architecture/RUNTIME-PATH.md` (dispatch→work queue, QUEUED claim, addition/analysis agents).
+- Markdown image links point to the SVG sources; no PNG dependency. The documents state clearly that Correction-14 is prepared, not applied (plan 4/3/0 unapproved, DLQ-exhaustion ORDER_FAILED open).
+
+[RIS-AGENT-FACTORY-PNP-ANALYSIS-16A / STEP A — ANALYSIS PACKAGE RECONCILIATION]
+Status: documentation reconciliation only; no runtime/AWS change.
+Date: 2026-11-22
+- Aligned `agent-installations/analysis-agent/` with RIS `c245512`, Jobsearch `e77ee94` (parser artifact source `c40bf78`), generated Mays module `016cdfd`; kept the RIS pin `5cf50a0` and the local Mays checkout `9627eb2` explicitly separate.
+- Manifest now records the composite execution model: one outer WorkItem/order, internal `parse.cv|parse.job|parse.ats`, external entitlements `parse.cv|parse.job|compare.tags|analyze.job`, dedicated Node parser Lambda gated by `enable_analysis_runtime=false`.
+- Offers/lifecycle/operations/risks/handoff/tests/contracts/partner bindings now state the Correction-14 path (dispatch ingress -> work queue -> shared worker -> AgentBody), the Mays result retrieval (`GET /orders/{orderId}` -> `processing.status/result/error`), and that automatic parent-agent resume is NOT implemented.
+- Corrected stale pins/counts (31 pipeline tests, 14 offer tests, 17 synthetic-profile tests; E1B broad run 414 passed + 6 subtests). Open: apply A, synthetic profile B, Mays `apiProfileRef` binding C, DLQ exhaustion, legal/entitlement/catalog.
+- Validation: `installer.agent_install --agent analysis-agent --stage validate` PASSED; analysis pipeline/offers/entitlements 57 passed. No apply, no real data.
+
+[RIS-AGENT-FACTORY-PNP-ANALYSIS-16A / STEP B — COMPOSITE TEMPLATE]
+Status: documentation/template only; no runtime/AWS change.
+Date: 2026-11-22
+- `agent-installations/README.md` now documents the composite-agent model: one agent with multiple offers, one outer order/WorkItem, internal parser subfunctions, shared registry/AgentBody/WorkItems/SQS/worker/result transport, verified identity/APIProfile/entitlement/consent, unified status/result/test/lifecycle contracts.
+- `_template` now includes an optional `offers.yaml` scaffold and composite manifest fields (`composite`, `offers`, `internalCapabilities`, `externalEntitlements`). No installer schema change; discovery and required-file validation are unchanged.
+- Reference remains `analysis-agent` with three DRAFT offers and Mays-owned pricing. Automatic parent-agent resume is explicitly excluded.
+- Validation: template YAML parses; root discovery still finds five packages; `_template` remains rejected as non-deployable. No apply, no real data.
+
+[RIS-AGENT-FACTORY-PNP-ANALYSIS-16A / STEP C — RUNBOOK, VALIDATION, EVIDENCE]
+Status: docs + local validation; AWS canary PENDING; no mutation.
+Date: 2026-11-22
+- `docs/operations/RIS-AGENT-FACTORY-RUNBOOK.md` aligned with Correction-14: dispatch ingress -> work queue -> worker, terminal ORDER_FAILED for missing identity/entitlement/permanent validation, result retrieval via existing Mays `GET /orders/{orderId}` (`processing.status/result/error`), composite `analysis-agent` operating notes.
+- Automatic agent resume is documented as OPEN/NOT IMPLEMENTED: no WAITING state, no wake-up, no end-to-end parent propagation. Hard stops added for claiming resume or real order traffic while the Mays apiProfileRef binding is unverified.
+- New report `docs/reports/RIS-AGENT-FACTORY-PNP-ANALYSIS-16A.md` with evidence matrix IMPLEMENTED / LOCAL TESTED / AWS VERIFIED / PENDING / BLOCKED, exact pins and the pin-file vs generated-module vs local-checkout distinction.
+- Validation: analysis package VALIDATED; core analysis tests 83 passed; broader focused factory/analysis/auth run 567 passed, 41 skipped, 6 subtests. No analysis Lambda deployed, no AWS canary, no apply, no real data.
+
+[RIS-AGENT-FACTORY-PNP-ANALYSIS-16B / STEP A — ORDER STATUS CONTRACT FIX]
+Status: minimal RIS OrdersPort fix + local tests; no AWS mutation.
+Date: 2026-11-22
+- Confirmed defect: `RealMaysOrdersAdapter.get_order_status()` mapped every HTTP 2xx with `orderId` to `OrdersResultType.APPROVED`, so an accepted but unprocessed order looked completed. `OrderResult.success` (technical port/API success) and `result_type` (business state) are now documented separately.
+- Fix: `orders.status` maps only `processing.status=COMPLETED` with a result body to APPROVED; `FAILED` with error to REJECTED; `CANCELLED` to REJECTED; `DELIVERED` to APPROVED; otherwise PENDING. `COMPLETED` without a result body is a controlled ERROR (`missing_processing_result`). Unexpected response bodies are no longer echoed into the result.
+- `orders_function` now forwards `processing`, `processing_status`, `order_status`, `http_status` and `contract_error`; an HTTP 200 status query stays PENDING/REJECTED as appropriate. No new queue, result consumer, order state machine or Mays lifecycle change.
+- Entry-point audit: RIS `orders_reader` agent-order path binds `apiProfileRef` to `ownerUserId`, requires ACTIVE profile and entitlement; Mays generated module `016cdfd` `prepare_dispatch` checks order ownership but not profile ownership (Mays-owned gap C). RIS OrdersPort `orders.create` remains retail-only; no agent-order create path added.
+- Tests: adapter/reader/agent-gate 86 passed + 7 subtests; broader factory/analysis/auth run 533 passed, 30 skipped, 13 subtests. No AWS verification, no apply, no real data.
+
+[RIS-AGENT-FACTORY-PNP-ANALYSIS-16B / STEP B — CONTRACT EVIDENCE]
+Status: report/audit only; no further runtime/AWS change.
+Date: 2026-11-22
+- New report `docs/reports/RIS-AGENT-FACTORY-PNP-ANALYSIS-16B.md`: contract review, Mays pin boundary (`5cf50a0` pin / `016cdfd` generated module / `9627eb2` local checkout), GET projection, `apiProfileRef` entry-point audit, seven synthetic contract cases, evidence matrix.
+- Verdict: defect fixed locally; HTTP 2xx GET no longer implies APPROVED; COMPLETED+result is APPROVED, FAILED is REJECTED, pending is PENDING, missing result is a controlled ERROR. Mays apiProfileRef binding C, DLQ exhaustion and automatic resume remain open/blocked. No AWS verification.
+- Tests unchanged from STEP A: 86 passed + 7 subtests focused; 533 passed, 30 skipped, 13 subtests broad. No apply, no deployment, no real data.
+
+[RIS-ANALYSIS-16C0 / STEP A — DELIVERED AGENT ORDER EDGE CASE]
+Status: minimal RIS OrdersPort fix + local tests; no AWS mutation.
+Date: 2026-11-22
+- Confirmed boundary: `orderType=agent.execution` + top-level `status=DELIVERED` without `processing.result` was still mapped to APPROVED. Fixed: an agent-execution DELIVERED without a processing result is a controlled ERROR (`contract_error=missing_processing_result`), never APPROVED. Retail DELIVERED remains APPROVED; agent.execution with `processing.status=COMPLETED` and a result body remains APPROVED.
+- `orders_function` forwards `order_type` in addition to the existing processing/HTTP fields. No Mays lifecycle, queue, result consumer or Terraform change.
+- Tests: adapter/reader/agent-gate 79 passed + 7 subtests. No AWS verification, no apply.
+
+[RIS-ANALYSIS-16C0 / STEP B — FINAL CANARY PREFLIGHT]
+Status: read-only preflight + local bundle rebuild; no AWS mutation, no apply.
+Date: 2026-11-22
+- Edge case fixed in `0a2388a`: `agent.execution` + `DELIVERED` without `processing.result` is a controlled ERROR (`missing_processing_result`), not APPROVED. Retail DELIVERED and agent.execution with COMPLETED+result remain APPROVED.
+- C proof: Mays generated module `016cdfd` `_create_agent_order` stores client `apiProfileRef`; `prepare_dispatch` checks only order ownership; `dispatch.py` copies it to `contextRef`; RIS `dispatch_ingress.resolve_context` accepts any ACTIVE profile. RIS `orders_reader` does bind owner/profile/entitlement, but the Mays direct path remains open. C is BLOCKED, Mays-owned. No Mays change.
+- Plan freshness: `9a0324a0…` / JSON `c1360c51…` still match the saved file, shape 4/3/0/0, guard `NO_SHARED_DESTROY`; remote state read-only serial 67, lineage `a0bd361d…`, 283 resources, last modified 2026-11-20. **But the plan is STALE**: after 16B/16C0, rebuilt worker `85775f68…` != planned `28125fe1…` and analysis `420bf861…` != planned `fcc2a008…`; parser unchanged. Plan contains only `ANALYSIS_SYNTHETIC_MODE=false`, no B profile values. A is not exercisable; B is not in the plan.
+- Two synthetic paths are prepared but BLOCKED: direct RIS (A stale, B missing, RUNNING WorkItem seed, execution approval) and Mays transport (same plus C). CV/job/match cases for success, error, idempotency, result retrieval and permission denial are specified in `docs/reports/RIS-ANALYSIS-16C0-PREFLIGHT.json`.
+- Tests: new static preflight 10 passed; focused suite 98 passed + 7 subtests; broad factory/analysis/auth run 560 passed, 30 skipped, 13 subtests. Only read-only `sts get-caller-identity` and S3 state `get-object` were used; no writes. No deployment, no activation, no real data.
+- Required next step: rebuild bundles (done locally, ignored) and generate a new exact plan; fold approved B into the new plan; keep C blocked for the Mays path.
+
+[RIS-ANALYSIS-16C1 / FRESH PLAN & CANARY APPROVAL GATE]
+Status: fresh plan created; A ready for approval; B proposed/not active; C blocked. No apply.
+Date: 2026-11-22
+- Baseline RIS `50ead67`; account 262370457690, region eu-central-1, workspace ris-dev2; remote state serial 67, lineage `a0bd361d…`, 283 resources, last modified 2026-11-20. Mays pin `5cf50a0`, generated module `016cdfd`, local checkout `9627eb2`; Jobsearch `e77ee94`, parser artifact source `c40bf78`.
+- Old plan `9a0324a0…` marked STALE_SUPERSEDED. Bundles rebuilt: worker `85775f68…`, analysis `420bf861…`, parser `fb741fb2…` (runtime files identical to c40bf78), reader `464b991f…`.
+- Fresh plan `73934457…` / JSON `12527f56…`, timestamp 2026-11-22T10:08:44Z, 4 add / 3 change / 0 destroy / 0 replace, guard `NO_SHARED_DESTROY`. No Cognito/CloudFront/Route53/ACM/SQS/DynamoDB/secret changes; all 35 Mays resources no-op. Analysis env `ANALYSIS_SYNTHETIC_MODE=false`, consent/notice/entitlements deny. IAM PartnerProfiles read + WorkItems GetItem only.
+- First fresh attempt produced 4/4 due only to a Windows backslash parser `filename`; `source_code_hash` unchanged. It was rejected; analysis paths were normalized to forward slashes and the final plan is 4/3.
+- A: READY_FOR_APPROVAL for the exact plan, not applied. B: PROPOSED_NOT_ACTIVE (tenant/user/partner/issuer/entitlements/expiry/window documented), requires a new plan; no activation. C: BLOCKED, Mays-owned `apiProfileRef` binding; no synthetic-field bypass.
+- Canary stages: isolated analysis executor (BLOCKED_PENDING_A_B), authenticated RIS API/worker (BLOCKED_PENDING_A_B), Mays transport (BLOCKED_C). All `awsVerified=false`; three offers with success/error/replay/result/denial/cleanup defined.
+- Tests: new 16C1 static gate 10 passed; broad focused run 570 passed, 30 skipped, 13 subtests. 16C0 count reconciled: 533 was the pre-16C0 baseline; actual 16C0 broad was 560. No apply, no synthetic activation, no real data.
+- AWS access was read-only (STS, S3 state GET, Terraform plan/lock/refresh). No resource mutation.
+
+[RIS-ANALYSIS-16C2 / STEP A — SAVED-PLAN APPLY MODE]
+Status: installer hardening + local tests; no AWS mutation yet.
+Date: 2026-11-22
+- `_cmd_apply()` re-planned even with `--out`. Added a separate `--apply-saved-plan` mode that applies the existing saved plan once and **never calls `terraform plan`**.
+- Gates before apply: explicit `--approval-ref`, exact `--approved-plan-sha256`, `--expected-account`, `--expected-region`, `--expected-workspace`, `--expected-state-serial`, `--expected-state-lineage`, `--expected-plan-shape` (e.g. 4/3/0/0), Lambda `source_code_hash` vs current worker/analysis/parser/reader/health/Mays bundles, existing `is_plan_safe`, `NO_SHARED_DESTROY`, plan TOCTOU hash, and the existing state mirror. No direct unprotected Terraform path.
+- Negative tests cover wrong/missing hash, missing approval, missing plan, state drift, wrong account/region/workspace, wrong shape, shared destroy, unexpected protected resource, bundle change, missing bundle and plan TOCTOU.
+- Tests: new saved-plan suite 17 passed; installer/plan-guard/shared-guard/agent-install/lifecycle 108 passed. No apply in this step.
+- Note: the plan was created at 16C1 and remains the exact approved `73934457…`; this installer change does not alter the plan or bundles.
+
+[RIS-ANALYSIS-16C2 / STEP B — SAFETY-GATE NO-OP FIX]
+Status: apply stopped before mutation; gate bug fixed + tests; no resource change.
+Date: 2026-11-22
+- First saved-plan apply attempt stopped at `Safety gate`: `is_plan_safe` treated protected resources with `actions=['no-op']` (Cognito resource server) as forbidden. No `terraform apply` was executed; only `terraform init` ran.
+- Fixed `is_plan_safe` to ignore no-op/read inventory rows while still rejecting any real create/update/delete/replace on protected resources. Added regression tests for Cognito, CloudFront, Route53, ACM, SQS and DynamoDB no-op/read rows.
+- Tests: plan-guard/saved-plan/installer/shared-guard 92 passed. State and resources unchanged; the approved plan is untouched.
+- Retry will use the same plan SHA `73934457…`; no re-plan, no rollback.
+
+[RIS-ANALYSIS-16C2 / STEP C — APPROVED APPLY A + AWS ACCEPTANCE]
+Status: APPLIED; INFRASTRUCTURE AWS VERIFIED; analysis live E2E NOT verified.
+Date: 2026-11-22
+- The exact approved saved plan `73934457…` / JSON `12527f56…` was applied once via the hardened `--apply-saved-plan` path: exit 0, state serial 67 → 69, lineage `a0bd361d…`, resources 283 → 287, 4 created / 3 updated / 0 deleted / 0 replaced, guard `NO_SHARED_DESTROY`.
+- Created: analysis Lambda, analysis runtime-data policy, two analysis invoke permissions. Updated: dispatch-ingress IAM policy, dispatch-ingress Lambda, shared worker. No protected-state changes; 0 Mays non-no-op actions.
+- Analysis Lambda `ris-dev2-dev-analysis`: python3.14, x86_64 (plan unpinned default), 60 s, 512 MB, Active/Successful, code hash `Qgv4YQ…`, no public URL, log retention 14 d. Deny env: `ANALYSIS_SYNTHETIC_MODE=false`, consent/notice false, entitlements empty, parser mode lambda.
+- Parser `ris-dev2-dev-analysis-parser`: nodejs22.x, arm64, 15 s, code hash `+3Qfsl…`. Worker/ingress code hash `hXdfaF…`, analysis env/timeout bound. IAM: PartnerProfiles read + WorkItems GetItem; invoke-parser policy; two resource-policy invoke statements (worker, ingress).
+- Catalog scan has no `analysis.*` offers; entitlement scan has no `analysis-agent` grants. All six dispatch/work/result queues empty; no Lambda errors/throttles datapoints.
+- State freshness finding: S3 state 67 was behind the plan's refreshed `prior_state` for several no-op resources (Mays handler inline policies, documents CORS, analysis jobs lifecycle, parser inline policy). The plan had no Mays non-no-op action; apply persisted refresh (68) + planned changes (69). Read-only post-apply plan: 0 changes (272 no-op), 35 Mays no-op.
+- Tests: all five agent packages VALIDATED; analysis stages DISCOVER→HANDOFF PASSED (apply local record executed=false); lifecycle/install 34 passed; broad relevant regression 739 passed, 41 skipped, 13 subtests; addition/ATS 95 passed + 9 subtests; composite lifecycle 40 passed/3 BLOCKED_ENV (missing local Orders clone); full `tests/` BLOCKED_ENV by missing requests/moto and unrelated ConsentContext NameError.
+- E2E boundaries: infrastructure AWS VERIFIED; isolated analysis executor BLOCKED_B; authenticated RIS API/worker BLOCKED_B; Mays transport BLOCKED_C; automatic resume BLOCKED. No synthetic data, orders, entitlements or catalog offers created; no cleanup required. No rollback, re-plan, main merge or production deployment.
+
+[RIS-ANALYSIS-16C2-QA1 / FULL REGRESSION RECOVERY]
+Status: test-environment recovery + full regression; no AWS/Terraform mutation.
+Date: 2026-11-22
+- Isolated venv created; installed pytest 9.2.0, pytest-subtests 0.15.0, requests 2.34.2, moto 5.2.5, boto3/botocore 1.44.9. requirements.txt now lists pytest-subtests and requests.
+- ConsentContext NameError root cause: the import try/except swallowed a missing moto/boto3 and later used ConsentContext. The three consent test modules now skip only for missing moto/boto3/botocore; other ImportErrors propagate. Purpose expectations updated for analysis-processing. No consent logic weakened.
+- Mays fixtures: ignored detached worktree `installer/projects/mays_orders` @ 5cf50a0 for composite tests; generated module 016cdfd for MO_ORDERS_SRC/MODULE contract tests; local 9627eb2 remains review-only. Composite lifecycle 43 passed; bridge harness updated to Correction-14 persist→work queue→worker and 5 passed.
+- Test-harness fixes: Windows POSIX mode/ACL and symlink tests skipped precisely on Windows; Windows mode check in tools/ris_admin/credentials.py is skipped only where st_mode cannot represent ACLs; dispatch/platform tests set WORK_ITEMS_TABLE and correct claims; terminal entitlement denial expects DEAD_LETTER; dependency_check uses sys.executable; ATS mock sets status_code; Mays env restored after standalone E2E/unsigned-result tests.
+- Results: default full tests/ suite 3185 passed, 134 skipped, 0 failed, 441 subtests. With all local fixtures 3250 passed, 68 skipped, 1 failed, 441 subtests. Focused evidence 376 passed/12 subtests; five packages VALIDATED; lifecycle 34; composite 43; parser matrix 15; addition/ATS 95/9.
+- Remaining failure: test_generated_module_artifact::test_ris_transport_outputs_are_exposed_additively. Generated module 016cdfd outputs.tf lacks results_queue_url/results_queue_arn/result_hmac_secret_arn; builder --check passes with 20 outputs. Known module-contract drift; no hand-edit, no apply regression; separate reviewed change required.
+- Skips: 39 local DynamoDB not configured, 12 Windows POSIX/symlink, 6 live AWS credentials, 6 privacy planned, 2 mayaws profile, 2 captured plan absent, 1 CloudFront OAC finding. No tests disabled to force green.
+- Boundaries: no Terraform apply, no AWS mutation, no synthetic activation B, no Mays transport before C, no main merge, no production deployment.
+
+[RIS-ANALYSIS-16C2-QA2 / GENERATED MODULE CONTRACT ALIGNMENT]
+Status: builder/contract fixed and isolated module verified; no AWS/Terraform mutation.
+Date: 2026-11-22
+- Cause: `inject_transport_outputs()` existed but was dead code. The active build required only 20 outputs; the test expected the three additive RIS result outputs. The result queue/DLQ/HMAC secret are owned by `modules/agent_transport` inside the generated module, so the generated module should re-export their identifiers; the RIS root keeps the variables/wiring.
+- Fix: `build_module()` now calls `inject_transport_outputs()` before `validate_generated_contract()`. The contract requires 23 outputs and validates exactly one `results_queue_url`, `results_queue_arn` and `result_hmac_secret_arn`, each referencing `module.agent_transport[0]`. Duplicate/upstream collisions fail closed. The applied target module was not edited or replaced.
+- Negative tests (8): deterministic injection, duplicate/upstream collision, missing output, duplicate output, wrong reference, no resource/IAM/secret constructs, and active-build injection-before-validation.
+- Isolated generation (temp `qa2-temp-module`, pin 016cdfd): builder contract PASS, `terraform fmt`/`init -backend=false`/`validate` PASS, 23 outputs. `main.tf` (`adc6d2be…`), `variables.tf` (`ca45056f…`) and `lambda.zip` (`48ddd5e5…`) are byte-identical to the target; only `outputs.tf` and the manifest timestamp differ. Target outputs `6f9b88b5…` (20) → temp `88483db4…` (23).
+- Tests: QA2 contract 8 passed; extended Mays/module fixture 55 passed; default full suite 3193 passed, 134 skipped, 0 failed, 441 subtests; all-fixture full suite 3259 passed, 68 skipped, 0 failed, 441 subtests; five agent packages VALIDATED.
+- Applied target remains intentionally old (20 outputs) and now fails the stricter `--check`; this is the expected signal for a future reviewed module rebuild. No immediate infrastructure change: outputs are references only, no resource/IAM/queue/table/secret change. A later apply would add outputs to state only.
+- Boundaries: no Terraform apply, AWS mutation, target replacement, synthetic activation B, Mays transport C, main merge or production deployment.
+
+[RIS-ANALYSIS-16C2-QA2 / PYTHON 3.14 RUNTIME REGRESSION]
+Status: additional local verification; no AWS/Terraform mutation.
+Date: 2026-11-22
+- Created isolated Python 3.14.10 venv with pytest 9.2.0, pytest-subtests 0.15.0, requests 2.34.2, moto 5.2.5, boto3/botocore 1.44.9.
+- Default full `tests/` suite: 3193 passed, 134 skipped, 0 failed, 441 subtests. Fixture suite (fixed temp module, Mays source, parser CLI): 3259 passed, 68 skipped, 0 failed, 441 subtests.
+- Results are identical to the Python 3.15 run; no runtime-specific failure. No module target replacement, AWS mutation or apply.
+
+
+[RIS-ANALYSIS-BRANCH-CLOSEOUT-01 / STATUS RECONCILIATION + MERGE PREFLIGHT]
+Date: 2026-11-22
+Status: READ-ONLY EXTERNAL REVIEW COMPLETE; document patch prepared, repository write/commit/push NOT EXECUTED.
+Baseline: feature/ris-analysis-integration-07 @ 550090e435e24a873e64837abee52679f769a0d0; main @ e95fe48573cb61151a84f448e9e6376f4a7833d6.
+- AGENTS.md and prior AI_AUDITLOG reviewed; latest stage evidence read from 16C2 Apply A, QA1, QA2 with Python 3.14 addendum.
+- 16C2 Apply A installed 4 add/3 change/0 destroy at state 67->69. QA1 recovered environment. QA2 3193 standard/3259 fixture passed with zero failures on Python 3.14 and 3.15; five agent packages validated. QA2 generator 23 outputs; applied Mays target remains 20 intentionally; expected target --check failure is NOT an infrastructure rollback or release failure.
+- Feature versus main: ahead 108, behind 0; 300 changed paths. Fast-forward history, but broad multi-package code/infra diff means actual merge is a separate review. No current PR, combined commit status, or PR-triggered workflow results found at reviewed HEAD.
+- Confirmed stale operational claims ('not deployed', 'apply pending') in analysis-agent manifest/handoff/lifecycle/risks/tests README/operations and architecture development rules. Those refer to pre-16C2 stage and must be reconciled against 16C2 applied evidence. Draft offers, absent catalog and unapproved entitlements are intentionally preserved.
+- Gate B synthetic profile/test still blocked; Gate C Mays apiProfileRef owner/partner binding remains blocked; legal/product activation, DLQ exhaustion and Agent-A resume remain separate. No production/live E2E claimed.
+- Reviewed CI file: push main triggers validate and plan; no documented apply for push main (deploy if ref prod); plan/backend effects require explicit premerge review.
+- No test, local package validation, Terraform command, infrastructure operation, target regeneration, git commit/push or main merge performed in this read-only external session.
+- Next: apply bounded documentation reconciliation, validate artifacts/contracts against local checkout, append final executed results to this entry, commit + push feature branch, then decide readiness for controlled main merge. No RC4 pin change.
+Evidence: docs/reports/RIS-ANALYSIS-16C2-APPLY-REGRESSION.md, docs/reports/RIS-ANALYSIS-16C2-QA1-REGRESSION.md, docs/reports/RIS-ANALYSIS-16C2-QA2-MODULE-CONTRACT.md and JSON; docs/reports/RIS-ANALYSIS-BRANCH-CLOSEOUT-01.md (prepared externally).
+
+[RIS-ANALYSIS-BRANCH-CLOSEOUT-01 / LOCAL CHECKPOINT EXECUTED]
+Date: 2026-11-22
+Status: documentation-only closeout; no AWS/Terraform mutation, no main merge.
+- Applied the bounded package patch at baseline 550090e: manifest, handoff, lifecycle, risks, tests README, operations, entitlements comment, AGENT-DEVELOPMENT-RULES, new closeout report. No runtime/Terraform/pin/target/offer activation changes.
+- Local validation: YAML parse PASS; `installer.agent_install --agent analysis-agent --stage validate` PASS; all five agent packages VALIDATED; focused analysis/builder tests 53 passed; closeout docs/manifest tests 41 passed; total 94 passed. `git diff --check` PASS; secret audit no findings; documentation cross-references no missing paths.
+- QA2 full suite was not rerun; historical 3193 standard / 3259 fixture at 550090e on Python 3.14.10 and 3.15 remains the regression evidence.
+- Feature vs main: 108 ahead / 0 behind, 300 changed paths; main e95fe48 unchanged. No PR/HEAD CI evidence was found; main-push CI/plan side effects require separate premerge review.
+- One clean documentation closeout commit + feature-branch push; remote HEAD verified after push. Verdict: READY FOR CONTROLLED MAIN MERGE REVIEW. Gate B synthetic profile, Gate C apiProfileRef binding, legal/entitlement/catalog activation, DLQ exhaustion and Agent-A resume remain open.
+
+[RIS-ANALYSIS-BRANCH-CLOSEOUT-01 / POST-PUSH MERGE PREFLIGHT]
+Date: 2026-11-22
+Status: feature checkpoint pushed; main unchanged; no merge.
+- Closeout commit `48d7c1a` pushed to `feature/ris-analysis-integration-07`; remote HEAD matches. Feature vs `origin/main` (`e95fe48`): **109 ahead / 0 behind**, **301 changed paths** (108/300 at baseline 550090e plus the closeout commit).
+- `git merge-tree --write-tree origin/main HEAD` returned a clean tree, no merge conflicts.
+- Full-branch safety scan: no secret-shaped additions; no `.github` workflow diff; offers remain DRAFT/activation false/catalog ABSENT; entitlements PENDING_APPROVAL, grants empty, consent DRAFT/grantable false; analysis runtime Terraform variable default remains false. Terraform changes are gated analysis-runtime/transport changes from the prior reviewed phases.
+- Main-push CI finding: the unchanged workflow triggers validate+plan on `main`; `plan` uses `environment=${github.ref_name}` => `environment=main`, but root validation allows only `dev|test|prod`, so the main plan is expected to fail. `deploy` runs only on `refs/heads/prod`; no auto-apply on main. This is a pre-merge CI condition, not a branch-content conflict or product activation.
+- No Terraform/AWS mutation, target rebuild, RC4 migration, main merge or production deployment. Gate B synthetic profile and Gate C `apiProfileRef` binding remain open.
+- Verdict: **READY FOR CONTROLLED MAIN MERGE REVIEW** with the explicit `MAIN-PUSH CI CONDITION: PLAN ENV=main INVALID`; do not merge until that workflow/plan context is reviewed or the red plan is explicitly accepted.
+
+[RIS-ANALYSIS-MAIN-CI-PREFLIGHT-FIX-01 / MAIN CI READY]
+Date: 2026-11-22
+Status: CI workflow fixed and pushed; no AWS/Terraform mutation, no main merge.
+- Baseline 75d62c1; AGENTS.md and AI_AUDITLOG read. Branch/remote/worktree verified; origin/main e95fe48 unchanged; feature 110 ahead / 0 behind, 301 paths before this task.
+- Root causes: invalid `on: plan` trigger produced zero-job failure runs on every push (e.g. 45037624423, 45037364297); Terraform commands ran at repo root without `*.tf` (no working-directory/-chdir); plan used `environment=main` while root allows only dev|test|prod; partial S3 backend and no AWS credentials in plan; deploy was unreachable and used `apply -auto-approve` without a saved plan; generated `terraform/modules/mays_orders/` is gitignored, so clean-checkout root validate needs a guard.
+- Fix commit 4d3c439: read-only workflow on push main + PR main, contents:read, working-directory terraform, fmt -check -recursive, per-module init -backend=false + validate (15 committed modules), root validate only when generated module present, no plan/apply/secrets. Deployment remains installer saved-plan path. Terraform version aligned to >=1.6,<2.0.
+- Validation: actionlint v1.7.12 PASS; YAML structure PASS; clean detached worktree at 75d62c1: fmt PASS, 15/15 modules validate PASS, root skipped as designed; with ephemeral generated-module copy root init+validate PASS; focused analysis/builder/plan/apply tests 94 passed; git diff --check PASS; secret audit no findings; forbidden pattern scan empty. No new zero-job failure run after 4d3c439; first hosted green run requires PR/main push.
+- Mergeability after docs checkpoint: 112 ahead / 0 behind, 303 changed paths vs origin/main; merge-tree clean. No changes to analysis agent, parsers, contracts, entitlements, consent, Terraform resources, pins, generated target, offers or AWS config. No Terraform apply, AWS deployment, RC4 upgrade, target rebuild or main merge.
+- Verdict: MAIN CI READY. Gate B synthetic activation, Gate C apiProfileRef binding, live E2E, DLQ exhaustion, parent-agent resume and Cognito service principal remain open.
+

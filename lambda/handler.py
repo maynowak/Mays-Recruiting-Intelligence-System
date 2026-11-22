@@ -244,7 +244,10 @@ def _handle_sqs_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     return {
         'statusCode': 200,
-        'body': json.dumps({'processed': len(event.get('Records', [])), 'results': results})
+        'body': json.dumps(
+            {'processed': len(event.get('Records', [])), 'results': results},
+            default=_application_json_default,
+        )
     }
 
 
@@ -3717,11 +3720,14 @@ def _process_work_item(work_item: Dict[str, Any]) -> Dict[str, Any]:
     # Execution-Time-Entitlement-Re-check (Gate 08): Produktion injiziert
     # immer den DDB-Resolver (lazy, keine Import-Kosten ohne Nutzung).
     work_table = _get_dynamodb().Table(os.environ.get("WORK_ITEMS_TABLE"))
+    from agents.runtime.remote_agent import build_analysis_executor
+
     outcome = process_record(
         {'body': work_item},
         entitlement_resolver=DynamoDBEntitlementResolver(),
         subject_fence_table=work_table,
-        require_subject_fence=True)
+        require_subject_fence=True,
+        analysis_agent=build_analysis_executor())
 
     success = outcome.get('status') == 'COMPLETED'
     result = {

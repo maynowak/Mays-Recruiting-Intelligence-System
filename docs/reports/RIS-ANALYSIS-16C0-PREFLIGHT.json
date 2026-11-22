@@ -1,0 +1,204 @@
+{
+  "schemaVersion": "1.0",
+  "release": "RIS-ANALYSIS-16C0",
+  "date": "2026-11-22",
+  "base": "7dc7c74",
+  "edgeFixCommit": "0a2388a",
+  "planFreshness": {
+    "verdict": "STALE_RE_PLAN_REQUIRED",
+    "plan": {
+      "path": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc18/plan.out",
+      "timestamp": "2026-11-21T17:09:52Z",
+      "sha256": "9a0324a0523486b9d4850c9215030a084c35b8807508a6a55bd2e26596a4c7a6",
+      "jsonSha256": "c1360c511e53f6cadcf48b26f49c94d90d551578e83fc97be8b758ae7f5cb391",
+      "adds": 4,
+      "changes": 3,
+      "destroys": 0,
+      "replacements": 0,
+      "guard": "NO_SHARED_DESTROY",
+      "applyApproved": false
+    },
+    "state": {
+      "source": "read-only S3 state object",
+      "bucket": "ris-dev2-tf-state-dev",
+      "key": "env:/ris-dev2/dev/terraform.tfstate",
+      "serial": 67,
+      "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+      "resources": 283,
+      "lastModified": "2026-11-20T17:02:21+00:00"
+    },
+    "bundles": {
+      "planned": {
+        "worker": "28125fe103f39496069bb419586a3f328dc2d60f343f2b4f6f415af65ab433e6",
+        "analysis": "fcc2a008b3234a8dd769e605b6e005a8b6690d06f216c4f391ca16efffb1e75a",
+        "parser": "fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a"
+      },
+      "currentAfter16BAnd16C0": {
+        "worker": "85775f685eda57fbd2f49e6351b40f59301de0150c63cb67289fb5c324897096",
+        "analysis": "420bf8610920e03868daf8e593a71c2a9de7cc637ca006a5192dd2800a4a0c9e",
+        "parser": "fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a"
+      },
+      "staleReason": "16B and 16C0 changed agents/orders; the rebuilt worker and analysis bundles differ from the saved plan. The parser artifact is unchanged."
+    },
+    "syntheticProfile": {
+      "inPlan": false,
+      "planEnv": {
+        "ANALYSIS_SYNTHETIC_MODE": "false"
+      },
+      "approvalStatus": "UNVERIFIED_SEPARATE",
+      "note": "Plan 9a0324a0 contains no synthetic tenant/user/partner/issuer/entitlement/expiry values. Approval B requires a new reviewed plan or an approved environment update; it cannot be executed from this saved plan."
+    }
+  },
+  "paths": [
+    {
+      "id": "direct-ris",
+      "name": "Direct RIS analysis invocation",
+      "status": "BLOCKED",
+      "prepared": true,
+      "blockers": [
+        "A_STALE_PLAN",
+        "B_SYNTHETIC_ENV_NOT_IN_PLAN",
+        "SYNTHETIC_RUNNING_WORKITEM_SEED_REQUIRED",
+        "NO_APPLY_OR_EXECUTION_APPROVAL"
+      ],
+      "afterRemediation": [
+        "Build the 16C0 worker/analysis bundles and generate a new exact plan.",
+        "Include the approved synthetic profile in the new plan; keep ANALYSIS_SYNTHETIC_MODE=false by default and enable it only for the canary window.",
+        "Seed one synthetic RUNNING WorkItem with exact tenant/user/partner/issuer and a unique workId.",
+        "Invoke the analysis Lambda through the approved IAM path; verify WorkItem COMPLETED and the result body.",
+        "Delete the synthetic WorkItem and all synthetic job/CV objects; restore deny-by-default env."
+      ]
+    },
+    {
+      "id": "mays-transport",
+      "name": "Full Mays-Orders transport",
+      "status": "BLOCKED",
+      "prepared": true,
+      "blockers": [
+        "A_STALE_PLAN",
+        "B_SYNTHETIC_ENV_NOT_IN_PLAN",
+        "C_APIPROFILEREF_OWNER_BINDING",
+        "NO_APPLY_OR_EXECUTION_APPROVAL"
+      ],
+      "afterRemediation": [
+        "Complete the direct-RIS preconditions.",
+        "Use a dedicated synthetic Cognito user and an APIProfile owned by that user; grant only the required analysis entitlement.",
+        "Create one Mays agent order with agentOrder.target=analysis-agent and metadata.apiProfileRef; bind one workId via prepare_dispatch.",
+        "Verify ORDER_DISPATCH -> dispatch ingress -> work queue -> shared worker -> analysis Lambda.",
+        "Verify ORDER_RESULT/ORDER_FAILED and retrieve processing.status/result/error through GET /orders/{orderId}.",
+        "Replay the same dispatch/result to prove deduplication; verify no RIS key/JWT/PII in SQS, results or logs.",
+        "Cleanup: cancel/retain the synthetic order per policy, delete synthetic WorkItems/job objects, revoke entitlement/profile."
+      ]
+    }
+  ],
+  "offers": [
+    {
+      "offerId": "analysis.cv",
+      "capability": "analysis.run",
+      "requestedResults": ["cv.tags"],
+      "resultBody": {"bodyType": "CVParserResultBody", "bodyVersion": "1.0"},
+      "success": {
+        "input": "synthetic structured CV or synthetic owner PDF",
+        "expect": ["result cv.tags", "cvTags contains Python/AWS", "no CV bytes or cvId in the result"]
+      },
+      "error": {
+        "cases": [
+          {"input": "missing cv", "code": "missing_cv"},
+          {"input": "foreign-tenant CV", "code": "cv_access_denied"}
+        ]
+      },
+      "idempotency": {
+        "input": "same idempotencyKey, same request",
+        "expect": ["idempotent=true on replay", "identical result", "one parser call"]
+      },
+      "resultRetrieval": {
+        "direct": "WorkItem COMPLETED with result.cv.tags",
+        "mays": "GET /orders/{orderId} -> processing.status=COMPLETED, processing.result.bodyType=CVParserResultBody"
+      },
+      "permissionDenial": {
+        "cases": [
+          {"input": "identity without parse.cv", "code": "entitlement_denied"},
+          {"input": "consent=false", "code": "consent_required"},
+          {"input": "foreign caller partner", "code": "partner_mismatch"}
+        ]
+      }
+    },
+    {
+      "offerId": "analysis.job",
+      "capability": "analysis.run",
+      "requestedResults": ["job.tags"],
+      "resultBody": {"bodyType": "JobParserResultBody", "bodyVersion": "1.0"},
+      "success": {
+        "input": "synthetic job text",
+        "expect": ["result job.tags", "jobTags has at least 3 entries", "no raw job text in the result"]
+      },
+      "error": {
+        "cases": [
+          {"input": "missing job", "code": "missing_job"},
+          {"input": "oversized inline text", "code": "job_text_too_large"},
+          {"input": "expired jobRef", "code": "job_ref_expired"}
+        ]
+      },
+      "idempotency": {
+        "input": "same idempotencyKey, same request",
+        "expect": ["idempotent=true on replay", "identical result", "one parser call"]
+      },
+      "resultRetrieval": {
+        "direct": "WorkItem COMPLETED with result.job.tags",
+        "mays": "GET /orders/{orderId} -> processing.status=COMPLETED, processing.result.bodyType=JobParserResultBody"
+      },
+      "permissionDenial": {
+        "cases": [
+          {"input": "identity without parse.job", "code": "entitlement_denied"},
+          {"input": "consent=false", "code": "consent_required"},
+          {"input": "foreign caller partner", "code": "partner_mismatch"}
+        ]
+      }
+    },
+    {
+      "offerId": "analysis.match",
+      "capability": "analysis.run",
+      "requestedResults": ["comparison"],
+      "optionalResults": ["ats.tags"],
+      "resultBody": {"bodyType": "ComparisonResultBody", "bodyVersion": "1.0"},
+      "optionalResultBody": {"bodyType": "ATSAnalysisResultBody", "bodyVersion": "2.0"},
+      "success": {
+        "input": "synthetic structured CV + synthetic job text; optional ATS profile",
+        "expect": [
+          "result comparison with coverage required/preferred/overall",
+          "optional ats.tags only with analyze.job",
+          "ATS score separate from deterministic coverage"
+        ]
+      },
+      "error": {
+        "cases": [
+          {"input": "missing CV", "code": "missing_cv"},
+          {"input": "missing job", "code": "missing_job"},
+          {"input": "comparison inputs incomplete", "code": "missing_comparison_inputs"}
+        ]
+      },
+      "idempotency": {
+        "input": "same idempotencyKey, same request",
+        "expect": ["idempotent=true on replay", "identical comparison", "one CV and one job parse"]
+      },
+      "resultRetrieval": {
+        "direct": "WorkItem COMPLETED with result.comparison and optional result.ats.tags",
+        "mays": "GET /orders/{orderId} -> processing.status=COMPLETED, processing.result.bodyType=ComparisonResultBody"
+      },
+      "permissionDenial": {
+        "cases": [
+          {"input": "identity without compare.tags", "code": "entitlement_denied"},
+          {"input": "ats.tags without analyze.job", "code": "entitlement_denied"},
+          {"input": "consent=false", "code": "consent_required"}
+        ]
+      }
+    }
+  ],
+  "commonAssertions": [
+    "No RIS key, JWT, Authorization header or credential-shaped value in SQS, WorkItems, result bodies or logs.",
+    "One outer order/WorkItem; internal parser calls create no additional order.",
+    "Duplicate ORDER_DISPATCH or duplicate result does not execute or bill twice.",
+    "Foreign owner receives 404; invalid identity receives 401; missing entitlement/consent fails closed.",
+    "DLQ exhaustion does not emit ORDER_FAILED; this remains an open ecosystem limitation."
+  ]
+}

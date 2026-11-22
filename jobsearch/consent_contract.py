@@ -42,6 +42,9 @@ CONSENT_PURPOSES = {
     # Separate durable search-profile purpose: manual, CV-search and ATS
     # profiles. Technical candidate only until the operator approves the text.
     "search-profile-storage": frozenset({"1.0"}),
+    # Dedicated analysis-processing purpose (CV/job/ATS/comparison pipeline).
+    # Draft notice; not grantable until legal/operator approval is recorded.
+    "analysis-processing": frozenset({"1.0"}),
 }
 
 # --- notice version lifecycle -------------------------------------------
@@ -125,6 +128,15 @@ NOTICE_REGISTRY: dict[str, dict[str, NoticeVersion]] = {
             state=NOTICE_APPROVED,
             label="RIS search-profile-storage notice v1 (operator-approved limited pilot)",
             legal_approval_ref="JM-SEARCH-PROFILE-STORAGE-V1-2026-11-08",
+        ),
+    },
+    "analysis-processing": {
+        "1.0": NoticeVersion(
+            purpose="analysis-processing",
+            version="1.0",
+            state=NOTICE_DRAFT,
+            label="RIS analysis-processing notice v1 (DRAFT, legal review required)",
+            legal_approval_ref="",
         ),
     },
 }

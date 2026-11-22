@@ -1,0 +1,50 @@
+schemaVersion: "1.0"
+package:
+  name: job-parser-agent
+  version: "1.0.0"
+  status: active
+  classification: controlled-test
+agent:
+  agentId: job-parser-agent
+  capability: parse.job
+  workType: agent_job_parser_agent
+  runtimeAgentVersion: "1.0.0"
+source:
+  repository: mays-ris
+  path: agents/job_parser_agent
+  sha: fd38288ddffc36ee7380cd36bc5a63f9501ac78a
+  branch: feature/ris-analysis-integration-07
+  parserLibrary:
+    repository: maynowak/mays-jobsearch
+    path: api/_lib/parsers/ris.mjs
+    cli: scripts/ris-parser-cli.mjs
+    version: "1.0.0"
+    branch: feature/ris-analysis-parser-cli-04
+    commit: aaa260c
+  ordersRepository: maynowak/mays-order-aws
+  ordersPin: 016cdfd6ac62565dcec9a2fee78cb898fb919e59
+versions:
+  workItem: "1.0"
+  agentOrder: "1.0"
+  transport: "1"
+  resultBody: "1.0"
+  agentRuntime: "1.0.0"
+  parserSchema: "1.0"
+contracts:
+  order: docs/architecture/AGENT-PARSERS.md
+  transport: agents/transport/order_transport.py
+  required:
+    - WorkItem 1.0 with workId, type, tenantId, idempotencyKey
+    - payload.job with a title or descriptionPlain
+    - parser envelope schemaVersion 1.0, capability parse.job
+runtime:
+  adapter: agents/parsers/node_adapter.py
+  requires: RIS_PARSER_CLI (+ optional RIS_PARSER_NODE)
+  nodeInPythonLambda: PENDING
+infrastructure:
+  awsAccount: "262370457690"
+  region: eu-central-1
+  workspace: ris-dev2
+  ordersLifecycle: managed
+  exclusiveResources: []
+  sharedResources: shared dispatch/result transport and tables

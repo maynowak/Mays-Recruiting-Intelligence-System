@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0",
+  "releaseId": "ris-agent-lifecycle-10",
+  "date": "2026-11-18",
+  "status": "IMPLEMENTED + TESTED (LOCAL) / LIVE GATE NOT WIRED / PARTNER TRAFFIC NO-GO",
+  "environment": {
+    "project": "ris-dev2",
+    "awsAccount": "262370457690",
+    "region": "eu-central-1",
+    "workspace": "ris-dev2",
+    "ordersLifecycle": "managed"
+  },
+  "baseline": {
+    "commits": ["7f51d7d", "4554040", "6fbe996", "2c22d77", "94636b4", "f0c707c"],
+    "reports": [
+      "docs/reports/RIS-AGENT-OPERATIONS-HANDOFF-10.md",
+      "docs/reports/RIS-AGENT-INSTALLATION-09-ADDITION-PILOT.md"
+    ]
+  },
+  "actions": ["INSTALL", "UPDATE", "DISABLE", "ENABLE", "DETACH_PARTNER", "UNINSTALL", "PURGE", "STATUS", "VERIFY"],
+  "evidenceContract": {
+    "dryRun": true,
+    "impactReport": true,
+    "dependencyCheck": true,
+    "resumeIdempotency": "already_uninstalled",
+    "auditEntry": "JSONL with actor/approval/reason/inventoryDigest",
+    "resultManifest": "<state>.result.json",
+    "awsCalls": false
+  },
+  "purge": {
+    "implicit": false,
+    "requires": ["exact agentId", "prior uninstalled", "inactive catalog", "inventory with openOrders", "grace window"],
+    "deletes": ["lifecycle-local state and markers"],
+    "neverDeletes": ["orders", "work items", "results", "entitlements by default", "shared resources", "secret"]
+  },
+  "levers": {
+    "catalog": {
+      "source": "terraform local.agent_catalog_seed",
+      "consumer": ["GET /agents", "partner/m2m execute", "introspection"],
+      "workerReads": false,
+      "dispatchReads": false
+    },
+    "entitlement": {
+      "source": "entitlements rows by agentId",
+      "consumer": ["worker re-check", "API ingress", "discovery"],
+      "isOnlyDispatchGate": true
+    }
+  },
+  "agents": [
+    {
+      "agentId": "ats-agent",
+      "capability": "analyze.job",
+      "package": "agent-installations/ats-agent",
+      "catalogRow": "ACTIVE",
+      "apiReachable": true,
+      "exclusiveResources": [],
+      "sharedBindingPolicy": "profile/credential/application/offer retained"
+    },
+    {
+      "agentId": "addition_agent",
+      "capability": "math.add",
+      "package": "agent-installations/addition-agent",
+      "catalogRow": "ABSENT",
+      "apiReachable": false,
+      "executionPath": "dispatch-only",
+      "exclusiveResources": [],
+      "sharedBindingPolicy": "profile/credential/application retained"
+    }
+  ],
+  "protectedResources": [
+    "agent-dispatch", "agent-dispatch-dlq", "agent-dispatch-ingress",
+    "orders-agent-results", "orders-agent-results-dlq", "orders-agent-result-consumer",
+    "worker-lambda", "orders-reader", "work-items", "mays-orders",
+    "agent-catalog", "entitlements", "api-profiles", "credentials",
+    "partner-applications", "cognito", "agent-result-hmac-secret",
+    "application-cursor-secret", "documents-bucket", "iam-roles"
+  ],
+  "tests": {
+    "lifecycle": "17 passed",
+    "lifecycle_orchestrator_installer": "60 passed",
+    "agent_orders_partner_regression": "238 passed, 6 skipped, 15 subtests",
+    "yamlParse": "5 files OK"
+  },
+  "openBlockers": [
+    "catalog is not a worker execution gate",
+    "order creation ungated in reader",
+    "QUEUED pre-write trips WORK_ADMISSION_STATE_UNSAFE",
+    "no alarm notification path; permanent rejects deleted without artifact",
+    "batch 5 x ATS 30s in 60s Lambda leaves permanent RUNNING",
+    "no ORDER_FAILED / failure projection",
+    "reader POST idempotency and profile expiry gaps",
+    "work-item TTL 30d vs matrix 90d; order rows omit expiresAt",
+    "warm-container catalog registry nondeterminism",
+    "table-wide entitlement DELETE permission"
+  ],
+  "pendingPartner": [
+    "partner RIS_API_CREDENTIAL / RIS_API_BASE_URL",
+    "hard-coded partner agent allowlist",
+    "static partner UI elements bound to an agentId",
+    "quota/consent/privacy text",
+    "partner Cognito pool/client/domain"
+  ],
+  "pendingIac": [
+    "add addition_agent catalog seed only if API discoverability is required",
+    "per-agent catalog status variable only after the worker consults the catalog"
+  ],
+  "changes": {
+    "code": [
+      "installer/agent_lifecycle.py",
+      "installer/agent_install.py",
+      "tests/test_agent_lifecycle.py",
+      ".gitignore"
+    ],
+    "packages": [
+      "agent-installations/ats-agent/lifecycle.yaml",
+      "agent-installations/ats-agent/uninstall.md",
+      "agent-installations/ats-agent/partner-bindings.md",
+      "agent-installations/ats-agent/retention.md",
+      "agent-installations/ats-agent/manifest.yaml",
+      "agent-installations/addition-agent/lifecycle.yaml",
+      "agent-installations/addition-agent/uninstall.md",
+      "agent-installations/addition-agent/partner-bindings.md",
+      "agent-installations/addition-agent/retention.md"
+    ],
+    "docs": [
+      "docs/reports/RIS-AGENT-LIFECYCLE-10.md",
+      "docs/releases/ris-agent-lifecycle-10.json",
+      "docs/AI_AUDITLOG.md"
+    ]
+  },
+  "safety": {
+    "awsMutation": false,
+    "purgeExecuted": false,
+    "secretOrUserMutation": false,
+    "risDevOrProductionChange": false,
+    "mergeOrPush": false
+  },
+  "recovery": {
+    "disableEnable": "re-grant entitlements, catalog ACTIVE via reviewed plan",
+    "detachReattach": "new reviewed grant; shared rows never removed",
+    "uninstallReinstall": "fresh reviewed install; no state flip",
+    "repeatUninstall": "already_uninstalled, state unchanged",
+    "purge": "irreversible; local markers only; no automatic reverse"
+  }
+}

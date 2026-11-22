@@ -101,12 +101,22 @@ def process_orders_work(work_item: Dict[str, Any],
                         "error": {"message": f"Order {order_id} nicht gefunden",
                                   "type": "ORDER_NOT_FOUND"}}
         if order_result.success:
+            # ``success`` here means the port call succeeded. The business
+            # state is ``result_type`` plus the explicit processing fields;
+            # an HTTP 200 GET on a pending order stays PENDING.
+            data = order_result.data or {}
             return {"success": True, "agentId": ORDERS_AGENT_ID,
                     "data": {"order_id": order_result.order_id,
                              "result_type": order_result.result_type.value
                              if order_result.result_type else None,
                              "reason": order_result.reason,
-                             "order": (order_result.data or {}).get("order"),
+                             "order": data.get("order"),
+                             "processing": data.get("processing"),
+                             "processing_status": data.get("processing_status"),
+                             "order_status": data.get("order_status"),
+                             "order_type": data.get("order_type"),
+                             "http_status": data.get("http_status"),
+                             "contract_error": data.get("contract_error"),
                              "workId": work_item.get("workId")}}
         return {"success": False, "agentId": ORDERS_AGENT_ID,
                 "error": {"message": order_result.reason or "Port meldete Fehler",

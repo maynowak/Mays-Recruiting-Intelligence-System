@@ -1,0 +1,213 @@
+"""Analysis orchestration agent (capability ``analysis.run``).
+
+Thin wrapper around ``AnalysisOrchestrator``. It performs no parsing and no
+comparison itself; it validates the WorkItem, resolves identity/entitlements
+from configuration (production must inject a resolver) and returns the
+requested result bodies.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Dict, Optional
+
+from agents.analysis.contracts import (
+    ANALYSIS_CONSENT_PURPOSE,
+    ANALYSIS_NOTICE_VERSION,
+    ContractError,
+    Identity,
+)
+from agents.analysis.cv_bridge import build_cv_resolver
+from agents.analysis.orchestrator import AnalysisOrchestrator
+from agents.base import AgentBase
+from agents.parsers.node_adapter import ParserUnavailable
+
+logger = logging.getLogger(__name__)
+
+ANALYSIS_AGENT_ID = "analysis-agent"
+ANALYSIS_AGENT_VERSION = "1.0.0"
+ANALYSIS_CAPABILITY = "analysis.run"
+ANALYSIS_WORK_TYPE = "agent_analysis_agent"
+
+
+class AnalysisAgent(AgentBase):
+    CAPABILITY = ANALYSIS_CAPABILITY
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None,
+                 orchestrator: Optional[AnalysisOrchestrator] = None,
+                 identity_resolver=None):
+        super().__init__(config)
+        self.name = ANALYSIS_AGENT_ID
+        self.version = ANALYSIS_AGENT_VERSION
+        self._orchestrator = orchestrator or AnalysisOrchestrator(
+            cv_resolver=build_cv_resolver(self.config))
+        self._identity_resolver = identity_resolver
+
+    @staticmethod
+    def _error(message: str, error_type: str) -> Dict[str, Any]:
+        return {"success": False,
+                "error": {"message": message, "type": error_type}}
+
+    def _identity(self, work_item: Dict[str, Any]) -> Identity:
+        if self._identity_resolver is not None:
+            return self._identity_resolver(work_item)
+        config = self.config or {}
+        entitlements = config.get("entitlements")
+        synthetic = config.get("synthetic") or {}
+        if not entitlements and not (synthetic.get("enabled")
+                                     and synthetic.get("entitlements")):
+            # Fail closed: no configured entitlements means no analysis.
+            raise ContractError(
+                "analysis_identity_not_configured",
+                "analysis entitlements are not configured")
+        # The runtime pipeline nests the original WorkItem as the invocation
+        # payload; identity belongs to that original item, never to the
+        # invocation wrapper.
+        source = work_item
+        nested = work_item.get("payload")
+        if (isinstance(nested, dict) and nested.get("workId")
+                and ("userId" in nested or "tenantId" in nested)):
+            source = nested
+            for outer_key, inner_key in (
+                    ("tenantId", "tenantId"), ("userId", "userId"),
+                    ("partnerApplicationId", "partnerApplicationId"),
+                    ("issuer", "issuer")):
+                outer = work_item.get(outer_key)
+                inner = nested.get(inner_key)
+                if outer and inner and str(outer) != str(inner):
+                    raise ContractError(
+                        "identity_conflict",
+                        "outer and nested work item identities disagree")
+        synthetic = config.get("synthetic") or {}
+        verifier = config.get("synthetic_verifier")
+        if (synthetic.get("enabled")
+                and self._matches_synthetic(source, synthetic)
+                and callable(verifier)):
+            candidate = {
+                "tenant_id": str(source.get("tenantId") or ""),
+                "user_id": str(source.get("userId") or ""),
+                "partner_application_id": str(
+                    source.get("partnerApplicationId") or ""),
+                "issuer": str(source.get("issuer") or ""),
+            }
+            try:
+                verified = bool(verifier(str(source.get("workId") or ""),
+                                         candidate))
+            except Exception:  # noqa: BLE001 - fail closed
+                verified = False
+            if verified:
+                # A synthetic exact-match identity is authorized only for the
+                # explicitly configured test profile AND a persisted RUNNING
+                # WorkItem with the same verified identity. It is NOT real
+                # consent or notice approval.
+                return Identity(
+                    tenant_id=synthetic["tenant_id"],
+                    user_id=synthetic["user_id"],
+                    entitlements=frozenset(synthetic["entitlements"]),
+                    consent=True,
+                    partner_application_id=synthetic["partner_application_id"],
+                    issuer=synthetic["issuer"],
+                    caller_partner_id=config.get("caller_partner_id"),
+                    consent_purpose=ANALYSIS_CONSENT_PURPOSE,
+                    consent_notice_version=ANALYSIS_NOTICE_VERSION,
+                    consent_notice_approved=False,
+                    synthetic=True,
+                )
+        return Identity(
+            tenant_id=str(source.get("tenantId")
+                          or work_item.get("tenantId") or ""),
+            user_id=str(source.get("userId")
+                        or work_item.get("userId") or ""),
+            entitlements=frozenset(entitlements),
+            consent=bool(config.get("consent", False)),
+            partner_application_id=source.get("partnerApplicationId")
+            or work_item.get("partnerApplicationId"),
+            issuer=source.get("issuer") or work_item.get("issuer"),
+            caller_partner_id=config.get("caller_partner_id"),
+            consent_purpose=config.get("consent_purpose",
+                                       ANALYSIS_CONSENT_PURPOSE),
+            consent_notice_version=config.get(
+                "consent_notice_version", ANALYSIS_NOTICE_VERSION),
+            consent_notice_approved=bool(
+                config.get("consent_notice_approved", False)),
+        )
+
+    @staticmethod
+    def _matches_synthetic(source: Dict[str, Any],
+                           synthetic: Dict[str, Any]) -> bool:
+        """All four identity fields must match exactly and be non-empty."""
+        for key in ("tenant_id", "user_id", "partner_application_id",
+                    "issuer"):
+            expected = str(synthetic.get(key) or "")
+            actual = str(source.get(
+                {"tenant_id": "tenantId", "user_id": "userId",
+                 "partner_application_id": "partnerApplicationId",
+                 "issuer": "issuer"}[key]) or "")
+            if not expected or actual != expected:
+                return False
+        return True
+
+    def process_work(self, work_item: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(work_item, dict):
+            return self._error("Work item must be an object", "ValidationError")
+        capability = work_item.get("capability") or self.CAPABILITY
+        if capability != self.CAPABILITY:
+            return self._error(
+                f"Unknown capability: {capability}", "ValidationError")
+        payload = work_item.get("payload")
+        if not isinstance(payload, dict):
+            return self._error(
+                "Field 'payload' must be an object", "ValidationError")
+        # The runtime pipeline nests the original WorkItem as the invocation
+        # payload (AgentBody), while direct calls pass the request itself.
+        request = payload.get("request")
+        if not isinstance(request, dict):
+            nested = payload.get("payload")
+            request = nested if isinstance(nested, dict) else payload
+        if not isinstance(request, dict):
+            return self._error(
+                "Field 'payload' must be an object", "ValidationError")
+        try:
+            identity = self._identity(work_item)
+            response = self._orchestrator.run(
+                request, identity,
+                request_id=work_item.get("workId"))
+        except ContractError as exc:
+            return self._error(f"{exc.code}: {exc.message}", "ValidationError")
+        except ParserUnavailable:
+            raise
+        except Exception as exc:  # noqa: BLE001 - runtime boundary
+            logger.error("analysis failed: %s", type(exc).__name__)
+            raise
+
+        return {
+            "success": True,
+            "data": response,
+            "metrics": {
+                "workId": work_item.get("workId"),
+                "agentId": work_item.get("agentId") or ANALYSIS_AGENT_ID,
+                "agentVersion": self.version,
+                "capability": self.CAPABILITY,
+                "requestedResults": response.get("requestedResults", []),
+            },
+        }
+
+    def validate_work(self, work_item: Dict[str, Any]) -> bool:
+        if not isinstance(work_item, dict):
+            return False
+        for field in ("workId", "type", "tenantId", "idempotencyKey"):
+            if field not in work_item:
+                return False
+        if work_item.get("capability") != self.CAPABILITY:
+            return False
+        return isinstance(work_item.get("payload"), dict)
+
+    def get_status(self, work_id: str, tenant_id: str) -> Dict[str, Any]:
+        return {"workId": work_id, "tenantId": tenant_id,
+                "status": "COMPLETED",
+                "result": {"message": "Analysis agent has no independent state",
+                           "agentId": ANALYSIS_AGENT_ID}}
+
+
+__all__ = ["ANALYSIS_AGENT_ID", "ANALYSIS_AGENT_VERSION",
+           "ANALYSIS_CAPABILITY", "ANALYSIS_WORK_TYPE", "AnalysisAgent"]

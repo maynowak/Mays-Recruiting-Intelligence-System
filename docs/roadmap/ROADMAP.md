@@ -5,8 +5,9 @@
 | Dokument | Stand | Inhalt | SHA-256 |
 |---|---|---|---|
 | [`RIS_Agent_Ecosystem_Entwicklungsroadmap_2026.pdf`](RIS_Agent_Ecosystem_Entwicklungsroadmap_2026.pdf) | 2026-11-15 | Vom Auftraggeber bereitgestellte Entwicklungsroadmap (PDF) | `0212667decc460963498669c0be00faffa5eece76b821d69605658f252ed904a` |
+| [`RIS_ATS_AGENT_ORCHESTRIERTER_PROMPTPLAN_2026-11-15.md`](RIS_ATS_AGENT_ORCHESTRIERTER_PROMPTPLAN_2026-11-15.md) | 2026-11-15 | Orchestrierter Promptplan `RIS-ATS-AGENT-01` (ORCH-00…06) | `770f5135535c339ad936727efcbc1baf91511f46be74b9f490df3d9d58d1bdf0` |
 
-Das PDF ist ein **Planungsdokument**, kein Evidenznachweis. Technische Aussagen
+Die verlinkten Dokumente sind **Planungsdokumente**, kein Evidenznachweis. Technische Aussagen
 gelten nur, wenn sie durch Code, Tests, Pläne oder Reports gedeckt sind
 (`docs/reports/`, `docs/AI_AUDITLOG.md`).
 

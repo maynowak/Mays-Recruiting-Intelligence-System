@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0",
+  "release": "RIS-ANALYSIS-OFFER-E2E-15-IDENTITY-GATE",
+  "supersededBy": "RIS-ANALYSIS-OFFER-E2E-15-FINAL-CANARY-GATE",
+  "generatedAt": "2026-11-21",
+  "verdict": "READY FOR EXACT-PLAN APPLY APPROVAL",
+  "state": {
+    "serial": 67,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "resources": 283,
+    "workspace": "ris-dev2"
+  },
+  "plan": {
+    "path": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/rc17/plan.out",
+    "sha256": "7426ba4aaa9dd799e4e8164f9506d55a108549035d1a44a99a4f1ee06571b3f6",
+    "jsonSha256": "5649a311b782632503d399a8aa52f3069c02e739b800b1e99bd252af5d8d108f",
+    "adds": 4,
+    "changes": 3,
+    "destroys": 0,
+    "replacements": 0,
+    "guard": "NO_SHARED_DESTROY",
+    "applyApproved": false
+  },
+  "bundles": {
+    "worker": {
+      "sha256": "28125fe103f39496069bb419586a3f328dc2d60f343f2b4f6f415af65ab433e6",
+      "files": 115
+    },
+    "analysis": {
+      "sha256": "a932330191fc7e557948705633a18972174c3beaecb777bd03e15c3fa6eeca80",
+      "files": 113
+    },
+    "parser": {
+      "sha256": "fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a",
+      "files": 412
+    }
+  },
+  "syntheticProfile": {
+    "modeEnv": "ANALYSIS_SYNTHETIC_MODE",
+    "installation": "ris-dev2",
+    "required": [
+      "ANALYSIS_SYNTHETIC_TENANT_ID",
+      "ANALYSIS_SYNTHETIC_USER_ID",
+      "ANALYSIS_SYNTHETIC_PARTNER_APPLICATION_ID",
+      "ANALYSIS_SYNTHETIC_ISSUER",
+      "ANALYSIS_SYNTHETIC_ENTITLEMENTS",
+      "ANALYSIS_SYNTHETIC_EXPIRES_AT",
+      "ANALYSIS_SYNTHETIC_INSTALLATION=ris-dev2"
+    ],
+    "trustedBinding": "persisted RUNNING WorkItem with exact identity; verified by DynamoDB GetItem",
+    "noticeApproval": false,
+    "realConsent": false,
+    "catalogSeed": false
+  },
+  "iam": {
+    "analysisReadback": "dynamodb:GetItem on ris-dev2-dev-work-items only (no write)",
+    "analysisNoWrite": true,
+    "invokePrincipals": ["worker role", "ingress role"]
+  },
+  "stopConditions": [
+    "plan SHA differs from 7426ba4a…",
+    "state serial/lineage differs from 67 / a0bd361d…",
+    "synthetic identity is accepted without a persisted RUNNING WorkItem",
+    "outer and nested identities may disagree",
+    "synthetic mode enabled outside ris-dev2",
+    "any catalog/offer seed, real grant or global consent",
+    "guard is not NO_SHARED_DESTROY"
+  ]
+}

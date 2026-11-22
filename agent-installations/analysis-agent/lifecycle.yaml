@@ -1,0 +1,89 @@
+schemaVersion: "1.0"
+agentId: analysis-agent
+owner: ris-dev
+version: "1.0.0"
+discovery:
+  catalog: ris-dev2-dev-agent-catalog
+  visibility: ABSENT
+  apiReachable: false
+  # Correction-14: dispatch ingress persists + enqueues; the shared worker owns
+  # claims/retries and invokes the analysis Lambda through AgentBody.
+  executionPath: >-
+    orders-reader admission gate -> ORDER_DISPATCH -> dispatch ingress
+    (persist + enqueue) -> work queue -> shared worker -> registry/AgentBody
+    -> analysis Lambda
+  blockNewOrdersOnDisable: true
+  blockNewOrdersEnforcedBy: >-
+    lambda/orders_reader.py admission gate plus the agent-scoped entitlement;
+    catalog status alone does not stop reader, ingress or worker.
+  resultRetrieval:
+    owner: mays-orders
+    path: GET /orders/{orderId}
+    fields: [processing.status, processing.result, processing.error]
+    risFacade: ris-dev2-dev-orders-reader (owner-scoped GET)
+  automaticAgentResume: false
+  automaticAgentResumeNote: >-
+    ORDER_RESULT/ORDER_FAILED update the order. No WAITING state and no
+    wake-up/resume of a parent agent exists; that is a separate platform
+    track, not part of this single analysis order.
+sharedResources:
+  - ris-dev2-dev-agent-dispatch
+  - ris-dev2-dev-agent-dispatch-dlq
+  - ris-dev2-dev-agent-dispatch-ingress
+  - ris-dev2-dev-work-queue
+  - ris-dev2-dev-dlq
+  - ris-dev2-mays-orders-agent-results
+  - ris-dev2-mays-orders-agent-results-dlq
+  - ris-dev2-mays-orders-agent-result-consumer
+  - ris-dev2-dev-agent
+  - ris-dev2-dev-orders-reader
+  - ris-dev2-dev-work-items
+  - ris-dev2-mays-orders
+  - ris-dev2-mays-orders-agent-result-hmac
+exclusiveResources:
+  # Agent-specific compute/data. The analysis and dedicated parser Lambdas
+  # were AWS-infrastructure-verified in approved 16C2 Apply A (state 69).
+  # Product activation and synthetic Gate B remain blocked.
+  - ris-dev2-dev-analysis
+  - ris-dev2-dev-analysis-parser
+  - ris-dev2-dev-analysis-jobs
+partnerBindings:
+  - type: entitlement
+    scope: agent
+    managedBy: ris
+    deleteOnDetach: true
+  - type: api-profile
+    scope: shared
+    managedBy: ris
+    deleteOnDetach: false
+  - type: credential
+    scope: shared
+    managedBy: ris
+    deleteOnDetach: false
+  - type: partner-application
+    scope: shared
+    managedBy: ris
+    deleteOnDetach: false
+lifecycle:
+  activation: PENDING_APPROVAL
+  entitlements: agent-installations/analysis-agent/entitlements.yaml
+  approvalsRequired:
+    - legal-notice-approval
+    - operator-entitlement-approval
+    - terraform-apply-approval
+    - catalog-seed-approval
+uninstall:
+  blockNewOrders: true
+  inFlight: drain
+  catalogVisibility: INACTIVE
+  keepHistory: true
+  keepSharedResources: true
+retention:
+  orders: retain
+  workItems: retain
+  results: retain
+  auditLogs: retain
+purge:
+  requiresExplicitConfirmation: true
+  deletes: [lifecycle-state]
+  neverDeletes: [orders, workItems, results, sharedResources]

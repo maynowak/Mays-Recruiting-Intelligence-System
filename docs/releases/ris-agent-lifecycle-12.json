@@ -1,0 +1,136 @@
+{
+  "schemaVersion": "1.0",
+  "releaseId": "ris-agent-lifecycle-12",
+  "date": "2026-11-18",
+  "status": "SHARED-INFRASTRUCTURE GUARD IMPLEMENTED + HARDENED / NO AWS MUTATION",
+  "baseline": "ris-agent-lifecycle-11",
+  "environment": {
+    "project": "ris-dev2",
+    "awsAccount": "262370457690",
+    "region": "eu-central-1",
+    "workspace": "ris-dev2"
+  },
+  "rootCause": {
+    "summary": "transport flags default to false; a plan without them destroys module.agent_transport while live state still has it",
+    "flags": ["enable_agent_transport", "orders_agent_result_enabled", "orders_lifecycle"]
+  },
+  "guard": {
+    "module": "installer/shared_infra_guard.py",
+    "codes": [
+      "NO_SHARED_DESTROY",
+      "MISSING_OR_FALSE_TRANSPORT_FLAG",
+      "SHARED_DESTROY_WITHOUT_INTENT",
+      "SHARED_TEARDOWN_AUTHORIZED",
+      "TEARDOWN_INTENT_INVALID",
+      "PLAN_SHAPE_INVALID",
+      "GUARD_UNREADABLE"
+    ],
+    "failClosedOn": [
+      "missing or unreadable plan",
+      "missing resource_changes",
+      "non-string actions",
+      "change: null",
+      "errored or incomplete plan",
+      "shared delete/replace/forget without intent",
+      "malformed teardown intent"
+    ],
+    "protectedModules": [
+      "agent_transport", "mays_orders", "lambda", "dynamodb", "cognito",
+      "orders_reader", "api", "sqs", "iam", "health_plane", "health_public",
+      "health", "monitoring", "monitoring_orders", "documents", "cloudtrail",
+      "jobsearch_edge", "partner_edge"
+    ],
+    "intentBinding": "planSha256",
+    "wiredInto": ["plan", "apply", "install", "destroy"],
+    "toctouCheck": true,
+    "commandRedaction": true
+  },
+  "livePlanProof": {
+    "hazard": {
+      "variables": {"orders_agent_result_enabled": true},
+      "exit": 1,
+      "code": "MISSING_OR_FALSE_TRANSPORT_FLAG",
+      "namedFlag": "enable_agent_transport",
+      "blockedResources": 11
+    },
+    "safe": {
+      "variables": {"enable_agent_transport": true, "orders_agent_result_enabled": true},
+      "exit": 0,
+      "code": "NO_SHARED_DESTROY",
+      "planChanges": 0,
+      "planSha256Prefix": "c2a879bb"
+    },
+    "apply": false,
+    "stateMutation": false
+  },
+  "lifecycleGates": {
+    "catalog": "discovery and API only; never the worker or order reader",
+    "entitlement": "reader admission, dispatch ingress, worker execution",
+    "catalogAloneBlocksExecution": false,
+    "dispatchIngressFailClosedWithoutResolver": true
+  },
+  "removalImpact": {
+    "fields": [
+      "partnerApplications", "remainingExternalReferences",
+      "pendingExternalChanges", "agentAllowlist", "entitlementStatus",
+      "entitlementsToWithdraw", "entitlementWithdrawRequired",
+      "openOrders", "openResults", "notifications", "retained",
+      "retailOrdersAffected", "observedRetailOrders", "evidenceSources",
+      "secretValueRead"
+    ],
+    "notificationTargets": [
+      "ris-runtime-team", "operations", "partner-team", "security-privacy"
+    ],
+    "scopeEnforcement": "only scope: agent bindings are removable",
+    "auditBeforeState": true,
+    "auditDigests": ["planDigest", "lifecycleDigest", "inventoryDigest"]
+  },
+  "tests": {
+    "sharedInfraGuard": "31 passed",
+    "agentLifecycle": "24 passed",
+    "dispatchIngressEnv": "3 passed",
+    "installerGuardState": "93 passed",
+    "combined": "129 passed",
+    "preExistingEnvironmentFailures": "4 composite tests require the mayaws profile and fail at HEAD too"
+  },
+  "independentReview": {
+    "qa": "found plan-path bypass, install/destroy gaps, classification holes, shape fail-open",
+    "security": "found command -var leakage, intent weakness, inventory/scope/evidence/audit gaps, resolver fail-open, mirror permissions",
+    "fixed": [
+      "plan path resolution and missing-plan refusal",
+      "guard on install and destroy",
+      "plan always saved and guarded",
+      "TOCTOU plan hash check",
+      "-var redaction",
+      "expanded module/type classification",
+      "strict plan shape validation",
+      "intent validation and plan binding",
+      "inventory list validation",
+      "scope: agent enforcement",
+      "declared vs observed evidence",
+      "audit before state mutation",
+      "targeted notifications",
+      "dispatch resolver fail-closed",
+      "state mirror permissions"
+    ],
+    "accepted": [
+      "state push bypasses the plan guard",
+      "intent authorizes the whole plan, not per address",
+      "line-based lifecycle YAML parsing",
+      "project-name charset validation in mirror paths"
+    ]
+  },
+  "sharedResources": {
+    "changed": false,
+    "note": "only plan/read operations; no apply"
+  },
+  "safety": {
+    "scope": "ris-dev2 planning only",
+    "purge": false,
+    "foreignRepos": false,
+    "risDevOrProduction": false,
+    "awsMutation": false,
+    "secretsRead": false,
+    "pushOrMerge": false
+  }
+}

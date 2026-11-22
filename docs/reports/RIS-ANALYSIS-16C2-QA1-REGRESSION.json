@@ -1,0 +1,91 @@
+{
+  "schemaVersion": "1.0",
+  "release": "RIS-ANALYSIS-16C2-QA1",
+  "date": "2026-11-22",
+  "base": "95b7c4f",
+  "environment": {
+    "python": "3.15.0",
+    "isolatedVenv": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-qa1-venv",
+    "installed": {
+      "pytest": "9.2.0",
+      "pytest-subtests": "0.15.0",
+      "requests": "2.34.2",
+      "moto": "5.2.5",
+      "boto3": "1.44.9",
+      "botocore": "1.44.9"
+    },
+    "requirementsAdditions": ["pytest-subtests>=0.11.0", "requests>=2.31.0"],
+    "awsProfileAlias": "temporary credential_process alias for mayaws; no credentials written to disk"
+  },
+  "consentContext": {
+    "rootCause": "The import try/except caught a missing moto/boto3 ImportError and then used ConsentContext, which was never defined. The NameError was a dependency fallback defect, not a consent-logic defect.",
+    "fix": "The three consent test modules now skip cleanly only when moto/boto3/botocore is missing; other ImportErrors still propagate. Purpose assertions were updated for analysis-processing.",
+    "logicWeakened": false
+  },
+  "maysOrders": {
+    "risPin": "5cf50a0a8e4221348c264c59432ff4c8dc580c8b",
+    "generatedModule": "016cdfd6ac62565dcec9a2fee78cb898fb919e59",
+    "localReviewCheckout": "9627eb2",
+    "compositeFixture": "installer/projects/mays_orders (detached worktree at 5cf50a0, ignored)",
+    "contractFixture": "terraform/modules/mays_orders/lambda/src (generated module 016cdfd)",
+    "moduleFixture": "terraform/modules/mays_orders (generated module 016cdfd)",
+    "notes": "The local 9627eb2 checkout is a review reference only. Composite tests use 5cf50a0; contract/module tests use 016cdfd. No Mays module was edited."
+  },
+  "results": {
+    "defaultFullSuite": {
+      "passed": 3185,
+      "skipped": 134,
+      "failed": 0,
+      "subtests": 441
+    },
+    "fixtureFullSuite": {
+      "passed": 3250,
+      "skipped": 68,
+      "failed": 1,
+      "subtests": 441,
+      "failure": "test_generated_module_artifact::test_ris_transport_outputs_are_exposed_additively"
+    },
+    "focusedEvidence": {
+      "passed": 376,
+      "subtests": 12
+    },
+    "agentPackagesValidated": 5,
+    "agentLifecycle": 34,
+    "compositeLifecycle": 43,
+    "parserMatrix": 15,
+    "additionAts": {"passed": 95, "subtests": 9},
+    "maysExtended": {"passed": 54, "failed": 1}
+  },
+  "knownFailure": {
+    "test": "tests/test_generated_module_artifact.py::test_ris_transport_outputs_are_exposed_additively",
+    "finding": "The generated module 016cdfd outputs.tf exposes 20 outputs but not results_queue_url, results_queue_arn or result_hmac_secret_arn. The test expects those additive RIS result outputs.",
+    "status": "KNOWN_CONTRACT_DRIFT",
+    "owner": "RIS module builder / generated Mays module contract",
+    "action": "Do not hand-edit the generated module. Reconcile the builder/test contract in a separate reviewed change. The applied plan does not consume those module outputs, so this is not an apply regression."
+  },
+  "skips": {
+    "total": 68,
+    "categories": {
+      "localDynamoDbNotConfigured": 39,
+      "windowsPosixOrSymlinkLimitation": 12,
+      "noLiveAwsCredentials": 6,
+      "privacyPlanned": 6,
+      "noMayawsProfile": 2,
+      "capturedRealPlanAbsent": 2,
+      "cloudFrontOacSecurityFinding": 1
+    }
+  },
+  "comparison16C2": {
+    "broadRelevant": {"passed": 739, "skipped": 41, "subtests": 13},
+    "note": "16C2's 739 was a focused subset. QA1 executed the full tests/ suite (3185 default / 3250 with fixtures)."
+  },
+  "boundaries": {
+    "terraformApply": false,
+    "awsMutation": false,
+    "syntheticActivationB": false,
+    "maysTransportC": false,
+    "mainMerge": false,
+    "productionDeployment": false
+  }
+}
+

@@ -171,8 +171,11 @@ def precheck_output_destination(path: str) -> None:
     if hasattr(os, "getuid") and parent_stat.st_uid != os.getuid():
         raise OutputDestinationError(
             "secret output directory is not owned by the invoking user")
+    # Windows st_mode does not represent the ACL bits (a normal directory
+    # reports 0o777). Enforcing the POSIX group/other test there would reject
+    # every legitimate output path; the symlink and O_EXCL checks still apply.
     mode = stat.S_IMODE(parent_stat.st_mode)
-    if mode & (stat.S_IWOTH | stat.S_IWGRP):
+    if os.name != "nt" and mode & (stat.S_IWOTH | stat.S_IWGRP):
         raise OutputDestinationError(
             "secret output directory is writable by group or other")
 

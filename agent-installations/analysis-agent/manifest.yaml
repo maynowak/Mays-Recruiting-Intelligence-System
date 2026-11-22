@@ -1,0 +1,81 @@
+schemaVersion: "1.0"
+package:
+  name: analysis-agent
+  version: "1.0.0"
+  status: pending-approval
+  classification: controlled-test
+agent:
+  agentId: analysis-agent
+  capability: analysis.run
+  workType: agent_analysis_agent
+  runtimeAgentVersion: "1.0.0"
+  composite: true
+  offers: offers.yaml
+  # One outer order/work item; these are technical subfunctions, not
+  # separately orderable agents.
+  internalCapabilities:
+    - parse.cv
+    - parse.job
+    - parse.ats
+  externalEntitlements:
+    - parse.cv
+    - parse.job
+    - compare.tags
+    - analyze.job
+source:
+  repository: mays-ris
+  path: agents/analysis_agent
+  # Last verified code/test baseline before documentary closeout.
+  sha: 550090e435e24a873e64837abee52679f769a0d0
+  branch: feature/ris-analysis-integration-07
+  parserLibrary:
+    repository: maynowak/mays-jobsearch
+    cli: scripts/ris-parser-cli.mjs
+    branch: feature/ris-analysis-parser-cli-04
+    commit: e77ee94
+    artifactSourceCommit: c40bf78
+  ordersRepository: maynowak/mays-order-aws
+  ordersPin: 016cdfd6ac62565dcec9a2fee78cb898fb919e59
+versions:
+  workItem: "1.0"
+  agentOrder: "1.0"
+  transport: "1"
+  resultBody: "1.0"
+  agentRuntime: "1.0.0"
+  analysisRequest: "1.0"
+contracts:
+  order: docs/reports/RIS-AGENT-ANALYSIS-ORCHESTRATION-04.md
+  transport: agents/transport/order_transport.py
+  offers: agent-installations/analysis-agent/offers.yaml
+  required:
+    - WorkItem 1.0 with workId, type, tenantId, idempotencyKey
+    - payload.schemaVersion 1.0 and requestedResults
+    - payload.input.cv and/or payload.input.job
+runtime:
+  adapter: agents/parsers/node_adapter.py
+  modeEnv: RIS_PARSER_MODE
+  modes:
+    cli: agents/parsers/node_adapter.py
+    lambda: agents/parsers/lambda_adapter.py
+  parserFunctionEnv: RIS_PARSER_FUNCTION
+  parserArtifact: lambda/dist/analysis-parser.zip
+  parserHandler: lambda/ris_parser_handler.handler
+  parserRuntime: nodejs22.x
+  parserInvocation: >-
+    The Python analysis Lambda invokes the dedicated Node parser Lambda; no
+    Node runtime is installed in the Python Lambda.
+  parserRuntimeState: >-
+    AWS infrastructure verified by approved 16C2 Apply A (4 add / 3 change /
+    0 destroy, state 67 -> 69): analysis and Node parser Lambdas and
+    worker/ingress wiring are installed in ris-dev2, deny-by-default.
+    Terraform flag defaults remain gated. Synthetic Analysis live E2E
+    and Mays-Orders transport are still blocked by separate B/C gates.
+  publicEndpoint: false
+  sharedTransportPolicy: false
+infrastructure:
+  awsAccount: "262370457690"
+  region: eu-central-1
+  workspace: ris-dev2
+  ordersLifecycle: managed
+  exclusiveResources: []
+  sharedResources: shared dispatch/result transport and tables
