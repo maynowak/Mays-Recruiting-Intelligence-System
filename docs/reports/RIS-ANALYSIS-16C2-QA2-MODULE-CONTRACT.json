@@ -1,0 +1,84 @@
+{
+  "schemaVersion": "1.0",
+  "release": "RIS-ANALYSIS-16C2-QA2",
+  "date": "2026-11-22",
+  "base": "eac2a98",
+  "ownership": {
+    "resultQueueDlqSecret": "generated Mays module -> modules/agent_transport",
+    "outputs": "generated module re-exports the existing queue/ARN/secret ARN references",
+    "risRoot": "consumes the identifiers via its own variables; no new resource ownership",
+    "builderPin": "016cdfd6ac62565dcec9a2fee78cb898fb919e59",
+    "generatedTargetSource": "016cdfd6ac62565dcec9a2fee78cb898fb919e59",
+    "compositeClonePin": "5cf50a0",
+    "decision": "The three outputs belong to the generated module and are additive references. The RIS root keeps the variables/wiring."
+  },
+  "cause": {
+    "finding": "inject_transport_outputs() existed but was dead code. The active build validated only 20 outputs; the test expected the three additive RIS result outputs.",
+    "impact": "Generated module 016cdfd had 20 outputs; test_generated_module_artifact failed when the module fixture was activated."
+  },
+  "builderFix": {
+    "callInjectionBeforeValidation": true,
+    "requiredOutputsCount": 23,
+    "requiredOutputs": [
+      "results_queue_url",
+      "results_queue_arn",
+      "result_hmac_secret_arn"
+    ],
+    "exactReferences": {
+      "results_queue_url": "module.agent_transport[0].results_queue_url",
+      "results_queue_arn": "module.agent_transport[0].results_queue_arn",
+      "result_hmac_secret_arn": "module.agent_transport[0].result_hmac_secret_arn"
+    },
+    "duplicateOrUpstreamCollision": "fail closed",
+    "targetManuallyEdited": false,
+    "targetReplaced": false
+  },
+  "isolatedBuild": {
+    "tempPath": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/qa2-temp-module",
+    "builderPin": "016cdfd",
+    "terraformFmtInitValidate": "PASS",
+    "contract": "PASS",
+    "outputsBefore": 20,
+    "outputsAfter": 23,
+    "hashes": {
+      "targetOutputs": "6f9b88b5166936a1af07e9614ae6e105bc6a2b61497f43a8a6afa8fe36b7b250",
+      "tempOutputs": "88483db40497af883f1e4418f21fe884cb7aa08e202a92de9cca1d18cad09dcb",
+      "targetTree": "1cb135ade1e13b289074e8f4fd6080a1977e5be4e79417f359bedfa47d3e12dc",
+      "tempTree": "73c2ec6d6d99e3608677da26afd49b4aab8d572fc5185dd29b2dd5cdd10b62ff",
+      "mainTf": "adc6d2be4021dea256a2431eb2737d7ca09075da79cf27f315c7e24f47025d0f",
+      "variablesTf": "ca45056f074be1b1267f19f40397b0a7651fadfa0248c4db08f570514279319f",
+      "lambdaZip": "48ddd5e52d07b40fc333b67e5e34fb1b67701cf823536e20c7b2816a78a05f94"
+    },
+    "changedFiles": ["outputs.tf", "module-builder.manifest.json (generated_at only)"],
+    "mainVariablesLambdaIdentical": true,
+    "resourcesAdded": false,
+    "permissionsAdded": false,
+    "secretValuesAdded": false
+  },
+  "tests": {
+    "qa2Contract": {"passed": 8},
+    "generatedModuleFixture": {"passed": 9, "skipped": 9, "note": "9 module artifact tests passed against the isolated fixed module; other generated-module env gates skipped in the combined run."},
+    "extendedMays": {"passed": 55},
+    "defaultFullSuite": {"passed": 3193, "skipped": 134, "failed": 0, "subtests": 441},
+    "fixtureFullSuite": {"passed": 3259, "skipped": 68, "failed": 0, "subtests": 441},
+    "agentPackagesValidated": 5,
+    "builderCheckTarget": "FAIL_EXPECTED_OLD_TARGET",
+    "builderCheckTemp": "PASS"
+  },
+  "compatibility": {
+    "currentAppliedInfrastructureValid": true,
+    "immediateInfrastructureChangeRequired": false,
+    "futureReviewedModuleRebuildRequiredForTargetContract": true,
+    "futureApplyEffect": "outputs only; no resource, IAM, queue, table or secret value change",
+    "rootConsumesModuleOutputsNow": false,
+    "conclusion": "QA2 fixes the builder/contract. The applied target module remains intentionally unchanged. A future reviewed module regeneration/apply is needed only to make the deployed module files expose the outputs; it is state/output-only and does not require resource changes."
+  },
+  "boundaries": {
+    "terraformApply": false,
+    "awsMutation": false,
+    "syntheticActivationB": false,
+    "maysTransportC": false,
+    "mainMerge": false,
+    "productionDeployment": false
+  }
+}

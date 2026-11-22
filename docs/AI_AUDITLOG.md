@@ -11251,3 +11251,14 @@ Date: 2026-11-22
 - Skips: 39 local DynamoDB not configured, 12 Windows POSIX/symlink, 6 live AWS credentials, 6 privacy planned, 2 mayaws profile, 2 captured plan absent, 1 CloudFront OAC finding. No tests disabled to force green.
 - Boundaries: no Terraform apply, no AWS mutation, no synthetic activation B, no Mays transport before C, no main merge, no production deployment.
 
+[RIS-ANALYSIS-16C2-QA2 / GENERATED MODULE CONTRACT ALIGNMENT]
+Status: builder/contract fixed and isolated module verified; no AWS/Terraform mutation.
+Date: 2026-11-22
+- Cause: `inject_transport_outputs()` existed but was dead code. The active build required only 20 outputs; the test expected the three additive RIS result outputs. The result queue/DLQ/HMAC secret are owned by `modules/agent_transport` inside the generated module, so the generated module should re-export their identifiers; the RIS root keeps the variables/wiring.
+- Fix: `build_module()` now calls `inject_transport_outputs()` before `validate_generated_contract()`. The contract requires 23 outputs and validates exactly one `results_queue_url`, `results_queue_arn` and `result_hmac_secret_arn`, each referencing `module.agent_transport[0]`. Duplicate/upstream collisions fail closed. The applied target module was not edited or replaced.
+- Negative tests (8): deterministic injection, duplicate/upstream collision, missing output, duplicate output, wrong reference, no resource/IAM/secret constructs, and active-build injection-before-validation.
+- Isolated generation (temp `qa2-temp-module`, pin 016cdfd): builder contract PASS, `terraform fmt`/`init -backend=false`/`validate` PASS, 23 outputs. `main.tf` (`adc6d2be…`), `variables.tf` (`ca45056f…`) and `lambda.zip` (`48ddd5e5…`) are byte-identical to the target; only `outputs.tf` and the manifest timestamp differ. Target outputs `6f9b88b5…` (20) → temp `88483db4…` (23).
+- Tests: QA2 contract 8 passed; extended Mays/module fixture 55 passed; default full suite 3193 passed, 134 skipped, 0 failed, 441 subtests; all-fixture full suite 3259 passed, 68 skipped, 0 failed, 441 subtests; five agent packages VALIDATED.
+- Applied target remains intentionally old (20 outputs) and now fails the stricter `--check`; this is the expected signal for a future reviewed module rebuild. No immediate infrastructure change: outputs are references only, no resource/IAM/queue/table/secret change. A later apply would add outputs to state only.
+- Boundaries: no Terraform apply, AWS mutation, target replacement, synthetic activation B, Mays transport C, main merge or production deployment.
+
