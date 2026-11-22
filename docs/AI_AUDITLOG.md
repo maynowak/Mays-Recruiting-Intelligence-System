@@ -11293,3 +11293,13 @@ Status: documentation-only closeout; no AWS/Terraform mutation, no main merge.
 - Feature vs main: 108 ahead / 0 behind, 300 changed paths; main e95fe48 unchanged. No PR/HEAD CI evidence was found; main-push CI/plan side effects require separate premerge review.
 - One clean documentation closeout commit + feature-branch push; remote HEAD verified after push. Verdict: READY FOR CONTROLLED MAIN MERGE REVIEW. Gate B synthetic profile, Gate C apiProfileRef binding, legal/entitlement/catalog activation, DLQ exhaustion and Agent-A resume remain open.
 
+[RIS-ANALYSIS-BRANCH-CLOSEOUT-01 / POST-PUSH MERGE PREFLIGHT]
+Date: 2026-11-22
+Status: feature checkpoint pushed; main unchanged; no merge.
+- Closeout commit `48d7c1a` pushed to `feature/ris-analysis-integration-07`; remote HEAD matches. Feature vs `origin/main` (`e95fe48`): **109 ahead / 0 behind**, **301 changed paths** (108/300 at baseline 550090e plus the closeout commit).
+- `git merge-tree --write-tree origin/main HEAD` returned a clean tree, no merge conflicts.
+- Full-branch safety scan: no secret-shaped additions; no `.github` workflow diff; offers remain DRAFT/activation false/catalog ABSENT; entitlements PENDING_APPROVAL, grants empty, consent DRAFT/grantable false; analysis runtime Terraform variable default remains false. Terraform changes are gated analysis-runtime/transport changes from the prior reviewed phases.
+- Main-push CI finding: the unchanged workflow triggers validate+plan on `main`; `plan` uses `environment=${github.ref_name}` => `environment=main`, but root validation allows only `dev|test|prod`, so the main plan is expected to fail. `deploy` runs only on `refs/heads/prod`; no auto-apply on main. This is a pre-merge CI condition, not a branch-content conflict or product activation.
+- No Terraform/AWS mutation, target rebuild, RC4 migration, main merge or production deployment. Gate B synthetic profile and Gate C `apiProfileRef` binding remain open.
+- Verdict: **READY FOR CONTROLLED MAIN MERGE REVIEW** with the explicit `MAIN-PUSH CI CONDITION: PLAN ENV=main INVALID`; do not merge until that workflow/plan context is reviewed or the red plan is explicitly accepted.
+

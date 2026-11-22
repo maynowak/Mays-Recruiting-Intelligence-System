@@ -8,7 +8,7 @@
 
 ## Ergebnis und Abgrenzung
 
-Der **Analysis-Agent ist als deaktiviertes Entwicklungsmodul bereit für einen kontrollierten Branch-Closeout**, nicht für eine Freigabe echter oder bezahlter Aufträge. GitHub zeigt einen linearen Vergleich: Feature ist **108 Commits voraus / 0 zurück**; gegenüber `main` umfasst der Vergleich **300 geänderte Dateien**. Fast-Forward-Historie ist möglich, ersetzt aber weder den Merge-Scope-Review noch Checks und Deploy-Gates. Ein PR war beim Read-only-Check nicht vorhanden; am Feature-HEAD wurden keine GitHub-Statuschecks bzw. PR-getriggerten Workflow-Läufe gefunden. Das bedeutet **keine gefundene CI-Evidenz**, nicht automatisch CI-FAIL.
+Der **Analysis-Agent ist als deaktiviertes Entwicklungsmodul bereit für einen kontrollierten Branch-Closeout**, nicht für eine Freigabe echter oder bezahlter Aufträge. GitHub zeigt einen linearen Vergleich: Feature ist **109 Commits voraus / 0 zurück**; gegenüber `main` umfasst der Vergleich **301 geänderte Dateien**. Fast-Forward-Historie ist möglich, ersetzt aber weder den Merge-Scope-Review noch Checks und Deploy-Gates. Ein PR war beim Read-only-Check nicht vorhanden; am Feature-HEAD wurden keine GitHub-Statuschecks bzw. PR-getriggerten Workflow-Läufe gefunden. Das bedeutet **keine gefundene CI-Evidenz**, nicht automatisch CI-FAIL.
 
 **Keine AWS-/Terraform-Mutation, kein Code-Patch, kein Main-Merge und kein Deployment.** Der externe Read-only-Review wurde im lokalen RIS-Checkout gegen `550090e` reconciled; die Dokumentationskorrekturen sind angewendet, lokal validiert und als sauberer Feature-Branch-Commit gepusht. Die vollständige QA2-Suite wurde nicht ohne Anlass erneut ausgeführt; ihre 3193/3259-Ergebnisse bleiben historische, am Baseline-HEAD belegte Regression.
 
@@ -49,6 +49,15 @@ Der **Analysis-Agent ist als deaktiviertes Entwicklungsmodul bereit für einen k
 
 1. **Ganzer Branch, nicht nur Analysis:** Gegen `main` sind 300 Dateien / 108 Commits betroffen (Agent Factory, Parser, Orders, Terraform, Runtime, Tests und Doku). Fachlichen Scope vor Merge anerkennen; keine stillen Teil-Cherry-Picks oder RC4-Änderung.
 2. **CI bei Main-Push:** `.github/workflows/ci-cd.yml` ist auf `push` für `main` konfiguriert, mit `validate → plan`; der Workflow enthält einen `deploy`-Job nur bei `refs/heads/prod`. Ein Main-Push startet damit voraussichtlich **CI und einen Terraform-Plan**, ohne nachgewiesenen automatischen Apply auf `main`. Plan-Backend-/AWS-Kontext und andere Repository-Integrationen vor Merge gesondert prüfen.
+2a. **Main-Push-CI-Befund (2026-11-22):** `.github/workflows/ci-cd.yml`
+   ist im Branch unverändert. Ein Push auf `main` startet `validate` und
+   `plan`; der Plan ruft
+   `terraform plan -var="environment=${github.ref_name}"` auf, also
+   `environment=main`. Die Root-Variable erlaubt nur `dev|test|prod`, daher
+   wird der Main-Plan voraussichtlich fehlschlagen. `deploy` läuft nur bei
+   `refs/heads/prod`; **kein Auto-Apply auf `main`**. Vor einem tatsächlichen
+   Merge Workflow/Plan-Kontext separat korrigieren oder den roten Plan
+   ausdrücklich akzeptieren.
 3. **Kein PR/HEAD-CI-Nachweis:** GitHub zeigte keinen PR zu diesem Branch, keine Combined-Status-Einträge und keine PR-Workflow-Runs für `550090e`. Das ist **kein** Nachweis eines reproduzierbar grünen Main-CI.
 4. **Merge getrennt freigeben:** Erst nach Paket-Reconciliation, lokalem dokumentarischem Test-/Validation-Gate, neuem Feature-Commit+Push, aktueller HEAD-/Main-Verifikation und CI-/Deployment-Impact-Review. `main` nicht ohne weiteren konkreten Auftrag verändern.
 
@@ -69,14 +78,14 @@ Target, Offers/Entitlements/Consent/Catalog blieben unverändert.
 | Secret-Audit (Diff) | keine Treffer |
 | Querverweis-Prüfung | keine fehlenden Referenzen |
 | QA2-Gesamtsuite | **nicht erneut ausgeführt**; historisch 3193/3259 am Baseline-HEAD |
-| Feature vs. `main` | **108 ahead / 0 behind**, 300 changed paths |
+| Feature vs. `main` | **109 ahead / 0 behind**, 301 changed paths (108/300 at baseline 550090e + closeout 48d7c1a) |
 | `main` | `e95fe48` unverändert |
 
-Commit/Push: ein sauberer dokumentationsbezogener Closeout-Commit auf
-`feature/ris-analysis-integration-07`; Remote-HEAD nach Push verifiziert.
-Kein Main-Merge.
+Commit/Push: ein sauberer dokumentationsbezogener Closeout-Commit
+`48d7c1a` auf `feature/ris-analysis-integration-07`; Remote-HEAD nach Push
+verifiziert. Kein Main-Merge.
 
-**Verdict:** `APPLICATION QA2 VERIFIED / AWS INFRA VERIFIED / PACKAGE DOC DRIFT RECONCILED / LOCAL VALIDATION PASS / FEATURE CHECKPOINT PUSHED / B-C OPEN / READY FOR CONTROLLED MAIN MERGE REVIEW`.
+**Verdict:** `APPLICATION QA2 VERIFIED / AWS INFRA VERIFIED / PACKAGE DOC DRIFT RECONCILED / LOCAL VALIDATION PASS / FEATURE CHECKPOINT PUSHED (48d7c1a) / B-C OPEN / READY FOR CONTROLLED MAIN MERGE REVIEW / MAIN-PUSH CI CONDITION: PLAN ENV=main INVALID`.
 
 ## Verifizierte Links
 
