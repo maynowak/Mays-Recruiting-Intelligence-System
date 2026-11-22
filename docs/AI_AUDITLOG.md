@@ -11140,3 +11140,12 @@ Date: 2026-11-21
 - Updated `AGENTS.md` (sources of truth), `docs/architecture/SYSTEM-ARCHITECTURE.md` (Correction-14 addendum + actual dispatch→work path), `docs/architecture/RUNTIME-PATH.md` (dispatch→work queue, QUEUED claim, addition/analysis agents).
 - Markdown image links point to the SVG sources; no PNG dependency. The documents state clearly that Correction-14 is prepared, not applied (plan 4/3/0 unapproved, DLQ-exhaustion ORDER_FAILED open).
 
+[RIS-AGENT-FACTORY-PNP-ANALYSIS-16A / STEP A — ANALYSIS PACKAGE RECONCILIATION]
+Status: documentation reconciliation only; no runtime/AWS change.
+Date: 2026-11-22
+- Aligned `agent-installations/analysis-agent/` with RIS `c245512`, Jobsearch `e77ee94` (parser artifact source `c40bf78`), generated Mays module `016cdfd`; kept the RIS pin `5cf50a0` and the local Mays checkout `9627eb2` explicitly separate.
+- Manifest now records the composite execution model: one outer WorkItem/order, internal `parse.cv|parse.job|parse.ats`, external entitlements `parse.cv|parse.job|compare.tags|analyze.job`, dedicated Node parser Lambda gated by `enable_analysis_runtime=false`.
+- Offers/lifecycle/operations/risks/handoff/tests/contracts/partner bindings now state the Correction-14 path (dispatch ingress -> work queue -> shared worker -> AgentBody), the Mays result retrieval (`GET /orders/{orderId}` -> `processing.status/result/error`), and that automatic parent-agent resume is NOT implemented.
+- Corrected stale pins/counts (31 pipeline tests, 14 offer tests, 17 synthetic-profile tests; E1B broad run 414 passed + 6 subtests). Open: apply A, synthetic profile B, Mays `apiProfileRef` binding C, DLQ exhaustion, legal/entitlement/catalog.
+- Validation: `installer.agent_install --agent analysis-agent --stage validate` PASSED; analysis pipeline/offers/entitlements 57 passed. No apply, no real data.
+

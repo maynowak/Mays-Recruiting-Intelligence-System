@@ -6,13 +6,32 @@ discovery:
   catalog: ris-dev2-dev-agent-catalog
   visibility: ABSENT
   apiReachable: false
-  executionPath: reader-gate+dispatch+worker
+  # Correction-14: dispatch ingress persists + enqueues; the shared worker owns
+  # claims/retries and invokes the analysis Lambda through AgentBody.
+  executionPath: >-
+    orders-reader admission gate -> ORDER_DISPATCH -> dispatch ingress
+    (persist + enqueue) -> work queue -> shared worker -> registry/AgentBody
+    -> analysis Lambda
   blockNewOrdersOnDisable: true
-  blockNewOrdersEnforcedBy: lambda/orders_reader.py admission gate
+  blockNewOrdersEnforcedBy: >-
+    lambda/orders_reader.py admission gate plus the agent-scoped entitlement;
+    catalog status alone does not stop reader, ingress or worker.
+  resultRetrieval:
+    owner: mays-orders
+    path: GET /orders/{orderId}
+    fields: [processing.status, processing.result, processing.error]
+    risFacade: ris-dev2-dev-orders-reader (owner-scoped GET)
+  automaticAgentResume: false
+  automaticAgentResumeNote: >-
+    ORDER_RESULT/ORDER_FAILED update the order. No WAITING state and no
+    wake-up/resume of a parent agent exists; that is a separate platform
+    track, not part of this single analysis order.
 sharedResources:
   - ris-dev2-dev-agent-dispatch
   - ris-dev2-dev-agent-dispatch-dlq
   - ris-dev2-dev-agent-dispatch-ingress
+  - ris-dev2-dev-work-queue
+  - ris-dev2-dev-dlq
   - ris-dev2-mays-orders-agent-results
   - ris-dev2-mays-orders-agent-results-dlq
   - ris-dev2-mays-orders-agent-result-consumer
@@ -21,7 +40,12 @@ sharedResources:
   - ris-dev2-dev-work-items
   - ris-dev2-mays-orders
   - ris-dev2-mays-orders-agent-result-hmac
-exclusiveResources: []
+exclusiveResources:
+  # Agent-specific compute/data. The analysis Lambda is planned (not deployed);
+  # the dedicated parser Lambda is Terraform-gated.
+  - ris-dev2-dev-analysis
+  - ris-dev2-dev-analysis-parser
+  - ris-dev2-dev-analysis-jobs
 partnerBindings:
   - type: entitlement
     scope: agent

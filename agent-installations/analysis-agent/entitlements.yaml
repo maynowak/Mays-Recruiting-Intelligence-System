@@ -19,6 +19,9 @@ entitlements:
   autoGrant: false
   inheritExistingConsents: false
   grants: []
+  # Technical parser subfunctions of the same outer WorkItem. They are not
+  # separately orderable and never grant an order of their own.
+  internalCapabilities: [parse.cv, parse.job, parse.ats]
   capabilities:
     - id: parse.cv
       scope: owner

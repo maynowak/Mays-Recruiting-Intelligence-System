@@ -14,6 +14,17 @@ pricing:
 catalog:
   visibility: ABSENT
   seed: false
+executionModel:
+  outerOrder: one
+  outerWorkItem: agent_analysis_agent
+  outerCapability: analysis.run
+  internalCalls: technical-subfunctions
+  separateOrdersForInternalCalls: false
+  billing: mays-orders
+  runtime: >-
+    Existing registry/AgentBody, shared work queue, worker and result
+    transport; no per-offer or per-parser queue and no second order state
+    machine.
 offers:
   - id: analysis.cv
     name: CV Analysis
@@ -22,7 +33,8 @@ offers:
     input:
       cv: [cvId, structured]
       job: not-required
-    capabilities: [parse.cv]
+    capabilities: [parse.cv]          # external entitlement
+    internalCapabilities: [parse.cv]  # parser subfunction, not an order
     resultBodies:
       - bodyType: CVParserResultBody
         bodyVersion: "1.0"
@@ -36,7 +48,8 @@ offers:
     input:
       cv: not-required
       job: [text, jobRef]
-    capabilities: [parse.job]
+    capabilities: [parse.job]          # external entitlement
+    internalCapabilities: [parse.job]  # parser subfunction, not an order
     resultBodies:
       - bodyType: JobParserResultBody
         bodyVersion: "1.0"
@@ -51,8 +64,10 @@ offers:
     input:
       cv: [cvId, structured]
       job: [text, jobRef]
-    capabilities: [parse.cv, parse.job, compare.tags]
-    optionalCapabilities: [analyze.job]
+    capabilities: [parse.cv, parse.job, compare.tags]  # external entitlements
+    optionalCapabilities: [analyze.job]                 # for optional ats.tags
+    internalCapabilities: [parse.cv, parse.job]         # parser subfunctions
+    optionalInternalCapabilities: [parse.ats]           # only with ats.tags
     resultBodies:
       - bodyType: ComparisonResultBody
         bodyVersion: "1.0"

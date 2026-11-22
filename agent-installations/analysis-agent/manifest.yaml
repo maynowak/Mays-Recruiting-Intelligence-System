@@ -9,16 +9,30 @@ agent:
   capability: analysis.run
   workType: agent_analysis_agent
   runtimeAgentVersion: "1.0.0"
+  composite: true
+  offers: offers.yaml
+  # One outer order/work item; these are technical subfunctions, not
+  # separately orderable agents.
+  internalCapabilities:
+    - parse.cv
+    - parse.job
+    - parse.ats
+  externalEntitlements:
+    - parse.cv
+    - parse.job
+    - compare.tags
+    - analyze.job
 source:
   repository: mays-ris
   path: agents/analysis_agent
-  sha: ca407494fe829ea8407866a91fcb7b45b913e3ca
+  sha: c245512a99f3a9122e38a408747e04f6ca45c6c1
   branch: feature/ris-analysis-integration-07
   parserLibrary:
     repository: maynowak/mays-jobsearch
     cli: scripts/ris-parser-cli.mjs
     branch: feature/ris-analysis-parser-cli-04
-    commit: aaa260c
+    commit: e77ee94
+    artifactSourceCommit: c40bf78
   ordersRepository: maynowak/mays-order-aws
   ordersPin: 016cdfd6ac62565dcec9a2fee78cb898fb919e59
 versions:
@@ -43,10 +57,17 @@ runtime:
     cli: agents/parsers/node_adapter.py
     lambda: agents/parsers/lambda_adapter.py
   parserFunctionEnv: RIS_PARSER_FUNCTION
-  runtimeArtifact: lambda/ris_parser_handler.mjs (nodejs22.x)
+  parserArtifact: lambda/dist/analysis-parser.zip
+  parserHandler: lambda/ris_parser_handler.handler
+  parserRuntime: nodejs22.x
+  parserInvocation: >-
+    The Python analysis Lambda invokes the dedicated Node parser Lambda; no
+    Node runtime is installed in the Python Lambda.
+  parserRuntimeState: >-
+    Terraform-gated (enable_analysis_runtime=false by default). The analysis
+    Lambda is planned but not deployed; no AWS canary has run.
   publicEndpoint: false
   sharedTransportPolicy: false
-  nodeInPythonLambda: PENDING (dedicated parser Lambda is Terraform-gated)
 infrastructure:
   awsAccount: "262370457690"
   region: eu-central-1
