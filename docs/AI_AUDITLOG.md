@@ -11174,3 +11174,10 @@ Date: 2026-11-22
 - Entry-point audit: RIS `orders_reader` agent-order path binds `apiProfileRef` to `ownerUserId`, requires ACTIVE profile and entitlement; Mays generated module `016cdfd` `prepare_dispatch` checks order ownership but not profile ownership (Mays-owned gap C). RIS OrdersPort `orders.create` remains retail-only; no agent-order create path added.
 - Tests: adapter/reader/agent-gate 86 passed + 7 subtests; broader factory/analysis/auth run 533 passed, 30 skipped, 13 subtests. No AWS verification, no apply, no real data.
 
+[RIS-AGENT-FACTORY-PNP-ANALYSIS-16B / STEP B — CONTRACT EVIDENCE]
+Status: report/audit only; no further runtime/AWS change.
+Date: 2026-11-22
+- New report `docs/reports/RIS-AGENT-FACTORY-PNP-ANALYSIS-16B.md`: contract review, Mays pin boundary (`5cf50a0` pin / `016cdfd` generated module / `9627eb2` local checkout), GET projection, `apiProfileRef` entry-point audit, seven synthetic contract cases, evidence matrix.
+- Verdict: defect fixed locally; HTTP 2xx GET no longer implies APPROVED; COMPLETED+result is APPROVED, FAILED is REJECTED, pending is PENDING, missing result is a controlled ERROR. Mays apiProfileRef binding C, DLQ exhaustion and automatic resume remain open/blocked. No AWS verification.
+- Tests unchanged from STEP A: 86 passed + 7 subtests focused; 533 passed, 30 skipped, 13 subtests broad. No apply, no deployment, no real data.
+
