@@ -11239,3 +11239,15 @@ Date: 2026-11-22
 - Tests: all five agent packages VALIDATED; analysis stages DISCOVER→HANDOFF PASSED (apply local record executed=false); lifecycle/install 34 passed; broad relevant regression 739 passed, 41 skipped, 13 subtests; addition/ATS 95 passed + 9 subtests; composite lifecycle 40 passed/3 BLOCKED_ENV (missing local Orders clone); full `tests/` BLOCKED_ENV by missing requests/moto and unrelated ConsentContext NameError.
 - E2E boundaries: infrastructure AWS VERIFIED; isolated analysis executor BLOCKED_B; authenticated RIS API/worker BLOCKED_B; Mays transport BLOCKED_C; automatic resume BLOCKED. No synthetic data, orders, entitlements or catalog offers created; no cleanup required. No rollback, re-plan, main merge or production deployment.
 
+[RIS-ANALYSIS-16C2-QA1 / FULL REGRESSION RECOVERY]
+Status: test-environment recovery + full regression; no AWS/Terraform mutation.
+Date: 2026-11-22
+- Isolated venv created; installed pytest 9.2.0, pytest-subtests 0.15.0, requests 2.34.2, moto 5.2.5, boto3/botocore 1.44.9. requirements.txt now lists pytest-subtests and requests.
+- ConsentContext NameError root cause: the import try/except swallowed a missing moto/boto3 and later used ConsentContext. The three consent test modules now skip only for missing moto/boto3/botocore; other ImportErrors propagate. Purpose expectations updated for analysis-processing. No consent logic weakened.
+- Mays fixtures: ignored detached worktree `installer/projects/mays_orders` @ 5cf50a0 for composite tests; generated module 016cdfd for MO_ORDERS_SRC/MODULE contract tests; local 9627eb2 remains review-only. Composite lifecycle 43 passed; bridge harness updated to Correction-14 persist→work queue→worker and 5 passed.
+- Test-harness fixes: Windows POSIX mode/ACL and symlink tests skipped precisely on Windows; Windows mode check in tools/ris_admin/credentials.py is skipped only where st_mode cannot represent ACLs; dispatch/platform tests set WORK_ITEMS_TABLE and correct claims; terminal entitlement denial expects DEAD_LETTER; dependency_check uses sys.executable; ATS mock sets status_code; Mays env restored after standalone E2E/unsigned-result tests.
+- Results: default full tests/ suite 3185 passed, 134 skipped, 0 failed, 441 subtests. With all local fixtures 3250 passed, 68 skipped, 1 failed, 441 subtests. Focused evidence 376 passed/12 subtests; five packages VALIDATED; lifecycle 34; composite 43; parser matrix 15; addition/ATS 95/9.
+- Remaining failure: test_generated_module_artifact::test_ris_transport_outputs_are_exposed_additively. Generated module 016cdfd outputs.tf lacks results_queue_url/results_queue_arn/result_hmac_secret_arn; builder --check passes with 20 outputs. Known module-contract drift; no hand-edit, no apply regression; separate reviewed change required.
+- Skips: 39 local DynamoDB not configured, 12 Windows POSIX/symlink, 6 live AWS credentials, 6 privacy planned, 2 mayaws profile, 2 captured plan absent, 1 CloudFront OAC finding. No tests disabled to force green.
+- Boundaries: no Terraform apply, no AWS mutation, no synthetic activation B, no Mays transport before C, no main merge, no production deployment.
+
