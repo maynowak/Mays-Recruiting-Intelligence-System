@@ -28,6 +28,8 @@ Safety rules (hard):
 """
 
 import argparse
+import base64
+import hashlib
 import json
 import os
 import subprocess
@@ -1443,6 +1445,243 @@ def _plan_unchanged(runner, plan_file: Optional[str], decision) -> Optional[str]
     return None
 
 
+#: Lambda source hashes in a saved plan and the local artifact that produced
+#: them. A changed artifact invalidates the approved plan even if the plan
+#: file itself is unchanged.
+_SAVED_PLAN_BUNDLES = {
+    "module.lambda.aws_lambda_function.agent": "terraform/lambda.zip",
+    "module.agent_transport[0].aws_lambda_function.dispatch_ingress":
+        "terraform/lambda.zip",
+    "module.analysis_runtime.aws_lambda_function.analysis[0]":
+        "terraform/analysis-lambda.zip",
+    "module.analysis_runtime.aws_lambda_function.parser[0]":
+        "lambda/dist/analysis-parser.zip",
+    "module.orders_reader[0].aws_lambda_function.reader":
+        "lambda/dist/orders-reader.zip",
+    "module.health_plane.aws_lambda_function.health_writer":
+        "lambda/dist/health-writer.zip",
+    "module.health_plane.aws_lambda_function.health_publisher":
+        "lambda/dist/health-publisher.zip",
+    "module.mays_orders[0].module.agent_transport[0]."
+    "aws_lambda_function.result_consumer":
+        "terraform/modules/mays_orders/lambda/dist/lambda.zip",
+    "module.mays_orders[0].module.lambda.aws_lambda_function.handler":
+        "terraform/modules/mays_orders/lambda/dist/lambda.zip",
+    "module.mays_orders[0].module.sqs_worker.aws_lambda_function.worker":
+        "terraform/modules/mays_orders/lambda/dist/lambda.zip",
+}
+
+
+def _verify_saved_plan(out_file: Optional[str], approved_sha256: Optional[str],
+                       approval_ref: Optional[str]) -> tuple[Path, str]:
+    """Verify the exact approved saved plan before any AWS/Terraform call."""
+    if not approval_ref or not approval_ref.strip():
+        raise RuntimeError(
+            "saved-plan apply requires an explicit --approval-ref")
+    if not approved_sha256:
+        raise RuntimeError(
+            "saved-plan apply requires --approved-plan-sha256")
+    approved = approved_sha256.strip().lower()
+    if len(approved) != 64 or any(c not in "0123456789abcdef" for c in approved):
+        raise RuntimeError("--approved-plan-sha256 must be a 64-char hex SHA-256")
+    if not out_file:
+        raise RuntimeError("saved-plan apply requires --out <plan-file>")
+    path = Path(out_file).expanduser().resolve()
+    if not path.is_file():
+        raise RuntimeError(f"saved plan not found: {path}")
+    current = _sha256_file(path)
+    if current != approved:
+        raise RuntimeError(
+            f"saved plan SHA mismatch: approved {approved}, current {current}")
+    return path, current
+
+
+def _plan_shape_counts(plan_json: Dict[str, Any]) -> Dict[str, int]:
+    """Count create/update/delete/replace actions, refusing malformed shapes."""
+    changes = plan_json.get("resource_changes")
+    if not isinstance(changes, list):
+        raise RuntimeError("plan JSON has no list-shaped resource_changes")
+    counts = {"adds": 0, "changes": 0, "destroys": 0, "replacements": 0}
+    for item in changes:
+        if not isinstance(item, dict):
+            raise RuntimeError("plan resource_change is not an object")
+        actions = (item.get("change") or {}).get("actions")
+        if not isinstance(actions, list):
+            raise RuntimeError(
+                f"plan action shape invalid for {item.get('address')}")
+        if actions == ["create"]:
+            counts["adds"] += 1
+        elif actions == ["update"]:
+            counts["changes"] += 1
+        elif actions == ["delete"]:
+            counts["destroys"] += 1
+        elif actions in (["delete", "create"], ["create", "delete"]) \
+                or "replace" in actions:
+            counts["replacements"] += 1
+        elif actions in (["no-op"], ["read"]):
+            continue
+        else:
+            raise RuntimeError(
+                f"unsupported plan action {actions} for {item.get('address')}")
+    return counts
+
+
+def _verify_plan_shape(plan_json: Dict[str, Any],
+                       expected: Optional[str]) -> Dict[str, int]:
+    """Require the exact approved plan shape, e.g. ``4/3/0/0``."""
+    if not expected:
+        raise RuntimeError("saved-plan apply requires --expected-plan-shape")
+    parts = expected.strip().split("/")
+    if len(parts) != 4 or not all(part.isdigit() for part in parts):
+        raise RuntimeError("--expected-plan-shape must look like 4/3/0/0")
+    expected_counts = dict(zip(
+        ("adds", "changes", "destroys", "replacements"),
+        (int(part) for part in parts)))
+    actual = _plan_shape_counts(plan_json)
+    if actual != expected_counts:
+        raise RuntimeError(
+            f"plan shape mismatch: approved {expected_counts}, actual {actual}")
+    return actual
+
+
+def _verify_plan_bundles(plan_json: Dict[str, Any], root: Path) -> None:
+    """Refuse when a local Lambda artifact changed after the plan was saved."""
+    by_address = {
+        item.get("address"): item
+        for item in plan_json.get("resource_changes", [])
+        if isinstance(item, dict)
+    }
+    for address, relative in _SAVED_PLAN_BUNDLES.items():
+        item = by_address.get(address)
+        if not item:
+            continue
+        after = (item.get("change") or {}).get("after") or {}
+        expected = after.get("source_code_hash")
+        if not expected:
+            continue
+        path = root / relative
+        if not path.is_file():
+            raise RuntimeError(f"planned bundle is missing: {path}")
+        actual = base64.b64encode(
+            hashlib.sha256(path.read_bytes()).digest()).decode()
+        if actual != expected:
+            raise RuntimeError(
+                f"bundle changed since the plan: {relative} "
+                f"(planned {expected}, current {actual})")
+
+
+def _verify_aws_identity(ctx: "RisInstallContext", expected_account: Optional[str],
+                        expected_region: Optional[str],
+                        expected_workspace: Optional[str]) -> None:
+    if not expected_account or not expected_region or not expected_workspace:
+        raise RuntimeError(
+            "saved-plan apply requires --expected-account, --expected-region "
+            "and --expected-workspace")
+    aws = ctx.aws_context
+    if aws is None:
+        raise RuntimeError("AWS identity was not validated")
+    if str(aws.account_id) != expected_account:
+        raise RuntimeError(
+            f"AWS account mismatch: expected {expected_account}, got {aws.account_id}")
+    if str(aws.region) != expected_region:
+        raise RuntimeError(
+            f"AWS region mismatch: expected {expected_region}, got {aws.region}")
+    if ctx.workspace != expected_workspace:
+        raise RuntimeError(
+            f"workspace mismatch: expected {expected_workspace}, got {ctx.workspace}")
+
+
+def _verify_state_identity(runner, expected_serial: Optional[int],
+                           expected_lineage: Optional[str]) -> Dict[str, Any]:
+    """Read the remote state and require the approved serial/lineage."""
+    if expected_serial is None or not expected_lineage:
+        raise RuntimeError(
+            "saved-plan apply requires --expected-state-serial and "
+            "--expected-state-lineage")
+    pulled = runner.state_pull(ensure_workspace=True)
+    if pulled.returncode != 0 or not pulled.stdout.strip():
+        raise RuntimeError(
+            "could not read remote state before apply: "
+            f"{pulled.stderr.strip()[:200]}")
+    try:
+        state = json.loads(pulled.stdout)
+    except ValueError as exc:
+        raise RuntimeError(f"remote state is not valid JSON: {exc}") from exc
+    actual_serial = state.get("serial")
+    actual_lineage = state.get("lineage")
+    if str(actual_serial) != str(expected_serial):
+        raise RuntimeError(
+            f"state serial mismatch: expected {expected_serial}, got {actual_serial}")
+    if str(actual_lineage) != expected_lineage:
+        raise RuntimeError(
+            f"state lineage mismatch: expected {expected_lineage}, "
+            f"got {actual_lineage}")
+    return state
+
+
+def _cmd_apply_saved_plan(
+    ctx: "RisInstallContext",
+    out_file: Optional[str],
+    *,
+    approval_ref: Optional[str],
+    approved_plan_sha256: Optional[str],
+    expected_account: Optional[str],
+    expected_region: Optional[str],
+    expected_workspace: Optional[str],
+    expected_state_serial: Optional[int],
+    expected_state_lineage: Optional[str],
+    expected_plan_shape: Optional[str],
+) -> List[TerraformResult]:
+    """Apply one exact approved saved plan without creating a new plan."""
+    if ctx.dry_run:
+        raise RuntimeError("refusing apply in dry-run mode (pass --yes)")
+    plan_path, digest = _verify_saved_plan(
+        out_file, approved_plan_sha256, approval_ref)
+    print(f"Saved-plan apply: approval={approval_ref.strip()} sha256={digest}")
+    if ctx.aws_context is None:
+        ctx.aws_context = validate_aws_context(
+            profile=ctx.aws_profile, region=ctx.aws_region)
+    _verify_aws_identity(ctx, expected_account, expected_region,
+                         expected_workspace)
+    runner = ctx.make_runner()
+    init_res = runner.init(
+        backend_config=ctx.backend_config(), reconfigure=True)
+    if init_res.returncode != 0:
+        return [init_res]
+    plan_json = _load_plan_for_guard(runner, str(plan_path), required=True)
+    if plan_json.get("_guardError"):
+        msg = ("plan JSON could not be read, refusing to apply: "
+               + str(plan_json["_guardError"]))
+        print(f"error: {msg}", file=sys.stderr)
+        return [init_res, TerraformResult(
+            command=["saved-plan-guard"], returncode=1, stderr=msg)]
+    _verify_plan_shape(plan_json, expected_plan_shape)
+    _verify_plan_bundles(plan_json, Path(__file__).resolve().parent.parent)
+    safe, msg = is_plan_safe(plan_json, ctx.project_name, ctx.environment)
+    print(f"Safety gate: {msg}")
+    if not safe:
+        print(f"error: {msg}", file=sys.stderr)
+        return [init_res, TerraformResult(
+            command=["saved-plan-guard"], returncode=1, stderr=msg)]
+    shared = _guard_shared_infra(runner, str(plan_path), ctx, required=True)
+    print(f"Shared infrastructure gate: {shared.message}")
+    if not shared.safe:
+        print(f"error: {shared.message}", file=sys.stderr)
+        return [init_res, TerraformResult(
+            command=["shared-infra-guard"], returncode=1,
+            stderr=shared.message)]
+    changed = _plan_unchanged(runner, str(plan_path), shared)
+    if changed:
+        print(f"error: {changed}", file=sys.stderr)
+        return [init_res, TerraformResult(
+            command=["shared-infra-guard"], returncode=1, stderr=changed)]
+    _verify_state_identity(runner, expected_state_serial, expected_state_lineage)
+    mirror_project_state(ctx, runner)
+    apply_res = runner.run_and_get_result(
+        ["apply", str(plan_path)], ensure_workspace=True)
+    return [init_res, apply_res]
+
+
 def _redact_command(command: List[str]) -> str:
     """Render a terraform command without leaking `-var` values."""
     redacted: List[str] = []
@@ -2652,6 +2891,30 @@ def build_parser() -> argparse.ArgumentParser:
         "--out", default=None, help="Plan output file (plan command)."
     )
     parser.add_argument(
+        "--apply-saved-plan",
+        action="store_true",
+        help=("Apply the existing --out saved plan without creating a new "
+              "plan. Requires --yes, --approval-ref, "
+              "--approved-plan-sha256, the expected identity/state values "
+              "and --expected-plan-shape."),
+    )
+    parser.add_argument("--approval-ref", default=None,
+                        help="Approval/ticket reference for a saved-plan apply.")
+    parser.add_argument("--approved-plan-sha256", default=None,
+                        help="Exact approved SHA-256 of the saved plan file.")
+    parser.add_argument("--expected-account", default=None,
+                        help="Expected AWS account for a saved-plan apply.")
+    parser.add_argument("--expected-region", default=None,
+                        help="Expected AWS region for a saved-plan apply.")
+    parser.add_argument("--expected-workspace", default=None,
+                        help="Expected Terraform workspace for a saved-plan apply.")
+    parser.add_argument("--expected-state-serial", type=int, default=None,
+                        help="Expected remote state serial for a saved-plan apply.")
+    parser.add_argument("--expected-state-lineage", default=None,
+                        help="Expected remote state lineage for a saved-plan apply.")
+    parser.add_argument("--expected-plan-shape", default=None,
+                        help="Expected adds/changes/destroys/replacements, e.g. 4/3/0/0.")
+    parser.add_argument(
         "--state-command",
         default=None,
         choices=[
@@ -2833,8 +3096,24 @@ def main(argv: Optional[List[str]] = None) -> int:
             return _cmd_destroy(ctx, out_file=parsed.out)
         elif parsed.command == "package":
             return _cmd_package(ctx, bundle=parsed.bundle)
+        elif parsed.command == "apply":
+            if parsed.apply_saved_plan:
+                results = _cmd_apply_saved_plan(
+                    ctx,
+                    out_file=parsed.out,
+                    approval_ref=parsed.approval_ref,
+                    approved_plan_sha256=parsed.approved_plan_sha256,
+                    expected_account=parsed.expected_account,
+                    expected_region=parsed.expected_region,
+                    expected_workspace=parsed.expected_workspace,
+                    expected_state_serial=parsed.expected_state_serial,
+                    expected_state_lineage=parsed.expected_state_lineage,
+                    expected_plan_shape=parsed.expected_plan_shape,
+                )
+            else:
+                results = _cmd_apply(ctx, out_file=parsed.out)
         else:
-            results = _cmd_apply(ctx, out_file=parsed.out)
+            raise RuntimeError(f"unsupported command: {parsed.command}")
     except (ValueError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

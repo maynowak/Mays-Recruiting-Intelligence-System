@@ -11210,3 +11210,12 @@ Date: 2026-11-22
 - Tests: new 16C1 static gate 10 passed; broad focused run 570 passed, 30 skipped, 13 subtests. 16C0 count reconciled: 533 was the pre-16C0 baseline; actual 16C0 broad was 560. No apply, no synthetic activation, no real data.
 - AWS access was read-only (STS, S3 state GET, Terraform plan/lock/refresh). No resource mutation.
 
+[RIS-ANALYSIS-16C2 / STEP A — SAVED-PLAN APPLY MODE]
+Status: installer hardening + local tests; no AWS mutation yet.
+Date: 2026-11-22
+- `_cmd_apply()` re-planned even with `--out`. Added a separate `--apply-saved-plan` mode that applies the existing saved plan once and **never calls `terraform plan`**.
+- Gates before apply: explicit `--approval-ref`, exact `--approved-plan-sha256`, `--expected-account`, `--expected-region`, `--expected-workspace`, `--expected-state-serial`, `--expected-state-lineage`, `--expected-plan-shape` (e.g. 4/3/0/0), Lambda `source_code_hash` vs current worker/analysis/parser/reader/health/Mays bundles, existing `is_plan_safe`, `NO_SHARED_DESTROY`, plan TOCTOU hash, and the existing state mirror. No direct unprotected Terraform path.
+- Negative tests cover wrong/missing hash, missing approval, missing plan, state drift, wrong account/region/workspace, wrong shape, shared destroy, unexpected protected resource, bundle change, missing bundle and plan TOCTOU.
+- Tests: new saved-plan suite 17 passed; installer/plan-guard/shared-guard/agent-install/lifecycle 108 passed. No apply in this step.
+- Note: the plan was created at 16C1 and remains the exact approved `73934457…`; this installer change does not alter the plan or bundles.
+
