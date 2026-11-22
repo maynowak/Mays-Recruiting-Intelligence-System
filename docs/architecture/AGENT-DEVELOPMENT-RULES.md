@@ -1,6 +1,6 @@
 # RIS Agenten-Entwicklungsregeln – Correction-14 Baseline
 
-**Stand:** 2026-11-21 · Code/Test auf RIS Feature-Branch nach `f639611` / `6440e53` · **kein Apply**.
+**Stand:** Correction-14 Architektur vom 2026-11-21; aktualisierter Infrastruktur-/QA-Verifikationsstand 2026-11-22 (`550090e`). Das historische Baseline-Dokument entstand vor 16C2 Apply A.
 
 **Verbindliche Referenz:** `RIS-MAYS-ORDERS-MODULES.md` / `reference/RIS_Mays_Orders_Modulregister_Correction14.odt` und `../reports/RIS-ANALYSIS-ECOSYSTEM-CORRECTION-14.md`.
 
@@ -29,7 +29,7 @@
 
 ## Wichtiges Release-Gate
 
-**Correction-14 ist vorbereitet, nicht deployed:** Plan **4 add / 3 change / 0 destroy**, SHA256 `4a0a02f5a9bd7f16a1295d046798c314a9faac8425e2864d02ec442ed304d033` ist **nicht freigegeben**. Separate synthetische Env-/Consent-Freigabe fehlt. SQS-DLQ-Erschöpfung sendet **noch kein** `ORDER_FAILED` (kein Consumer). Kein realer Nutzerbetrieb.
+**16C2 Apply A AWS INFRA VERIFIED:** Der spätere, gesondert genehmigte Plan SHA-256 `7393445789d92bdb15ebcc9ea3ae85a9e98cb068c27ad84bc6fd982d3ba0f64a` wurde am 2026-11-22 angewendet: **4 add / 3 change / 0 destroy**, State **67 → 69**. Der ältere Correction-14-Plan `4a0a02f5...` blieb ein historischer Preflight, nicht der ausgeführte Apply. Analysis-/Parser-Lambda und Worker-/Ingress-Bindungen sind installiert, deny-by-default. Gate **B** (synthetische Identität/Entitlement/Consent), **C** (Mays-Orders `apiProfileRef`-Owner-/Partner-Bindung), Legal/Catalog/Produktaktivierung bleiben gesperrt. SQS-DLQ-Erschöpfung sendet noch kein terminales `ORDER_FAILED`. **Keine Analysis Live-E2E-Abnahme oder Freigabe echter Nutzer**. Belege: `docs/reports/RIS-ANALYSIS-16C2-APPLY-REGRESSION.md`, `docs/reports/RIS-ANALYSIS-16C2-QA2-MODULE-CONTRACT.md`.
 
 ## Prompt-Baustein für neue ATS-Agenten
 

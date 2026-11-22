@@ -41,8 +41,9 @@ sharedResources:
   - ris-dev2-mays-orders
   - ris-dev2-mays-orders-agent-result-hmac
 exclusiveResources:
-  # Agent-specific compute/data. The analysis Lambda is planned (not deployed);
-  # the dedicated parser Lambda is Terraform-gated.
+  # Agent-specific compute/data. The analysis and dedicated parser Lambdas
+  # were AWS-infrastructure-verified in approved 16C2 Apply A (state 69).
+  # Product activation and synthetic Gate B remain blocked.
   - ris-dev2-dev-analysis
   - ris-dev2-dev-analysis-parser
   - ris-dev2-dev-analysis-jobs

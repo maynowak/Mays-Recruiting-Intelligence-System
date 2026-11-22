@@ -1,6 +1,6 @@
 # Analysis Agent Package Tests
 
-## Local evidence (not AWS-verified)
+## Local test evidence (distinct from AWS infrastructure verification)
 
 | Area | Test file | Count |
 |---|---|---|
@@ -13,10 +13,16 @@
 | Parser agent packages | `tests/test_parser_agents.py` | 17 |
 | Parser timeouts | `tests/test_parser_timeouts.py` | 5 |
 
-Latest focused regression at E1B: **414 passed + 6 subtests** (analysis,
-synthetic, offers, ecosystem, credentials, machine entrypoint, partner
-boundary, Mays dispatch/result handoff). Report:
+Historical focused E1B regression: **414 passed + 6 subtests**;
 `docs/reports/RIS-ANALYSIS-OFFER-E2E-15-FINAL-CANARY-GATE.md`.
+
+Latest QA2 local regression, identically on **Python 3.14.10 and 3.15**:
+**3193 passed / 134 skipped / 0 failed / 441 subtests** standard;
+**3259 passed / 68 skipped / 0 failed / 441 subtests** full fixtures.
+Five agent installation packages VALIDATED.
+Evidence: `docs/reports/RIS-ANALYSIS-16C2-QA2-MODULE-CONTRACT.md`
+and `.json`. AWS infrastructure acceptance is separately recorded in
+`docs/reports/RIS-ANALYSIS-16C2-APPLY-REGRESSION.md`.
 
 ## Commands
 
@@ -31,7 +37,9 @@ python -m installer.agent_install --agent analysis-agent --stage validate --stat
 
 ## Not covered by local tests
 
-- No AWS live canary and no analysis Lambda deployment.
+- **No executed Analysis live E2E**: B synthetic profile/consent not approved.
+  The Analysis and Node parser Lambdas are **AWS infrastructure verified**
+  (16C2 Apply A, 4/3/0, state 69); not a claim of executed business work.
 - No `ORDER_FAILED` proof for SQS DLQ exhaustion.
 - No automatic agent resume after `ORDER_RESULT`/`ORDER_FAILED`.
 - No cross-repo proof that Mays-Orders binds `apiProfileRef` to the order

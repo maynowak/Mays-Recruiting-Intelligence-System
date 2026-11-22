@@ -57,6 +57,8 @@ approvalsRequired:
     status: PENDING
     unblocks: entitlements.grants
     evidence: agent-installations/analysis-agent/partner-bindings.md
+  # Activation approval is separate from the already executed, additive
+  # technical infrastructure Apply A (16C2, state 69). Remains PENDING.
   - id: terraform-apply-approval
     owner: operator
     status: PENDING

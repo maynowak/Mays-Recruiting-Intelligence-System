@@ -25,7 +25,8 @@ agent:
 source:
   repository: mays-ris
   path: agents/analysis_agent
-  sha: c245512a99f3a9122e38a408747e04f6ca45c6c1
+  # Last verified code/test baseline before documentary closeout.
+  sha: 550090e435e24a873e64837abee52679f769a0d0
   branch: feature/ris-analysis-integration-07
   parserLibrary:
     repository: maynowak/mays-jobsearch
@@ -64,8 +65,11 @@ runtime:
     The Python analysis Lambda invokes the dedicated Node parser Lambda; no
     Node runtime is installed in the Python Lambda.
   parserRuntimeState: >-
-    Terraform-gated (enable_analysis_runtime=false by default). The analysis
-    Lambda is planned but not deployed; no AWS canary has run.
+    AWS infrastructure verified by approved 16C2 Apply A (4 add / 3 change /
+    0 destroy, state 67 -> 69): analysis and Node parser Lambdas and
+    worker/ingress wiring are installed in ris-dev2, deny-by-default.
+    Terraform flag defaults remain gated. Synthetic Analysis live E2E
+    and Mays-Orders transport are still blocked by separate B/C gates.
   publicEndpoint: false
   sharedTransportPolicy: false
 infrastructure:

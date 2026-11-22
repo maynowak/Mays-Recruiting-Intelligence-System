@@ -1,8 +1,10 @@
 # Analysis Agent — Risks
 
-- **Not deployed:** the analysis Lambda is planned but not deployed; the
-  dedicated Node parser Lambda is Terraform-gated
-  (`enable_analysis_runtime=false` default). No AWS canary has run.
+- **AWS infrastructure applied, not live E2E:** 16C2 Apply A installed
+  analysis and dedicated Node parser Lambdas plus verified invocation
+  permissions in ris-dev2 (4/3/0, state 67 -> 69), with deny-by-default
+  runtime configuration. No synthetic Analysis end-to-end invocation
+  has been verified; B and C are separate future gates.
 - **Composite boundary:** one outer WorkItem/order, internal parser calls only.
   A second order or a per-parser charge would violate the offer contract.
 - **Optional processing:** only requested parsers run; ATS-only does not run

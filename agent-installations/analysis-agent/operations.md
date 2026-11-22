@@ -53,7 +53,11 @@
 
 - Parser adapter: `agents/parsers/node_adapter.py` (local CLI) or
   `agents/parsers/lambda_adapter.py` (dedicated Node Lambda).
-- Parser runtime is Terraform-gated (`enable_analysis_runtime=false` by
-  default) and not applied. The Python analysis Lambda contains no Node
-  runtime; it invokes the dedicated parser Lambda.
+- Approved 16C2 Apply A installed and verified the Python Analysis Lambda,
+  dedicated Node parser Lambda, scoped IAM and shared-worker bindings
+  in ris-dev2 (4 add / 3 change / 0 destroy, state 69). The Terraform
+  variable still defaults to false for new installations; current
+  Analysis runtime remains deny-by-default until separate B/C and
+  product gates. Python Analysis Lambda contains no Node runtime;
+  it invokes the dedicated parser Lambda.
 - No public endpoint and no shared agent-transport policy.
