@@ -329,6 +329,7 @@ def validate_generated_contract(target_dir: Path) -> None:
     main_tf = (target_dir / "main.tf").read_text(encoding="utf-8")
     outputs_tf = (target_dir / "outputs.tf").read_text(encoding="utf-8")
     vars_tf = (target_dir / "variables.tf").read_text(encoding="utf-8")
+    validate_transport_outputs(outputs_tf)
     iam_main = (target_dir / "modules" / "iam" / "main.tf").read_text(encoding="utf-8")
     iam_vars = (target_dir / "modules" / "iam" / "variables.tf").read_text(encoding="utf-8")
 
@@ -354,12 +355,14 @@ def validate_generated_contract(target_dir: Path) -> None:
         print(f"  Zusätzliche Inputs (erlaubt): {extra_str}")
     print(f"  Inputs OK: {sorted(actual_inputs)} (mindestens {len(required_inputs)} Pflicht-Inputs, {len(actual_inputs)} insgesamt)")
 
-    # Mindestens 20 Outputs (zusätzliche Outputs erlaubt)
-    required_outputs_count = 20
+    # Mindestens 23 Outputs: 20 Orders-Service + 3 RIS result-transport
+    # re-exports (additive, no resources/permissions/secrets).
+    required_outputs_count = 23
     actual_outputs_count = len(outputs)
     has_sqs_queue_name = "sqs_queue_name" in outputs
-    # Pflicht-Outputs für den Orders-Service-Vertrag
-    required_outputs = {"sqs_queue_name", "api_gateway_id", "api_gateway_authorizer_id", "dynamodb_table_name", "dynamodb_table_arn", "iam_handler_role_name", "iam_handler_role_arn", "lambda_function_name", "lambda_function_arn", "lambda_invoke_arn", "cognito_user_pool_id", "cognito_user_pool_arn", "cognito_user_pool_endpoint", "cognito_user_pool_client_id", "cognito_user_pool_group_name", "api_gateway_endpoint", "api_gateway_stage_name", "sqs_queue_url", "sqs_queue_arn", "sqs_worker_lambda_arn"}
+    # Pflicht-Outputs für den Orders-Service-Vertrag plus die drei
+    # RIS-Managed-Result-Transport-Referenzen.
+    required_outputs = {"sqs_queue_name", "api_gateway_id", "api_gateway_authorizer_id", "dynamodb_table_name", "dynamodb_table_arn", "iam_handler_role_name", "iam_handler_role_arn", "lambda_function_name", "lambda_function_arn", "lambda_invoke_arn", "cognito_user_pool_id", "cognito_user_pool_arn", "cognito_user_pool_endpoint", "cognito_user_pool_client_id", "cognito_user_pool_group_name", "api_gateway_endpoint", "api_gateway_stage_name", "sqs_queue_url", "sqs_queue_arn", "sqs_worker_lambda_arn", "results_queue_url", "results_queue_arn", "result_hmac_secret_arn"}
     missing_outputs = required_outputs - set(outputs)
     if missing_outputs:
         missing_str = ", ".join(sorted(missing_outputs))
@@ -487,6 +490,33 @@ def inject_transport_outputs(module_dir: Path) -> None:
         text.rstrip() + "\n" + TRANSPORT_OUTPUTS, encoding="utf-8")
     print("  RIS transport outputs injected: {names}".format(
         names=", ".join(TRANSPORT_OUTPUT_NAMES)))
+
+
+def validate_transport_outputs(outputs_tf: str) -> None:
+    """Require the three additive result-transport outputs and exact refs."""
+    expected = {
+        "results_queue_url":
+            "module.agent_transport[0].results_queue_url",
+        "results_queue_arn":
+            "module.agent_transport[0].results_queue_arn",
+        "result_hmac_secret_arn":
+            "module.agent_transport[0].result_hmac_secret_arn",
+    }
+    for name, reference in expected.items():
+        blocks = re.findall(
+            r'^output\s+"%s"\s*\{(.*?)^\}' % re.escape(name),
+            outputs_tf, re.M | re.S)
+        if len(blocks) != 1:
+            raise RuntimeError(
+                "Generierter Modul-Vertrag: Output '%s' muss genau einmal "
+                "vorhanden sein (gefunden: %d). Kein Build."
+                % (name, len(blocks))
+            )
+        if reference not in blocks[0]:
+            raise RuntimeError(
+                "Generierter Modul-Vertrag: Output '%s' referenziert nicht "
+                "'%s'. Kein Build." % (name, reference)
+            )
 
 
 # ---- Patch IAM SQS gate (entfernt aus aktivem Build-Pfad) ----
@@ -683,6 +713,11 @@ def build_module(project_name: str, force: bool):
         # Build-time compatibility adapter for the existing RIS transport
         # contract. It adds one optional env key, never a resource or logic.
         apply_ris_order_dispatch_env_patch(TEMP_MODULE_DIR)
+
+        # Additive re-exports of the managed result queue/DLQ/HMAC secret.
+        # They reference the existing modules/agent_transport resources; no
+        # resource, IAM permission or secret value is created here.
+        inject_transport_outputs(TEMP_MODULE_DIR)
 
         # 3. Vertragsprüfung (CONTENT-BASED, keine nachträglichen Patches)
         validate_generated_contract(TEMP_MODULE_DIR)
