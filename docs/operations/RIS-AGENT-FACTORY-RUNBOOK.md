@@ -1,8 +1,10 @@
 # RIS Agent Factory — Operations Runbook
 
 **Applies to:** ris-dev2 · account 262370457690 · region eu-central-1 · workspace ris-dev2
-**Release:** RIS-AGENT-FACTORY-13
-**Status:** ris-dev2 test system · partner traffic NO-GO
+**Release:** RIS-AGENT-FACTORY-13, aligned with the Correction-14 code/test
+baseline and the E1B analysis gate
+**Status:** ris-dev2 test system · partner traffic NO-GO. Correction-14 is
+prepared, **not applied**; the analysis Lambda and offers are not deployed.
 
 ---
 
@@ -12,7 +14,7 @@
 
    ```
    aws sts get-caller-identity          # account must be 262370457690
-   git rev-parse --abbrev-ref HEAD      # expected feature/ris-dev2-ats-agent-pinned-core-01
+   git rev-parse --abbrev-ref HEAD      # the change's feature branch; never assume main
    git rev-parse HEAD                   # record in the change ticket
    ```
 
@@ -125,9 +127,40 @@ attempt N+1. Never delete the row.
 consumed with a log line only. There is no DLQ artifact. Capture the log
 entry and the order/work IDs; do not re-send an unsigned record.
 
-**Failed execution:** no `ORDER_FAILED` is emitted; the order stays `PENDING`
-with no `processing`. Record the work row state (`FAILED`/`DEAD_LETTER`) as
-evidence and escalate.
+**Failed execution (Correction-14):** for order-linked WorkItems the shared
+pipeline emits terminal `ORDER_FAILED` when the partner identity binding is
+missing, the entitlement re-check denies, or the agent returns a permanent
+`ValidationError`. Retryable failures do **not** emit `ORDER_FAILED`; they
+remain retry/DLQ. A WorkItem that exhausts SQS retries reaches the existing
+DLQ **without** `ORDER_FAILED` because no DLQ-consumer Lambda exists. Record
+the work row state (`FAILED`/`DEAD_LETTER`) and escalate; this limit is open,
+not a per-agent bug.
+
+### 4.1 Order and result lifecycle (Correction-14)
+
+```
+Mays order (owner) -> ORDER_DISPATCH -> dispatch ingress
+  -> persist WorkItem + enqueue -> work queue -> shared worker
+  -> registry/AgentBody -> domain agent
+  -> ORDER_RESULT (success) | ORDER_FAILED (terminal) -> Mays result consumer
+```
+
+- One order, one WorkItem. Composite agents use internal capabilities; they do
+  not create additional orders or queues.
+- The order fachlicher `status` is Mays-owned. The WorkItem status is
+  RIS-owned. Do not equate them.
+- Result retrieval is the **existing** Mays-Orders path:
+  `GET /orders/{orderId}` -> `processing.status`, `processing.result`,
+  sanitised `processing.error`. The RIS orders-reader exposes the same
+  owner-scoped view. There is no analysis-specific result API.
+- `ORDER_RESULT`/`ORDER_FAILED` are deduplicated by the Mays consumer and use
+  stable message ids. RIS does not claim exactly-once delivery.
+- **Automatic agent resume is OPEN / NOT IMPLEMENTED.** A parent agent that
+  creates a child order does not enter a persisted `WAITING` state and is not
+  woken by `ORDER_RESULT`/`ORDER_FAILED`. Parent fields exist in the schema but
+  are not propagated end to end by the current dispatch/result builders.
+  Treat agent-to-agent round trips as a separate platform track; do not claim
+  them for a single analysis order.
 
 ## 5. Partner operations
 
@@ -138,6 +171,34 @@ evidence and escalate.
   separate change request.
 - Do not enable partner traffic until the five BLOCKERs in the release report
   are closed.
+
+### 5.1 Composite agent operations (`analysis-agent`)
+
+- One agent (`analysis-agent`, `analysis.run`, work type
+  `agent_analysis_agent`) with three DRAFT offers (`analysis.cv`,
+  `analysis.job`, `analysis.match`). Catalog `ABSENT`, activation `false`,
+  entitlements `PENDING_APPROVAL`.
+- External entitlements `parse.cv`/`parse.job`/`compare.tags`/optional
+  `analyze.job`; internal `parse.cv`/`parse.job`/`parse.ats` are technical
+  subfunctions of the same WorkItem. They create no order and no separate
+  charge.
+- Existing call paths: RIS API execute (`agentId=analysis-agent`) or a Mays
+  paid agent order (`agentOrder.target=analysis-agent`) -> the same
+  `ORDER_DISPATCH` -> work queue -> worker.
+- Result: existing Mays-Orders order view (`processing.status/result/error`)
+  or the RIS owner-scoped reader. No new queue, table or result API.
+- Identity: the RIS API path is JWT + `X-Api-Credential` with
+  profile/tenant/entitlement/catalog checks. The Mays dispatch path carries a
+  client-supplied `apiProfileRef`; Mays must bind it to the order
+  owner/partner before real traffic. This is the open cross-repo finding C.
+- Release gates: **A** exact technical apply (plan `9a0324a0…`, 4/3/0,
+  `NO_SHARED_DESTROY`, not applied), **B** exact synthetic profile, **C** Mays
+  `apiProfileRef` binding. Legal notice, entitlement and catalog remain
+  separate. The analysis Lambda is not deployed.
+- Monitoring: work queue/DLQ, worker/ingress errors, analysis Lambda and
+  parser Lambda errors/duration. `ORDER_FAILED` does not cover DLQ exhaustion.
+- Do not describe the analysis package as AWS-verified, publicly available or
+  able to resume a parent agent automatically.
 
 ## 6. Recovery
 
@@ -151,6 +212,8 @@ evidence and escalate.
 | Plan changed after review | discard, re-plan, re-review |
 | Stuck RUNNING | approved `RUNNING→FAILED`, redrive DLQ |
 | DLQ growth | stop intake, capture message IDs, escalate to RIS runtime |
+| No `ORDER_FAILED` after DLQ exhaustion | expected open limit; record work state, do not invent a result, escalate redrive decision |
+| Parent agent did not resume | expected: automatic resume is not implemented; use the existing order GET/polling path |
 
 ## 7. Change evidence
 
@@ -175,3 +238,7 @@ compliance evidence; the terminal output alone is not.
    always blocked.
 5. Any ris-dev or production action without an explicit, separate scope.
 6. Any attempt to fix a guard stop by adding an intent instead of the flags.
+7. Claiming automatic parent-agent resume without an implemented, tested
+   `WAITING`/wake-up and parent-correlation path.
+8. Real order-driven analysis traffic while the Mays-Orders `apiProfileRef`
+   ownership binding is unverified.

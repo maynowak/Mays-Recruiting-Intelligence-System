@@ -11157,3 +11157,11 @@ Date: 2026-11-22
 - Reference remains `analysis-agent` with three DRAFT offers and Mays-owned pricing. Automatic parent-agent resume is explicitly excluded.
 - Validation: template YAML parses; root discovery still finds five packages; `_template` remains rejected as non-deployable. No apply, no real data.
 
+[RIS-AGENT-FACTORY-PNP-ANALYSIS-16A / STEP C — RUNBOOK, VALIDATION, EVIDENCE]
+Status: docs + local validation; AWS canary PENDING; no mutation.
+Date: 2026-11-22
+- `docs/operations/RIS-AGENT-FACTORY-RUNBOOK.md` aligned with Correction-14: dispatch ingress -> work queue -> worker, terminal ORDER_FAILED for missing identity/entitlement/permanent validation, result retrieval via existing Mays `GET /orders/{orderId}` (`processing.status/result/error`), composite `analysis-agent` operating notes.
+- Automatic agent resume is documented as OPEN/NOT IMPLEMENTED: no WAITING state, no wake-up, no end-to-end parent propagation. Hard stops added for claiming resume or real order traffic while the Mays apiProfileRef binding is unverified.
+- New report `docs/reports/RIS-AGENT-FACTORY-PNP-ANALYSIS-16A.md` with evidence matrix IMPLEMENTED / LOCAL TESTED / AWS VERIFIED / PENDING / BLOCKED, exact pins and the pin-file vs generated-module vs local-checkout distinction.
+- Validation: analysis package VALIDATED; core analysis tests 83 passed; broader focused factory/analysis/auth run 567 passed, 41 skipped, 6 subtests. No analysis Lambda deployed, no AWS canary, no apply, no real data.
+
