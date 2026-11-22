@@ -11219,3 +11219,11 @@ Date: 2026-11-22
 - Tests: new saved-plan suite 17 passed; installer/plan-guard/shared-guard/agent-install/lifecycle 108 passed. No apply in this step.
 - Note: the plan was created at 16C1 and remains the exact approved `73934457…`; this installer change does not alter the plan or bundles.
 
+[RIS-ANALYSIS-16C2 / STEP B — SAFETY-GATE NO-OP FIX]
+Status: apply stopped before mutation; gate bug fixed + tests; no resource change.
+Date: 2026-11-22
+- First saved-plan apply attempt stopped at `Safety gate`: `is_plan_safe` treated protected resources with `actions=['no-op']` (Cognito resource server) as forbidden. No `terraform apply` was executed; only `terraform init` ran.
+- Fixed `is_plan_safe` to ignore no-op/read inventory rows while still rejecting any real create/update/delete/replace on protected resources. Added regression tests for Cognito, CloudFront, Route53, ACM, SQS and DynamoDB no-op/read rows.
+- Tests: plan-guard/saved-plan/installer/shared-guard 92 passed. State and resources unchanged; the approved plan is untouched.
+- Retry will use the same plan SHA `73934457…`; no re-plan, no rollback.
+

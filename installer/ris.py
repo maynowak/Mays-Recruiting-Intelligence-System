@@ -1001,6 +1001,13 @@ def is_plan_safe(plan_json: dict, project_name: str, environment: str) -> tuple[
         address = change.get("address", "")
         resource_type = change.get("type", "")
 
+        # A no-op/read entry is an inventory row, not an action. Protected
+        # resources must still appear in the plan JSON; refusing them here
+        # would make every plan containing Cognito/DNS fail even when it
+        # changes nothing.
+        if not actions or actions in (["no-op"], ["read"]):
+            continue
+
         # CloudFront is forbidden by default. The only exception is the two
         # isolated ris-dev2 health resources, and only for exactly ["create"].
         if resource_type.startswith("aws_cloudfront_"):

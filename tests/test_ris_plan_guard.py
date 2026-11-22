@@ -76,6 +76,30 @@ def test_health_allowlist_is_not_valid_for_another_project():
     assert "CloudFront" in message
 
 
+def test_noop_protected_resources_are_not_actions():
+    for resource_type in (
+        "aws_cognito_user_pool",
+        "aws_cognito_resource_server",
+        "aws_cloudfront_distribution",
+        "aws_route53_record",
+        "aws_acm_certificate",
+        "aws_sqs_queue",
+        "aws_dynamodb_table",
+    ):
+        safe, message = is_plan_safe(
+            plan(change("inventory", resource_type, ["no-op"])),
+            "ris-dev2",
+            "dev",
+        )
+        assert safe, (resource_type, message)
+        safe, message = is_plan_safe(
+            plan(change("inventory", resource_type, ["read"])),
+            "ris-dev2",
+            "dev",
+        )
+        assert safe, (resource_type, message)
+
+
 def test_cognito_dns_and_acm_remain_forbidden():
     for resource_type in (
         "aws_cognito_user_pool",
