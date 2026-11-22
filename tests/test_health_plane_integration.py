@@ -168,7 +168,9 @@ class TestPipelineEmitsHealthEvents(unittest.TestCase):
             entitlement_resolver=DeniedResolver(),
             health_tracker=self.tracker,
         )
-        self.assertEqual(result["status"], "FAILED")
+        # Correction-14: a terminal entitlement denial is DEAD_LETTER so the
+        # order receives ORDER_FAILED; it is still not a health degradation.
+        self.assertEqual(result["status"], "DEAD_LETTER")
         self.assertTrue(result.get("denied"))
         self.assertEqual(
             [e.event_type for e in self.tracker.emitted

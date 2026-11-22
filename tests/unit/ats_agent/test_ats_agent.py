@@ -70,6 +70,7 @@ class TestATSHttpClient:
     def test_analyze_job_calls_api(self, mock_post):
         """Test analyze_job makes HTTP request to correct endpoint."""
         mock_response = Mock()
+        mock_response.status_code = 200
         mock_response.json.return_value = {'score': 50}
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response

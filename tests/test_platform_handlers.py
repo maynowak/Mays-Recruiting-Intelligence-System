@@ -11,7 +11,9 @@ from datetime import datetime, timedelta
 from unittest.mock import Mock, patch, MagicMock
 
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _ROOT)
+sys.path.insert(0, os.path.join(_ROOT, "lambda"))
 
 from agents.timeutil import utcnow
 
@@ -440,14 +442,15 @@ class TestAgentAPI:
                     'jwt': {
                         'claims': {
                             'sub': 'user-123',
-                            'tenant_id': 'tenant-abc'
+                            'custom:tenant_id': 'tenant-abc'
                         }
                     }
                 }
             }
         }
         
-        with patch('handler._get_entitlement_for_agent') as mock_ent, \
+        with patch.dict(os.environ, {"WORK_ITEMS_TABLE": "work-items"}), \
+             patch('handler._get_entitlement_for_agent') as mock_ent, \
              patch('handler._get_agent_catalog') as mock_catalog, \
              patch('handler._get_dynamodb') as mock_db, \
              patch('handler._get_sqs') as mock_sqs:

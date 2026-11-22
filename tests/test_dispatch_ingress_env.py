@@ -33,11 +33,21 @@ class TestDispatchIngressAuthorization(unittest.TestCase):
         self.assertIn("ENTITLEMENTS_TABLE", str(ctx.exception))
 
     def test_resolver_is_always_configured(self):
-        with patch.dict(os.environ, {"API_PROFILES_TABLE": "profiles",
-                                     "ENTITLEMENTS_TABLE": "entitlements"},
-                        clear=True):
+        with patch.dict(os.environ, {
+                "API_PROFILES_TABLE": "profiles",
+                "ENTITLEMENTS_TABLE": "entitlements",
+                "WORK_ITEMS_TABLE": "work-items",
+                "WORK_QUEUE_URL":
+                    "https://sqs.eu-central-1.amazonaws.com/262370457690/"
+                    "ris-dev2-dev-work-queue",
+        }, clear=True), \
+                patch("boto3.resource"), patch("boto3.client"):
             deps = dispatch_ingress._dependencies()
-        self.assertIsNotNone(deps.get("entitlement_resolver"))
+        self.assertIsNotNone(deps.get("profile_store"))
+        self.assertIsNotNone(deps.get("table"))
+        self.assertEqual(deps.get("work_queue_url"),
+                         "https://sqs.eu-central-1.amazonaws.com/262370457690/"
+                         "ris-dev2-dev-work-queue")
 
 
 if __name__ == "__main__":

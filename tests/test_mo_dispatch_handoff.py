@@ -183,6 +183,7 @@ class TestDispatchHandoff(unittest.TestCase):
         result = self._result_envelope(validated, work_item,
                                        {"data": {"sum": 42}})
         import json
+        previous_table = os.environ.get("ORDERS_TABLE")
         os.environ["ORDERS_TABLE"] = "t"
         os.environ["ORDER_RESULT_SERVICE_SECRET"] = "s3cret"
         record = {"messageId": "m1", "body": json.dumps(result),
@@ -191,6 +192,10 @@ class TestDispatchHandoff(unittest.TestCase):
             response = self.mo_result_handler.handler({"Records": [record]}, None)
         finally:
             os.environ.pop("ORDER_RESULT_SERVICE_SECRET", None)
+            if previous_table is None:
+                os.environ.pop("ORDERS_TABLE", None)
+            else:
+                os.environ["ORDERS_TABLE"] = previous_table
         self.assertEqual(1, json.loads(response["body"])["rejected"])
 
 

@@ -183,6 +183,7 @@ class TestOutputDestination(Base):
         with self.assertRaises(ops.OutputDestinationError):
             ops.precheck_output_destination(self.out)
 
+    @unittest.skipIf(os.name == "nt", "Windows symlink privilege unavailable")
     def test_symlink_rejected(self):
         target = os.path.join(self.tmp, "target.txt")
         with open(target, "w") as fh:
@@ -192,6 +193,7 @@ class TestOutputDestination(Base):
         with self.assertRaises(ops.OutputDestinationError):
             ops.precheck_output_destination(link)
 
+    @unittest.skipIf(os.name == "nt", "Windows symlink privilege unavailable")
     def test_open_refuses_symlink_even_after_precheck(self):
         """TOCTOU: a symlink planted between precheck and open must fail.
 
@@ -210,6 +212,7 @@ class TestOutputDestination(Base):
         # The symlink target must be untouched.
         self.assertEqual(open(target).read(), "x")
 
+    @unittest.skipIf(os.name == "nt", "Windows symlink privilege unavailable")
     def test_symlink_guard_survives_without_nofollow(self):
         """Proves O_EXCL, not O_NOFOLLOW, is the symlink guard."""
         target = os.path.join(self.tmp, "target3.txt")
@@ -228,6 +231,7 @@ class TestOutputDestination(Base):
             os.open = real_open
         self.assertEqual(open(target).read(), "x")
 
+    @unittest.skipIf(os.name == "nt", "Windows symlink privilege unavailable")
     def test_symlinked_parent_directory_is_rejected(self):
         """Only the final component is covered by O_EXCL, so a symlinked
         intermediate directory would redirect the entire write."""
@@ -241,6 +245,7 @@ class TestOutputDestination(Base):
         # Nothing may have been created in the redirect target.
         self.assertFalse(os.path.exists(os.path.join(real_dir, "secret.txt")))
 
+    @unittest.skipIf(os.name == "nt", "Windows symlink privilege unavailable")
     def test_nested_symlinked_directory_is_rejected(self):
         deep_real = os.path.join(self.tmp, "deep")
         os.makedirs(deep_real, exist_ok=True)
@@ -257,6 +262,8 @@ class TestOutputDestination(Base):
         with self.assertRaises(ops.OutputDestinationError):
             ops.open_secret_file(self.out)
 
+    @unittest.skipIf(os.name == "nt",
+                     "Windows st_mode does not express POSIX ACL bits")
     def test_world_writable_directory_rejected(self):
         loose = os.path.join(self.tmp, "loose")
         os.makedirs(loose)
@@ -268,6 +275,8 @@ class TestOutputDestination(Base):
         finally:
             os.chmod(loose, 0o700)
 
+    @unittest.skipIf(os.name == "nt",
+                     "Windows st_mode does not express POSIX ACL bits")
     def test_group_writable_directory_rejected(self):
         loose = os.path.join(self.tmp, "grp")
         os.makedirs(loose)
@@ -293,6 +302,8 @@ class TestIssue(Base):
         return ops.issue(profile_store=self.profiles,
                          credential_store=self.creds, **params)
 
+    @unittest.skipIf(os.name == "nt",
+                     "Windows does not enforce POSIX file modes")
     def test_issue_writes_owner_only_secret_file(self):
         result = self.issue()
         self.assertTrue(result["secretWritten"])
@@ -353,6 +364,8 @@ class TestIssue(Base):
         with self.assertRaises(Exception):
             self.issue(actor=weak)
 
+    @unittest.skipIf(os.name == "nt",
+                     "Windows does not enforce POSIX file modes")
     def test_idempotent_replay_does_not_rewrite_secret(self):
         # expiresAt participates in the idempotency content check, so a true
         # replay must reuse the identical value.
@@ -419,6 +432,8 @@ class TestIssue(Base):
         self.assertIn(ctx.exception.credential_id, self.creds.by_id)
         self.assertNotIn("ris_", ctx.exception.detail)
 
+    @unittest.skipIf(os.name == "nt",
+                     "Windows does not enforce POSIX file modes")
     def test_cli_reports_credential_created_output_failed(self):
         """The CLI must never claim a rollback it cannot perform."""
         import ris_admin.credentials as mod
@@ -583,6 +598,8 @@ class TestCliSurface(Base):
             parser.parse_args(["credential", "issue", "--apiProfileId", "p",
                                "--expiresAt", "t"])
 
+    @unittest.skipIf(os.name == "nt",
+                     "Windows does not enforce POSIX file modes")
     def test_cli_issue_output_never_contains_secret(self):
         code, out = self.run_cli([
             "--environment", "dev", "credential", "issue",
@@ -649,6 +666,8 @@ class TestCliSurface(Base):
             )
             self.assertEqual(mock_issue.call_count, 1)
 
+    @unittest.skipIf(os.name == "nt",
+                     "Windows does not enforce POSIX file modes")
     def test_concurrent_issuance_same_output(self):
         """Simulate two threads racing to write the same output path.
         Only one should succeed; the other must get OutputDestinationError."""

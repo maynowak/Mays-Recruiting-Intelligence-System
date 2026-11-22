@@ -143,7 +143,8 @@ class TestExitCodes:
     def test_cli_exit_code_clean(self, tmp_path):
         """CLI returns 0 for clean state."""
         result = subprocess.run(
-            ["python3", "-m", "tools.dependency_check", "--repo", str(tmp_path)],
+            [sys.executable, "-m", "tools.dependency_check", "--repo",
+             str(tmp_path)],
             capture_output=True,
             text=True
         )
@@ -153,7 +154,7 @@ class TestExitCodes:
     def test_cli_json_output(self, tmp_path):
         """CLI produces valid JSON with --format json."""
         result = subprocess.run(
-            ["python3", "-m", "tools.dependency_check", 
+            [sys.executable, "-m", "tools.dependency_check",
              "--format", "json", "--repo", str(tmp_path)],
             capture_output=True,
             text=True

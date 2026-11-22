@@ -40,9 +40,13 @@ try:
         external_refs_payload, notice_version,
     )
     from jobsearch.consent_repository import ConsentRepository
-except ImportError:  # pragma: no cover - dependency-free fallback
-    boto3 = None
-    mock_aws = lambda fn: fn
+except ImportError as exc:  # pragma: no cover - dependency-free skip
+    missing = getattr(exc, "name", "") or ""
+    if missing in ("moto", "boto3", "botocore"):
+        import pytest
+        pytest.skip(f"consent test dependencies missing: {exc}",
+                    allow_module_level=True)
+    raise
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "lambda") not in sys.path:
@@ -137,7 +141,8 @@ class CatalogShapeTests(unittest.TestCase):
         self.assertEqual([PURPOSE],
                          [i["purpose"] for i in single["items"]])
         self.assertEqual(
-            sorted([PURPOSE, "cv-storage", "search-profile-storage", OTHER_PURPOSE]),
+            sorted([PURPOSE, "cv-storage", "search-profile-storage",
+                    "analysis-processing", OTHER_PURPOSE]),
             sorted([e["purpose"] for e in everything["catalog"]]))
 
     def test_unknown_purpose_fails_closed_instead_of_returning_an_empty_catalog(self):

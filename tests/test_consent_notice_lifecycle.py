@@ -23,9 +23,13 @@ try:
         catalog_payload, external_refs_payload, notice_version)
     from jobsearch import consent_contract
     from jobsearch.consent_repository import ConsentRepository
-except ImportError:  # pragma: no cover
-    boto3 = None
-    mock_aws = lambda fn: fn
+except ImportError as exc:  # pragma: no cover - dependency-free skip
+    missing = getattr(exc, "name", "") or ""
+    if missing in ("moto", "boto3", "botocore"):
+        import pytest
+        pytest.skip(f"consent test dependencies missing: {exc}",
+                    allow_module_level=True)
+    raise
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "lambda") not in sys.path:
@@ -207,9 +211,10 @@ class ConsentStatusResponseShapeTests(unittest.TestCase):
             response = handler._handle_consent_routes(
                 event, None, "GET", "/v1/partner/me/consents")
         body = json.loads(response["body"])
-        self.assertEqual(3, len(body["items"]))
+        self.assertEqual(4, len(body["items"]))
         self.assertEqual(
-            {"application-storage", "cv-storage", "search-profile-storage"},
+            {"application-storage", "cv-storage", "search-profile-storage",
+             "analysis-processing"},
             {item["purpose"] for item in body["items"]})
         application_catalog = [
             entry for entry in body["catalog"]
