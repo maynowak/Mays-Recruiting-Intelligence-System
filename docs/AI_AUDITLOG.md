@@ -11262,3 +11262,10 @@ Date: 2026-11-22
 - Applied target remains intentionally old (20 outputs) and now fails the stricter `--check`; this is the expected signal for a future reviewed module rebuild. No immediate infrastructure change: outputs are references only, no resource/IAM/queue/table/secret change. A later apply would add outputs to state only.
 - Boundaries: no Terraform apply, AWS mutation, target replacement, synthetic activation B, Mays transport C, main merge or production deployment.
 
+[RIS-ANALYSIS-16C2-QA2 / PYTHON 3.14 RUNTIME REGRESSION]
+Status: additional local verification; no AWS/Terraform mutation.
+Date: 2026-11-22
+- Created isolated Python 3.14.10 venv with pytest 9.2.0, pytest-subtests 0.15.0, requests 2.34.2, moto 5.2.5, boto3/botocore 1.44.9.
+- Default full `tests/` suite: 3193 passed, 134 skipped, 0 failed, 441 subtests. Fixture suite (fixed temp module, Mays source, parser CLI): 3259 passed, 68 skipped, 0 failed, 441 subtests.
+- Results are identical to the Python 3.15 run; no runtime-specific failure. No module target replacement, AWS mutation or apply.
+

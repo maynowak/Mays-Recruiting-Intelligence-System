@@ -61,6 +61,13 @@
     "extendedMays": {"passed": 55},
     "defaultFullSuite": {"passed": 3193, "skipped": 134, "failed": 0, "subtests": 441},
     "fixtureFullSuite": {"passed": 3259, "skipped": 68, "failed": 0, "subtests": 441},
+    "python314": {
+      "version": "3.14.10",
+      "venv": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-qa2-venv314",
+      "defaultFullSuite": {"passed": 3193, "skipped": 134, "failed": 0, "subtests": 441},
+      "fixtureFullSuite": {"passed": 3259, "skipped": 68, "failed": 0, "subtests": 441},
+      "matches315": true
+    },
     "agentPackagesValidated": 5,
     "builderCheckTarget": "FAIL_EXPECTED_OLD_TARGET",
     "builderCheckTemp": "PASS"

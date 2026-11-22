@@ -132,11 +132,26 @@ The previously failing
 now passes against the isolated fixed module; the fixture suite has **0
 failures**.
 
+### Python 3.14 runtime regression
+
+The full suite was repeated with the Lambda runtime version:
+
+`C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-qa2-venv314`
+(Python **3.14.10**, pytest 9.2.0, pytest-subtests 0.15.0, requests 2.34.2,
+moto 5.2.5, boto3/botocore 1.44.9).
+
+| Suite | Result |
+|---|---|
+| Default full suite | **3193 passed, 134 skipped, 0 failed, 441 subtests** |
+| Fixture full suite | **3259 passed, 68 skipped, 0 failed, 441 subtests** |
+
+The 3.14 results are identical to the 3.15 run; no runtime-specific failure.
+
 Comparison with QA1:
 
 - QA1 default: 3185 passed / 134 skipped / 0 failed.
 - QA1 fixture: 3250 passed / 68 skipped / **1 failed**.
-- QA2: 3193 / 134 / 0 and 3259 / 68 / 0.
+- QA2: 3193 / 134 / 0 and 3259 / 68 / 0, on both Python 3.15 and 3.14.
 
 ## 5. Compatibility and whether infrastructure must change
 
