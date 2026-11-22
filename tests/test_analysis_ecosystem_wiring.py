@@ -170,15 +170,28 @@ class ManifestPinTest(unittest.TestCase):
         self.assertEqual(0, manifest["plan"]["destroys"])
         self.assertEqual("NO_SHARED_DESTROY", manifest["plan"]["guard"])
         self.assertFalse(manifest["plan"]["applyApproved"])
+        preflight_path = (ROOT / "docs" / "reports" /
+                          "RIS-ANALYSIS-16C0-PREFLIGHT.json")
+        preflight = (json.loads(preflight_path.read_text(encoding="utf-8"))
+                     if preflight_path.is_file() else None)
         for relative, key in (("terraform/lambda.zip", "worker"),
                               ("terraform/analysis-lambda.zip", "analysis")):
             artifact = ROOT / relative
             if not artifact.is_file():
                 continue
+            digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+            if preflight is None:
+                self.assertEqual(manifest["bundles"][key]["sha256"],
+                                 digest, relative)
+                continue
+            # 16B/16C0 changed agents/orders. The historical 15B plan is
+            # stale; the current bundle is pinned by the 16C0 preflight.
             self.assertEqual(
-                manifest["bundles"][key]["sha256"],
-                hashlib.sha256(artifact.read_bytes()).hexdigest(),
-                relative)
+                preflight["planFreshness"]["bundles"][
+                    "currentAfter16BAnd16C0"][key],
+                digest, relative)
+            self.assertNotEqual(manifest["bundles"][key]["sha256"], digest,
+                                f"{relative}: historical plan must be stale")
 
 
     def test_dispatch_queue_to_work_queue_to_worker_for_both_agents(self):

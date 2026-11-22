@@ -11188,3 +11188,13 @@ Date: 2026-11-22
 - `orders_function` forwards `order_type` in addition to the existing processing/HTTP fields. No Mays lifecycle, queue, result consumer or Terraform change.
 - Tests: adapter/reader/agent-gate 79 passed + 7 subtests. No AWS verification, no apply.
 
+[RIS-ANALYSIS-16C0 / STEP B — FINAL CANARY PREFLIGHT]
+Status: read-only preflight + local bundle rebuild; no AWS mutation, no apply.
+Date: 2026-11-22
+- Edge case fixed in `0a2388a`: `agent.execution` + `DELIVERED` without `processing.result` is a controlled ERROR (`missing_processing_result`), not APPROVED. Retail DELIVERED and agent.execution with COMPLETED+result remain APPROVED.
+- C proof: Mays generated module `016cdfd` `_create_agent_order` stores client `apiProfileRef`; `prepare_dispatch` checks only order ownership; `dispatch.py` copies it to `contextRef`; RIS `dispatch_ingress.resolve_context` accepts any ACTIVE profile. RIS `orders_reader` does bind owner/profile/entitlement, but the Mays direct path remains open. C is BLOCKED, Mays-owned. No Mays change.
+- Plan freshness: `9a0324a0…` / JSON `c1360c51…` still match the saved file, shape 4/3/0/0, guard `NO_SHARED_DESTROY`; remote state read-only serial 67, lineage `a0bd361d…`, 283 resources, last modified 2026-11-20. **But the plan is STALE**: after 16B/16C0, rebuilt worker `85775f68…` != planned `28125fe1…` and analysis `420bf861…` != planned `fcc2a008…`; parser unchanged. Plan contains only `ANALYSIS_SYNTHETIC_MODE=false`, no B profile values. A is not exercisable; B is not in the plan.
+- Two synthetic paths are prepared but BLOCKED: direct RIS (A stale, B missing, RUNNING WorkItem seed, execution approval) and Mays transport (same plus C). CV/job/match cases for success, error, idempotency, result retrieval and permission denial are specified in `docs/reports/RIS-ANALYSIS-16C0-PREFLIGHT.json`.
+- Tests: new static preflight 10 passed; focused suite 98 passed + 7 subtests; broad factory/analysis/auth run 560 passed, 30 skipped, 13 subtests. Only read-only `sts get-caller-identity` and S3 state `get-object` were used; no writes. No deployment, no activation, no real data.
+- Required next step: rebuild bundles (done locally, ignored) and generate a new exact plan; fold approved B into the new plan; keep C blocked for the Mays path.
+
