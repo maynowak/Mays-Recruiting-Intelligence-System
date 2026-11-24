@@ -12243,3 +12243,89 @@ Status: DELIVERED ON FEATURE BRANCH — VALID MO COMMIT, NO RIS PIN CHANGE
 - Final adoption requires the separate RIS pin gate: point the pin at
   `583a794c…`, run the RIS builder (fmt/init/validate + 23-output contract),
   then a new plan proving 0 destroy / 0 replace before any apply.
+
+---
+
+## RIS-MO-RC4 PIN-INTEGRATION FINAL GATE — 2026-11-24
+
+Status: **NO-GO** — CANDIDATE PLAN DESTROYS AND WEAKENS LIVE CONTRACT — PIN REVERTED
+
+### 1. Pre-read
+
+`AGENTS.md` and `docs/AI_AUDITLOG.md` were read before the run.
+
+### 2. Pin raised and module generated (then reverted)
+
+- Pin temporarily set to `583a794c3a2a41acf8030fc853a2e8adc69cd9bb` (file + constant).
+- Isolated generation (`module_builder --preset orders-service --validate`): PASS.
+- Composition: 9 modules (`agent_transport`, `api`, `cognito`, `dynamodb`,
+  `iam`, `lambda`, `privacy_secret`, `sqs`, `sqs_worker`).
+- Outputs upstream: 22. Transport outputs not exported upstream → no
+  collision. After RIS injection: 25 outputs, all 23 required names present,
+  no duplicates.
+- `fmt` / `init -backend=false` / `validate`: PASS (module and RIS root).
+- Cross-repo contract tests (real MO validator from 583a794c): 5 passed.
+
+### 3. Candidate plan (rejected)
+
+Plan SHA-256: `9e07b5898fa9c80e43c0969bf2293b743c8378617b072a315da48dcd299db01d`
+Summary: **1 to add, 12 to change, 1 to destroy** → violates the 0/0 gate.
+
+Change set:
+
+| Resource | Action | Detail |
+| --- | --- | --- |
+| `module.mays_orders[0].module.sqs.aws_sqs_queue.dlq` | **create** | new orders DLQ |
+| `module.mays_orders[0].module.sqs.aws_sqs_queue.orders` | update | retention 120 → 345600 s, visibility 30 → 60 s, redrive_policy added |
+| `module.mays_orders[0].module.sqs.aws_sqs_queue_policy.orders` | **delete** | account-root queue policy removed |
+| `module.mays_orders[0].module.dynamodb.aws_dynamodb_table.orders` | update | GSI definition switches `hash_key` → `key_schema` (gsi1/gsi2/gsi3); live GSI migration risk |
+| `module.mays_orders[0].module.lambda.aws_lambda_function.handler` | update | **removes** `ORDERS_COGNITO_ISSUER` and `ORDERS_COGNITO_CLIENT_ID` from the env |
+| `module.mays_orders[0].module.iam.aws_iam_role_policy.handler` | update | adds gsi3 index ARN (additive) |
+| `module.mays_orders[0].module.iam.aws_iam_role_policy.sqs[0]` | update | policy rewritten |
+| `module.mays_orders[0].module.sqs_worker.aws_lambda_event_source_mapping.sqs_worker` | update | `function_response_types` added (ReportBatchItemFailures) |
+| `module.mays_orders[0].module.lambda…`, `sqs_worker…`, `agent_transport.result_consumer` | update | code hash / env |
+| RIS foundation lambdas (agent, dispatch_ingress, analysis, reader) | update | unchanged code-only deltas |
+
+The destroy, the live queue-semantics change, the GSI schema migration and the
+removal of the handler's Cognito env are stop conditions. A separate upstream
+defect also surfaced: `privacy_kms_key_arn` defaults to `null` while its own
+validation accepts only `""` or a concrete key ARN; the RIS root had to pass
+`""` explicitly to plan at all.
+
+### 4. Revert and restored state
+
+- Pin file + `PINNED_COMMIT` back to `016cdfd` (no diff).
+- RIS root `terraform/main.tf`: `privacy_kms_key_arn` workaround removed
+  (no diff).
+- Module rebuilt from `016cdfd` via the RIS builder (contract + fmt/init/validate OK).
+- Restored plan: **0 to add, 4 to change, 0 to destroy**; rendered diff vs the
+  approved plan `9debb7a3…`: **0 differing lines**.
+- Restored plan binary SHA-256: `aa2d857a70ca2179aabb57ced705961fc5b8f9d16a1510d3b2c7305be130d66b`.
+- State untouched: workspace `ris-dev2`, serial **69**, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, 287 resources.
+
+### 5. RIS builder maintenance (kept)
+
+`apply_ris_order_dispatch_env_patch` now supports the current upstream
+`variables = merge(...)` lambda env in addition to the legacy flat map, and
+inserts `ORDER_DISPATCH_QUEUE_URL` as a conditional merge entry. No effect on
+the `016cdfd` build; required for any future pin adoption.
+
+### 6. Tests
+
+- Focused RIS suites: 29 passed, 9 skipped, 318 subtests
+  (`test_build_mays_orders_transport_outputs`, `test_generated_module_artifact`,
+  `test_p20_api_contract_consistency`).
+- Cross-repo MO contract: 5 passed.
+
+### 7. Required before a retry
+
+1. Keep `aws_sqs_queue_policy.orders` at its existing address (or provide a
+   `moved`/policy-preserving migration) — no destroy of the account-root policy.
+2. Do not change live retention/visibility/redrive without an explicit,
+   separately approved migration.
+3. Provide a GSI migration that preserves `gsi1/gsi2/gsi3` (no `hash_key` →
+   `key_schema` replacement on live tables).
+4. Keep `ORDERS_COGNITO_ISSUER`/`ORDERS_COGNITO_CLIENT_ID` in the handler env.
+5. Fix `privacy_kms_key_arn` default so it satisfies its own validation.
+6. Then: new MO commit, new pin gate, new plan, 0 destroy / 0 replace.

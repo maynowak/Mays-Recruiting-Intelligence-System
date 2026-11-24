@@ -605,31 +605,50 @@ variable "order_dispatch_queue_url" {
     parent_main.write_text(main, encoding="utf-8")
 
     main = lambda_main.read_text(encoding="utf-8")
-    marker = "    variables = {\n"
-    if main.count(marker) != 1:
-        raise RuntimeError(
-            "generated Orders lambda env no longer has the expected variables block"
-        )
     if "ORDER_DISPATCH_QUEUE_URL" not in main:
-        main = main.replace(marker, "    variables = merge({\n", 1)
-        closing = (
-            "      ORDERS_COGNITO_CLIENT_ID = var.cognito_client_id\n"
-            "    }\n"
-        )
-        if main.count(closing) != 1:
-            raise RuntimeError(
-                "generated Orders lambda env no longer has the expected closing block"
+        if "    variables = {\n" in main:
+            # Ältere Upstream-Layouts: flache Map.
+            marker = "    variables = {\n"
+            if main.count(marker) != 1:
+                raise RuntimeError(
+                    "generated Orders lambda env no longer has the expected "
+                    "variables block"
+                )
+            main = main.replace(marker, "    variables = merge({\n", 1)
+            closing = (
+                "      ORDERS_COGNITO_CLIENT_ID = var.cognito_client_id\n"
+                "    }\n"
             )
-        main = main.replace(
-            closing,
-            "      ORDERS_COGNITO_CLIENT_ID = var.cognito_client_id\n"
-            "    },\n"
-            "    var.order_dispatch_queue_url != \"\" ? {\n"
-            "      ORDER_DISPATCH_QUEUE_URL = var.order_dispatch_queue_url\n"
-            "    } : {},\n"
-            "  )\n",
-            1,
-        )
+            if main.count(closing) != 1:
+                raise RuntimeError(
+                    "generated Orders lambda env no longer has the expected "
+                    "closing block"
+                )
+            main = main.replace(
+                closing,
+                "      ORDERS_COGNITO_CLIENT_ID = var.cognito_client_id\n"
+                "    },\n"
+                "    var.order_dispatch_queue_url != \"\" ? {\n"
+                "      ORDER_DISPATCH_QUEUE_URL = var.order_dispatch_queue_url\n"
+                "    } : {},\n"
+                "  )\n",
+                1,
+            )
+        elif "    variables = merge(\n" in main:
+            # Aktuelle Upstream-Layouts: merge(map, bedingte Blöcke).
+            merge_start = main.index("    variables = merge(\n")
+            first_entry_end = main.index("      },\n", merge_start)
+            insert_at = first_entry_end + len("      },\n")
+            addition = (
+                '      var.order_dispatch_queue_url != "" ? {\n'
+                '        ORDER_DISPATCH_QUEUE_URL = var.order_dispatch_queue_url\n'
+                '      } : {},\n'
+            )
+            main = main[:insert_at] + addition + main[insert_at:]
+        else:
+            raise RuntimeError(
+                "generated Orders lambda env has no supported variables block"
+            )
     lambda_main.write_text(main, encoding="utf-8")
 
 
