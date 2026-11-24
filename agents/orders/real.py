@@ -28,6 +28,12 @@ import urllib.error
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from agents.orders.adapter import OrdersPort, OrderResult, OrdersResultType
+from agents.orders.agent_order import (
+    AgentOrderError,
+    ORDER_TYPE_AGENT,
+    parse_agent_order_description,
+    serialize_agent_order_description,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,24 +45,17 @@ CAPABILITY_CANCEL = "orders.cancel"
 
 SUPPORTED_CAPABILITIES = frozenset({CAPABILITY_CREATE, CAPABILITY_STATUS, CAPABILITY_CANCEL})
 
-#: Root fields of the Mays-Orders OrderV1 create contract. A create payload is
-#: forwarded verbatim for exactly these fields, so an agent execution order
-#: (orderType + agentOrder) and the MO `orderDescription` reach the API
-#: unchanged. Nothing is invented and unknown caller keys are never sent.
-#: Mays-Orders forbids combining customer/items/currency with an agentOrder,
-#: so the agent branch never adds retail fields.
+#: Root fields of the Mays-Orders OrderV1 create contract (main @ 543ef75).
+#: A root ``agentOrder`` is NOT part of this contract: the validated RIS
+#: AgentOrder V1 body travels inside ``orderDescription``. Nothing is invented
+#: and unknown caller keys are never sent.
 MO_ORDER_FIELDS = frozenset({
-    "orderType",
-    "agentOrder",
-    "orderDescription",
     "customer",
     "items",
     "currency",
-    "totalAmount",
+    "orderType",
+    "orderDescription",
 })
-
-#: Retail fields that must not accompany an agent execution order.
-MO_RETAIL_FIELDS = ("customer", "items", "currency", "totalAmount")
 
 # HTTP-Status, die zu kontrollierten (nicht retrybaren) Ergebnissen werden.
 _CLIENT_ERRORS = {400, 401, 403, 404, 405, 409, 410, 422}
@@ -249,6 +248,81 @@ class RealMaysOrdersAdapter(OrdersPort):
                                   f"Unerwartete Antwort ({status})",
                                   {"http_status": status, **context})
 
+    # -- MO OrderV1 create body -----------------------------------------
+    @staticmethod
+    def _agent_order_from(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Resolve the agentOrder the caller wants to execute."""
+        candidate = payload.get("agentOrder")
+        if isinstance(candidate, dict):
+            return candidate
+        description = payload.get("orderDescription")
+        if description is not None:
+            return parse_agent_order_description(description)
+        return None
+
+    @staticmethod
+    def _single_item(payload: Dict[str, Any], capability: str) -> Dict[str, Any]:
+        """Exactly one MO item entry: ``sku``, ``quantity``, ``unitPrice``."""
+        raw_items = payload.get("items")
+        source = raw_items[0] if isinstance(raw_items, list) and raw_items else None
+        source = source if isinstance(source, dict) else {}
+        sku = source.get("sku", capability)
+        quantity = source.get("quantity", 1)
+        unit_price = source.get("unitPrice", 1)
+        if not isinstance(sku, str) or not sku.strip():
+            raise AgentOrderError("invalid_item", "item.sku must be a non-empty string")
+        for label, value in (("quantity", quantity), ("unitPrice", unit_price)):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise AgentOrderError(
+                    "invalid_item", f"item.{label} must be an integer >= 1")
+        return {"sku": sku, "quantity": quantity, "unitPrice": unit_price}
+
+    @staticmethod
+    def _customer(payload: Dict[str, Any]) -> Dict[str, str]:
+        customer = payload.get("customer")
+        customer = customer if isinstance(customer, dict) else {}
+        name = customer.get("name")
+        email = customer.get("email")
+        if not isinstance(name, str) or not name.strip():
+            raise AgentOrderError("invalid_customer", "customer.name is required")
+        if not isinstance(email, str) or not email.strip():
+            raise AgentOrderError("invalid_customer", "customer.email is required")
+        return {"name": name, "email": email}
+
+    def _create_body(self, payload: Dict[str, Any], capability: str) -> Dict[str, Any]:
+        """Build the MO OrderV1 create body for retail or agent execution.
+
+        Agent execution: the validated AgentOrder V1 JSON is the complete value
+        of ``orderDescription`` (<= 1024 chars); no root ``agentOrder`` is ever
+        sent. One item entry is mandatory, so a missing item is derived from
+        the capability with quantity/unitPrice 1 (never invented pricing).
+        """
+        agent_order = self._agent_order_from(payload)
+        is_agent = (agent_order is not None
+                    or str(payload.get("orderType") or "").lower() == ORDER_TYPE_AGENT)
+        body: Dict[str, Any] = {
+            "customer": self._customer(payload),
+            "currency": payload.get("currency", "EUR"),
+        }
+        if is_agent:
+            if agent_order is None:
+                raise AgentOrderError(
+                    "invalid_agent_order",
+                    "orders.create for agent.execution requires 'agentOrder' "
+                    "or a serialised 'orderDescription'")
+            body["items"] = [self._single_item(payload, capability)]
+            body["orderType"] = ORDER_TYPE_AGENT
+            body["orderDescription"] = serialize_agent_order_description(agent_order)
+            return body
+        items = payload.get("items")
+        if not isinstance(items, list) or not items:
+            raise AgentOrderError("invalid_item", "items must be a non-empty list")
+        body["items"] = items
+        description = payload.get("orderDescription")
+        if description is not None:
+            body["orderDescription"] = description
+        return body
+
     # -- Port -----------------------------------------------------------
     def submit_order(self, work_item: Dict[str, Any], capability: str,
                      payload: Optional[Dict[str, Any]] = None,
@@ -262,24 +336,11 @@ class RealMaysOrdersAdapter(OrdersPort):
                     work_id, capability, tenant_id)
         payload = payload or {}
         if capability == CAPABILITY_CREATE:
-            # Forward the complete MO OrderV1 payload: retail fields plus an
-            # optional agent execution order and its root-level
-            # `orderDescription`. Only contract fields are sent; caller keys
-            # outside the MO contract are dropped, never forwarded.
-            order = {key: payload[key] for key in MO_ORDER_FIELDS if key in payload}
-            agent_execution = (
-                payload.get("agentOrder") is not None
-                or str(payload.get("orderType") or "").lower() == "agent.execution"
-            )
-            if agent_execution:
-                # Mays-Orders rejects customer/items/currency together with an
-                # agentOrder; forwarding them would make the call invalid.
-                for retail in MO_RETAIL_FIELDS:
-                    order.pop(retail, None)
-            else:
-                order["customer"] = payload.get("customer")
-                order["items"] = payload.get("items")
-                order["currency"] = payload.get("currency", "EUR")
+            try:
+                order = self._create_body(payload, capability)
+            except AgentOrderError as exc:
+                logger.warning("RealMaysOrdersAdapter.create rejected locally: %s", exc.code)
+                return self._error_result(None, exc.code.upper(), exc.message, context)
             try:
                 status, resp = self._call("create", "POST", "/orders", order)
                 if 200 <= status < 300 and isinstance(resp, dict) and resp.get("orderId"):

@@ -51,6 +51,13 @@ def order_payload(order_id="ord_x1", status="PENDING"):
 
 
 class TestRealAdapterContract(unittest.TestCase):
+    @staticmethod
+    def _retail(**overrides):
+        body = {"customer": {"name": "T", "email": "t@x.io"},
+                "items": [{"sku": "S", "quantity": 1, "unitPrice": 5}]}
+        body.update(overrides)
+        return body
+
     def test_port_id_and_capabilities(self):
         a = adapter(FakeTransport())
         self.assertEqual(a.port_id, "real-mays-orders-adapter")
@@ -77,14 +84,14 @@ class TestRealAdapterContract(unittest.TestCase):
     def test_create_400_controlled(self):
         t = FakeTransport()
         t.when("POST", "/orders", 400, {"error": {"code": "VALIDATION_ERROR", "message": "bad"}})
-        r = adapter(t).submit_order({"workId": "w-1"}, "orders.create", {})
+        r = adapter(t).submit_order({"workId": "w-1"}, "orders.create", self._retail())
         self.assertFalse(r.success)
         self.assertIn("VALIDATION_ERROR", r.reason)
 
     def test_create_503_controlled_no_retry(self):
         t = FakeTransport()
         t.when("POST", "/orders", 503, {})
-        r = adapter(t).submit_order({"workId": "w-1"}, "orders.create", {})
+        r = adapter(t).submit_order({"workId": "w-1"}, "orders.create", self._retail())
         self.assertFalse(r.success)
         self.assertIn("POST_UNKNOWN", r.reason)
         self.assertFalse(r.data["safe_to_retry"])
@@ -92,7 +99,7 @@ class TestRealAdapterContract(unittest.TestCase):
     def test_create_timeout_controlled_no_raise(self):
         t = FakeTransport()
         t.when("POST", "/orders", 0, None, exc=TimeoutError("timed out"))
-        r = adapter(t).submit_order({"workId": "w-1"}, "orders.create", {})
+        r = adapter(t).submit_order({"workId": "w-1"}, "orders.create", self._retail())
         self.assertFalse(r.success)
         self.assertIn("POST_UNKNOWN", r.reason)
 
@@ -101,9 +108,9 @@ class TestRealAdapterContract(unittest.TestCase):
         t = FakeTransport()
         t.when("POST", "/orders", 201, order_payload("ord_a"))
         a = adapter(t)
-        r1 = a.submit_order({"workId": "w-1"}, "orders.create", {}, idempotency_key="k-1")
+        r1 = a.submit_order({"workId": "w-1"}, "orders.create", self._retail(), idempotency_key="k-1")
         t.when("POST", "/orders", 201, order_payload("ord_b"))
-        r2 = a.submit_order({"workId": "w-1"}, "orders.create", {}, idempotency_key="k-1")
+        r2 = a.submit_order({"workId": "w-1"}, "orders.create", self._retail(), idempotency_key="k-1")
         self.assertNotEqual(r1.order_id, r2.order_id)
         bodies = [c["body"] for c in t.calls]
         self.assertTrue(all("idempotencyKey" not in b for b in bodies))

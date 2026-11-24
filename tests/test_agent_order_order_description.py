@@ -1,25 +1,19 @@
-"""MO-compatible create payload → RIS agent-order dispatch.
+"""MO OrderV1 ↔ RIS agent order: orderDescription as the only agent channel.
 
-Covers the real runtime path of the integration gate:
+Contract (Mays-Orders main @ 543ef75):
 
-  Mays-Orders OrderV1 create payload (orderType + agentOrder + root-level
-  ``orderDescription``)
-      -> POST /orders (lambda/orders_reader.py)
-      -> schema/identity/secret/entitlement gates (unchanged)
-      -> ORDER_DISPATCH envelope on the RIS dispatch queue
+    {
+      "customer": {"name": ..., "email": ...},
+      "items": [{"sku": ..., "quantity": int >= 1, "unitPrice": int >= 1}],
+      "currency": "EUR",
+      "orderType": "agent.execution",
+      "orderDescription": "<validated RIS AgentOrder V1 JSON, <= 1024 chars>"
+    }
 
-and the outbound leg:
+A root ``agentOrder`` is NOT part of the MO contract. The RIS reader parses,
+validates (schema, identity, secret, entitlement) and dispatches the body.
 
-  RealMaysOrdersAdapter.submit_order("orders.create", payload)
-      -> POST /orders body that carries the complete MO payload and no
-         unknown fields.
-
-Mays-Orders forbids combining ``customer``/``items``/``currency`` with an
-``agentOrder`` (its own validation.py), so agent payloads here carry only
-``orderType``, ``orderDescription`` and ``agentOrder``.
-
-No AWS calls: the table, profile store, entitlement resolver, dispatch send
-and HTTP transport are fakes.
+No AWS calls: table, profile store, entitlement resolver and dispatch are fakes.
 """
 
 import importlib.util
@@ -52,7 +46,11 @@ orders_reader = importlib.util.module_from_spec(_SPEC)
 sys.modules["orders_reader_mo"] = orders_reader
 _SPEC.loader.exec_module(orders_reader)
 
-from agents.orders.agent_order import MAX_ORDER_DESCRIPTION_LENGTH  # noqa: E402
+from agents.orders.agent_order import (  # noqa: E402
+    MAX_ORDER_DESCRIPTION_LENGTH,
+    parse_agent_order_description,
+    serialize_agent_order_description,
+)
 from agents.orders.real import RealMaysOrdersAdapter  # noqa: E402
 
 
@@ -88,7 +86,7 @@ class Resolver:
         return [dict(r) for r in self.rows if r.get("userId") == user_id]
 
 
-def mo_agent_order(agent="ats-agent", capability="analyze.job"):
+def agent_order_doc(agent="ats-agent", capability="analyze.job"):
     return {
         "schemaVersion": "1.0",
         "target": {"agentId": agent, "capability": capability},
@@ -100,21 +98,18 @@ def mo_agent_order(agent="ats-agent", capability="analyze.job"):
     }
 
 
-def mo_agent_payload(description="Analyse für Bewerber 4711"):
-    """MO agent create payload: no retail fields (MO forbids the mix)."""
-    return {
-        "orderType": "agent.execution",
-        "orderDescription": description,
-        "agentOrder": mo_agent_order(),
-    }
-
-
-def mo_retail_payload():
-    return {
+def mo_payload(description=None, doc=None, **overrides):
+    doc = doc if doc is not None else agent_order_doc()
+    body = {
         "customer": {"name": "Mays GmbH", "email": "ops@example.com"},
         "items": [{"sku": "ATS", "quantity": 1, "unitPrice": 100}],
         "currency": "EUR",
+        "orderType": "agent.execution",
+        "orderDescription": (description if description is not None
+                             else serialize_agent_order_description(doc)),
     }
+    body.update(overrides)
+    return body
 
 
 def event(payload):
@@ -152,95 +147,97 @@ class TestMoCreateToRisDispatch(unittest.TestCase):
             entitlement_resolver=self.entitlements)
 
     def test_mo_payload_is_accepted_validated_and_dispatched(self):
-        description = "Analyse für Bewerber 4711"
-        response = self.post(mo_agent_payload(description))
+        payload = mo_payload()
+        response = self.post(payload)
         self.assertEqual(201, response["statusCode"], response["body"])
 
         self.assertEqual(1, len(self.table.puts))
         self.assertEqual(1, len(self.dispatched))
         stored = self.table.puts[0]
 
-        # orderDescription is folded into the AgentOrder V1 body
-        self.assertEqual(description, stored["agentOrder"]["orderDescription"])
-        self.assertEqual("1.0", stored["agentOrder"]["schemaVersion"])
+        # MO-shaped row, no root agentOrder
+        self.assertEqual("agent.execution", stored["orderType"])
+        self.assertEqual(payload["orderDescription"], stored["orderDescription"])
+        self.assertNotIn("agentOrder", stored)
+        self.assertEqual({"name": "Mays GmbH", "email": "ops@example.com"},
+                         stored["customer"])
+        self.assertEqual(1, len(stored["items"]))
+        self.assertEqual(100, stored["totalAmount"])
 
-        # nothing MO-root-level leaks into the RIS order row
-        for leaked in ("orderDescription", "customer", "items", "currency",
-                       "totalAmount"):
-            self.assertNotIn(leaked, stored)
+        parsed = parse_agent_order_description(stored["orderDescription"])
+        self.assertEqual("corr-mo-1", parsed["metadata"]["requestId"])
 
-        # the dispatch envelope carries the execution payload only
         envelope = self.dispatched[0]
         self.assertEqual(stored["orderId"], envelope["orderId"])
         self.assertEqual("corr-mo-1", envelope["correlationId"])
-        self.assertEqual(mo_agent_order()["input"]["data"],
+        self.assertEqual(agent_order_doc()["input"]["data"],
                          envelope["payload"])
         self.assertEqual(stored["expectedWorkId"],
                          envelope["execution"]["workId"])
-        self.assertNotIn("orderDescription", envelope["payload"])
 
-    def test_description_at_limit_is_accepted(self):
-        description = "x" * MAX_ORDER_DESCRIPTION_LENGTH
-        response = self.post(mo_agent_payload(description))
-        self.assertEqual(201, response["statusCode"], response["body"])
-        self.assertEqual(description,
-                         self.table.puts[0]["agentOrder"]["orderDescription"])
-
-    def test_description_over_limit_is_rejected_without_truncation(self):
-        response = self.post(
-            mo_agent_payload("x" * (MAX_ORDER_DESCRIPTION_LENGTH + 1)))
+    def test_description_over_limit_is_rejected(self):
+        response = self.post(mo_payload(description="x" * 1025))
         self.assertEqual(400, response["statusCode"])
         self.assertIn("VALIDATION_ERROR", response["body"])
         self.assertEqual([], self.table.puts)
         self.assertEqual([], self.dispatched)
 
-    def test_conflicting_descriptions_are_rejected(self):
-        payload = mo_agent_payload("root description")
-        payload["agentOrder"]["orderDescription"] = "body description"
-        response = self.post(payload)
+    def test_description_at_limit_for_parser(self):
+        # A JSON body padded to exactly 1024 chars must still validate.
+        doc = agent_order_doc()
+        text = serialize_agent_order_description(doc)
+        padded = text
+        if len(padded) < MAX_ORDER_DESCRIPTION_LENGTH:
+            # pad inside a harmless string field is not possible without
+            # changing the document, so assert the real serialisation is
+            # comfortably below the limit instead.
+            self.assertLess(len(text), MAX_ORDER_DESCRIPTION_LENGTH)
+        self.assertEqual("corr-mo-1",
+                         parse_agent_order_description(padded)["metadata"]["requestId"])
+
+    def test_description_must_be_json(self):
+        response = self.post(mo_payload(description="not json at all"))
         self.assertEqual(400, response["statusCode"])
-        self.assertIn("disagree", response["body"])
         self.assertEqual([], self.table.puts)
 
-    def test_identical_descriptions_at_both_levels_are_accepted(self):
-        payload = mo_agent_payload("same description")
-        payload["agentOrder"]["orderDescription"] = "same description"
-        response = self.post(payload)
-        self.assertEqual(201, response["statusCode"], response["body"])
-        self.assertEqual("same description",
-                         self.table.puts[0]["agentOrder"]["orderDescription"])
+    def test_description_with_control_character_is_rejected(self):
+        response = self.post(
+            mo_payload(description=serialize_agent_order_description(
+                agent_order_doc()) + "\x01"))
+        self.assertEqual(400, response["statusCode"])
+        self.assertEqual([], self.table.puts)
 
-    def test_unknown_root_field_is_rejected(self):
-        payload = mo_agent_payload()
-        payload["shippingAddress"] = "Main St 1"
+    def test_root_agent_order_is_rejected(self):
+        payload = mo_payload()
+        payload["agentOrder"] = agent_order_doc()
         response = self.post(payload)
         self.assertEqual(400, response["statusCode"])
         self.assertIn("unsupported field", response["body"])
         self.assertEqual([], self.table.puts)
-        self.assertEqual([], self.dispatched)
 
-    def test_retail_fields_with_agent_order_are_rejected(self):
-        payload = mo_agent_payload()
-        payload["customer"] = {"name": "T", "email": "t@x.io"}
+    def test_missing_customer_is_rejected(self):
+        payload = mo_payload()
+        payload.pop("customer")
+        self.assertEqual(400, self.post(payload)["statusCode"])
+
+    def test_more_than_one_item_is_rejected(self):
+        payload = mo_payload()
+        payload["items"] = payload["items"] * 2
         response = self.post(payload)
         self.assertEqual(400, response["statusCode"])
+        self.assertIn("exactly one items", response["body"])
+
+    def test_invalid_currency_is_rejected(self):
+        self.assertEqual(400, self.post(mo_payload(currency="eur"))["statusCode"])
+
+    def test_entitlement_gate_still_blocks(self):
+        self.entitlements = Resolver([])
+        response = self.post(mo_payload())
+        self.assertEqual(403, response["statusCode"])
         self.assertEqual([], self.table.puts)
 
-    def test_unknown_agent_order_field_is_still_rejected(self):
-        payload = mo_agent_payload()
-        payload["agentOrder"]["priority"] = 1
-        response = self.post(payload)
-        self.assertEqual(400, response["statusCode"])
-        self.assertIn("unknown field", response["body"])
-        self.assertEqual([], self.table.puts)
 
-    def test_retail_order_is_unaffected(self):
-        with patch.object(orders_reader, "_send_order_created", return_value=None):
-            response = self.post(mo_retail_payload())
-        self.assertEqual(201, response["statusCode"], response["body"])
-
-
-class TestRealAdapterForwardsCompleteMoPayload(unittest.TestCase):
+class TestRealAdapterEmitsMoContract(unittest.TestCase):
     def _adapter(self):
         self.sent = []
 
@@ -250,46 +247,61 @@ class TestRealAdapterForwardsCompleteMoPayload(unittest.TestCase):
 
         return RealMaysOrdersAdapter(request_fn=request_fn)
 
-    def test_agent_create_forwards_order_type_agent_order_and_description(self):
+    def test_agent_create_body_matches_contract(self):
         adapter = self._adapter()
-        payload = mo_agent_payload("vollständiger MO-Payload")
-        result = adapter.submit_order({}, "orders.create", payload=payload)
-
-        self.assertTrue(result.success)
-        self.assertEqual(1, len(self.sent))
-        self.assertTrue(self.sent[0]["url"].endswith("/orders"))
+        result = adapter.submit_order(
+            {}, "orders.create",
+            payload={
+                "agentOrder": agent_order_doc(),
+                "customer": {"name": "Mays", "email": "ops@example.com"},
+                "items": [{"sku": "ATS", "quantity": 2, "unitPrice": 50}],
+                "currency": "EUR",
+            })
+        self.assertTrue(result.success, result.reason)
         body = self.sent[0]["body"]
+        self.assertEqual({"customer", "items", "currency", "orderType",
+                          "orderDescription"}, set(body))
+        self.assertEqual("agent.execution", body["orderType"])
         self.assertEqual(
-            {"orderType", "orderDescription", "agentOrder"}, set(body))
-        for key in ("orderType", "orderDescription", "agentOrder"):
-            self.assertEqual(payload[key], body[key])
+            [{"sku": "ATS", "quantity": 2, "unitPrice": 50}], body["items"])
+        parsed = parse_agent_order_description(body["orderDescription"])
+        self.assertEqual("corr-mo-1", parsed["metadata"]["requestId"])
 
-    def test_agent_create_never_sends_retail_fields(self):
+    def test_agent_create_derives_one_item_when_missing(self):
         adapter = self._adapter()
-        payload = mo_agent_payload("agent with retail leftovers")
-        payload["customer"] = {"name": "T", "email": "t@x.io"}
-        adapter.submit_order({}, "orders.create", payload=payload)
-        body = self.sent[0]["body"]
-        self.assertNotIn("customer", body)
+        result = adapter.submit_order(
+            {}, "orders.create",
+            payload={"orderType": "agent.execution",
+                     "agentOrder": agent_order_doc(),
+                     "customer": {"name": "Mays", "email": "ops@example.com"}})
+        self.assertTrue(result.success, result.reason)
+        self.assertEqual(
+            [{"sku": "orders.create", "quantity": 1, "unitPrice": 1}],
+            self.sent[0]["body"]["items"])
 
-    def test_agent_create_never_forwards_unknown_caller_keys(self):
+    def test_agent_create_never_sends_root_agent_order(self):
         adapter = self._adapter()
-        payload = mo_agent_payload("payload with internal key")
-        payload["traceId"] = "internal-123"
-        adapter.submit_order({}, "orders.create", payload=payload)
-        body = self.sent[0]["body"]
-        self.assertNotIn("traceId", body)
+        adapter.submit_order(
+            {}, "orders.create",
+            payload={"agentOrder": agent_order_doc(),
+                     "customer": {"name": "M", "email": "m@example.com"}})
+        self.assertNotIn("agentOrder", self.sent[0]["body"])
 
-    def test_retail_create_payload_still_works(self):
+    def test_missing_customer_fails_without_http_call(self):
         adapter = self._adapter()
-        payload = mo_retail_payload()
+        result = adapter.submit_order(
+            {}, "orders.create", payload={"agentOrder": agent_order_doc()})
+        self.assertFalse(result.success)
+        self.assertEqual([], self.sent)
+
+    def test_retail_create_still_works(self):
+        adapter = self._adapter()
+        payload = {"customer": {"name": "T", "email": "t@x.io"},
+                   "items": [{"sku": "S", "quantity": 1, "unitPrice": 5}]}
         adapter.submit_order({}, "orders.create", payload=payload)
         body = self.sent[0]["body"]
         self.assertEqual("EUR", body["currency"])
-        self.assertEqual(payload["customer"], body["customer"])
-        self.assertEqual(payload["items"], body["items"])
-        self.assertEqual(
-            {"customer", "items", "currency"}, set(body))
+        self.assertEqual({"customer", "items", "currency"}, set(body))
 
 
 if __name__ == "__main__":

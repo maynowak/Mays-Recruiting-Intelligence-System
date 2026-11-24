@@ -287,22 +287,99 @@ def validate_order_document(raw: Any, **kwargs) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# orderDescription serialisation (MO migration helper)
+# orderDescription serialisation (MO contract helper)
 # ---------------------------------------------------------------------------
-def serialize_agent_order(agent_order: Dict[str, Any]) -> str:
-    """Serialise an ``agentOrder`` for the MO ``orderDescription`` field.
+def _has_forbidden_control(text: str) -> bool:
+    """Mirror of the Mays-Orders description rule.
 
-    Canonical JSON. Exceeding :data:`MAX_ORDER_DESCRIPTION_LENGTH` raises
-    instead of silently truncating the correlation payload.
+    C0 (except TAB/LF/CR), C1/DEL, surrogates and U+2028/U+2029 are rejected.
     """
-    json_str = json.dumps(agent_order, sort_keys=True, default=str)
+    for ch in text:
+        code = ord(ch)
+        if code < 0x20 and ch not in "\t\n\r":
+            return True
+        if 0x7F <= code <= 0x9F:
+            return True
+        if 0xD800 <= code <= 0xDFFF:
+            return True
+        if code in (0x2028, 0x2029):
+            return True
+    return False
+
+
+def serialize_agent_order(agent_order: Dict[str, Any]) -> str:
+    """Serialise an ``agentOrder`` as canonical, ASCII-only, compact JSON.
+
+    Exceeding :data:`MAX_ORDER_DESCRIPTION_LENGTH` or containing a forbidden
+    control character raises instead of silently truncating the payload.
+    """
+    json_str = json.dumps(agent_order, sort_keys=True, separators=(",", ":"),
+                          default=str, ensure_ascii=True)
     if len(json_str) > MAX_ORDER_DESCRIPTION_LENGTH:
         raise AgentOrderError(
             "order_description_too_long",
             f"serialised agentOrder exceeds {MAX_ORDER_DESCRIPTION_LENGTH} "
             "characters; reduce the payload instead of truncating it",
         )
+    if _has_forbidden_control(json_str):
+        raise AgentOrderError(
+            "invalid_order_description",
+            "serialised agentOrder contains unsupported control characters",
+        )
     return json_str
+
+
+def serialize_agent_order_description(agent_order: Dict[str, Any]) -> str:
+    """Validate then serialise an ``agentOrder`` for the MO ``orderDescription``.
+
+    This is the only supported transport for an agent order towards
+    Mays-Orders: the MO OrderV1 contract has no root ``agentOrder`` field, so
+    the validated body travels inside ``orderDescription`` (max. 1024 chars).
+    """
+    return serialize_agent_order(validate_agent_order(agent_order))
+
+
+def validate_order_description_text(value: Any) -> str:
+    """Validate a free-text MO ``orderDescription`` (non-agent orders).
+
+    Mirrors Mays-Orders: non-empty string, at most 1024 characters, no C0
+    (except TAB/LF/CR), C1, surrogate or U+2028/U+2029 characters.
+    """
+    _require(isinstance(value, str) and value.strip() != "",
+             "invalid_order_description",
+             "'orderDescription' must be a non-empty string")
+    if len(value) > MAX_ORDER_DESCRIPTION_LENGTH:
+        raise AgentOrderError(
+            "order_description_too_long",
+            f"'orderDescription' exceeds {MAX_ORDER_DESCRIPTION_LENGTH} "
+            "characters",
+        )
+    if _has_forbidden_control(value):
+        raise AgentOrderError(
+            "invalid_order_description",
+            "'orderDescription' contains unsupported control characters",
+        )
+    return value
+
+
+def parse_agent_order_description(value: Any) -> Dict[str, Any]:
+    """Parse and validate a MO ``orderDescription`` back into an agentOrder.
+
+    Applies the same length/control rule as Mays-Orders and then the full RIS
+    AgentOrder V1 validation (schema, target, input, metadata, result contract,
+    secret scan). Raises :class:`AgentOrderError` on any violation.
+    """
+    validate_order_description_text(value)
+    try:
+        parsed = json.loads(value)
+    except ValueError as exc:
+        raise AgentOrderError(
+            "invalid_order_description",
+            "'orderDescription' must be the serialised RIS AgentOrder V1 JSON",
+        ) from exc
+    _require(isinstance(parsed, dict), "invalid_order_description",
+             "'orderDescription' JSON must be an object")
+    return validate_agent_order(parsed)
 
 
 # ---------------------------------------------------------------------------
@@ -469,6 +546,9 @@ __all__ = [
     "validate_agent_order",
     "validate_order_document",
     "serialize_agent_order",
+    "serialize_agent_order_description",
+    "parse_agent_order_description",
+    "validate_order_description_text",
     "map_mo_order_to_ris",
     "version_matrix",
     "fingerprint",

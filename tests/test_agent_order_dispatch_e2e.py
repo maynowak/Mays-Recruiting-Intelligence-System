@@ -173,19 +173,25 @@ def event(route, body=None, order_id=None, sub=OWNER):
 
 
 def agent_body(**overrides):
+    from agents.orders.agent_order import serialize_agent_order_description
+
+    document = {
+        "schemaVersion": "1.0",
+        "target": {"agentId": "ats-agent", "capability": "analyze.job"},
+        "input": {"schemaVersion": "1.0",
+                  "data": {"job": {"title": "Senior Python Engineer",
+                                   "tags": ["Python", "AWS"],
+                                   "descriptionPlain": "Python and AWS."},
+                           "profile": {"skills": "Python, AWS"}}},
+        "metadata": {"source": "e2e", "requestId": "corr-e2e",
+                     "apiProfileRef": PROFILE_ID},
+    }
     body = {
         "orderType": "agent.execution",
-        "agentOrder": {
-            "schemaVersion": "1.0",
-            "target": {"agentId": "ats-agent", "capability": "analyze.job"},
-            "input": {"schemaVersion": "1.0",
-                      "data": {"job": {"title": "Senior Python Engineer",
-                                       "tags": ["Python", "AWS"],
-                                       "descriptionPlain": "Python and AWS."},
-                               "profile": {"skills": "Python, AWS"}}},
-            "metadata": {"source": "e2e", "requestId": "corr-e2e",
-                         "apiProfileRef": PROFILE_ID},
-        },
+        "customer": {"name": "Mays", "email": "ops@example.com"},
+        "items": [{"sku": "ATS", "quantity": 1, "unitPrice": 100}],
+        "currency": "EUR",
+        "orderDescription": serialize_agent_order_description(document),
     }
     body.update(overrides)
     return body

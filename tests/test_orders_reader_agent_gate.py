@@ -88,14 +88,20 @@ def entitlement(agent="ats-agent", tenant=TENANT, profile_id=None, **extra):
 
 
 def body(agent="ats-agent", capability="analyze.job"):
+    from agents.orders.agent_order import serialize_agent_order_description
+
+    document = {
+        "schemaVersion": "1.0",
+        "target": {"agentId": agent, "capability": capability},
+        "input": {"schemaVersion": "1.0", "data": {"job": {}}},
+        "metadata": {"requestId": "corr-gate", "apiProfileRef": PROFILE},
+    }
     return {
         "orderType": "agent.execution",
-        "agentOrder": {
-            "schemaVersion": "1.0",
-            "target": {"agentId": agent, "capability": capability},
-            "input": {"schemaVersion": "1.0", "data": {"job": {}}},
-            "metadata": {"requestId": "corr-gate", "apiProfileRef": PROFILE},
-        },
+        "customer": {"name": "Mays", "email": "ops@example.com"},
+        "items": [{"sku": "ATS", "quantity": 1, "unitPrice": 100}],
+        "currency": "EUR",
+        "orderDescription": serialize_agent_order_description(document),
     }
 
 
