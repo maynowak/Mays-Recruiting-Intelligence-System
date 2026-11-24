@@ -12020,3 +12020,134 @@ Summary: **0 to add, 4 to change, 0 to destroy** — only Lambda code hashes:
 
 No `terraform apply`. No main merge. No AWS mutation. No change to
 Mays-Orders or its pin.
+
+---
+
+## RIS-MO-RC4 BUILDER-PIN UPGRADE PREPARATION — 2026-11-24
+
+Status: NO-GO — UPSTREAM GENERATOR CONTRACT ERROR AT 543ef75 — PIN REVERTED, NOTHING SWAPPED
+
+### 0. Mandatory pre-read
+
+`AGENTS.md` (repo root) and `docs/AI_AUDITLOG.md` were read before any action.
+Mays-Orders was treated as read-only: only `git fetch` / `git checkout` inside
+the ignored local clone plus one artifact rebuild that their own builder
+demanded; the clone was restored to `016cdfd` and is clean afterwards.
+
+### 1. Pin under test
+
+Target pin: `543ef7501d9f41f254871f21657fda3f7350b043` (exact commit, equals
+upstream `origin/main` at the time of the check — no "latest" shortcut).
+Baseline pin: `016cdfd6ac62565dcec9a2fee78cb898fb919e59`.
+
+### 2. Upstream contract delta 016cdfd → 543ef75
+
+`git diff --shortstat`: 361 files, +64,692 / −5,603.
+
+`module_builder/` (7 files): `builder.py`, `catalog.py`, `cli.py`, `spec.py`,
+`upgrade.py` (new, 603 lines), tests.
+
+`lambda/src/` (17 files), relevant removals/additions:
+
+- removed: `agent_order.py`, `dispatch.py`, `result_consumer.py`,
+  `result_envelope.py`, `result_handler.py`
+- added: `hmac_contract.py`, `order_handlers.py`, `processing_result.py`,
+  `recovery.py`, `secret_provider.py`
+- changed: `validation.py` (+ orderDescription), `identity.py`, `index.py`,
+  `order_service.py`, `sqs_handler.py`, `order_types.py`, `errors.py`
+
+### 3. Generated module comparison (isolated build)
+
+Built into `C:\tmp\mo_gen_test` (never installed):
+
+| Aspect | old pin 016cdfd (installed module) | new pin 543ef75 (generated) |
+| --- | --- | --- |
+| modules | 8 incl. `agent_transport` | **7, `agent_transport` missing** |
+| top-level outputs | 20 (before builder injection) | **21**, adds `mo_version` |
+| `results_queue_url` / `_arn` / `result_hmac_secret_arn` | injected by RIS builder referencing `module.agent_transport[0]` | **impossible** — module absent |
+| top-level variables | project_name, tags, monitoring_enabled, log_retention_days, lambda_execution_boundary, external_cognito | same 6 |
+| `terraform validate` | PASS (installed module) | **FAIL** |
+
+`terraform validate` errors at 543ef75:
+
+```
+main.tf:108    Reference to undeclared input variable "sqs_max_receive_count"
+outputs.tf:129 Reference to undeclared input variable "deployment_version"
+```
+
+Root cause is upstream: `module_builder/catalog.py` lists `deployment_version`
+in `ALWAYS_VARIABLES` and `sqs_max_receive_count` as an SQS variable, but the
+generated `variables.tf` for the `orders-service` preset declares neither.
+
+### 4. Builder run result (fail-closed)
+
+1. `python -m installer.build_mays_orders_module --project-name ris-dev2 --force`
+   - first abort: `Lambda artifact stale, rebuild required`
+2. rebuilt the upstream artifact (`mays_order_builder/lambda/build_zip.py`,
+   tracked `lambda/dist/lambda.zip` — restored afterwards)
+3. re-run: generator produced the module, then the wrapper's
+   `apply_ris_order_dispatch_env_patch` failed on a missing `variables.tf` in
+   the staging dir; the wrapper's generator also reported validate failure.
+4. **The installed module was never touched**: byte-for-byte comparison of all
+   55 files against the pre-run snapshot = identical.
+
+### 5. Contract deltas that would break the live installation
+
+- `agent_transport` module disappears → dispatch queue, result consumer and
+  HMC/result wiring resources would be destroyed or re-created.
+- Result-transport outputs (`results_queue_url`, `results_queue_arn`,
+  `result_hmac_secret_arn`) cannot be produced.
+- IAM/resource ownership changes come with the removed module and the new
+  `hmac_contract`/`secret_provider` path.
+
+This is exactly the STOP condition ("Destroy, Replace, unexpected
+IAM changes, contract errors"). No module swap was prepared beyond the
+isolated build.
+
+### 6. Revert and current state
+
+- `installer/mays-orders-builder.pinned.json` → back to `016cdfd` (byte-identical to HEAD)
+- `installer/build_mays_orders_module.py` `PINNED_COMMIT` → back to `016cdfd`
+- Mays-Orders clone: HEAD `016cdfd`, `git status` clean, artifact restored
+- `terraform/modules/mays_orders`: unchanged (verified against snapshot)
+- `git status` (RIS): only unrelated untracked `commit_msg.txt`
+
+### 7. Plan after revert (same installation variables)
+
+- `terraform plan -out` → **0 to add, 4 to change, 0 to destroy**
+- rendered `terraform show` diff vs the approved plan `9debb7a3…`:
+  **0 differing lines** (identical resource set and attributes)
+- binary plan SHA-256: `db3741c23021a62c0b0ddc048bad08e5a83e3c69ec7516c3984fcb435c008bb2`
+  (the `.tfplan` bytes include non-deterministic metadata, so only the rendered
+  diff is authoritative)
+
+State check (read-only): workspace `ris-dev2`, serial **69**, lineage
+`a0bd361d-5cd1-a207-a8c0-e6888f0be082`, 287 resources.
+
+### 8. Test-failure breakdown (unchanged, not "all green")
+
+Repository-wide run (excluding two modules that cannot import in Python 3.15):
+**3087 passed, 179 skipped, 441 subtests, 24 failed**.
+
+- 20 × `test_consent_special_categories` — import fallback (boto3/moto/
+  jobsearch missing) → environment
+- 1 × `test_composite_lifecycle::test_discover_subprocess_env_keeps_path` —
+  AWS profile `mayaws` absent → environment
+- 2 × `test_analysis_ecosystem_wiring`, `test_analysis_fresh_plan_16c1` —
+  historical bundle-hash pins, expected drift after a rebuild → evidence
+- excluded at collection: `test_durable_deletion_ledger` (moto),
+  `test_http_e2e_integration` (requests)
+
+Cross-repo contract tests against the real validator still pass (5 passed,
+4 subtests) — but they exercise `validation.py` at 543ef75, not the broken
+Terraform generator.
+
+### 9. Verdict
+
+- **NO-GO for the builder-pin upgrade to 543ef75**: generated module fails
+  `terraform validate` and drops the `agent_transport` module.
+- **NO-GO for apply**: unchanged approved plan only; nothing was applied.
+- Required before retry: upstream fix of the `orders-service` preset
+  (declare `deployment_version` and `sqs_max_receive_count`, provide the
+  result-transport module or an equivalent), then a new isolated build,
+  a new plan review, and a new explicit GO.
