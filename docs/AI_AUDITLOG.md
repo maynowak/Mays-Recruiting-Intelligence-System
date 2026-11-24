@@ -12173,3 +12173,73 @@ The isolated generation was repeated deterministically:
 Verdict unchanged: **NO-GO** for the 543ef75 pin upgrade. No swap, no plan
 regeneration needed (approved plan remains 0 add / 4 change / 0 destroy and
 renders identically to `9debb7a3…`). No apply, no AWS mutation.
+
+---
+
+## MO-RC4 GENERATOR CONTRACT REPAIR — 2026-11-24 (Mays-Orders handoff)
+
+Status: DELIVERED ON FEATURE BRANCH — VALID MO COMMIT, NO RIS PIN CHANGE
+
+### Deliverable
+
+| | |
+| --- | --- |
+| Repository | maynowak/mays-order-aws |
+| Branch | `feature/mo-orders-service-contract-repair-01` |
+| Commit | `583a794c3a2a41acf8030fc853a2e8adc69cd9bb` |
+| Base | `543ef7501d9f41f254871f21657fda3f7350b043` (main) |
+| Main merge | none (deliberately) |
+
+### Root causes found
+
+1. `ORDERS_SERVICE_VARIABLES` was a hand-maintained list. It omitted
+   `deployment_version` (referenced by the `mo_version` output) and the
+   `sqs_*` tuning variables (referenced by the `sqs` module block), so the
+   generated module failed `terraform validate`.
+2. The preset referenced `module.privacy_secret` (since P00-E) without
+   including the module, producing "Reference to undeclared module".
+3. The 8th module `agent_transport` never existed on `main`. `016cdfd` is the
+   tip of `fix/order-result-signature-domain-01`; `main` and that branch
+   diverged at `9627eb2`. The RIS integration had pinned a side branch.
+
+### Changes
+
+- `module_builder/builder.py`: required variables are derived from the
+  retained `main.tf` + `outputs.tf` (`var.*` scan) instead of a static list;
+  the build fails closed if a referenced variable has no declaration.
+- `module_builder/spec.py`: orders-service composition adds `agent_transport`
+  and `privacy_secret`; `COMPLETE_MODULES` matches the catalog again.
+- `module_builder/catalog.py`: `agent_transport` entry; variable mapping for
+  `enable_agent_transport` / `ris_result_producer_role_arns`.
+- `terraform/modules/agent_transport/{main,lambda}.tf`: restored generic
+  result transport (results queue + DLQ, HMAC secret container with scoped
+  producer policy, result consumer lambda + ESM). Default-off via
+  `enable_agent_transport`; Mays-Orders owns queue/secret/IAM, RIS receives
+  only send/read rights through explicit role ARNs.
+- `terraform/main.tf` / `terraform/variables.tf`: module block and its two
+  variables. No root export of `results_queue_*`/`result_hmac_secret_arn`;
+  those stay injected by the RIS builder (no duplicate resources).
+- `module_builder/tests/test_module_builder.py`: contract assertions updated
+  to the new composition, plus a regression assertion that every referenced
+  variable is declared.
+- `lambda/dist/lambda.zip`: reproducible artifact refreshed (integrity gate).
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Root stack `fmt -check` / `init -backend=false` / `validate` | PASS |
+| Isolated `module_builder build --preset orders-service --validate` | PASS |
+| Generated module outputs | 22 upstream (20 + mo_version + privacy_secret_arn) |
+| + RIS-injected transport outputs | 25 total; all 23 required names present |
+| RIS `validate_generated_contract` + `terraform validate` on injected copy | PASS |
+| Lambda suite (`compileall` + unittest) | PASS |
+| module_builder tests vs 543ef75 baseline | identical failure set (16 Windows-only: symlink privilege, `python3`, path separators); 113 passed |
+
+### Not done (deliberately)
+
+- No RIS pin change (`installer/mays-orders-builder.pinned.json` still 016cdfd).
+- No RIS Terraform plan/apply, no AWS mutation, no main merge.
+- Final adoption requires the separate RIS pin gate: point the pin at
+  `583a794c…`, run the RIS builder (fmt/init/validate + 23-output contract),
+  then a new plan proving 0 destroy / 0 replace before any apply.
