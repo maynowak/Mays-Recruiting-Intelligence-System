@@ -11356,6 +11356,13 @@ Status: RIS-MO-RC4-07C — CODE IMPLEMENTED / LOCAL VERIFIED / PUSHED
 
 Verdict: RIS-MO-RC4-07C — CODE IMPLEMENTED / LOCAL VERIFIED / PUSHED
 
+⚠️ Preflight-Status: Lokale Code-Änderungen sind vollständig implementiert und gepusht.
+Terraform-Plan und -Apply können nicht automatisch ausgeführt werden, da
+terraform.exe durch die Device Guard-Richtlinie der Organisation blockiert ist.
+Read-only Preflight-Validierung (terraform init -backend=false, validate, fmt)
+sollte manuell in einer Umgebung ohne Device Guard-Nachbeschränkung nachgeholt werden.
+Live-E2E erfordert expliziten MO_E2E_LIVE=1 Opt-in.
+
 ## MO-RC4-BUILDER-UPGRADE-06 / TEST-DRIVEN UPGRADE
 Date: 2026-11-23
 Status: RIS MAYS-ORDERS RC4 — MODULE UPGRADE LOCALLY VERIFIED
@@ -11564,4 +11571,11 @@ Status: CODE IMPLEMENTED / LOCAL VERIFIED / PUSHED
    Nicht akzeptiert: keine Main-/Production-Deployments und keinerlei Schreiboperationen in Mays-Orders.
 
 Verdict: RIS-MO-RC4-07C — CODE IMPLEMENTED / LOCAL VERIFIED / PUSHED
+
+⚠️ Preflight-Status: Lokale Code-Änderungen sind vollständig implementiert und gepusht.
+Terraform-Plan und -Apply können nicht automatisch ausgeführt werden, da
+terraform.exe durch die Device Guard-Richtlinie der Organisation blockiert ist.
+Read-only Preflight-Validierung (terraform init -backend=false, validate, fmt)
+sollte manuell in einer Umgebung ohne Device Guard-Nachbeschränkung nachgeholt werden.
+Live-E2E erfordert expliziten MO_E2E_LIVE=1 Opt-in.
 
