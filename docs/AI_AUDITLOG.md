@@ -11892,3 +11892,131 @@ destroy, no IAM/Cognito/API/DNS change.
 
 Apply status: NOT EXECUTED. A new explicit release is required and the saved
 plan above is the object to approve.
+
+---
+
+## RIS-MO-RC4 CROSS-REPO CONTRACT FIX — 2026-11-24
+
+Status: IMPLEMENTED / TESTED (incl. real MO validator) / PUSHED — APPLY NOT EXECUTED
+
+### 1. Authoritative upstream facts (read-only)
+
+Mays-Orders repository was only read (raw GitHub at the checked commit,
+upstream `origin/main` = `543ef7501d9f41f254871f21657fda3f7350b043`).
+
+| Source | `orderDescription` at root | Root `agentOrder` |
+| --- | --- | --- |
+| MO main `543ef75` (`lambda/src/validation.py`) | **allowed**, optional, <= 1024 chars, control-char rule | **rejected** (unknown field) |
+| MO builder pin `016cdfd` (`installer/projects/mays_order_builder`) | **rejected** (`Unknown field 'orderDescription' at body`) | allowed |
+
+Measured with the real validators on the same payload:
+
+```
+pin016cdfd: REJECTED  Unknown field 'orderDescription' at body
+main543ef75: ACCEPTED  orderType=agent.execution description=yes
+```
+
+Consequence: the builder pin `016cdfd` does **not** satisfy the agreed contract.
+Raising it to >= `543ef75` is a separate gate decision (it regenerates
+`terraform/modules/mays_orders` and changes the plan). Not changed here.
+
+### 2. Agreed model implemented
+
+```json
+{
+  "customer": {"name": "...", "email": "..."},
+  "items": [{"sku": "...", "quantity": 1, "unitPrice": 100}],
+  "currency": "EUR",
+  "orderType": "agent.execution",
+  "orderDescription": "<validated RIS AgentOrder V1 JSON, <= 1024 chars>"
+}
+```
+
+- No root `agentOrder` is sent or accepted.
+- `orderDescription` is validated (string, non-empty, <= 1024, no C0/C1/
+  surrogates/U+2028/U+2029), serialised as compact ASCII JSON
+  (`ensure_ascii`, sorted keys) and parsed back with the full AgentOrder V1
+  validation (schema, target, input, metadata, result contract, secret scan).
+- The reader persists a normal MO OrderV1 row (customer, one item with
+  lineTotal, currency, totalAmount, orderType, orderDescription) plus the
+  existing RIS ownership/dispatch metadata; it stores no root `agentOrder`.
+- The dispatch pipeline is unchanged (same envelope, identity/profile/
+  entitlement gates, correlation from `metadata.requestId`).
+- PII/secret rule: the description is size-capped at 1024 and passes the
+  existing secret scan; bulk CV data cannot fit, references stay the norm.
+
+### 3. Code
+
+- `agents/orders/agent_order.py`: `serialize_agent_order_description`,
+  `parse_agent_order_description`, `validate_order_description_text`.
+- `agents/orders/real.py`: `_create_body` builds the contract body; derives
+  exactly one item (`sku` from the caller or the capability, quantity/price 1);
+  rejects a missing customer locally without an HTTP call; retail unchanged.
+- `lambda/orders_reader.py`: agent path parses `orderDescription`, enforces the
+  MO envelope (email, exactly one integer-priced item, uppercase currency),
+  rejects a root `agentOrder`; retail accepts and stores a plain
+  `orderDescription` as well.
+
+### 4. Tests
+
+- New cross-repo test `tests/test_cross_repo_mo_contract.py` runs the payload
+  through the **real** MO validator loaded from the upstream source
+  (`MO_ORDERS_SRC`), not a mock — 5 passed, 4 subtests:
+  adapter body accepted by MO, MO-normalised description round-trips into RIS,
+  MO-accepted payload accepted by reader, MO-rejected payloads rejected by
+  reader, and the documented divergence (MO allows N items, RIS requires one).
+- `tests/test_agent_order_order_description.py` rewritten for the new model.
+- Focused regression set (reader, gate, body, adapter, transport, ATS link,
+  P20, packaging, analysis boundary): **242 passed, 2 skipped, 325 subtests**.
+
+### 5. Repository-wide run (classification)
+
+`pytest tests/` excluding two modules that cannot import in this Python 3.15
+environment: **3087 passed, 179 skipped, 441 subtests, 24 failed.**
+
+Failed, classified:
+
+- 20 × `test_consent_special_categories` — **import fallback** (boto3/moto/
+  jobsearch missing → names undefined), environment.
+- 1 × `test_composite_lifecycle::test_discover_subprocess_env_keeps_path` —
+  **environment** (AWS profile `mayaws` absent).
+- 2 × artifact-pin evidence tests (`test_analysis_ecosystem_wiring`,
+  `test_analysis_fresh_plan_16c1`) — **expected artifact drift**: they pin the
+  historical 15B/16C1 bundle hashes; rebuilding the bundles changes them. The
+  historical evidence files were deliberately not rewritten.
+- 1 × excluded at collection: `test_durable_deletion_ledger` (moto),
+  `test_http_e2e_integration` (requests) — environment, not counted above.
+
+### 6. Bundles and plan (after the correction)
+
+| Bundle | SHA-256 |
+| --- | --- |
+| `terraform/lambda.zip` | `d767a19843a98c93fbb776a3b011812653cde7ba84b9406c5157ef0d10f8dd06` |
+| `terraform/analysis-lambda.zip` | `e268b0280bb96c9573eaf33d4d00ac0cdd21b8a01fddd20839782178c70516db` |
+| `lambda/dist/orders-reader.zip` | `d8f5840d71b20a20d0d9bd987ce40fb5c36e915358aa5598023b8ec2d7521615` |
+
+Saved plan `ris-dev2.tfplan` (250,104 bytes), SHA-256:
+`9debb7a35f1adf12e85b50a089d85570e9ebb567c6f638d970453794624c0bfc`
+
+Summary: **0 to add, 4 to change, 0 to destroy** — only Lambda code hashes:
+
+| Resource | Change |
+| --- | --- |
+| `module.lambda.aws_lambda_function.agent` | `hXdfaF7a…` → `12ehmEOp…` |
+| `module.agent_transport[0].aws_lambda_function.dispatch_ingress` | `hXdfaF7a…` → `12ehmEOp…` |
+| `module.analysis_runtime.aws_lambda_function.analysis[0]` | `Qgv4YQkg…` → `4miwKAu5…` |
+| `module.orders_reader[0].aws_lambda_function.reader` | `RkuZH3hP…` → `2PWEDXGy…` |
+
+### 7. State / resource check (read-only)
+
+- workspace: `ris-dev2`
+- state serial: **69**, lineage: `a0bd361d-5cd1-a207-a8c0-e6888f0be082`
+- resources in state JSON: **287** (`terraform state list`: 289 addresses)
+- plan: 0 add / 0 destroy → state and configuration agree on shape.
+- Note: the 16C1 evidence pinned serial 67 / 283 resources; the live state has
+  advanced to 69 / 287 outside this session (no mutation by this gate).
+
+### 8. Not executed
+
+No `terraform apply`. No main merge. No AWS mutation. No change to
+Mays-Orders or its pin.
