@@ -11356,6 +11356,14 @@ Status: RIS-MO-RC4-07C — CODE IMPLEMENTED / LOCAL VERIFIED / PUSHED
 
 Verdict: RIS-MO-RC4-07C — CODE IMPLEMENTED / LOCAL VERIFIED / PUSHED
 
+⚠️ Code-Repair: Syntaxfehler in `agents/orders/agent_order.py` (Zeile 297: `)` statt `}`) behoben.
+Validierungs-Logik von Baseline `54dbf35` wiederhergestellt (`_require`, `_reject_unknown`, `_assert_str`, `_assert_clean`).
+`orderDescription` additiv in `BODY_KEYS` integriert mit 1024-Zeichen-Grenze, kein Abschneiden.
+Neue Funktionen: `serialize_agent_order()`, `map_mo_order_to_ris()`, `dispatch_payload()`.
+Alle 10 Comprehensive-Tests bestanden (JSON-Roundtrip, 1.024-Zeichen-Grenze, SKU-Mapping, Validierung).
+Git-Commit `fff8498` mit Reparatur gepusht.
+Read-only: Mays-Orders bleibt unberührt.
+
 ⚠️ Preflight-Status: Lokale Code-Änderungen sind vollständig implementiert und gepusht.
 Terraform-Plan und -Apply können nicht automatisch ausgeführt werden, da
 terraform.exe durch die Device Guard-Richtlinie der Organisation blockiert ist.
@@ -11571,6 +11579,14 @@ Status: CODE IMPLEMENTED / LOCAL VERIFIED / PUSHED
    Nicht akzeptiert: keine Main-/Production-Deployments und keinerlei Schreiboperationen in Mays-Orders.
 
 Verdict: RIS-MO-RC4-07C — CODE IMPLEMENTED / LOCAL VERIFIED / PUSHED
+
+⚠️ Code-Repair: Syntaxfehler in `agents/orders/agent_order.py` (Zeile 297: `)` statt `}`) behoben.
+Validierungs-Logik von Baseline `54dbf35` wiederhergestellt (`_require`, `_reject_unknown`, `_assert_str`, `_assert_clean`).
+`orderDescription` additiv in `BODY_KEYS` integriert mit 1024-Zeichen-Grenze, kein Abschneiden.
+Neue Funktionen: `serialize_agent_order()`, `map_mo_order_to_ris()`, `dispatch_payload()`.
+Alle 10 Comprehensive-Tests bestanden (JSON-Roundtrip, 1.024-Zeichen-Grenze, SKU-Mapping, Validierung).
+Git-Commit `fff8498` mit Reparatur gepusht.
+Read-only: Mays-Orders bleibt unberührt.
 
 ⚠️ Preflight-Status: Lokale Code-Änderungen sind vollständig implementiert und gepusht.
 Terraform-Plan und -Apply können nicht automatisch ausgeführt werden, da
