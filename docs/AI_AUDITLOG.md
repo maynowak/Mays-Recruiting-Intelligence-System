@@ -12151,3 +12151,25 @@ Terraform generator.
   (declare `deployment_version` and `sqs_max_receive_count`, provide the
   result-transport module or an equivalent), then a new isolated build,
   a new plan review, and a new explicit GO.
+
+### Re-verification (same task, 2026-11-24, second run)
+
+Upstream `origin/main` is still `543ef7501d9f41f254871f21657fda3f7350b043`
+(verified via `git ls-remote`); there is no newer upstream fix to evaluate.
+
+The isolated generation was repeated deterministically:
+
+| Check | Result |
+| --- | --- |
+| `module_builder build --preset orders-service --validate` | **FAIL** |
+| undeclared input variables | `deployment_version`, `sqs_max_receive_count` |
+| `modules/agent_transport` | **absent** |
+| top-level variables | 6 (unchanged, both missing ones undeclared) |
+| RIS wrapper marker `queue_url = module.sqs.queue_url` | present (not the blocker) |
+| target module `terraform/modules/mays_orders` | byte-identical to snapshot |
+| MO clone | restored to `016cdfd`, clean |
+| builder pin (file + constant) | `016cdfd`, no diff |
+
+Verdict unchanged: **NO-GO** for the 543ef75 pin upgrade. No swap, no plan
+regeneration needed (approved plan remains 0 add / 4 change / 0 destroy and
+renders identically to `9debb7a3…`). No apply, no AWS mutation.
