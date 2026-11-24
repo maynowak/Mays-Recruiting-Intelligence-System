@@ -12329,3 +12329,84 @@ the `016cdfd` build; required for any future pin adoption.
 4. Keep `ORDERS_COGNITO_ISSUER`/`ORDERS_COGNITO_CLIENT_ID` in the handler env.
 5. Fix `privacy_kms_key_arn` default so it satisfies its own validation.
 6. Then: new MO commit, new pin gate, new plan, 0 destroy / 0 replace.
+
+---
+
+## MO-RIS-UPGRADE-COMPATIBILITY-01 — 2026-11-24
+
+Status: COMPATIBILITY COMMIT DELIVERED — UPDATER PATH NO-GO (LEGACY MANIFEST)
+
+### A. Analysis (why the updater cannot drive the RIS module yet)
+
+Read: `AGENTS.md`, `docs/AI_AUDITLOG.md`, `module_builder/upgrade.py`,
+`module_builder/cli.py` (upgrade command), `installer/core/upgrade_mode.py`,
+`installer/core/upgrade_readiness.py`, `installer/core/upgrade_safety.py`.
+
+Findings (all reproducible, no parallel implementation added):
+
+1. **Manifest schema**: builder-generated `orders-service` modules carry the
+   v1 manifest (`files_written` list, no fingerprints). `detect_project_status`
+   classifies that as `LEGACY_PROJECT` and the CLI blocks automatic adoption
+   by design ("Builder-Manifest ohne Datei-Fingerprints ... eine automatische
+   Uebernahme ist nicht zulaessig").
+   Verified on an isolated copy:
+   `python -m module_builder upgrade --project <copy> --dry-run`
+   → `Status: BLOCKED (BUILDER_LEGACY_REVIEW_REQUIRED)`.
+2. **No orders-service regeneration path**: `_run_upgrade` regenerates with
+   `build(... preset_name="complete", modules=...)`; there is no
+   `orders-service` build in the upgrade command. Even with v2 fingerprints the
+   comparison tree would have the complete-project layout, not the module layout.
+3. **RIS post-processing is not manifest-covered**: the RIS builder injects the
+   three transport outputs and the optional dispatch env after the manifest is
+   written. Those files are not builder-managed, so a v2 diff would classify
+   them as `USER_MODIFIED`/`CONFLICT` (blocked) or overwrite them (dropping the
+   transport contract) — neither is acceptable.
+4. The existing gates (`upgrade_readiness`, `upgrade_safety`, plan-bound
+   approval) remain the right gates for the later infrastructure step; no
+   second upgrade implementation was introduced.
+
+### B. Minimal compatibility commit (Mays-Orders, feature branch)
+
+| | |
+| --- | --- |
+| Branch | `feature/mo-ris-order-description-compat-01` |
+| Commits | `305f7fb` (orderDescription) + `943f591` (generic orderType routing) |
+| Base | `016cdfd` (infrastructure baseline kept) |
+
+Additive behaviour only:
+
+- `orderDescription` optional for retail orders and next to the legacy
+  `agentOrder`; string, non-empty, <= 1024 chars, C0/C1/surrogate/U+2028-2029
+  rejected. Stored verbatim; Mays-Orders never parses it (no RIS logic).
+- `orderType` without `agentOrder` is now a normal order envelope (opaque
+  routing metadata), so `agent.execution` + `orderDescription` works without
+  inventing an agent execution.
+- Legacy `agentOrder` orders keep their path, fingerprint and internal
+  projection; routing is keyed on the presence of `agentOrder`.
+- Invalid `orderType` values still fail closed (API `VALIDATION_ERROR`).
+- Persistence: retail + agent items store `orderDescription`; privacy inspect
+  reports the category, export includes it, anonymize removes it.
+
+### C. Evidence
+
+| Check | Result |
+| --- | --- |
+| MO lambda suite (`compileall` + unittest discover) | **240 tests OK** |
+| New orderDescription/generic cases | 15 (1024/1025 limit, control chars, legacy agent order, generic type, persistence, inspect) |
+| Cross-repo contract (real MO validator of `943f591`) | **5 passed**, 4 subtests |
+| Isolated orders-service build + RIS patches | `fmt` / `init -backend=false` / `validate` **PASS** |
+| Contract outputs | 23 required outputs (25 after transport injection), no duplicates |
+| Resource addresses vs installed module | **36/36 identical**, no module-call diff |
+| Terraform files | byte-identical after `fmt` (no adds/destroys/replaces implied) |
+| Updater dry-run (isolated copy) | **BLOCKED** — legacy manifest |
+
+### D. Verdict
+
+- **GO** for the compatibility commit (validated, resource-neutral, additive).
+- **NO-GO** for the updater-driven integration until the existing upgrader is
+  extended in a reviewed change: v2 manifest for `orders-service`, an
+  `orders-service` regeneration path in the upgrade CLI, and an explicit
+  RIS-managed file set for the transport/dispatch patches (reusing
+  `upgrade_readiness` / `upgrade_safety`, no parallel implementation).
+- **No RIS plan prepared** (upgrade gate not green). No apply, no state change,
+  no main merge, no production deployment.
