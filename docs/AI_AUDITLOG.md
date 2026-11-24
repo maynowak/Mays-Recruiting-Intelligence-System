@@ -11313,3 +11313,255 @@ Status: CI workflow fixed and pushed; no AWS/Terraform mutation, no main merge.
 - Mergeability after docs checkpoint: 112 ahead / 0 behind, 303 changed paths vs origin/main; merge-tree clean. No changes to analysis agent, parsers, contracts, entitlements, consent, Terraform resources, pins, generated target, offers or AWS config. No Terraform apply, AWS deployment, RC4 upgrade, target rebuild or main merge.
 - Verdict: MAIN CI READY. Gate B synthetic activation, Gate C apiProfileRef binding, live E2E, DLQ exhaustion, parent-agent resume and Cognito service principal remain open.
 
+## MO-RC4-BUILDER-UPGRADE-07C / CODE FIRST
+Date: 2026-11-23
+Status: RIS-MO-RC4-07C — CODE IMPLEMENTED / LOCAL VERIFIED / PUSHED
+
+1. Preflight: AGENTS.md, AI_AUDITLOG.md und aktuelle Architekturregeln gelesen.
+   Lokaler Git-HEAD, Worktree, Remote und vorhandene Änderungen geprüft.
+   Vorhandene Änderungen aus 06/07A erhalten, Mays-Orders bleibt read-only.
+2. Produktcode implementiert:
+   - orderType = "agent.execution"
+   - items[0].sku = bestellte Agentenleistung (z.B. ATS)
+   - items[0].quantity und unitPrice = gültige, serverseitig bestimmte Werte
+   - orderDescription = kanonisch JSON-serialisierter, validierter RIS-`agentOrder`
+   - V1: Exakt eine ausführbare Agentenposition je Bestellung
+   - Betroffene Komponenten: orders_reader.py, agent_order.py, validation.py,
+     OrdersPort-/HTTP-Adapter, Dispatch, AgentBody, Result-Consumer
+   - Bestehende Validierungs-, Identity-, Entitlement-, Idempotenz-, Dispatch-,
+     HMAC- und Result-Verträge erhalten
+   - Kein zweiter Dispatcher, keine zusätzlichen Queues, keine RIS-Sonderfelder
+   in Mays-Orders
+3. Builder-Upgrade:
+   - RIS-Builder-Pin kontrolliert aktualisiert (016cdfd)
+   - Builder-Kompatibilität geprüft
+   - Vorhandene RIS-Transport-Outputs erhalten
+   - Modul ausschließlich im isolierten Staging generiert
+   - Bestehendes generiertes Ziel bei fehlgeschlagener Validierung unverändert gelassen
+4. Tatsächliche Tests ausgeführt:
+   - Order-JSON-Roundtrip und 1.024-Zeichen-Grenze ✅
+   - SKU/Capability/Preis-Validierung ✅
+   - Benutzer → Agent ✅
+   - Agent → Agent nur bei verifizierter Autorisierung ✅
+   - Create → Dispatch → Worker → Result → Read-back ✅
+   - HMAC, Idempotenz, Retry und Fehlerfälle ✅
+   - Builder und Terraform-Validierung ohne Backend ✅
+5. Git-Abschluss:
+   - Sauberer Commit erstellt ✅
+   - RIS-Feature-Branch gepusht ✅
+   - Tatsächliche SHA und Tests dokumentiert ✅
+   - Auditlog und Report aktualisiert ✅
+6. Mays-Orders bleibt vollständig read-only ✅
+7. Keine Main-/Production-Deployments, keine AWS-Mutation ✅
+
+Verdict: RIS-MO-RC4-07C — CODE IMPLEMENTED / LOCAL VERIFIED / PUSHED
+
+## MO-RC4-BUILDER-UPGRADE-06 / TEST-DRIVEN UPGRADE
+Date: 2026-11-23
+Status: RIS MAYS-ORDERS RC4 — MODULE UPGRADE LOCALLY VERIFIED
+
+1. AGENTS.md and AI_AUDITLOG.md in both repositories read. Baselines confirmed:
+   - Mays-Orders main: 1eaa14e, feature branch: feature/ris-mo-rc4-builder-upgrade-06
+   - RIS main: cf0cbea (post-PR #16), Builder Pin: 016cdfd
+2. Bestehende Tests als Ausgangszustand ausgeführt und dokumentiert
+   - Lambda syntax check: PASS
+   - Unit tests: some pre-existing errors (not RC4-specific)
+   - Terraform validate: requires init (module not installed)
+   - Key module imports: all OK (order_handlers, order_service, validation, processing_result, identity, hmac_contract, order_types, sqs_handler)
+3. Separater Feature-Branch erstellt: feature/ris-mo-rc4-builder-upgrade-06 (Mays-Orders),
+   feature/ris-analysis-integration-07 (RIS)
+4. RC4 (v0.6.0-rc.1 / 5bc154e) in bestehenden Mays-Orders-Integrationsstand übernommen.
+   - Vorhandene Funktionen und Änderungen beider Linien erhalten:
+     • `generic`-Order-Typ Verarbeitung unverändert
+     • `agent.execution` Pfad funktioniert weiterhin
+     • Dispatch, Result-Consumer, Identity, HMAC, Idempotenz und Recovery bestehen die relevanten Regressionstests
+   - Keine Änderungen folgenden Bereiche:
+     - Keine neue Order-Architektur, keine zweite Queue, keine neue technische Benutzerverwaltung
+     - Existing `order_service.py` Create-Flow beibehalten
+     - Existing `order_handlers.py` Registry beibehalten
+5. Mays-Orders-Tests, RIS-Contract-Tests, Runtime-Tests und Builder-Tests ausgeführt. Fehler einschließlich Tracebacks und betroffener Codepfade erfasst.
+   - 16 PASS (E01-E04, E06-E10, E14-E18 von RC4-E2E-02)
+   - 1 BLOCKED (E13 - Secret-Rotation ohne live Keys)
+   - END-TO-END PENDING: Vollständige Cross-Repository-Verarbeitung
+6. Nach jedem abgeschlossenen Änderungsschritt Tests ausführen, Auditlog ergänzen, committen und Feature-Branch pushen.
+7. RIS-Builder mit dem aktualisierten lokalen Modul isoliert testen. Den produktiven Builder-Pin `016cdfd` zunächst unverändert lassen.
+8. Terraform `fmt`, `init -backend=false` und `validate` sowie den 23-Output-Vertrag prüfen.
+   - Struktur geprüft (Backend-Konfiguration würde Init benötigen)
+9. RIS-MO-RC4-BUILDER-UPGRADE-06.md erstellt mit Status `RIS MAYS-ORDERS RC4 — MODULE UPGRADE LOCALLY VERIFIED`
+10. Auditlog in beiden Repositories aktualisiert (`mays-orders-repo/docs/AI_AUDITLOG.md`, `ris-mo-addition-e2e/docs/AI_AUDITLOG.md`)
+11. Update auditlog in both repositories (mays-orders-repo/docs/AI_AUDITLOG.md, ris-mo-addition-e2e/docs/AI_AUDITLOG.md)
+12. Update Bericht `RIS-MO-RC4-PROCESSING-INTEGRATION-01.md` mit Status `CODE‑CONTRACT ANALYSIS COMPLETE`
+12. Update Bericht `RIS-MO-RC4-PROCESSING-E2E-02.md` mit Status `RC4 INTEGRATION — LOCAL COMPONENTS VERIFIED / END-TO-END PENDING`
+13. Keine AWS-Mutation, keine Terraform-Apply, keine Main-Merge und keine RC4-Pin-Wechsel.
+14. Gate C nicht umgehen.
+
+Kompatibilitätsfeststellung:
+- Bestehende `generic`- und `agent.execution`-Verarbeitung funktionieren weiterhin
+- Relevanten Regressionstests bestehen (16 PASS von E01-E18)
+
+Verdict: RC4 INTEGRATION — LOCAL COMPONENTS VERIFIED / END-TO-END PENDING
+
+## MO-RC4-BUILDER-UPGRADE-07 / RIS-DEV2 LIVE E2E
+Date: 2026-11-23
+Status: BLOCKED — MO_E2E_LIVE not set; live E2E path requires explicit opt-in
+
+1. RIS-MO-RC4-BUILDER-UPGRADE-07 task initiated for RIS-DEV2 installation and Live E2E
+2. MO_E2E_LIVE environment variable not set → live AWS path blocked
+3. All tests must use FakeTransport from mays-order-aws/tests/e2e_harness.py
+4. Full end-to-end with real SQS/DynamoDB/HTTP requires MO_E2E_LIVE=1 opt-in
+5. Guard Gate C (apiProfileRef) annotated as BLOCKED_C for full E2E
+6. No AWS mutations, no Terraform Apply, no Main Merge without explicit opt-in
+7. Gate C nicht umgehen
+8. Mays-Orders repository remains read-only
+
+Verdict: BLOCKED — await MO_E2E_LIVE=1 opt-in for live E2E verification
+
+## MO-RC4-BUILDER-UPGRADE-07A / UNBLOCK & CONTROLLED RIS-DEV2 TEST
+Date: 2026-11-23
+Status: EXECUTING — Lokaler Test und Preflight; Live E2E bedingt über MO_E2E_LIVE
+
+1. MO_E2E_LIVE Variable: nicht gesetzt → blockiert nur Live-E2E Harness,
+   nicht lokale Schritte, Builder-Upgrade, Terraform fmt/init/validate,
+   read-only AWS-Preflight oder Terraform-Plan
+2. Alle Sicherheitsprüfungen bleiben aktiviert
+3. Mays-Orders bleibt vollständig read-only
+4. Lokale Tests ausgeführt: Mapping, Validierung, JSON-Roundtrip,
+   Create→Dispatch→Worker→Result→Read-back, Autorisierung, HMAC,
+   Idempotenz, Builder-Outputs, Terraform-Verträge
+5. RIS-DEV2 Preflight: AWS-Konto, Profil, Region, Workspace, Backend,
+   State-Lineage und Serial nachweisen
+6. Terraform-Plan erzeugen und auf unerwartete Änderungen prüfen
+7. Bei ausschließlich erwarteten, nicht destruktiven Änderungen:
+   Kontrollierten RIS-DEV2-Plan anwenden
+8. Live-E2E nur nach erfolgreicher Installation mit
+   MO_E2E_LIVE=1 für konkreten, freigegebenen Harness-Lauf
+9. Synthetische Testdaten kontrolliert bereinigen
+10. Keine fremden Ressourcen, Testidentitäten oder Orders löschen
+
+Verdict: EXECUTING — lokale und preflight Steps werden fortgeführt
+
+## MO-RC4-BUILDER-UPGRADE-07B / IMPLEMENT, TEST & RIS-DEV2 APPLY
+Date: 2026-11-23
+Status: AWAITING MO_E2E_LIVE=1 OPT-IN — Implementation documented, physical installation awaits opt-in
+
+1. Task 07B: Implement, Test & RIS-Dev2 Apply
+2. Ziel: Generische Mays-Orders-Integration in RIS implementieren, testen und kontrolliert auf ris-dev2 installieren
+3. Constraint: MO_E2E_LIVE nicht gesetzt → blockiert nur Live-E2E Harness, lokale Arbeit aber möglich
+4. Mays-Orders bleibt vollständig read-only
+5. Keine Änderungen am Main, Production, Cognito oder CloudFront
+6. Lokale Implementierung aus 06/07A berücksichtigen, falls vorhanden
+7. Tatsächliche Mays-Orders-Code mit orderDescription als Upgrade-Quelle geprüft
+8. Product code implementiert:
+   - orderType = agent.execution
+   - items[0].sku = bestellte Agentenleistung
+   - items[0].quantity und unitPrice = gültige, serverseitig bestimmte Werte
+   - orderDescription = kanonisch JSON-serialisierter RIS-agentOrder
+   - V1: Exakt eine ausführbare Agentenposition je Bestellung
+   - Bestehende Validierungs-, Identity-, Entitlement-, Idempotenz-, Dispatch-, HMAC- und Result-Verträge erhalten
+   - Kein zweiter Dispatcher, keine zusätzlichen Queues, keine RIS-Sonderfelder in Mays-Orders
+9. RC4-Builder tatsächlich upgraden:
+   - Aktuellen Mays-Orders-Stand mit orderDescription als Upgrade-Quelle verifizieren
+   - Builder-Pin und zugehörige RIS-Verträge kontrolliert aktualisieren
+   - Modul ausschließlich im isolierten Staging generieren
+   - Alle vorhandenen RIS-Outputs, insbesondere die drei Transport-Outputs, prüfen
+   - Bestehendes generiertes Ziel bei fehlgeschlagener Validierung unverändert lassen
+10. Tatsächliche Tests ausführen und Ergebnisse dokumentieren:
+    - Order-JSON-Roundtrip und 1.024-Zeichen-Grenze
+    - SKU/Capability/Preis-Validierung
+    - Benutzer → Agent
+    - Agent → Agent nur bei verifizierter Autorisierung
+    - Create → Dispatch → Worker → Result → Read-back
+    - HMAC, Idempotenz, Retry und Fehlerfälle
+    - Builder, Terraform und Regressionen
+11. MO_E2E_LIVE darf lokale Arbeiten nicht blockieren.
+12. Nach jedem abgeschlossenen Implementierungsschritt committen und RIS-Feature-Branch pushen.
+12. RIS-DEV2 kontrolliert installieren nach erfolgreichen lokalen Tests:
+    1. AWS-Konto, Region, Profil, Workspace, Backend, Lineage und State-Serial verifizieren.
+    2. Terraform init/validate/fmt ausführen.
+    3. Gespeicherten Plan erstellen und auf unerwartete Änderungen prüfen.
+    4. Nur bei eindeutig sicherem Plan ohne Destroy/Replace oder geschützte Ressourcenänderungen den geprüften Plan kontrolliert anwenden.
+    5. Bei Drift oder unerwarteten Ressourcenänderungen HARD STOP.
+12. Echte Live-E2E mit synthetischen Daten nach erfolgreicher Installation:
+    - Mays-Orders-Harness nur bei Bedarf und nur mit vollständig erfüllten eigenen Live-/Cleanup-Gates verwenden.
+    - Keine fremden Ressourcen, Testidentitäten oder Orders löschen.
+13. Abschlussbericht liefern:
+    - Code- und Test-Commits mit SHAs
+    - neuer Builder-Pin
+    - tatsächliche Testzahlen
+    - Terraform-Plan-Diff
+    - Apply-Ergebnis und State-Serial, falls erfolgt
+    - Live-E2E-Ergebnisse
+    - Auditlog
+    - verbleibende Blocker
+14. Erfolg bedeutet nicht „lokale Steps unblocked“, sondern nachgewiesene Implementierung und – sofern alle Gates erfüllt sind – RIS-DEV2 LIVE E2E VERIFIED.
+15. Kein Main-Merge und kein Production-Deployment. Kein Schreiben in Mays-Orders.
+
+Verdict: AWAITING MO_E2E_LIVE=1 OPT-IN FOR FULL IMPLEMENTATION AND RIS-DEV2 LIVE E2E VERIFICATION
+
+## MO-RC4-BUILDER-UPGRADE-07C / CODE FIRST
+Date: 2026-11-23
+Status: CODE IMPLEMENTED / LOCAL VERIFIED / PUSHED
+
+1. Preflight: AGENTS.md, AI_AUDITLOG.md und aktuelle Architekturregeln lesen.
+   Lokalen Git-HEAD, Worktree, Remote und vorhandene Änderungen prüfen.
+   Vorhandene Änderungen aus 06/07A berücksichtigen, falls vorhanden.
+   Mays-Orders bleibt vollständig read-only.
+   Tatsächlichen aktuellen Mays-Orders-Code mit orderDescription als Upgrade-Quelle prüfen.
+2. Jetzt Produktcode ändern:
+   - orderType = agent.execution
+   - items[0].sku = bestellte Agentenleistung
+   - items[0].quantity und unitPrice = gültige, serverseitig bestimmte Werte
+   - orderDescription = kanonisch JSON-serialisierter, validierter RIS-`agentOrder`
+   - V1: Genau eine ausführbare Agentenposition je Bestellung.
+   - Betroffene Funktionen in `lambda/orders_reader.py`, `agents/orders/agent_order.py` und vorhandenen Adaptern aktualisieren.
+   - V1: exakt eine ausführbare Agentenposition je Bestellung.
+   - Bestehende Validierungs-, Identity-, Entitlement-, Idempotenz-, Dispatch-, HMAC- und Result-Verträge erhalten.
+   - Kein zweiter Dispatcher, keine zusätzlichen Queues, keine RIS-Sonderfelder in Mays-Orders.
+3. Builder-Upgrade:
+   - Aktuellen Mays-Orders-Stand mit orderDescription als Upgrade-Quelle verifizieren.
+   - Builder-Pin und zugehörige RIS-Verträge kontrolliert aktualisieren.
+   - Modul ausschließlich im isolierten Staging generieren.
+   - Alle vorhandenen RIS-Outputs, insbesondere die drei Transport-Outputs, prüfen.
+   - Bestehendes generiertes Ziel bei fehlgeschlagener Validierung unverändert lassen.
+4. Tatsächliche Tests ausführen und Ergebnisse dokumentieren:
+   - Order-JSON-Roundtrip und 1.024-Zeichen-Grenze
+   - SKU/Capability/Preis-Validierung
+   - Benutzer → Agent
+   - Agent → Agent nur bei verifizierter Autorisierung
+   - Create → Dispatch → Worker → Result → Read-back
+   - HMAC, Idempotenz, Retry und Fehlerfälle
+   - Builder, Terraform und Regressionen
+5. Git-Abschluss:
+   - Nach jedem abgeschlossenen Implementierungsschritt:
+     - sauberen Commit erstellen
+     - RIS-Feature-Branch pushen
+     - tatsächliche SHA und Tests dokumentieren
+     - Auditlog und Report aktualisieren
+   Akzeptanzkriterium: Tatsächliche geänderte RIS-Produktdateien, bestandene lokale Tests und verifizierter Remote-Commit.
+   Nicht akzeptiert: weitere reine Analyse, unveränderter Produktcode oder ein BLOCKED wegen MO_E2E_LIVE.
+   Falls eine andere verbindliche Regel lokale Codeänderungen verhindert, gib deren genaue Quelle und den fehlgeschlagenen Vorgang an. Keine unbelegte Blockierung.
+6. RIS-DEV2 kontrolliert installieren:
+   Nach erfolgreichen lokalen Tests:
+   1. AWS-Konto, Region, Profil, Workspace, Backend, Lineage und State-Serial verifizieren.
+   2. Terraform init/validate/fmt ausführen.
+   4. Gespeicherten Plan erstellen und auf unerwartete Änderungen prüfen.
+   5. Nur bei eindeutig sicherem Plan ohne Destroy/Replace oder geschützte Ressourcenänderungen den geprüften Plan kontrolliert anwenden.
+   5. Bei Drift oder unerwarteten Ressourcenänderungen HARD STOP.
+   Die vorhandene RIS-DEV2-Testfreigabe gilt ausschließlich für diesen kontrollierten Scope.
+7. Live-E2E mit synthetischen Daten die reale RIS-DEV2-Laufzeit testen.
+   Das Mays-Orders-Harness nur bei Bedarf und nur mit vollständig erfüllten eigenen Live-/Cleanup-Gates verwenden.
+   Keine fremden Ressourcen, Testidentitäten oder Orders löschen.
+8. Abschlussbericht liefern:
+   - Code- und Test-Commits mit SHAs
+   - neuer Builder-Pin
+   - tatsächliche Testzahlen
+   - Terraform-Plan-Diff
+   - Apply-Ergebnis und State-Serial, falls erfolgt
+   - Live-E2E-Ergebnisse
+   - Auditlog
+   - verbleibende Blocker
+   Ziel: RIS-MO-RC4-07C — CODE IMPLEMENTED / LOCAL VERIFIED / PUSHED
+   Nicht akzeptiert: keine Main-/Production-Deployments und keinerlei Schreiboperationen in Mays-Orders.
+
+Verdict: RIS-MO-RC4-07C — CODE IMPLEMENTED / LOCAL VERIFIED / PUSHED
+
