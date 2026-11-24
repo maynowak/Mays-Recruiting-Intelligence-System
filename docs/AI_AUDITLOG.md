@@ -11862,3 +11862,33 @@ bundles. Result and SHA-256 recorded below.
 ### 5. Not executed
 
 No `terraform apply`. No changes to Cognito, CloudFront, DNS or Mays-Orders.
+
+### 4a. Plan artefacts (recorded 2026-11-24)
+
+Bundles rebuilt from the committed code (`python lambda/build_zip.py --bundle all`):
+
+| Bundle | SHA-256 |
+| --- | --- |
+| `terraform/lambda.zip` (agent + dispatch ingress) | `c47d626c658f441da0238161a77f10deacac4aed797ddb8ba4966b59a0061406` |
+| `terraform/analysis-lambda.zip` | `3e3dd19dc0f4d5f63efac5a3f9a127e9f6fd05c8bd1121c8b7399812f5158728` |
+| `lambda/dist/orders-reader.zip` | `bf462a99b6590e73112a739670593aaf50824ae3ddb39da528a480fc73a4ca88` |
+
+Saved plan: `ris-dev2.tfplan` (250,557 bytes)
+
+SHA-256 of the saved plan:
+`3a981accef87de098dc6def15a7e3d7bf4440ebecaa9906a4de7c34cdd4a7fdb`
+
+Summary: **0 to add, 4 to change, 0 to destroy.**
+
+| Resource | Action | Change |
+| --- | --- | --- |
+| `module.agent_transport[0].aws_lambda_function.dispatch_ingress` | update in-place | `source_code_hash` `hXdfaF7a…` → `xH1ibGWP…`, `last_modified` |
+| `module.analysis_runtime.aws_lambda_function.analysis[0]` | update in-place | `source_code_hash` `Qgv4YQkg…` → `Pj3RncD0…`, `last_modified` |
+| `module.lambda.aws_lambda_function.agent` | update in-place | `source_code_hash` `hXdfaF7a…` → `xH1ibGWP…`, `last_modified` |
+| `module.orders_reader[0].aws_lambda_function.reader` | update in-place | `source_code_hash` `RkuZH3hP…` → `v0YqmbZZ…`, `last_modified` |
+
+No path-only diffs (zip paths match the deployed state), no replacement, no
+destroy, no IAM/Cognito/API/DNS change.
+
+Apply status: NOT EXECUTED. A new explicit release is required and the saved
+plan above is the object to approve.
