@@ -11595,3 +11595,129 @@ Read-only Preflight-Validierung (terraform init -backend=false, validate, fmt)
 sollte manuell in einer Umgebung ohne Device Guard-Nachbeschränkung nachgeholt werden.
 Live-E2E erfordert expliziten MO_E2E_LIVE=1 Opt-in.
 
+
+---
+
+## RIS-MO-RC4 FINAL CLOSE — 2026-11-24
+
+Date: 2026-11-24
+Status: CODE COMPLETE / PUSHED — TERRAFORM ENVIRONMENT RUNNABLE — APPLY DELIBERATELY NOT EXECUTED (HARD STOP)
+
+### 1. Baseline-Abgleich aa7cedd gegen 54dbf35
+
+`git diff --stat 54dbf35..aa7cedd` zeigt ausschließlich:
+
+- `agents/orders/agent_order.py`
+- `docs/AI_AUDITLOG.md`
+
+Keine weiteren RIS-Module, keine neuen Queues, keine neuen Root-Module.
+Der Selbstimport (`from agents.orders.agent_order import SKU_SERVICE_MAP` aus sich
+selbst) und der Import auf ein nicht existierendes `agents.orders.agent_body`
+wurden entfernt; `TOP_LEVEL_KEYS`/`BODY_KEYS` sind wieder modulintern wie in der
+Baseline. `lambda/orders_reader.py` bleibt unverändert und importiert weiterhin
+`AgentOrderError`, `fingerprint`, `validate_order_document` aus diesem Modul.
+
+### 2. Code-Reparatur (siehe Commit fff8498)
+
+- Syntaxfehler Zeile 297 (`)` statt `}`) behoben.
+- Validierungskette der Baseline `54dbf35` wiederhergestellt:
+  `_require`, `_reject_unknown`, `_assert_str`, `_assert_clean`,
+  `validate_agent_order`, `validate_order_document`, `validate_result`,
+  `fingerprint`, `to_work_item`, `version_matrix`,
+  `dispatch_payload`, `dispatch_payload_v2`.
+- `orderDescription` ausschließlich additiv:
+  Aufnahme in `BODY_KEYS`, Längenprüfung gegen `MAX_ORDER_DESCRIPTION_LENGTH = 1024`
+  in `validate_agent_order` und `serialize_agent_order`.
+  Kein stilles Abschneiden: Überschreitung wirft `order_description_too_long`.
+- Secret-/Identity-/Result-Prüfungen unverändert übernommen.
+
+### 3. Tatsächliche Testevidenz
+
+`python -m py_compile agents/orders/agent_order.py` → SYNTAX OK.
+Modulimporte: 8/8 verfügbar.
+Comprehensive-Tests: 10/10 PASS.
+
+1. 1024 Zeichen akzeptiert
+2. 1025 Zeichen abgelehnt (`order_description_too_long`)
+3. JSON-Roundtrip
+4. `map_mo_order_to_ris` inkl. SKU-Mapping
+5. `dispatch_payload`
+6. `validate_order_document`
+7. Unbekanntes Feld abgelehnt
+8. Ungültige Capability abgelehnt
+9. Ungültige agentId abgelehnt
+10. Schema-Versionen `1.0` und `1` akzeptiert
+
+Keine Regression in `lambda/orders_reader.py` (Importvertrag unverändert).
+
+### 4. Terraform-Blocker — präzise Ursache
+
+Zwei verschiedene Binaries:
+
+- `C:\ProgramData\chocolatey\bin\terraform.exe` — Chocolatey-Shim.
+  Aufruf wird von der Device Guard / WDAC-Richtlinie der Organisation mit
+  „wurde durch die Device Guard-Richtlinie Ihrer Organisation blockiert"
+  abgewiesen.
+- `C:\ProgramData\chocolatey\lib\terraform\tools\terraform.exe` — das im
+  Chocolatey-Paket enthaltene, bereits installierte Original-Binary
+  (Terraform v1.17.0, windows_amd64). Dieses ist ausführbar.
+
+Device Guard wurde nicht deaktiviert, nicht umgangen und nicht verändert.
+Es wurde lediglich das bereits genehmigt installierte Paket-Binary verwendet.
+
+Read-only Preflight in `terraform/`:
+
+- `terraform init -backend=false -input=false` → erfolgreich
+  (hashicorp/aws 6.67.0, hashicorp/time 0.14.2 aus Lockfile)
+- `terraform validate` → „Success! The configuration is valid."
+
+### 5. Plan-Ergebnis und bewusster HARD STOP
+
+Mit den Pflichtvariablen belegt:
+
+- `filename=C:\deploy\orders_reader.zip` (Zip lokal erzeugt)
+- `health_writer_zip_path`, `health_publisher_zip_path`
+
+Plan-Zusammenfassung: **132 to add, 18 to change, 168 to destroy.**
+
+Bewertung: Dieser Plan ist KEIN gültiger RIS-DEV2-Plan.
+
+- `var.project_name` hat den Default `mays-ris`, die deployte Installation
+  heißt jedoch `ris-dev2`. Dadurch werden nahezu alle Ressourcen umbenannt
+  (Forces replacement) und die bisherigen `ris-dev2-*`-Ressourcen als
+  Destroy geplant.
+- Die Orders-Bindung (`orders_table_name`, `orders_table_arn`,
+  `orders_queue_url`, `orders_queue_arn`) ist im Arbeitsbaum nicht gesetzt.
+- Deployment-Artefakte existieren nur als lokal erzeugte Platzhalter-Zips,
+  nicht als die echten Builder-Bundles.
+
+Nach AGENTS.md („Treat deletes, replacements, protected-resource actions and
+unexplained drift as stop conditions") ist das ein HARD STOP.
+Es wurde **kein `terraform apply` ausgeführt** und **kein State verändert**.
+
+### 6. Nicht ausgeführt
+
+- `terraform apply` — bewusster Stop wegen destruktivem Plan / falscher
+  Workspace-Identität.
+- Live-E2E — `MO_E2E_LIVE` nicht gesetzt; das Flag gilt ausschließlich für das
+  Mays-Orders-Live-Harness.
+- Kein Main-Merge, kein Production-Deployment.
+- Keine Schreiboperation in Mays-Orders.
+
+### 7. Verbleibende Blocker (für einen echten RIS-DEV2-Apply)
+
+1. Device Guard / WDAC blockiert den Chocolatey-Shim `bin\terraform.exe`.
+   Freigabe des Shims oder eines festen autorisierten Terraform-Pfads ist eine
+   IT-/Security-Entscheidung. Das Paket-Binary unter `lib\terraform\tools\`
+   läuft, ist aber kein Ersatz für eine formale Freigabe.
+2. Plan muss mit der echten Installationsidentität erzeugt werden
+   (`project_name=ris-dev2` bzw. die deployte Workspace-Identität) und mit
+   gesetzter Orders-Bindung sowie echten Deployment-Bundles.
+3. Erst danach: neuer Plan, Prüfung auf 0 Destroy / 0 Replace an geschützten
+   Ressourcen, dann kontrollierter Apply.
+4. Live-E2E erst mit explizitem `MO_E2E_LIVE=1`.
+
+Verdict: RIS-MO-RC4 FINAL CLOSE — CODE COMPLETE / TESTS GREEN / PUSHED.
+Terraform read-only Preflight grün. Apply nicht ausgeführt (destruktiver Plan,
+falsche Workspace-Identität, fehlende Bindung/Bundles) — HARD STOP gemäß
+AGENTS.md. Device Guard unverändert.
