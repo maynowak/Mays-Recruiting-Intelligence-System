@@ -1,12 +1,9 @@
 """Agent Order Body V1 — fachlicher Auftragskörper (MO-RIS-AGENT-ORDER-BODY-01).
 
-Verantwortlich für die fachliche Klassifizierung und Validierung von
-Bestellungen im RIS-Kontext. Enthält das kanonische Mapping von
-Mays-Orders-Order an RIS-interne Strukturen.
-
 Abgrenzung (drei Ebenen, bewusst getrennt):
+
 A. **Mays-Orders Order** verwahrt den ``agentOrder`` als Bestandteil der Order.
-B. **Transport Envelope V1** (`agents/transport/order_transport.py`) ist der
+B. **Transport Envelope V1** (``agents/transport/order_transport.py``) ist der
    Zustell-/Korrelationsvertrag.
 C. **RIS Agent Ecosystem** (WorkItem, ProcessingEnvelope, Registry, Agent Body)
    führt aus.
@@ -18,6 +15,11 @@ keine Berechtigungsentscheidung.
 Identität: ``metadata.partnerApplicationRef`` und ``apiProfileRef`` sind
 **Referenzen**, keine Nachweise. Autorisierung entsteht ausschließlich aus dem
 serverseitig verifizierten Kontext (``VerifiedContext``).
+
+Additiv (MO-RC4): Mays-Orders führt die Auftragsbeschreibung als
+``orderDescription``. Sie ist im Agent Order Body optional erlaubt, wird auf
+maximal :data:`MAX_ORDER_DESCRIPTION_LENGTH` Zeichen geprüft und niemals
+abgeschnitten. Ohne ``orderDescription`` ist das Dokument unverändert gültig.
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ import hashlib
 import json
 import re
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional
 
 #: Fachliche Version des Agent Order Body. Unabhängig von der
 #: Transport-Envelope-Version und der Mays-Orders-Modulversion.
@@ -45,17 +47,37 @@ DEFAULT_TRIGGER = "ORDER_CREATED"
 DEFAULT_EXECUTION_PROFILE = "default"
 DEFAULT_SOURCE = "ris-agent-ecosystem"
 
-#: Maximale Länge von orderDescription in Zeichen.
-#: Überschreitung führt zu ValidationError, kein stummes Abschneiden.
+#: Maximal erlaubte Länge von ``orderDescription`` in Zeichen. Eine
+#: Überschreitung wird kontrolliert abgelehnt; es wird nie abgeschnitten.
 MAX_ORDER_DESCRIPTION_LENGTH = 1024
 
-#: Erlaubte Felder im body-Objekt eines agentOrder-Dokuments.
-#: orderDescription ist erlaubt und wird auf Längenvalidierung geprüft.
+TOP_LEVEL_KEYS = frozenset({
+    "orderType", "agentOrder",
+})
 BODY_KEYS = frozenset({
     "schemaVersion", "target", "input", "metadata", "processing",
     "resultContract", "orderDescription",
 })
-TOP_LEVEL_KEYS = frozenset({"orderType", "agentOrder"})
+TARGET_KEYS = frozenset({"agentId", "capability", "agentVersion"})
+INPUT_KEYS = frozenset({"schemaVersion", "data"})
+METADATA_KEYS = frozenset({
+    "source", "partnerApplicationRef", "apiProfileRef", "requestId",
+    "idempotencyKey",
+})
+PROCESSING_KEYS = frozenset({
+    "trigger", "parentOrderId", "parentWorkId", "executionProfile",
+})
+RESULT_CONTRACT_KEYS = frozenset({
+    "schemaVersion", "format", "expectedCapability", "delivery",
+})
+
+#: SKU → RIS-Service-Mapping für Mays-Orders-Positionen. Unbekannte SKUs
+#: werden bewusst nicht geraten, sondern auf ``generic`` abgebildet.
+SKU_SERVICE_MAP = {
+    "ATS": "ats",
+    "JobSearch": "jobsearch",
+    "Health": "health",
+}
 
 
 class AgentOrderError(ValueError):
@@ -92,7 +114,7 @@ def _assert_str(value: Any, path: str) -> str:
 def _assert_clean(value: Any, path: str) -> None:
     """Secret/size check with one error type for this contract."""
     try:
-        from agents.transport.order_transport import TransportError, assert_secret_free
+        from order_transport import TransportError, assert_secret_free
     except ImportError:  # repository layout (tests / agent bundle)
         from agents.transport.order_transport import (
             TransportError,
@@ -105,8 +127,24 @@ def _assert_clean(value: Any, path: str) -> None:
         raise AgentOrderError(exc.code, exc.message) from exc
 
 
+def _validate_order_description(body: Dict[str, Any]) -> Optional[str]:
+    """Validate the optional MO ``orderDescription``. Never truncates."""
+    value = body.get("orderDescription")
+    if value is None:
+        return None
+    _require(isinstance(value, str), "invalid_order_description",
+             "'orderDescription' must be a string")
+    if len(value) > MAX_ORDER_DESCRIPTION_LENGTH:
+        raise AgentOrderError(
+            "order_description_too_long",
+            f"'orderDescription' exceeds {MAX_ORDER_DESCRIPTION_LENGTH} "
+            f"characters; reduce the payload instead of truncating it",
+        )
+    return value
+
+
 # ---------------------------------------------------------------------------
-# Validierung
+# Validation
 # ---------------------------------------------------------------------------
 def validate_agent_order(body: Any, *,
                          expected_capability: Optional[str] = None,
@@ -115,191 +153,183 @@ def validate_agent_order(body: Any, *,
 
     Optional blocks receive documented defaults so an older V1 document that
     omits ``metadata``/``processing``/``resultContract`` still validates.
-
-    Returns:
-        Das normalisierte agentOrder-Dict.
+    ``orderDescription`` is optional and additive.
     """
     _require(isinstance(body, dict), "invalid_body",
-             "agentOrder muss ein JSON-Objekt sein")
+             "agentOrder must be a JSON object")
     _reject_unknown(body, BODY_KEYS, "agentOrder")
 
     version = body.get("schemaVersion")
-    _require(
-        version in ACCEPTED_AGENT_ORDER_VERSIONS,
-        "unsupported_agent_order_version",
-        f"agentOrder.schemaVersion {version!r} ist nicht unterstützt "
-        f"(erwartet {AGENT_ORDER_SCHEMA_VERSION})",
-    )
+    _require(version in ACCEPTED_AGENT_ORDER_VERSIONS,
+             "unsupported_agent_order_version",
+             f"agentOrder.schemaVersion {version!r} is not supported "
+             f"(expected {AGENT_ORDER_SCHEMA_VERSION})")
 
     target = body.get("target")
     _require(isinstance(target, dict), "invalid_target",
-             "'target' muss ein Objekt sein")
-    _require(
-        bool(AGENT_ID_RE.match(target.get("agentId"))),
-        "invalid_target",
-        "'target.agentId' hat unsupportete Zeichen",
-    )
-
+             "'target' must be an object")
+    _reject_unknown(target, TARGET_KEYS, "target")
+    agent_id = _assert_str(target.get("agentId"), "target.agentId")
+    _require(bool(AGENT_ID_RE.match(agent_id)), "invalid_target",
+             "'target.agentId' has unsupported characters")
     capability = _assert_str(target.get("capability"), "target.capability")
-    _require(
-        bool(CAPABILITY_RE.match(capability)),
-        "invalid_capability",
-        "'target.capability' muss wie 'domain.action' aussehen",
-    )
-
+    _require(bool(CAPABILITY_RE.match(capability)), "invalid_capability",
+             "'target.capability' must look like 'domain.action'")
     agent_version = target.get("agentVersion")
     if agent_version is not None:
-        _require(
-            bool(AGENT_ID_RE.match(agent_version)),
-            "invalid_agent_version",
-            "'target.agentVersion' hat unsupportete Zeichen",
-        )
+        _assert_str(agent_version, "target.agentVersion")
 
-    # Neu: Validierung von orderDescription
-    order_description = body.get("orderDescription")
+    if expected_agent is not None:
+        _require(agent_id == expected_agent, "target_mismatch",
+                 f"agentOrder targets {agent_id!r}, expected {expected_agent!r}")
+    if expected_capability is not None:
+        _require(capability == expected_capability, "capability_mismatch",
+                 f"agentOrder capability is {capability!r}, "
+                 f"expected {expected_capability!r}")
+
+    raw_input = body.get("input")
+    _require(isinstance(raw_input, dict), "invalid_input",
+             "'input' must be an object")
+    _reject_unknown(raw_input, INPUT_KEYS, "input")
+    input_version = raw_input.get("schemaVersion", "1.0")
+    _require(input_version in ACCEPTED_AGENT_ORDER_VERSIONS,
+             "unsupported_input_version",
+             f"input.schemaVersion {input_version!r} is not supported")
+    data = raw_input.get("data")
+    _require(isinstance(data, dict), "invalid_input",
+             "'input.data' must be an object")
+
+    metadata = body.get("metadata") or {}
+    _require(isinstance(metadata, dict), "invalid_metadata",
+             "'metadata' must be an object")
+    _reject_unknown(metadata, METADATA_KEYS, "metadata")
+    for key, value in metadata.items():
+        if value is not None:
+            _assert_str(value, f"metadata.{key}")
+
+    processing = body.get("processing") or {}
+    _require(isinstance(processing, dict), "invalid_processing",
+             "'processing' must be an object")
+    _reject_unknown(processing, PROCESSING_KEYS, "processing")
+
+    result_contract = body.get("resultContract") or {
+        "schemaVersion": "1.0",
+        "format": "json",
+        "expectedCapability": capability,
+        "delivery": "order-result",
+    }
+    _require(isinstance(result_contract, dict), "invalid_result_contract",
+             "'resultContract' must be an object")
+    _reject_unknown(result_contract, RESULT_CONTRACT_KEYS, "resultContract")
+    fmt = result_contract.get("format", "json")
+    _require(fmt in SUPPORTED_RESULT_FORMATS, "unsupported_result_format",
+             f"resultContract.format {fmt!r} is not supported")
+    delivery = result_contract.get("delivery", "order-result")
+    _require(delivery in SUPPORTED_DELIVERIES, "unsupported_delivery",
+             f"resultContract.delivery {delivery!r} is not supported")
+    expected = result_contract.get("expectedCapability", capability)
+    _require(expected == capability, "result_contract_mismatch",
+             "resultContract.expectedCapability must equal target.capability")
+
+    order_description = _validate_order_description(body)
+
+    # One rule for credentials, shared with the transport contract.
+    _assert_clean(data, "input.data")
+    _assert_clean(metadata, "agentOrder.metadata")
     if order_description is not None:
-        _require(
-            isinstance(order_description, str),
-            "invalid_order_description",
-            "orderDescription muss ein String sein",
-        )
-        if len(order_description) > MAX_ORDER_DESCRIPTION_LENGTH:
-            raise AgentOrderError(
-                "order_description_too_long",
-                f"orderDescription überschreitet die maximal erlaubte Länge "
-                f"von {MAX_ORDER_DESCRIPTION_LENGTH} Zeichen. "
-                "Kürzen Sie den Payload nicht manuell, sondern reduzieren Sie "
-                "die Payload-Größe.",
-            )
+        _assert_clean(order_description, "agentOrder.orderDescription")
 
-    return body
+    normalised = {
+        "schemaVersion": AGENT_ORDER_SCHEMA_VERSION,
+        "target": {
+            "agentId": agent_id,
+            "capability": capability,
+            "agentVersion": agent_version,
+        },
+        "input": {"schemaVersion": "1.0", "data": data},
+        "metadata": {
+            "source": metadata.get("source", DEFAULT_SOURCE),
+            "partnerApplicationRef": metadata.get("partnerApplicationRef"),
+            "apiProfileRef": metadata.get("apiProfileRef"),
+            "requestId": metadata.get("requestId"),
+            "idempotencyKey": metadata.get("idempotencyKey"),
+        },
+        "processing": {
+            "trigger": processing.get("trigger", DEFAULT_TRIGGER),
+            "parentOrderId": processing.get("parentOrderId"),
+            "parentWorkId": processing.get("parentWorkId"),
+            "executionProfile": processing.get(
+                "executionProfile", DEFAULT_EXECUTION_PROFILE),
+        },
+        "resultContract": {
+            "schemaVersion": "1.0",
+            "format": fmt,
+            "expectedCapability": expected,
+            "delivery": delivery,
+        },
+    }
+    if order_description is not None:
+        normalised["orderDescription"] = order_description
+    return normalised
 
 
 def validate_order_document(raw: Any, **kwargs) -> Dict[str, Any]:
-    """Validiere ein Mays-Orders-Dokument, das ein ``agentOrder`` enthält."""
-
+    """Validate a Mays-Orders document that embeds an ``agentOrder``."""
     _require(isinstance(raw, dict), "invalid_order_document",
-             "order body muss ein Objekt sein")
+             "order body must be an object")
     order_type = raw.get("orderType")
-    _require(
-        order_type == ORDER_TYPE_AGENT,
-        "unsupported_order_type",
-        f"orderType {order_type!r} ist nicht {ORDER_TYPE_AGENT!r}",
-    )
+    _require(order_type == ORDER_TYPE_AGENT, "unsupported_order_type",
+             f"orderType {order_type!r} is not {ORDER_TYPE_AGENT!r}")
     body = raw.get("agentOrder")
     _require(isinstance(body, dict), "missing_agent_order",
-             "orderType 'agent.execution' erfordert ein 'agentOrder'-Objekt")
+             "orderType 'agent.execution' requires an 'agentOrder' object")
     return validate_agent_order(body, **kwargs)
 
 
 # ---------------------------------------------------------------------------
-# Mapping: agentOrder → orderDescription
+# orderDescription serialisation (MO migration helper)
 # ---------------------------------------------------------------------------
 def serialize_agent_order(agent_order: Dict[str, Any]) -> str:
-    """Serialisiert ein ``agentOrder``-Dict nach kanonischem JSON.
+    """Serialise an ``agentOrder`` for the MO ``orderDescription`` field.
 
-    Das resultierende JSON wird für die Übermittlung als
-    ``orderDescription`` an Mays-Orders übergeben.
-
-    Es ist sicherzustellen, dass der serialisierte Payload die
-    maximal erlaubte Länge von ``MAX_ORDER_DESCRIPTION_LENGTH`` Zeichen
-    nicht überschreitet. Eine nachträgliche Kürzung unterbindet die
-    Integrität der Korrelationskette.
-
-    Args:
-        agent_order: Das zu serialisierendeagentOrder-Dict.
-
-    Returns:
-        Der kanonische JSON-String.
-
-    Raises:
-        AgentOrderError: Wenn der serialized Payload die Längengrenze überschreitet.
+    Canonical JSON. Exceeding :data:`MAX_ORDER_DESCRIPTION_LENGTH` raises
+    instead of silently truncating the correlation payload.
     """
-    json_str = json.dumps(agent_order, sort_keys=True)
+    json_str = json.dumps(agent_order, sort_keys=True, default=str)
     if len(json_str) > MAX_ORDER_DESCRIPTION_LENGTH:
         raise AgentOrderError(
             "order_description_too_long",
-            f"serialisiertes agentOrder überschreitet die maximal erlaubte "
-            f"Länge von {MAX_ORDER_DESCRIPTION_LENGTH} Zeichen. "
-            "Reduzieren Sie die Payload-Größe, schneiden Sie nicht einfach "
-            "am Ende ab.",
+            f"serialised agentOrder exceeds {MAX_ORDER_DESCRIPTION_LENGTH} "
+            "characters; reduce the payload instead of truncating it",
         )
     return json_str
 
 
 # ---------------------------------------------------------------------------
-# Mapping: Mays-Orders Order → RIS-interne Strukturen
+# Mays-Orders order → RIS structure (read-only mapping)
 # ---------------------------------------------------------------------------
-def map_mo_order_to_ris(
-    mo_order: Dict[str, Any],
-) -> Dict[str, Any]:
-    """Mappt ein Mays-Orders-Order-Dict an die RIS-interne Darstellung.
+def map_mo_order_to_ris(mo_order: Dict[str, Any]) -> Dict[str, Any]:
+    """Map an MO OrderV1 document onto the RIS agent-order view.
 
-    Folgende Felder werden übernommen:
-    - ``orderType``: Wird auf ``agent.execution`` gesetzt.
-    - ``items[0].sku``: Wird als ``service`` in ``agentOrder`` übernommen.
-    - ``items[0].quantity`` und ``items[0].unitPrice``: Werden im
-      ``agentOrder``-Kontext verarbeitet.
-    - ``orderDescription``: Wird kanonischserialisiert aus dem
-      ``agentOrder``-Objekt erzeugt.
-
-    V1: Es wird immer genau eine ausführbare Agentenposition pro Bestellung
-    berücksichtigt. Weitere Positionen werden stillschweigend ignoriert.
-
-    Returns:
-        Ein Dict mit den für RIS relevanten Felder.
+    Only contract fields are read. ``items[0].sku`` selects the service via
+    :data:`SKU_SERVICE_MAP`; unknown SKUs map to ``generic`` rather than being
+    guessed. The resulting ``orderDescription`` is the canonical serialisation
+    of the derived agent order.
     """
-    # 1. Basisdaten extrahieren
-    order_type = ORDER_TYPE_AGENT
-    items = mo_order.get("items", [])
-    first_item = items[0] if items else {}
+    items = mo_order.get("items") or []
+    first_item = items[0] if isinstance(items, list) and items else {}
+    sku = first_item.get("sku", "") if isinstance(first_item, dict) else ""
+    service = SKU_SERVICE_MAP.get(sku, "generic")
 
-    # 2. SKU zu Service mappen (Standalone-Fallback: bekannte SKUs,
-    #  sonst 'generic'. Die Mapping-Tabelle kann im Modul erweitert werden.)
-    service = "generic"
-    sku = first_item.get("sku", "")
-    if sku:
-        # Einfaches festes Mapping für gängliche SKUs.
-        # Erweitern Sie dieses Dict bei neuen SKUs.
-        _SKU_MAP = {
-            "ATS": "ats",
-            "JobSearch": "jobsearch",
-            "Health": "health",
-        }
-        service = _SKU_MAP.get(sku, "generic")
-
-    # 3. agentOrder zusammenbauen
     agent_order = {
         "service": service,
         "capability": mo_order.get("capability", "default"),
         "inputData": mo_order.get("inputData", {}),
     }
-
-    # 4. Kanonisch nach JSON serialisieren (für orderDescription)
-    order_description = serialize_agent_order(agent_order)
-
-    return {
-        "orderType": order_type,
-        "agentOrder": agent_order,
-        "orderDescription": order_description,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Dispatch-Payload
-# ---------------------------------------------------------------------------
-def dispatch_payload(agent_order: Dict[str, Any]) -> Dict[str, Any]:
-    """Erstellt den Payload für die Dispatch-Übermittlung.
-
-    Mappt ein validiertes ``agentOrder`` auf den internele
-    Dispatch-Format.
-
-    Returns:
-        Ein Dict mit den für die Dispatch-Übermittlung relevanten Felder.
-    """
     return {
         "orderType": ORDER_TYPE_AGENT,
         "agentOrder": agent_order,
+        "orderDescription": serialize_agent_order(agent_order),
     }
 
 
@@ -404,9 +434,14 @@ def to_work_item(agent_order: Dict[str, Any], *,
     )
 
 
-def dispatch_payload_v2(agent_order: Dict[str, Any]) -> Dict[str, Any]:
+def dispatch_payload(agent_order: Dict[str, Any]) -> Dict[str, Any]:
     """The only part that crosses the transport boundary as payload."""
     return agent_order["input"]["data"]
+
+
+def dispatch_payload_v2(agent_order: Dict[str, Any]) -> Dict[str, Any]:
+    """Alias kept for the existing call sites (same contract as V1)."""
+    return dispatch_payload(agent_order)
 
 
 def validate_result(agent_order: Dict[str, Any],
@@ -422,35 +457,23 @@ def validate_result(agent_order: Dict[str, Any],
     return result
 
 
-# ---------------------------------------------------------------------------
-# Öffentliche_API
-# ---------------------------------------------------------------------------
 __all__ = [
     "AGENT_ORDER_SCHEMA_VERSION",
     "ACCEPTED_AGENT_ORDER_VERSIONS",
     "ORDER_TYPE_AGENT",
-    "AGENT_ID_RE",
-    "CAPABILITY_RE",
-    "SUPPORTED_RESULT_FORMATS",
-    "SUPPORTED_DELIVERIES",
-    "DEFAULT_TRIGGER",
-    "DEFAULT_EXECUTION_PROFILE",
-    "DEFAULT_SOURCE",
+    "MAX_ORDER_DESCRIPTION_LENGTH",
     "TOP_LEVEL_KEYS",
     "BODY_KEYS",
-    "AGENT_ORDER_SCHEMA_VERSION",
-    "ACCEPTED_AGENT_ORDER_VERSIONS",
-    "ORDER_TYPE_AGENT",
+    "SKU_SERVICE_MAP",
     "AgentOrderError",
     "validate_agent_order",
     "validate_order_document",
+    "serialize_agent_order",
+    "map_mo_order_to_ris",
     "version_matrix",
     "fingerprint",
     "to_work_item",
     "dispatch_payload",
     "dispatch_payload_v2",
     "validate_result",
-    "map_mo_order_to_ris",
-    "serialize_agent_order",
-    "MAX_ORDER_DESCRIPTION_LENGTH",
 ]

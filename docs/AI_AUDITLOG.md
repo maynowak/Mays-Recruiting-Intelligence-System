@@ -11766,3 +11766,99 @@ Damit ist der Plan grundsätzlich apply-fähig; Apply wurde weiterhin **nicht**
 ausgeführt (kein Auftrag, keine gespeicherte/geprüfte Plan-Datei).
 
 Verdict: PLAN CORRECTED — 0 destroy, 3 in-place Lambda-Updates.
+
+---
+
+## RIS-MO-RC4 FINAL INTEGRATION GATE — 2026-11-24
+
+Status: IMPLEMENTED / TESTED / PUSHED — APPLY NOT EXECUTED (awaiting release)
+
+### 1. Runtime path reviewed (not assumed)
+
+Path: MO create payload → `POST /orders` (`lambda/orders_reader.py`)
+→ schema/identity/secret/entitlement gates → `ORDER_DISPATCH` on the RIS
+dispatch queue. Outbound: `agents/orders/real.py` → `POST /orders` on the
+Orders API.
+
+Findings that required repair:
+
+- `agents/orders/real.py` sent only `customer`/`items`/`currency` on
+  `orders.create`, so `orderType`, `agentOrder` and `orderDescription` never
+  reached the Orders API.
+- `lambda/orders_reader.py` rejected a root-level `orderDescription` as an
+  unknown field (allowlist was `orderType` + `agentOrder`).
+- The earlier "repair" had only restored parts of the baseline validation:
+  `validate_agent_order` returned the raw body without normalising
+  `metadata`/`processing`/`resultContract`, so `_create_agent_order` could
+  KeyError on a minimal document. Fixed by restoring the full baseline body
+  (schema, target/input/metadata/processing/resultContract gates, secret scan)
+  and re-applying `orderDescription` additively on top.
+
+Mays-Orders' own contract (pinned builder `validation.py`) forbids combining
+`customer`/`items`/`currency` with an `agentOrder`. The reader therefore keeps
+that split: agent payload root = `orderType`, `orderDescription`, `agentOrder`.
+
+### 2. Changes
+
+`agents/orders/agent_order.py`
+
+- Full baseline validation restored (normalisation + defaults, TARGET/INPUT/
+  METADATA/PROCESSING/RESULT_CONTRACT key allowlists, `_assert_clean` on input,
+  metadata and result).
+- `orderDescription` additive: allowed in `BODY_KEYS`, validated as string,
+  maximum `MAX_ORDER_DESCRIPTION_LENGTH = 1024`, folded into the normalised
+  document, never truncated (`order_description_too_long`).
+
+`lambda/orders_reader.py`
+
+- `AGENT_ORDER_ROOT_FIELDS = {orderType, agentOrder, orderDescription}`.
+- Root-level `orderDescription` is folded into `agentOrder.orderDescription`
+  before `validate_order_document`; a conflicting pair is rejected with 400.
+- `_public_agent_order` releases `orderDescription` to the verified owner.
+- Identity/profile/entitlement/dispatch gates unchanged.
+
+`agents/orders/real.py`
+
+- `MO_ORDER_FIELDS` forwards the complete MO create payload
+  (`orderType`, `agentOrder`, `orderDescription`, retail fields) verbatim.
+- Agent orders never get retail fields added and never keep caller-supplied
+  retail fields (MO rejects the mix).
+- Unknown caller keys are never forwarded.
+
+### 3. Evidence
+
+`python -m py_compile` on all changed modules: OK.
+
+Focused suites:
+
+- `tests/test_agent_order_order_description.py` — 11 passed (new):
+  MO payload → validated → stored with folded `orderDescription` →
+  `ORDER_DISPATCH` envelope; 1024 accepted, 1025 rejected without truncation;
+  root/body conflict rejected; unknown root field rejected; retail+agent mix
+  rejected; adapter forwards `orderType`/`orderDescription`/`agentOrder` and
+  drops unknown keys; retail create unchanged.
+- `tests/test_agent_order_body.py`, `tests/test_orders_reader.py`,
+  `tests/test_orders_reader_agent_gate.py`, `tests/test_real_orders_adapter.py`
+  — 135 passed, 7 subtests passed.
+- `tests/test_order_transport_contract.py`, `tests/test_ats_result_link.py`,
+  `tests/test_agent_order_dispatch_e2e.py`,
+  `tests/test_p20_api_contract_consistency.py`, `tests/test_lambda_packaging.py`,
+  `tests/test_analysis_order_boundary.py` — 105 passed, 8 skipped,
+  318 subtests passed.
+
+Repository-wide run (`tests/`, excluding two modules that cannot import in this
+Python 3.15 environment): 3087 passed, 174 skipped, 441 subtests passed,
+22 failed — all 22 are environment failures, not regressions:
+`test_composite_lifecycle` (AWS profile `mayaws` missing),
+`test_consent_special_categories` (boto3/moto/jobsearch import fallback),
+`test_durable_deletion_ledger` + `test_http_e2e_integration` (moto/requests
+missing, excluded at collection).
+
+### 4. Plan
+
+Regenerated with the proven installation identity after rebuilding the
+bundles. Result and SHA-256 recorded below.
+
+### 5. Not executed
+
+No `terraform apply`. No changes to Cognito, CloudFront, DNS or Mays-Orders.

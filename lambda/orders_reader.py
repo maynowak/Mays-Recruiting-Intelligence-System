@@ -93,6 +93,19 @@ PUBLIC_RESULT_CONTRACT_FIELDS = (
 PUBLIC_PROCESSING_FIELDS = ("status", "attempt", "completedAt")
 MAX_ERROR_MESSAGE = 500
 
+#: Root fields a Mays-Orders OrderV1 create payload may carry together with an
+#: agent execution order. Mays-Orders forbids combining ``customer``/``items``/
+#: ``currency`` with an ``agentOrder`` (validation.py: "must not be combined"),
+#: so the RIS reader enforces the same split. ``orderDescription`` lives at the
+#: order root in Mays-Orders and is folded into the RIS AgentOrder V1 body
+#: before validation. Anything else is rejected, so an unknown MO field can
+#: never be stored or forwarded silently.
+AGENT_ORDER_ROOT_FIELDS = frozenset({
+    "orderType",
+    "agentOrder",
+    "orderDescription",
+})
+
 # Same credential-shaped rule as the transport; the reader refuses to release
 # a stored result that contains a secret-like key or value.
 FORBIDDEN_KEY_PARTS = (
@@ -249,7 +262,7 @@ def _public_agent_order(agent: Any) -> Dict[str, Any]:
     if not isinstance(agent, dict):
         return {}
     projected: Dict[str, Any] = {}
-    for key in ("schemaVersion",):
+    for key in ("schemaVersion", "orderDescription"):
         if key in agent:
             projected[key] = agent[key]
     for key, fields in (
@@ -546,13 +559,32 @@ def _create_agent_order(table: Any, raw: Dict[str, Any],
     import secrets
     from datetime import datetime, timezone
 
-    unknown = set(raw) - {"orderType", "agentOrder"}
+    unknown = set(raw) - AGENT_ORDER_ROOT_FIELDS
     if unknown:
         raise AgentOrderRejected(
             400, "VALIDATION_ERROR",
             f"agent order contains unsupported field '{sorted(unknown)[0]}'")
+
+    # Mays-Orders persists `orderDescription` at the order root; RIS AgentOrder
+    # V1 carries it inside `agentOrder`. Fold it in additively before validation
+    # so the existing schema + 1024-char gate applies unchanged. A conflicting
+    # pair is rejected instead of silently preferring one of the two values.
+    document = dict(raw)
+    root_description = raw.get("orderDescription")
+    if root_description is not None:
+        agent_body = raw.get("agentOrder")
+        if isinstance(agent_body, dict):
+            existing = agent_body.get("orderDescription")
+            if existing is None:
+                agent_body = dict(agent_body)
+                agent_body["orderDescription"] = root_description
+                document["agentOrder"] = agent_body
+            elif existing != root_description:
+                raise AgentOrderRejected(
+                    400, "VALIDATION_ERROR",
+                    "orderDescription at order root and agentOrder disagree")
     try:
-        agent_order = validate_order_document(raw)
+        agent_order = validate_order_document(document)
     except AgentOrderError as exc:
         raise AgentOrderRejected(400, "VALIDATION_ERROR", exc.message) from exc
 

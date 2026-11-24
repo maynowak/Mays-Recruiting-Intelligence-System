@@ -39,6 +39,25 @@ CAPABILITY_CANCEL = "orders.cancel"
 
 SUPPORTED_CAPABILITIES = frozenset({CAPABILITY_CREATE, CAPABILITY_STATUS, CAPABILITY_CANCEL})
 
+#: Root fields of the Mays-Orders OrderV1 create contract. A create payload is
+#: forwarded verbatim for exactly these fields, so an agent execution order
+#: (orderType + agentOrder) and the MO `orderDescription` reach the API
+#: unchanged. Nothing is invented and unknown caller keys are never sent.
+#: Mays-Orders forbids combining customer/items/currency with an agentOrder,
+#: so the agent branch never adds retail fields.
+MO_ORDER_FIELDS = frozenset({
+    "orderType",
+    "agentOrder",
+    "orderDescription",
+    "customer",
+    "items",
+    "currency",
+    "totalAmount",
+})
+
+#: Retail fields that must not accompany an agent execution order.
+MO_RETAIL_FIELDS = ("customer", "items", "currency", "totalAmount")
+
 # HTTP-Status, die zu kontrollierten (nicht retrybaren) Ergebnissen werden.
 _CLIENT_ERRORS = {400, 401, 403, 404, 405, 409, 410, 422}
 # HTTP-Status, die retrybar sind (Raise).
@@ -243,8 +262,24 @@ class RealMaysOrdersAdapter(OrdersPort):
                     work_id, capability, tenant_id)
         payload = payload or {}
         if capability == CAPABILITY_CREATE:
-            order = {"customer": payload.get("customer"), "items": payload.get("items"),
-                     "currency": payload.get("currency", "EUR")}
+            # Forward the complete MO OrderV1 payload: retail fields plus an
+            # optional agent execution order and its root-level
+            # `orderDescription`. Only contract fields are sent; caller keys
+            # outside the MO contract are dropped, never forwarded.
+            order = {key: payload[key] for key in MO_ORDER_FIELDS if key in payload}
+            agent_execution = (
+                payload.get("agentOrder") is not None
+                or str(payload.get("orderType") or "").lower() == "agent.execution"
+            )
+            if agent_execution:
+                # Mays-Orders rejects customer/items/currency together with an
+                # agentOrder; forwarding them would make the call invalid.
+                for retail in MO_RETAIL_FIELDS:
+                    order.pop(retail, None)
+            else:
+                order["customer"] = payload.get("customer")
+                order["items"] = payload.get("items")
+                order["currency"] = payload.get("currency", "EUR")
             try:
                 status, resp = self._call("create", "POST", "/orders", order)
                 if 200 <= status < 300 and isinstance(resp, dict) and resp.get("orderId"):
@@ -285,4 +320,5 @@ __all__ = [
     "CAPABILITY_CREATE",
     "CAPABILITY_STATUS",
     "CAPABILITY_CANCEL",
+    "MO_ORDER_FIELDS",
 ]
