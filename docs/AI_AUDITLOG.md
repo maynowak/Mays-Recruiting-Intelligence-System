@@ -11721,3 +11721,48 @@ Verdict: RIS-MO-RC4 FINAL CLOSE — CODE COMPLETE / TESTS GREEN / PUSHED.
 Terraform read-only Preflight grün. Apply nicht ausgeführt (destruktiver Plan,
 falsche Workspace-Identität, fehlende Bindung/Bundles) — HARD STOP gemäß
 AGENTS.md. Device Guard unverändert.
+
+---
+
+## RIS-MO-RC4 PLAN CORRECTION — 2026-11-24 (nachgereicht)
+
+Die frühere Bewertung „132 to add / 18 to change / 168 to destroy = HARD STOP"
+war korrekt für den damals übergebenen Variablensatz, aber die Ursache war
+**nicht Drift**, sondern eine unvollständige Variablenbelegung
+(`project_name`-Default `mays-ris` statt `ris-dev2`, keine Orders-Bindung,
+kein Analyse-Runtime, kein Result-Secret).
+
+### Ursache des Device-Guard-Blocks (geklärt)
+
+Nicht Terraform, sondern der **unsignierte Chocolatey-Shim**
+`C:\ProgramData\chocolatey\bin\terraform.exe` (392 KB, shimgen).
+Nachweis: CodeIntegrity-Event 3077, Policy-ID {0283ac0f-fff1-49ae-ada1-8a933130cad6},
+`VerifiedAndReputablePolicyState = 1` (Smart App Control aktiv).
+Das signierte Original-Binary (`lib\terraform\tools\terraform.exe`,
+HashiCorp, Status `Valid`) lief die ganze Zeit.
+Behoben durch Ersetzen des Shims mit dem signierten Binary (Admin, reversibel
+via `choco upgrade terraform`). `terraform version` funktioniert jetzt bare.
+
+### Korrigierter Plan (read-only, keine AWS-Mutation)
+
+Variablen: `project_name=ris-dev2`, `environment=dev`, echte Bundles
+(`lambda/dist/orders-reader.zip`, `health-writer.zip`, `health-publisher.zip`,
+`terraform/analysis-lambda.zip`, `lambda/dist/analysis-parser.zip`),
+Projekt-Overlay aus `installer/project-configs/ris-dev2.json`,
+Orders-Bindung (`ris-dev2-mays-orders`), `enable_analysis_runtime=true`,
+`order_result_secret_arn` aus Secrets Manager.
+
+Ergebnis: **0 to add, 3 to change, 0 to destroy.**
+
+Die drei Änderungen sind reine Lambda-Code-Updates (in-place,
+`source_code_hash`):
+
+- `module.health_plane.aws_lambda_function.health_writer`
+- `module.health_plane.aws_lambda_function.health_publisher`
+- `module.orders_reader[0].aws_lambda_function.reader`
+
+Kein Destroy, kein Replace, keine geschützte Ressource betroffen.
+Damit ist der Plan grundsätzlich apply-fähig; Apply wurde weiterhin **nicht**
+ausgeführt (kein Auftrag, keine gespeicherte/geprüfte Plan-Datei).
+
+Verdict: PLAN CORRECTED — 0 destroy, 3 in-place Lambda-Updates.
