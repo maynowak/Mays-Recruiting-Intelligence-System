@@ -367,6 +367,17 @@ Owner-Bindung: `POST /orders` persistiert `ownerIssuer`, `ownerSubject`,
 werden nie ausgeliefert. Ein Ergebnis mit credential-förmigem Schlüssel oder Wert
 wird nicht freigegeben (`500 INTERNAL_ERROR`, ohne Inhalt).
 
+Für Agent-Aufträge des OrderV1-Vertrags (`orderType: agent.execution` mit
+`orderDescription`, kein Root-`agentOrder`) enthält die Antwort **kein**
+strukturiertes `agentOrder`. `orderDescription` wird als vom Client gelieferter
+opaker Text unverändert zurückgegeben; darin kann die serialisierte
+RIS-AgentOrder V1 samt der vom Client gesetzten `metadata`-Referenzen
+(`source`, `requestId`, `apiProfileRef`, `partnerApplicationRef`,
+`idempotencyKey`) stehen. Die Nicht-Auslieferungsregel oben gilt für
+strukturierte Felder; der Reader fügt der Beschreibung keine serverseitigen
+Kennungen hinzu. Legacy-Zeilen ohne `orderDescription` behalten die
+strukturierte, gefilterte `agentOrder`-Projektion.
+
 Statuswerte: `PENDING`, `CONFIRMED`, `PROCESSING`, `SHIPPED`, `DELIVERED`,
 `CANCELLED`. Übergänge: `PENDING→{CONFIRMED,CANCELLED}`,
 `CONFIRMED→{PROCESSING,CANCELLED}`, `PROCESSING→{SHIPPED}`, `SHIPPED→{DELIVERED}`;

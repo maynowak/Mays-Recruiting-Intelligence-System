@@ -12677,3 +12677,57 @@ do not expose the copy.
 
 No apply, no AWS mutation, no state write, no main merge, no MO/pin change.
 Old plan `cc140152…` stays locked. Live verification remains open until apply.
+
+
+---
+
+## RIS-DEV2-PRIVACY-RELEASE-GATE-02 — 2026-11-25
+
+Status: **READY FOR HUMAN APPLY APPROVAL — SYNTHETIC TEST DATA ONLY**
+
+Vollständiger Bericht: `docs/reports/RIS-DEV2-PRIVACY-RELEASE-GATE-02.md`
+
+### Public reader response
+
+- Real reader order + `GET /orders/{orderId}` (owner): response has no structured
+  `agentOrder`; `orderDescription` (640 chars) is the verbatim serialized
+  AgentOrder V1. Parsed keys: input, metadata, processing, resultContract,
+  schemaVersion, target. Metadata keys: source, requestId, apiProfileRef,
+  partnerApplicationRef, idempotencyKey (last two null unless the client sets
+  them). No secrets or foreign references; no server-side identifiers are added
+  by the reader.
+- `docs/api/API-STANDARD.md` said `metadata.{apiProfileRef,partnerApplicationRef,
+  idempotencyKey}` and `agentOrder.processing` are never delivered. Corrected:
+  for new OrderV1 rows, orderDescription is opaque client text; the
+  non-delivery list applies to structured fields. Legacy rows keep the filtered
+  structured projection.
+
+### Privacy operations (pinned MO db4f9e7, in-memory proof)
+
+- Reader row has `agentOrder`, `orderDescription`, `ownerSubject`, `gsi3*`; no
+  `subjectId`, no `gsi2pk/gsi2sk`.
+- `inspect_subject` → 0 records; `export_subject` → 0; `erase_subject` preview →
+  0. Cause: MO privacy selects via `gsi2pk = SUBJECT#<subject>`.
+- Not reader-specific: no MO creation path writes gsi2pk; live COUNT scan shows
+  10/10 orders without gsi2pk, 0 with gsi2pk, 0 with orderDescription. Data
+  inventory already marks Mays-Orders as REVIEW REQUIRED.
+- Hypothetical linked row: inspect returns customer.name/email + orderDescription;
+  export includes orderDescription but not agentOrder; anonymize removes
+  orderDescription but leaves `agentOrder` (incl. `input.data`). ERASE deletes
+  the row. This is pre-existing MO semantics.
+
+### Decision
+
+- Release only with synthetic test data (`RIS-DEV2-PARTNER-GATEWAY-E2E-PLAYBOOK`
+  and the platform readiness discovery state synthetic-only). All 10 live orders
+  predate the feature (2026-11-18) and none carries orderDescription.
+- No code change: removing metadata from orderDescription would break the MO
+  contract/correlation; linking orders to GSI2 is a separate privacy architecture
+  gate (and would still leave agentOrder on anonymize — MO change/pin).
+- Plan unchanged: `2bbf81424b9761712008ef698f5afe5bb6b5ac1db0eaa74220427e8f09b7facd`,
+  re-checked 0 add / 7 change / 0 destroy, 0 replace. No new plan required.
+
+### Not done
+
+No apply, no AWS mutation, no state write, no main merge, no MO/pin change.
+Post-apply smoke test (synthetic data) remains open.
