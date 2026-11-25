@@ -13020,3 +13020,28 @@ Bericht: `docs/reports/RIS-DEV2-SYNTHETIC-BOOTSTRAP-07.md`
 - No Terraform apply, synthetic activation, order/analysis run, client/pool
   config change, cleanup or main merge. Phase C needs a separate approval and
   must run before the entitlement expires.
+
+---
+
+## RIS-DEV2-ANALYSIS-CANARY-PLAN-08 — 2026-11-25
+
+Status: **READY FOR CANARY APPLY APPROVAL**
+
+Bericht: `docs/reports/RIS-DEV2-ANALYSIS-CANARY-PLAN-08.md`
+
+- Preflight live: base apply and bootstrap intact; profile ACTIVE, partner and
+  binding correct; USER entitlement valid until 2026-11-26T17:40:28Z; state
+  serial 71; synthetic mode still false.
+- Plan `C:\tmp\ris-dev2-canary-08.tfplan`, 253537 bytes, SHA-256
+  `996864c10b77ed8ced23c5f01e55036caab6676752a38f0c4b0e7f904bb94096`;
+  Terraform 1.17.0; diff **0 add / 1 change / 0 destroy** (analysis Lambda
+  environment only). Exact values: tenant/user/partner/issuer from
+  `ris-dev2-canary-07`, analysis entitlements, expiry 2026-11-26T17:40:28Z;
+  consent/notice false; code hash unchanged.
+- Drift explained: IAM aggregate, route null/[] normalization, stage
+  deployment from the new route, Cognito user count 0->1; none is a planned
+  change.
+- Rollback documented (new mode=false plan after canary apply). Live E2E and
+  negative cases documented. Cleanup CLI added in d420a02 (revoke, withdraw,
+  offer status) plus partner deactivate and Cognito deletes.
+- No apply, AWS resource change, order create, canary activation or cleanup.
