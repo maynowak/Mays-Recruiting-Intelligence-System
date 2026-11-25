@@ -1,3 +1,18 @@
+[XREPO-JOBSEARCH-RIS-PARALLEL-ANALYSIS-01]
+Current status: XREPO PARALLEL ANALYSIS COMPLETE (read-only)
+Audit date/time: 2026-11-25
+Current Git branch and HEAD: docs/xrepo-parallel-analysis-01, based on origin/main 97a60df83a5db56ea750e4342d7a01b00c8ad56b
+Jobsearch baseline: origin/main aa57500d85e8c30fb2db9455f3c3e5998470759f
+Audit scope: Four independent read-only agents (A erasure P0, B consent P0, C integration P1, D integration P2) reviewed the Jobsearch↔RIS contract. No implementation, merge, deployment, AWS/Terraform call, write or delete operation.
+Key findings:
+- A P0: Jobsearch BFF targets POST /v1/partner/me/erasure; RIS main/OpenAPI/API-STANDARD only implement POST /me/erasure. The partner route exists on 70a9fb9 (feature/ris-erasure-recovery-02) and 451c12e (feature/jm-ris-cv-storage-integration-01 / RC2), not on main. Applying main would remove/disable the live partner route. Recommended: forward-fix RIS main, keep the BFF path, prove a plan with 0 delete/replace, then verify the route live with a separate read-only AWS approval.
+- B P0: RIS main IaC wires only CONSENTS_TABLE and APPLICATION_CONSENT_ENFORCED; CV_STORAGE_CONSENT_ENFORCED, SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED, CONSENT_NOTICE_STATE_ENFORCED and CONSENT_PILOT_ALLOWLIST are absent from Terraform/installer. A routine apply from main would silently drop live consent enforcement. CONSENT-V1.md still says “nicht deployt” and documents only application-storage, while the registry has 3 APPROVED purposes plus DRAFT analysis-processing. RIS accepts Art. 9-less cv-storage grants; only the Jobsearch BFF enforces the explicit proof.
+- C P1: Remote cover-letter versioning and adoptCoverLetter are unimplemented in Jobsearch adapters although BFF/RIS support /cover-letter-versions; search-profile updates send no optimistic version (ATS BFF rejects it); builder-CV references are offered in remote UI but rejected by BFF/RIS ApplicationV1.
+- D P2: RIS privacy inspect/export is not exposed by the Jobsearch BFF/UI; CV list limit BFF 100 vs RIS 50 (UI 50, capacity 10); multi-source/multi-location jobs can fail remote save with a generic 422 because no pre-check exists.
+Documentation deviations: RIS CONSENT-V1/OpenAPI/API-STANDARD under-document purposes/proof fields/404; Jobsearch .env.example lacks application consent vars and shows cv text state DRAFT; ApplicationV1 lacks the consent-gate section; Jobsearch storageConsent wording is historical; erasure path comment/config disagree.
+No RIS code, API contract, Terraform, AWS, Cognito, consent, storage or deployment was changed. Live ris-dev route/flag state was not queried.
+Report: docs/reports/XREPO-PARALLEL-ORCHESTRATION-01-REPORT.md (RIS copy; canonical copy also on Jobsearch branch docs/xrepo-parallel-analysis-01 at 0df5f3a).
+
 [JM-GOOGLE-LOGIN-READINESS-01]
 Current status: COMPLETE / RED (NOT READY, read-only Audit)
 Audit date/time: 2026-10-31 21:48–21:52 UTC
