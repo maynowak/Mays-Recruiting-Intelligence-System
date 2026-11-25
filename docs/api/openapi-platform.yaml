@@ -1015,6 +1015,56 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorString" }
 
+  /v1/partner/me/erasure:
+    post:
+      tags: [Partner, Privacy]
+      operationId: erasePartnerUserData
+      summary: Run the privacy erasure lifecycle for the authenticated partner user
+      description: |
+        Partner-edge variant of `POST /me/erasure` for the Jobsearch BFF
+        contract. It dispatches to the **same** ordered lifecycle; there is no
+        second deletion engine.
+
+        Two boundaries apply: the gateway-validated Cognito JWT and the opaque
+        `ris_...` partner credential resolved against the ACTIVE partner
+        application (apiProfile and tenant binding). The lifecycle scope is the
+        JWT subject in the server-resolved tenant — no user, tenant, partner or
+        application identifier is accepted from the request body or query.
+
+        Same ordering and honesty rules as `POST /me/erasure`: credentials are
+        revoked first, terminal work is retained, entitlements and orders are
+        untouched, and `complete: false` (HTTP 207) means at least one step
+        failed. Idempotent on re-run.
+      parameters:
+        - $ref: "#/components/parameters/ApiCredential"
+      x-infrastructure-governance: terraform-managed
+      x-deletion-scope: ordered-lifecycle-credentials-first
+      x-is-account-erasure: true
+      x-terminal-work-retained: true
+      responses:
+        "200":
+          description: Every lifecycle step succeeded.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErasureResult" }
+        "207":
+          description: Partial execution; erasure is not complete.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErasureResult" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Partner, credential, tenant or API profile boundary refused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: A backing store was not configured or unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
   /v1/partner/me/manual-search-profiles:
     get:
       tags: [Partner]
