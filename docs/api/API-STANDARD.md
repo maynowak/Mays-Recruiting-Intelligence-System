@@ -115,10 +115,10 @@ Antwort 202: `{"workId": string, "status": string, "requestId": string}`
 | `POST /v1/partner/agents/{agentId}/execute` | JWT **+** `X-Api-Credential` | 202 | 401, 403, 500, 503 |
 | `GET /v1/partner/me/privacy/inspect` | JWT **+** `X-Api-Credential` | 200 (`COMPLETE`/`PARTIAL`, per-category cursors) | 400, 401, 403, 422, 503 |
 | `GET /v1/partner/me/privacy/export` | JWT **+** `X-Api-Credential` | 200 (versioned JSON, metadata/file status) | 401, 403, 422 |
-| `GET /v1/partner/me/consents` | JWT **+** `X-Api-Credential` | 200 (`items`, `catalog`, `externalRefs`; per-purpose status + `noticeState`) | 401, 403, 422 |
-| `POST /v1/partner/me/consents` | JWT **+** `X-Api-Credential` | 200 (GRANTED, idempotent) | 401, 403, 422 (`NOTICE_NOT_ACTIVE` bei fehlender Freigabe) |
-| `POST /v1/partner/me/consents/withdraw` | JWT **+** `X-Api-Credential` | 200 (WITHDRAWN) | 401, 403, 409, 422 |
-| `GET /v1/partner/me/consents/history` | JWT **+** `X-Api-Credential` | 200 (append-only events) | 401, 403, 422 |
+| `GET /v1/partner/me/consents` | JWT **+** `X-Api-Credential` | 200 (`items`, `catalog`, `externalRefs`; per-purpose status + `noticeState`) | 401, 403, 404 (`UNKNOWN_PURPOSE`) |
+| `POST /v1/partner/me/consents` | JWT **+** `X-Api-Credential` | 200 (GRANTED, idempotent) | 401, 403, 404, 409, 422 (`NOTICE_NOT_ACTIVE` bei fehlender Freigabe, ungültiger Art.-9-Nachweis) |
+| `POST /v1/partner/me/consents/withdraw` | JWT **+** `X-Api-Credential` | 200 (WITHDRAWN) | 401, 403, 404, 409 (`NOT_GRANTED`) |
+| `GET /v1/partner/me/consents/history` | JWT **+** `X-Api-Credential` | 200 (append-only events) | 401, 403, 404, 422 (`INVALID_LIMIT`) |
 | `GET /v1/partner/me/manual-search-profiles` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 500, 503 |
 | `POST /v1/partner/me/manual-search-profiles` | JWT **+** `X-Api-Credential` | 201 | 400, 401, 403, 409, 422, 500, 503 |
 | `GET /v1/partner/me/manual-search-profiles/{profileId}` | JWT **+** `X-Api-Credential` | 200 | 401, 403, 404, 500, 503 |
@@ -223,6 +223,53 @@ erfasst, wählt aber **nie** die ausführende Identität. Diese bleibt der Owner
 des APIProfile, zu dem die Credential gehört (`verify_api_credential`). Ein
 Request-Body oder -Header kann daher nicht bestimmen, in wessen Kontext
 ausgeführt wird, und `agentId` stammt ausschließlich aus dem Route-Path.
+
+### 2.1.2 Consent-Zwecke und Gates
+
+`jobsearch/consent_contract.py` ist die Quelle der Zwecke. Der Vertrag kennt
+genau vier:
+
+| Purpose | `noticeVersion` | Lifecycle | Rechtliche Referenz |
+|---|---|---|---|
+| `application-storage` | `1.0` | `APPROVED` | `JM-APPLICATION-STORAGE-V4-PILOT-2026-11-08` |
+| `cv-storage` | `1.0` | `APPROVED` | `JM-CV-STORAGE-V1-BETA-2026-11-08` |
+| `search-profile-storage` | `1.0` | `APPROVED` | `JM-SEARCH-PROFILE-STORAGE-V1-2026-11-08` |
+| `analysis-processing` | `1.0` | `DRAFT` | keine (`legalApprovalRef` leer) |
+
+`APPROVED` heißt hier **nur** „für den begrenzten Beta-/Pilotbetrieb
+freigegeben", nicht allgemeiner Rollout. Ein unbekannter Purpose ist **404
+`UNKNOWN_PURPOSE`** (nicht 422); eine erfundene Version ist **422
+`INVALID_NOTICE_VERSION`**, eine nicht grantbare Version bei aktiver
+State-Enforcement **422 `NOTICE_NOT_ACTIVE`**.
+
+Gespeicherter Nachweis pro Grant: `specialCategoriesConsent`,
+`specialCategories` (kanonische Reihenfolge), optional
+`externalTextVersion` + `externalTextSha256`. Ein explizites Art.-9-Consent
+verlangt den zweckspezifischen, Art.-9-fähigen Partnertext; ein historischer
+Text kann niemals Art.-9-Nachweis sein.
+
+Schreib-Gates (nur `POST`/`PATCH`/`PUT`; Lesen, Download, Export und Löschen
+bleiben nach Widerruf möglich):
+
+| Gate | 403-Code |
+|---|---|
+| `application-storage` | `CONSENT_REQUIRED` |
+| `cv-storage` | `CV_STORAGE_CONSENT_REQUIRED` |
+| `cv-storage` außerhalb der Pilot-Allowlist | `CV_STORAGE_PILOT_NOT_ALLOWED` |
+| `search-profile-storage` | `SEARCH_PROFILE_STORAGE_CONSENT_REQUIRED` |
+| `search-profile-storage` außerhalb der Pilot-Allowlist | `SEARCH_PROFILE_STORAGE_PILOT_NOT_ALLOWED` |
+
+`CONSENT_PILOT_ALLOWLIST` ist eine serverseitige, nicht-öffentliche Grenze aus
+`<issuer>|<sub>`-Paaren; leere/malformed Einträge erweitern den Scope nie.
+Die Allowlist-Werte gehören **nicht** ins Repository, sondern in eine
+geschützte Plan-Time-Var-Datei. Alle Enforcement-Variablen
+(`application_consent_enforced`, `cv_storage_consent_enforced`,
+`search_profile_storage_consent_enforced`, `consent_notice_state_enforced`,
+`consent_pilot_allowlist`) sind in Terraform deklariert und an die
+Lambda-Umgebung verdrahtet; Defaults sind `false`/leer. Fehlt ein Flag
+komplett, gilt der Code-Default `false` (Bestandsinstallation). Ein
+vorhandener, aber ungültiger Wert (z. B. `ture`, leer) wird **fail-closed als
+aktiv** behandelt.
 
 ### 2.2 Credential Management
 

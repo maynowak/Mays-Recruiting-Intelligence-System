@@ -2312,26 +2312,37 @@ paths:
         presented as an approved consent. `catalog` lists known versions for
         the purpose; `externalRefs` lists partner identifiers that are known
         but not equivalent to a RIS notice version.
+
+        Purposes: three carry an APPROVED notice for the limited pilot
+        (`application-storage`, `cv-storage`, `search-profile-storage`);
+        `analysis-processing` is DRAFT and not grantable under notice-state
+        enforcement. An unknown purpose is `404 UNKNOWN_PURPOSE`.
       x-infrastructure-governance: terraform-managed
       parameters:
         - $ref: "#/components/parameters/ApiCredential"
         - name: purpose
           in: query
           required: false
-          schema: { type: string, enum: [application-storage] }
+          schema: { $ref: "#/components/schemas/ConsentPurpose" }
       responses:
         "200": { description: Current status, catalog and external refs }
         "401": { $ref: "#/components/responses/UnauthorizedString" }
         "403": { description: Partner, tenant or credential boundary refused }
-        "422": { description: Unknown purpose }
+        "404": { description: "`UNKNOWN_PURPOSE` — purpose is not in the server catalogue" }
     post:
       tags: [Partner, Consent]
       operationId: grantPartnerConsent
       summary: Grant storage consent for a purpose and notice version
       description: |
-        Idempotent for an already-granted version. 422 NOTICE_NOT_ACTIVE when
-        state enforcement is on and the text is not approved for new grants.
-        A newer notice version never rewrites an existing grant.
+        Idempotent for an already-granted version. 422 `NOTICE_NOT_ACTIVE`
+        when state enforcement is on and the text is not approved for new
+        grants. A newer notice version never rewrites an existing grant.
+
+        The stored proof is the pair `specialCategoriesConsent` +
+        `specialCategories` plus the optional external text identity
+        (`externalTextVersion` + `externalTextSha256`). An explicit Art. 9
+        consent requires the purpose-specific, Art. 9-capable external text;
+        a historical text can never back special-category consent.
       x-infrastructure-governance: terraform-managed
       parameters:
         - $ref: "#/components/parameters/ApiCredential"
@@ -2339,13 +2350,35 @@ paths:
         required: true
         content:
           application/json:
-            schema: { type: object, required: [purpose, noticeVersion] }
+            schema:
+              type: object
+              required: [purpose, noticeVersion]
+              additionalProperties: false
+              properties:
+                purpose: { $ref: "#/components/schemas/ConsentPurpose" }
+                noticeVersion: { type: string, example: "1.0" }
+                specialCategoriesConsent:
+                  type: boolean
+                  default: false
+                  description: Explicit Art. 9 consent; requires specialCategories and the purpose Art. 9 external text.
+                specialCategories:
+                  type: array
+                  uniqueItems: true
+                  items: { $ref: "#/components/schemas/ConsentSpecialCategory" }
+                externalTextVersion:
+                  type: string
+                  description: Known partner notice identifier for this purpose (never a RIS noticeVersion).
+                externalTextSha256:
+                  type: string
+                  pattern: "^[0-9a-f]{64}$"
+                  description: Must equal the pinned SHA-256 of externalTextVersion.
       responses:
         "200": { description: Consent granted (or unchanged) }
         "401": { $ref: "#/components/responses/UnauthorizedString" }
         "403": { description: Partner boundary refused }
-        "409": { description: Consent conflict }
-        "422": { description: Unknown purpose, invalid or inactive notice version }
+        "404": { description: "`UNKNOWN_PURPOSE`" }
+        "409": { description: "`CONFLICT` / `RECONSENT_REQUIRED` (different proof already granted)" }
+        "422": { description: "`INVALID_NOTICE_VERSION`, `NOTICE_NOT_ACTIVE`, invalid Art. 9 proof or external text" }
   /v1/partner/me/consents/withdraw:
     post:
       tags: [Partner, Consent]
@@ -2353,7 +2386,9 @@ paths:
       summary: Withdraw the active storage consent
       description: |
         Always available regardless of notice lifecycle state. Reads, export
-        and deletion stay available after withdrawal.
+        and deletion stay available after withdrawal. An unknown purpose is
+        `404 UNKNOWN_PURPOSE`; withdrawing without an active consent is
+        `409 NOT_GRANTED`.
       x-infrastructure-governance: terraform-managed
       parameters:
         - $ref: "#/components/parameters/ApiCredential"
@@ -2361,25 +2396,34 @@ paths:
         required: true
         content:
           application/json:
-            schema: { type: object, required: [purpose] }
+            schema:
+              type: object
+              required: [purpose]
+              additionalProperties: false
+              properties:
+                purpose: { $ref: "#/components/schemas/ConsentPurpose" }
       responses:
         "200": { description: Consent withdrawn }
         "401": { $ref: "#/components/responses/UnauthorizedString" }
         "403": { description: Partner boundary refused }
-        "409": { description: No active consent }
-        "422": { description: Unknown purpose }
+        "404": { description: "`UNKNOWN_PURPOSE`" }
+        "409": { description: "`NOT_GRANTED` — no active consent" }
   /v1/partner/me/consents/history:
     get:
       tags: [Partner, Consent]
       operationId: listPartnerConsentHistory
       summary: Append-only consent event history
+      description: |
+        Events are `GRANTED`, `WITHDRAWN`, `REGRANTED`, newest first. Proof
+        fields are repeated per event. An unknown purpose is `404
+        UNKNOWN_PURPOSE`.
       x-infrastructure-governance: terraform-managed
       parameters:
         - $ref: "#/components/parameters/ApiCredential"
         - name: purpose
           in: query
           required: true
-          schema: { type: string, enum: [application-storage] }
+          schema: { $ref: "#/components/schemas/ConsentPurpose" }
         - name: limit
           in: query
           required: false
@@ -2388,7 +2432,8 @@ paths:
         "200": { description: Events newest first }
         "401": { $ref: "#/components/responses/UnauthorizedString" }
         "403": { description: Partner boundary refused }
-        "422": { description: Unknown purpose or invalid limit }
+        "404": { description: "`UNKNOWN_PURPOSE`" }
+        "422": { description: "`INVALID_LIMIT` — limit outside 1–100" }
 
 components:
   securitySchemes:
@@ -2471,6 +2516,32 @@ components:
           schema: { $ref: "#/components/schemas/ErrorString" }
 
   schemas:
+    ConsentPurpose:
+      type: string
+      description: >-
+        Server-owned consent purpose. The enum mirrors
+        jobsearch/consent_contract.CONSENT_PURPOSES; a client-invented purpose
+        is `404 UNKNOWN_PURPOSE`.
+      enum:
+        - application-storage
+        - cv-storage
+        - search-profile-storage
+        - analysis-processing
+
+    ConsentSpecialCategory:
+      type: string
+      description: Art. 9 special-category code; canonical order is server-defined.
+      enum:
+        - health
+        - religious_or_philosophical_beliefs
+        - trade_union_membership
+        - political_opinions
+        - sexual_orientation
+        - sex_life
+        - biometric_data
+        - genetic_data
+        - racial_or_ethnic_origin
+
     # --- OPEN-2 error envelopes: BOTH are real and coexist ---------------
     ErrorString:
       type: object

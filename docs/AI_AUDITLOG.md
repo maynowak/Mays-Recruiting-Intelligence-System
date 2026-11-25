@@ -11313,3 +11313,19 @@ Status: CI workflow fixed and pushed; no AWS/Terraform mutation, no main merge.
 - Mergeability after docs checkpoint: 112 ahead / 0 behind, 303 changed paths vs origin/main; merge-tree clean. No changes to analysis agent, parsers, contracts, entitlements, consent, Terraform resources, pins, generated target, offers or AWS config. No Terraform apply, AWS deployment, RC4 upgrade, target rebuild or main merge.
 - Verdict: MAIN CI READY. Gate B synthetic activation, Gate C apiProfileRef binding, live E2E, DLQ exhaustion, parent-agent resume and Cognito service principal remain open.
 
+
+[RIS-CONSENT-IAC-ALIGNMENT-01]
+Date: 2026-11-25
+Status: IMPLEMENTED / VERIFIED LOCAL — no AWS, no Terraform plan/apply/state, no deployment, no consent activation, no main merge.
+Baseline: branch `feature/ris-consent-iac-alignment-01` from `origin/main` 97a60df83a5db56ea750e4342d7a01b00c8ad56b.
+- Root cause: `lambda/handler.py` and `jobsearch/consent_contract.py` read `CV_STORAGE_CONSENT_ENFORCED`, `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED`, `CONSENT_NOTICE_STATE_ENFORCED` and `CONSENT_PILOT_ALLOWLIST`, but `terraform/modules/lambda` only wired `CONSENTS_TABLE` and `APPLICATION_CONSENT_ENFORCED`. The wiring existed only on unmerged pilot commit a0f16a8. A routine apply from main could drop the live keys / reset them to false.
+- Terraform: declared the four variables in root and lambda module (defaults false/empty, allowlist sensitive + format-validated), passed them from `terraform/main.tf`, and wired the exact env names. No hard-coded `"true"`; every value derives from a variable. `APPLICATION_CONSENT_ENFORCED` unchanged.
+- Fail-closed plan guards: any active storage gate requires `consent_notice_state_enforced=true`; cv/search-profile gates require a non-empty allowlist (pilot-only, no accidental global rollout). Malformed allowlist entries fail the plan instead of silently shrinking scope.
+- Runtime: new `enforcement_flag()` in `consent_contract.py`. Unset keeps default false; `true`/`false` parse; any other value (empty, `1`, `yes`, `ture`) is treated as **enforced** and logged. All four handler gates and `notice_state_enforced()` use it.
+- Installer: three site booleans added to `PROJECT_CONFIG_ALLOWED_KEYS`; `consent_pilot_allowlist` deliberately not an overlay key. `ris-dev.json` unchanged, no consent values committed.
+- Docs parity: `docs/contracts/CONSENT-V1.md` now lists the real registry (application-storage / cv-storage / search-profile-storage APPROVED; analysis-processing DRAFT), exact proof fields, `404 UNKNOWN_PURPOSE`, 403 pilot/consent codes, env contract and plan guards. OpenAPI `ConsentPurpose` + `ConsentSpecialCategory` schemas, proof request body, 404/409/422 semantics; API-STANDARD consent codes + §2.1.2.
+- Art. 9 gap documented, not changed: RIS accepts a `cv-storage` grant without special-category proof while the Jobsearch BFF requires it. Marked OPEN — Privacy/Legal decision required (Option A: RIS enforces Art. 9; Option B: partner is the audited sole boundary).
+- Tests added: `test_consent_flag_fail_closed.py`, `test_consent_iac_alignment.py`, `test_consent_purpose_registry_parity.py`. Focused batch 275 passed / 421 subtests; new files 36 passed / 103 subtests. Full suite: 3230 passed, 129 skipped, 4 environment-only failures (composite lifecycle 3, missing `terraform/lambda.zip` 1).
+- Terraform: `fmt -check -recursive` PASS; `init -backend=false` + `validate` 15/15 committed modules PASS; root validate PASS against a temp copy with a stub for the gitignored generated Mays-Orders module. No plan/apply/backend/AWS.
+- Boundaries: no Jobsearch change, no AWS/Terraform state, no consent activation or legal inference, no real personal data or allowlist value in Git, no main merge, no force-push/branch deletion.
+- Evidence: `docs/reports/RIS-CONSENT-IAC-ALIGNMENT-01.md`.
