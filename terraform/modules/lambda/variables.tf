@@ -128,6 +128,43 @@ variable "application_consent_enforced" {
   default     = false
 }
 
+variable "cv_storage_consent_enforced" {
+  description = "Enforce cv-storage consent on durable CV create/upload/update writes. Reads, downloads and deletion stay available."
+  type        = bool
+  default     = false
+}
+
+variable "search_profile_storage_consent_enforced" {
+  description = "Enforce search-profile-storage consent on manual, CV-search and ATS-profile create/update writes. Reads and deletion stay available."
+  type        = bool
+  default     = false
+}
+
+variable "consent_notice_state_enforced" {
+  description = "Reject new consent grants for non-grantable notice states (DRAFT/SUPERSEDED) in the Lambda runtime."
+  type        = bool
+  default     = false
+}
+
+variable "consent_pilot_allowlist" {
+  description = "Comma/newline separated <issuer>|<sub> pilot identities. Non-secret configuration, never a credential. Never commit the value."
+  type        = string
+  default     = ""
+  sensitive   = true
+
+  validation {
+    condition = trimspace(var.consent_pilot_allowlist) == "" || alltrue([
+      for entry in [
+        for raw_entry in split(",", replace(var.consent_pilot_allowlist, "\n", ",")) :
+        trimspace(raw_entry)
+        ] : entry == "" || can(regex(
+          "^https?://[^|[:space:]]+\\|[^|[:space:]]+$", entry
+      ))
+    ])
+    error_message = "consent_pilot_allowlist entries must be <issuer>|<sub> with an http(s) issuer; empty entries and trailing commas are ignored."
+  }
+}
+
 variable "partner_surface_enabled" {
   description = "Aktiviert die Partner-/Personen-Oberflaeche (/v1/partner/me/*). Default AUS; Aktivierung ist eine Betreiberentscheidung, keine Deployment-Nebenwirkung."
   type        = bool

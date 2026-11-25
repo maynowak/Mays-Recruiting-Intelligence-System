@@ -643,9 +643,10 @@ def _consent_enforced() -> bool:
 
     Default is off so an existing installation keeps working until the partner
     ships its consent UI; enabling it makes writes fail closed without a
-    GRANTED ``application-storage`` consent.
+    GRANTED ``application-storage`` consent. An invalid value enforces.
     """
-    return os.environ.get("APPLICATION_CONSENT_ENFORCED", "false").strip().lower() == "true"
+    from jobsearch.consent_contract import enforcement_flag
+    return enforcement_flag("APPLICATION_CONSENT_ENFORCED")
 
 
 def _consent_pilot_identities() -> frozenset[tuple[str, str]]:
@@ -5233,10 +5234,10 @@ def _search_profile_storage_consent_enforced() -> bool:
     Default is off while the technical candidate is prepared. When enabled,
     manual, CV-search and ATS-profile create/update operations require a
     GRANTED ``search-profile-storage`` consent. List/get/delete remain
-    available.
+    available. An invalid value enforces.
     """
-    return os.environ.get(
-        "SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED", "false").strip().lower() == "true"
+    from jobsearch.consent_contract import enforcement_flag
+    return enforcement_flag("SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED")
 
 
 def _search_profile_storage_consent_error(ctx):
@@ -5289,10 +5290,10 @@ def _cv_storage_consent_enforced() -> bool:
     Default is off for local/synthetic work. When enabled, new CV writes
     (create, upload, complete, update) fail closed without a GRANTED
     ``cv-storage`` consent. Reads, downloads and deletion stay available so a
-    withdrawal never traps the user's existing data.
+    withdrawal never traps the user's existing data. An invalid value enforces.
     """
-    return os.environ.get(
-        "CV_STORAGE_CONSENT_ENFORCED", "false").strip().lower() == "true"
+    from jobsearch.consent_contract import enforcement_flag
+    return enforcement_flag("CV_STORAGE_CONSENT_ENFORCED")
 
 
 def _cv_storage_consent_error(ctx):
