@@ -12799,3 +12799,28 @@ Bericht: `docs/reports/RIS-DEV2-ORDER-API-READ-01.md`
   State `ris-dev2`, lineage `a0bd361d…`, serial 69.
 - Old plan `2bbf8142…` stays blocked. No apply, AWS mutation, state write,
   main merge or deployment.
+
+---
+
+## RIS-MO-WORKITEM-SECURITY-TEST-GATE-01 — 2026-11-25
+
+Status: **READY FOR LIMITED HUMAN RISK ACCEPTANCE (SYNTHETIC ONLY)**
+Bericht: `docs/reports/RIS-MO-WORKITEM-SECURITY-TEST-GATE-01.md`
+
+- MO pin verified at `db4f9e7…` (`installer/projects/mays_order_builder`).
+- MO lambda suite: **240 tests OK** (0 failures/errors/skips). Named security
+  files `test_dispatch`, `test_result_handoff`, `test_result_consumer_lambda`,
+  `test_ownership`: **101 tests OK**.
+- RIS cross-repo with `MO_ORDERS_SRC`: 60 passed (dispatch handoff, agent order
+  E2E, work queue, synthetic profile, analysis terraform), 0 skipped. Broader
+  order/auth set: 160 passed / 7 subtests, 0 skipped. Separate processes; no
+  harness interference counted as a product defect.
+- WorkItem matrix completed fail-closed: added unknown/empty workId, replay of
+  COMPLETED without result, and read-error without result; existing tests cover
+  positive RUNNING, not persisted, invalid status, all four identity mismatches,
+  manipulated nested events.
+- IAM: plan policy grants only `dynamodb:GetItem` on partner-profiles and
+  work-items; no Query/Scan/write, no orders table. Documented that application
+  checks do not remove table-wide GetItem access (no item-level IAM condition).
+- Decision limited to synthetic DEV2 data; synthetic mode stays off. No apply,
+  AWS mutation, state write, runtime/MO/Terraform change or main merge.

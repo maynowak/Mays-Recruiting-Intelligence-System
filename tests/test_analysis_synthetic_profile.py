@@ -304,6 +304,59 @@ class SyntheticIdentityTest(unittest.TestCase):
             work(request(["cv.tags"], cv=structured())))
         self.assertTrue(is_denied(out, "consent_required"))
 
+    def test_unknown_or_empty_work_id_is_denied(self):
+        class Table:
+            def __init__(self, item):
+                self.item = item
+
+            def get_item(self, Key, ConsistentRead=False):
+                # DynamoDB GetItem is key-bound: an unknown key returns no item.
+                if Key.get("workId") != self.item["workId"]:
+                    return {}
+                return {"Item": dict(self.item)}
+
+        row = {
+            "workId": "work-synthetic", "status": "RUNNING",
+            "tenantId": TENANT, "userId": USER,
+            "partnerApplicationId": PARTNER, "issuer": ISSUER,
+        }
+        verify = _build_synthetic_verifier({}, table=Table(row))
+        identity = {"tenant_id": TENANT, "user_id": USER,
+                    "partner_application_id": PARTNER, "issuer": ISSUER}
+        self.assertTrue(verify("work-synthetic", identity))
+        for work_id in ("work-other", "", None):
+            self.assertFalse(verify(work_id, identity), work_id)
+
+    def test_replay_of_completed_workitem_is_denied_without_result(self):
+        class Table:
+            def get_item(self, Key, ConsistentRead=False):
+                return {"Item": {
+                    "workId": "work-synthetic", "status": "COMPLETED",
+                    "tenantId": TENANT, "userId": USER,
+                    "partnerApplicationId": PARTNER, "issuer": ISSUER,
+                }}
+
+        out = agent(
+            env(),
+            synthetic_verifier=_build_synthetic_verifier({}, table=Table()),
+        ).process_work(work(request(["cv.tags"], cv=structured())))
+        self.assertFalse(out["success"])
+        self.assertIn("consent_required", out["error"]["message"])
+        self.assertNotIn("data", out)
+
+    def test_workitem_read_error_is_denied_without_result(self):
+        class Table:
+            def get_item(self, Key, ConsistentRead=False):
+                raise RuntimeError("denied")
+
+        out = agent(
+            env(),
+            synthetic_verifier=_build_synthetic_verifier({}, table=Table()),
+        ).process_work(work(request(["cv.tags"], cv=structured())))
+        self.assertFalse(out["success"])
+        self.assertIn("consent_required", out["error"]["message"])
+        self.assertNotIn("data", out)
+
     def test_wrong_installation_disables_synthetic_mode(self):
         for overrides in (
                 {"PROJECT_NAME": "ris-prod"},

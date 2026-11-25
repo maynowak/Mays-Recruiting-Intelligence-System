@@ -112,6 +112,8 @@ class ParserRuntimeGateTest(unittest.TestCase):
         self.assertNotIn("var.entitlements_table_arn", block)
         for forbidden in ("s3:", "sqs:", "secretsmanager:", "lambda:"):
             self.assertNotIn(forbidden, block)
+        granted = set(re.findall(r"dynamodb:[A-Za-z]+", block))
+        self.assertEqual({"dynamodb:GetItem"}, granted)
 
     def test_partner_profiles_is_get_item_only(self):
         """RIS-DEV2-IAM-AUTHORIZATION-01: no unused Query/index grants."""
