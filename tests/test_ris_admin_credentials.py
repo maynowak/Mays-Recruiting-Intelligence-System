@@ -145,6 +145,8 @@ class TestAuthorization(Base):
         self.assertNotIn("--role", flags)
         self.assertNotIn("--admin", flags)
 
+    @unittest.skipIf(os.name == "nt",
+                     "Windows st_mode cannot represent ACL bits")
     def test_world_writable_authorization_file_is_rejected(self):
         """The mapping is a trust anchor; anyone who can edit it can grant
         themselves admin rights."""
