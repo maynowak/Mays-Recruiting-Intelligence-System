@@ -12990,3 +12990,33 @@ Bericht: `docs/reports/RIS-DEV2-BASE-APPLY-06.md`
 - No Cognito users/clients, profiles, partners, offers, entitlements or
   synthetic activation; no further plan, rollback or main merge.
 - Phase B requires a separate AWS-write approval.
+
+---
+
+## RIS-DEV2-SYNTHETIC-BOOTSTRAP-07 — 2026-11-25
+
+Status: **SYNTHETIC BOOTSTRAP — LIVE VERIFIED (Phase B only)**
+
+Bericht: `docs/reports/RIS-DEV2-SYNTHETIC-BOOTSTRAP-07.md`
+
+- Preflight: account 262370457690, eu-central-1, ris-dev2; base apply live
+  (catalog ACTIVE, binding route JWT, IAM GetItem only); synthetic mode false.
+- Provisioned exactly: Cognito user `ris-dev2-canary-07` (sub a39458b2…,
+  tenant ris-dev2-canary-07, CONFIRMED, no invite mail); profile
+  `aprof_cdbd3b6f803744bf` ACTIVE owned by that sub; dedicated client
+  `5ianq5p5ahofqnej6dpu3no7ip` (no secret/flows); partner app
+  `ris-dev2-canary-07` ACTIVE with client+profile+tenant; binding to
+  partner/issuer; offer `off_4b4f0843057c4a91` with analysis-agent;
+  USER entitlement `ent_bf0c8123844e47bb` expiring 2026-11-26T17:40:28Z.
+- Verified: regular USER_PASSWORD_AUTH JWT with correct iss/aud/sub/tenant
+  (token/password never stored or logged); profile/partner/entitlement shapes;
+  counts 1 user / 3 clients / 5 profiles / 1 offer / 3 entitlements / 1 app;
+  existing clients, pool config and groups unchanged; mode still false; state
+  serial 71 unchanged.
+- Local deviation: Windows auth-file ACL handling in
+  `tools/ris_admin/credentials.py` plus a Windows skip for the POSIX
+  world-writable test (commit e8c3da8); auth file ACL-restricted; no AWS
+  permission or scope change.
+- No Terraform apply, synthetic activation, order/analysis run, client/pool
+  config change, cleanup or main merge. Phase C needs a separate approval and
+  must run before the entitlement expires.
