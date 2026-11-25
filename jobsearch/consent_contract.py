@@ -4,8 +4,14 @@ Identity is always server-derived. A caller can only choose a purpose and a
 notice version; subject, tenant, partner and issuer come from the verified
 partner context.
 
-Only ``application-storage`` is defined in V1. Additional purposes are added
-here deliberately, not accepted from clients.
+Every purpose is server-defined; clients can only choose one of the declared
+purposes and an accepted notice version. Additional purposes are added here
+deliberately, not accepted from clients.
+
+Enforcement switches are read through :func:`enforcement_flag`. A deliberately
+unset variable means "feature off" (backwards-compatible installs), while a
+present but unrecognised value **fails closed** (enforcement stays on) so a
+typo such as ``"ture"`` can never silently disable a consent gate.
 
 Notice versions have an explicit lifecycle. A version identifier is *not* a
 legal approval: a draft may be usable for technical/synthetic end-to-end runs
@@ -22,11 +28,24 @@ Re-consent under a new version is a separate product/legal decision.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from dataclasses import dataclass, field
 
+logger = logging.getLogger(__name__)
+
 SCHEMA_VERSION = 1
+
+#: Environment variables that switch a consent gate on. They are declared (and
+#: defaulted) in Terraform; the static IaC tests assert this list is wired from
+#: Terraform variables so an apply can never drop a gate silently.
+ENFORCEMENT_FLAG_NAMES = (
+    "APPLICATION_CONSENT_ENFORCED",
+    "CV_STORAGE_CONSENT_ENFORCED",
+    "SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED",
+    "CONSENT_NOTICE_STATE_ENFORCED",
+)
 
 #: Purpose -> notice version identifiers the server understands for grants.
 #: A client-invented version is rejected with ``INVALID_NOTICE_VERSION``.
@@ -299,16 +318,45 @@ def validate_purpose(purpose: object) -> str:
     return purpose
 
 
+def enforcement_flag(name: str, *, default: bool = False) -> bool:
+    """Read a consent enforcement switch with fail-closed semantics.
+
+    Contract:
+
+    * **unset** -> ``default`` (existing installations keep working; the
+      Terraform default is ``false`` and activation is an explicit decision);
+    * ``"true"`` / ``"false"`` (case-insensitive) -> that value;
+    * anything else (including an empty string, ``"1"``, ``"yes"`` or a typo)
+      -> **enforce**. A broken deployment value must never disable a gate.
+
+    The failure is logged so operators can see the misconfiguration; the value
+    itself is not a secret and is safe to log.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    logger.error(
+        "invalid consent enforcement flag %s=%r; failing closed (enforcing)",
+        name, raw)
+    return True
+
+
 def notice_state_enforced() -> bool:
     """Whether only approved/active notice versions may be granted.
 
     Default is ``false`` so the technical consent flow (and synthetic
     end-to-end runs) keeps working while the notice text is still a draft.
     Real processing must run with ``CONSENT_NOTICE_STATE_ENFORCED=true`` so a
-    draft can never be recorded as an approved consent.
+    draft can never be recorded as an approved consent. An unset variable
+    keeps the legacy default; an invalid value is treated as ``true``
+    (fail closed).
     """
-    return os.environ.get(
-        "CONSENT_NOTICE_STATE_ENFORCED", "false").strip().lower() == "true"
+    return enforcement_flag("CONSENT_NOTICE_STATE_ENFORCED")
 
 
 def notice_version(purpose: str, version: object) -> NoticeVersion | None:

@@ -710,8 +710,13 @@ resource "aws_lambda_function" "agent" {
       PARTNER_SURFACE_ENABLED      = var.partner_surface_enabled ? "true" : "false"
       CONSENTS_TABLE               = var.consents_table_name
       APPLICATION_CONSENT_ENFORCED = var.application_consent_enforced ? "true" : "false"
-      DELETION_LEDGER_TABLE        = var.deletion_ledger_table_name
-      LOG_LEVEL                    = var.log_level
+      CV_STORAGE_CONSENT_ENFORCED  = var.cv_storage_consent_enforced ? "true" : "false"
+      SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED = (
+      var.search_profile_storage_consent_enforced ? "true" : "false")
+      CONSENT_NOTICE_STATE_ENFORCED = var.consent_notice_state_enforced ? "true" : "false"
+      CONSENT_PILOT_ALLOWLIST       = var.consent_pilot_allowlist
+      DELETION_LEDGER_TABLE         = var.deletion_ledger_table_name
+      LOG_LEVEL                     = var.log_level
       # Project-owned Orders facade + ATS endpoint for the domain agent.
       ORDERS_BASE_URL  = var.orders_base_url
       ATS_API_BASE_URL = var.ats_api_base_url
@@ -752,6 +757,35 @@ resource "aws_lambda_function" "agent" {
   ]
 
   tags = merge({ "Project" = var.project_name }, var.tags)
+
+  # Consent enforcement is fail-closed at configuration time as well:
+  # 1. enforcing any storage gate while draft notices are still grantable is a
+  #    contradictory policy - refuse the plan instead of collecting a consent
+  #    against an unapproved text;
+  # 2. the cv/search-profile gates are pilot-scoped, so they require an
+  #    explicit identity allowlist. An empty list would silently widen the
+  #    pilot to every partner user, which is a general-rollout decision and
+  #    must not happen as a side effect of a typo.
+  lifecycle {
+    precondition {
+      condition = (
+        !(var.application_consent_enforced
+          || var.cv_storage_consent_enforced
+        || var.search_profile_storage_consent_enforced)
+        || var.consent_notice_state_enforced
+      )
+      error_message = "consent_notice_state_enforced must be true when any storage consent gate is enforced; otherwise a DRAFT notice could be granted while storage writes are gated."
+    }
+
+    precondition {
+      condition = (
+        !(var.cv_storage_consent_enforced
+        || var.search_profile_storage_consent_enforced)
+        || trimspace(var.consent_pilot_allowlist) != ""
+      )
+      error_message = "cv_storage_consent_enforced / search_profile_storage_consent_enforced require a non-empty consent_pilot_allowlist; the gates are limited-pilot only and must not apply globally by accident."
+    }
+  }
 }
 
 resource "aws_cloudwatch_log_group" "lambda_logs" {

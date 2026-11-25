@@ -348,6 +348,55 @@ variable "application_consent_enforced" {
   default     = false
 }
 
+# Limited-pilot consent enforcement. Defaults are OFF/empty for every new or
+# existing installation; activation is an explicit plan input (never a
+# deployment side effect). All four switches are read by lambda/handler.py and
+# jobsearch/consent_contract.py; the static IaC tests assert that each one is
+# declared here and wired to the Lambda environment.
+variable "cv_storage_consent_enforced" {
+  description = "Enforce cv-storage consent on durable CV create/upload/update writes. Reads, downloads and deletion stay available. Default AUS."
+  type        = bool
+  default     = false
+}
+
+variable "search_profile_storage_consent_enforced" {
+  description = "Enforce search-profile-storage consent on manual, CV-search and ATS-profile create/update writes. Reads and deletion stay available. Default AUS."
+  type        = bool
+  default     = false
+}
+
+variable "consent_notice_state_enforced" {
+  description = "Reject new consent grants for non-grantable notice states (DRAFT/SUPERSEDED) in the Lambda runtime. Default AUS."
+  type        = bool
+  default     = false
+}
+
+# The allowlist contains pseudonymous Cognito issuer/subject pairs. It is an
+# access boundary, not a credential, but it must still never be committed:
+# supply it at plan time from a protected local var file (mode 0600), never as
+# a committed installer overlay value and never in reports.
+variable "consent_pilot_allowlist" {
+  description = "Comma/newline separated <issuer>|<sub> pilot identities. Empty means no scoped pilot identity. Never commit the value; supply it via a protected plan-time var file."
+  type        = string
+  default     = ""
+  sensitive   = true
+
+  validation {
+    # Reject malformed entries at plan time. The runtime ignores malformed
+    # entries (so it can never widen scope), but a typo would silently shrink
+    # the pilot scope - so configuration must fail closed instead.
+    condition = trimspace(var.consent_pilot_allowlist) == "" || alltrue([
+      for entry in [
+        for raw_entry in split(",", replace(var.consent_pilot_allowlist, "\n", ",")) :
+        trimspace(raw_entry)
+        ] : entry == "" || can(regex(
+          "^https?://[^|[:space:]]+\\|[^|[:space:]]+$", entry
+      ))
+    ])
+    error_message = "consent_pilot_allowlist entries must be <issuer>|<sub> with an http(s) issuer; empty entries and trailing commas are ignored."
+  }
+}
+
 variable "partner_surface_enabled" {
   description = "Aktiviert die Partner-/Personen-Oberflaeche (Default AUS)."
   type        = bool

@@ -503,6 +503,13 @@ PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
     "api_cors_origins",
     "applications_cursor_secret_arn",
     "partner_surface_enabled",
+    # Consent enforcement switches. Site-specific booleans are explicit plan
+    # inputs; defaults in Terraform stay false. `consent_pilot_allowlist` is
+    # intentionally NOT allowed here: its issuer|sub values must come from a
+    # protected plan-time var file, never from a committed overlay.
+    "cv_storage_consent_enforced",
+    "search_profile_storage_consent_enforced",
+    "consent_notice_state_enforced",
     "jobsearch_cognito_issuer",
     "jobsearch_cognito_client_id",
     "jobsearch_edge_cors_origins",
