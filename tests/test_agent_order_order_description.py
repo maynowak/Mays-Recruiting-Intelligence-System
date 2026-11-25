@@ -155,17 +155,18 @@ class TestMoCreateToRisDispatch(unittest.TestCase):
         self.assertEqual(1, len(self.dispatched))
         stored = self.table.puts[0]
 
-        # MO-shaped row, no root agentOrder
+        # MO-shaped row: the validated body is an internal correlation copy,
+        # never a public field of the OrderV1 row.
         self.assertEqual("agent.execution", stored["orderType"])
         self.assertEqual(payload["orderDescription"], stored["orderDescription"])
-        self.assertNotIn("agentOrder", stored)
+        parsed = parse_agent_order_description(stored["orderDescription"])
+        self.assertEqual(parsed, stored["agentOrder"])
+        self.assertEqual("corr-mo-1", parsed["metadata"]["requestId"])
+        self.assertNotIn("agentOrder", json.loads(response["body"]))
         self.assertEqual({"name": "Mays GmbH", "email": "ops@example.com"},
                          stored["customer"])
         self.assertEqual(1, len(stored["items"]))
         self.assertEqual(100, stored["totalAmount"])
-
-        parsed = parse_agent_order_description(stored["orderDescription"])
-        self.assertEqual("corr-mo-1", parsed["metadata"]["requestId"])
 
         envelope = self.dispatched[0]
         self.assertEqual(stored["orderId"], envelope["orderId"])

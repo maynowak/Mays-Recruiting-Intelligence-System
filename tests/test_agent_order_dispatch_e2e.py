@@ -327,6 +327,9 @@ class TestAgentOrderDispatchE2E(unittest.TestCase):
         self.assertEqual("agent.execution", public["orderType"])
         self.assertEqual("2.0", public["processing"]["result"]["bodyVersion"])
         self.assertEqual(50, public["processing"]["result"]["analysis"]["score"])
+        # The internal correlation copy must never leak into public reads.
+        self.assertNotIn("agentOrder", public)
+        self.assertNotIn("agentOrder", created)
 
         foreign = orders_reader.handler(
             event("GET /orders/{orderId}", order_id=order_id, sub="owner-other"),
@@ -357,6 +360,90 @@ class TestAgentOrderDispatchE2E(unittest.TestCase):
         process_records([record], ["test-secret"], service=service)
         self.assertEqual(before, self.orders.items[order_id]["processing"])
         self.assertEqual(writes, self.orders.updates)
+
+    def test_internal_agent_order_is_mo_compatible(self):
+        """The stored row keeps the validated AgentOrder for the MO consumer."""
+        import dispatch  # MO lambda/src, resolved via MO_ORDERS_SRC
+        from order_service import to_public_order
+        from agents.orders.agent_order import (
+            fingerprint as agent_order_fingerprint,
+            parse_agent_order_description,
+        )
+
+        response = self._create_agent_order()
+        self.assertEqual(201, response["statusCode"], response["body"])
+        created = json.loads(response["body"])
+        order_id = created["orderId"]
+        stored = self.orders.items[order_id]
+
+        parsed = parse_agent_order_description(stored["orderDescription"])
+        self.assertEqual(parsed, stored["agentOrder"])
+        self.assertEqual(agent_order_fingerprint(parsed),
+                         stored["agentOrderFingerprint"])
+        self.assertNotIn("agentOrder", created)
+
+        # MO's own projection also treats the copy as internal, and the row
+        # carries no privacy/subject index (MO privacy ops do not select it).
+        self.assertNotIn("agentOrder", to_public_order(stored))
+        self.assertNotIn("agentOrderFingerprint", to_public_order(stored))
+        self.assertNotIn("subjectId", stored)
+        self.assertNotIn("gsi2pk", stored)
+        self.assertNotIn("gsi2sk", stored)
+
+        envelope = dispatch.build_dispatch_envelope(
+            stored, stored["expectedWorkId"])
+        self.assertEqual(order_id, envelope["orderId"])
+        self.assertEqual("corr-e2e", envelope["correlationId"])
+        self.assertEqual(stored["expectedWorkId"],
+                         envelope["execution"]["workId"])
+        self.assertEqual("ats-agent", envelope["recipient"]["agentId"])
+        self.assertEqual("analyze.job", envelope["recipient"]["capability"])
+        self.assertEqual(PROFILE_ID, envelope["identity"]["contextRef"])
+
+    def test_wrong_correlation_and_work_id_fail_closed(self):
+        from result_envelope import sign
+        from result_handler import process_records
+        from order_service import OrderService
+
+        order_id = json.loads(self._create_agent_order()["body"])["orderId"]
+        with open(os.path.join(_REPO, "tests", "fixtures", "ats_result_body",
+                               "score-50-partial.json"), encoding="utf-8") as fh:
+            ats_body = json.load(fh)
+        with patch.object(ATSHttpClient, "analyze", return_value=ats_body):
+            self._dispatch(self.dispatched[0])
+        result = self.results[0]
+
+        def consume(tampered):
+            body = json.dumps(tampered, separators=(",", ":"))
+            record = {"messageId": "11111111-2222-3333-4444-555555555555",
+                      "body": body,
+                      "messageAttributes": {"serviceSignature": {
+                          "stringValue": sign("test-secret",
+                                              tampered["messageId"], body)}}}
+            return process_records(
+                [record], ["test-secret"],
+                service=OrderService("orders", client=self.orders))
+
+        wrong_correlation = json.loads(json.dumps(result))
+        wrong_correlation["correlationId"] = "corr-foreign"
+        out = consume(wrong_correlation)
+        self.assertEqual({"processed": 0, "rejected": 1},
+                         json.loads(out["body"]))
+        self.assertNotIn("processing", self.orders.items[order_id])
+
+        wrong_work = json.loads(json.dumps(result))
+        wrong_work["execution"]["workId"] = "work-foreign"
+        out = consume(wrong_work)
+        self.assertEqual({"processed": 0, "rejected": 1},
+                         json.loads(out["body"]))
+        self.assertNotIn("processing", self.orders.items[order_id])
+
+        # The untampered result still applies exactly once.
+        out = consume(result)
+        self.assertEqual({"processed": 1, "rejected": 0},
+                         json.loads(out["body"]))
+        self.assertEqual("COMPLETED",
+                         self.orders.items[order_id]["processing"]["status"])
 
     def test_invalid_signature_is_rejected_without_persistence(self):
         from result_handler import process_records

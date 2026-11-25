@@ -555,11 +555,12 @@ class TestAgentOrderCreate(unittest.TestCase):
         self.assertEqual(201, resp["statusCode"], resp["body"])
         created = json.loads(resp["body"])
         self.assertEqual("agent.execution", created["orderType"])
+        self.assertNotIn("agentOrder", created)
         order_id = created["orderId"]
         stored = self.table._items[order_id]
         self.assertEqual("PENDING", stored["status"])
-        self.assertNotIn("agentOrder", stored)
         parsed = parse_agent_order_description(stored["orderDescription"])
+        self.assertEqual(parsed, stored["agentOrder"])
         self.assertEqual("corr-1", parsed["metadata"]["requestId"])
         self.assertEqual("Mays", stored["customer"]["name"])
         self.assertEqual(1, len(stored["items"]))

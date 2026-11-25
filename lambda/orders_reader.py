@@ -314,9 +314,13 @@ def _public(item: Dict[str, Any]) -> Dict[str, Any]:
         "createdAt": item.get("createdAt"),
         "updatedAt": item.get("updatedAt"),
     }
-    agent_order = _public_agent_order(item.get("agentOrder"))
-    if agent_order:
-        projected["agentOrder"] = agent_order
+    # New OrderV1 rows keep the validated AgentOrder only as an internal
+    # correlation copy (the public field is orderDescription). Legacy rows
+    # without orderDescription keep the previous read projection unchanged.
+    if "orderDescription" not in item:
+        agent_order = _public_agent_order(item.get("agentOrder"))
+        if agent_order:
+            projected["agentOrder"] = agent_order
     processing = _public_processing(item.get("processing"))
     if processing:
         projected["processing"] = processing
@@ -623,7 +627,10 @@ def _create_agent_order(table: Any, raw: Dict[str, Any],
 
     # Stored row is a normal Mays-Orders OrderV1 item (customer/items/currency/
     # orderType/orderDescription) plus the RIS ownership and dispatch metadata.
-    # The agentOrder body itself is never stored as a root attribute.
+    # ``agentOrder`` is an internal copy of the validated body: the Mays-Orders
+    # result consumer and its dispatch builder read the correlation reference
+    # from that attribute, so it must exist on the row. It is never accepted
+    # from a client request and never re-published by the reader (see _public).
     stored_item = {
         "pk": f"{ORDER_ID_PREFIX}{order_id}",
         "sk": ORDER_SK,
@@ -635,6 +642,7 @@ def _create_agent_order(table: Any, raw: Dict[str, Any],
         "currency": currency,
         "totalAmount": item["lineTotal"],
         "orderDescription": description,
+        "agentOrder": agent_order,
         "agentOrderFingerprint": agent_order_fingerprint(agent_order),
         "expectedWorkId": work_id,
         "dispatch": {"status": "PENDING", "workId": work_id},
