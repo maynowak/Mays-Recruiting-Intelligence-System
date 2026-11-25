@@ -12731,3 +12731,19 @@ Vollständiger Bericht: `docs/reports/RIS-DEV2-PRIVACY-RELEASE-GATE-02.md`
 
 No apply, no AWS mutation, no state write, no main merge, no MO/pin change.
 Post-apply smoke test (synthetic data) remains open.
+
+---
+
+## RIS-DEV2-DRIFT-FORENSICS-01 — 2026-11-25
+
+Status: **B — BLOCKED (STRICTLY READ-ONLY; NO APPLY)**
+
+Bericht: `docs/reports/RIS-DEV2-DRIFT-FORENSICS-01.md`
+
+- Expected branch/HEAD/remote verified (`ef8c12656f120e83fe4b67fa92fc4b3b425a830e`); plan SHA verified as `2bbf81424b9761712008ef698f5afe5bb6b5ac1db0eaa74220427e8f09b7facd`.
+- Workspace/account/region/backend verified. `terraform state pull`: expected lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, serial 69. S3 current version `21V4lPFLRfZO7YLrgBcxlVtFOZb5y8dW`, LastModified `2026-11-22T11:52:56Z`, before plan time. Lock scan found only two `-md5` entries without `Info`, no active lock.
+- Public `terraform show -json` exposes no lineage/serial inside `prior_state`; no undocumented binary format was parsed. Applying a saved plan automatically checks stale state lineage/serial, but this is not a substitute for the human drift decision.
+- All 3 drift entries were checked using plan JSON and read-only AWS APIs. Dispatch-ingress role has an external `sqs:SendMessage` Allow to the specific WorkQueue; Analysis role has external DynamoDB `GetItem`/`Query` on PartnerProfiles table/indexes and `GetItem` on WorkItems table. Live policies match declared plan values and both IAM resources are `no-op` in `resource_changes`; nevertheless these are real permission additions vs backend state, lack `Condition` boundaries, and origin was not established. CloudTrail lookup returned no matching role events in the queried history page.
+- Analysis Lambda `layers` is empty (`null`/`[]` normalization); live API returns no layers. Its planned update changes only `source_code_hash` and computed `last_modified`.
+- Saved plan still has 265 no-op / 7 Lambda updates / 0 add / 0 delete / 0 replace. IAM changes are not proposed by the plan, but two current live permissions are security-relevant and lack proven separate authorization. They are functionally associated with two updated Lambda runtimes.
+- Verdict **B — BLOCKED**. Do not resume prior approval. Next AWS mutation requires provenance/approval of IAM grants and a new explicit human release decision. No apply, refresh-only apply, plan, IAM update, deployment, or state write was performed.
