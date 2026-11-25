@@ -12747,3 +12747,22 @@ Bericht: `docs/reports/RIS-DEV2-DRIFT-FORENSICS-01.md`
 - Analysis Lambda `layers` is empty (`null`/`[]` normalization); live API returns no layers. Its planned update changes only `source_code_hash` and computed `last_modified`.
 - Saved plan still has 265 no-op / 7 Lambda updates / 0 add / 0 delete / 0 replace. IAM changes are not proposed by the plan, but two current live permissions are security-relevant and lack proven separate authorization. They are functionally associated with two updated Lambda runtimes.
 - Verdict **B — BLOCKED**. Do not resume prior approval. Next AWS mutation requires provenance/approval of IAM grants and a new explicit human release decision. No apply, refresh-only apply, plan, IAM update, deployment, or state write was performed.
+
+---
+
+## RIS-DEV2-IAM-AUTHORIZATION-01 — 2026-11-25
+
+Status: **READ-ONLY PROVENANCE + LEAST-PRIVILEGE REVIEW — NO APPLY**
+
+Bericht: `docs/reports/RIS-DEV2-IAM-AUTHORIZATION-01.md`
+
+- Baseline/HEAD `348055c…` verified; plan SHA unchanged.
+- Source history: `89929c5` created the analysis data policy (WorkItems RW, Entitlements read, PartnerProfiles read); `f639611` added `SendToWorkQueue` and reduced the analysis policy to PartnerProfiles read; `c5fef5d` added `SyntheticWorkItemReadback` (WorkItems GetItem).
+- Evidence split: Git commit yes for all; code review/PR **not evidenced**; deployment execution evidenced; human approval documented only as gate reference `RIS-ANALYSIS-16C2-A-2026-11-22` bound to plan `73934457…` in the apply log — no named approver/sign-off.
+- CloudTrail (paginated, 2026-11-15..26): exactly two relevant `PutRolePolicy` events at `2026-11-22T11:52:25Z`, roles dispatch-ingress and analysis, policies `…-policy` and `…-runtime-data`, principal IAM user `devnemo`, no errors, Terraform provider user agent; no Delete/Attach events on these roles. Same event IDs in both multi-region trail buckets. Correlation: pre-apply state mirror 11:52:19Z, apply exit 0 11:52:54Z, state 69 11:52:56Z.
+- Trail integrity: `ris-dev2-trail` 3/3 digests, 26/26 files; `ris-agent-trail` 3/3, 27/27.
+- Least privilege: `SendToWorkQueue` = only `sqs:SendMessage` on the exact work queue, used by `enqueue_work_item` → **AUTHORIZED / EVIDENCED**.
+- `OwnedPartnerProfiles`: runtime uses only `PartnerProfileRepository.get` (`table.get_item`, base table); `Query` + `index/*` are unused by the analysis Lambda. Identity/owner checks exist at application layer (`_identity_ok`). → **REMEDIATION REQUIRED** for the Query/index portion.
+- `SyntheticWorkItemReadback`: only `GetItem`, dormant (synthetic mode false), exact-match check against the persisted RUNNING WorkItem; IAM cannot restrict GetItem to synthetic rows. → **REQUIRES HUMAN SECURITY ACCEPTANCE**.
+- Observation: `ENTITLEMENTS_TABLE` is set on the analysis Lambda but no entitlements IAM grant remains → resolver fails closed; functional, not a permission expansion.
+- Plan stays blocked. No apply, state write, IAM change, replacement plan, deployment or main merge.
