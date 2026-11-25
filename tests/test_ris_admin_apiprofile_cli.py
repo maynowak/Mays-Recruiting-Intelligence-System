@@ -190,3 +190,64 @@ def test_authorization_file_without_tenant_fails_closed(tmp_path):
     with pytest.raises(AdminAuthorizationError):
         resolve_admin_authorization(str(anchor), PRINCIPAL,
                                     "create an APIProfile")
+
+
+# ----------------------------------------------------------------------
+# Identity binding (partnerApplicationId + issuer)
+# ----------------------------------------------------------------------
+
+def _application(**overrides):
+    app = {"applicationId": "app-1", "tenantId": TENANT, "status": "ACTIVE"}
+    app.update(overrides)
+    return app
+
+
+def _active_profile(store):
+    item = apis.create("Bound", _actor(), profile_store=store)
+    apis.activate(item["apiProfileId"], _actor(), profile_store=store)
+    return item["apiProfileId"]
+
+
+def test_bind_identity_is_admin_only():
+    store = InMemoryApiProfileStore()
+    pid = _active_profile(store)
+    with pytest.raises(Exception):
+        apis.bind_identity(pid, _actor(role="owner"), "app-1",
+                           "https://issuer.example", "canary",
+                           partner_application=_application(),
+                           profile_store=store)
+    assert "partnerApplicationId" not in store.get_profile(pid)
+
+
+def test_bind_identity_sets_partner_and_issuer():
+    store = InMemoryApiProfileStore()
+    pid = _active_profile(store)
+    out = apis.bind_identity(pid, _actor(), "app-1",
+                             "https://issuer.example", "canary",
+                             partner_application=_application(),
+                             profile_store=store)
+    assert out["partnerApplicationId"] == "app-1"
+    assert out["issuer"] == "https://issuer.example"
+    assert store.get_profile(pid)["issuer"] == "https://issuer.example"
+
+
+def test_bind_identity_rejects_foreign_or_inactive_application():
+    store = InMemoryApiProfileStore()
+    pid = _active_profile(store)
+    for app in (_application(tenantId="other-tenant"),
+                _application(status="INACTIVE"),
+                _application(applicationId="other")):
+        with pytest.raises(Exception):
+            apis.bind_identity(pid, _actor(), "app-1",
+                               "https://issuer.example", "canary",
+                               partner_application=app, profile_store=store)
+
+
+def test_parser_exposes_bind_without_tenant_flag():
+    parser = build_parser()
+    args = parser.parse_args([
+        "apiprofile", "bind", "--apiProfileId", "aprof_x",
+        "--partner-application-id", "app-1", "--reason", "canary"])
+    assert args.apiprofile_cmd == "bind"
+    assert not hasattr(args, "tenantId")
+    assert not hasattr(args, "issuer")

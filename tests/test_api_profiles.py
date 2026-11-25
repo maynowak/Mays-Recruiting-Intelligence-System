@@ -443,5 +443,90 @@ class TestP9Integration(Base):
         self.assertIsNotNone(DynamoDBApiProfileStore(table_name="t"))
 
 
+class TestIdentityBinding(Base):
+    ISSUER = "https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_TEST"
+
+    def _active(self):
+        p = self.mk()
+        ap.transition_status(self.store, admin(), p["apiProfileId"], "ACTIVE")
+        return p["apiProfileId"]
+
+    def _app(self, **overrides):
+        app = {"applicationId": "app-1", "tenantId": "t1", "status": "ACTIVE"}
+        app.update(overrides)
+        return app
+
+    def test_admin_binds_partner_and_issuer(self):
+        pid = self._active()
+        out = ap.set_identity_binding(
+            self.store, admin(), pid, "app-1", self.ISSUER,
+            reason="canary", partner_application=self._app())
+        self.assertEqual(out["partnerApplicationId"], "app-1")
+        self.assertEqual(out["issuer"], self.ISSUER)
+        stored = self.store.get_profile(pid)
+        self.assertEqual(stored["partnerApplicationId"], "app-1")
+        self.assertEqual(stored["issuer"], self.ISSUER)
+
+    def test_owner_cannot_self_assign(self):
+        pid = self._active()
+        with self.assertRaises(UnauthorizedProfileAction):
+            ap.set_identity_binding(
+                self.store, owner(), pid, "app-1", self.ISSUER,
+                reason="self", partner_application=self._app())
+        self.assertNotIn("partnerApplicationId",
+                         self.store.get_profile(pid))
+
+    def test_update_cannot_set_binding_fields(self):
+        p = self.mk()
+        with self.assertRaises(ValueError):
+            ap.update_profile(self.store, owner(), p["apiProfileId"],
+                              partnerApplicationId="app-1")
+        with self.assertRaises(ValueError):
+            ap.update_profile(self.store, owner(), p["apiProfileId"],
+                              issuer=self.ISSUER)
+
+    def test_staff_cannot_bind(self):
+        pid = self._active()
+        with self.assertRaises(UnauthorizedProfileAction):
+            ap.set_identity_binding(
+                self.store, staff(), pid, "app-1", self.ISSUER,
+                reason="staff", partner_application=self._app())
+
+    def test_reason_is_required(self):
+        pid = self._active()
+        with self.assertRaises(ValueError):
+            ap.set_identity_binding(
+                self.store, admin(), pid, "app-1", self.ISSUER,
+                reason="", partner_application=self._app())
+
+    def test_issuer_must_be_https(self):
+        pid = self._active()
+        for bad in ("http://issuer.invalid", "", "issuer.example"):
+            with self.assertRaises(ValueError):
+                ap.set_identity_binding(
+                    self.store, admin(), pid, "app-1", bad,
+                    reason="canary", partner_application=self._app())
+
+    def test_partner_application_must_match(self):
+        pid = self._active()
+        cases = (
+            self._app(applicationId="other"),
+            self._app(status="INACTIVE"),
+            self._app(tenantId="tX"),
+            self._app(apiProfileId="aprof_other"),
+        )
+        for app in cases:
+            with self.assertRaises(UnauthorizedProfileAction):
+                ap.set_identity_binding(
+                    self.store, admin(), pid, "app-1", self.ISSUER,
+                    reason="canary", partner_application=app)
+        with self.assertRaises(UnauthorizedProfileAction):
+            ap.set_identity_binding(
+                self.store, admin(), pid, "app-1", self.ISSUER,
+                reason="canary", partner_application=None)
+        self.assertNotIn("partnerApplicationId",
+                         self.store.get_profile(pid))
+
+
 if __name__ == "__main__":
     unittest.main()

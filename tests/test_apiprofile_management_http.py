@@ -17,6 +17,8 @@ for extra in (str(REPO_ROOT / "lambda"), str(REPO_ROOT)):
         sys.path.insert(0, extra)
 
 os.environ.setdefault("API_PROFILES_TABLE", "mays-ris-dev-api-profiles")
+os.environ.setdefault("RIS_PARTNER_APPLICATIONS_TABLE",
+                      "mays-ris-dev-partner-applications")
 os.environ.setdefault("AWS_REGION", "eu-central-1")
 
 from agents.ecosystem import api_profiles as ap  # noqa: E402
@@ -30,21 +32,22 @@ OTHER_TENANT = "tenant-other"
 
 
 def ev(path, method, sub=OWNER_SUB, groups=(), tenant=TENANT, body=None,
-       query=None):
+       query=None, iss=None, partner_claim=None):
+    claims = {
+        "sub": sub,
+        "email": "synthetic@example.invalid",
+        "custom:tenant_id": tenant,
+        "cognito:groups": list(groups),
+    }
+    if iss is not None:
+        claims["iss"] = iss
+    if partner_claim is not None:
+        claims["custom:partner_application_id"] = partner_claim
     event = {
         "httpMethod": method,
         "path": path,
         "requestContext": {
-            "authorizer": {
-                "jwt": {
-                    "claims": {
-                        "sub": sub,
-                        "email": "synthetic@example.invalid",
-                        "custom:tenant_id": tenant,
-                        "cognito:groups": list(groups),
-                    }
-                }
-            },
+            "authorizer": {"jwt": {"claims": claims}},
             "requestId": "p19-test",
         },
     }
@@ -421,6 +424,105 @@ class TestAuthAndAudit(P19Harness):
             self.assertEqual(code, 404, method)
         code, _ = self.call("/v1/apiprofiles", "DELETE")
         self.assertEqual(code, 404)
+
+
+class TestIdentityBinding(P19Harness):
+    ISSUER = "https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_TEST"
+    _UNSET = object()
+
+    def _active(self):
+        code, body = self.call("/v1/apiprofiles", "POST",
+                               body={"name": "binding"})
+        self.assertEqual(code, 201)
+        pid = body["apiProfileId"]
+        code, _ = self.call(f"/v1/apiprofiles/{pid}/status", "POST",
+                            groups=("admins",),
+                            body={"status": "ACTIVE", "reason": "test"})
+        self.assertEqual(code, 200)
+        return pid
+
+    def _app(self, **overrides):
+        app = {"applicationId": "app-canary", "tenantId": TENANT,
+               "status": "ACTIVE"}
+        app.update(overrides)
+        return app
+
+    def _bind(self, pid, app=_UNSET, **kw):
+        from unittest.mock import patch
+
+        effective = self._app() if app is self._UNSET else app
+        body = kw.pop("body", {"partnerApplicationId": "app-canary",
+                               "reason": "canary"})
+        with patch(
+                "agents.ecosystem.partner_registry.get_partner_application",
+                return_value=effective):
+            return self.call(f"/v1/apiprofiles/{pid}/binding", "POST",
+                             groups=("admins",), iss=self.ISSUER,
+                             body=body, **kw)
+
+    def test_admin_binds_with_verified_issuer(self):
+        pid = self._active()
+        code, body = self._bind(pid)
+        self.assertEqual(code, 200)
+        self.assertEqual(body["partnerApplicationId"], "app-canary")
+        self.assertEqual(body["issuer"], self.ISSUER)
+        self.assertEqual(self.store.items[pid]["issuer"], self.ISSUER)
+
+    def test_body_issuer_is_not_accepted(self):
+        pid = self._active()
+        code, _ = self._bind(pid, body={
+            "partnerApplicationId": "app-canary",
+            "issuer": "https://attacker.invalid", "reason": "canary"})
+        self.assertEqual(code, 400)
+
+    def test_owner_cannot_bind(self):
+        pid = self._active()
+        from unittest.mock import patch
+
+        with patch(
+                "agents.ecosystem.partner_registry.get_partner_application",
+                return_value=self._app()):
+            code, _ = self.call(
+                f"/v1/apiprofiles/{pid}/binding", "POST", iss=self.ISSUER,
+                body={"partnerApplicationId": "app-canary",
+                      "reason": "self"})
+        self.assertEqual(code, 404)
+        self.assertNotIn("partnerApplicationId", self.store.items[pid])
+
+    def test_missing_verified_issuer_denied(self):
+        pid = self._active()
+        from unittest.mock import patch
+
+        with patch(
+                "agents.ecosystem.partner_registry.get_partner_application",
+                return_value=self._app()):
+            code, _ = self.call(
+                f"/v1/apiprofiles/{pid}/binding", "POST",
+                groups=("admins",),
+                body={"partnerApplicationId": "app-canary",
+                      "reason": "canary"})
+        self.assertEqual(code, 400)
+
+    def test_partner_claim_mismatch_denied(self):
+        pid = self._active()
+        from unittest.mock import patch
+
+        with patch(
+                "agents.ecosystem.partner_registry.get_partner_application",
+                return_value=self._app()):
+            code, _ = self.call(
+                f"/v1/apiprofiles/{pid}/binding", "POST", groups=("admins",),
+                iss=self.ISSUER, partner_claim="other-app",
+                body={"partnerApplicationId": "app-canary",
+                      "reason": "canary"})
+        self.assertEqual(code, 400)
+
+    def test_inactive_or_unknown_application_denied(self):
+        pid = self._active()
+        for app in (self._app(status="INACTIVE"), None):
+            code, _ = self._bind(pid, app=app)
+            self.assertIn(code, (403, 404))
+        self.assertNotIn("partnerApplicationId", self.store.items[pid])
 
 
 if __name__ == "__main__":

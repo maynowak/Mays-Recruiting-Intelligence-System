@@ -3008,8 +3008,8 @@ def _aprof_ids(path):
         return None
     if len(parts) == 3:
         return (pid, None)
-    if len(parts) == 4 and parts[3] == "status":
-        return (pid, "status")
+    if len(parts) == 4 and parts[3] in ("status", "binding"):
+        return (pid, parts[3])
     return None
 
 
@@ -3163,6 +3163,41 @@ def _handle_apiprofile_status(event, method, pid, store, actor):
     return 200, item
 
 
+def _handle_apiprofile_binding(event, method, pid, store, actor,
+                               user_context):
+    """POST /v1/apiprofiles/{apiProfileId}/binding (admin only).
+
+    The issuer comes from the verified JWT ``iss`` claim, never from the body.
+    The partner application is validated against the authoritative registry.
+    """
+    from agents.ecosystem import api_profiles
+
+    if method != "POST":
+        return 404, {"error": "Not found"}
+    data = _aprof_body(event, {"partnerApplicationId", "reason"},
+                       {"partnerApplicationId", "reason"})
+    partner_id = _aprof_str(data, "partnerApplicationId")
+    reason = _aprof_reason(data, event)
+    issuer = (user_context.get("issuer") or "").strip()
+    if not issuer:
+        raise _AProfBad("Verified issuer is unavailable")
+    claimed_partner = user_context.get("partnerApplicationId")
+    if claimed_partner and str(claimed_partner) != partner_id:
+        raise _AProfBad("Invalid field: partnerApplicationId")
+    import os
+
+    from agents.ecosystem.partner_registry import get_partner_application
+
+    table = os.environ.get("RIS_PARTNER_APPLICATIONS_TABLE")
+    if not table:
+        raise RuntimeError("partner registry unconfigured")
+    application = get_partner_application(partner_id, table_name=table)
+    item = api_profiles.set_identity_binding(
+        store, actor, pid, partner_id, issuer, reason=reason,
+        partner_application=application)
+    return 200, item
+
+
 def _handle_apiprofile_routes(event, context, method, path):
     """Dispatch APIProfile management (Human JWT only, kein M2M hier)."""
     user_context = _extract_user_context(event)
@@ -3192,6 +3227,9 @@ def _handle_apiprofile_routes(event, context, method, path):
         elif action == "status":
             status, body = _handle_apiprofile_status(
                 event, method, pid, store, actor)
+        elif action == "binding":
+            status, body = _handle_apiprofile_binding(
+                event, method, pid, store, actor, user_context)
         else:
             status, body = _handle_apiprofile_item(
                 event, method, pid, store, actor)

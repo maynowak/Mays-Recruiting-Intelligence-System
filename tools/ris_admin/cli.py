@@ -520,6 +520,52 @@ def build_parser() -> argparse.ArgumentParser:
     ap_activate.add_argument("--authorization-file", default=None)
     ap_activate.set_defaults(func=_aprof_cmd_activate)
 
+    def _aprof_cmd_bind(args):
+        ops = _apiprofile_ops()
+        if args.dry_run:
+            _print_json({"dryRun": True, "operation": "apiprofile bind",
+                         "apiProfileId": args.apiProfileId,
+                         "partnerApplicationId": args.partner_application_id,
+                         "issuerSource": "RIS_COGNITO_ISSUER",
+                         "note": "no APIProfile was changed"})
+            return 0
+        issuer = (os.getenv("RIS_COGNITO_ISSUER") or "").strip()
+        if not issuer:
+            _deny_message(
+                "RIS_COGNITO_ISSUER is required for the identity binding")
+            return 1
+        from agents.ecosystem.partner_registry import get_partner_application
+
+        application = get_partner_application(args.partner_application_id)
+        if application is None:
+            _deny_message("partner application not found")
+            return 1
+        try:
+            actor = _actor(args, "bind an APIProfile identity")
+        except credops_error() as exc:
+            return _deny(exc)
+        try:
+            item = ops.bind_identity(
+                api_profile_id=args.apiProfileId,
+                actor=actor,
+                partner_application_id=args.partner_application_id,
+                issuer=issuer,
+                reason=args.reason,
+                partner_application=application,
+            )
+        except Exception as exc:
+            return _apiprofile_error("bind identity", exc)
+        _print_json(item)
+        return 0
+
+    ap_bind = ap_sub.add_parser(
+        "bind", help="Bind partner application and issuer (admin only)")
+    ap_bind.add_argument("--apiProfileId", required=True)
+    ap_bind.add_argument("--partner-application-id", required=True)
+    ap_bind.add_argument("--reason", required=True)
+    ap_bind.add_argument("--authorization-file", default=None)
+    ap_bind.set_defaults(func=_aprof_cmd_bind)
+
     def _aprof_cmd_show(args):
         ops = _apiprofile_ops()
         if args.dry_run:

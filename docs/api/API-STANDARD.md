@@ -85,6 +85,7 @@ weder entfernt noch durch Cognito ersetzt.
 | `GET /v1/apiprofiles/{apiProfileId}` | JWT | 200 | 403, 404 |
 | `PATCH /v1/apiprofiles/{apiProfileId}` | JWT | 200 | 400, 403, 404 |
 | `POST /v1/apiprofiles/{apiProfileId}/status` | JWT | 200 | 400, 403, 404, 409 |
+| `POST /v1/apiprofiles/{apiProfileId}/binding` | JWT (admin) | 200 | 400, 403, 404 |
 | `POST /v1/apiprofiles/{apiProfileId}/credentials` | JWT | 201 (200 bei Idempotenz-Wiederholung) | 400, 403, 404, 409 |
 | `GET /v1/apiprofiles/{apiProfileId}/credentials` | JWT | 200 | 400, 403, 404 |
 | `GET /v1/apiprofiles/{apiProfileId}/credentials/{credentialId}` | JWT | 200 | 400, 403, 404 |
@@ -249,6 +250,15 @@ Body-Felder:
 | `POST /v1/apiprofiles` | `name`, `description`, `targetOwner`, `reason` | `name` |
 | `PATCH /v1/apiprofiles/{apiProfileId}` | `name`, `description`, `reason` | — |
 | `POST /v1/apiprofiles/{apiProfileId}/status` | `status`, `reason` | `status` |
+| `POST /v1/apiprofiles/{apiProfileId}/binding` | `partnerApplicationId`, `reason` | beide |
+
+Die Bindung ist **admin-only** und setzt `partnerApplicationId` und `issuer`
+am Profil. Der Issuer stammt ausschließlich aus dem verifizierten JWT-Claim
+`iss`; ein Issuer im Body ist **kein** erlaubtes Feld. Die
+`partnerApplicationId` wird gegen die autoritative Partner-Registry geprüft
+(ACTIVE, gleicher Tenant, nicht an ein anderes Profil gebunden). Ein
+abweichender `custom:partner_application_id`-Claim ⇒ 400. Eigentümer können
+die Bindung nicht selbst setzen (403/404 je nach Rolle).
 | `POST /v1/apiprofiles/{apiProfileId}/credentials` | `label`, `expiresAt`, `clientRef`, `reason` | `expiresAt` |
 | `POST /v1/apiprofiles/{apiProfileId}/credentials/{credentialId}/rotate` | `expiresAt`, `label`, `reason` | `expiresAt` |
 | `POST /v1/apiprofiles/{apiProfileId}/credentials/{credentialId}/disable` | `reason` | — (Staff nur mit `reason`) |

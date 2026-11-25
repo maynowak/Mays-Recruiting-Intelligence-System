@@ -204,6 +204,21 @@ class TestValidDispatch(IngressHarness):
         self.assertEqual([], result["batchItemFailures"])
         self.assertEqual("QUEUED", self.table.items["work-1"]["status"])
 
+    def test_bound_profile_carries_partner_and_issuer(self):
+        class BoundStore:
+            def get_profile(self, profile_id):
+                return {"apiProfileId": profile_id, "status": "ACTIVE",
+                        "ownerUserId": "partner-a-user", "tenantId": "tenant-a",
+                        "partnerApplicationId": "app-canary",
+                        "issuer": "https://issuer.example"}
+
+        self.deps["profile_store"] = BoundStore()
+        result = self.run_handler(self.record())
+        self.assertEqual([], result["batchItemFailures"])
+        item = self.table.items["work-1"]
+        self.assertEqual("app-canary", item["partnerApplicationId"])
+        self.assertEqual("https://issuer.example", item["issuer"])
+
 
 class TestRejectedDispatch(IngressHarness):
     def _assert_rejected(self, record):

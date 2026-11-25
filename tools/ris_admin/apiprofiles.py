@@ -128,6 +128,32 @@ def activate(api_profile_id: str,
     )
 
 
+def bind_identity(api_profile_id: str,
+                  actor: Dict[str, Any],
+                  partner_application_id: str,
+                  issuer: str,
+                  reason: str,
+                  partner_application: Optional[Dict[str, Any]] = None,
+                  profile_store=None) -> Dict[str, Any]:
+    """Admin-only identity binding through the existing domain function.
+
+    The issuer must come from verified configuration (the CLI passes the
+    operator-configured Cognito issuer); it is never a free-form flag.
+    """
+    from agents.ecosystem.api_profiles import set_identity_binding
+
+    store = _profile_store(profile_store)
+    return set_identity_binding(
+        store,
+        domain_actor(actor),
+        api_profile_id,
+        partner_application_id,
+        issuer,
+        reason=reason,
+        partner_application=partner_application,
+    )
+
+
 def show(api_profile_id: str,
          actor: Dict[str, Any],
          reason: Optional[str] = None,
