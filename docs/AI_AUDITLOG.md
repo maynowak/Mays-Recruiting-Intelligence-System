@@ -12881,3 +12881,31 @@ Bericht: `docs/reports/RIS-DEV2-CANARY-BOOTSTRAP-02.md`
   offer/grant) with IAM scope and cleanup, Phase C Terraform + canary +
   rollback. Tests reused: 240 MO, 61 cross-repo, 109 parser/analysis, 38 config.
 - No AWS write, apply, state write, new plan or main merge.
+
+---
+
+## RIS-DEV2-CANARY-CONTRACT-FIX-03 — 2026-11-25
+
+Status: **READY FOR SYNTHETIC BOOTSTRAP**
+
+Bericht: `docs/reports/RIS-DEV2-CANARY-CONTRACT-FIX-03.md`
+
+- B3 closed (`dd17574`): analysis-agent seeded in the Terraform catalog with the
+  runtime descriptor (v1.0.0, analysis.run, body 1.0.0, python3.14, ACTIVE).
+  Offer/grant works with the seeded catalog and is still denied without it.
+- B2 closed (`f06cdfe`): admin-only profile identity binding for
+  partnerApplicationId + issuer. Issuer from verified `iss` (HTTP) or
+  RIS_COGNITO_ISSUER (CLI), never from the body; partner application validated
+  as ACTIVE, same tenant, not bound elsewhere. Owners/staff cannot self-assign;
+  update still rejects the fields. New JWT route; dispatch test proves the
+  values reach the WorkItem.
+- Regression: MO 240 OK; RIS cross-repo 148 passed / 7 subtests with
+  MO_ORDERS_SRC; API/catalog/entitlement 289 passed; p23 55 / 86 subtests
+  isolated; p20 21 / 322 subtests (route count 75); P21/P22/security 85 / 12;
+  fmt/validate pass. Full tests/ collection remains BLOCKED_ENV and is not
+  counted.
+- Expected plan (not created): 2 add (catalog item, API route) / 8 change
+  (7 lambda + analysis IAM policy). No placeholder plan.
+- Remaining only provisioning: Cognito user, dedicated app client, partner
+  application, profile+activate+bind, offer/grant, then exact plan/canary.
+- No AWS write, apply, state write or main merge.
