@@ -13045,3 +13045,29 @@ Bericht: `docs/reports/RIS-DEV2-ANALYSIS-CANARY-PLAN-08.md`
   negative cases documented. Cleanup CLI added in d420a02 (revoke, withdraw,
   offer status) plus partner deactivate and Cognito deletes.
 - No apply, AWS resource change, order create, canary activation or cleanup.
+
+---
+
+## RIS-DEV2-SYNTHETIC-LIVE-CANARY-09 — 2026-11-25
+
+Status: **BLOCKED — PARTIALLY VERIFIED**
+
+Bericht: `docs/reports/RIS-DEV2-SYNTHETIC-LIVE-CANARY-09.md`
+
+- Preflight PASS; canary plan `996864c1…` (0/1/0) applied once: state 71 -> 72,
+  S3 version 21AxFw…, analysis env mode=true with the exact ris-dev2-canary-07
+  identity/entitlements/expiry; consent false; code and IAM unchanged.
+- JWT login and order create worked (HTTP 201,
+  ord_676668fe5ab468284ed7fcf2), dispatch SENT with
+  workId work-eb1185ecc14c889a. No work item was created.
+- Root cause: dispatch-ingress role lacks dynamodb:TransactWriteItems and
+  dynamodb:ConditionCheckItem on ris-dev2-dev-work-items; CloudWatch shows
+  AccessDeniedException. Worker role already has both. Analysis/worker were
+  never invoked; order stays PENDING; dispatch queue has 1 in-flight, DLQs 0.
+- Negative tests: no token 401, unknown order 404, foreign owner 404 (direct
+  reader invoke). Signature/replay/correlation remain covered by the pinned
+  local E2E, not live-injected.
+- Smallest fix (needs separate approval): add the two actions to the ingress
+  WorkItems statement; expected plan 0/1/0. No runtime change.
+- Synthetic mode remains true; order/message remain; no cleanup, rollback, new
+  grant or further AWS mutation.
