@@ -239,7 +239,11 @@ module "mays_orders" {
   # Preserve the existing RIS -> Orders result/dispatch transport when enabled.
   enable_agent_transport        = var.enable_agent_transport
   ris_result_producer_role_arns = var.ris_result_producer_role_arns
-  order_dispatch_queue_url      = var.order_dispatch_queue_url
+  # Dispatch env is passed through the module's generic extension point, not
+  # by patching generated files.
+  additional_environment = var.order_dispatch_queue_url == "" ? {} : {
+    ORDER_DISPATCH_QUEUE_URL = var.order_dispatch_queue_url
+  }
   # external_cognito = null  # MANAGED (Default) oder EXTERNAL
 }
 # Preserve the legacy Orders-handler -> RIS dispatch queue permission. It

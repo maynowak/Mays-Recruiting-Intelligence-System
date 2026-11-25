@@ -104,7 +104,7 @@ TARGET_MODULE_DIR = RIS_ROOT / "terraform" / "modules" / "mays_orders"
 BUILDER_PIN_FILE = RIS_ROOT / "installer" / "mays-orders-builder.pinned.json"
 CLONE_PIN_FILE = RIS_ROOT / "installer" / "mays-orders-clone.pinned.json"
 
-PINNED_COMMIT = "016cdfd6ac62565dcec9a2fee78cb898fb919e59"
+PINNED_COMMIT = "db4f9e79980443de1cd3d5b688a33c0cf0eb771f"
 """Verbindlicher MO-Commit (40-stellig), ab welchem der Builder zu
 Generieren ist. Wird in der Builder-Pin-Datei MAYDS-ORDERS-BUILDER-PINNED-COMMIT
 hinterlegt; die Composite-Clone-Pin-Datei bleibt als historische Referenz erhalten."""
@@ -466,6 +466,27 @@ TRANSPORT_OUTPUT_NAMES = (
 )
 
 
+def is_patch_free_contract(module_dir: Path) -> bool:
+    """True when the generated MO module carries the 03B integration contract.
+
+    Detected from the generated files only: the module exports the three
+    transport outputs itself and accepts ``additional_environment``. No pin or
+    version coupling.
+    """
+    try:
+        outputs = (module_dir / "outputs.tf").read_text(encoding="utf-8")
+        variables = (module_dir / "variables.tf").read_text(encoding="utf-8")
+        lambda_main = (module_dir / "modules" / "lambda" / "main.tf").read_text(
+            encoding="utf-8")
+    except OSError:
+        return False
+    has_outputs = all(f'output "{name}"' in outputs
+                      for name in TRANSPORT_OUTPUT_NAMES)
+    return (has_outputs
+            and 'variable "additional_environment"' in variables
+            and "var.additional_environment" in lambda_main)
+
+
 def inject_transport_outputs(module_dir: Path) -> None:
     """Expose the managed result queue/secret to the RIS root module.
 
@@ -729,14 +750,20 @@ def build_module(project_name: str, force: bool):
         print("Building module via module_builder from {MAYS_ORDERS_BUILDER_DIR}".format(MAYS_ORDERS_BUILDER_DIR=MAYS_ORDERS_BUILDER_DIR))
         run(cmd, cwd=str(MAYS_ORDERS_BUILDER_DIR))
 
-        # Build-time compatibility adapter for the existing RIS transport
-        # contract. It adds one optional env key, never a resource or logic.
-        apply_ris_order_dispatch_env_patch(TEMP_MODULE_DIR)
+        # Contract switch: the MO 03B module (db4f9e7+) exports the transport
+        # outputs itself and accepts additional_environment. Legacy pins keep
+        # the historical build-time patches.
+        if is_patch_free_contract(TEMP_MODULE_DIR):
+            print("Patch-free MO contract detected: no RIS post-processing applied.")
+        else:
+            # Build-time compatibility adapter for the existing RIS transport
+            # contract. It adds one optional env key, never a resource or logic.
+            apply_ris_order_dispatch_env_patch(TEMP_MODULE_DIR)
 
-        # Additive re-exports of the managed result queue/DLQ/HMAC secret.
-        # They reference the existing modules/agent_transport resources; no
-        # resource, IAM permission or secret value is created here.
-        inject_transport_outputs(TEMP_MODULE_DIR)
+            # Additive re-exports of the managed result queue/DLQ/HMAC secret.
+            # They reference the existing modules/agent_transport resources; no
+            # resource, IAM permission or secret value is created here.
+            inject_transport_outputs(TEMP_MODULE_DIR)
 
         # 3. Vertragsprüfung (CONTENT-BASED, keine nachträglichen Patches)
         validate_generated_contract(TEMP_MODULE_DIR)

@@ -110,5 +110,49 @@ class TransportOutputInjectionTest(unittest.TestCase):
             self.assertIn(f'"{name}"', source)
 
 
+class PatchFreeContractDetectionTest(unittest.TestCase):
+    """MO 03B (db4f9e7+) is detected from its generated files only."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _module(self, outputs=True, variable=True, merge=True):
+        root = self.root
+        (root / "modules" / "lambda").mkdir(parents=True)
+        output_blocks = "\n".join(
+            f'output "{name}" {{\n  value = try(module.agent_transport[0].{name}, "")\n}}\n'
+            for name in builder.TRANSPORT_OUTPUT_NAMES
+        ) if outputs else 'output "sqs_queue_name" {\n  value = "x"\n}\n'
+        variable_block = ('variable "additional_environment" {\n  type = map(string)\n}\n'
+                          if variable else "")
+        lambda_main = ('variables = merge({\n  ORDERS_TABLE = "x"\n}, '
+                       'var.additional_environment)\n' if merge else
+                       'variables = { ORDERS_TABLE = "x" }\n')
+        (root / "outputs.tf").write_text(output_blocks, encoding="utf-8")
+        (root / "variables.tf").write_text(variable_block, encoding="utf-8")
+        (root / "modules" / "lambda" / "main.tf").write_text(
+            lambda_main, encoding="utf-8")
+        return root
+
+    def test_complete_contract_is_patch_free(self):
+        self.assertTrue(builder.is_patch_free_contract(self._module()))
+
+    def test_missing_transport_output_falls_back_to_legacy(self):
+        self.assertFalse(builder.is_patch_free_contract(self._module(outputs=False)))
+
+    def test_missing_additional_environment_falls_back_to_legacy(self):
+        self.assertFalse(builder.is_patch_free_contract(self._module(variable=False)))
+
+    def test_missing_env_merge_falls_back_to_legacy(self):
+        self.assertFalse(builder.is_patch_free_contract(self._module(merge=False)))
+
+    def test_incomplete_module_falls_back_to_legacy(self):
+        self.assertFalse(builder.is_patch_free_contract(self.root / "absent"))
+
+
 if __name__ == "__main__":
     unittest.main()
