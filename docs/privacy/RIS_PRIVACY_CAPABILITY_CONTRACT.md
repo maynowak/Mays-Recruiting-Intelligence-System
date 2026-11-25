@@ -5,7 +5,9 @@ repository and storage (production writes fail-closed); R08-B1/B2A deliver
 read-only inspection/export; R08-C0A defines the storage-neutral erasure
 operation/checkpoint contract. No new erasure execution is active. The
 existing `POST /me/erasure` (G5) remains the only implemented account-level
-deletion path.
+deletion path; the partner API exposes the **same** lifecycle at
+`POST /v1/partner/me/erasure` for the Jobsearch BFF, which is an alias and not
+a second pipeline.
 
 ## Domains and responsibilities
 

@@ -181,20 +181,23 @@ class TestTerraformRouteInventory(unittest.TestCase):
         Partner-Manual-Search-Profile-Routen. R04: 40 -> 48 durch die acht
         expliziten Partner-CV-/Dokument-Routen. R05-B: 48 -> 53 durch die
         fuenf expliziten CVSearchProfile-Routen. R06: 53 -> 58 durch die fuenf
-        expliziten ATS-Search-Profile-Routen. Keine Magic-Number-
+        expliziten ATS-Search-Profile-Routen. ERASURE-PARTNER-ROUTE-01:
+        74 -> 75 durch genau EINE weitere Partner-Route
+        (`POST /v1/partner/me/erasure`). Keine Magic-Number-
         Aktualisierung: die Aufteilung wird per terraform_routes()
         nachgezaehlt und die jeweils hinzugefuegten Routen mitgeprueft, damit
         eine stille Ruecknahme nicht durchgeht.
         """
         routes = terraform_routes()
-        self.assertEqual(74, len(routes))
-        self.assertEqual(70, sum(1 for v in routes.values()
+        self.assertEqual(75, len(routes))
+        self.assertEqual(71, sum(1 for v in routes.values()
                                  if v["target"] == "agent"))
         self.assertEqual(4, sum(1 for v in routes.values()
                                 if v["target"] == "orders"))
         # Die Routen, die den Zaehler verschoben haben, muessen existieren.
         self.assertIn("DELETE /me/profile", routes)
         self.assertIn("POST /me/erasure", routes)
+        self.assertIn("POST /v1/partner/me/erasure", routes)
         self.assertIn("GET /v1/partner/me/privacy/inspect", routes)
         self.assertIn("GET /v1/partner/me/privacy/export", routes)
         self.assertIn("GET /v1/partner/me/consents", routes)

@@ -702,3 +702,17 @@ resource "aws_apigatewayv2_route" "privacy_export" {
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
+
+# Jobsearch BFF contract: the partner edge exposes the same ordered erasure
+# lifecycle as POST /me/erasure. Declared here as well so the route has
+# Terraform provenance on the kernel API like every other /v1/partner/me/*
+# route; the handler still requires the partner credential + registry binding,
+# and no new IAM/data resource is involved. The partner gateway itself
+# (modules/partner_edge) declares the same route key.
+resource "aws_apigatewayv2_route" "partner_erasure" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/partner/me/erasure"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
