@@ -6,6 +6,13 @@
 **HEAD:** `c2841b81db8af303b75d97e3503fcb50579785d8` (== Remote)
 **Verdict: BLOCKED — KEIN APPLY**
 
+> **Status-Update 2026-11-25 (nach diesem Bericht):** Der Blocker wurde mit
+> `RIS-ORDER-RESULT-CORRELATION-FIX-01` behoben (`f08dfff`); der Reader hält
+> die validierte AgentOrder wieder als internes `agentOrder` vor. Neuer Plan:
+> `C:\tmp\ris-dev2-correlation-fix.tfplan`, SHA-256
+> `2bbf81424b9761712008ef698f5afe5bb6b5ac1db0eaa74220427e8f09b7facd`
+> (0/7/0). Ein Apply bleibt bis zur neuen menschlichen Freigabe gesperrt.
+
 Der Plan ist mechanisch sauber (0 Add / 7 Change / 0 Destroy, nur Lambda-Code),
 aber die geplanten Lambda-Bundles brechen den ORDER_RESULT-Rückweg für
 Agent-Aufträge, die über den neuen RIS-Reader angelegt werden. Der lokale

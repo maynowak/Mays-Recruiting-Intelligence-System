@@ -12612,3 +12612,68 @@ for RIS-reader-created agent orders are permanently rejected (no retry/DLQ).
 No apply, no AWS mutation, no state write, no main merge, no MO/pin change.
 A fix requires a RIS or MO change, rebuilt bundles, a new plan and a new
 approval.
+
+
+---
+
+## RIS-ORDER-RESULT-CORRELATION-FIX-01 — 2026-11-25
+
+Status: **FIXED / TESTED / PUSHED — NEW PLAN 0/7/0 — APPLY NOT EXECUTED**
+
+Vollständiger Bericht: `docs/reports/RIS-ORDER-RESULT-CORRELATION-FIX-01.md`
+
+### Fix
+
+- `lambda/orders_reader.py` persists the already parsed and validated AgentOrder
+  V1 as an internal `agentOrder` attribute (same object as the fingerprint and
+  the dispatch envelope). It is never taken from a client root `agentOrder`; the
+  public create contract stays `customer/items/currency/orderType/orderDescription`
+  (root `agentOrder` still 400).
+- `_public()` hides the internal copy for new OrderV1 rows (they carry
+  `orderDescription`). Legacy rows without `orderDescription` keep the previous
+  read projection.
+- No MO, Terraform resource or public API file changed
+  (`git diff afb3397..f08dfff -- terraform installer` empty).
+
+### Privacy
+
+MO `to_public_order()` strips `agentOrder`/`agentOrderFingerprint`
+(`INTERNAL_FIELDS`). MO inspect/export/erase select via `gsi2pk`/`subjectId`;
+the reader row has none (asserted). The reader `_public()` and `_list_item()`
+do not expose the copy.
+
+### Tests (real runs)
+
+- `tests/test_agent_order_dispatch_e2e.py` with `MO_ORDERS_SRC` = pinned
+  `db4f9e7`: **8 passed** (round trip, duplicate, wrong correlation, wrong work
+  id, invalid signature, foreign 404, internal copy + MO builder compatibility).
+- Broad RIS set (20 files incl. cross-repo): **362 passed, 9 skipped,
+  329 subtests**.
+- `tests/test_lambda_bridge_e2e.py` isolated: **5 passed**.
+- MO lambda suite `db4f9e7`: **240 tests OK**.
+- Pre-existing harness interference: cross-repo + bridge in one process fails
+  identically on baseline `afb3397`; not caused by this fix.
+
+### Bundles
+
+- agent `d767a198…dd06` (unchanged), analysis `e268b028…16db` (unchanged),
+  reader **`610004f6…ae6b`** (`source_code_hash` `YQAE9urj…`),
+  MO module zip `aa70eaaa…1c89` (unchanged).
+
+### New plan
+
+- `C:\tmp\ris-dev2-correlation-fix.tfplan`, 250 940 bytes, SHA-256
+  `2bbf81424b9761712008ef698f5afe5bb6b5ac1db0eaa74220427e8f09b7facd`,
+  timestamp `2026-11-25T07:07:04Z` (after commit `f08dfff`).
+- **0 to add, 7 to change, 0 to destroy**, 0 replace; 265 no-ops.
+- Same seven addresses as the blocked plan; only the reader hash changes
+  (`2PWEDXGy…` → `YQAE9urj…`).
+- State: `ris-dev2`, account `262370457690`, `eu-central-1`, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, serial **69**; S3 state unchanged
+  (`2026-11-22T11:52:56Z`), no active lock. Deployed code/env of all seven
+  functions match the plan `before`.
+
+### Not done
+
+No apply, no AWS mutation, no state write, no main merge, no MO/pin change.
+Old plan `cc140152…` stays locked. Live verification remains open until apply.
