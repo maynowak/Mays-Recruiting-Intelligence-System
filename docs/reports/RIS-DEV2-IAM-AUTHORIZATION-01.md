@@ -1,10 +1,10 @@
 # RIS-DEV2-IAM-AUTHORIZATION-01
 
-**Datum:** 2026-11-25  
-**Repository:** `maynowak/Mays-Recruiting-Intelligence-System`  
-**Branch / Baseline:** `feature/ris-analysis-integration-07` / `348055cea3d654e19b1bb8172ad050ec2eab3a5c`  
-**Modus:** strictly read-only — kein Apply, kein State-Write, keine IAM-Änderung, kein Ersatzplan  
-**Plan (weiter gesperrt):** `C:\tmp\ris-dev2-correlation-fix.tfplan`  
+**Datum:** 2026-11-25
+**Repository:** `maynowak/Mays-Recruiting-Intelligence-System`
+**Branch / Baseline:** `feature/ris-analysis-integration-07` / `348055cea3d654e19b1bb8172ad050ec2eab3a5c`
+**Modus:** strictly read-only — kein Apply, kein State-Write, keine IAM-Änderung, kein Ersatzplan
+**Plan (weiter gesperrt):** `C:\tmp\ris-dev2-correlation-fix.tfplan`
 **SHA-256:** `2bbf81424b9761712008ef698f5afe5bb6b5ac1db0eaa74220427e8f09b7facd`
 
 ## Ergebnis
@@ -157,7 +157,7 @@ issuer)` auf; `jobsearch/partner_profile_repository.py::get` verwendet
 | Schlüsselherkunft | `cvId` aus dem Request; `userId`, `tenantId`, `partnerApplicationId`, `issuer` aus der verifizierten Identität |
 | Owner-/Tenant-Isolation | **Anwendungsebene**: `_identity_ok` vergleicht gespeicherte `userId`/`tenantId` und – falls gesetzt – `partnerApplicationId`/`issuer`; Mismatch → `None` → `cv_not_found` |
 | `Query` + `index/*` | **im Analysis-Runtime nicht verwendet** — `list_by_user`/`list_by_parent` werden nur von Jobsearch-Agent und Privacy-Erasure aufgerufen, nicht von diesem Lambda |
-| IAM-Conditions | `dynamodb:LeadingKeys` gilt nicht für `GetItem`; `dynamodb:Attributes` begrenzt Attribute, nicht Items. Eine itemgenaue IAM-Grenze für `GetItem` ist nicht ausdrückbar |
+| IAM-Conditions | `dynamodb:LeadingKeys` gilt auch für `GetItem` und kann auf bestimmte Partitionsschlüsselwerte begrenzen. Hier sind die Schlüssel jedoch dynamische `workId`/`resourceId`; eine statische Tenant-/Owner-Grenze ist damit nicht ausdrückbar. `dynamodb:Attributes` begrenzt Attribute, nicht Items. |
 | Tabellen-/Index-Notwendigkeit | Basis-Tabelle `GetItem`: ja. `Query`/`index/*`: nein, kein belegter Bedarf im Analysis-Pfad |
 
 **Bewertung: REMEDIATION REQUIRED.** Der `GetItem`-Anteil ist durch Zweck,
@@ -165,6 +165,13 @@ Code, Tests und AWS-Ausführung belegt. `dynamodb:Query` auf der Tabelle und
 `index/*` sind breiter als der tatsächliche Runtime-Bedarf und sollten entfernt
 werden, sofern kein konkretes, dokumentiertes Analysis-Szenario sie benötigt.
 Bis dahin ist die Berechtigung nicht least-privilege.
+
+> **Korrektur 2026-11-25:** Die frühere Aussage, `dynamodb:LeadingKeys` gelte
+> nicht für `GetItem`, war falsch. Die AWS-Dokumentation
+> (`specifying-conditions.html`) belegt die Anwendung auch auf Einzelitem-
+> Aktionen. Die Schlussfolgerung bleibt: Mit dynamischen `workId`/`resourceId`-
+> Partitionsschlüsseln lässt sich daraus keine statische Tenant-/Owner-Grenze
+> bauen. Die Korrektur betrifft nur die Begründung, nicht die Bewertung.
 
 ### 4.3 `SyntheticWorkItemReadback`
 
@@ -180,7 +187,7 @@ konfigurierten Testprofil entsprechen.
 | Ziel | `ris-dev2-dev-work-items`, Basis-Tabelle |
 | Schlüsselherkunft | `workId` aus dem Event; Identitätsfelder werden gegen die **persistierte** Zeile geprüft, nicht aus dem Payload übernommen |
 | Aktivierungszustand | synthetischer Modus ist derzeit `false`; der Pfad ist ruhend |
-| IAM-Conditions | keine itemgenaue Einschränkung möglich (`LeadingKeys` nicht für `GetItem`); der SID benennt nur den Zweck, keine Grenze |
+| IAM-Conditions | `LeadingKeys` kann `GetItem` auf einzelne Partitionsschlüsselwerte begrenzen, nicht aber auf „alle Zeilen eines Tenants“; bei dynamischen `workId`-Werten entsteht daraus keine statische Grenze. Der SID benennt nur den Zweck. |
 | Isolation | ausschließlich Anwendungsebene (exakter Feldvergleich); die IAM-Berechtigung erlaubt `GetItem` auf **jeden** `workId`-Schlüssel der Tabelle |
 
 **Bewertung: REQUIRES HUMAN SECURITY ACCEPTANCE.** Die Berechtigung ist

@@ -15,6 +15,16 @@ eine **vorbestehende, nicht durch dieses Release eingeführte** DSAR-Lücke für
 Orders (keine GSI2-Verknüpfung). Beide sind für `ris-dev2` mit synthetischen
 Daten vertretbar; vor echten Personendaten ist ein separates Privacy-Gate nötig.
 
+> **Nachtrag 2026-11-25 (Präzisierung):** Mays-Orders hat `inspect_subject`,
+> `export_subject` und `erase_subject` implementiert und in einem **isolierten
+> Projekt** (`mays-orders-privacy-test`, separates AWS-Konto) mit synthetischen
+> Daten live getestet (`MAYS-ORDERS-PRIVACY-FINAL-EVIDENCE-AND-DESTROY-01`,
+> Bewertung GREEN). Dieser Bericht bewertet ausschließlich die konkrete
+> RIS-DEV2-Reader-Zeile. Die fehlende `gsi2`-Verknüpfung dort ist eine
+> Eigenschaft dieser Installation, **keine** Aussage über eine fehlende
+> DSGVO-Umsetzung in Mays-Orders. Offen bleibt MO-seitig die dauerhafte
+> Verwaltung/Rotation des internen Privacy-Secrets für den Produktivbetrieb.
+
 ---
 
 ## 1. Öffentliche Reader-Antworten

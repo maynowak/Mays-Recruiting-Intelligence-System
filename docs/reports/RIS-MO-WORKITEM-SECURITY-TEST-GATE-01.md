@@ -126,9 +126,10 @@ per Regex auf genau `{dynamodb:GetItem}` und verbietet `mays-orders`/
 ### Verbleibende Risikofläche (ausdrücklich)
 
 - **Anwendungstests beseitigen den IAM-weiten Tabellenzugriff nicht.**
-  `GetItem` gilt für jeden Schlüssel der jeweiligen Tabelle. Eine itemgenaue
-  IAM-Grenze ist für `GetItem` nicht ausdrückbar (`LeadingKeys` gilt nur für
-  `Query`/`Scan`).
+  `GetItem` gilt für jeden Schlüssel der jeweiligen Tabelle. `LeadingKeys`
+  kann `GetItem` zwar auf einzelne Partitionsschlüsselwerte begrenzen, nicht
+  aber auf „alle Zeilen eines Tenants“; bei dynamischen `workId`/`resourceId`-
+  Werten entsteht daraus keine statische Grenze.
 - Die Begrenzung erfolgt ausschließlich im Code:
   - PartnerProfiles: `_identity_ok` prüft gespeicherte `userId`/`tenantId`
     (und optional Partner/Issuer) nach dem Read;

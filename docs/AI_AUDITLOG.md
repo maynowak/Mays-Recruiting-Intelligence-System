@@ -12937,3 +12937,31 @@ Bericht: `docs/reports/RIS-DEV2-CANARY-BASE-PLAN-04.md`
   dedicated app client is required (human/M2M clients must not be reused).
 - Rollback risks recorded, incl. old agent/analysis bundles no longer on disk.
 - No apply, Cognito/AWS mutation, provisioning, state write or main merge.
+
+---
+
+## RIS-DEV2-LIVE-COMPLETION-05 / PHASE A PREFLIGHT — 2026-11-25
+
+Status: **PREFLIGHT PASS — AWAITING EXPLICIT BASE APPLY APPROVAL**
+
+Bericht: `docs/reports/RIS-DEV2-LIVE-COMPLETION-05-PREFLIGHT.md`
+
+- HEAD/remote `1d908a0…`; workspace ris-dev2, account 262370457690,
+  eu-central-1, backend dev/terraform.tfstate, lineage a0bd361d…, serial 69,
+  S3 state from 2026-11-22, no active lock. Plan hash
+  `9b1e5a66…` unchanged, diff 2 add / 8 change / 0 destroy; the three known
+  drift entries remain refresh observations and both IAM roles are no-op.
+- Rollback secured: downloaded the seven deployed Lambda ZIPs via presigned
+  Code.Location into `C:\tmp\ris-dev2-rollback-base04\` plus config snapshots
+  and a manifest; every download hash matches the deployed CodeSha256.
+- Regression evidence reused: MO 240 OK; cross-repo 148 / 7 subtests; API/
+  profile/catalog/offer/synthetic 250 / 322 subtests; fmt/validate pass. Full
+  tests/ stays BLOCKED_ENV and is not counted.
+- Documentation corrected: `dynamodb:LeadingKeys` does apply to GetItem per AWS
+  docs (the earlier statement was wrong; conclusion about dynamic workId/
+  resourceId keys unchanged). MO privacy inspect/export/erase are implemented
+  and were live-tested in the isolated `mays-orders-privacy-test` account
+  (GREEN); the RIS-DEV2 reader row gap is installation-specific, and MO secret
+  rotation remains a MO task.
+- STOP: no apply without explicit approval of exactly `9b1e5a66…`. Phase B/C
+  need separate AWS-write approvals.
