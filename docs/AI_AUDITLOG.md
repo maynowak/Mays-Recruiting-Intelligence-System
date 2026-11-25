@@ -12766,3 +12766,36 @@ Bericht: `docs/reports/RIS-DEV2-IAM-AUTHORIZATION-01.md`
 - `SyntheticWorkItemReadback`: only `GetItem`, dormant (synthetic mode false), exact-match check against the persisted RUNNING WorkItem; IAM cannot restrict GetItem to synthetic rows. → **REQUIRES HUMAN SECURITY ACCEPTANCE**.
 - Observation: `ENTITLEMENTS_TABLE` is set on the analysis Lambda but no entitlements IAM grant remains → resolver fails closed; functional, not a permission expansion.
 - Plan stays blocked. No apply, state write, IAM change, replacement plan, deployment or main merge.
+
+---
+
+## RIS-DEV2-ORDER-API-READ-01 — 2026-11-25
+
+Status: **IMPLEMENTED + TESTED + NEW PLAN (NOT APPLIED)**
+
+Bericht: `docs/reports/RIS-DEV2-ORDER-API-READ-01.md`
+
+- Order read path: `GET /orders/{orderId}` (JWT, Cognito issuer/client, owner
+  binding, foreign/missing → 404 `ORDER_NOT_FOUND`) is the only authorized
+  order read.
+- Analysis paths (`lambda/analysis_runner.py`, `agents/analysis/*`,
+  `agents/analysis_agent/agent.py`) use no order value or status. No order API
+  call was added; no direct order DynamoDB access exists. A server-side order
+  call has no authorized identity today (owner JWT or a new service identity),
+  so none was invented.
+- WorkItem verification: no suitable internal endpoint exists. `GET /work` and
+  `/api/agents/*/work` have no gateway route (API-STANDARD OPEN-5) and `_get_work`
+  has no owner/tenant check; the M2M route is execute-only. Direct WorkItems
+  `GetItem` remains and stays fail-closed. Minimal proposed interface is
+  documented; it needs new resources/IAM and a separate approval.
+- IAM: removed unused `dynamodb:Query` and `index/*` from `OwnedPartnerProfiles`;
+  `GetItem` on PartnerProfiles and WorkItems unchanged.
+- Tests: analysis terraform 17 passed; focused set 173 passed / 7 subtests
+  (incl. order GET/auth/owner isolation and ORDER_RESULT E2E against MO
+  `db4f9e7`); `fmt`/`validate` PASS; bundles unchanged.
+- New plan: `C:\tmp\ris-dev2-order-api-read-01.tfplan`, 251 645 bytes,
+  SHA-256 `279a530fa957a0547a355cb94822e42d4639128d315712eac6faa2fbceea1184`,
+  0 add / 8 change / 0 destroy / 0 replace (7 Lambda code + 1 IAM policy).
+  State `ris-dev2`, lineage `a0bd361d…`, serial 69.
+- Old plan `2bbf8142…` stays blocked. No apply, AWS mutation, state write,
+  main merge or deployment.

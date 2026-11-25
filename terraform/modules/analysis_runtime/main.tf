@@ -222,13 +222,15 @@ resource "aws_iam_role_policy" "analysis_runtime_data" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "OwnedPartnerProfiles"
-        Effect = "Allow"
-        Action = ["dynamodb:GetItem", "dynamodb:Query"]
-        Resource = [
-          var.partner_profiles_table_arn,
-          "${var.partner_profiles_table_arn}/index/*",
-        ]
+        Sid = "OwnedPartnerProfiles"
+        # The analysis runtime resolves one CV/profile by id through
+        # PartnerProfileRepository.get() -> GetItem on the base table. It
+        # never queries the table or a secondary index, so Query and any
+        # index grant stay unset (least privilege; see
+        # RIS-DEV2-IAM-AUTHORIZATION-01).
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem"]
+        Resource = var.partner_profiles_table_arn
       },
       {
         Sid      = "SyntheticWorkItemReadback"

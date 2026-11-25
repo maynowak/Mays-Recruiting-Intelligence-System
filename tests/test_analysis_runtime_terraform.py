@@ -113,6 +113,33 @@ class ParserRuntimeGateTest(unittest.TestCase):
         for forbidden in ("s3:", "sqs:", "secretsmanager:", "lambda:"):
             self.assertNotIn(forbidden, block)
 
+    def test_partner_profiles_is_get_item_only(self):
+        """RIS-DEV2-IAM-AUTHORIZATION-01: no unused Query/index grants."""
+        block = self.module.split('resource "aws_iam_role_policy" "analysis_runtime_data"', 1)[1]
+        block = block.split('resource "', 1)[0]
+        partner = block.split('Sid = "OwnedPartnerProfiles"', 1)[1].split("},", 1)[0]
+        self.assertIn("var.partner_profiles_table_arn", partner)
+        self.assertIn('["dynamodb:GetItem"]', partner)
+        self.assertNotIn("dynamodb:Query", partner)
+        self.assertNotIn("index/*", partner)
+
+    def test_analysis_runtime_has_no_order_table_access(self):
+        """Orders are read through the RIS order API, never by this Lambda."""
+        self.assertNotIn("mays-orders", self.module)
+        self.assertNotIn("ORDERS_TABLE", self.module)
+        source_root = os.path.join(ROOT, "lambda")
+        sources = [os.path.join(source_root, "analysis_runner.py")]
+        analysis_dir = os.path.join(ROOT, "agents", "analysis")
+        sources += [os.path.join(analysis_dir, name)
+                    for name in sorted(os.listdir(analysis_dir))
+                    if name.endswith(".py")]
+        for path in sources:
+            with open(path, encoding="utf-8") as handle:
+                text = handle.read()
+            self.assertNotIn("ORDERS_TABLE", text, path)
+            self.assertNotIn("mays-orders", text, path)
+            self.assertNotIn("orders_table", text, path)
+
     def test_build_bundle_contains_the_analysis_runner(self):
         import importlib.util
 
