@@ -269,8 +269,17 @@ resource "aws_lambda_function" "analysis" {
       ANALYSIS_ENTITLEMENTS      = ""
       ANALYSIS_CONSENT           = "false"
       ANALYSIS_NOTICE_APPROVED   = "false"
-      ANALYSIS_SYNTHETIC_MODE    = "false"
       ANALYSIS_CALLER_PARTNER_ID = "ris-internal"
+      # Synthetic canary profile: off unless a reviewed var-file enables it.
+      # Empty/incomplete values are rejected by the Lambda (fail closed).
+      ANALYSIS_SYNTHETIC_MODE                   = var.analysis_synthetic_mode ? "true" : "false"
+      ANALYSIS_SYNTHETIC_INSTALLATION           = var.analysis_synthetic_installation
+      ANALYSIS_SYNTHETIC_TENANT_ID              = var.analysis_synthetic_tenant_id
+      ANALYSIS_SYNTHETIC_USER_ID                = var.analysis_synthetic_user_id
+      ANALYSIS_SYNTHETIC_PARTNER_APPLICATION_ID = var.analysis_synthetic_partner_application_id
+      ANALYSIS_SYNTHETIC_ISSUER                 = var.analysis_synthetic_issuer
+      ANALYSIS_SYNTHETIC_ENTITLEMENTS           = var.analysis_synthetic_entitlements
+      ANALYSIS_SYNTHETIC_EXPIRES_AT             = var.analysis_synthetic_expires_at
     }
   }
 

@@ -12824,3 +12824,29 @@ Bericht: `docs/reports/RIS-MO-WORKITEM-SECURITY-TEST-GATE-01.md`
   checks do not remove table-wide GetItem access (no item-level IAM condition).
 - Decision limited to synthetic DEV2 data; synthetic mode stays off. No apply,
   AWS mutation, state write, runtime/MO/Terraform change or main merge.
+
+---
+
+## RIS-DEV2-SYNTHETIC-LIVE-CANARY-01 — 2026-11-25
+
+Status: **BLOCKED — PREPARATION COMPLETE, POSITIVE LIVE RUN NOT POSSIBLE**
+
+Bericht: `docs/reports/RIS-DEV2-SYNTHETIC-LIVE-CANARY-01.md`
+
+- Terraform: synthetic identity is parameterized (8 variables, defaults deny,
+  installation `ris-dev2`, empty ids/entitlements/expiry); consent/notice stay
+  false. No IAM or resource change beyond the existing 8-change plan.
+- Plans: P1 mode-off `bac9af1c…` and P2 canary template `7ecb0da6…`, both
+  0 add / 8 change / 0 destroy; P2 sets the synthetic env but uses placeholder
+  identities and is not executable for a positive test.
+- Tests: MO suite 240 OK; RIS cross-repo 61 passed / 0 skipped; parser/analysis
+  set 109 passed; fmt/validate PASS; bundles unchanged.
+- Blockers: 0 `analysis-agent` entitlements (only ats/addition), 4/4 API
+  profiles REVOKED, 0 analysis WorkItems. Order create needs an ACTIVE owned
+  profile plus entitlement, and the worker re-checks entitlements, so no
+  synthetic order or RUNNING WorkItem can be produced. Provisioning is an AWS
+  write outside this gate. P2 placeholders cannot match a real dispatch context.
+- `test_analysis_fresh_plan_16c1` remains stale from the reviewed correlation
+  fix (pins the old 16C1 worker bundle); not caused by this gate and not edited.
+  `test_analysis_ecosystem_wiring` now pins the current reviewed bundle hashes.
+- No apply, AWS mutation, state write, MO/runtime change or main merge.

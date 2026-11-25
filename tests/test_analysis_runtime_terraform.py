@@ -93,10 +93,45 @@ class ParserRuntimeGateTest(unittest.TestCase):
     def test_analysis_configuration_defaults_deny(self):
         for name, value in ((("ANALYSIS_ENTITLEMENTS"), '""'),
                             (("ANALYSIS_CONSENT"), '"false"'),
-                            (("ANALYSIS_NOTICE_APPROVED"), '"false"'),
-                            (("ANALYSIS_SYNTHETIC_MODE"), '"false"')):
+                            (("ANALYSIS_NOTICE_APPROVED"), '"false"')):
             self.assertRegex(self.module, name + r"\s*=\s*" + value)
         self.assertNotRegex(self.module, r"ANALYSIS_CONSENT\s*=\s*\"true\"")
+        # Synthetic mode is parameterized but defaults off.
+        self.assertRegex(
+            self.module,
+            r'ANALYSIS_SYNTHETIC_MODE\s*=\s*var\.analysis_synthetic_mode\s*\?\s*"true"\s*:\s*"false"')
+        self.assertRegex(
+            self.variables,
+            r'variable "analysis_synthetic_mode"\s*\{[^}]*default\s*=\s*false')
+        self.assertRegex(
+            self.variables,
+            r'variable "analysis_synthetic_installation"\s*\{[^}]*default\s*=\s*"ris-dev2"')
+        for name in ("analysis_synthetic_tenant_id",
+                     "analysis_synthetic_user_id",
+                     "analysis_synthetic_partner_application_id",
+                     "analysis_synthetic_issuer",
+                     "analysis_synthetic_entitlements",
+                     "analysis_synthetic_expires_at"):
+            self.assertRegex(
+                self.variables,
+                r'variable "' + name + r'"\s*\{[^}]*default\s*=\s*""')
+
+    def test_synthetic_profile_env_is_wired_to_variables(self):
+        expected = {
+            "ANALYSIS_SYNTHETIC_INSTALLATION": "var.analysis_synthetic_installation",
+            "ANALYSIS_SYNTHETIC_TENANT_ID": "var.analysis_synthetic_tenant_id",
+            "ANALYSIS_SYNTHETIC_USER_ID": "var.analysis_synthetic_user_id",
+            "ANALYSIS_SYNTHETIC_PARTNER_APPLICATION_ID":
+                "var.analysis_synthetic_partner_application_id",
+            "ANALYSIS_SYNTHETIC_ISSUER": "var.analysis_synthetic_issuer",
+            "ANALYSIS_SYNTHETIC_ENTITLEMENTS": "var.analysis_synthetic_entitlements",
+            "ANALYSIS_SYNTHETIC_EXPIRES_AT": "var.analysis_synthetic_expires_at",
+        }
+        for key, variable in expected.items():
+            self.assertRegex(self.module, key + r"\s*=\s*" + re.escape(variable))
+        # Consent/notice stay deny; the synthetic path must not relax them.
+        self.assertNotRegex(self.module, r"ANALYSIS_CONSENT\s*=\s*\"true\"")
+        self.assertNotRegex(self.module, r"ANALYSIS_NOTICE_APPROVED\s*=\s*\"true\"")
 
     def test_data_policy_is_dedicated_and_least_privilege(self):
         block = self.module.split('resource "aws_iam_role_policy" "analysis_runtime_data"', 1)[1]

@@ -371,6 +371,15 @@ module "analysis_runtime" {
   entitlements_table_arn      = module.dynamodb.entitlements_table_arn
   partner_profiles_table_name = module.dynamodb.partner_profiles_table_name
   partner_profiles_table_arn  = module.dynamodb.partner_profiles_table_arn
+
+  analysis_synthetic_mode                   = var.analysis_synthetic_mode
+  analysis_synthetic_installation           = var.analysis_synthetic_installation
+  analysis_synthetic_tenant_id              = var.analysis_synthetic_tenant_id
+  analysis_synthetic_user_id                = var.analysis_synthetic_user_id
+  analysis_synthetic_partner_application_id = var.analysis_synthetic_partner_application_id
+  analysis_synthetic_issuer                 = var.analysis_synthetic_issuer
+  analysis_synthetic_entitlements           = var.analysis_synthetic_entitlements
+  analysis_synthetic_expires_at             = var.analysis_synthetic_expires_at
 }
 
 # The shared worker/ingress invoke the dedicated analysis function through the

@@ -620,6 +620,59 @@ variable "analysis_lambda_zip_path" {
   default     = ""
 }
 
+variable "analysis_synthetic_mode" {
+  description = "Enable the fail-closed synthetic analysis identity (canary only). Off by default."
+  type        = bool
+  default     = false
+}
+
+variable "analysis_synthetic_installation" {
+  description = "Installation binding for the synthetic profile. Must stay ris-dev2."
+  type        = string
+  default     = "ris-dev2"
+}
+
+variable "analysis_synthetic_tenant_id" {
+  description = "Synthetic tenant id; must match the persisted WorkItem exactly."
+  type        = string
+  default     = ""
+}
+
+variable "analysis_synthetic_user_id" {
+  description = "Synthetic user id; must match the persisted WorkItem exactly."
+  type        = string
+  default     = ""
+}
+
+variable "analysis_synthetic_partner_application_id" {
+  description = "Synthetic partner application id; must match the persisted WorkItem exactly."
+  type        = string
+  default     = ""
+}
+
+variable "analysis_synthetic_issuer" {
+  description = "Synthetic issuer URL; must match the persisted WorkItem exactly."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.analysis_synthetic_issuer == "" || can(regex("^https://", var.analysis_synthetic_issuer))
+    error_message = "analysis_synthetic_issuer must be empty or an https:// URL."
+  }
+}
+
+variable "analysis_synthetic_entitlements" {
+  description = "Comma-separated synthetic capabilities granted only for the canary."
+  type        = string
+  default     = ""
+}
+
+variable "analysis_synthetic_expires_at" {
+  description = "RFC3339 expiry for the synthetic profile; an expired value disables the profile (fail closed)."
+  type        = string
+  default     = ""
+}
+
 variable "orders_producer_role_arns" {
   description = "Mays-Orders role ARNs allowed to enqueue agent dispatches."
   type        = list(string)

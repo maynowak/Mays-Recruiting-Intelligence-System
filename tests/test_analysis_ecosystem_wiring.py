@@ -11,6 +11,14 @@ for path in (ROOT, ROOT / "tests", ROOT / "lambda"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
+# Current reviewed deployment bundles (RIS-ORDER-RESULT-CORRELATION-FIX-01).
+# Update only together with a reviewed bundle rebuild; never relax the
+# stale-plan assertion below.
+CURRENT_BUNDLE_SHA256 = {
+    "worker": "d767a19843a98c93fbb776a3b011812653cde7ba84b9406c5157ef0d10f8dd06",
+    "analysis": "e268b0280bb96c9573eaf33d4d00ac0cdd21b8a01fddd20839782178c70516db",
+}
+
 from agents.runtime.pipeline import process_record  # noqa: E402
 from agents.runtime.remote_agent import LambdaAgentHandler  # noqa: E402
 from test_analysis_runner_pipeline import (  # noqa: E402
@@ -170,25 +178,18 @@ class ManifestPinTest(unittest.TestCase):
         self.assertEqual(0, manifest["plan"]["destroys"])
         self.assertEqual("NO_SHARED_DESTROY", manifest["plan"]["guard"])
         self.assertFalse(manifest["plan"]["applyApproved"])
-        preflight_path = (ROOT / "docs" / "reports" /
-                          "RIS-ANALYSIS-16C0-PREFLIGHT.json")
-        preflight = (json.loads(preflight_path.read_text(encoding="utf-8"))
-                     if preflight_path.is_file() else None)
         for relative, key in (("terraform/lambda.zip", "worker"),
                               ("terraform/analysis-lambda.zip", "analysis")):
             artifact = ROOT / relative
             if not artifact.is_file():
                 continue
             digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
-            if preflight is None:
-                self.assertEqual(manifest["bundles"][key]["sha256"],
-                                 digest, relative)
-                continue
             # 16B/16C0 changed agents/orders. The historical 15B plan is
-            # stale; the current bundle is pinned by the 16C0 preflight.
+            # stale; the current bundle is pinned by the reviewed correlation
+            # fix (RIS-ORDER-RESULT-CORRELATION-FIX-01, d767a198…/e268b028…).
+            # Update this pin only together with a reviewed bundle rebuild.
             self.assertEqual(
-                preflight["planFreshness"]["bundles"][
-                    "currentAfter16BAnd16C0"][key],
+                CURRENT_BUNDLE_SHA256[key],
                 digest, relative)
             self.assertNotEqual(manifest["bundles"][key]["sha256"], digest,
                                 f"{relative}: historical plan must be stale")
