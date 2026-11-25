@@ -63,10 +63,14 @@ as if it were RIS infrastructure.
 - `terraform/modules/mays_orders/` is generated and ignored. Never hand-edit
   it; rebuild it from the pinned upstream source.
 - The builder enforces component naming `<project>-mays-orders`, patches the
-  plan-known SQS IAM gate, and runs Terraform formatting/validation. It also
-  injects the RIS-owned result-transport outputs (`results_queue_url`,
-  `results_queue_arn`, `result_hmac_secret_arn`) additively and fails closed if
-  the upstream module starts exporting one of them itself.
+  plan-known SQS IAM gate, and runs Terraform formatting/validation. For legacy
+  MO pins it injects the RIS-owned result-transport outputs
+  (`results_queue_url`, `results_queue_arn`, `result_hmac_secret_arn`)
+  additively and fails closed if the upstream module starts exporting one of
+  them itself. From MO `db4f9e7` on, the generated module is detected as a
+  patch-free contract (upstream exports the three outputs and accepts
+  `additional_environment`), so no generated file is post-processed; RIS passes
+  `ORDER_DISPATCH_QUEUE_URL` through `additional_environment`.
 - External clone pins are recorded in
   `installer/mays-orders-clone.pinned.json` and
   `installer/mays-jobsearch-clone.pinned.json`; update pins only deliberately

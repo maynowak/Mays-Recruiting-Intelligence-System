@@ -12482,3 +12482,77 @@ for the `943f591` compatibility module) remains valid.
    with the existing gates, dry-run to `NO_CHANGES`.
 3. Then pin the updater commit (v2-capable; `943f591` alone writes v1) and
    prepare the RIS-DEV2 plan (expect Lambda `source_code_hash` updates only).
+
+---
+
+## RIS-MO-UPDATER-04 — PATCH-FREE PIN INTEGRATION — 2026-11-25
+
+Status: PIN `db4f9e7` ADOPTED IN PREPARATION — PLAN 0/7/0 (Lambda code only) — NO APPLY
+
+### 1. Legacy baseline (pin 016cdfd)
+
+Reference generated from exactly `016cdfd` in an isolated worktree and compared
+with the previously installed module:
+
+| Deviation | Kind |
+| --- | --- |
+| `outputs.tf` | RIS-injected transport outputs (3) |
+| `variables.tf`, `modules/lambda/variables.tf` | RIS `order_dispatch_queue_url` variable |
+| `modules/lambda/main.tf` | RIS dispatch env patch |
+| `main.tf` | RIS pass-through + fmt alignment |
+| `.terraform.lock.hcl` | local init artifact, not builder-managed |
+
+All other files (incl. `modules/agent_transport/*`) were content-identical;
+apparent hash differences were line endings only. No artificial manifest
+adoption was performed.
+
+### 2. RIS builder switch (patch-free)
+
+- `build_mays_orders_module.is_patch_free_contract()` detects the 03B module
+  from the generated files (three outputs + `additional_environment` + merge).
+- New contract: **no** `apply_ris_order_dispatch_env_patch()`, **no**
+  `inject_transport_outputs()`; upstream exports the outputs itself.
+- Legacy pins keep the historical build-time patches (unchanged behaviour).
+- RIS root: dispatch env now passed via
+  `additional_environment = var.order_dispatch_queue_url == "" ? {} : { ORDER_DISPATCH_QUEUE_URL = … }`.
+
+### 3. Verification at MO `db4f9e7`
+
+- Installed module vs canonical builder output: **41/41 content files identical**
+  (only `module-builder.manifest.json` differs by `generated_at`) → no
+  unregistered RIS file changes.
+- Manifest v2: source commit `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`,
+  41 fingerprints, **0 mismatches**.
+- Outputs: **23**, no duplicates. `terraform fmt -check` / `init -backend=false`
+  / `validate`: **PASS** (module and RIS root).
+- Updater dry-run on an isolated copy: **NO_CHANGES** (only the lockfile is
+  reported USER_OWNED, correctly untouched).
+- Resource addresses: **36/36 identical** to the previous baseline.
+- MO `lambda/dist/lambda.zip` sha256
+  `aa70eaaa1cb6e01b972dba05893573559e8aa0d945eb5691ce31e079e2521c89`.
+- Tests: RIS focused suites 34 passed / 9 skipped / 318 subtests (including five
+  new `PatchFreeContractDetectionTest` cases for the contract switch);
+  orders/transport/dispatch suites 153 passed / 16 skipped; cross-repo contract
+  against the `db4f9e7` validator 5 passed (4 subtests).
+- `terraform/main.tf` passes the dispatch URL through `additional_environment`;
+  `AGENTS.md` documents the legacy-patch vs. patch-free split.
+
+### 4. Pin gate and plan
+
+- Pin set to `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` (file + constant).
+- Module regenerated patch-free and installed (backup/rollback path unused).
+- Fresh RIS-DEV2 plan: **0 to add, 7 to change, 0 to destroy**.
+- All seven changes are Lambda code updates only (`source_code_hash` +
+  `last_modified`): RIS agent, dispatch ingress, analysis, orders reader and
+  MO handler, worker, result consumer.
+- No IAM, Cognito, SQS, DynamoDB, Secrets or transport changes; handler
+  environment unchanged (same dispatch value through the generic input).
+- Plan SHA-256: `b0410b8518281b6231a0a287c457ea4e7b470bb6c8d1b3968f439d8fb6c308e5`.
+- State (read-only): workspace `ris-dev2`, serial **69**, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, 287 resources.
+
+### 5. Not executed
+
+No `terraform apply`, no AWS mutation, no main merge, no MO changes in this
+step. The previous PIN/module state remains restorable by reverting the two
+installer files and rebuilding at `016cdfd`.
