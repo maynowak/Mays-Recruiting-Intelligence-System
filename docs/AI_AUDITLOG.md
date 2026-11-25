@@ -12909,3 +12909,31 @@ Bericht: `docs/reports/RIS-DEV2-CANARY-CONTRACT-FIX-03.md`
 - Remaining only provisioning: Cognito user, dedicated app client, partner
   application, profile+activate+bind, offer/grant, then exact plan/canary.
 - No AWS write, apply, state write or main merge.
+
+---
+
+## RIS-DEV2-CANARY-BASE-PLAN-04 — 2026-11-25
+
+Status: **READY FOR BASE APPLY APPROVAL**
+
+Bericht: `docs/reports/RIS-DEV2-CANARY-BASE-PLAN-04.md`
+
+- Plan `C:\tmp\ris-dev2-base-04.tfplan`, 252 768 bytes, SHA-256
+  `9b1e5a66384b593885d4f10061f7d55cbbcb91af04aa60e4f3091fc52a1f613c`,
+  Terraform 1.17.0, `applyable/complete`, provider aws 6.67.0 / time 0.14.2.
+- Diff checked in full: **2 add / 8 change / 0 destroy / 0 replace**.
+  Adds: analysis-agent catalog item and the JWT binding route. Changes: 7
+  lambda code updates plus the GetItem-only analysis policy; analysis env adds
+  seven synthetic keys with mode=false and no identities; consent/notice false.
+- Identity: workspace ris-dev2, account 262370457690, eu-central-1, backend
+  key dev/terraform.tfstate, lineage a0bd361d…, serial 69, S3 state from
+  2026-11-22, no active lock. Drift remains the three known refresh entries;
+  both IAM roles are no-op in resource_changes.
+- Regression: MO 240 OK; cross-repo 148 passed / 7 subtests; API/profile/
+  catalog/offer/synthetic set 250 passed / 322 subtests; fmt/validate pass.
+  Full tests/ remains BLOCKED_ENV and is not counted.
+- Bootstrap order verified: the human client allows USER_PASSWORD_AUTH; the
+  operator may create users/clients and write the profile/offer tables; a
+  dedicated app client is required (human/M2M clients must not be reused).
+- Rollback risks recorded, incl. old agent/analysis bundles no longer on disk.
+- No apply, Cognito/AWS mutation, provisioning, state write or main merge.
