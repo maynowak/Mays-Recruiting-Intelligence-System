@@ -12850,3 +12850,34 @@ Bericht: `docs/reports/RIS-DEV2-SYNTHETIC-LIVE-CANARY-01.md`
   fix (pins the old 16C1 worker bundle); not caused by this gate and not edited.
   `test_analysis_ecosystem_wiring` now pins the current reviewed bundle hashes.
 - No apply, AWS mutation, state write, MO/runtime change or main merge.
+
+---
+
+## RIS-DEV2-CANARY-BOOTSTRAP-02 — 2026-11-25
+
+Status: **BLOCKED — POSITIVE BOOTSTRAP NOT EXECUTABLE WITH AUTHORIZED PATHS**
+
+Bericht: `docs/reports/RIS-DEV2-CANARY-BOOTSTRAP-02.md`
+
+- Authorized paths checked: `ris_admin apiprofile create/activate`, `offer
+  create/grant`, `/v1/apiprofiles`, `/v1/offers/.../grant`, domain
+  `create_profile`/`resolve_context`. No direct DynamoDB seed proposed.
+- B1: all three Cognito pools report 0 users (`ris-dev2-dev-users`
+  `eu-central-1_OYN9QiHc5` = 0). The 10 orders are bound to the OYN9 issuer but
+  the owner no longer exists; no JWT → no new order.
+- B2: 4/4 API profiles REVOKED; the profile schema has no
+  `partnerApplicationId`/`issuer` (create ignores, update rejects, live rows
+  None). `resolve_context` therefore yields empty partner/issuer, while the
+  synthetic verifier requires all four values non-empty → authorization
+  impossible.
+- B3: catalog has ats-agent/reference_agent/jobsearch-agent only; no
+  analysis-agent. Offers 0, analysis entitlements 0. `_validate_agents` rejects
+  unknown agents → offer/grant blocked.
+- Consequence: no exact synthetic context exists, so no mode=true plan was
+  created (placeholders prohibited). P1 `bac9af1c…` stays the safe candidate;
+  P2 `7ecb0da6…` is blocked.
+- Package documented: Phase A product changes (catalog entry + validated
+  partner/issuer binding), Phase B provisioning (Cognito user, profile,
+  offer/grant) with IAM scope and cleanup, Phase C Terraform + canary +
+  rollback. Tests reused: 240 MO, 61 cross-repo, 109 parser/analysis, 38 config.
+- No AWS write, apply, state write, new plan or main merge.
