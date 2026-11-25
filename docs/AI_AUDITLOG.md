@@ -12556,3 +12556,59 @@ adoption was performed.
 No `terraform apply`, no AWS mutation, no main merge, no MO changes in this
 step. The previous PIN/module state remains restorable by reverting the two
 installer files and rebuilding at `016cdfd`.
+
+
+---
+
+## RIS-DEV2-RELEASE-READINESS-01 — 2026-11-25
+
+Status: **BLOCKED — NO APPLY** (read-only review; no state/AWS mutation)
+
+Vollständiger Bericht: `docs/reports/RIS-DEV2-RELEASE-READINESS-01.md`
+
+### Verified
+
+- Branch `feature/ris-analysis-integration-07`, HEAD
+  `c2841b81db8af303b75d97e3503fcb50579785d8` == Remote; worktree clean.
+- Plan `C:\tmp\ris-dev2-db4-final.tfplan`, 252 576 bytes, SHA-256
+  `cc140152071cd2f0e65a51fea869b007ac639a7859f435a5f6bee0c6e0165089`
+  (bytes re-hashed); **0 add / 7 change / 0 destroy**, 0 replace.
+- Exactly seven in-place Lambda updates, each only `source_code_hash` +
+  `last_modified`: RIS agent, dispatch_ingress, analysis, orders_reader; MO
+  handler, worker, result_consumer. No Environment/IAM/Cognito/CloudFront/DNS/
+  DynamoDB/SQS/Secrets/ESM change (265 no-ops).
+- Identity: workspace `ris-dev2`, account `262370457690`, region `eu-central-1`,
+  S3 backend `ris-dev2-tf-state-dev` (`env:/ris-dev2/dev/terraform.tfstate`,
+  lock `ris-dev2-tf-lock`), lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`,
+  serial **69**. S3 state `LastModified 2026-11-22T11:52:56Z` (before the plan);
+  plan was created after the commits (06:24:51Z vs commit 06:23:43Z local+1).
+  Plan `prior_state` vs live state: 248 identical, 21 provider-schema
+  normalisations on no-op resources, no drift. No active Terraform lock.
+- Artifacts: all four bundles match the planned `source_code_hash`; ZIP contents
+  match sources (115/115, 113/113, 4/4, 13/13); deployed `CodeSha256` and env
+  key sets of all seven functions match the plan `before`.
+- Code delta: only `agents/orders/{agent_order,real}.py`, `orders_reader.py`,
+  and MO `order_service.py`/`validation.py`. No file added/removed.
+- Required-env sets are identical deployed vs planned (AST check).
+
+### Blocker
+
+`tests/test_agent_order_dispatch_e2e.py` (real MO consumer, pin `db4f9e7`)
+fails 2/6 with `result rejected: missing_correlation`. The planned reader stores
+no root `agentOrder` (`lambda/orders_reader.py:627-654`), while MO
+`lambda/src/order_service.py:467` (and `dispatch.py:47`) derives the correlation
+from `item["agentOrder"]`. The deployed reader still stored it. Result: results
+for RIS-reader-created agent orders are permanently rejected (no retry/DLQ).
+
+### Tests
+
+- focused suite without `MO_ORDERS_SRC`: 134 passed, 25 skipped, 7 subtests.
+- cross-repo contract vs `db4f9e7`: 5 passed, 4 subtests.
+- reader→consumer E2E with `MO_ORDERS_SRC`: **2 failed**, 4 passed.
+- MO lambda suite `db4f9e7`: 240 tests OK.
+
+### Not done
+
+No apply, no AWS mutation, no state write, no main merge, no MO/pin change.
+A fix requires a RIS or MO change, rebuilt bundles, a new plan and a new
+approval.
