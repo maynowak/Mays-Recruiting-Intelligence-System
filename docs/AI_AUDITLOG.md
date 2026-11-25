@@ -1,3 +1,17 @@
+[XREPO-RIS-P0-PARALLEL-FIX-01]
+Current status: BLOCKED — SECURITY/PRIVACY REVIEW REQUIRED (technical integration verified locally)
+Audit date/time: 2026-11-25
+Current Git branch and HEAD: integration/xrepo-ris-p0-parallel-fix-01, based on origin/main 97a60df83a5db56ea750e4342d7a01b00c8ad56b
+Feature branches: feature/ris-erasure-partner-route-alignment-01 (db5ba54), feature/ris-consent-iac-alignment-01 (68f9074)
+Audit scope: Two parallel RIS P0 fixes — partner erasure route alignment and consent IaC alignment — integrated locally. No main merge, AWS/Terraform apply/plan, deployment, Jobsearch change, force-push or branch deletion.
+Integration: de15bac (erasure) + a1ef3ca (consent); conflicts only docs/AI_AUDITLOG.md and docs/api/API-STANDARD.md, resolved keeping both (erasure row + corrected consent 404/409/422 rows). 22 files, +2037/−106.
+Erasure: POST /v1/partner/me/erasure added to lambda/handler.py via _partner_profile_context → existing _handle_me_erasure; route added to partner_edge and api Terraform; /me/erasure unchanged; one PrivacyErasure executor; OpenAPI/API-STANDARD/tests updated. Jobsearch BFF contract now HTTP-compatible. Open P0: main lifecycle lacks erase-partner-search-profiles and CVDocument-metadata deletion present on deployed ris-dev lineage; complete:true can leave partner data behind.
+Consent: four missing enforcement env vars wired from Terraform variables (allowlist sensitive/format-validated); fail-closed plan guards; runtime enforcement_flag() treats unset as false and any invalid non-true/false value as enforced + ERROR; installer site booleans added, ris-dev.json unchanged; CONSENT-V1/OpenAPI/API-STANDARD aligned with 3 APPROVED + DRAFT analysis-processing. Open P0: RIS accepts cv-storage grants without Art.-9 proof; only Jobsearch BFF enforces it (Privacy/Legal decision).
+Tests: focused erasure/consent/OpenAPI/P20/surface 102 passed + 425 subtests; full RIS 3245 passed, 129 skipped, 4 failed, 549 subtests — 4 pre-existing/environmental (3 composite lifecycle arg-order, 1 missing terraform/lambda.zip) reproduced on main. Terraform fmt -check PASS; init -backend=false + validate 3/3 modules PASS; root validate pre-existing generated mays_orders failure. No plan generated; 0 delete/replace cannot be claimed.
+Approvals: RIS release/API owner, AWS/Terraform G4/G5 for a fresh plan/apply, Privacy/Legal for erasure lifecycle parity and Art. 9, Security for authorization/allowlist, separate live synthetic E2E. Jobsearch flags remain default-off.
+Report: docs/reports/XREPO-RIS-P0-PARALLEL-FIX-01-REPORT.md.
+Verdict: BLOCKED — SECURITY/PRIVACY REVIEW REQUIRED before real-user rollout; route/IaC changes are locally verified and ready for P0 integration review.
+
 [JM-GOOGLE-LOGIN-READINESS-01]
 Current status: COMPLETE / RED (NOT READY, read-only Audit)
 Audit date/time: 2026-10-31 21:48–21:52 UTC
