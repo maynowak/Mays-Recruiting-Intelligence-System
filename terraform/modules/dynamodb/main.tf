@@ -729,6 +729,18 @@ locals {
       risk_level         = "low"
       metadata           = {}
     }
+    "analysis-agent" = {
+      agentId            = "analysis-agent"
+      name               = "analysis-agent"
+      version            = "1.0.0"
+      status             = "ACTIVE"
+      description        = "Dünne Analyse-Orchestrierung (analysis.run): CV-, Job-, ATS-Tags und deterministischer Vergleich über die vorhandenen Parser"
+      capabilities       = ["analysis.run"]
+      supported_bodies   = ["1.0.0"]
+      supported_runtimes = ["python3.14"]
+      risk_level         = "low"
+      metadata           = {}
+    }
   }
 }
 
