@@ -12965,3 +12965,28 @@ Bericht: `docs/reports/RIS-DEV2-LIVE-COMPLETION-05-PREFLIGHT.md`
   rotation remains a MO task.
 - STOP: no apply without explicit approval of exactly `9b1e5a66…`. Phase B/C
   need separate AWS-write approvals.
+
+---
+
+## RIS-DEV2-BASE-APPLY-06 — 2026-11-25
+
+Status: **BASE APPLIED — LIVE VERIFIED**
+
+Bericht: `docs/reports/RIS-DEV2-BASE-APPLY-06.md`
+
+- Preflight PASS (22/22): HEAD 97d4921, account 262370457690, eu-central-1,
+  workspace ris-dev2, backend dev/terraform.tfstate, lineage a0bd361d…,
+  serial 69, no lock, plan hash 9b1e5a66…, diff 2/8/0, seven rollback ZIPs
+  hash-verified.
+- Applied the exact saved plan once (`terraform apply -auto-approve planfile`),
+  exit 0: 2 added / 8 changed / 0 destroyed. State 69 → 71, lineage unchanged;
+  S3 version 9Q1_MK4…, 2026-11-25T17:25:44Z; 288 blocks, 274 managed instances.
+- Live verified: catalog analysis-agent ACTIVE with analysis.run; binding route
+  present with JWT authorizer 0iqec5 (issuer OYN9…, audience 5jg…); analysis
+  policy exactly two GetItem statements and no orders table; all seven Lambda
+  CodeSha256 match the plan; analysis env has mode=false and empty identities;
+  Cognito still 0 users/2 clients; CloudFront 2/0 hosted zones with no write
+  events in the window; no active lock.
+- No Cognito users/clients, profiles, partners, offers, entitlements or
+  synthetic activation; no further plan, rollback or main merge.
+- Phase B requires a separate AWS-write approval.
