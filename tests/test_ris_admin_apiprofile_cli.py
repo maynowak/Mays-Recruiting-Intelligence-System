@@ -251,3 +251,24 @@ def test_parser_exposes_bind_without_tenant_flag():
     assert args.apiprofile_cmd == "bind"
     assert not hasattr(args, "tenantId")
     assert not hasattr(args, "issuer")
+
+# ----------------------------------------------------------------------
+# Revoke (cleanup path)
+# ----------------------------------------------------------------------
+
+def test_revoke_is_admin_only_and_terminal():
+    store = InMemoryApiProfileStore()
+    pid = _active_profile(store)
+    with pytest.raises(Exception):
+        apis.revoke(pid, _actor(role="owner"), "cleanup", profile_store=store)
+    out = apis.revoke(pid, _actor(), "cleanup", profile_store=store)
+    assert out["status"] == "REVOKED"
+    assert store.get_profile(pid)["status"] == "REVOKED"
+
+
+def test_parser_exposes_revoke():
+    parser = build_parser()
+    args = parser.parse_args(["apiprofile", "revoke", "--apiProfileId",
+                              "aprof_x", "--reason", "cleanup"])
+    assert args.apiprofile_cmd == "revoke"
+    assert not hasattr(args, "tenantId")

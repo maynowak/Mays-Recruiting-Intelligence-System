@@ -566,6 +566,31 @@ def build_parser() -> argparse.ArgumentParser:
     ap_bind.add_argument("--authorization-file", default=None)
     ap_bind.set_defaults(func=_aprof_cmd_bind)
 
+    def _aprof_cmd_revoke(args):
+        ops = _apiprofile_ops()
+        if args.dry_run:
+            _print_json({"dryRun": True, "operation": "apiprofile revoke",
+                         "apiProfileId": args.apiProfileId,
+                         "note": "no APIProfile was changed"})
+            return 0
+        try:
+            actor = _actor(args, "revoke an APIProfile")
+        except credops_error() as exc:
+            return _deny(exc)
+        try:
+            item = ops.revoke(args.apiProfileId, actor, args.reason)
+        except Exception as exc:
+            return _apiprofile_error("revoke", exc)
+        _print_json(item)
+        return 0
+
+    ap_revoke = ap_sub.add_parser(
+        "revoke", help="Revoke an APIProfile (admin only)")
+    ap_revoke.add_argument("--apiProfileId", required=True)
+    ap_revoke.add_argument("--reason", required=True)
+    ap_revoke.add_argument("--authorization-file", default=None)
+    ap_revoke.set_defaults(func=_aprof_cmd_revoke)
+
     def _aprof_cmd_show(args):
         ops = _apiprofile_ops()
         if args.dry_run:
@@ -753,6 +778,58 @@ def build_parser() -> argparse.ArgumentParser:
     off_show.add_argument("--offerId", required=True)
     off_show.add_argument("--authorization-file", default=None)
     off_show.set_defaults(func=_offer_cmd_show)
+
+    def _offer_cmd_withdraw(args):
+        ops = _offer_ops()
+        if args.dry_run:
+            _print_json({"dryRun": True, "operation": "offer withdraw",
+                         "entitlementId": args.entitlementId,
+                         "note": "no entitlement was withdrawn"})
+            return 0
+        try:
+            actor = _actor(args, "withdraw an entitlement")
+        except credops_error() as exc:
+            return _deny(exc)
+        try:
+            out = ops.withdraw(args.entitlementId, actor, args.reason)
+        except Exception as exc:
+            return _offer_error("withdraw", exc)
+        _print_json(out)
+        return 0
+
+    off_withdraw = off_sub.add_parser(
+        "withdraw", help="Withdraw an entitlement (admin only)")
+    off_withdraw.add_argument("--entitlementId", required=True)
+    off_withdraw.add_argument("--reason", required=True)
+    off_withdraw.add_argument("--authorization-file", default=None)
+    off_withdraw.set_defaults(func=_offer_cmd_withdraw)
+
+    def _offer_cmd_status(args):
+        ops = _offer_ops()
+        if args.dry_run:
+            _print_json({"dryRun": True, "operation": "offer status",
+                         "offerId": args.offerId, "status": args.status,
+                         "note": "no offer was changed"})
+            return 0
+        try:
+            actor = _actor(args, "change an offer status")
+        except credops_error() as exc:
+            return _deny(exc)
+        try:
+            out = ops.set_status(args.offerId, actor, args.status, args.reason)
+        except Exception as exc:
+            return _offer_error("status", exc)
+        _print_json(out)
+        return 0
+
+    off_status = off_sub.add_parser(
+        "status", help="Set offer ACTIVE/INACTIVE (admin only)")
+    off_status.add_argument("--offerId", required=True)
+    off_status.add_argument("--status", required=True,
+                            choices=["ACTIVE", "INACTIVE"])
+    off_status.add_argument("--reason", required=True)
+    off_status.add_argument("--authorization-file", default=None)
+    off_status.set_defaults(func=_offer_cmd_status)
 
     def _cred_list(args):
         if args.dry_run:

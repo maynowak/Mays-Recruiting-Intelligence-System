@@ -154,6 +154,18 @@ def bind_identity(api_profile_id: str,
     )
 
 
+def revoke(api_profile_id: str,
+           actor: Dict[str, Any],
+           reason: str,
+           profile_store=None) -> Dict[str, Any]:
+    """Admin-only REVOKED transition through the existing lifecycle."""
+    from agents.ecosystem.api_profiles import transition_status
+
+    store = _profile_store(profile_store)
+    return transition_status(
+        store, domain_actor(actor), api_profile_id, "REVOKED", reason=reason)
+
+
 def show(api_profile_id: str,
          actor: Dict[str, Any],
          reason: Optional[str] = None,
