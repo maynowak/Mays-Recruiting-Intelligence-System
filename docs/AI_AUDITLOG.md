@@ -13210,3 +13210,25 @@ Bericht: `docs/reports/RIS-DEV2-PERSISTENCE-APPLY-14.md`
 - Recovery (data repair + redrive, or new order) still needs separate approval
   and must run before the 17:40:28Z window. No data repair, redrive, new order,
   cleanup, further apply, grant or main merge.
+
+---
+
+## RIS-DEV2-CANARY-E2E-15 — 2026-11-26
+
+Status: **BLOCKED — PARTIALLY VERIFIED**
+
+Bericht: `docs/reports/RIS-DEV2-CANARY-E2E-15.md`
+
+- Preflight PASS. Created exactly one new order: ord_a566f415ef9d77720cd97cd4,
+  work-2c26e835ee8fee7c, corr-canary-07-02, idempotency canary-07-job-tags-02;
+  HTTP 201, PENDING, dispatch SENT.
+- Dispatch ingress was again rejected: CancellationReasons index 0
+  ValidationError (ConditionCheck), index 1 None. The fail-closed fix worked:
+  WorkEnqueueError, no SQS send, no marker, no bare row; 0 work items.
+- Analysis/worker never ran; order remains PENDING; dispatch queue 1 in-flight;
+  work DLQ 1 (old) unchanged. Old order/work item untouched.
+- Table key is workId (String, hash-only); fence key 78 bytes; no fence row;
+  the Put item is valid (1390 bytes, no invalid types). The exact AWS Validation
+  message was intentionally not logged (codes only); a separate approved
+  diagnosis/fix is needed.
+- No second order, redrive, data repair, cleanup, apply, grant or main merge.
