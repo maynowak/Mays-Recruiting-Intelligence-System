@@ -1,3 +1,28 @@
+[RIS-P0-CONSENT-DEPLOYMENT-DECISION-04]
+Current status: READY FOR DEPLOYMENT DECISION (decision basis complete; no activation, no plan/apply)
+Audit date/time: 2026-11-26
+Current Git branch and HEAD: feature/ris-p0-consent-deployment-decision-04, base 3ff903f, no main merge
+Audit scope: Read-only ris-dev verification, consent/notice decision matrix, Art. 9 privacy questions, installer/Terraform safety and erasure dependencies. No AWS mutation, Terraform plan/apply, state write, deployment, real erasure or real user data.
+Confirmed live (read-only, mayaws / 240571105849 / eu-central-1):
+  - Lambda ris-dev-dev-agent: $LATEST, Active, last modified 2026-11-17, code hash matches state; no published versions or aliases.
+  - APPLICATION_CONSENT_ENFORCED=true, CV_STORAGE_CONSENT_ENFORCED=true, SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED=true, CONSENT_NOTICE_STATE_ENFORCED=true (supersedes historical false), PARTNER_SURFACE_ENABLED=true; allowlist present/non-empty with 2 entries (values withheld).
+  - State mays-ris-tf-state-dev key env:/ris-dev/dev/terraform.tfstate: serial 83, lineage 9cec61e5-c036-1ad5-6ae4-8b48a50122a4, 271 resources, tf 1.16.1, last modified 2026-11-18.
+  - Partner API c7e9pdwe78 and kernel API g6901and25 expose erasure/consent routes with JWT; both integrate to ris-dev-dev-agent.
+  - Consent table ris-dev-dev-consents: 50 rows; app 7 GRANTED/5 WITHDRAWN (5/7 granted have proof; 2 legacy without), cv 11/3 (14/14 proof true and correct v1 text/hash), search 16/8, analysis 0.
+Findings:
+  - Application-storage gate is global (no allowlist boundary); CV/search remain allowlist-scoped. Treating the current state as a two-user pilot is incorrect.
+  - CONSENT_NOTICE_STATE_ENFORCED=true is already active; all three storage notices are APPROVED, analysis-processing is DRAFT and blocked.
+  - Consent rows/events are not deleted by erasure; retention/anonymisation is a Privacy/Legal decision.
+  - ERASURE_APPLICATIONS_ENABLED=false disables the legacy application deleter; dedicated ApplicationErasureExecutor is wired. ERASURE_S3_EXECUTION_ENABLED=false; no physical-purge claim.
+  - No full drift plan; Lambda code/env and routes match state. $LATEST with no published version/alias is a rollback risk.
+Tests:
+  - Focused consent/installer/erasure 224 passed / 103 subtests; full 3392 passed / 129 skipped / 18 environment failures; parent 3381/129/18 (no new failures).
+  - fmt PASS; root validate pre-existing mays_orders failure; modules lambda/api/partner_edge validate PASS; diff/secret scan PASS.
+Recommendation: Variant A — preserve current live values, no plan/apply; confirm global application gate, legacy application rows and consent retention with Privacy/Legal.
+Approvals: Privacy/Legal Art. 9/legal basis, Security, authorized ris-dev plan (0 delete/0 replace, no enforcement weakening), separate apply approval, synthetic E2E.
+Report: docs/reports/RIS-P0-CONSENT-DEPLOYMENT-DECISION-04-REPORT.md
+Current resume point: human deployment decision; no activation or further AWS work.
+
 [RIS-P0-SECURITY-GATE-03]
 Current status: READY FOR P0 SECURITY REVIEW (technical local gate; Privacy/Legal and authorized plan pending)
 Audit date/time: 2026-11-26
