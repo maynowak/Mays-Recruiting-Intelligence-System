@@ -29,7 +29,8 @@ VALID_STATES = frozenset({
     "COMPLETED", "CANCELLED", "DEAD_LETTER",
 })
 IDENTITY_FIELDS = ("tenantId", "userId", "partnerApplicationId", "issuer")
-MATCH_FIELDS = IDENTITY_FIELDS + ("agentId", "capability")
+MATCH_FIELDS = IDENTITY_FIELDS + ("agentId", "capability",
+                                  "apiProfileId", "type")
 
 
 class WorkEnqueueError(RuntimeError):
@@ -87,8 +88,13 @@ def _reuse_problem(existing: Any, work_item: Dict[str, Any]) -> Optional[str]:
             return f"{field}_mismatch"
     if not isinstance(existing.get("payload"), dict):
         return "payload_missing"
-    if not existing.get("idempotencyKey"):
+    if existing.get("payload") != work_item.get("payload"):
+        return "payload_mismatch"
+    existing_key = existing.get("idempotencyKey")
+    if not existing_key:
         return "idempotency_missing"
+    if existing_key != work_item.get("idempotencyKey"):
+        return "idempotency_key_mismatch"
     return None
 
 
@@ -98,6 +104,10 @@ def enqueue_work_item(work_item: Dict[str, Any], *, table: Any,
     """Persist once (fenced) and send to the existing shared work queue."""
     if not isinstance(work_item, dict) or not work_item.get("workId"):
         raise WorkEnqueueError("work item with workId is required")
+    if not isinstance(work_item.get("payload"), dict):
+        raise WorkEnqueueError("work item payload must be an object")
+    if not work_item.get("idempotencyKey"):
+        raise WorkEnqueueError("work item idempotencyKey is required")
     if not queue_url:
         raise WorkEnqueueError("WORK_QUEUE_URL is not configured")
     if table is None:

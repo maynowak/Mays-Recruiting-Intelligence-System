@@ -187,7 +187,9 @@ class CancellationFailClosedTest(unittest.TestCase):
         for field, bad in (("tenantId", "tenant-b"), ("userId", "user-b"),
                            ("partnerApplicationId", "other"),
                            ("issuer", "https://other"), ("agentId", "ats-agent"),
-                           ("capability", "analyze.job")):
+                           ("capability", "analyze.job"),
+                           ("apiProfileId", "aprof_other"),
+                           ("type", "agent_ats-agent")):
             table = TransactTable(item={**WORK, field: bad},
                                   error=TransactCancelled())
             sqs = FakeSQS()
@@ -195,6 +197,38 @@ class CancellationFailClosedTest(unittest.TestCase):
                 self._call(table, sqs)
             self.assertEqual([], sqs.sent, field)
             self.assertEqual([], table.updates, field)
+
+    def test_cancelled_with_payload_mismatch_fails_closed(self):
+        table = TransactTable(
+            item={**WORK, "payload": {"left": 9, "right": 9}},
+            error=TransactCancelled())
+        sqs = FakeSQS()
+        with self.assertRaises(WorkEnqueueError):
+            self._call(table, sqs)
+        self.assertEqual([], sqs.sent)
+        self.assertEqual([], table.updates)
+
+    def test_cancelled_with_idempotency_mismatch_fails_closed(self):
+        table = TransactTable(item={**WORK, "idempotencyKey": "other-key"},
+                              error=TransactCancelled())
+        sqs = FakeSQS()
+        with self.assertRaises(WorkEnqueueError):
+            self._call(table, sqs)
+        self.assertEqual([], sqs.sent)
+        self.assertEqual([], table.updates)
+
+    def test_identical_nested_payload_and_key_is_idempotent(self):
+        payload = {"left": 1, "right": {"nested": [1, 2, 3]}}
+        requested = {**WORK, "payload": payload}
+        table = TransactTable(
+            item={**requested, "enqueuedAt": "2026-01-01T00:00:00+00:00"},
+            error=TransactCancelled())
+        sqs = FakeSQS()
+        out = enqueue_work_item(dict(requested), table=table, queue_url=QUEUE,
+                                sqs_client=sqs)
+        self.assertTrue(out["duplicate"])
+        self.assertEqual([], sqs.sent)
+        self.assertEqual([], table.updates)
 
     def test_cancelled_with_valid_enqueued_duplicate(self):
         table = TransactTable(
