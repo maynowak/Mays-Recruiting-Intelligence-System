@@ -267,6 +267,65 @@ class CancellationFailClosedTest(unittest.TestCase):
         self.assertEqual([], sqs.sent)
         self.assertEqual([], table.updates)
 
+    def test_fence_rejection_is_not_treated_as_duplicate(self):
+        table = TransactTable(item=dict(WORK), error=TransactCancelled([
+            {"Code": "ConditionalCheckFailed"}, {"Code": "None"}]))
+        sqs = FakeSQS()
+        with self.assertRaises(WorkEnqueueError):
+            self._call(table, sqs)
+        self.assertEqual([], sqs.sent)
+        self.assertEqual([], table.updates)
+
+    def test_validation_error_fails_closed_even_with_valid_row(self):
+        table = TransactTable(
+            item={**WORK, "enqueuedAt": "2026-01-01T00:00:00+00:00"},
+            error=TransactCancelled([
+                {"Code": "ValidationError"}, {"Code": "None"}]))
+        sqs = FakeSQS()
+        with self.assertRaises(WorkEnqueueError):
+            self._call(table, sqs)
+        self.assertEqual([], sqs.sent)
+        self.assertEqual([], table.updates)
+
+    def test_transaction_conflict_fails_closed(self):
+        table = TransactTable(error=TransactCancelled([
+            {"Code": "TransactionConflict"}, {"Code": "None"}]))
+        sqs = FakeSQS()
+        with self.assertRaises(WorkEnqueueError):
+            self._call(table, sqs)
+        self.assertEqual([], sqs.sent)
+        self.assertEqual([], table.updates)
+
+    def test_put_condition_reason_uses_duplicate_path(self):
+        table = TransactTable(
+            item={**WORK, "enqueuedAt": "2026-01-01T00:00:00+00:00"},
+            error=TransactCancelled([
+                {"Code": "None"}, {"Code": "ConditionalCheckFailed"}]))
+        sqs = FakeSQS()
+        out = self._call(table, sqs)
+        self.assertTrue(out["duplicate"])
+        self.assertEqual([], sqs.sent)
+        self.assertEqual([], table.updates)
+
+    def test_transaction_uses_low_level_client_helper(self):
+        calls = []
+        local = SimpleNamespace(
+            transact_write_items=lambda **kw: calls.append(kw))
+        table = SimpleNamespace(
+            name="work-items",
+            meta=SimpleNamespace(client=object()),
+            updates=[],
+            update_item=lambda **kw: table.updates.append(kw),
+        )
+        with patch("agents.runtime.pipeline._ddb_transaction_client",
+                   return_value=local) as helper:
+            enqueue_work_item(dict(WORK), table=table, queue_url=QUEUE,
+                              sqs_client=FakeSQS())
+        helper.assert_called_once_with(table)
+        self.assertEqual(1, len(calls))
+        key = calls[0]["TransactItems"][0]["ConditionCheck"]["Key"]["workId"]
+        self.assertEqual({"S": key["S"]}, key)
+
     def test_cancellation_reasons_are_logged_without_values(self):
         reasons = [{"Code": "ConditionalCheckFailed"},
                    {"Code": "TransactionConflict"}]

@@ -62,6 +62,27 @@ def _cancellation_reasons(exc: Exception) -> List[Dict[str, Any]]:
     return safe
 
 
+def _raise_for_cancellation(exc: Exception) -> None:
+    """Classify a transaction cancellation without guessing.
+
+    Index 0 is the fence ConditionCheck, index 1 the WorkItem Put. A fence
+    rejection must never fall through to the duplicate path; validation or a
+    transaction conflict must fail closed without a send. Only a Put condition
+    failure is a candidate for the duplicate/reuse check.
+    """
+    reasons = _cancellation_reasons(exc)
+    if reasons:
+        logger.warning("work item transaction cancelled: %s",
+                       json.dumps(reasons, sort_keys=True))
+    codes = {reason["index"]: reason["code"] for reason in reasons}
+    if codes.get(0) == "ConditionalCheckFailed":
+        raise WorkEnqueueError("work item rejected: subject fence is active")
+    if "ValidationError" in codes.values():
+        raise WorkEnqueueError("work item transaction validation error")
+    if "TransactionConflict" in codes.values():
+        raise WorkEnqueueError("work item transaction conflict")
+
+
 def _read_existing(table: Any, work_id: str) -> Optional[Dict[str, Any]]:
     try:
         return table.get_item(Key={"workId": work_id},
@@ -113,7 +134,10 @@ def enqueue_work_item(work_item: Dict[str, Any], *, table: Any,
     if table is None:
         raise WorkEnqueueError("work items table is not configured")
 
-    from agents.runtime.pipeline import _ddb_client_item
+    from agents.runtime.pipeline import (
+        _ddb_client_item,
+        _ddb_transaction_client,
+    )
     from agents.runtime.subject_fence import subject_fence_key
 
     fence_key = subject_fence_key(
@@ -122,7 +146,7 @@ def enqueue_work_item(work_item: Dict[str, Any], *, table: Any,
         partner_application_id=work_item.get("partnerApplicationId") or "",
         issuer=work_item.get("issuer") or "",
     )
-    client = getattr(getattr(table, "meta", None), "client", None)
+    client = _ddb_transaction_client(table)
     inserted = True
     if client is not None and hasattr(client, "transact_write_items"):
         try:
@@ -141,11 +165,8 @@ def enqueue_work_item(work_item: Dict[str, Any], *, table: Any,
         except Exception as exc:  # noqa: BLE001 - boundary
             if not _conditional_failed(exc):
                 raise
+            _raise_for_cancellation(exc)
             inserted = False
-            reasons = _cancellation_reasons(exc)
-            if reasons:
-                logger.warning("work item transaction cancelled: %s",
-                               json.dumps(reasons, sort_keys=True))
     else:
         try:
             table.put_item(Item=work_item,
@@ -153,11 +174,8 @@ def enqueue_work_item(work_item: Dict[str, Any], *, table: Any,
         except Exception as exc:  # noqa: BLE001 - boundary
             if not _conditional_failed(exc):
                 raise
+            _raise_for_cancellation(exc)
             inserted = False
-            reasons = _cancellation_reasons(exc)
-            if reasons:
-                logger.warning("work item condition cancelled: %s",
-                               json.dumps(reasons, sort_keys=True))
 
     if not inserted:
         existing = _read_existing(table, work_item["workId"])
