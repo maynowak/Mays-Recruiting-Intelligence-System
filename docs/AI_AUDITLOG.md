@@ -13340,3 +13340,32 @@ Bericht: `docs/reports/RIS-DEV2-FIX-16B-APPLY-17.md`
   work DLQ 1, results queue/DLQ 0/0. No queue messages were read or modified.
 - No redrive, new order, correction, cleanup, grant, further apply or
   main merge. Stop after live verification.
+
+---
+
+## RIS-DEV2-CANARY-RECOVERY-18 — 2026-11-26
+
+Status: **BLOCKED — PARTIALLY VERIFIED**
+
+Bericht: `docs/reports/RIS-DEV2-CANARY-RECOVERY-18.md`
+
+- Preflight PASS: account/region/workspace correct; state 75, expected
+  lineage/S3 version; Fix-16B hashes and MODE=true; entitlement valid;
+  exact target order pending, WorkItem absent, dispatch DLQ exactly one.
+- Exactly one DLQ message validated against order/work/correlation
+  corr-canary-07-02, contextRef aprof_cdbd3b6f803744bf, dispatch
+  idempotency key ord_a566f415ef9d77720cd97cd4:work-2c26e835ee8fee7c:
+  ORDER_DISPATCH, payload key canary-07-job-tags-02 and approved payload.
+- One SendMessage succeeded (destination id 382b96fc-79a3-40bc-a439-
+  78a69cc68151); only after success the exact source receipt was deleted
+  (HTTP 200). Source DLQ message id 816b5bef-d544-460a-b039-452d1b9ce7b5.
+- Automatic processing persisted the WorkItem as RUNNING, but after up to
+  ten minutes it remained RUNNING with no result. Order remained PENDING;
+  authorized Owner GET HTTP 200 also returned PENDING without processing.
+- Queue snapshot: dispatch queue/DLQ 0/0; work queue 0/0; Work-DLQ 1
+  (not consumed or changed); results queue/DLQ 0/0. Two correlated INFO
+  events in agent logs; none in analysis or result-consumer groups; no
+  correlated error/exception/timeout marker in sampled agent events.
+- No second redrive, new order, manual worker/result invocation, data
+  correction, cleanup, grant, Terraform apply or main merge. State remained
+  serial 75 / S3 oacaI13gBig4EZiLdlTGuGHb_WB6ksmQ.
