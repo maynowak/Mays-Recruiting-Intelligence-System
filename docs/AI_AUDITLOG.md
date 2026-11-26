@@ -13116,3 +13116,28 @@ Bericht: `docs/reports/RIS-DEV2-INGRESS-IAM-APPLY-11.md`
 - No DLQ redrive, new order, cleanup, further apply, grant or main merge.
   E2E still requires a separately approved redrive or new order before
   2026-11-26T17:40:28Z.
+
+---
+
+## RIS-DEV2-DISPATCH-DLQ-REDRIVE-12 — 2026-11-26
+
+Status: **BLOCKED — PARTIALLY VERIFIED**
+
+Bericht: `docs/reports/RIS-DEV2-DISPATCH-DLQ-REDRIVE-12.md`
+
+- Preflight PASS. The single DLQ message was content-verified (ORDER_DISPATCH,
+  order ord_676668..., workId work-eb1185..., contextRef aprof_cdbd3..., recipient
+  analysis-agent/analysis.run), sent once to the dispatch queue (550a89bb...)
+  and then deleted from the DLQ.
+- Dispatch ingress processed it and handed it to the work queue, but the
+  persisted WorkItem contains only workId + enqueuedAt (no status/identity/
+  payload). The worker fails closed with WORK_ADMISSION_STATE_UNSAFE (07:11:31,
+  retry 07:16:22); analysis was never invoked; order stays PENDING.
+- Cause path: a cancelled enqueue transaction sets inserted=False, the code
+  still sends when no existing row is found, and the post-send update_item
+  creates the bare row. No fence row exists for the identity; the exact
+  cancellation trigger was not proven read-only. Product bug, not IAM.
+- Smallest fix needs separate approval: only send when a complete existing
+  WorkItem exists after cancellation; otherwise fail closed, plus a regression
+  test. No runtime change made.
+- No new order, apply, grant, Cognito change, cleanup, rollback or main merge.
