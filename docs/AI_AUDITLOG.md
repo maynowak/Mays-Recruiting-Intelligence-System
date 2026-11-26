@@ -1,3 +1,19 @@
+[RIS-MO-SQS-SECURITY-APPROVAL-09]
+Current status: BLOCKED — PLAN INPUTS / SCOPE APPROVAL (SQS Option B recommended interim; pin integrated)
+Audit date/time: 2026-11-26
+Current Git branch and HEAD: feature/ris-mo-pin-ceebc37-09b b315050; Orders candidate ceebc37; RIS pin previously 016cdfd
+Audit scope: SQS security review, pin integration, RIS root proof and plan-input readiness. Read-only AWS; no plan/apply/mutation/deployment/main merge.
+Findings:
+  - Orders pin updated to ceebc37 in builder pin + PINNED_COMMIT; generated module/IP injection/contract audits and module/root fmt+init -backend=false+validate PASS; focused 102 + installer 43 + pinning 6 PASS.
+  - SQS Option B (account-root) recommended as interim: closes cross-account wildcard, same-account producers/consumers unchanged; one in-place policy UPDATE; queue 30/120/no-DLQ unchanged; not a granted approval.
+  - Live queue policy confirmed wildcard Principal *, Send/Receive/Delete/Get, no conditions; roles: MO handler and RIS orders-reader send, MO worker receive/delete/get; agent not producer.
+  - Plan-Inputs INCOMPLETE: no 0600 var-file with four true consent flags + 2 allowlist entries; generated module and lambda/orders-reader zips absent; application_consent_enforced cannot come from overlay. Missing input would silently disable enforcement.
+  - Scope drift: expected plan includes route create partner_erasure, 5 IAM policy creates, 2 Lambda env additions, optional Lambda/reader code updates; not policy-only. No delete/replace/Cognito/CloudFront/CORS/consent change expected.
+  - State serial 83, lineage 9cec61e5-c036-1ad5-6ae4-8b48a50122a4, 271 resources; live flags all true; allowlist 2 entries; consent table current proofs complete.
+No plan/apply/deploy/main merge.
+Report: docs/reports/RIS-MO-SQS-SECURITY-APPROVAL-09.md
+Current resume point: operator protected var-file + scope approval before authorized plan.
+
 [RIS-MO-SQS-SECURITY-APPROVAL-09B]
 Current status: PIN MIGRATED IN BRANCH — BUILD / CONTRACT / TERRAFORM / TESTS VERIFIED LOCAL
 Audit date/time: 2026-11-26
