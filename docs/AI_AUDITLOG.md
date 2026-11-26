@@ -13168,3 +13168,25 @@ Bericht: `docs/reports/RIS-DEV2-WORKITEM-PERSISTENCE-FIX-13.md`
   SHA-256 03a5a3ed..., 0 add / 3 change / 0 destroy (agent, dispatch ingress,
   analysis; code hashes only), state 73, mode true.
 - No AWS write, apply, redrive, new order, data repair or cleanup.
+
+---
+
+## RIS-DEV2-WORKITEM-PERSISTENCE-FINAL-13A — 2026-11-26
+
+Status: **READY FOR PERSISTENCE FIX APPLY APPROVAL**
+
+Bericht: `docs/reports/RIS-DEV2-WORKITEM-PERSISTENCE-FINAL-13A.md`
+
+- Hardening 8eb18fc: reuse additionally requires exact payload equality, the
+  same idempotencyKey, and matching apiProfileId/type; requested items without
+  a dict payload or key are rejected before persistence.
+- Tests: 62 focused tests pass, incl. payload/idempotency/apiProfile/type
+  mismatch (no send, no marker) and a valid nested identical repeat.
+- Bundles rebuilt: agent 71bf3c9d..., analysis 7b3c8e6e...; reviewed pin
+  updated. Reader/MO unchanged.
+- Fresh plan C:\tmp\ris-dev2-workitem-persistence-fix-13a.tfplan, 253381 bytes,
+  SHA-256 41fef4bc..., 0 add / 3 change / 0 destroy (agent, dispatch ingress,
+  analysis only; code hashes), state 73, S3 unchanged, mode true. Old plan
+  03a5a3ed... is superseded.
+- AWS state unchanged: bare work item, order PENDING, work DLQ 1, dispatch
+  DLQ 0. No AWS write, apply, redrive, data repair, new order or cleanup.
