@@ -1,3 +1,20 @@
+[RIS-MO-SQS-SECURITY-APPROVAL-09B]
+Current status: PIN MIGRATED IN BRANCH — BUILD / CONTRACT / TERRAFORM / TESTS VERIFIED LOCAL
+Audit date/time: 2026-11-26
+Current Git branch and HEAD: feature/ris-mo-pin-ceebc37-09b (base 4581505); Orders pin ceebc374e35132ee45613b9637909a5b9e77992a (base 386d741)
+Audit scope: builder pin migration only (installer/mays-orders-builder.pinned.json + PINNED_COMMIT), orders-service rebuild from ceebc37 with the unchanged Linux-portable builder, RIS transport-output injection, generated-contract audit, module/root terraform fmt/init -backend=false/validate, focused builder/injection/contract/installer tests. Build in temp copy /tmp/opencode/ris-pin09-b. No AWS access, plan/apply, state write, deployment, main merge or force-push.
+Findings:
+  - Pin commit fetched from maynowak/mays-order-aws and verified clean at ceebc37; delta 016cdfd→ceebc37 = 10 files +340/−4 (optional agent_transport lambda_execution_boundary, root wiring, catalog binding, tests/docs); no SQS/queue/GSI/HMAC/apply_result/output change.
+  - Build PASS: orders-service, 8 child modules incl. agent_transport, manifest source ceebc37, 9 inputs / 23 outputs incl. sqs_queue_name, 3 transport outputs injected exactly once, validate_generated_contract + check_arn_id_contract PASS, IAM SQS document without wildcard.
+  - Terraform PASS: generated module fmt -check / init -backend=false / validate; RIS root fmt -check / init -backend=false / validate (only pre-existing deprecation warnings).
+  - Generated-module delta vs the 016cdfd build: exactly main.tf, modules/agent_transport/main.tf, modules/agent_transport/lambda.tf plus manifest timestamp; lambda.zip byte-identical (fa0dee9e…); result identical to the 08C ceebc37 proof copy.
+  - Tests: focused 5-file set with MO_ORDERS_SRC=ceebc37/lambda/src -> 102 passed; installer 43 passed; project pinning 6 passed; no test changed or skipped.
+  - Open (unchanged): generated module still emits aws_sqs_queue_policy.orders with account-root principal and no SourceArn/SourceAccount (plan would UPDATE the live legacy-wildcard policy, not delete; main a2fb385 removes it); RIS root passes no lambda_execution_boundary; empty result-producer principal, handler-role boundary, gsi/apply_result/HMAC/policy-gate items remain.
+AI/privacy assessment: no AI provider, prompt, data flow, consent or PII handling touched; no AWS access; no secrets or real data; generated artifacts only in /tmp.
+No plan, apply, AWS mutation, deployment or main merge; no generated module/lockfile/artifact committed; historical clone pin unchanged.
+Report: docs/reports/RIS-MO-PIN-CEEBC37-09B-REPORT.md
+Current resume point: release-owner/security decision on the SQS queue policy before any authorized plan; pin is migrated in the feature branch only.
+
 [RIS-MO-PIN-AND-SQS-CONTRACT-DECISION-08]
 Current status: PIN DECISION READY / SECURITY REVIEW REQUIRED
 Audit date/time: 2026-11-26
