@@ -1,3 +1,21 @@
+[MO-RIS-MODULE-BASELINE-RECOVERY-07]
+Current status: BLOCKED — MODULE / IAM / TERRAFORM CONTRACT
+Audit date/time: 2026-11-26
+Current Git branch and HEAD: fix/ris-module-builder-portability-07d cce4cf5 (RIS); Orders branches A 386d741, B 570bbe7, C b161b18; no main merge
+Audit scope: four-agent cross-repo module recovery; Mays-Orders original tests, builder presets, orders-service preset, RIS builder portability, generated module contract and IAM/SQS analysis. No plan/apply/AWS mutation/deployment/live data change.
+Findings:
+  - Agent A fixed the 016cdfd preset/custom variable set (386d741, 94 module-builder PASS, generated complete/custom validate PASS).
+  - Agent B fixed the main orders-service preset missing variables (570bbe7, 134 module-builder PASS, orders-service/complete validate PASS, lambda 456/installer 81/seed 28/policy 30).
+  - Agent C produced limited integration b161b18 (main + B + transferable A; module-builder 136, lambda 456, installer 81, all presets validate PASS). Full consolidation blocked: main lacks agent_transport/cognito wiring; RIS injection fails 3x undeclared module.agent_transport; RIS env patch marker mismatch and non-atomic.
+  - SQS decision: main F-03 has no queue policy; 016cdfd has account-root policy; live ris-dev queue has wildcard policy. Main would delete, 016cdfd updates; no decision taken.
+  - Open: gsi3 vs gsi4 ownership/PII, apply_result RESULT_WRITE_GUARD, HMAC envelope allowlist, empty producer principal, live agent_dispatch/wildcard provenance orphan.
+  - Agent D made RIS builder portable (cce4cf5, shutil.which/GIT_EXE/TERRAFORM_EXE, 16 new tests, real 016cdfd build/validate PASS); RIS full 3417 PASS/129 skipped/10 known failures.
+  - 1dbb0cb is an ancestor of main 8830da2 (correction to Gate-06); main vs 016cdfd divergence is 21 commits.
+Tests: Orders lambda 456/installer 129/module builder 129/main, scripts 28, cognito 2; 016cdfd module_builder 1 original failure; 1dbb0cb missing agent_transport; RIS root validate still blocked.
+No plan, apply, AWS mutation, deployment or main merge.
+Report: docs/reports/MO-RIS-MODULE-BASELINE-RECOVERY-07-REPORT.md
+Current resume point: separate authorized agent-transport consolidation + SQS/policy decisions before pin change.
+
 [RIS-MODULE-BUILDER-PORTABILITY-07D]
 Current status: IMPLEMENTED / VERIFIED LOCAL — builder runs on Linux against pin 016cdfd
 Audit date/time: 2026-11-26
