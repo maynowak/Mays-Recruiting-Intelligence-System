@@ -1,3 +1,20 @@
+[RIS-P0-PLAN-BASELINE-RECONCILIATION-06]
+Current status: BLOCKED — MAYS ORDERS MODULE FAILURE (secondary: BLOCKED — RIS ORDERS INTEGRATION FAILURE)
+Audit date/time: 2026-11-26
+Current Git branch and HEAD: feature/ris-p0-plan-baseline-reconciliation-06, base ddd7660; no main merge
+Audit scope: original Mays-Orders AWS module at main 8830da2, RIS builder pin 016cdfd, reviewed live baseline 1dbb0cb, generated orders-service module, RIS integration contract and Terraform validation. Read-only; no plan/apply/AWS mutation/deployment or original-repo change.
+Findings:
+  - A1 original module: 016cdfd module_builder test test_full_custom_selection_equivalent_to_complete fails; custom 11-module selection vs complete preset variable sets differ by enable_agent_transport, ris_result_producer_role_arns, lambda_execution_boundary. Reproduced in clean /tmp worktree.
+  - A2 original module: current Mays-Orders main 8830da2 orders-service preset build fails terraform validate (undeclared var.deployment_version and var.sqs_max_receive_count), while module-builder unit tests pass.
+  - Test counts: 1dbb0cb lambda 76 PASS, installer 129 PASS, module_builder 90 PASS, tf fmt FAIL main.tf, tf validate PASS, orders-service build PASS, RIS injection+validate FAIL (no agent_transport). 016cdfd lambda 225 PASS, installer 129 PASS, module_builder 91 with 1 FAIL, tf fmt PASS, tf validate PASS, orders-service build PASS, RIS injection+validate PASS. Main 8830da2 lambda 456 PASS, module_builder 129 PASS, orders-service build/validate FAIL.
+  - 016cdfd and 1dbb0cb diverge from merge-base 9627eb2: 1dbb0cb has 10 unique commits (incl. a2fb385 wildcard SQS removal, IAM portability), 016cdfd 21 unique commits (agent transport/result consumer). 016cdfd is not a superset.
+  - B1 RIS builder is Windows-only on Linux (_terraform_exe calls `where`; run hardcodes C:\Program Files\Git\bin\git.exe), so official builder cannot run; B2 RIS target module incomplete (only variables.tf), root validate fails.
+  - D1 live ris-dev-mays-orders-orders-queue policy has wildcard principal; 1dbb0cb has no queue-policy resource (plan would delete), 016cdfd has account-root policy (plan would update); explicit review required.
+  - RIS full suite 3393 PASS / 129 skipped / 18 baseline failures; root fmt PASS, root validate fails incomplete mays_orders; module contract injection at 016cdfd passes.
+No changes to original Mays-Orders repository. No Terraform plan/apply, AWS mutation, deployment or main merge.
+Report: docs/reports/RIS-P0-PLAN-BASELINE-RECONCILIATION-06-REPORT.md
+Current resume point: Mays-Orders owner must fix/reconcile module versions and RIS builder portability before pin migration or plan.
+
 [RIS-P0-DEPLOYMENT-PLAN-GATE-05]
 Current status: BLOCKED — P0 SECURITY / PRIVACY / DEPLOYMENT GATE (technical integration at 6aaa6c0; no plan/apply)
 Audit date/time: 2026-11-26
