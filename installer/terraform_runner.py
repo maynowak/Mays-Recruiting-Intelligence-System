@@ -366,6 +366,7 @@ class TerraformRunner:
         out_file: Optional[str] = None,
         destroy: bool = False,
         var: Optional[Dict[str, str]] = None,
+        var_files: Optional[List[str]] = None,
         lock: bool = True,
         ensure_workspace: bool = True,
     ) -> TerraformResult:
@@ -376,6 +377,10 @@ class TerraformRunner:
         purposes (e.g., --diagnostic-no-lock flag).
         Pass ensure_workspace=False to skip workspace creation/selection
         (e.g., for diagnostic plans that should not acquire locks).
+
+        ``var_files`` are applied before ``var`` so the explicit overlay and
+        project identity still win. They are the protected channel for
+        sensitive values such as the consent-pilot allowlist.
         """
         args = ["plan"]
         if not lock:
@@ -384,6 +389,8 @@ class TerraformRunner:
             args.append("-destroy")
         if out_file:
             args.extend(["-out", out_file])
+        for path in var_files or []:
+            args.extend(["-var-file", path])
         for key, value in (var or {}).items():
             args.extend(["-var", f"{key}={value}"])
         return self.run_and_get_result(args, ensure_workspace=ensure_workspace)
@@ -392,11 +399,19 @@ class TerraformRunner:
         self,
         auto_approve: bool = True,
         var: Optional[Dict[str, str]] = None,
+        var_files: Optional[List[str]] = None,
     ) -> TerraformResult:
-        """Run `terraform apply` (workspace resolved first)."""
+        """Run `terraform apply` (workspace resolved first).
+
+        Saved-plan applies do not carry variables; this method is for the
+        interactive path. ``var_files`` use the same protected channel and
+        ordering as :meth:`plan`.
+        """
         args = ["apply"]
         if auto_approve:
             args.append("-auto-approve")
+        for path in var_files or []:
+            args.extend(["-var-file", path])
         for key, value in (var or {}).items():
             args.extend(["-var", f"{key}={value}"])
         return self.run_and_get_result(args)

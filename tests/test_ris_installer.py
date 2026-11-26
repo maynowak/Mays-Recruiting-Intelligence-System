@@ -568,6 +568,86 @@ def test_var_parsing_and_identity_protection():
     assert vars_["environment"] == "dev"
 
 
+def test_sensitive_vars_are_refused_on_the_cli():
+    from installer.ris import parse_var_args
+    with pytest.raises(ValueError, match="consent_pilot_allowlist"):
+        parse_var_args(["consent_pilot_allowlist=https://issuer|sub"])
+
+
+def test_context_refuses_sensitive_extra_var():
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(
+            project_name="mays-ris",
+            extra_vars={"consent_pilot_allowlist": "https://issuer|sub"},
+        )
+    with pytest.raises(ValueError, match="protected --var-file"):
+        ctx.terraform_vars()
+
+
+def test_protected_var_file_validation_and_context_resolution(tmp_path):
+    from installer.ris import validate_protected_var_files
+
+    protected = tmp_path / "consent.auto.tfvars"
+    protected.write_text('consent_pilot_allowlist = "https://issuer|sub"\n')
+    protected.chmod(0o600)
+    resolved = validate_protected_var_files([str(protected)])
+    assert resolved == [str(protected.resolve())]
+
+    with patch.dict(os.environ, _clean_env(), clear=True):
+        ctx = RisInstallContext(
+            project_name="mays-ris", environment="dev",
+            var_files=[str(protected)],
+        )
+    assert ctx.var_files == [str(protected.resolve())]
+
+    protected.chmod(0o644)
+    with pytest.raises(ValueError, match="group/world accessible"):
+        validate_protected_var_files([str(protected)])
+    with pytest.raises(ValueError, match="does not exist"):
+        validate_protected_var_files([str(tmp_path / "missing.tfvars")])
+
+    link = tmp_path / "linked.tfvars"
+    link.symlink_to(protected)
+    with pytest.raises(ValueError, match="symlink"):
+        validate_protected_var_files([str(link)])
+
+
+def test_plan_forwards_protected_var_files_before_vars():
+    from installer.terraform_runner import TerraformRunner
+
+    seen = {}
+
+    def fake_run(args, **kwargs):
+        seen["args"] = list(args)
+        return _completed(args)
+
+    with patch("subprocess.run", side_effect=fake_run):
+        runner = TerraformRunner(working_dir="terraform", workspace="mays-ris")
+        result = runner.plan(
+            var={"project_name": "mays-ris"},
+            var_files=["/tmp/protected.tfvars"],
+            ensure_workspace=False,
+        )
+    assert result.returncode == 0
+    argv = seen["args"]
+    file_at = argv.index("-var-file")
+    var_at = argv.index("-var")
+    assert argv[file_at + 1] == "/tmp/protected.tfvars"
+    assert file_at < var_at
+    assert "project_name=mays-ris" in argv
+
+
+def test_command_logging_redacts_var_file_path():
+    from installer.ris import _redact_command
+    rendered = _redact_command([
+        "terraform", "plan", "-var-file", "/secure/consent.auto.tfvars",
+        "-var", "project_name=mays-ris",
+    ])
+    assert "/secure/consent.auto.tfvars" not in rendered
+    assert "project_name=<redacted>" in rendered
+    assert "-var-file" in rendered
+
+
 def test_apply_forwards_vars():
     seen = {}
 

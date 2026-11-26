@@ -280,6 +280,13 @@ ART9_EXTERNAL_TEXTS: dict[tuple[str, str], str] = {
     ),
 }
 
+#: Purposes for which a new grant must carry explicit Art. 9 proof. This
+#: mirrors the already-approved Jobsearch BFF contract for durable CV storage:
+#: an explicit special-category consent plus the purpose-specific, approved
+#: external text. Existing rows are never migrated or inferred; reads and
+#: withdrawal remain available for legacy rows.
+SPECIAL_CATEGORY_REQUIRED_PURPOSES = frozenset({"cv-storage"})
+
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -468,6 +475,10 @@ def validate_consent_proof(
     """
     consent, categories = validate_special_category_consent(
         special_categories_consent, special_categories)
+    if purpose in SPECIAL_CATEGORY_REQUIRED_PURPOSES and not consent:
+        raise ConsentContractError(
+            "SPECIAL_CATEGORIES_REQUIRED",
+            f"{purpose} requires explicit special-category consent")
     if consent:
         if external_text_version is None or external_text_sha256 is None \
                 or not str(external_text_version).strip() \

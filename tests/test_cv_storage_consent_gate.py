@@ -120,6 +120,30 @@ def test_cv_storage_art9_text_is_purpose_bound():
     assert proof_hash == digest
 
 
+def test_cv_storage_rejects_grant_without_special_category_consent():
+    with __import__("pytest").raises(ConsentContractError) as caught:
+        validate_consent_proof(
+            "cv-storage",
+            special_categories_consent=False,
+            special_categories=None,
+            external_text_version=None,
+            external_text_sha256=None,
+        )
+    assert caught.value.code == "SPECIAL_CATEGORIES_REQUIRED"
+
+
+def test_cv_storage_rejects_art9_consent_without_external_text():
+    with __import__("pytest").raises(ConsentContractError) as caught:
+        validate_consent_proof(
+            "cv-storage",
+            special_categories_consent=True,
+            special_categories=["health"],
+            external_text_version=None,
+            external_text_sha256=None,
+        )
+    assert caught.value.code == "EXTERNAL_TEXT_REQUIRED_FOR_SPECIAL_CATEGORIES"
+
+
 def test_cv_storage_rejects_application_art9_text():
     with __import__("pytest").raises(ConsentContractError):
         validate_consent_proof(

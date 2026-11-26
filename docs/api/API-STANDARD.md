@@ -117,7 +117,7 @@ Antwort 202: `{"workId": string, "status": string, "requestId": string}`
 | `GET /v1/partner/me/privacy/export` | JWT **+** `X-Api-Credential` | 200 (versioned JSON, metadata/file status) | 401, 403, 422 |
 | `POST /v1/partner/me/erasure` | JWT **+** `X-Api-Credential` | 200, 207 (partial) | 401, 403, 500, 503 |
 | `GET /v1/partner/me/consents` | JWT **+** `X-Api-Credential` | 200 (`items`, `catalog`, `externalRefs`; per-purpose status + `noticeState`) | 401, 403, 404 (`UNKNOWN_PURPOSE`) |
-| `POST /v1/partner/me/consents` | JWT **+** `X-Api-Credential` | 200 (GRANTED, idempotent) | 401, 403, 404, 409, 422 (`NOTICE_NOT_ACTIVE` bei fehlender Freigabe, ungültiger Art.-9-Nachweis) |
+| `POST /v1/partner/me/consents` | JWT **+** `X-Api-Credential` | 200 (GRANTED, idempotent) | 401, 403, 404, 409, 422 (`NOTICE_NOT_ACTIVE`, `SPECIAL_CATEGORIES_REQUIRED` für `cv-storage`, ungültiger Art.-9-/External-Text-Nachweis) |
 | `POST /v1/partner/me/consents/withdraw` | JWT **+** `X-Api-Credential` | 200 (WITHDRAWN) | 401, 403, 404, 409 (`NOT_GRANTED`) |
 | `GET /v1/partner/me/consents/history` | JWT **+** `X-Api-Credential` | 200 (append-only events) | 401, 403, 404, 422 (`INVALID_LIMIT`) |
 | `GET /v1/partner/me/manual-search-profiles` | JWT **+** `X-Api-Credential` | 200 | 400, 401, 403, 500, 503 |

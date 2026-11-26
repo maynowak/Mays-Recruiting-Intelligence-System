@@ -162,10 +162,14 @@ class TestContractDocumentParity(unittest.TestCase):
                       "CONSENT_PILOT_ALLOWLIST"):
             self.assertIn(token, self.text)
 
-    def test_art9_gap_is_documented_as_open(self):
+    def test_cv_storage_art9_enforcement_is_documented(self):
         self.assertIn("Art. 9", self.text)
-        self.assertIn("OPEN", self.text)
         self.assertIn("cv-storage", self.text)
+        self.assertIn("SPECIAL_CATEGORIES_REQUIRED", self.text)
+        self.assertIn("cv-storage-consent-2026-11-08-v1", self.text)
+        # The technical control is documented; Privacy/Legal confirmation
+        # remains a release gate, not an open implementation gap.
+        self.assertIn("Privacy/Legal", self.text)
 
 
 if __name__ == "__main__":

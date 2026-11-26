@@ -44,7 +44,10 @@ if str(ROOT / "lambda") not in sys.path:
 import handler  # noqa: E402
 
 PURPOSE = "application-storage"
+CV_PURPOSE = "cv-storage"
 VERSION = "1.0"
+CV_TEXT = "cv-storage-consent-2026-11-08-v1"
+CV_SHA256 = "2fe65fd158a3a2953cf3869ff864aae626971012d68cfb8849db84e04579d036"
 LEGAL_REF = "SYNTHETIC-LEGAL-REF-NOT-REAL"
 
 V4 = "application-storage-consent-2026-11-07-v4"
@@ -178,6 +181,83 @@ class ExternalTextValidationTests(unittest.TestCase):
         with self.assertRaises(ConsentContractError) as caught:
             validate_external_text(PURPOSE, "2026-11-04-draft-1", V4_SHA256)
         self.assertEqual("EXTERNAL_TEXT_HASH_MISMATCH", caught.exception.code)
+
+
+class CvStorageArt9RepositoryTests(unittest.TestCase):
+    """New cv-storage grants require the approved Art. 9 proof."""
+
+    @mock_aws
+    def test_grant_without_proof_is_rejected_before_write(self):
+        repo = _table("consents-cv-no-proof")
+        with self.assertRaises(ConsentContractError) as caught:
+            repo.grant(_ctx(), CV_PURPOSE, VERSION)
+        self.assertEqual("SPECIAL_CATEGORIES_REQUIRED",
+                         caught.exception.code)
+        self.assertEqual(STATUS_NOT_GRANTED,
+                         repo.get(_ctx(), CV_PURPOSE)["status"])
+
+    @mock_aws
+    def test_grant_with_approved_proof_is_stored_and_withdrawable(self):
+        repo = _table("consents-cv-proof")
+        granted = repo.grant(
+            _ctx(), CV_PURPOSE, VERSION,
+            special_categories_consent=True,
+            special_categories=["health", "genetic_data"],
+            external_text_version=CV_TEXT,
+            external_text_sha256=CV_SHA256,
+        )
+        self.assertEqual(STATUS_GRANTED, granted["status"])
+        self.assertTrue(granted["specialCategoriesConsent"])
+        self.assertEqual(["health", "genetic_data"],
+                         granted["specialCategories"])
+        self.assertEqual(CV_TEXT, granted["externalTextVersion"])
+        self.assertEqual(CV_SHA256, granted["externalTextSha256"])
+
+        withdrawn = repo.withdraw(_ctx(), CV_PURPOSE)
+        self.assertEqual(STATUS_WITHDRAWN, withdrawn["status"])
+        self.assertTrue(withdrawn["specialCategoriesConsent"])
+
+    @mock_aws
+    def test_handler_rejects_cv_grant_without_art9_proof(self):
+        repo = _table("consents-cv-handler")
+        event = {
+            "httpMethod": "POST",
+            "path": "/v1/partner/me/consents",
+            "headers": {},
+            "body": json.dumps({
+                "purpose": CV_PURPOSE,
+                "noticeVersion": VERSION,
+            }),
+        }
+        with patch.object(handler, "_consent_ctx",
+                          return_value=(_ctx(), None)), \
+                patch.object(handler, "_consent_repo", return_value=repo):
+            response = handler._handle_consent_routes(
+                event, None, "POST", "/v1/partner/me/consents")
+        self.assertEqual(422, response["statusCode"])
+        self.assertEqual("SPECIAL_CATEGORIES_REQUIRED",
+                         json.loads(response["body"])["code"])
+
+    @mock_aws
+    def test_legacy_grant_without_proof_remains_readable_and_withdrawable(self):
+        repo = _table("consents-cv-legacy")
+        ctx = _ctx()
+        repo.table.put_item(Item={
+            "scopeKey": ctx.scope_key,
+            "entityKey": "PURPOSE#cv-storage",
+            "purpose": CV_PURPOSE,
+            "status": STATUS_GRANTED,
+            "noticeVersion": VERSION,
+            "grantedAt": "2026-11-01T00:00:00+00:00",
+            "withdrawnAt": None,
+            "version": 1,
+            "updatedAt": "2026-11-01T00:00:00+00:00",
+            "subject": ctx.user_id,
+        })
+        self.assertEqual(STATUS_GRANTED, repo.get(ctx, CV_PURPOSE)["status"])
+        withdrawn = repo.withdraw(ctx, CV_PURPOSE)
+        self.assertEqual(STATUS_WITHDRAWN, withdrawn["status"])
+        self.assertFalse(withdrawn["specialCategoriesConsent"])
 
 
 class Art9TextBindingTests(unittest.TestCase):

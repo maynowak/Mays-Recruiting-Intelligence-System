@@ -32,6 +32,29 @@ Terraform variables passed as `--var` on the Orders `plan`:
 - `project_name`, `aws_region`
 - `enable_cognito_backup=false` — see below
 
+## Protected Terraform variables
+
+Sensitive plan inputs are passed with `--var-file`, never with `--var`:
+
+```bash
+chmod 600 /secure/consent-pilot.auto.tfvars
+python3 -m installer.ris ... plan \
+  --var-file /secure/consent-pilot.auto.tfvars
+```
+
+The installer validates before any AWS/Terraform call:
+
+- path exists and is a regular file;
+- no symlink;
+- readable by the current process;
+- no group/other permission bits (0600 or stricter);
+- the absolute path is forwarded as `-var-file` before ordinary `-var`
+  values, so project identity still wins.
+
+`consent_pilot_allowlist` is refused on `--var` and in committed overlays.
+The file contents are never read, copied or logged; normal command output
+redacts the path. Do not put real issuer/subject values in Git or reports.
+
 ## Orders project name limits
 
 The Orders component derives nearly every AWS resource name from its project

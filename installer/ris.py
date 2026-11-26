@@ -32,6 +32,7 @@ import base64
 import hashlib
 import json
 import os
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -525,6 +526,49 @@ PROJECT_CONFIG_ALLOWED_KEYS = frozenset({
     "ats_api_base_url",
     "agent_execution_timeout_seconds",
 })
+
+#: Variables that must never travel through `--var` or a committed overlay.
+#: They are supplied through a protected, mode-0600 var file and therefore
+#: never appear in process arguments, shell history or logs.
+SENSITIVE_VAR_NAMES = frozenset({"consent_pilot_allowlist"})
+
+
+def validate_protected_var_files(paths: Optional[List[str]]) -> List[str]:
+    """Validate operator-supplied protected Terraform var files.
+
+    Rules are enforced before any AWS/Terraform invocation:
+    - the path exists and is a regular file (symlinks are rejected);
+    - it is readable by the current process;
+    - group/other permission bits are not set (0600/0400/0000-style files);
+    - the resolved absolute path is returned so the isolated Terraform
+      working directory cannot reinterpret a relative path.
+
+    File contents are never read, copied, logged or placed in state by this
+    function. Terraform reads the file directly at plan/apply time.
+    """
+    resolved: List[str] = []
+    for raw in paths or []:
+        if not isinstance(raw, str) or not raw.strip():
+            raise ValueError("--var-file requires a non-empty path")
+        path = Path(raw).expanduser()
+        if path.is_symlink():
+            raise ValueError(f"--var-file must not be a symlink: {raw!r}")
+        try:
+            path = path.resolve(strict=True)
+        except FileNotFoundError as exc:
+            raise ValueError(f"--var-file does not exist: {raw!r}") from exc
+        if not path.is_file():
+            raise ValueError(f"--var-file is not a regular file: {raw!r}")
+        if not os.access(path, os.R_OK):
+            raise ValueError(f"--var-file is not readable: {raw!r}")
+        mode = stat.S_IMODE(path.stat().st_mode)
+        if mode & 0o077:
+            raise ValueError(
+                f"--var-file must not be group/world accessible "
+                f"(expected mode 0600 or stricter): {raw!r} (mode {mode:03o})"
+            )
+        resolved.append(str(path))
+    return resolved
 
 
 def configured_orders_lifecycle(ctx: "RisInstallContext") -> str:
@@ -1106,6 +1150,9 @@ class RisInstallContext:
     aws_context: Optional[AwsExecutionContext] = None
     dry_run: bool = True
     extra_vars: Dict[str, str] = field(default_factory=dict)
+    #: Protected Terraform var files (absolute, mode 0600). Sensitive values
+    #: such as the consent-pilot allowlist travel only through this channel.
+    var_files: List[str] = field(default_factory=list)
     # Composite lifecycle (GLUE-01): when True, preflight/install/destroy
     # orchestrate the Mays-Orders-AWS component. Existing standalone RIS
     # tests set composite=False to assert pure-RIS terraform sequencing.
@@ -1131,6 +1178,7 @@ class RisInstallContext:
         # Fail closed before any AWS call: every RIS resource name is derived
         # from project_name and AWS rejects the overflow during plan.
         validate_ris_aws_name_limits(self.project_name)
+        self.var_files = validate_protected_var_files(self.var_files)
 
     @property
     def workspace(self) -> str:
@@ -1161,6 +1209,12 @@ class RisInstallContext:
         # the overlay is named for -- load_project_config is fail-closed.
         merged = dict(load_project_config(self.project_name))
         merged.update(self.extra_vars or {})
+        forbidden = sorted(set(merged) & SENSITIVE_VAR_NAMES)
+        if forbidden:
+            raise ValueError(
+                "sensitive variables must use a protected --var-file, never "
+                "--var or an overlay: " + ", ".join(forbidden)
+            )
         # Provide absolute paths for lambda zips (required for isolated workdirs).
         # Repo root is the parent of the terraform directory; deriving it from
         # the parent of the *relative* path resolves one level too high and
@@ -1699,20 +1753,26 @@ def _cmd_apply_saved_plan(
 def _redact_command(command: List[str]) -> str:
     """Render a terraform command without leaking `-var` values."""
     redacted: List[str] = []
-    hide_next = False
+    hide_next: Optional[str] = None
     for part in command:
         if hide_next:
-            name = part.split("=", 1)[0]
-            redacted.append(f"{name}=<redacted>")
-            hide_next = False
+            if hide_next == "-var-file":
+                redacted.append("<protected>")
+            else:
+                name = part.split("=", 1)[0]
+                redacted.append(f"{name}=<redacted>")
+            hide_next = None
             continue
-        if part == "-var":
-            hide_next = True
+        if part in ("-var", "-var-file"):
+            hide_next = part
             redacted.append(part)
             continue
         if part.startswith("-var="):
             name = part[len("-var="):].split("=", 1)[0]
             redacted.append(f"-var={name}=<redacted>")
+            continue
+        if part.startswith("-var-file="):
+            redacted.append("-var-file=<protected>")
             continue
         redacted.append(part)
     return " ".join(redacted)
@@ -1735,6 +1795,7 @@ def _cmd_plan(
         runner.plan(
             out_file=plan_out,
             var=ctx.terraform_vars(),
+            var_files=ctx.var_files,
             lock=not diagnostic_no_lock,
             ensure_workspace=not diagnostic_no_lock,
         ),
@@ -1760,7 +1821,11 @@ def _cmd_apply(ctx: RisInstallContext, out_file: Optional[str] = None) -> List[T
     
     # Generate plan file for safety gate inspection
     plan_file = out_file or f"{ctx.workspace}-apply.tfplan"
-    plan_res = runner.plan(out_file=plan_file, var=ctx.terraform_vars())
+    plan_res = runner.plan(
+        out_file=plan_file,
+        var=ctx.terraform_vars(),
+        var_files=ctx.var_files,
+    )
     _print_command(plan_res)
     if plan_res.returncode != 0:
         return [init_res, plan_res]
@@ -1983,7 +2048,8 @@ def _cmd_destroy(ctx: RisInstallContext, out_file: Optional[str] = None) -> int:
         return 1
     plan_file = out_file or f"{ctx.workspace}-destroy.tfplan"
     plan_res = runner.plan(out_file=plan_file, destroy=True,
-                           var=ctx.terraform_vars())
+                           var=ctx.terraform_vars(),
+                           var_files=ctx.var_files)
     _print_command(plan_res)
     if plan_res.returncode != 0:
         return 1
@@ -2825,7 +2891,8 @@ def _cmd_install(
     for result in (
         runner.init(backend_config=config, reconfigure=True),
         runner.validate(),
-        runner.plan(out_file=plan_out, var=ctx.terraform_vars()),
+        runner.plan(out_file=plan_out, var=ctx.terraform_vars(),
+                    var_files=ctx.var_files),
     ):
         _print_command(result)
         if result.returncode != 0:
@@ -2970,7 +3037,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         help="Terraform input variable as KEY=VALUE (repeatable; "
-             "project_name/environment cannot be overridden).",
+             "project_name/environment cannot be overridden). Sensitive "
+             "variables are refused here; use --var-file.",
+    )
+    parser.add_argument(
+        "--var-file",
+        action="append",
+        default=[],
+        help="Protected Terraform var file (repeatable; mode 0600 or stricter, "
+             "no symlink). Required for consent_pilot_allowlist. The path is "
+             "validated before any AWS/Terraform call; contents are never logged.",
     )
     parser.add_argument(
         "--yes",
@@ -3025,6 +3101,11 @@ def parse_var_args(var_args: Optional[List[str]]) -> Dict[str, str]:
         key = key.strip()
         if not key:
             raise ValueError(f"--var mit leerem Key: {entry!r}")
+        if key in SENSITIVE_VAR_NAMES:
+            raise ValueError(
+                f"--var darf {key!r} nicht tragen; nutze ein geschütztes "
+                f"--var-file (Modus 0600)"
+            )
         parsed[key] = value
     return parsed
 
@@ -3033,6 +3114,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parsed = build_parser().parse_args(argv)
     try:
         extra_vars = parse_var_args(parsed.var)
+        var_files = validate_protected_var_files(parsed.var_file)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -3077,6 +3159,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             aws_profile=parsed.profile,
             dry_run=not parsed.yes,
             extra_vars=extra_vars,
+            var_files=var_files,
             composite=parsed.composite,
             shared_teardown_intent=parsed.shared_teardown_intent,
             _workdir_base=parsed.workdir_base or "",

@@ -2393,6 +2393,12 @@ paths:
         (`externalTextVersion` + `externalTextSha256`). An explicit Art. 9
         consent requires the purpose-specific, Art. 9-capable external text;
         a historical text can never back special-category consent.
+
+        `cv-storage` requires an explicit Art. 9 proof on every new grant:
+        `specialCategoriesConsent=true`, a non-empty category subset and the
+        approved `cv-storage-consent-2026-11-08-v1` text with its pinned
+        SHA-256. A missing proof is `422 SPECIAL_CATEGORIES_REQUIRED`; reads
+        and withdrawal of legacy rows remain available.
       x-infrastructure-governance: terraform-managed
       parameters:
         - $ref: "#/components/parameters/ApiCredential"

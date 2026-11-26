@@ -300,37 +300,43 @@ Verhalten:
   `search_profile_storage_*` verlangen zusätzlich eine nicht-leere Allowlist —
   ein versehentlicher globaler Rollout ist damit kein Nebeneffekt.
 - Die Allowlist ist `sensitive` und gehört **nicht** ins Repository. Sie wird
-  zur Plan-Zeit aus einer geschützten Datei (0600) übergeben; das Installer-
-  Overlay erlaubt sie bewusst nicht.
+  zur Plan-Zeit ausschließlich über `--var-file` aus einer geschützten Datei
+  (Modus 0600 oder strenger, kein Symlink) übergeben. Der Installer prüft
+  Existenz, Lesbarkeit und Dateimodus vor jedem AWS-/Terraform-Aufruf, liest
+  oder kopiert den Inhalt nicht und redigiert den Pfad in normalen
+  Kommandozeilenausgaben. `-var-file` wird vor den `-var`-Werten an
+  `plan`/`apply` weitergereicht. `--var consent_pilot_allowlist=...`
+  und das Installer-Overlay werden abgewiesen; das Overlay erlaubt die
+  Allowlist bewusst nicht.
 
 Diese Defaults und Guards sind **keine** Aktivierungsfreigabe. Jede Aktivierung
 bleibt eine separate, dokumentierte Operator-/Privacy-Entscheidung.
 
 ---
 
-## 9c. Art. 9 / besondere Kategorien — offener Punkt (cv-storage)
+## 9c. Art. 9 / besondere Kategorien — cv-storage Enforcement
 
-RIS validiert Art.-9-Nachweise technisch (siehe §4.1), erzwingt aber für
-`cv-storage` **kein** `specialCategoriesConsent=true`: ein Grant nur mit
-`purpose`/`noticeVersion` wird akzeptiert und als
-`specialCategoriesConsent=false`, `specialCategories=[]` gespeichert.
+RIS validiert Art.-9-Nachweise technisch (siehe §4.1) und erzwingt für neue
+`cv-storage`-Grants ein explizites `specialCategoriesConsent=true` mit einer
+nicht-leeren, gültigen Kategorie-Teilmenge sowie dem zweckspezifischen,
+freigegebenen externen Text
+`cv-storage-consent-2026-11-08-v1` (SHA-256
+`2fe65fd158a3a2953cf3869ff864aae626971012d68cfb8849db84e04579d036`).
 
-Der Jobsearch-BFF verlangt für CV-Daten ein explizites Art.-9-Consent. Daraus
-folgt eine **Asymmetrie**: ein RIS-Grant allein belegt keine Art.-9-Freigabe
-für Lebenslaufinhalte (Gesundheit, Religion, Gewerkschaft, sexuelle
-Orientierung/Sexualleben usw. können in CVs enthalten sein).
+- Grant ohne Art.-9-Consent → **422 `SPECIAL_CATEGORIES_REQUIRED`**.
+- Art.-9-Consent ohne externen Text → **422
+  `EXTERNAL_TEXT_REQUIRED_FOR_SPECIAL_CATEGORIES`**.
+- Falscher/zweckfremder/historischer Text → **422 `EXTERNAL_TEXT_NOT_ART9`**
+  bzw. der jeweilige External-Text-Code.
+- Bestehende Grants ohne Proof werden **nicht** migriert oder nachträglich
+  inferiert; Lesen und Widerruf bleiben möglich.
 
-**Status: OPEN — Privacy/Legal-Entscheidung erforderlich.** Mögliche Optionen:
-
-1. RIS erzwingt für `cv-storage` (und perspektivisch
-   `search-profile-storage`) ein explizites Art.-9-Consent mit
-   zweckspezifischem Text (Contract-/Handler-Änderung, neuer Test, neue
-   Fehlercodes).
-2. Der Partner bleibt die alleinige Art.-9-Grenze; RIS dokumentiert das
-   ausdrücklich als Vertrauensgrenze und die BFF-Garantie wird auditiert.
-
-Bis zu einer Entscheidung ändert dieser Branch die Policy **nicht** und
-behauptet keine Art.-9-Durchsetzung in RIS.
+Die technische Durchsetzung spiegelt den bereits freigegebenen
+`cv-storage`-v1-Notice- und Jobsearch-BFF-Vertrag; sie erzeugt **keine neue
+Rechtsgrundlage**. Die fachliche Privacy/Legal-Bestätigung der
+Art.-9-Verantwortung und der zulässigen Rechtsgrundlage bleibt vor einem
+Real-User-Rollout erforderlich. `search-profile-storage` bleibt berufliche
+Metadaten-Verarbeitung ohne erzwungenes Art.-9-Consent.
 
 ---
 
@@ -396,6 +402,8 @@ Löschung behauptet; Aufbewahrung/Backups bleiben ein separater Nachweis.
    `SEARCH_PROFILE_STORAGE_CONSENT_ENFORCED`,
    `CONSENT_NOTICE_STATE_ENFORCED`) sowie die Pilot-Allowlist werden
    **einzeln** und ausdrücklich freigegeben.
-7. Art.-9-Frage aus §9c ist entschieden, wenn CV-Inhalte verarbeitet werden.
+7. Art.-9-Frage aus §9c ist für `cv-storage` technisch durchgesetzt; die
+   fachliche Privacy/Legal-Bestätigung der Rechtsgrundlage und der
+   Verantwortlichkeit bleibt vor einem Real-User-Rollout erforderlich.
 
 Bis dahin bleiben die Flags `false` und die Allowlist leer.
