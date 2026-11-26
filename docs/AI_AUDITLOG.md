@@ -13398,3 +13398,37 @@ Status: **INSUFFICIENT_EVIDENCE** — report:
 - No AWS mutations, source-code changes, recovery, deployment, upgrade or main
   merge. Report records the timeline, ownership matrix, cause evidence,
   compatibility findings, decision matrix and next read-only assignment.
+
+---
+
+## RIS-DEV2-CANARY-FORENSICS-19B — 2026-11-26
+
+Status: **ROOT_CAUSE_VERIFIED** — report:
+`docs/reports/RIS-DEV2-CANARY-FORENSICS-19B.md`
+
+- Revalidated feature branch/remote at `d7dfe455`, clean start worktree,
+  account/region/workspace and Terraform state serial/lineage.
+- Read complete CloudWatch invocation window, including START/END/REPORT.
+  Dispatch ingress had one successful invocation. Agent had one successful
+  9,293 ms invocation (RequestId
+  `131b883a-898e-517f-9771-ebb8aff5ef3f`): registry initialization, analysis
+  agent registration, envelope creation, one eligible candidate, and explicit
+  selection of `analysis-agent`; it then logged `processed: RUNNING`. No
+  Analysis or result-consumer events; Analysis had no invocation metric point.
+- Downloaded deployed Lambda packages via read-only `GetFunction`. Agent ZIP
+  SHA-256 `8ec50a61408d28efb2b85ff6c83b05dd0ee6075b9b46081ef16d649793cc6383`
+  matches live CodeSha256; local canonical ZIP was byte-identical entry by
+  entry. The examined control flow is therefore the deployed flow.
+- Verified defect: on an existing `QUEUED` item, duplicate registration path
+  claims it to `RUNNING`, then falls through to `_start_retry_attempt`, which
+  only accepts `FAILED`. The failed conditional is caught as `_RetryClaimLost`
+  and returned as duplicate/suppressed `RUNNING`, before Agent ExecutionEngine
+  and Analysis invocation. WorkItem fields and `updatedAt` match this path.
+  `CLAIM_WITHOUT_EXECUTION` is VERIFIED; RUNNING retry suppression is a
+  VERIFIED secondary blocker.
+- CloudTrail trails were on but had no DynamoDB DataResources selectors, so
+  no historical item-level audit events are available. Root cause is still
+  supported by exact deployed source + runtime trace + observed item.
+- No AWS mutations, Lambda invocation, queue receive/send/delete, DDB writes,
+  source changes, recovery, deployment or upgrade. 19B report/audit additions
+  are local only, not committed or pushed.
