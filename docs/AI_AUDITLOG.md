@@ -13261,3 +13261,29 @@ Bericht: `docs/reports/RIS-DEV2-PERSISTENCE-FIX-16.md`
   Old and new orders/work items untouched; dispatch queue 1 in-flight; work
   DLQ 1 unchanged. Apply needs separate approval, then one new order needs
   its own approval before 17:40:28Z.
+
+---
+
+## RIS-DEV2-DYNAMODB-TRANSACTION-CLIENT-FIX-16 (FINALIZE) — 2026-11-26
+
+Status: **READY FOR TRANSACTION CLIENT FIX APPLY APPROVAL**
+
+Bericht: `docs/reports/RIS-DEV2-DYNAMODB-TRANSACTION-CLIENT-FIX-16.md`
+
+- Final review of the four files in commit 4f6cd65 (work_queue.py, both
+  test files, bundle pin). No further code change needed.
+- 69 focused tests re-confirmed (1.14s).
+- Bundles match the plan: agent cf0958a6... (base64 zwlYpqm5...), analysis
+  2f74cab9... (base64 L3TKuRX9...); pin identical.
+- Plan 2dacb48d... unchanged: 252638 bytes, 0 add / 3 change / 0 destroy,
+  only source_code_hash + last_modified, MODE=true, no drift, state 74,
+  lineage a0bd361d....
+- Authoritative S3 state version from head-object:
+  d24K7fWhqup_DQtI_PNDl85DoML9fpE. (LastModified 2026-11-26T08:42:26Z).
+  The work-state variant with an extra L is wrong; the earlier Fix-16
+  report was corrected.
+- Read-only snapshot 09:22:49Z: new order PENDING, 0 work items; dispatch
+  queue 0/0; dispatch DLQ 1 (automatic retries exhausted, not inspected or
+  redriven); work DLQ 1 unchanged. No apply, redrive, order, data repair,
+  cleanup, grant or main merge.
+
