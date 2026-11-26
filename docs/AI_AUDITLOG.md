@@ -13432,3 +13432,43 @@ Status: **ROOT_CAUSE_VERIFIED** — report:
 - No AWS mutations, Lambda invocation, queue receive/send/delete, DDB writes,
   source changes, recovery, deployment or upgrade. 19B report/audit additions
   are local only, not committed or pushed.
+
+---
+
+## RIS-DEV2-WORKER-CLAIM-FIX-19C / REGRESSION-19D — 2026-11-26
+
+Status: **LOCAL FIX VERIFIED; WORKER-SCOPE REGRESSION PASS; LIVE RECOVERY NOT AVAILABLE**.
+
+- Step 0 committed/pushed 19B forensic report and audit evidence in
+  `3bddf6dafaae4551fbfffcffad0ac622775c8d35`.
+- Added regression first; pre-fix RED was 1 failed: a persisted QUEUED item
+  issued the QUEUED claim then the FAILED-only retry condition, returned without
+  invoking its agent. After the source correction, worker tests passed.
+- Minimal fix in `agents/runtime/pipeline.py`: QUEUED successful initial claim
+  now proceeds to shared execution; `_start_retry_attempt` is invoked only for
+  an existing FAILED item. CAS guards, RUNNING duplicate suppression, terminal
+  semantics and schema remain unchanged. Source+tests commit
+  `c6e996a8f22afe9b248094cf278a0c2f31846782`.
+- Added lifecycle coverage for queued claim/no retry, lost initial claim,
+  existing RUNNING suppression, lost FAILED retry claim and concurrent retry
+  CAS (one winner). `test_worker_pipeline.py`: 25 passed. Reviewed local bundle
+  hash pinned in `test_analysis_ecosystem_wiring.py`; commit
+  `46e98c30a07eca53d91646429e5fc78e36fdc02f`.
+- Focused combined suites: 257 passed, 22 skipped, 6 subtests passed. Local
+  Mays-Orders bridge/consumer/contract run with per-process source fixture:
+  22 passed. Bundle-focused suite: 119 passed, 16 skipped. Broad local suite
+  excluding six unrelated/environment-blocked modules: 3,077 passed, 169
+  skipped, 446 subtests passed. Unfiltered suite collection is blocked by
+  missing `moto` and `requests`; other pre-existing unrelated failures are
+  enumerated in `docs/reports/RIS-DEV2-WORKER-CLAIM-REGRESSION-19D.md`.
+- Agent bundle built twice with `python lambda/build_zip.py --bundle agent`;
+  identical SHA-256 `78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7`
+  (115 entries). Current Terraform wiring shares this artifact between Agent
+  worker and Dispatch ingress; Analysis uses its separate ZIP. No plan/upload/
+  deployment performed.
+- Local source has no safe stale-RUNNING recovery interface. Recommend separate
+  design/review task 19E; do not reset or replay the old Canary as part of this
+  fix.
+- AWS mutations 0; live invocations 0; redrives 0; MODE unchanged; Mays-Orders
+  source untouched; no main merge. 19C/19D reports and this audit append are
+  local pending final documentation commit.
