@@ -13286,4 +13286,3 @@ Bericht: `docs/reports/RIS-DEV2-DYNAMODB-TRANSACTION-CLIENT-FIX-16.md`
   queue 0/0; dispatch DLQ 1 (automatic retries exhausted, not inspected or
   redriven); work DLQ 1 unchanged. No apply, redrive, order, data repair,
   cleanup, grant or main merge.
-
