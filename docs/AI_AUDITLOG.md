@@ -13232,3 +13232,32 @@ Bericht: `docs/reports/RIS-DEV2-CANARY-E2E-15.md`
   message was intentionally not logged (codes only); a separate approved
   diagnosis/fix is needed.
 - No second order, redrive, data repair, cleanup, apply, grant or main merge.
+
+---
+
+## RIS-DEV2-PERSISTENCE-FIX-16 — 2026-11-26
+
+Status: **DEPLOYMENT PLAN PENDING APPROVAL**
+
+Bericht: `docs/reports/RIS-DEV2-PERSISTENCE-FIX-16.md`
+
+- Root cause offline reproduced: `table.meta.client` double-marshals
+  DynamoDB JSON (`{"M":{"S":{"S":"work-..."}}}`); the low-level client sends
+  `{"S":"work-..."}`. The fence ConditionCheck therefore failed with
+  ValidationError.
+- work_queue.py now uses the existing `_ddb_transaction_client()` and
+  classifies CancellationReasons by operation index: fence rejection,
+  validation error, transaction conflict. Only a Put condition failure
+  reaches the duplicate/reuse check; all others fail closed with no SQS send,
+  no marker and no bare row. CancellationReasons are logged as safe codes only.
+- Tests: 69 focused passed, including fence, validation, conflict,
+  Put-condition duplicate, low-level-client and offline botocore wire tests.
+- Bundles rebuilt: agent cf0958a6..., analysis 2f74cab9...; pin updated.
+  Reader and MO module unchanged.
+- Fresh plan C:\tmp\ris-dev2-workitem-persistence-fix-16.tfplan, SHA-256
+  2dacb48d..., 252638 bytes, 0 add / 3 change / 0 destroy, only the three
+  lambda code hashes, MODE=true, state 74, S3 d24K7fWh..., no drift.
+- No apply, redrive, new order, data repair, cleanup, grant or main merge.
+  Old and new orders/work items untouched; dispatch queue 1 in-flight; work
+  DLQ 1 unchanged. Apply needs separate approval, then one new order needs
+  its own approval before 17:40:28Z.
