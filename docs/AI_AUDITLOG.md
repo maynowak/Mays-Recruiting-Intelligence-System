@@ -13472,3 +13472,42 @@ Status: **LOCAL FIX VERIFIED; WORKER-SCOPE REGRESSION PASS; LIVE RECOVERY NOT AV
 - AWS mutations 0; live invocations 0; redrives 0; MODE unchanged; Mays-Orders
   source untouched; no main merge. 19C/19D reports and this audit append are
   local pending final documentation commit.
+
+---
+
+## RIS-DEV2-WORKITEM-RECOVERY-DESIGN-19E — 2026-11-26
+
+Status: **DESIGN READY FOR REVIEW; NO EXECUTABLE RECOVERY PATH; ALTERNATIVE CANARY PREFERRED FOR UPGRADE EVIDENCE**.
+
+- Reconciled reports 18/19A–19D and local worker/transport source. Root cause
+  remains verified `CLAIM_WITHOUT_EXECUTION`; 19C correctly separates initial
+  QUEUED claim from FAILED-only retry; existing RUNNING duplicate suppression
+  remains; old RUNNING item is not resumed by the fix. No live state was checked.
+- Re-ran local `test_worker_pipeline.py`: 25 passed. Re-ran local cross-repo
+  bridge/consumer/contract tests with process-scoped `MO_ORDERS_SRC`: 22 passed.
+  These are local test-double/source-fixture results, not live evidence.
+- Ownership: RIS owns WorkItem/claim/attempt/worker/Transport V1 producer;
+  Mays-Orders owns Order/owner/lifecycle/result consumer. Existing CAS, ContextRef,
+  entitlement, HMAC, work binding and result-idempotency contracts documented in
+  `docs/reports/RIS-DEV2-WORKITEM-RECOVERY-DESIGN-19E.md`.
+- Explicit CONTRACT_GAPs: owner/fenced lease; stale RUNNING CAS takeover;
+  Analysis external-effect idempotency across recovery; shared recovery generation;
+  fresh historical ContextRef/entitlement policy; audit/operator authorization;
+  timeout/partial-failure protocol. No Exactly-once claim.
+- Decision: historic completion is not a technical prerequisite for an
+  independently authorized Mays-Orders upgrade if release owner accepts a
+  separate isolated synthetic baseline. Preferred Option D; no new Order is
+  authorized here. Native A unavailable. Controlled B is custom and only if
+  historic completion is separately required. Generic C is deferred. E remains
+  fallback if no approved alternative or independent RC4 gates remain blocked.
+- Worker deployment is conditionally independent: candidate shared ZIP impacts
+  Agent Worker + Dispatch Ingress; Analysis uses separate bundle. 19G must
+  revalidate exact read-only plan. Mays-Orders upgrade remains blocked/conditional
+  on target pin/provenance, RC4 create-validator/HMAC contracts and QA gates;
+  no Mays source changes.
+- QA 19F plan records missing `moto`/`requests`, six excluded broad-suite files,
+  historical unrelated failures and required complete collection. Requirements
+  and tests were not changed; no dependencies installed.
+- AWS mutations 0, live invocations 0, redrives 0, source/runtime changes 0,
+  Terraform plan/apply/state changes 0, new orders 0, Mays-Orders upgrade 0.
+  19E report and this audit entry are local pending commit/push.
