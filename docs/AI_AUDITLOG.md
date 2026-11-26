@@ -1,3 +1,20 @@
+[RIS-MO-ROOT-INTEGRATION-08C-CANDIDATE]
+Current status: BUILD VERIFIED — FINAL PIN CANDIDATE ceebc37 (technical); PIN MIGRATION NOT APPROVED (SQS/IAM policy decision open)
+Audit date/time: 2026-11-26
+Current Git branch and HEAD: integration/ris-mo-root-08c (base e237b45); Orders candidate ceebc37 (base 386d741); committed builder pin stays 016cdfd; no main merge
+Audit scope: repeat of the RIS root integration proof against the final Orders pin candidate ceebc37 in a fresh temp copy (/tmp/opencode/ris-root08-c-ceebc37) with pin override limited to that copy. Module build, transport-output injection, contract audit, module/root terraform checks, focused RIS tests, delta analysis. No AWS access, plan/apply, state write, deployment or committed pin change.
+Findings:
+  - Delta 386d741→ceebc37 is bounded: optional agent_transport input lambda_execution_boundary (default "", no account ARN), applied to aws_iam_role.result_consumer with the ""→null convention, wired from the Orders root, catalog binding so free selections keep the variable; 4 tests + docs. No SQS policy, queue attribute, GSI, HMAC, apply_result, identity or output change.
+  - Generated module delta is exactly 3 tf files (module root main.tf, agent_transport main.tf/lambda.tf) plus manifest timestamp; 38/42 files and lambda.zip (fa0dee9e…) byte-identical to the 386d741 build.
+  - Build PASS: orders-service, 8 child modules incl. agent_transport; 9 inputs / 23 outputs; 3 transport outputs injected exactly once; contract audit (validate_generated_contract, check_arn_id_contract) PASS; 9/9 root output references declared.
+  - Terraform PASS: module fmt/init -backend=false/validate; RIS root fmt/init -backend=false/validate (only pre-existing deprecation warnings).
+  - Tests: RIS focused 5-file set with MO_ORDERS_SRC=ceebc37/lambda/src → 102 passed / 0 failed; installer 43 passed; Orders module_builder at ceebc37 re-run 96 OK.
+  - Not approved: SQS queue policy unchanged (account-root principal, no SourceArn/SourceAccount; live wildcard, main a2fb385 would DELETE); RIS root still has no lambda_execution_boundary wiring for module.mays_orders (pre-existing); empty producer-principal default, handler-role boundary, gsi/apply_result/HMAC/policy-gate items remain open.
+AI/privacy assessment: no AI provider, prompt, data flow, consent or PII handling touched; no AWS access; no secrets or real data; builder clone only in /tmp.
+No plan, apply, AWS mutation, deployment or main merge; no generated module/lockfile committed.
+Report: docs/reports/RIS-MO-ROOT-INTEGRATION-08C-CEEBC37-REPORT.md
+Current resume point: release-owner decision on the SQS queue policy (and remaining policy items) before any builder-pin migration; ceebc37 is the verified final pin candidate.
+
 [RIS-MO-ROOT-INTEGRATION-08C]
 Current status: BUILD VERIFIED — PIN NOT APPROVED
 Audit date/time: 2026-11-26
