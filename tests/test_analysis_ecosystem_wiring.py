@@ -11,11 +11,11 @@ for path in (ROOT, ROOT / "tests", ROOT / "lambda"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-# Current reviewed deployment bundles (RIS-DEV2-FIX-16B).
-# Update only together with a reviewed bundle rebuild; never relax the
-# stale-plan assertion below.
+# Current reviewed local worker bundle after the claim fix; it is not deployed.
+# The Analysis bundle remains the reviewed Fix-16B artifact. Update only with a
+# reviewed bundle rebuild; never relax the stale-plan assertion below.
 CURRENT_BUNDLE_SHA256 = {
-    "worker": "8ec50a61408d28efb2b85ff6c83b05dd0ee6075b9b46081ef16d649793cc6383",
+    "worker": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
     "analysis": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10",
 }
 
