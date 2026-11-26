@@ -112,3 +112,53 @@ class EnqueueTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class TransactCancelled(Exception):
+    @property
+    def response(self):
+        return {"Error": {"Code": "TransactionCanceledException"}}
+
+
+class _TransactClient:
+    def transact_write_items(self, **kwargs):
+        raise TransactCancelled()
+
+
+class _Meta:
+    client = _TransactClient()
+
+
+class TransactTable:
+    name = "work-items"
+    meta = _Meta()
+
+    def __init__(self, item):
+        self.item = item
+
+    def get_item(self, Key):
+        return {"Item": dict(self.item)}
+
+    def update_item(self, **kwargs):
+        raise AssertionError("duplicate must not update")
+
+
+class TransactionCancellationTest(unittest.TestCase):
+    def test_cancelled_with_enqueued_marker_is_not_resent(self):
+        table = TransactTable({"workId": "work-1", "status": "QUEUED",
+                               "enqueuedAt": "2026-11-25T00:00:00+00:00"})
+        sqs = FakeSQS()
+        out = enqueue_work_item(dict(WORK), table=table, queue_url=QUEUE,
+                                sqs_client=sqs)
+        self.assertTrue(out["duplicate"])
+        self.assertFalse(out["enqueued"])
+        self.assertEqual([], sqs.sent)
+
+    def test_cancelled_terminal_is_not_resent(self):
+        table = TransactTable({"workId": "work-1", "status": "COMPLETED"})
+        sqs = FakeSQS()
+        out = enqueue_work_item(dict(WORK), table=table, queue_url=QUEUE,
+                                sqs_client=sqs)
+        self.assertTrue(out["duplicate"])
+        self.assertFalse(out["enqueued"])
+        self.assertEqual([], sqs.sent)
+

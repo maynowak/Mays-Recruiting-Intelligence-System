@@ -66,6 +66,15 @@ class TestDispatchIngressWiring(unittest.TestCase):
         self.assertIn("var.orders_producer_role_arns", self.source)
         self.assertNotIn('Principal    = "*"', self.source)
 
+    def test_workitems_policy_adds_condition_check_only(self):
+        block = re.split(r'Sid\s*=\s*"WorkItems"', self.source, maxsplit=1)[1]
+        block = block.split("},", 1)[0]
+        for action in ("dynamodb:GetItem", "dynamodb:PutItem",
+                       "dynamodb:UpdateItem", "dynamodb:Query",
+                       "dynamodb:ConditionCheckItem"):
+            self.assertIn(action, block)
+        self.assertNotIn("dynamodb:TransactWriteItems", block)
+
     def test_no_wildcard_dynamodb_or_sqs_resource(self):
         for action in ("dynamodb:", "sqs:"):
             for match in re.finditer(
