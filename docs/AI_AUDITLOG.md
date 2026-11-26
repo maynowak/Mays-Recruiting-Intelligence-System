@@ -13286,3 +13286,30 @@ Bericht: `docs/reports/RIS-DEV2-DYNAMODB-TRANSACTION-CLIENT-FIX-16.md`
   queue 0/0; dispatch DLQ 1 (automatic retries exhausted, not inspected or
   redriven); work DLQ 1 unchanged. No apply, redrive, order, data repair,
   cleanup, grant or main merge.
+
+---
+
+## RIS-DEV2-FIX-16B — 2026-11-26
+
+Status: **READY FOR FIX-16B APPLY APPROVAL**
+
+Bericht: `docs/reports/RIS-DEV2-TRANSACTION-CLIENT-FIX-16B.md`
+
+- Duplicate/reuse path now requires the exact transaction reasons:
+  index 0 `None`, index 1 `ConditionalCheckFailed`. Unknown, empty, missing,
+  malformed or other reasons fail closed. Direct
+  `ConditionalCheckFailedException` fallback remains supported.
+- Added regression tests for unknown/empty/missing reasons, the allowed Put
+  duplicate, and direct conditional failure. Focused suite: 73 passed.
+- Rebuilt bundles: agent 8ec50a61..., analysis 276b4e44...; reader unchanged.
+  Test pin matches the rebuilt hashes.
+- New plan `C:\tmp\ris-dev2-transaction-client-fix-16b.tfplan`, SHA-256
+  `43ca49436dac5f0e0f23bcf2c0e4171c034e7f9f380947dbfb8cdf8e9c0af6bf`,
+  0 add / 3 change / 0 destroy, only Lambda source hash/last_modified,
+  MODE=true, no drift, state 74.
+- Only AWS write was the expressly approved temporary Terraform DynamoDB
+  state lock; no apply or other AWS mutation. S3 VersionId remained
+  `d24K7fWhqup_DQtI_PNDl85DoML9fpE.`; LastModified 08:42:26Z.
+- Code/test commit 23d51b7 and bundle-pin commit dca6c56 pushed. Report and
+  auditlog are the separate documentation commit step. No redrive, order,
+  data correction, cleanup or main merge.
