@@ -13141,3 +13141,30 @@ Bericht: `docs/reports/RIS-DEV2-DISPATCH-DLQ-REDRIVE-12.md`
   WorkItem exists after cancellation; otherwise fail closed, plus a regression
   test. No runtime change made.
 - No new order, apply, grant, Cognito change, cleanup, rollback or main merge.
+
+---
+
+## RIS-DEV2-WORKITEM-PERSISTENCE-FIX-13 — 2026-11-26
+
+Status: **READY FOR PERSISTENCE FIX APPLY APPROVAL**
+
+Bericht: `docs/reports/RIS-DEV2-WORKITEM-PERSISTENCE-FIX-13.md`
+
+- Fix (113f43d): on a cancelled transaction, read the WorkItem consistently and
+  require a complete identity-matching row; missing/incomplete/foreign rows
+  raise WorkEnqueueError before any send. CancellationReasons are logged as
+  index/code only. The enqueuedAt update now requires attribute_exists(workId).
+- Root cause: no fence row exists for the identity (full/empty/no-partner keys
+  false); the old code discarded CancellationReasons and sent without a valid
+  row, so the marker update created the bare row. Exact trigger not
+  reconstructable read-only; new logging will capture it.
+- Tests: 59 focused tests pass (work queue, dispatch, order E2E, wiring, MO
+  handoff), incl. missing/incomplete/identity mismatch, valid duplicates,
+  first persist, non-conditional failure, safe reason logging.
+- State: work item still bare; order PENDING; work DLQ 1; dispatch DLQ 0; mode
+  true. Recovery options documented (data repair + redrive, or new order),
+  none executed.
+- Plan C:\tmp\ris-dev2-workitem-persistence-fix-13.tfplan, 252131 bytes,
+  SHA-256 03a5a3ed..., 0 add / 3 change / 0 destroy (agent, dispatch ingress,
+  analysis; code hashes only), state 73, mode true.
+- No AWS write, apply, redrive, new order, data repair or cleanup.
