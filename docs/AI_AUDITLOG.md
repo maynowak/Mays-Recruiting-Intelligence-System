@@ -1,3 +1,20 @@
+[RIS-P0-DEPLOYMENT-PLAN-GATE-05]
+Current status: BLOCKED — P0 SECURITY / PRIVACY / DEPLOYMENT GATE (technical integration at 6aaa6c0; no plan/apply)
+Audit date/time: 2026-11-26
+Current Git branch and HEAD: integration/ris-p0-deployment-plan-gate-05 6aaa6c0 (base 76c5785); no main merge
+Audit scope: five parallel agents (integration, consent/privacy, Terraform/state, API/erasure/IAM, rollback). Read-only AWS only; no plan/apply/state write/deployment/real erasure.
+Integration (Agent A): all P0 feature commits already ancestors; no reimplementation. Added a745d3d (document purge fail-closed; no metadata deletion after failed S3 purge) and 6aaa6c0 (restore live partner-profile dynamodb:ConditionCheckItem). Branch pushed.
+Live read-only (Agent C): state mays-ris-tf-state-dev env:/ris-dev/dev/terraform.tfstate serial 83, lineage 9cec61e5-c036-1ad5-6ae4-8b48a50122a4, 271 resources; Lambda ris-dev-dev-agent $LATEST Active, live CodeSha UCdPXzMRdBFnnPQyIj6C53YMfqg5qAm8PW8Gy3sk/Cs=, no versions/aliases; APPLICATION/CV/SEARCH/NOTICE=true; allowlist 2 entries (values withheld); PARTNER_SURFACE=true; ERASURE_APPLICATIONS_ENABLED=false, ERASURE_S3_EXECUTION_ENABLED=false; partner API c7e9pdwe78 / kernel g6901and25 erasure+consent routes JWT. Consent table: 9 current PURPOSE rows + 41 event rows; app 1, cv 4, search 4 current; all current have text/hash and app/cv have Art.9 proof; PITR disabled/no backups. Gate-04 “2 active app rows without proof” corrected: those were historical events.
+Live code is behind the branch: no erase-partner-search-profiles, no CVDocument metadata step, no SPECIAL_CATEGORY_REQUIRED_PURPOSES, no delete_all_for_user_report. Current live still has document-purge fail-open. Plan would be restorative/behavioral, not no-op. Live artifact captured at /tmp/opencode/ris-dev-dev-agent-pre-gate05.zip (305767 bytes, CodeSha UCdP…); expected branch bundle HgRXwZoAtxIbvxme0soNRO8RIVUWQJwBdzDbuNP99go= (115 files).
+Terraform/plan blockers: generated mays_orders module incomplete and pin 016cdfd vs reviewed 1dbb0cb (legacy SQS-policy DELETE risk); consent booleans/allowlist not in overlay; CORS/Orders values require overlay; local work-table ConditionCheckItem addition; partner-profile IAM restored; no plan executed, 0 delete/replace unproven.
+Privacy (Agent B): cv-storage Art. 9 technically green; open D1–D6 (legal basis/controller, application-storage proof asymmetry, historical app rows, consent retention/PITR, global app gate). Consent table has no deletion path/no DeleteItem; PITR disabled.
+API/erasure (Agent D): authorization/isolation/withdraw 409 sound; F1 fixed; F2 application erasure uses partner-scoped gsi-owner (cross-partner/kernel users can remain; 207), F3 legacy ERASURE_APPLICATIONS_ENABLED uses unavailable gsi-user, F5 raw error strings, F6 withdrawal allowlist, F7/F8 docs/audit labels remain. No real erasure.
+Rollback (Agent E): $LATEST-only, no version/alias; artifact/hash path captured; rollback requires saved artifact or rebuild + new plan; route delete forbidden; no state restore.
+Tests: focused fixes 23+37; full 3393 passed / 129 skipped / 18 baseline environment failures; fmt PASS; modules lambda/api/partner_edge validate PASS; root validate pre-existing mays_orders; diff/secret scan PASS.
+Approvals: G4/G5 authorized plan with 0 delete/0 replace, no enforcement/CORS/allowlist/IAM widening, no Cognito/CloudFront; Privacy/Legal D1–D6; Security F2/F3/F5; rollback artifact/version decision; synthetic E2E after separate apply.
+Report: docs/reports/RIS-P0-DEPLOYMENT-PLAN-GATE-05-REPORT.md
+Current resume point: blocked before plan; no apply/deploy/main merge.
+
 [RIS-P0-CONSENT-DEPLOYMENT-DECISION-04]
 Current status: READY FOR DEPLOYMENT DECISION (decision basis complete; no activation, no plan/apply)
 Audit date/time: 2026-11-26
