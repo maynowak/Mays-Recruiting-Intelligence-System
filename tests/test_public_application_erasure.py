@@ -80,6 +80,54 @@ def test_public_erasure_constructs_application_executor(monkeypatch):
     assert captured["application_context"].partner_application_id == "partner-1"
 
 
+def test_public_erasure_document_failure_is_pending_not_success(monkeypatch):
+    for name in ("CREDENTIALS_TABLE", "API_PROFILES_TABLE", "WORK_ITEMS_TABLE",
+                 "USER_PROFILE_TABLE", "APPLICATIONS_TABLE",
+                 "PARTNER_PROFILE_TABLE"):
+        monkeypatch.setenv(name, name.lower())
+    monkeypatch.setattr(handler, "_get_dynamodb", lambda: _Ddb())
+    captured = {}
+
+    class Store:
+        def __init__(self, **kwargs):
+            pass
+
+    class Erasure:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def erase(self, user_id, tenant_id=None, **kwargs):
+            return SimpleNamespace(complete=True, to_dict=lambda: {
+                "userId": user_id, "tenantId": tenant_id, "complete": True,
+                "steps": []})
+
+    import agents.ecosystem.privacy_erasure as legacy
+    import agents.ecosystem.credentials as credentials
+    import agents.ecosystem.api_profiles as profiles
+    import agents.ecosystem.privacy_application_erasure as app_erasure
+    import agents.ecosystem.partner_registry as partner_registry
+    import jobsearch.application_repository as app_repo
+    import documents
+    monkeypatch.setattr(legacy, "PrivacyErasure", Erasure)
+    monkeypatch.setattr(credentials, "DynamoDBCredentialStore", Store)
+    monkeypatch.setattr(profiles, "DynamoDBApiProfileStore", Store)
+    monkeypatch.setattr(app_erasure, "ApplicationErasureExecutor", lambda repo: object())
+    monkeypatch.setattr(app_repo, "ApplicationRepository", lambda **kwargs: object())
+    monkeypatch.setattr(partner_registry, "resolve_partner_application",
+                        lambda client_id: {"applicationId": "partner-1",
+                                           "tenantId": "tenant-1",
+                                           "status": "ACTIVE"})
+
+    def fail(**_kwargs):
+        raise RuntimeError("S3 unavailable")
+
+    monkeypatch.setattr(documents, "delete_all_for_user_report", fail)
+    response = handler.handler(_event(), None)
+    assert response["statusCode"] == 200
+    deleter = captured["document_deleter"]
+    assert deleter("user-1") == (0, True)
+
+
 def test_public_erasure_fails_closed_without_application_store(monkeypatch):
     for name in ("CREDENTIALS_TABLE", "API_PROFILES_TABLE", "WORK_ITEMS_TABLE",
                  "USER_PROFILE_TABLE"):

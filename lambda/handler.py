@@ -1558,15 +1558,27 @@ def _handle_me_erasure(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return total, False
         return total, True
 
-    def _delete_documents(user_id: str) -> int:
-        """Delete every document object the platform holds for this user."""
+    def _delete_documents(user_id: str) -> tuple[int, bool]:
+        """Delete document objects and report whether work remains.
+
+        ``documents.delete_all_for_user_report`` returns ``(deleted, pending)``.
+        Any failure to even start or complete that call must be reported as
+        pending, never as a successful zero-byte deletion; otherwise the
+        following CVDocument-metadata step would delete the only pointer to
+        objects that still exist in S3.
+        """
         try:
             import documents
-            return documents.delete_all_for_user_report(user_id=user_id)
+            outcome = documents.delete_all_for_user_report(user_id=user_id)
         except Exception as exc:
             logger.warning("document purge unavailable for %s: %s",
                            user_id, exc)
-            return 0
+            return 0, True
+        if isinstance(outcome, tuple):
+            deleted, pending = outcome
+            return deleted, bool(pending)
+        # Compatibility for old fake/legacy deleters that return only a count.
+        return outcome, False
 
     dynamodb = _get_dynamodb()
     partner_application_id = user_context.get('partnerApplicationId')
