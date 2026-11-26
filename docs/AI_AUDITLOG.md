@@ -13095,3 +13095,24 @@ Bericht: `docs/reports/RIS-DEV2-CANARY-INGRESS-IAM-FIX-10.md`
   diff 0 add / 1 change / 0 destroy (only the ingress IAM policy), no drift,
   state serial 72, synthetic mode unchanged true.
 - No apply, DLQ redrive, new order, cleanup or other AWS write.
+
+---
+
+## RIS-DEV2-INGRESS-IAM-APPLY-11 — 2026-11-26
+
+Status: **INGRESS IAM APPLIED — LIVE VERIFIED**
+
+Bericht: `docs/reports/RIS-DEV2-INGRESS-IAM-APPLY-11.md`
+
+- Preflight PASS (HEAD 87c218a, state 72, plan 41d4fdd7..., 0/1/0, only ingress
+  policy, mode true).
+- Applied exactly once: 0 added / 1 changed / 0 destroyed; state 72 -> 73; S3
+  version 5UJcbUIu..., 2026-11-26T06:37:04Z.
+- Live verified: WorkItems now has exactly GetItem/PutItem/UpdateItem/Query/
+  ConditionCheckItem; resources unchanged; no TransactWriteItems; the only
+  policy diff is the WorkItems action list; role policy count still 4. Analysis
+  mode true, code hash and analysis IAM unchanged; entitlement valid; order
+  PENDING and dispatch DLQ 1 unchanged; no new ingress ERROR events.
+- No DLQ redrive, new order, cleanup, further apply, grant or main merge.
+  E2E still requires a separately approved redrive or new order before
+  2026-11-26T17:40:28Z.
