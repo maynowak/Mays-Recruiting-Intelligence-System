@@ -132,6 +132,10 @@ class TransactCancelled(Exception):
         }
 
 
+class DirectConditionalFailure(Exception):
+    response = {"Error": {"Code": "ConditionalCheckFailedException"}}
+
+
 class _TransactClient:
     def __init__(self, owner, error):
         self.owner = owner
@@ -222,7 +226,8 @@ class CancellationFailClosedTest(unittest.TestCase):
         requested = {**WORK, "payload": payload}
         table = TransactTable(
             item={**requested, "enqueuedAt": "2026-01-01T00:00:00+00:00"},
-            error=TransactCancelled())
+            error=TransactCancelled([
+                {"Code": "None"}, {"Code": "ConditionalCheckFailed"}]))
         sqs = FakeSQS()
         out = enqueue_work_item(dict(requested), table=table, queue_url=QUEUE,
                                 sqs_client=sqs)
@@ -233,7 +238,8 @@ class CancellationFailClosedTest(unittest.TestCase):
     def test_cancelled_with_valid_enqueued_duplicate(self):
         table = TransactTable(
             item={**WORK, "enqueuedAt": "2026-01-01T00:00:00+00:00"},
-            error=TransactCancelled())
+            error=TransactCancelled([
+                {"Code": "None"}, {"Code": "ConditionalCheckFailed"}]))
         sqs = FakeSQS()
         out = self._call(table, sqs)
         self.assertTrue(out["duplicate"])
@@ -243,14 +249,17 @@ class CancellationFailClosedTest(unittest.TestCase):
 
     def test_cancelled_with_terminal_duplicate(self):
         table = TransactTable(item={**WORK, "status": "COMPLETED"},
-                              error=TransactCancelled())
+                              error=TransactCancelled([
+                                  {"Code": "None"},
+                                  {"Code": "ConditionalCheckFailed"}]))
         sqs = FakeSQS()
         out = self._call(table, sqs)
         self.assertTrue(out["duplicate"])
         self.assertEqual([], sqs.sent)
 
     def test_cancelled_with_valid_queued_row_sends_once(self):
-        table = TransactTable(item=dict(WORK), error=TransactCancelled())
+        table = TransactTable(item=dict(WORK), error=TransactCancelled([
+            {"Code": "None"}, {"Code": "ConditionalCheckFailed"}]))
         sqs = FakeSQS()
         out = self._call(table, sqs)
         self.assertEqual(1, len(sqs.sent))
@@ -301,6 +310,48 @@ class CancellationFailClosedTest(unittest.TestCase):
             item={**WORK, "enqueuedAt": "2026-01-01T00:00:00+00:00"},
             error=TransactCancelled([
                 {"Code": "None"}, {"Code": "ConditionalCheckFailed"}]))
+        sqs = FakeSQS()
+        out = self._call(table, sqs)
+        self.assertTrue(out["duplicate"])
+        self.assertEqual([], sqs.sent)
+        self.assertEqual([], table.updates)
+
+    def test_unknown_transaction_reason_fails_closed(self):
+        table = TransactTable(
+            item={**WORK, "enqueuedAt": "2026-01-01T00:00:00+00:00"},
+            error=TransactCancelled([
+                {"Code": "None"}, {"Code": "SomeUnexpectedCode"}]))
+        sqs = FakeSQS()
+        with self.assertRaises(WorkEnqueueError):
+            self._call(table, sqs)
+        self.assertEqual([], sqs.sent)
+        self.assertEqual([], table.updates)
+
+    def test_empty_transaction_reasons_fail_closed(self):
+        table = TransactTable(
+            item={**WORK, "enqueuedAt": "2026-01-01T00:00:00+00:00"},
+            error=TransactCancelled([]))
+        sqs = FakeSQS()
+        with self.assertRaises(WorkEnqueueError):
+            self._call(table, sqs)
+        self.assertEqual([], sqs.sent)
+        self.assertEqual([], table.updates)
+
+    def test_missing_transaction_reason_code_fails_closed(self):
+        table = TransactTable(
+            item={**WORK, "enqueuedAt": "2026-01-01T00:00:00+00:00"},
+            error=TransactCancelled([
+                {"Code": "None"}, {}]))
+        sqs = FakeSQS()
+        with self.assertRaises(WorkEnqueueError):
+            self._call(table, sqs)
+        self.assertEqual([], sqs.sent)
+        self.assertEqual([], table.updates)
+
+    def test_direct_conditional_failure_keeps_duplicate_fallback(self):
+        table = TransactTable(
+            item={**WORK, "enqueuedAt": "2026-01-01T00:00:00+00:00"},
+            error=DirectConditionalFailure())
         sqs = FakeSQS()
         out = self._call(table, sqs)
         self.assertTrue(out["duplicate"])

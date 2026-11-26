@@ -57,8 +57,9 @@ def _cancellation_reasons(exc: Exception) -> List[Dict[str, Any]]:
         return []
     safe = []
     for index, reason in enumerate(reasons):
-        if isinstance(reason, dict) and reason.get("Code"):
-            safe.append({"index": index, "code": str(reason.get("Code"))})
+        code = reason.get("Code") if isinstance(reason, dict) else None
+        safe.append({"index": index,
+                     "code": code if isinstance(code, str) else "Missing"})
     return safe
 
 
@@ -70,17 +71,34 @@ def _raise_for_cancellation(exc: Exception) -> None:
     transaction conflict must fail closed without a send. Only a Put condition
     failure is a candidate for the duplicate/reuse check.
     """
+    response = getattr(exc, "response", None)
+    error = response.get("Error", {}) if isinstance(response, dict) else {}
+    error_code = error.get("Code") if isinstance(error, dict) else None
+
+    # A direct conditional failure is the non-transactional conditional-write
+    # fallback. It remains eligible for the existing-row duplicate check.
+    if error_code == "ConditionalCheckFailedException":
+        return
+
     reasons = _cancellation_reasons(exc)
     if reasons:
         logger.warning("work item transaction cancelled: %s",
                        json.dumps(reasons, sort_keys=True))
-    codes = {reason["index"]: reason["code"] for reason in reasons}
-    if codes.get(0) == "ConditionalCheckFailed":
-        raise WorkEnqueueError("work item rejected: subject fence is active")
-    if "ValidationError" in codes.values():
-        raise WorkEnqueueError("work item transaction validation error")
-    if "TransactionConflict" in codes.values():
-        raise WorkEnqueueError("work item transaction conflict")
+    if error_code == "TransactionCanceledException":
+        codes = {reason["index"]: reason["code"] for reason in reasons}
+        if (len(reasons) == 2
+                and codes.get(0) == "None"
+                and codes.get(1) == "ConditionalCheckFailed"):
+            return
+        if codes.get(0) == "ConditionalCheckFailed":
+            raise WorkEnqueueError("work item rejected: subject fence is active")
+        if "ValidationError" in codes.values():
+            raise WorkEnqueueError("work item transaction validation error")
+        if "TransactionConflict" in codes.values():
+            raise WorkEnqueueError("work item transaction conflict")
+        raise WorkEnqueueError("work item transaction cancellation is unclassified")
+
+    raise WorkEnqueueError("work item conditional failure is unclassified")
 
 
 def _read_existing(table: Any, work_id: str) -> Optional[Dict[str, Any]]:
