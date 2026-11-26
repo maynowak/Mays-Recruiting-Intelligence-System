@@ -13313,3 +13313,30 @@ Bericht: `docs/reports/RIS-DEV2-TRANSACTION-CLIENT-FIX-16B.md`
 - Code/test commit 23d51b7 and bundle-pin commit dca6c56 pushed. Report and
   auditlog are the separate documentation commit step. No redrive, order,
   data correction, cleanup or main merge.
+
+---
+
+## RIS-DEV2-FIX-16B-APPLY-17 — 2026-11-26
+
+Status: **FIX 16B APPLIED — LIVE VERIFIED**
+
+Bericht: `docs/reports/RIS-DEV2-FIX-16B-APPLY-17.md`
+
+- Preflight PASS: account 262370457690, eu-central-1, workspace ris-dev2;
+  state 74 / lineage a0bd361d-...; S3 VersionId
+  d24K7fWhqup_DQtI_PNDl85DoML9fpE.; exact backend lock key absent.
+- Approved saved plan SHA-256
+  43ca49436dac5f0e0f23bcf2c0e4171c034e7f9f380947dbfb8cdf8e9c0af6bf.
+  Apply executed exactly once; Terraform reported 0 added / 3 changed /
+  0 destroyed.
+- All three Lambda functions Active/Successful; agent and ingress live
+  CodeSha256 jsUKYUCN..., analysis J2tORCAn...; all match plan. Analysis
+  MODE=true. Plan changed only source_code_hash + last_modified on these
+  functions; no IAM, Cognito, environment or other resource changes.
+- State after apply serial 75, same lineage; S3 VersionId
+  oacaI13gBig4EZiLdlTGuGHb_WB6ksmQ, LastModified 2026-11-26T11:04:58Z.
+- Old and second order unchanged; old bare WorkItem unchanged; second
+  WorkItem absent. Dispatch queue 0/0, dispatch DLQ 1, work queue 0/0,
+  work DLQ 1, results queue/DLQ 0/0. No queue messages were read or modified.
+- No redrive, new order, correction, cleanup, grant, further apply or
+  main merge. Stop after live verification.
