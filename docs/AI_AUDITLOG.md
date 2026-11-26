@@ -1,3 +1,24 @@
+[RIS-P0-SECURITY-GATE-03]
+Current status: READY FOR P0 SECURITY REVIEW (technical local gate; Privacy/Legal and authorized plan pending)
+Audit date/time: 2026-11-26
+Current Git branch and HEAD: feature/ris-p0-security-gate-03, implementation e370567, base 8d15c82
+Audit scope: cv-storage Art.-9 enforcement, consent/notice deployment safety, protected installer var files, erasure regression and Terraform validation. No AWS, plan/apply, state mutation, deployment, main merge or real data.
+Actual findings / changes:
+  - cv-storage new grants now require specialCategoriesConsent=true, a valid non-empty category subset and the approved cv-storage-consent-2026-11-08-v1 text/hash; missing proof returns 422 SPECIAL_CATEGORIES_REQUIRED.
+  - Existing/legacy rows are not migrated or inferred; reads and withdrawal remain available. No automatic legal or data migration.
+  - Installer adds protected --var-file (mode 0600 or stricter, no symlink, readable, absolute); consent_pilot_allowlist is refused on --var and in overlays; -var-file is passed before -var; path is redacted in command logs and contents are never read/logged.
+  - Consent/notice wiring and defaults retained; plan preconditions unchanged. Recorded live CV/SEARCH=true, NOTICE=false and a non-empty allowlist mean a defaults-only plan would weaken/disable the pilot, while live values violate the precondition. No safe plan without an explicit activation decision. Live values were not re-read in this run.
+  - Erasure regression retained: partner route, search profiles, CV metadata, partner/tenant/issuer scoping, idempotency and withdraw-without-consent 409. No real deletion.
+Terraform:
+  - fmt -check PASS; root init PASS; root validate fails on pre-existing module.mays_orders[0].iam_handler_role_name on this branch and parent 8d15c82; modules/lambda, api and partner_edge validate PASS. No plan/apply.
+Tests:
+  - consent/cv-storage 144 passed / 103 subtests; Art.9 contract/repository/handler 50; installer/IaC/overlay 86 / 24 subtests; erasure/privacy 75; consent/security gates 33 / 60 subtests.
+  - Full suite 3392 passed / 129 skipped / 18 environment failures; parent 8d15c82 3381 / 129 / 18 — no new failures.
+  - git diff --check and secret scan PASS; no real allowlist value or secret.
+Approvals needed: Privacy/Legal Art. 9 legal basis and legacy-row treatment; live consent/notice activation decision; fresh authorized ris-dev plan with 0 delete/0 replace and no enforcement weakening; synthetic E2E.
+Report: docs/reports/RIS-P0-SECURITY-GATE-03-REPORT.md
+Current resume point: P0 security review; no rollout or main integration.
+
 [XREPO-RIS-P0-PARALLEL-FIX-01]
 Current status: BLOCKED — SECURITY/PRIVACY REVIEW REQUIRED (technical integration verified locally)
 Audit date/time: 2026-11-25
