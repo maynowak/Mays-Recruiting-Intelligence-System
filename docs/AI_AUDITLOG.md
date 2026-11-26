@@ -1,3 +1,17 @@
+[RIS-ART9-CODE-COMPLETE-01]
+Current status: ART. 9 CODE COMPLETE / DEPLOYMENT PENDING
+Audit date/time: 2026-11-26
+Current Git branch and HEAD: docs/ris-art9-code-complete-01, base origin/main 97a60df; no code change, no main merge/deploy/plan/apply
+Audit scope: verify the original Art. 9 work and the Gate-03 enforcement addition; no code modification.
+Findings:
+  - Original Art. 9 proof implementation exists on feature/jm-ris-cv-storage-integration-01 and release/structured-cv-rc2-reconciled: 2301aee, 3ed915b, 994954c, 6bfb71f; restored on main by fd02722 (ancestor of origin/main).
+  - Gate-03 e370567 did not reimplement it; it added SPECIAL_CATEGORY_REQUIRED_PURPOSES for cv-storage (11-line contract change) plus negative tests/docs. It closes the enforcement gap, not the proof contract.
+  - Verification: RIS consent/Art.9 suites 84 passed; Jobsearch BFF/UI Art.9 suites 9 files / 156 tests passed. Original proof, legacy read/withdraw and re-grant paths intact.
+  - Live Lambda UCdPXzMRdBFnnPQyIj6C53YMfqg5qAm8PW8Gy3sk/Cs= predates the enforcement addition; live deployment remains pending. RIS plan is still blocked by the Mays-Orders module contract; Privacy/Legal Art.9/retention approval remains required.
+No deployment, Terraform plan/apply, AWS mutation or main merge.
+Report: docs/reports/RIS-ART9-CODE-COMPLETE-01.md
+Current resume point: Art.9 code-complete; deployment/release governance only.
+
 [JM-GOOGLE-LOGIN-READINESS-01]
 Current status: COMPLETE / RED (NOT READY, read-only Audit)
 Audit date/time: 2026-10-31 21:48–21:52 UTC
