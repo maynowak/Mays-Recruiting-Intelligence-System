@@ -1,3 +1,22 @@
+[RIS-MODULE-BUILDER-PORTABILITY-07D]
+Current status: IMPLEMENTED / VERIFIED LOCAL — builder runs on Linux against pin 016cdfd
+Audit date/time: 2026-11-26
+Current Git branch and HEAD: fix/ris-module-builder-portability-07d (base d76fb99); no main merge, no push to main
+Audit scope: installer/build_mays_orders_module.py executable discovery, error handling and builder regression tests; one real orders-service build and local terraform fmt/init/validate in /tmp copy. No AWS, no plan/apply/state, no deployment, no pin change, no original-repo change.
+Changes:
+  - Git/Terraform resolution is platform-independent: shutil.which(PATH) with preserved TERRAFORM_EXE and new optional GIT_EXE override; Windows additionally falls back to the standard Git install directories. No bare "terraform.exe" guess remains.
+  - Missing tool or unusable override fails closed with an actionable message (install/PATH hint plus env var); git calls in run()/ensure_repo() no longer hardcode C:\Program Files\Git\bin\git.exe.
+  - Removed an unreachable/never-valid artifact-hash fragment that had leaked into build_module and referenced undefined hashlib/manifest_sha (would raise NameError if lambda.zip existed); the B5 account-boundary note is preserved as documentation only.
+  - Builder parameters (--project-name/--force/--check/--clean and defaults) unchanged; generated module contract, pins and Terraform sources untouched.
+Verification (local):
+  - New tests/test_build_mays_orders_portability.py 16 PASS (PATH, env override, Windows fallback/absence, run() resolution, ensure_repo git token, CLI defaults, missing-tool fail-closed).
+  - tests/test_build_mays_orders_transport_outputs.py 8 PASS; tests/test_ris_installer.py 43 PASS; tests/test_terraform_consent_deployment_unblock.py 8 PASS.
+  - Legacy root test_wrapper_regression.py: patch targets bound to the imported module object; 43 PASS / 6 pre-existing fixture failures (baseline before change 35/14 with the same categories: outdated 20-output fixture, missing transport outputs in mocks, missing mocked variables.tf).
+  - Real build in /tmp/opencode/ris07d copy at pin 016cdfd: module_builder orders-service build, 9 inputs/23 outputs contract, RIS transport injection, terraform fmt -recursive/format-check, init -backend=false and validate PASS; installed module re-validated PASS. No generated artifact, lockfile or state written to the worktree or pin.
+AI/privacy assessment: no AI provider, prompt, data flow, consent or PII handling touched; no AWS access; purely local tooling portability.
+Report: docs/reports/RIS-MODULE-BUILDER-PORTABILITY-07D-REPORT.md
+Current resume point: builder executable (builder portability restored locally); integration blocker remains the Mays-Orders module/pin reconciliation (016cdfd vs 1dbb0cb) and the SQS queue-policy decision.
+
 [RIS-P0-PLAN-BASELINE-RECONCILIATION-06]
 Current status: BLOCKED — MAYS ORDERS MODULE FAILURE (secondary: BLOCKED — RIS ORDERS INTEGRATION FAILURE)
 Audit date/time: 2026-11-26

@@ -38,6 +38,12 @@ from installer.build_mays_orders_module import (
     CLONE_PIN_FILE,
 )
 
+# Patch the exact module object these tests call into. String targets such as
+# 'installer.build_mays_orders_module.run' can resolve to a second module
+# instance after conftest reloads the package, leaving the imported functions
+# unpatchable.
+import installer.build_mays_orders_module as builder_module
+
 PROJECT_NAME = "ris-dev2"
 EXPECTED_COMPONENT = "ris-dev2-mays-orders"
 
@@ -106,9 +112,9 @@ class TestN01Namensvertrag(unittest.TestCase):
         validate_project_name_format("a-b3")
         validate_project_name_format("abc")
 
-    @patch('installer.build_mays_orders_module.run')
-    @patch('installer.build_mays_orders_module.derive_component_name')
-    @patch('installer.build_mays_orders_module.check_name_length')
+    @patch.object(builder_module, 'run')
+    @patch.object(builder_module, 'derive_component_name')
+    @patch.object(builder_module, 'check_name_length')
     def test_build_module_passes_expected_component(
         self, mock_check_len, mock_derive, mock_run
     ):
@@ -121,7 +127,7 @@ class TestN01Namensvertrag(unittest.TestCase):
             temp_target = Path(tmpdir) / "mays_orders"
             temp_target.mkdir(parents=True)
 
-            with patch('installer.build_mays_orders_module.TARGET_MODULE_DIR', temp_target):
+            with patch.object(builder_module, 'TARGET_MODULE_DIR', temp_target):
                 try:
                     build_module(PROJECT_NAME, force=False)
                 except SystemExit:
@@ -142,9 +148,9 @@ class TestN01Namensvertrag(unittest.TestCase):
                     break
         self.assertTrue(called, "Builder wurde nicht mit --project-name ris-dev2-mays-orders aufgerufen")
 
-    @patch('installer.build_mays_orders_module.run')
-    @patch('installer.build_mays_orders_module.derive_component_name')
-    @patch('installer.build_mays_orders_module.check_name_length')
+    @patch.object(builder_module, 'run')
+    @patch.object(builder_module, 'derive_component_name')
+    @patch.object(builder_module, 'check_name_length')
     def test_build_module_never_passes_plain_project_name(
         self, mock_check_len, mock_derive, mock_run
     ):
@@ -157,7 +163,7 @@ class TestN01Namensvertrag(unittest.TestCase):
             temp_target = Path(tmpdir) / "mays_orders"
             temp_target.mkdir(parents=True)
 
-            with patch('installer.build_mays_orders_module.TARGET_MODULE_DIR', temp_target):
+            with patch.object(builder_module, 'TARGET_MODULE_DIR', temp_target):
                 try:
                     build_module(PROJECT_NAME, force=False)
                 except SystemExit:
@@ -421,7 +427,7 @@ class TestN03Namensgrenzen(unittest.TestCase):
         """Komponentenname über Limit -> sys.exit(1)."""
         long_name = "a" * 70  # 70 > 64
         with self.assertRaises(SystemExit) as ctx:
-            with patch('installer.build_mays_orders_module.derive_component_name', return_value=long_name):
+            with patch.object(builder_module, 'derive_component_name', return_value=long_name):
                 build_module("a" * 70, force=False)
         self.assertEqual(ctx.exception.code, 1)
 
@@ -438,7 +444,7 @@ class TestTerraformGates(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             mod_dir = Path(tmpdir) / "mod"
             mod_dir.mkdir()
-            with patch('installer.build_mays_orders_module.run') as mock_run:
+            with patch.object(builder_module, 'run') as mock_run:
                 mock_run.side_effect = FileNotFoundError("terraform not found")
                 with self.assertRaises(RuntimeError):
                     post_run_checks(mod_dir)
@@ -448,7 +454,7 @@ class TestTerraformGates(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             mod_dir = Path(tmpdir) / "mod"
             mod_dir.mkdir()
-            with patch('installer.build_mays_orders_module.run') as mock_run:
+            with patch.object(builder_module, 'run') as mock_run:
                 fmt_result = MagicMock()
                 fmt_result.returncode = 3
                 mock_run.return_value = fmt_result
@@ -460,7 +466,7 @@ class TestTerraformGates(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             mod_dir = Path(tmpdir) / "mod"
             mod_dir.mkdir()
-            with patch('installer.build_mays_orders_module.run') as mock_run:
+            with patch.object(builder_module, 'run') as mock_run:
                 fmt_result = MagicMock()
                 fmt_result.returncode = 0
                 init_result = MagicMock()
@@ -474,7 +480,7 @@ class TestTerraformGates(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             mod_dir = Path(tmpdir) / "mod"
             mod_dir.mkdir()
-            with patch('installer.build_mays_orders_module.run') as mock_run:
+            with patch.object(builder_module, 'run') as mock_run:
                 fmt_result = MagicMock()
                 fmt_result.returncode = 0
                 init_result = MagicMock()
@@ -490,7 +496,7 @@ class TestTerraformGates(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             mod_dir = Path(tmpdir) / "mod"
             mod_dir.mkdir()
-            with patch('installer.build_mays_orders_module.run') as mock_run:
+            with patch.object(builder_module, 'run') as mock_run:
                 success = MagicMock()
                 success.returncode = 0
                 mock_run.return_value = success
@@ -504,7 +510,7 @@ class TestTerraformGates(unittest.TestCase):
             mod_dir.mkdir()
             # Ensure no terraform/ subdirectory exists
             self.assertFalse((mod_dir / "terraform").exists())
-            with patch('installer.build_mays_orders_module.run') as mock_run:
+            with patch.object(builder_module, 'run') as mock_run:
                 success = MagicMock()
                 success.returncode = 0
                 mock_run.return_value = success
@@ -601,10 +607,10 @@ class TestZielUebernahmeBestandsschutz(unittest.TestCase):
             self.assertEqual(sha_before, sha_after,
                              f"Target file {fname} changed (SHA-256 before={sha_before}, after={sha_after})")
 
-    @patch('installer.build_mays_orders_module.ensure_repo')
-    @patch('installer.build_mays_orders_module.run')
-    @patch('installer.build_mays_orders_module.validate_generated_contract')
-    @patch('installer.build_mays_orders_module.post_run_checks')
+    @patch.object(builder_module, 'ensure_repo')
+    @patch.object(builder_module, 'run')
+    @patch.object(builder_module, 'validate_generated_contract')
+    @patch.object(builder_module, 'post_run_checks')
     @patch('installer.build_mays_orders_module.shutil.copytree')
     def test_builder_error_preserves_target(
         self, mock_copytree, mock_post_run, mock_validate, mock_run, mock_ensure_repo
@@ -613,15 +619,15 @@ class TestZielUebernahmeBestandsschutz(unittest.TestCase):
         mock_ensure_repo.return_value = None
         mock_run.side_effect = RuntimeError("Builder failed")
 
-        with patch('installer.build_mays_orders_module.TARGET_MODULE_DIR', self.target):
+        with patch.object(builder_module, 'TARGET_MODULE_DIR', self.target):
             with self.assertRaises(RuntimeError):
                 build_module(PROJECT_NAME, force=False)
         self._assert_target_unchanged()
 
-    @patch('installer.build_mays_orders_module.ensure_repo')
-    @patch('installer.build_mays_orders_module.run')
-    @patch('installer.build_mays_orders_module.validate_generated_contract')
-    @patch('installer.build_mays_orders_module.post_run_checks')
+    @patch.object(builder_module, 'ensure_repo')
+    @patch.object(builder_module, 'run')
+    @patch.object(builder_module, 'validate_generated_contract')
+    @patch.object(builder_module, 'post_run_checks')
     @patch('installer.build_mays_orders_module.shutil.copytree')
     def test_contract_error_preserves_target(
         self, mock_copytree, mock_post_run, mock_validate, mock_run, mock_ensure_repo
@@ -631,16 +637,16 @@ class TestZielUebernahmeBestandsschutz(unittest.TestCase):
         mock_run.return_value = MagicMock(returncode=0)
         mock_validate.side_effect = RuntimeError("Contract validation failed")
 
-        with patch('installer.build_mays_orders_module.TARGET_MODULE_DIR', self.target):
+        with patch.object(builder_module, 'TARGET_MODULE_DIR', self.target):
             with self.assertRaises(RuntimeError):
                 build_module(PROJECT_NAME, force=False)
         self._assert_target_unchanged()
         mock_copytree.assert_not_called()
 
-    @patch('installer.build_mays_orders_module.ensure_repo')
-    @patch('installer.build_mays_orders_module.run')
-    @patch('installer.build_mays_orders_module.validate_generated_contract')
-    @patch('installer.build_mays_orders_module.post_run_checks')
+    @patch.object(builder_module, 'ensure_repo')
+    @patch.object(builder_module, 'run')
+    @patch.object(builder_module, 'validate_generated_contract')
+    @patch.object(builder_module, 'post_run_checks')
     @patch('installer.build_mays_orders_module.shutil.copytree')
     def test_name_length_error_preserves_target(
         self, mock_copytree, mock_post_run, mock_validate, mock_run, mock_ensure_repo
@@ -649,17 +655,17 @@ class TestZielUebernahmeBestandsschutz(unittest.TestCase):
         mock_ensure_repo.return_value = None
 
         long_name = "a" * 70  # > 64 chars
-        with patch('installer.build_mays_orders_module.derive_component_name', return_value=long_name):
+        with patch.object(builder_module, 'derive_component_name', return_value=long_name):
             with self.assertRaises(SystemExit) as ctx:
                 build_module("a" * 70, force=False)
             self.assertEqual(ctx.exception.code, 1)
         self._assert_target_unchanged()
         mock_copytree.assert_not_called()
 
-    @patch('installer.build_mays_orders_module.ensure_repo')
-    @patch('installer.build_mays_orders_module.run')
-    @patch('installer.build_mays_orders_module.validate_generated_contract')
-    @patch('installer.build_mays_orders_module.post_run_checks')
+    @patch.object(builder_module, 'ensure_repo')
+    @patch.object(builder_module, 'run')
+    @patch.object(builder_module, 'validate_generated_contract')
+    @patch.object(builder_module, 'post_run_checks')
     @patch('installer.build_mays_orders_module.shutil.copytree')
     def test_terraform_error_preserves_target(
         self, mock_copytree, mock_post_run, mock_validate, mock_run, mock_ensure_repo
@@ -670,16 +676,16 @@ class TestZielUebernahmeBestandsschutz(unittest.TestCase):
         mock_validate.return_value = None
         mock_post_run.side_effect = RuntimeError("Terraform validate failed")
 
-        with patch('installer.build_mays_orders_module.TARGET_MODULE_DIR', self.target):
+        with patch.object(builder_module, 'TARGET_MODULE_DIR', self.target):
             with self.assertRaises(RuntimeError):
                 build_module(PROJECT_NAME, force=False)
         self._assert_target_unchanged()
         mock_copytree.assert_not_called()
 
-    @patch('installer.build_mays_orders_module.ensure_repo')
-    @patch('installer.build_mays_orders_module.run')
-    @patch('installer.build_mays_orders_module.validate_generated_contract')
-    @patch('installer.build_mays_orders_module.post_run_checks')
+    @patch.object(builder_module, 'ensure_repo')
+    @patch.object(builder_module, 'run')
+    @patch.object(builder_module, 'validate_generated_contract')
+    @patch.object(builder_module, 'post_run_checks')
     @patch('installer.build_mays_orders_module.shutil.copytree')
     @patch('installer.build_mays_orders_module.shutil.rmtree')
     def test_force_with_existing_installation(
@@ -692,16 +698,16 @@ class TestZielUebernahmeBestandsschutz(unittest.TestCase):
         mock_post_run.return_value = None
         mock_rmtree.return_value = None
 
-        with patch('installer.build_mays_orders_module.TARGET_MODULE_DIR', self.target):
+        with patch.object(builder_module, 'TARGET_MODULE_DIR', self.target):
             build_module(PROJECT_NAME, force=True)
         # copytree called twice: once for backup, once for actual adoption
         self.assertTrue(mock_copytree.call_count >= 2)
         self.assertTrue(self.target.exists())
 
-    @patch('installer.build_mays_orders_module.ensure_repo')
-    @patch('installer.build_mays_orders_module.run')
-    @patch('installer.build_mays_orders_module.validate_generated_contract')
-    @patch('installer.build_mays_orders_module.post_run_checks')
+    @patch.object(builder_module, 'ensure_repo')
+    @patch.object(builder_module, 'run')
+    @patch.object(builder_module, 'validate_generated_contract')
+    @patch.object(builder_module, 'post_run_checks')
     @patch('installer.build_mays_orders_module.shutil.copytree')
     @patch('installer.build_mays_orders_module.shutil.rmtree')
     def test_error_during_target_adoption_preserves_original(
@@ -715,15 +721,15 @@ class TestZielUebernahmeBestandsschutz(unittest.TestCase):
         mock_copytree.side_effect = OSError("Disk full during adoption")
         mock_rmtree.return_value = None
 
-        with patch('installer.build_mays_orders_module.TARGET_MODULE_DIR', self.target):
+        with patch.object(builder_module, 'TARGET_MODULE_DIR', self.target):
             with self.assertRaises(OSError):
                 build_module(PROJECT_NAME, force=False)
         self._assert_target_unchanged()
 
-    @patch('installer.build_mays_orders_module.ensure_repo')
-    @patch('installer.build_mays_orders_module.run')
-    @patch('installer.build_mays_orders_module.validate_generated_contract')
-    @patch('installer.build_mays_orders_module.post_run_checks')
+    @patch.object(builder_module, 'ensure_repo')
+    @patch.object(builder_module, 'run')
+    @patch.object(builder_module, 'validate_generated_contract')
+    @patch.object(builder_module, 'post_run_checks')
     @patch('installer.build_mays_orders_module.shutil.copytree')
     @patch('installer.build_mays_orders_module.shutil.rmtree')
     def test_successful_target_adoption(
@@ -736,7 +742,7 @@ class TestZielUebernahmeBestandsschutz(unittest.TestCase):
         mock_post_run.return_value = None
         mock_rmtree.return_value = None
 
-        with patch('installer.build_mays_orders_module.TARGET_MODULE_DIR', self.target):
+        with patch.object(builder_module, 'TARGET_MODULE_DIR', self.target):
             build_module(PROJECT_NAME, force=False)
         # copytree called twice: once for backup, once for actual adoption
         self.assertTrue(mock_copytree.call_count >= 2)
@@ -757,7 +763,7 @@ class TestWeitereWrapperFehlerfaelle(unittest.TestCase):
             pin_file = Path(tmpdir) / "mays-orders-builder.pinned.json"
             pin_file.write_text(json.dumps({"commit": PINNED_COMMIT}), encoding="utf-8")
 
-            with patch('installer.build_mays_orders_module.BUILDER_PIN_FILE', pin_file):
+            with patch.object(builder_module, 'BUILDER_PIN_FILE', pin_file):
                 pin = load_builder_pin()
                 self.assertEqual(pin, PINNED_COMMIT)
 
@@ -767,7 +773,7 @@ class TestWeitereWrapperFehlerfaelle(unittest.TestCase):
             pin_file = Path(tmpdir) / "mays-orders-builder.pinned.json"
             # Datei existiert nicht
 
-            with patch('installer.build_mays_orders_module.BUILDER_PIN_FILE', pin_file):
+            with patch.object(builder_module, 'BUILDER_PIN_FILE', pin_file):
                 with self.assertRaises(RuntimeError) as ctx:
                     load_builder_pin()
                 self.assertIn("fehlt", str(ctx.exception))
@@ -778,7 +784,7 @@ class TestWeitereWrapperFehlerfaelle(unittest.TestCase):
             pin_file = Path(tmpdir) / "mays-orders-builder.pinned.json"
             pin_file.write_text("{invalid json", encoding="utf-8")
 
-            with patch('installer.build_mays_orders_module.BUILDER_PIN_FILE', pin_file):
+            with patch.object(builder_module, 'BUILDER_PIN_FILE', pin_file):
                 with self.assertRaises(RuntimeError) as ctx:
                     load_builder_pin()
                 self.assertIn("ungültig", str(ctx.exception))
@@ -789,7 +795,7 @@ class TestWeitereWrapperFehlerfaelle(unittest.TestCase):
             pin_file = Path(tmpdir) / "mays-orders-builder.pinned.json"
             pin_file.write_text('{"other": "value"}', encoding="utf-8")
 
-            with patch('installer.build_mays_orders_module.BUILDER_PIN_FILE', pin_file):
+            with patch.object(builder_module, 'BUILDER_PIN_FILE', pin_file):
                 with self.assertRaises(RuntimeError) as ctx:
                     load_builder_pin()
                 self.assertIn("keinen Commit", str(ctx.exception))
@@ -800,7 +806,7 @@ class TestWeitereWrapperFehlerfaelle(unittest.TestCase):
             pin_file = Path(tmpdir) / "mays-orders-builder.pinned.json"
             pin_file.write_text('{"commit": "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111"}', encoding="utf-8")
 
-            with patch('installer.build_mays_orders_module.BUILDER_PIN_FILE', pin_file):
+            with patch.object(builder_module, 'BUILDER_PIN_FILE', pin_file):
                 with self.assertRaises(RuntimeError) as ctx:
                     load_builder_pin()
                 self.assertIn("weicht ab", str(ctx.exception))
@@ -811,9 +817,9 @@ class TestWeitereWrapperFehlerfaelle(unittest.TestCase):
             builder_dir = Path(tmpdir) / "mays_order_builder"
             builder_dir.mkdir()
 
-            with patch('installer.build_mays_orders_module.MAYS_ORDERS_BUILDER_DIR', builder_dir):
-                with patch('installer.build_mays_orders_module.INSTALLER_PROJECTS', builder_dir.parent):
-                    with patch('installer.build_mays_orders_module.run') as mock_run:
+            with patch.object(builder_module, 'MAYS_ORDERS_BUILDER_DIR', builder_dir):
+                with patch.object(builder_module, 'INSTALLER_PROJECTS', builder_dir.parent):
+                    with patch.object(builder_module, 'run') as mock_run:
                         mock_run.return_value = MagicMock()
                         with patch('installer.build_mays_orders_module.subprocess.run') as mock_subprocess:
                             mock_subprocess.return_value = MagicMock(stdout=" M f.txt\n", returncode=0)
@@ -849,12 +855,12 @@ class TestWeitereWrapperFehlerfaelle(unittest.TestCase):
             iam_vars_content='variable "sqs_enabled" {}',
         )
 
-        with patch('installer.build_mays_orders_module.TARGET_MODULE_DIR', target):
-            with patch('installer.build_mays_orders_module.ensure_repo'):
-                with patch('installer.build_mays_orders_module.run') as mock_run:
+        with patch.object(builder_module, 'TARGET_MODULE_DIR', target):
+            with patch.object(builder_module, 'ensure_repo'):
+                with patch.object(builder_module, 'run') as mock_run:
                     mock_run.return_value = MagicMock(returncode=0)
-                    with patch('installer.build_mays_orders_module.validate_generated_contract'):
-                        with patch('installer.build_mays_orders_module.post_run_checks'):
+                    with patch.object(builder_module, 'validate_generated_contract'):
+                        with patch.object(builder_module, 'post_run_checks'):
                             with patch('installer.build_mays_orders_module.shutil.copytree'):
                                 try:
                                     build_module(PROJECT_NAME, force=False)

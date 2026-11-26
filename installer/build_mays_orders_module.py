@@ -19,6 +19,9 @@ Usage:
   python -m installer.build_mays_orders_module --project-name mays-ris
 
 Requires: git, Python 3.14+, module_builder from mays-order-aws
+Optional env: TERRAFORM_EXE / GIT_EXE (absolute executable paths).
+Otherwise both tools are discovered portably via PATH (shutil.which);
+on Windows the standard Git installation directories are a fallback.
 """
 
 import argparse
@@ -31,21 +34,81 @@ import sys
 import tempfile
 from pathlib import Path
 
-# TERRAFORM_EXE optional: expliziter Pfad zur Terraform-Executable.
-# Wenn nicht gesetzt, wird im PATH gesucht.
+# TERRAFORM_EXE / GIT_EXE sind optional: explizite Pfade zu den Executables.
+# Wenn nicht gesetzt, werden beide Programme plattformunabhängig über
+# shutil.which im PATH gesucht. Unter Windows werden zusätzlich die
+# Standardinstallationsverzeichnisse von Git geprüft.
 TERRAFORM_EXE = os.environ.get("TERRAFORM_EXE", "")
+GIT_EXE = os.environ.get("GIT_EXE", "")
+
+_WINDOWS_GIT_CANDIDATES = (
+    r"C:\Program Files\Git\bin\git.exe",
+    r"C:\Program Files\Git\cmd\git.exe",
+    r"C:\Program Files (x86)\Git\bin\git.exe",
+)
+
+
+def _is_windows() -> bool:
+    """Plattformweiche, in Tests separat patchbar."""
+    return os.name == "nt"
+
+
+def _resolve_tool(
+    name: str,
+    env_var: str,
+    explicit: str,
+    hint: str,
+    windows_candidates: tuple = (),
+) -> str:
+    """Löse ein externes Programm plattformunabhängig auf.
+
+    Reihenfolge: expliziter Env-Override, PATH (shutil.which), optional
+    Windows-Standardpfade. Fehlt das Programm, bricht die Auflösung mit
+    einer umsetzbaren Fehlermeldung ab; es wird kein blosses ".exe"
+    geraten.
+    """
+    override = os.environ.get(env_var, "") or explicit
+    if override:
+        candidate = Path(override).expanduser()
+        if candidate.is_file():
+            return str(candidate)
+        raise RuntimeError(
+            f"{env_var} ist gesetzt, aber die Datei fehlt: '{override}'. "
+            f"{hint}"
+        )
+    found = shutil.which(name)
+    if found:
+        return found
+    if _is_windows():
+        for candidate in windows_candidates:
+            if Path(candidate).is_file():
+                return candidate
+    raise RuntimeError(
+        f"'{name}' wurde nicht gefunden. {hint} "
+        f"Alternativ {env_var} auf den vollständigen Pfad setzen."
+    )
 
 
 def _terraform_exe() -> str:
-    """Ermittle den Terraform-Executable-Pfad."""
-    if TERRAFORM_EXE and os.path.isfile(TERRAFORM_EXE):
-        return TERRAFORM_EXE
-    result = subprocess.run(
-        ["where", "terraform"], capture_output=True, text=True
+    """Ermittle den Terraform-Executable-Pfad plattformunabhängig."""
+    return _resolve_tool(
+        "terraform",
+        "TERRAFORM_EXE",
+        TERRAFORM_EXE,
+        "Terraform installieren oder in den PATH aufnehmen "
+        "(https://developer.hashicorp.com/terraform/install).",
     )
-    if result.returncode == 0 and result.stdout.strip():
-        return result.stdout.strip().split("\r\n")[0]
-    return "terraform.exe"
+
+
+def _git_exe() -> str:
+    """Ermittle den Git-Executable-Pfad plattformunabhängig."""
+    return _resolve_tool(
+        "git",
+        "GIT_EXE",
+        GIT_EXE,
+        "Git installieren oder in den PATH aufnehmen.",
+        _WINDOWS_GIT_CANDIDATES,
+    )
 
 
 def _tf_run(args: list, cwd=None) -> subprocess.CompletedProcess:
@@ -79,12 +142,12 @@ def _check_returncode(result: subprocess.CompletedProcess, label: str) -> bool:
 
 
 def run(cmd, cwd=None):
-    """Führe einen Git- oder System-Befehl aus."""
-    if cmd[0] in ("git",) or (len(cmd) > 1 and cmd[0] == "git"):
-        cmd = [r"C:\Program Files\Git\bin\git.exe"] + cmd[1:]
+    """Führe einen Git-, Terraform- oder System-Befehl aus."""
+    if cmd and cmd[0] == "git":
+        cmd = [_git_exe()] + list(cmd[1:])
     # Terraform-Executable auflösen (über TERRAFORM_EXE oder PATH)
-    if cmd[0] == "terraform":
-        cmd = [_terraform_exe()] + cmd[1:]
+    elif cmd and cmd[0] == "terraform":
+        cmd = [_terraform_exe()] + list(cmd[1:])
     env = os.environ.copy()
     env["TF_DATA_DIR"] = str(Path(tempfile.gettempdir()) / "tfris")
     print(f"$ {' '.join(cmd)} (Working Directory: {cwd or '.'})")
@@ -538,25 +601,25 @@ def ensure_repo():
     INSTALLER_PROJECTS.mkdir(parents=True, exist_ok=True)
     if not MAYS_ORDERS_BUILDER_DIR.exists():
         print(f"Cloning mays-order-aws into {MAYS_ORDERS_BUILDER_DIR}")
-        run([r"C:\Program Files\Git\bin\git.exe", "clone",
+        run(["git", "clone",
              "https://github.com/maynowak/mays-order-aws.git", str(MAYS_ORDERS_BUILDER_DIR)])
     else:
-        result = run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "fetch", "--quiet"])
+        result = run(["git", "-C", str(MAYS_ORDERS_BUILDER_DIR), "fetch", "--quiet"])
 
     # Auf den Builder-Pin checkout (detached HEAD)
-    result = run([r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "checkout", BUILDER_PIN])
+    result = run(["git", "-C", str(MAYS_ORDERS_BUILDER_DIR), "checkout", BUILDER_PIN])
 
     # Arbeitsbaum zustand prüfen – Dirty ablehnen ohne Reset/Clean
     try:
         status = subprocess.run(
-            [r"C:\Program Files\Git\bin\git.exe", "-C", str(MAYS_ORDERS_BUILDER_DIR), "status", "--porcelain"]
+            [_git_exe(), "-C", str(MAYS_ORDERS_BUILDER_DIR), "status", "--porcelain"]
         , capture_output=True, text=True)
         if status.stdout.strip():
             print(f"FEHLER: builder worktree has untracked/modified files:\n{status.stdout.strip()}")
             print("Abbruch: Bereinige den worktree (git stash/git checkout) vor dem Build.")
             sys.exit(1)
     except Exception as e:
-        print("Warnung: Git-Status-Check fehlgeschlagen: {e}".format(e=e))
+        print(f"Warnung: Git-Status-Check fehlgeschlagen: {e}")
         # Ist kein Build-breaker, wenn git nicht verfügbar ist.
 
 
@@ -725,6 +788,15 @@ def build_module(project_name: str, force: bool):
         # ARN-/ID-Consumer-Vertrag gegen das RIS-Root prüfen
         check_arn_id_contract(RIS_ROOT / "terraform")
 
+        # B5: Die kontospezifische IAM-Boundary bleibt eine dokumentierte
+        # Known-Limitation. Kein AWS-Zugriff, keine Portabilitätszusage und
+        # kein stillschweigendes Entfernen der Boundary.
+        print(
+            "Boundary known: arn:aws:iam::240571105849:policy/"
+            "Mays-Orders-Lambda-Execution-Boundary "
+            "(kontospezifisch, Portabilität nicht geprüft)"
+        )
+
         # 4. Post-run: fmt -check / init -backend=false / validate
         post_run_checks(TEMP_MODULE_DIR)
 
@@ -757,22 +829,6 @@ def build_module(project_name: str, force: bool):
 # ---- Post-run checks ------------------------------------------------
 
 
-    # B5: Portabilitätsprüfung der IAM Boundary
-    # Die Boundary referenziert ein anderes AWS-Konto; dies ist als Known-Limitation zu dokumentieren
-    # und darf die Integrität des Builds nicht beeinflussen.
-    boundary_arn = "arn:aws:iam::240571105849:policy/Mays-Orders-Lambda-Execution-Boundary"
-    print(f"Boundary known: {boundary_arn} (kontospezifisch, Portabilität nicht geprüft)")    # Artifact Integrity Verification
-    # Verify the generated lambda.zip matches the expected manifest hash
-    lambda_zip = TARGET_MODULE_DIR / "lambda.zip"
-    if lambda_zip.exists():
-        current_sha = None
-        with open(lambda_zip, "rb") as f:
-            current_sha = hashlib.sha256(f.read()).hexdigest()
-        if current_sha and current_sha != manifest_sha:
-            print(f"WARNUNG: lambda.zip SHA-256 mismatch (expected {manifest_sha}, got {current_sha})")
-            print("Das Modul wurde ohne validierbare Artefakte aufgebaut. Bestandiges Ziel beibehalten.")
-        elif current_sha == manifest_sha:
-            print("Artifact Integrity: SHA-256 match confirmed")
 def post_run_checks(module_dir: Path) -> None:
     """Führt lokale Validierungschecks durch (fmt, init, validate).
     Fehlende Werkzeuge oder fehlgeschlagene Prüfungen müssen einen
