@@ -232,7 +232,8 @@ class TestTerraformSchema(unittest.TestCase):
             'resource "aws_iam_role_policy" "lambda_dynamodb_partner_profiles"')[1]
         policy = policy.split('\nresource "')[0]
         for action in ("PutItem", "GetItem", "Query", "DeleteItem",
-                       "UpdateItem", "TransactWriteItems"):
+                       "UpdateItem", "TransactWriteItems",
+                       "ConditionCheckItem"):
             self.assertIn(f'"dynamodb:{action}"', policy)
         self.assertIn("/index/*", policy)
         self.assertNotIn('"dynamodb:Scan"', policy)
