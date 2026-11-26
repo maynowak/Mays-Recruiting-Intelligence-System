@@ -13369,3 +13369,32 @@ Bericht: `docs/reports/RIS-DEV2-CANARY-RECOVERY-18.md`
 - No second redrive, new order, manual worker/result invocation, data
   correction, cleanup, grant, Terraform apply or main merge. State remained
   serial 75 / S3 oacaI13gBig4EZiLdlTGuGHb_WB6ksmQ.
+
+---
+
+## RIS-DEV2-CANARY-FORENSICS-19A — 2026-11-26
+
+Status: **INSUFFICIENT_EVIDENCE** — report:
+`docs/reports/RIS-DEV2-CANARY-FORENSICS-19A.md`
+
+- Read-only baseline matched account `262370457690`, `eu-central-1`, workspace
+  `ris-dev2`, state serial 75 / expected lineage and S3 version. Fix-16B hashes,
+  `ANALYSIS_SYNTHETIC_MODE=true` and entitlement validity at 12:46Z verified;
+  no renewal.
+- Re-read exact WorkItem: still `RUNNING`, `attempt_no=1`, legacy `attempt=0`,
+  no execution id, lease/owner, result or error. Order remains `PENDING`.
+- Correlated CloudWatch events: agent RequestId
+  `131b883a-898e-517f-9771-ebb8aff5ef3f` logged processing at 12:21:27.011Z
+  and `processed: RUNNING` at 12:21:36.246Z. No correlated Analysis or
+  Mays-Orders result-consumer events; no result queue message observed by
+  read-only attributes. No `ReceiveMessage` performed.
+- Verified source lifecycle risk: claim sets RUNNING before execution; existing
+  RUNNING is suppressed as duplicate and no stale lease/recovery path is
+  evidenced. This is not sufficient to prove the incident's initiating cause.
+- Deployed/generated Mays-Orders manifest points to `db4f9e7` and artifact
+  `aa70eaaa…`; stale clone pin says `5cf50a0…`. RC4 candidate is
+  `v0.6.0-rc.1` / `5bc154e`; separate known HMAC/Create gates remain. Upgrade
+  not approved as an experimental incident fix.
+- No AWS mutations, source-code changes, recovery, deployment, upgrade or main
+  merge. Report records the timeline, ownership matrix, cause evidence,
+  compatibility findings, decision matrix and next read-only assignment.
