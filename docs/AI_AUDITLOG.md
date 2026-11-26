@@ -13071,3 +13071,27 @@ Bericht: `docs/reports/RIS-DEV2-SYNTHETIC-LIVE-CANARY-09.md`
   WorkItems statement; expected plan 0/1/0. No runtime change.
 - Synthetic mode remains true; order/message remain; no cleanup, rollback, new
   grant or further AWS mutation.
+
+---
+
+## RIS-DEV2-CANARY-INGRESS-IAM-FIX-10 — 2026-11-26
+
+Status: **READY FOR INGRESS IAM APPLY APPROVAL**
+
+Bericht: `docs/reports/RIS-DEV2-CANARY-INGRESS-IAM-FIX-10.md`
+
+- Live verified: ingress WorkItems policy has GetItem/PutItem/UpdateItem/Query
+  but no ConditionCheckItem; worker already has TransactWriteItems and
+  ConditionCheckItem; order still PENDING, dispatch DLQ 1, mode true until
+  2026-11-26T17:40:28Z.
+- Change (`4e8bc14`): add only dynamodb:ConditionCheckItem to the ingress
+  WorkItems statement; other actions/resources unchanged; no TransactWriteItems
+  action.
+- Tests: static action pin; TransactionCanceledException duplicate paths (with
+  enqueuedAt and terminal status) are not re-sent; 38 focused tests pass;
+  fmt/validate pass. No extra runtime error.
+- Plan `C:\tmp\ris-dev2-ingress-iam-fix-10.tfplan`, 250859 bytes, SHA-256
+  `41d4fdd7929ab3f7b7ff6fcac8787c78c225d7403a92e2cf57877f3ca3f846b0`,
+  diff 0 add / 1 change / 0 destroy (only the ingress IAM policy), no drift,
+  state serial 72, synthetic mode unchanged true.
+- No apply, DLQ redrive, new order, cleanup or other AWS write.
