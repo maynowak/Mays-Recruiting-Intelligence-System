@@ -13190,3 +13190,23 @@ Bericht: `docs/reports/RIS-DEV2-WORKITEM-PERSISTENCE-FINAL-13A.md`
   03a5a3ed... is superseded.
 - AWS state unchanged: bare work item, order PENDING, work DLQ 1, dispatch
   DLQ 0. No AWS write, apply, redrive, data repair, new order or cleanup.
+
+---
+
+## RIS-DEV2-PERSISTENCE-APPLY-14 — 2026-11-26
+
+Status: **PERSISTENCE FIX APPLIED — LIVE VERIFIED**
+
+Bericht: `docs/reports/RIS-DEV2-PERSISTENCE-APPLY-14.md`
+
+- Preflight PASS; applied plan 41fef4bc... once: 0 added / 3 changed /
+  0 destroyed. State 73 -> 74, S3 version d24K7fWh..., 2026-11-26T08:42:26Z.
+- Live: agent and dispatch-ingress at cb88nW8g..., analysis at ezyObh3l...,
+  all Successful; reader/MO unchanged. Analysis IAM still GetItem only;
+  ingress WorkItems still the five actions; MODE=true with the exact identity;
+  Cognito/CloudFront/DNS unchanged.
+- Unchanged: bare work item work-eb1185..., order PENDING, work DLQ 1,
+  dispatch DLQ 0. No deployment errors.
+- Recovery (data repair + redrive, or new order) still needs separate approval
+  and must run before the 17:40:28Z window. No data repair, redrive, new order,
+  cleanup, further apply, grant or main merge.
