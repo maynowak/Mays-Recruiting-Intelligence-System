@@ -1,10 +1,10 @@
 # RIS-DEV2-TRANSACTION-CLIENT-FIX-16B
 
-**Datum:** 2026-11-26  
-**Branch:** `feature/ris-analysis-integration-07`  
-**Baseline:** `c41d2405729764578f522e2d828aed315ce362bb`  
-**AWS:** `262370457690` / `eu-central-1` / Workspace `ris-dev2`  
-**Status:** **READY FOR FIX-16B APPLY APPROVAL**  
+**Datum:** 2026-11-26
+**Branch:** `feature/ris-analysis-integration-07`
+**Baseline:** `c41d2405729764578f522e2d828aed315ce362bb`
+**AWS:** `262370457690` / `eu-central-1` / Workspace `ris-dev2`
+**Status:** **READY FOR FIX-16B APPLY APPROVAL**
 **Grenzen:** kein Apply, Redrive, neue Order oder sonstige Ressourcen-/Datenmutation
 
 ## 1. Fix-16B
