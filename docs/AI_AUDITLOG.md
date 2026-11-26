@@ -1,3 +1,19 @@
+[RIS-MO-PIN-AND-SQS-CONTRACT-DECISION-08]
+Current status: PIN DECISION READY / SECURITY REVIEW REQUIRED
+Audit date/time: 2026-11-26
+Current Git branch and HEAD: integration/ris-mo-root-08c, proof commit a38ca46; Orders candidate fix/mo-ris-pin-compat-08a ceebc37; RIS pin unchanged 016cdfd
+Audit scope: pin/IAM compatibility, live SQS policy decision, RIS root integration. Read-only AWS; no plan/apply/AWS mutation/deployment/main merge.
+Findings:
+  - Candidate ceebc37 = 386d741 + optional agent-transport result-consumer role permissions boundary; module_builder 96, lambda 227, installer 81.
+  - RIS root with ceebc37: generated orders-service 8 modules, transport injection 3 outputs, 9 inputs/23 outputs, module/root fmt+init -backend=false+validate PASS; focused 102 PASS; installer 43 PASS; no artifacts committed.
+  - Live queue ris-dev-mays-orders-orders-queue: wildcard Principal *, Send/Receive/Delete/Get, no conditions; visibility 30, retention 120, no DLQ. Same-account callers rely on identity policies; cross-account exposure remains.
+  - Pin candidate ceebc37 emits account-root queue policy (UPDATE; no delete/replace, queue shape unchanged). Main line removes the resource (DELETE) and adds DLQ/4-day retention; not a policy-only change.
+  - Recommendation: pin ceebc37 with B-lite account-root policy as interim; follow-up C-minimal (remove resource policy, named delete exception) separately. A (keep wildcard) rejected.
+  - Open: RIS Security approval, release plan, root boundary wiring, empty principal, handler boundary, gsi/apply_result/HMAC/policy-gate items.
+No plan/apply/deploy/main merge.
+Report: docs/reports/RIS-MO-PIN-AND-SQS-CONTRACT-DECISION-08.md
+Current resume point: security decision on queue policy + authorized plan; pin not approved yet.
+
 [RIS-MO-ROOT-INTEGRATION-08C-CANDIDATE]
 Current status: BUILD VERIFIED — FINAL PIN CANDIDATE ceebc37 (technical); PIN MIGRATION NOT APPROVED (SQS/IAM policy decision open)
 Audit date/time: 2026-11-26
