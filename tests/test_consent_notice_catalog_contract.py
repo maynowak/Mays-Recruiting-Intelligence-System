@@ -179,6 +179,29 @@ class CatalogShapeTests(unittest.TestCase):
         self.assertEqual({"consent"}, set(json.loads(response["body"])))
 
 
+class ConsentWithdrawContractTests(unittest.TestCase):
+    """Withdraw without an active consent is a state conflict, not validation."""
+
+    def test_withdraw_without_active_consent_returns_409(self):
+        import handler
+
+        class _Repo:
+            def withdraw(self, ctx, purpose, notice_version=None):
+                raise ConsentContractError(
+                    "NOT_GRANTED", "there is no active consent to withdraw")
+
+        event = {"httpMethod": "POST",
+                 "path": "/v1/partner/me/consents/withdraw",
+                 "headers": {}, "body": json.dumps({"purpose": PURPOSE})}
+        with patch.object(handler, "_consent_ctx", return_value=(CTX, None)), \
+                patch.object(handler, "_consent_repo", return_value=_Repo()):
+            response = handler._handle_consent_routes(
+                event, None, "POST", "/v1/partner/me/consents/withdraw")
+        body = json.loads(response["body"])
+        self.assertEqual(409, response["statusCode"])
+        self.assertEqual("NOT_GRANTED", body["code"])
+
+
 class NoticeStateSemanticsTests(unittest.TestCase):
     """Enum, flag matrix, and the reason a state check is mandatory."""
 

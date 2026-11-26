@@ -753,7 +753,9 @@ def _handle_consent_routes(event, context, method, path):
     except ConsentContractError as exc:
         if exc.code == 'UNKNOWN_PURPOSE':
             status = 404
-        elif exc.code == 'RECONSENT_REQUIRED':
+        elif exc.code in ('RECONSENT_REQUIRED', 'NOT_GRANTED'):
+            # Both are state conflicts with the documented contract:
+            # re-consent is required, or there is no active consent to withdraw.
             status = 409
         else:
             status = 422
