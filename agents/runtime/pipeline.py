@@ -650,15 +650,16 @@ def process_record(
                         "duplicate": True, "suppressed": True,
                         "attempt_no": item.get("attempt_no", 1)}
             item = claimed
-        elif item.get("status") != "FAILED":
+        elif item.get("status") == "FAILED":
+            try:
+                resumed = _start_retry_attempt(table, item)
+            except _RetryClaimLost:
+                return {"workId": work["workId"], "status": "RUNNING",
+                        "duplicate": True, "suppressed": True,
+                        "attempt_no": item.get("attempt_no", 1)}
+            item = resumed
+        else:
             raise RuntimeError("WORK_ADMISSION_STATE_UNSAFE")
-        try:
-            resumed = _start_retry_attempt(table, item)
-        except _RetryClaimLost:
-            return {"workId": work["workId"], "status": "RUNNING",
-                    "duplicate": True, "suppressed": True,
-                    "attempt_no": item.get("attempt_no", 1)}
-        item = resumed
 
     attempt = int(item.get("attempt_no", 1))
 
