@@ -11,12 +11,12 @@ for path in (ROOT, ROOT / "tests", ROOT / "lambda"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-# Current reviewed deployment bundles (RIS-ORDER-RESULT-CORRELATION-FIX-01).
+# Current reviewed deployment bundles (RIS-DEV2-WORKITEM-PERSISTENCE-FIX-13).
 # Update only together with a reviewed bundle rebuild; never relax the
 # stale-plan assertion below.
 CURRENT_BUNDLE_SHA256 = {
-    "worker": "d767a19843a98c93fbb776a3b011812653cde7ba84b9406c5157ef0d10f8dd06",
-    "analysis": "e268b0280bb96c9573eaf33d4d00ac0cdd21b8a01fddd20839782178c70516db",
+    "worker": "a95639663bacc414c27c5b2b69990ebf377014ccceac33f9a09c1a58e1fabaeb",
+    "analysis": "15031e895369f441403e5483e7f2ecb41d102180e5cfa1b235fb08416697d5dc",
 }
 
 from agents.runtime.pipeline import process_record  # noqa: E402
