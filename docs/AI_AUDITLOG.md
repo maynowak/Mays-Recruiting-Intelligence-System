@@ -1,3 +1,22 @@
+[RIS-MO-ROOT-INTEGRATION-08C]
+Current status: BUILD VERIFIED — PIN NOT APPROVED
+Audit date/time: 2026-11-26
+Current Git branch and HEAD: integration/ris-mo-root-08c (base e237b45, includes builder portability cce4cf5); Orders test version 386d741; committed builder pin stays 016cdfd; no main merge
+Audit scope: RIS root integration proof against the tested Orders version 386d741 in a temporary worktree copy (/tmp/opencode/ris-root08-c) with builder-pin override limited to that copy. Module build, RIS transport-output injection, contract audit, module/root terraform fmt/init/validate, RIS builder/injection/contract tests. No AWS access, plan/apply, state write, deployment, real data or committed pin change.
+Findings:
+  - Build PASS: RIS wrapper orders-service preset from 386d741 (8 child modules incl. agent_transport), 9 inputs / 23 outputs incl. sqs_queue_name, RIS dispatch env patch marker matched, 3 RIS transport outputs injected exactly once with exact refs.
+  - Contract audit PASS: validate_generated_contract + check_arn_id_contract; all 9 real module.mays_orders[0] output references in the root are declared; no undeclared inputs passed.
+  - Terraform PASS: module fmt/init -backend=false/validate; RIS root fmt/init -backend=false/validate ("configuration is valid" with only pre-existing deprecation warnings). First time in this line that root validate passes with a real generated module.
+  - Tests: builder/injection/contract 93 passed + 9 skipped; with MO_ORDERS_SRC=386d741/lambda/src the 9 contract skips run and pass (102 passed total, 0 failed); installer 43 passed; transport subset 69 passed.
+  - Reproducibility: 41/42 generated files byte-identical across two builds; only manifest generated_at differs; rebuilt lambda.zip deterministic (fa0dee9e…). Builder-side effect: a second run needs the builder clone's lambda/dist/lambda.zip restored (dirty guard) — pre-existing tooling behavior, not pin-specific.
+  - Error classification: no builder, module or RIS-wiring error.
+  - Not approved: 386d741 (child of 016cdfd) still emits aws_sqs_queue_policy.orders with account-root principal and no SourceArn/SourceAccount condition; main line a2fb385 removes the resource (identity-policy model). Applying 386d741 would UPDATE the live wildcard queue policy instead of deleting it — policy decision open (Forensics 11 LEGACY UNSAFE). Also unchanged: empty result-producer principal default, account-specific Lambda execution boundary, pre-existing gsi/apply_result/HMAC items.
+AI/privacy assessment: no AI provider, prompt, data flow, consent or PII handling touched; no AWS access; generated module contains no real data or secrets; private builder clone only.
+Tests: as above; no new failures.
+No plan, apply, AWS mutation, deployment or main merge; generated module/lockfiles only in /tmp copy.
+Report: docs/reports/RIS-MO-ROOT-INTEGRATION-08C-REPORT.md
+Current resume point: SQS queue-policy decision (and remaining policy items) before any builder-pin migration; technical integration at 386d741 is proven.
+
 [MO-RIS-MODULE-BASELINE-RECOVERY-07]
 Current status: BLOCKED — MODULE / IAM / TERRAFORM CONTRACT
 Audit date/time: 2026-11-26
