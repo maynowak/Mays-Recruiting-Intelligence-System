@@ -13589,3 +13589,57 @@ its exact checkout was unavailable and no candidate QA was claimed.
 - Detailed report: `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.md`;
   machine results: `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json`;
   contract index: `docs/reports/RIS-MAYS-ORDERS-CONTRACT-EVIDENCE-19F2.md`.
+
+[RIS-MAYS-ORDERS-QA-BLOCKER-RESOLUTION-19F3]
+Date: 2026-11-27; started at RIS HEAD `83711470af9a1a6a464bef5e58f58ce99925033a`.
+Current integrated Mays source `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` was
+left pinned. Remote tag `v0.6.0-rc.1` verified by `git ls-remote` to tag object
+`79628819717e4609d828581dff53055f2b32f8ec`, peeled commit
+`5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420`; candidate was checked out separately
+and remained clean.
+
+- RIS Native A1/A2 fixed without runtime changes: historical manifest bundle
+  hashes are now tested as historical evidence, while current bundle hashes
+  remain checked by the existing current-artifact contract; STS-only environment
+  test now uses an isolated fixture. Targeted A1 suite: 18 passed / 4 subtests;
+  A2 test: 1 passed, complete composite lifecycle suite: 43 passed.
+- Remaining RIS Native: 3,278 passed / 3 failed / 142 skipped / 450 subtests.
+  Three tests correctly identify `POST /v1/apiprofiles/{apiProfileId}/binding`
+  missing from canonical OpenAPI despite existing Terraform, dispatcher and
+  API-standard entries. Separate RIS-owned fix request created; route/spec left
+  unchanged in this Mays QA scope.
+- Current Mays: Lambda 240 pass; Builder 86 pass / 14 Windows path assertions;
+  Installer 69 pass / 11 errors / 1 skip; Seed 28 pass; Cognito Backup 2 pass.
+  Current RIS builder contracts 57 pass, generated module artifact contracts 9
+  pass; XRepo contract 133 pass / 4 subtests and E2E 39 pass.
+- Candidate: Lambda originals 440 pass; Builder 111 pass / 18 Windows
+  path/symlink failures; Installer 71 pass / 9 errors / 1 skip; Seed 28 pass;
+  Cognito Backup 2 pass. XRepo against exact RC4 fails: contract 120 pass / 13
+  fail / 4 subtests; synthetic E2E 3 pass / 36 fail. Candidate create rejects
+  RIS `orderDescription`; expected result-consumer imports/roundtrip contract
+  also differ.
+- Disposable candidate module build regenerated only the candidate ZIP in a
+  temporary clone (SHA-256 `f1031a86da0083ad034075598f89e0c4b178cbb20ce93743a1bd28ab56678e86`).
+  Candidate module `fmt -check` and `terraform init -backend=false` pass;
+  `terraform validate` fails with undeclared privacy/SQS/deployment variables and
+  privacy-secret module references. Manifest stores short `5bc154e`, not the
+  required full source SHA. Generated Module Contract: 2 passed / 7 failed.
+- Mays `docs/TEST-STRATEGY.md` documents Ubuntu `ubuntu-latest`, but WSL and
+  Docker are unavailable and no active unit-test workflow exists to execute;
+  Windows results were not mislabeled as Linux. Candidate source checkout clean;
+  separate build-source clone changed only its generated ZIP.
+- Current worker ZIP remains SHA-256
+  `78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7`, but
+  disposable LF checkout rebuild yielded `4d880b4856067b7d8b9d17e8a0257abf49d6208f9fb1743b711f516091ce928a`
+  and the earlier CRLF rebuild yielded
+  `747b749ed674aad40954b85a2d628631131684230d4145e52e627e4ed58bd7b5`.
+  Reproducibility is unresolved; worker readiness is BLOCKED and no plan ran.
+  Mays upgrade readiness BLOCKED; RC4 provenance VERIFIED; candidate integration
+  QA FAIL. `AWS_MUTATIONS=0`, `LIVE_INVOCATIONS=0`, `REDRIVES=0`, runtime/Mays
+  source changes 0, module pin changes 0. No install, plan, deployment, recovery
+  or canary. `MODE=true` unchanged.
+- Required next action: separate RIS API/OpenAPI fix and Mays-Orders candidate
+  builder/contract fix plus unchanged original suites on Ubuntu. See
+  `docs/reports/RIS-MAYS-ORDERS-QA-BLOCKER-RESOLUTION-19F3.md`; combined machine
+  result `docs/reports/RIS-MAYS-ORDERS-QA-BLOCKER-RESOLUTION-19F3.results.json`.
+  Stop after 19F3; no automatic 19F4/19G execution.
