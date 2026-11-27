@@ -53,13 +53,19 @@ def stage() -> list[dict[str, str]]:
         if not destination.is_file():
             raise RuntimeError(f"{artifact['name']} expected existing build output missing: {destination}")
         previous_hash = _sha256(destination)
-        if previous_hash != artifact["expected_existing_destination_sha256"]:
+        allowed_destination_hashes = {
+            artifact["expected_existing_destination_sha256"],
+            artifact["expected_source_sha256"],
+        }
+        if previous_hash not in allowed_destination_hashes:
             raise RuntimeError(f"{artifact['name']} destination changed unexpectedly: {previous_hash}")
 
     for artifact in ARTIFACTS_TO_STAGE:
         source = artifact["source"]
         destination = artifact["destination"]
-        shutil.copyfile(source, destination)
+        already_staged = _sha256(destination) == artifact["expected_source_sha256"]
+        if not already_staged:
+            shutil.copyfile(source, destination)
         copied_hash = _sha256(destination)
         if copied_hash != artifact["expected_source_sha256"]:
             raise RuntimeError(f"{artifact['name']} staged hash mismatch: {copied_hash}")
@@ -69,6 +75,7 @@ def stage() -> list[dict[str, str]]:
                 "source": str(source),
                 "destination": str(destination),
                 "sha256": copied_hash,
+                "action": "already-present" if already_staged else "copied-preserved-bytes",
             }
         )
     return staged
