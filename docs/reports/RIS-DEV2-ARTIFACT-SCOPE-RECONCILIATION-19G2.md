@@ -1,8 +1,8 @@
 # RIS-DEV2-ARTIFACT-SCOPE-RECONCILIATION-19G2
 
-**Datum:** 2026-11-27  
-**Branch:** `feature/ris-analysis-integration-07`  
-**Abschluss-HEAD:** `be51f5eca69262fb3a793d3eb693faa812788d59`  
+**Datum:** 2026-11-27\
+**Branch:** `feature/ris-analysis-integration-07`\
+**Abschluss-HEAD:** `be51f5eca69262fb3a793d3eb693faa812788d59`\
 **Ergebnis:** **ARTIFACT_SCOPE=PASS — QA PASS — STOP AM 19G3-FREIGABEGATE**
 
 ## Entscheidung und Grenzen
