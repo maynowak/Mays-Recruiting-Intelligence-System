@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "execution": "RIS-DEV2-WORKER-CONTROLLED-APPLY-19H",
+  "plan_sha256": "d78c0fcfaee991c774895c583604f0ea270dee600f59af7e37c9cf1e804985c3",
+  "source_commit": "d89042bab32ad1e012b0b260c829bac64948c2f5",
+  "worker_bundle_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+  "expected_lambda_code_sha256_base64": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0=",
+  "apply_count": 1,
+  "apply_exit_code": 0,
+  "apply_summary": {
+    "add": 0,
+    "change": 2,
+    "destroy": 0
+  },
+  "state": {
+    "serial_before": 75,
+    "serial_after": 76,
+    "lineage_before": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "lineage_after": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "s3_version_before": "oacaI13gBig4EZiLdlTGuGHb_WB6ksmQ",
+    "s3_version_after": "M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T",
+    "content_length_after": 891611,
+    "last_modified_after": "2026-11-27T16:10:21+00:00",
+    "resource_inventory_changes": [
+      "module.agent_transport[0].aws_lambda_function.dispatch_ingress",
+      "module.lambda.aws_lambda_function.agent"
+    ],
+    "target_resources": {
+      "module.agent_transport[0].aws_lambda_function.dispatch_ingress": {
+        "changed_attributes": [
+          "code_sha256",
+          "last_modified",
+          "source_code_hash",
+          "source_code_size"
+        ],
+        "source_code_hash": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0=",
+        "code_sha256": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0=",
+        "source_code_size": 1382111,
+        "filename": "./lambda.zip"
+      },
+      "module.lambda.aws_lambda_function.agent": {
+        "changed_attributes": [
+          "code_sha256",
+          "last_modified",
+          "source_code_hash",
+          "source_code_size"
+        ],
+        "source_code_hash": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0=",
+        "code_sha256": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0=",
+        "source_code_size": 1382111,
+        "filename": "lambda.zip"
+      }
+    }
+  },
+  "lambda_verification": [
+    {
+      "function_name": "ris-dev2-dev-agent",
+      "code_sha256_base64": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0=",
+      "state": "Active",
+      "last_update_status": "Successful",
+      "runtime_config_unchanged": true,
+      "environment_unchanged": true,
+      "environment_fingerprint_sha256": "9826da0c73e8880cdc7b08f4ecc974f76b6e53f93ab32127384be5a27f281429",
+      "tags_unchanged": true,
+      "last_modified": "2026-11-27T16:10:14.000+0000"
+    },
+    {
+      "function_name": "ris-dev2-dev-agent-dispatch-ingress",
+      "code_sha256_base64": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0=",
+      "state": "Active",
+      "last_update_status": "Successful",
+      "runtime_config_unchanged": true,
+      "environment_unchanged": true,
+      "environment_fingerprint_sha256": "d3f7fec0ab6305267967db7b2a47544c18a814b01e4da2e4d4d90cd67a482e90",
+      "tags_unchanged": true,
+      "last_modified": "2026-11-27T16:10:06.000+0000"
+    },
+    {
+      "function_name": "ris-dev2-dev-analysis",
+      "code_sha256_base64": "J2tORCAnIWfdMsWQ1tur7UAIckpwkeTYZQTVRE/iaxA=",
+      "state": "Active",
+      "last_update_status": "Successful",
+      "runtime_config_unchanged": true,
+      "environment_unchanged": true,
+      "environment_fingerprint_sha256": "bf4c5aaa9ef2e714c2143710e58364d315fe55e69eb204b0dd9bc53cef69fc17",
+      "tags_unchanged": true,
+      "last_modified": "2026-11-26T11:04:38.000+0000"
+    },
+    {
+      "function_name": "ris-dev2-dev-orders-reader",
+      "code_sha256_base64": "YQAE9urjUx5MhyNkOeSRvL8MEC6ikWH+8kfCcTyBrms=",
+      "state": "Active",
+      "last_update_status": "Successful",
+      "runtime_config_unchanged": true,
+      "environment_unchanged": true,
+      "environment_fingerprint_sha256": "d2c71ab50de577207a919ced2f5d9faf3181cc950595017b78221f078629e996",
+      "tags_unchanged": true,
+      "last_modified": "2026-11-25T17:25:14.000+0000"
+    }
+  ],
+  "analysis_synthetic_mode": "true",
+  "live_invocations": 0,
+  "new_orders": 0,
+  "redrives": 0,
+  "recovery": 0,
+  "automatic_rollback": 0,
+  "result": "PASS; stop before 20A"
+}

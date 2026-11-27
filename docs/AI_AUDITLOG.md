@@ -13967,3 +13967,34 @@ Status: **PREFLIGHT PASS; ONE FULL PLAN; EXPECTED SCOPE PASS; APPLY BLOCKED**.
   `docs/reports/RIS-DEV2-WORKER-CONTROLLED-REPLAN-19G5.md` and
   `docs/reports/evidence/19G5/`. Binary plan and sensitive plan contents are
   not committed. Stop at Apply approval; no authorization granted.
+
+## RIS-DEV2-WORKER-CONTROLLED-APPLY-19H — 2026-11-27
+
+Status: **ONE APPROVED APPLY COMPLETE; READ-ONLY VERIFICATION PASS; STOP BEFORE 20A**.
+
+- Applied exactly once the approved saved 19G5 plan at
+  `C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-worker-19g5.tfplan`,
+  SHA-256 `d78c0fcfaee991c774895c583604f0ea270dee600f59af7e37c9cf1e804985c3`.
+  Apply exit 0; Terraform reported 0 added / 2 changed / 0 destroyed. No replan,
+  retry, rollback, or second apply.
+- Actual changed resources were exactly Agent-Worker
+  (`module.lambda.aws_lambda_function.agent`) and Dispatch-Ingress
+  (`module.agent_transport[0].aws_lambda_function.dispatch_ingress`). Both
+  live `CodeSha256` values equal
+  `UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0=` for approved Worker ZIP
+  SHA-256 `507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d`;
+  both are Active with successful last updates.
+- Read-only comparison confirmed Analysis and Orders-Reader code hashes,
+  runtime configuration, environment, and tags unchanged. Analysis retains
+  `ANALYSIS_SYNTHETIC_MODE=true`. No unexpected State resource inventory
+  changes.
+- State serial 75 → 76; lineage unchanged
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`; S3 VersionId advanced from
+  `oacaI13gBig4EZiLdlTGuGHb_WB6ksmQ` to `M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T`.
+- Live invocations 0; new orders 0; redrives 0; recovery 0; automatic rollback
+  0. The pre-existing unstaged 19F2 result file remained untouched.
+- Report/evidence:
+  `docs/reports/RIS-DEV2-WORKER-CONTROLLED-APPLY-19H.md` and
+  `docs/reports/evidence/19H/post-apply-verification.json`. Evidence omits
+  environment values and records only unchanged indicators/fingerprints.
+- STOP before `20A — Live Canary Preflight`; no automatic continuation.
