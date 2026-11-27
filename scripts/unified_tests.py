@@ -26,7 +26,7 @@ DEFAULT_MAYS = ROOT / "installer" / "projects" / "mays_order_builder"
 VERSIONS_FILE = ROOT / "installer" / "mays-orders-test-versions.json"
 SUPPORT_RUNNER = ROOT / "scripts" / "unified_test_process.py"
 DEFAULT_REPORT = ROOT / "docs" / "reports" / "RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json"
-EXPECTED_WORKER_BUNDLE_SHA256 = "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7"
+EXPECTED_WORKER_BUNDLE_SHA256 = "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d"
 AWS_ENV_KEYS = {
     "AWS_PROFILE", "AWS_DEFAULT_PROFILE", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
     "AWS_SESSION_TOKEN", "AWS_SECURITY_TOKEN", "AWS_WEB_IDENTITY_TOKEN_FILE",
