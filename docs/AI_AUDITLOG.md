@@ -13735,5 +13735,15 @@ present; no module upgrade is needed. Historical worker SHA
 `78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7` retained; candidate
 `507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d` remains
 review-only. Historical Canary-Recovery/Redrive is removed from the release
-critical path and remains unexecuted/separately authorized. Phases 2–6 pending.
-Report: `docs/reports/RIS-DEV2-DEPLOYMENT-BASELINE-19F7.md`.
+critical path and remains unexecuted/separately authorized. Phase 2 Ubuntu
+integrated profiles passed in run `45993779301` (commit `d0a5bde`); Windows
+Mays Builder/Installer failures are separately preserved as platform
+environment failures. Candidate Agent bundle was reproduced twice locally and
+matches `507bc17...`; Analysis/Reader hashes are unchanged. Root backend-free
+Terraform init/validate/fmt checks passed. 19G scope and approval boundaries
+are prepared; no plan. Synthetic Roundtrip reaches Owner-GET 200, but explicit
+orderDescription GET-value assertion remains open, so live Canary readiness is
+not granted. AWS mutations 0, plans 0, applies 0, new orders 0, recovery 0,
+redrive 0, pin changes 0, Main merges 0. Evidence:
+`docs/reports/evidence/19F7/`; final report:
+`docs/reports/RIS-DEV2-DEPLOYMENT-BASELINE-19F7.md`.
