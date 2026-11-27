@@ -13511,3 +13511,43 @@ Status: **DESIGN READY FOR REVIEW; NO EXECUTABLE RECOVERY PATH; ALTERNATIVE CANA
 - AWS mutations 0, live invocations 0, redrives 0, source/runtime changes 0,
   Terraform plan/apply/state changes 0, new orders 0, Mays-Orders upgrade 0.
   19E report and this audit entry are local pending commit/push.
+
+---
+
+## RIS-DEV2-WORKER-QA-COMPLETION-19F – 2026-11-27
+
+Status: **LOCAL QA COMPLETE; `READY_FOR_PLAN` recommendation only**. Evidence:
+`docs/reports/RIS-DEV2-WORKER-QA-COMPLETION-19F.md`.
+
+- Verified feature baseline `259caa7be426df0fe0a2936a5aefebce530673c2`; full
+  Python 3.14.10 test collection: **3,416 collected, 0 errors**. Isolated
+  pinned QA environment passed `pip check`.
+- RIS full suite: **3,269 passed, 5 failed, 142 skipped, 446 subtests**.
+  Failures individually classified: stale historical 16C1 bundle hash
+  (`BASELINE_FAILURE`); absent `mayaws` profile in the intentional no-credential
+  environment (`ENVIRONMENT_FAILURE`); three missing OpenAPI route assertions
+  (`CONTRACT_FAILURE`). No confirmed worker-fix regression. Focused worker,
+  lifecycle, transport and security regression: **279 passed, 6 subtests**.
+- Mays-Orders module was included in QA, in separate read-only processes:
+  Lambda **240 passed**; module builder **86 passed / 14 Windows path failures /
+  6 subtests**; installer **81 tests / 11 Linux-path or `python3` errors /
+  1 skip**; seed tools **28 passed**. No Mays source edits; local clone at
+  `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`.
+- Permanent RIS-QA runner rule: separate RIS and Mays test processes. Do not
+  combine the general Temp root with `MO_ORDERS_SRC` in the full-suite
+  `PYTHONPATH`; top-level `agent_order.py` / `validation.py` can shadow Mays
+  imports. Set `MO_ORDERS_SRC` only for isolated RIS cross-repo tests and limit
+  Mays `PYTHONPATH` to Mays `lambda/src`.
+- Isolated RIS↔Mays groups: **53 passed, 4 subtests**. RIS and Mays compileall
+  passed. Agent bundle rebuilt twice with matching 19C/19D SHA-256
+  `78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7`
+  (115 files). Wiring confirms Agent Worker + Dispatch Ingress share it;
+  Analysis Lambda remains separate.
+- No AWS reads/writes, credentials, live invocations, redrives, uploads,
+  Terraform plans/applies, new orders, historical recovery, canary, or Mays
+  upgrade. `MODE=true` unchanged. **Mutations 0; live invocations 0; redrives
+  0; source-code changes 0.**
+- Recommended next assignment: independently authorized, read-only
+  `RIS-DEV2-WORKER-DEPLOYMENT-PLAN-19G`, verify current identity/state and exact
+  Agent Worker + Dispatch Ingress scope; stop on drift or unexpected actions.
+  No Terraform plan or deployment is authorized by 19F.
