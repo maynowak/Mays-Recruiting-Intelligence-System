@@ -13747,3 +13747,23 @@ not granted. AWS mutations 0, plans 0, applies 0, new orders 0, recovery 0,
 redrive 0, pin changes 0, Main merges 0. Evidence:
 `docs/reports/evidence/19F7/`; final report:
 `docs/reports/RIS-DEV2-DEPLOYMENT-BASELINE-19F7.md`.
+
+[RIS-DEV2-ORDER-DESCRIPTION-E2E-GATE-19F8]
+Closed the 19F7 readback gap by extending only the existing synthetic test
+`tests/test_agent_order_dispatch_e2e.py`: exact OrderDescription equality is
+asserted in the create response, persisted row, and authorized Owner-GET
+response. Agent processing, signed ORDER_RESULT, and COMPLETED status remain
+asserted in the same roundtrip. No runtime change or pin update. Mays original
+OrderDescription suite: 15/15 PASS against exact integrated source
+`db4f9e79980443de1cd3d5b688a33c0cf0eb771f`; local XREPO_CONTRACT 133 + 4
+subtests PASS; XREPO_E2E 39 PASS. Ubuntu FULL passed on RIS test commit
+`fba2721cb4f051d7a049c853a962acf8b34ae185`, Actions run `45996079592`; exact
+Mays provenance verified and two CI agent builds matched candidate
+`507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d`.
+19G prepared for account `262370457690`, `eu-central-1`, `RIS-DEV2`, with
+historical state serial 75 to be reverified before any separately authorized
+plan. No pin, plan, apply, AWS mutation, live canary, order, recovery, redrive,
+or Main merge. Live canary remains unauthorized pending external entitlement/
+configuration review. Report/evidence:
+`docs/reports/RIS-DEV2-ORDER-DESCRIPTION-E2E-GATE-19F8.md` and
+`docs/reports/evidence/19F8/`.
