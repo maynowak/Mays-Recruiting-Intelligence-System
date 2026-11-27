@@ -468,12 +468,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             expected_sha = module_manifest.get("artifacts_sha256", {}).get("lambda/dist/lambda.zip")
             if expected_sha != module_sha:
                 artifact_errors.append("generated-module ZIP hash differs from its manifest")
-                module_dir = None
             elif module_manifest.get("source", {}).get("commit") != mays_entry["commit"]:
                 artifact_errors.append(
                     "generated module source commit differs from selected Mays test version"
                 )
-                module_dir = None
         else:
             module_dir = None
         result["module_artifact"] = {
@@ -481,7 +479,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "source_commit": module_manifest.get("source", {}).get("commit") if module_manifest else None,
             "zip_sha256": module_sha or None,
             "manifest_sha256": sha256(manifest_path) if manifest_path.is_file() else None,
-            "status": "VERIFIED" if module_dir else "BLOCKED",
+            "status": "VERIFIED" if module_dir and not artifact_errors else "BLOCKED",
             "errors": artifact_errors,
         }
         if profile in ("FULL", "UPGRADE_GATE") and args.mays_version == "upgrade_candidate":
@@ -501,6 +499,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             row.get("status") == "PASS" and row.get("collection_errors", 0) == 0
             for row in required
         ) else "BLOCKED"
+        if profile in ("MODULE_BUILD", "FULL", "UPGRADE_GATE") and result[
+            "module_artifact"]["status"] != "VERIFIED":
+            result["profile_status"] = "BLOCKED"
         if profile == "UPGRADE_GATE" and args.mays_version != "upgrade_candidate":
             result["profile_status"] = "BLOCKED"
 
