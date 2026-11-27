@@ -108,6 +108,7 @@ class TestPackage(unittest.TestCase):
             self.assertEqual(lf["sha256"], crlf["sha256"])
             with zipfile.ZipFile(os.path.join(crlf_root, "bundle.zip")) as archive:
                 self.assertEqual(b"first\nsecond\n", archive.read("source.py"))
+                self.assertEqual(0, archive.getinfo("source.py").create_system)
 
 
 class TestSourceChange(unittest.TestCase):

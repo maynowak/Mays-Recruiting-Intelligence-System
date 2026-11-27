@@ -198,6 +198,10 @@ def build_bundle(repo_root, files: list, arcname_fn, output: str) -> dict:
             # identical Lambda artifacts regardless of the build host.
             data = (repo_root / source_rel).read_bytes().replace(b"\r\n", b"\n")
             info = zipfile.ZipInfo(arcname, date_time=FIXED_ZIP_DATE)
+            # zipfile otherwise writes platform-dependent create_system
+            # values (3 on Unix, 0 on Windows) into each central-directory
+            # entry. Use the historical DOS creator marker everywhere.
+            info.create_system = 0
             info.compress_type = zipfile.ZIP_STORED
             info.external_attr = (0o644 << 16)
             archive.writestr(info, data)

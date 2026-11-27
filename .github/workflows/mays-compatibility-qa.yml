@@ -116,6 +116,14 @@ jobs:
           AWS_SECURITY_TOKEN: ""
         run: |
           set -uo pipefail
+          # Some original Mays tests use fixed temp/checkout paths. Provide
+          # isolated runner-local aliases, never writing into a source repo.
+          mkdir -p /tmp/opencode /home/dci-student/projects
+          source_alias=/home/dci-student/projects/Mays-Orders-AWS
+          if [ -e "$source_alias" ] && [ ! -L "$source_alias" ]; then
+            echo "Refusing to replace pre-existing path: $source_alias"
+            exit 2
+          fi
           mkdir -p "$RUNNER_TEMP/qa/results" "$RUNNER_TEMP/generated/current" "$RUNNER_TEMP/generated/rc4"
           fail=0
           run_profile() {
@@ -136,6 +144,8 @@ jobs:
           # not install, replace, or pin a module in RIS or the Mays source repo.
           for spec in "integrated:$RUNNER_TEMP/mays-current:current" "upgrade_candidate:$RUNNER_TEMP/mays-rc4:rc4"; do
             version=${spec%%:*}; rest=${spec#*:}; source=${rest%%:*}; label=${rest##*:}
+            if [ -L "$source_alias" ]; then rm "$source_alias"; fi
+            ln -s "$source" "$source_alias"
             build_source="$RUNNER_TEMP/mays-module-build-$label"
             git clone --no-hardlinks --no-checkout "$source" "$build_source"
             git -C "$build_source" checkout --detach "$(git -C "$source" rev-parse HEAD)"
@@ -157,6 +167,7 @@ jobs:
               run_profile UPGRADE_GATE upgrade_candidate "$source" "$RUNNER_TEMP/generated/$label"
             fi
           done
+          rm -f "$source_alias"
           exit "$fail"
 
       - name: Upload machine-readable QA evidence
