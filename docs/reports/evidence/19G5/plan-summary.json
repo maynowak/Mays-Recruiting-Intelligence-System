@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "plan_path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-dev2-worker-19g5.tfplan",
+  "sha256": "d78c0fcfaee991c774895c583604f0ea270dee600f59af7e37c9cf1e804985c3",
+  "size_bytes": 252144,
+  "terraform_version": "1.17.0",
+  "workspace": "ris-dev2",
+  "counts": {
+    "add": 0,
+    "change": 2,
+    "destroy": 0,
+    "replace": 0,
+    "no_op": 272
+  },
+  "resource_change_count": 274,
+  "resource_drift_count": 0,
+  "changes": [
+    {
+      "address": "module.agent_transport[0].aws_lambda_function.dispatch_ingress",
+      "actions": [
+        "update"
+      ],
+      "changed_attributes": [
+        "last_modified",
+        "source_code_hash"
+      ],
+      "function_name": "ris-dev2-dev-agent-dispatch-ingress",
+      "filename_before": "./lambda.zip",
+      "filename_after": "./lambda.zip",
+      "source_code_hash_before": "jsUKYUCNKO+yuF/2yDsF3Q7mB1ubRgge8W1kl5PMY4M=",
+      "source_code_hash_after": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0="
+    },
+    {
+      "address": "module.lambda.aws_lambda_function.agent",
+      "actions": [
+        "update"
+      ],
+      "changed_attributes": [
+        "last_modified",
+        "source_code_hash"
+      ],
+      "function_name": "ris-dev2-dev-agent",
+      "filename_before": "lambda.zip",
+      "filename_after": "lambda.zip",
+      "source_code_hash_before": "jsUKYUCNKO+yuF/2yDsF3Q7mB1ubRgge8W1kl5PMY4M=",
+      "source_code_hash_after": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0="
+    }
+  ],
+  "analysis_reader": {
+    "ris-dev2-dev-analysis": {
+      "actions": [
+        "no-op"
+      ],
+      "filename_before": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-mo-addition-e2e/terraform/analysis-lambda.zip",
+      "filename_after": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-mo-addition-e2e/terraform/analysis-lambda.zip",
+      "source_code_hash_before": "J2tORCAnIWfdMsWQ1tur7UAIckpwkeTYZQTVRE/iaxA=",
+      "source_code_hash_after": "J2tORCAnIWfdMsWQ1tur7UAIckpwkeTYZQTVRE/iaxA="
+    },
+    "ris-dev2-dev-orders-reader": {
+      "actions": [
+        "no-op"
+      ],
+      "filename_before": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip",
+      "filename_after": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip",
+      "source_code_hash_before": "YQAE9urjUx5MhyNkOeSRvL8MEC6ikWH+8kfCcTyBrms=",
+      "source_code_hash_after": "YQAE9urjUx5MhyNkOeSRvL8MEC6ikWH+8kfCcTyBrms="
+    }
+  },
+  "scope_gate": "PASS"
+}

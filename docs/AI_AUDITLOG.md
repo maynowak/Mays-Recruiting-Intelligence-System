@@ -13931,3 +13931,39 @@ UBUNTU FULL QA PASS; STOP AT 19G5 APPROVAL GATE**.
 - Commits pushed only for this task: `0d2ac83` (path reconciliation),
   `838e5be` (regression assertions), and `41ebdda` (idempotent safe staging).
   Protected unstaged 19F2 result file was not touched.
+
+## RIS-DEV2-WORKER-CONTROLLED-REPLAN-19G5 — 2026-11-27
+
+Status: **PREFLIGHT PASS; ONE FULL PLAN; EXPECTED SCOPE PASS; APPLY BLOCKED**.
+
+- Source local/remote HEAD before planning:
+  `8f610939dcc2fd7402430e2830a1fad095f6dd3a`; branch
+  `feature/ris-analysis-integration-07`. Only worktree difference was the
+  protected pre-existing unstaged
+  `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json`; untouched.
+- Read-only preflight verified STS account `262370457690`, region
+  `eu-central-1`, workspace `ris-dev2`, State serial 75, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, S3 VersionId
+  `oacaI13gBig4EZiLdlTGuGHb_WB6ksmQ`, and all four live Lambda code hashes and
+  RIS-DEV2 ownership tags. Analysis synthetic mode remained true. Actual
+  Terraform-evaluated Analysis and Reader filenames exactly matched State,
+  including the absolute Windows paths and Reader backslashes.
+- Reused successful 19G4 Ubuntu QA run `46015361867`; Mays source pin remains
+  `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`. No ZIP was rebuilt or changed.
+- Created exactly one complete normal-refresh Terraform 1.17.0 plan, external
+  path `C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-worker-19g5.tfplan`,
+  SHA-256 `d78c0fcfaee991c774895c583604f0ea270dee600f59af7e37c9cf1e804985c3`.
+  Scope: **0 add / 2 in-place change / 0 destroy**, 272 no-op, 0 replacements,
+  zero detected drift. The only updates are Agent-Worker and Dispatch-Ingress
+  `source_code_hash` plus computed `last_modified`; both use the approved
+  `507bc17…` bundle. Analysis and Reader are no-op with preserved paths/hashes.
+- State S3 version, size, and LastModified were unchanged post-plan. No State
+  content or AWS resource mutation. The ordinary temporary Terraform lock was
+  released normally. Apply count 0. 19G and 19G3 plans remain blocked and were
+  not used. No second plan was created.
+- Corrected the stale Ubuntu run ID in the 19G4 report gate table to
+  `46015361867`.
+- Report and machine-readable evidence:
+  `docs/reports/RIS-DEV2-WORKER-CONTROLLED-REPLAN-19G5.md` and
+  `docs/reports/evidence/19G5/`. Binary plan and sensitive plan contents are
+  not committed. Stop at Apply approval; no authorization granted.

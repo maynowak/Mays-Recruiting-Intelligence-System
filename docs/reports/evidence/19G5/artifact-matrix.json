@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "worker_bundle_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+  "lambdas": [
+    {
+      "lambda": "Agent-Worker",
+      "address": "module.lambda.aws_lambda_function.agent",
+      "state_filename": "lambda.zip",
+      "configured_filename": "lambda.zip",
+      "plan_filename_before": "lambda.zip",
+      "plan_filename_after": "lambda.zip",
+      "state_source_code_hash_base64": "jsUKYUCNKO+yuF/2yDsF3Q7mB1ubRgge8W1kl5PMY4M=",
+      "state_deployed_code_sha256": "8ec50a61408d28efb2b85ff6c83b05dd0ee6075b9b46081ef16d649793cc6383",
+      "local_artifact_path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\terraform\\lambda.zip",
+      "local_artifact_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+      "planned_source_code_hash_base64": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0=",
+      "expected_change": "In-place Lambda code update only"
+    },
+    {
+      "lambda": "Dispatch-Ingress",
+      "address": "module.agent_transport[0].aws_lambda_function.dispatch_ingress",
+      "state_filename": "./lambda.zip",
+      "configured_filename": "./lambda.zip",
+      "plan_filename_before": "./lambda.zip",
+      "plan_filename_after": "./lambda.zip",
+      "state_source_code_hash_base64": "jsUKYUCNKO+yuF/2yDsF3Q7mB1ubRgge8W1kl5PMY4M=",
+      "state_deployed_code_sha256": "8ec50a61408d28efb2b85ff6c83b05dd0ee6075b9b46081ef16d649793cc6383",
+      "local_artifact_path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\terraform\\lambda.zip",
+      "local_artifact_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+      "planned_source_code_hash_base64": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0=",
+      "expected_change": "In-place Lambda code update only"
+    },
+    {
+      "lambda": "Analysis",
+      "address": "module.analysis_runtime.aws_lambda_function.analysis[0]",
+      "state_filename": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-mo-addition-e2e/terraform/analysis-lambda.zip",
+      "configured_filename": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-mo-addition-e2e/terraform/analysis-lambda.zip",
+      "plan_filename_before": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-mo-addition-e2e/terraform/analysis-lambda.zip",
+      "plan_filename_after": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-mo-addition-e2e/terraform/analysis-lambda.zip",
+      "state_source_code_hash_base64": "J2tORCAnIWfdMsWQ1tur7UAIckpwkeTYZQTVRE/iaxA=",
+      "state_deployed_code_sha256": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10",
+      "local_artifact_path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\terraform\\analysis-lambda.zip",
+      "local_artifact_sha256": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10",
+      "planned_source_code_hash_base64": "J2tORCAnIWfdMsWQ1tur7UAIckpwkeTYZQTVRE/iaxA=",
+      "expected_change": "No-op; filename and package identity unchanged"
+    },
+    {
+      "lambda": "Orders-Reader",
+      "address": "module.orders_reader[0].aws_lambda_function.reader",
+      "state_filename": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip",
+      "configured_filename": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip",
+      "plan_filename_before": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip",
+      "plan_filename_after": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip",
+      "state_source_code_hash_base64": "YQAE9urjUx5MhyNkOeSRvL8MEC6ikWH+8kfCcTyBrms=",
+      "state_deployed_code_sha256": "610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b",
+      "local_artifact_path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip",
+      "local_artifact_sha256": "610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b",
+      "planned_source_code_hash_base64": "YQAE9urjUx5MhyNkOeSRvL8MEC6ikWH+8kfCcTyBrms=",
+      "expected_change": "No-op; filename and package identity unchanged"
+    }
+  ]
+}

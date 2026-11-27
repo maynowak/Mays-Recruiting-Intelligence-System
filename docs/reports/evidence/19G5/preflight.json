@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "git_head": "8f610939dcc2fd7402430e2830a1fad095f6dd3a",
+  "remote_head": "8f610939dcc2fd7402430e2830a1fad095f6dd3a",
+  "worktree_only_change": "M docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json",
+  "protected_change_touched": false,
+  "aws": {
+    "account": "262370457690",
+    "arn": "arn:aws:iam::262370457690:user/devnemo",
+    "region": "eu-central-1",
+    "mutations": 0
+  },
+  "backend": {
+    "bucket": "ris-dev2-tf-state-dev",
+    "key": "env:/ris-dev2/dev/terraform.tfstate",
+    "workspace": "ris-dev2",
+    "s3_version": "oacaI13gBig4EZiLdlTGuGHb_WB6ksmQ",
+    "content_length": 891609,
+    "last_modified": "2026-11-26T11:04:58+00:00",
+    "serial": 75,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082"
+  },
+  "terraform_version": "1.17.0",
+  "mode": {
+    "analysis_synthetic_mode_var": true,
+    "state": "true",
+    "live": "true"
+  },
+  "qa_run_id": 46015361867,
+  "mays_pin": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+  "resolved_paths": {
+    "analysis": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-mo-addition-e2e/terraform/analysis-lambda.zip",
+    "reader": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip"
+  },
+  "lambdas": {
+    "ris-dev2-dev-agent-dispatch-ingress": {
+      "address": "module.agent_transport[0].aws_lambda_function.dispatch_ingress",
+      "filename": "./lambda.zip",
+      "source_code_hash": "jsUKYUCNKO+yuF/2yDsF3Q7mB1ubRgge8W1kl5PMY4M=",
+      "last_modified": "2026-11-26T11:04:44.000+0000",
+      "local_artifact_path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\terraform\\lambda.zip",
+      "local_artifact_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+      "target_artifact_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+      "live_code_sha256": "jsUKYUCNKO+yuF/2yDsF3Q7mB1ubRgge8W1kl5PMY4M=",
+      "live_tags": {
+        "Environment": "dev",
+        "Maker": "mays-ris",
+        "Project": "ris-dev2"
+      },
+      "live_environment_MODE": null,
+      "live_analysis_synthetic_mode": null
+    },
+    "ris-dev2-dev-analysis": {
+      "address": "module.analysis_runtime.aws_lambda_function.analysis",
+      "filename": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-mo-addition-e2e/terraform/analysis-lambda.zip",
+      "source_code_hash": "J2tORCAnIWfdMsWQ1tur7UAIckpwkeTYZQTVRE/iaxA=",
+      "last_modified": "2026-11-26T11:04:38.000+0000",
+      "local_artifact_path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\terraform\\analysis-lambda.zip",
+      "local_artifact_sha256": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10",
+      "target_artifact_sha256": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10",
+      "live_code_sha256": "J2tORCAnIWfdMsWQ1tur7UAIckpwkeTYZQTVRE/iaxA=",
+      "live_tags": {
+        "Environment": "dev",
+        "Maker": "mays-ris",
+        "Project": "ris-dev2",
+        "Purpose": "internal-analysis"
+      },
+      "live_environment_MODE": null,
+      "live_analysis_synthetic_mode": "true"
+    },
+    "ris-dev2-dev-agent": {
+      "address": "module.lambda.aws_lambda_function.agent",
+      "filename": "lambda.zip",
+      "source_code_hash": "jsUKYUCNKO+yuF/2yDsF3Q7mB1ubRgge8W1kl5PMY4M=",
+      "last_modified": "2026-11-26T11:04:51.000+0000",
+      "local_artifact_path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\terraform\\lambda.zip",
+      "local_artifact_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+      "target_artifact_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+      "live_code_sha256": "jsUKYUCNKO+yuF/2yDsF3Q7mB1ubRgge8W1kl5PMY4M=",
+      "live_tags": {
+        "Environment": "dev",
+        "Maker": "mays-ris",
+        "Project": "ris-dev2"
+      },
+      "live_environment_MODE": null,
+      "live_analysis_synthetic_mode": null
+    },
+    "ris-dev2-dev-orders-reader": {
+      "address": "module.orders_reader[0].aws_lambda_function.reader",
+      "filename": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip",
+      "source_code_hash": "YQAE9urjUx5MhyNkOeSRvL8MEC6ikWH+8kfCcTyBrms=",
+      "last_modified": "2026-11-25T17:25:14.000+0000",
+      "local_artifact_path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip",
+      "local_artifact_sha256": "610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b",
+      "target_artifact_sha256": "610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b",
+      "live_code_sha256": "YQAE9urjUx5MhyNkOeSRvL8MEC6ikWH+8kfCcTyBrms=",
+      "live_tags": {
+        "Environment": "dev",
+        "Maker": "mays-ris",
+        "Project": "ris-dev2"
+      },
+      "live_environment_MODE": null,
+      "live_analysis_synthetic_mode": null
+    }
+  },
+  "plan_created": false,
+  "all_preplan_gates": "PASS"
+}
