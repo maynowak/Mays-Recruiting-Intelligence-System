@@ -188,7 +188,11 @@ def build_bundle(repo_root, files: list, arcname_fn, output: str) -> dict:
     with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as archive:
         for source_rel, arcname in entries:
             arcname = _safe_archive_name(arcname)
-            data = (repo_root / source_rel).read_bytes()
+            # Git checkouts on Windows may contain CRLF while Unix checkouts
+            # contain LF (and autocrlf can leave a single worktree mixed).
+            # Canonicalize Python source bytes so identical Git inputs produce
+            # identical Lambda artifacts regardless of the build host.
+            data = (repo_root / source_rel).read_bytes().replace(b"\r\n", b"\n")
             info = zipfile.ZipInfo(arcname, date_time=FIXED_ZIP_DATE)
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = (0o644 << 16)
