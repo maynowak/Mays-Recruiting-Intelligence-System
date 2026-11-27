@@ -554,6 +554,51 @@ paths:
         "401": { $ref: "#/components/responses/UnauthorizedString" }
         "404": { $ref: "#/components/responses/NotFoundString" }
 
+  /v1/apiprofiles/{apiProfileId}/binding:
+    parameters:
+      - $ref: "#/components/parameters/ApiProfileId"
+    post:
+      tags: [APIProfiles]
+      operationId: setApiProfileIdentityBinding
+      summary: Bind an API profile to a trusted partner application
+      description: |
+        Admin-only operation. Requires a verified Cognito JWT and tenant
+        context. The issuer is taken only from the verified JWT `iss` claim;
+        the partner application is read from the authoritative registry and
+        must be ACTIVE, belong to the profile tenant, and not be bound to a
+        different profile. Owners cannot self-assign this identity binding.
+        Cross-tenant access is allowed only for an admin and is audited. The
+        body accepts only `partnerApplicationId` and `reason`; issuer and
+        tenant identity are never accepted from the request body.
+      security:
+        - cognitoJwt: []
+      x-infrastructure-governance: terraform-managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApiProfileIdentityBindingRequest" }
+      responses:
+        "200":
+          description: Profile with its trusted partner identity binding.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiProfile" }
+        "400": { $ref: "#/components/responses/BadRequestString" }
+        "401": { $ref: "#/components/responses/UnauthorizedString" }
+        "403":
+          description: Tenant context is missing or an admin action is forbidden.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+        "404": { $ref: "#/components/responses/NotFoundString" }
+        "500": { $ref: "#/components/responses/ServerErrorString" }
+        "503":
+          description: The APIProfile store is not configured or unavailable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorString" }
+
   /v1/apiprofiles/{apiProfileId}/credentials:
     parameters:
       - $ref: "#/components/parameters/ApiProfileId"
@@ -2619,6 +2664,17 @@ components:
         status: { type: string }
         createdAt: { type: string }
         updatedAt: { type: string }
+
+    ApiProfileIdentityBindingRequest:
+      type: object
+      description: >-
+        Admin-only binding request. `issuer` and tenant identity are derived
+        from trusted server context and are not caller-writable.
+      additionalProperties: false
+      required: [partnerApplicationId, reason]
+      properties:
+        partnerApplicationId: { type: string, minLength: 1 }
+        reason: { type: string, minLength: 1 }
 
     Credential:
       type: object
