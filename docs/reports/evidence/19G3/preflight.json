@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "branch": "feature/ris-analysis-integration-07",
+  "git_head_before_plan": "7ccc34c3da3fbe4a686dd34fca7d7d2439c480cb",
+  "remote_head_before_plan": "7ccc34c3da3fbe4a686dd34fca7d7d2439c480cb",
+  "worktree_only_preexisting_change": "docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json",
+  "worktree_change_touched": false,
+  "aws": {
+    "account": "262370457690",
+    "region": "eu-central-1",
+    "caller_arn": "arn:aws:iam::262370457690:user/devnemo",
+    "resource_mutations": 0
+  },
+  "terraform": {
+    "version": "1.17.0",
+    "workspace": "ris-dev2",
+    "backend_bucket": "ris-dev2-tf-state-dev",
+    "backend_state_key": "env:/ris-dev2/dev/terraform.tfstate",
+    "lock_table": "ris-dev2-tf-lock",
+    "state_serial": 75,
+    "state_lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "state_version_before": "oacaI13gBig4EZiLdlTGuGHb_WB6ksmQ",
+    "state_version_after": "oacaI13gBig4EZiLdlTGuGHb_WB6ksmQ",
+    "state_content_mutations": 0
+  },
+  "modes_and_pins": {
+    "analysis_synthetic_mode": true,
+    "worker_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "mays_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f"
+  },
+  "artifact_matrix": [
+    {"lambda": "Agent-Worker", "function_name": "ris-dev2-dev-agent", "deployed_code_sha256": "8ec50a61408d28efb2b85ff6c83b05dd0ee6075b9b46081ef16d649793cc6383", "local_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d", "ownership": {"Project": "ris-dev2", "Environment": "dev"}},
+    {"lambda": "Dispatch-Ingress", "function_name": "ris-dev2-dev-agent-dispatch-ingress", "deployed_code_sha256": "8ec50a61408d28efb2b85ff6c83b05dd0ee6075b9b46081ef16d649793cc6383", "local_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d", "ownership": {"Project": "ris-dev2", "Environment": "dev"}},
+    {"lambda": "Analysis", "function_name": "ris-dev2-dev-analysis", "deployed_code_sha256": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10", "local_sha256": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10", "analysis_synthetic_mode": true, "ownership": {"Project": "ris-dev2", "Environment": "dev", "Purpose": "internal-analysis"}},
+    {"lambda": "Orders-Reader", "function_name": "ris-dev2-dev-orders-reader", "deployed_code_sha256": "610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b", "local_sha256": "610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b", "ownership": {"Project": "ris-dev2", "Environment": "dev"}}
+  ],
+  "reused_qa": {
+    "run_id": 46005456362,
+    "conclusion": "success",
+    "mays_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f"
+  },
+  "old_19g_plan": {"status": "BLOCKED_NOT_USED"}
+}

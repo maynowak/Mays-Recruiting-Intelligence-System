@@ -13848,3 +13848,44 @@ Status: **ARTIFACT_SCOPE PASS; UNIFIED QA PASS; STOP AT 19G3 PLAN-APPROVAL GATE*
   only. Previous 19G plan is NOT_APPLICABLE. New Terraform plans 0, applies 0,
   AWS mutations 0, runtime source changes 0. A concrete 19G3 approval template
   is recorded in the report; no plan or apply approval is granted. No Main merge.
+
+## RIS-DEV2-WORKER-CONTROLLED-REPLAN-19G3 — 2026-11-27
+
+Status: **PREFLIGHT PASS; ONE FULL PLAN CREATED; SCOPE FAIL; APPLY BLOCKED**.
+
+- Approved source HEAD and remote HEAD matched
+  `7ccc34c3da3fbe4a686dd34fca7d7d2439c480cb`. The only pre-existing unstaged
+  file was `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json`;
+  it was not edited, staged, stashed, or reset.
+- Read-only STS verified account `262370457690`, region `eu-central-1`, caller
+  `devnemo`. Backend workspace `ris-dev2`; S3 state key
+  `env:/ris-dev2/dev/terraform.tfstate`; state serial 75, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, S3 VersionId
+  `oacaI13gBig4EZiLdlTGuGHb_WB6ksmQ`. VersionId and state size remained
+  unchanged after planning. All four live Lambda code hashes matched the state;
+  ownership tags matched RIS-DEV2. Analysis synthetic mode remained true.
+- Confirmed local ZIP identities without rebuilding: Worker
+  `507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d`, Analysis
+  `276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10`, Reader
+  `610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b`. Mays pin
+  stayed `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`; successful 19G2 QA
+  `46005456362` was reused.
+- Created exactly one full regular-refresh Terraform 1.17.0 plan (no
+  `-target`, `-refresh=false`, or `-replace`). External file:
+  `C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-worker-19g3.tfplan`,
+  SHA-256 `8daf05702d4e0ff27bd6668582f5e39162d0ab660935d52fdf1145703a722752`,
+  252941 bytes. Binary is not committed. The previous 19G plan was not used.
+- Plan result **0 add / 4 change / 0 destroy / 270 no-op**. Worker and ingress
+  are expected code-hash updates to `507bc17…`. Unexpected Analysis and Reader
+  updates do not change their source-code-hash; they change the Terraform
+  `filename` value from the state-recorded absolute bundle paths to the new
+  preserved-artifact paths, with computed `last_modified`. This is a plan-scope
+  failure despite preserved package hashes. `resource_drift_count=0`.
+- STOP: `PLAN_SCOPE=FAIL`; plan must not be applied; no second plan. The filename
+  identity issue requires a separately scoped correction and fresh approval.
+  Terraform applies 0; AWS resource mutations 0; state-content mutations 0;
+  live invocations 0; new orders 0; redrives 0; recovery 0; runtime/pin changes
+  0; Main merges 0.
+- Report/evidence: `docs/reports/RIS-DEV2-WORKER-CONTROLLED-REPLAN-19G3.md` and
+  `docs/reports/evidence/19G3/`. The 19H apply gate is explicitly BLOCKED; no
+  Apply authorization is granted.
