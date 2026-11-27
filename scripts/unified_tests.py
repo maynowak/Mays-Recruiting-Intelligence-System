@@ -337,6 +337,32 @@ def run_job(job: Job, *, python: str, base_env: dict[str, str], mays_source: Pat
     env = child_environment(base_env, job, mays_source=mays_source,
                             module_dir=module_dir, module_sha=module_sha,
                             source_commit=source_commit, sandbox_dir=sandbox_dir)
+    preparation = None
+    if job.repository == "MAYS_ORDERS" and job.key == "mays_module_builder":
+        build_script = Path(job.cwd) / "lambda" / "build_zip.py"
+        if build_script.is_file():
+            prepared = subprocess.run(
+                [python, "build_zip.py"], cwd=build_script.parent, env=env,
+                capture_output=True, text=True, check=False,
+            )
+            preparation = {
+                "action": "rebuild lambda/dist/lambda.zip in disposable exact-commit test clone",
+                "return_code": prepared.returncode,
+                "stdout_tail": prepared.stdout[-1500:],
+                "stderr_tail": prepared.stderr[-1500:],
+            }
+            if prepared.returncode:
+                sandbox_context.cleanup()
+                return {
+                    "group": job.key, "repository": job.repository,
+                    "status": "BLOCKED", "reason": "candidate source artifact preparation failed",
+                    "source_commit": source_commit,
+                    "source_mode": "temporary_detached_git_clone",
+                    "preparation": preparation,
+                    "passed": 0, "failed": 0, "skipped": 0,
+                    "collection_errors": 0, "subtests_passed": 0,
+                    "duration_seconds": 0.0,
+                }
     started = time.monotonic()
     try:
         completed = subprocess.run(command, cwd=job.cwd, env=env, capture_output=True,
@@ -347,7 +373,12 @@ def run_job(job: Job, *, python: str, base_env: dict[str, str], mays_source: Pat
     result = parse_result(job, completed, elapsed)
     if job.repository == "MAYS_ORDERS":
         result["source_commit"] = source_commit
-        result["source_mode"] = "temporary_detached_git_clone"
+        result["source_mode"] = (
+            "temporary_detached_git_clone_with_rebuilt_lambda_artifact"
+            if preparation else "temporary_detached_git_clone"
+        )
+        if preparation:
+            result["preparation"] = preparation
     sandbox_context.cleanup()
     return result
 
