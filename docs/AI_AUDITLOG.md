@@ -13767,3 +13767,35 @@ or Main merge. Live canary remains unauthorized pending external entitlement/
 configuration review. Report/evidence:
 `docs/reports/RIS-DEV2-ORDER-DESCRIPTION-E2E-GATE-19F8.md` and
 `docs/reports/evidence/19F8/`.
+
+[RIS-DEV2-WORKER-DEPLOYMENT-PLAN-19G]
+Aktivierte ausschließlich den verifizierten Worker-Test-Pin auf
+`507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d`;
+Pin-Commit `febab54cfe6e0b4c6c67a4e94b7afb9083643576` ist auf den Feature-
+Branch gepusht. Reproduzierter Build und fokussierte Tests PASS (16 passed,
+2 skipped); Terraform validate/fmt PASS. Der RIS_NATIVE-Profiltest blieb wegen
+fehlender `moto`-/`requests`-Abhängigkeiten und Collection-Fehlern BLOCKED.
+Preflight bestätigte Account `262370457690`, Region `eu-central-1`, Workspace
+`ris-dev2`, State serial 75, Lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`
+und S3-Version `oacaI13gBig4EZiLdlTGuGHb_WB6ksmQ`.
+
+Genau ein regulärer Full-Plan wurde gespeichert (kein `-target`, kein
+`-refresh=false`): temporärer Plan
+`C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-dev2-worker-19g.tfplan`,
+SHA-256 `7d8bfbb282795feb66b0e072250b8454f2cd111302aa920f7dc56d8268d65851`.
+Ergebnis **0 add / 4 change / 0 destroy**: Agent und Dispatch-Ingress wie
+beabsichtigt, zusätzlich aber Analysis und Orders-Reader wegen abweichender
+lokaler Bundle-Code-Hashes. Die vier Updates ändern ausschließlich
+`source_code_hash` (plus berechnetes `last_modified`); 270 Ressourcen no-op,
+keine erkannte Resource-Drift. Analysis-/Reader-Artefakte wurden nicht
+angepasst. `PLAN_SCOPE=FAIL`, `APPLY_READINESS=BLOCKED`; kein zweiter Plan,
+kein Apply und keine Ressourcen-/State-Inhaltsmutation. Temporäre Sperre
+regulär verwendet; S3-State-Version blieb unverändert. Keine Live-Invocation,
+Order, Entitlement-Schreiboperation, Redrive, Recovery, Cleanup,
+Produktionsbereitstellung oder Main-Merge.
+
+Finaler Report und nicht-sensitive Evidenz:
+`docs/reports/RIS-DEV2-WORKER-DEPLOYMENT-PLAN-19G.md` und
+`docs/reports/evidence/19G/plan-summary.json`. Binärplan und sensitive
+Plan-JSON-Daten sind nicht eingecheckt. Apply-Freigabe ausdrücklich nicht
+erteilt.
