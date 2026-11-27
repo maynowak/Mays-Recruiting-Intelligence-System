@@ -13998,3 +13998,43 @@ Status: **ONE APPROVED APPLY COMPLETE; READ-ONLY VERIFICATION PASS; STOP BEFORE 
   `docs/reports/evidence/19H/post-apply-verification.json`. Evidence omits
   environment values and records only unchanged indicators/fingerprints.
 - STOP before `20A — Live Canary Preflight`; no automatic continuation.
+
+## RIS-DEV2-LIVE-CANARY-PREFLIGHT-20A — 2026-11-27
+
+Status: **DEPLOYMENT PASS; CONTRACT DRAFTED; LIVE CANARY NO-GO; STOP AT 20B APPROVAL**.
+
+- Read-only checks verified branch/HEAD and remote
+  `feature/ris-analysis-integration-07` /
+  `a496fcddee753fbb61dc3ecdb5cb694dcc5bbc02`, AWS account `262370457690`,
+  region `eu-central-1`, State serial 76, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, and S3 VersionId
+  `M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T`.
+- Agent-Worker and Dispatch-Ingress are Active/Successful with approved
+  Worker artifact CodeSha256. Analysis and Orders-Reader match 19H code and
+  environment fingerprints. `ANALYSIS_SYNTHETIC_MODE=true` remains unchanged.
+- Dispatch, work, and Orders result-consumer mappings and seven queue/DLQ
+  configurations were checked read-only against State. No SQS message receive,
+  deletion, visibility change, or message-count read occurred. API Gateway
+  orders routes are JWT-authorized; no token or test identity was obtained.
+- The live Analysis Lambda has
+  `ANALYSIS_SYNTHETIC_EXPIRES_AT=2026-11-26T17:40:28Z`, expired as of this
+  preflight date. No configuration or entitlement was changed.
+- 19F8 proves only a local mocked E2E: its owner, APIProfile and
+  `ats-agent/analyze.job` entitlement are in-memory doubles. A live
+  owner-bound profile and active/unexpired entitlement for a supplied
+  synthetic identity were not established; no identity/entitlement table was
+  scanned. The ATS agent sends job/profile data to the external
+  `https://mays-jobsearch.vercel.app/api/ats-analysis`; synthetic-data handling
+  and possible costs need separate owner approval. Test SKU price semantics,
+  maximum charge and external usage costs remain unapproved.
+- Prepared only a non-executable synthetic payload draft with unique
+  correlation/idempotency values. Its APIProfile ref is an explicit
+  unresolved placeholder and its `unitPrice=1 EUR` proposal has no approved
+  cost ceiling. No order, API call, invocation, or queue-message operation
+  occurred. No Terraform plan/apply, AWS mutation, redrive, or recovery.
+- Report and non-secret evidence:
+  `docs/reports/RIS-DEV2-LIVE-CANARY-PREFLIGHT-20A.md` and
+  `docs/reports/evidence/20A/`. Separate 20B approval template included;
+  approval is NOT GRANTED.
+- Pre-existing unstaged 19F2 result file was not touched. STOP at 20B live
+  execution approval; no automatic continuation.
