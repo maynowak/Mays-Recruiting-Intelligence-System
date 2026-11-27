@@ -17,8 +17,13 @@ HISTORICAL_WORKER_BUNDLE_SHA256 = (
     "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7"
 )
 REVIEW_CANDIDATE_BUNDLE_SHA256 = {
-    "worker": "4d880b4856067b7d8b9d17e8a0257abf49d6208f9fb1743b711f516091ce928a",
-    "analysis": "b29f5b3b966375150f4aa70cbeee83be57e3292dfae8466ff842c0c48fbf90dc",
+    "worker": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    # Separate native-artifact builder still uses DEFLATE; its review hashes
+    # are platform/toolchain-specific and are not Agent-Worker deployment pins.
+    "analysis": {
+        "win32": "370890d459488304481d99255cfa6a2891b5f19a8c5df2723556905195c7c621",
+        "linux": "817438fec758705385e48e969de0c175a8363a537c9a8863691119b8d2652639",
+    }.get(sys.platform, ""),
 }
 
 from agents.runtime.pipeline import process_record  # noqa: E402

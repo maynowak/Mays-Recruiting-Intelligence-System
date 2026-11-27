@@ -136,8 +136,11 @@ jobs:
           # not install, replace, or pin a module in RIS or the Mays source repo.
           for spec in "integrated:$RUNNER_TEMP/mays-current:current" "upgrade_candidate:$RUNNER_TEMP/mays-rc4:rc4"; do
             version=${spec%%:*}; rest=${spec#*:}; source=${rest%%:*}; label=${rest##*:}
-            (cd "$source" && python lambda/build_zip.py)
-            (cd "$source" && python -m module_builder build --target "$RUNNER_TEMP/generated/$label" --project-name "ris-mays-$label-qa" --preset orders-service --source "$source") || fail=1
+            build_source="$RUNNER_TEMP/mays-module-build-$label"
+            git clone --no-hardlinks --no-checkout "$source" "$build_source"
+            git -C "$build_source" checkout --detach "$(git -C "$source" rev-parse HEAD)"
+            (cd "$build_source" && python lambda/build_zip.py)
+            (cd "$build_source" && python -m module_builder build --target "$RUNNER_TEMP/generated/$label" --project-name "ris-mays-$label-qa" --preset orders-service --source "$build_source") || fail=1
             if [ -d "$RUNNER_TEMP/generated/$label" ]; then
               terraform -chdir="$RUNNER_TEMP/generated/$label" fmt -check -recursive || fail=1
               TF_DATA_DIR="$RUNNER_TEMP/tfdata-$label" terraform -chdir="$RUNNER_TEMP/generated/$label" init -backend=false -input=false -no-color || fail=1

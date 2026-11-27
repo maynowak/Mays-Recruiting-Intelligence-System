@@ -185,7 +185,11 @@ def build_bundle(repo_root, files: list, arcname_fn, output: str) -> dict:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     entries = sorted((f, arcname_fn(f)) for f in files)
-    with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as archive:
+    # Stored entries avoid host-library-dependent DEFLATE streams. The source
+    # bundles are small enough that uncompressed ZIPs remain well within the
+    # Lambda package limits, while the complete artifact becomes byte-stable
+    # across zlib implementations (e.g. zlib-ng on Windows vs zlib on Ubuntu).
+    with zipfile.ZipFile(output_path, "w", zipfile.ZIP_STORED) as archive:
         for source_rel, arcname in entries:
             arcname = _safe_archive_name(arcname)
             # Git checkouts on Windows may contain CRLF while Unix checkouts
@@ -194,7 +198,7 @@ def build_bundle(repo_root, files: list, arcname_fn, output: str) -> dict:
             # identical Lambda artifacts regardless of the build host.
             data = (repo_root / source_rel).read_bytes().replace(b"\r\n", b"\n")
             info = zipfile.ZipInfo(arcname, date_time=FIXED_ZIP_DATE)
-            info.compress_type = zipfile.ZIP_DEFLATED
+            info.compress_type = zipfile.ZIP_STORED
             info.external_attr = (0o644 << 16)
             archive.writestr(info, data)
 
