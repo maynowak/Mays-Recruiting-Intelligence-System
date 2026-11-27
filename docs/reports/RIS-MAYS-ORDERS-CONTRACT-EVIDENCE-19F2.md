@@ -51,14 +51,11 @@ tests.
 | RIS synthetic E2E | 39 pass | 3 pass / 36 fail | Candidate lacks expected result-consumer imports and round-trip behaviors |
 | Candidate-generated module | N/A | Terraform fmt PASS; `init -backend=false` PASS; validate FAIL; Generated Module Contract 2 pass / 7 fail | Candidate module contract blocked; exact source SHA is abbreviated in builder manifest and generated Terraform has unresolved references |
 
-The current RIS Native result is now 3,278 passed / 3 failed / 142 skipped /
-450 subtests; A1's historical-hash failure and A2's AWS-profile fixture failure
-are resolved. The three remaining assertions identify one discrepancy:
-`POST /v1/apiprofiles/{apiProfileId}/binding` is in Terraform, the dispatcher,
-and `docs/API/API-STANDARD.md`, but absent from canonical
-`docs/api/openapi-platform.yaml`. The assertions are correct. This belongs to
-the RIS API/OpenAPI contract and is tracked in a separate fix request; 19F3 does
-not change runtime, API contract, or security behavior.
+The initial 19F3 RIS Native result was 3,278 passed / 3 failed / 142 skipped /
+450 subtests. The three assertions identified the implemented APIProfile
+binding operation missing from canonical OpenAPI. 19F4 documented the existing
+operation (no runtime changes); its original three tests now pass, as does the
+relevant API/OpenAPI group (87 passed + 322 subtests). See the 19F4 report.
 
 Candidate-generated artifact validation reported undeclared
 `privacy_secret_enabled`, `privacy_kms_key_arn`, `sqs_visibility_timeout_seconds`,
@@ -68,14 +65,55 @@ Candidate-generated artifact validation reported undeclared
 must correct these and write the full 40-character source SHA in a separate
 Mays-Orders task.
 
-### Worker bundle reproducibility (independent deployment gate)
+### 19F4 addendum — contract closure, reproducible worker candidate, and RC4 ownership
 
-The required/current worker ZIP is `78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7`.
-A disposable checkout with `core.autocrlf=false` rebuilt it as
-`4d880b4856067b7d8b9d17e8a0257abf49d6208f9fb1743b711f516091ce928a`; a
-disposable CRLF checkout rebuilt it as
-`747b749ed674aad40954b85a2d628631131684230d4145e52e627e4ed58bd7b5`. Neither
-reproduced the required digest. ZIP member line endings differ (LF in the
-controlled LF rebuild, CRLF in the existing artifact). The cause is unresolved;
-`WORKER_DEPLOYMENT_READINESS=BLOCKED` pending reproducibility/provenance review.
-No tracked source or bundle was changed by these checks.
+- **OpenAPI:** Commit `06f9181` records the implemented `POST
+  /v1/apiprofiles/{apiProfileId}/binding` operation in canonical OpenAPI. The
+  original three route assertions pass; relevant API/OpenAPI tests: 87 passed,
+  322 subtests passed. No handler/runtime behavior changed.
+- **Bundle root cause:** The historical worker archive has 115 entries. All
+  uncompressed entries match current Git sources after CRLF→LF normalization;
+  order, fixed timestamps, modes, and compression method were stable. A mixed
+  Windows checkout caused different source bytes, and platform-specific DEFLATE
+  implementations (Windows zlib-ng vs Ubuntu zlib), plus platform-dependent
+  ZIP `create_system` markers also changed archive bytes. Commits `2938021` and
+  `f110f97` use stored entries and explicitly canonicalize ZIP metadata. Two
+  independent clean Windows and Ubuntu builds match: worker
+  `507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d`,
+  analysis `370890d459488304481d99255cfa6a2891b5f19a8c5df2723556905195c7c621`,
+  reader `bea4c3e59666bed8ad071ad4e405bcdfd57dafdac68096ce648667f0effb1b41`.
+  Cross-platform hashes are recorded in evidence
+  `bundle-reproducibility-ubuntu-45966656833.json` (final run).
+  Historical worker SHA remains recorded and is not overwritten; new hash is
+  review-only and requires separate pin approval.
+- **Current XRepo:** exact reruns pass: contract 133 passed + 4 subtests; E2E 39
+  passed. Candidate reruns reproduce the prior failures: contract 120/13 + 4
+  subtests; E2E 3/36.
+- **RC4 root cause:** group failures by source cause, not individual tests:
+  (1) five required transport/consumer modules are missing in RC4 and cause
+  import/contract/round-trip failures; (2) RC4 validation rejects
+  `orderDescription`, causing four create-contract failures; (3) its generated
+  Terraform has undeclared variables and `module.privacy_secret` references,
+  the manifest truncates source SHA to seven characters, and backend-free
+  validate fails; (4) four original builder policy-gate tests fail on Ubuntu
+  because the runner lacked their required `/tmp/opencode` and fixed checkout
+  aliases. QA workflow now provisions these ephemeral paths; current and RC4
+  original builder/installer suites pass. This is resolved test-environment
+  setup, not a candidate source blocker. RIS will not drop order data, bypass
+  HMAC/idempotency/owner checks, or add an unversioned adapter. Executable task:
+  `MO-RC4-RIS-COMPATIBILITY-FIX.md`.
+- **Ubuntu evidence:** QA-only run `45965830933` verified cross-platform bundle
+  hashes, current Mays originals (240 Lambda, 100 builder + 6 subtests, installer
+  81, seed 28, Cognito 2), current XRepo, and current generated module/validate.
+  RC4 original Mays suites pass (440 Lambda, 129 builder, installer 81, seed 28,
+  Cognito 2); RC4 generated Terraform and XRepo remain failures. Final run
+  `45966656833` adds the missing RIS native test alias; its current FULL and
+  candidate UPGRADE_GATE results are recorded in the 19F4 report/results.
+- **Worker regression:** `tests/test_lambda_packaging.py`, ecosystem bundle
+  wiring, and fresh-plan regression: 26 passed, 2 credential-gated skips, 4
+  subtests. New worker artifact is a review candidate only. No worker deployment
+  pin was updated.
+
+See `RIS-MAYS-ORDERS-COMPATIBILITY-RESOLUTION-19F4.md` and its machine-readable
+results for release gates, run identities, safety counters, and final platform
+classifications.

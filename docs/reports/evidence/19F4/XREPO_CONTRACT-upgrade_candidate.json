@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-11-27T08:37:43.963753+00:00",
+  "profile": "XREPO_CONTRACT",
+  "ris_commit": "4cd7042ff30b8c29f6c8e4d32f235776f6b349bb",
+  "mays_orders": {
+    "version_key": "upgrade_candidate",
+    "expected_commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+    "release": "v0.6.0-rc.1",
+    "checkout": "/home/runner/work/_temp/mays-rc4",
+    "provenance_status": "VERIFIED",
+    "errors": []
+  },
+  "platform": "linux",
+  "python": "3.14.10 (main, Oct 26 2026, 14:17:03) [GCC 15.2.0]",
+  "artifact_hashes": {
+    "worker_bundle_terraform/lambda.zip": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "worker_bundle_expected": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
+    "worker_bundle_matches_baseline": false,
+    "mays_test_version_map": "b61a7244da57f9cb0a2f8cea4310838b83c939676a31e1e0de7c4fadef7578be"
+  },
+  "live_profile": "LOCKED_NOT_EXECUTED",
+  "aggregate_counts": "Per-group only; overlapping profile executions are not summed.",
+  "groups": [
+    {
+      "group": "xrepo_contract",
+      "repository": "RIS",
+      "status": "FAIL",
+      "return_code": 1,
+      "passed": 120,
+      "failed": 13,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 4,
+      "duration_seconds": 0.75,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "tests/test_mo_contract_compat.py",
+        "tests/test_cross_repo_mo_contract.py",
+        "tests/test_order_transport_contract.py",
+        "tests/test_agent_order_body.py",
+        "tests/test_agent_order_order_description.py",
+        "tests/test_dispatch_ingress_env.py"
+      ],
+      "stdout_tail": "t_unknown_keys(body, [\"customer\", \"items\", \"currency\", \"orderType\"], \"body\")\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nvalue = {'customer': {'name': 'M', 'email': 'm@example.com'}, 'currency': 'EUR', 'items': [{'sku': 'orders.create', 'quantity': 1, 'unitPrice': 1}], 'orderType': 'agent.execution', ...}\nallowed = ['customer', 'items', 'currency', 'orderType'], path = 'body'\n\n    def reject_unknown_keys(value: Dict[str, Any], allowed: List[str], path: str) -> None:\n        unknown = [key for key in value if key not in allowed]\n        if unknown:\n>           raise validation_error(\n                f\"Unknown field '{unknown[0]}' at {path}\",\n                {\"path\": f\"{path}.{unknown[0]}\"},\n            )\nE           errors.OrderError: Unknown field 'orderDescription' at body\n\n../../_temp/mays-rc4/lambda/src/validation.py:28: OrderError\n___ TestMaysOrdersContract.test_payload_accepted_by_mo_is_accepted_by_reader ___\n\nself = <test_cross_repo_mo_contract.TestMaysOrdersContract testMethod=test_payload_accepted_by_mo_is_accepted_by_reader>\n\n    def test_payload_accepted_by_mo_is_accepted_by_reader(self):\n        body = self._adapter_body({\n            \"agentOrder\": my_agent_order(),\n            \"customer\": {\"name\": \"Mays\", \"email\": \"ops@example.com\"},\n            \"items\": [{\"sku\": \"ATS\", \"quantity\": 1, \"unitPrice\": 100}],\n            \"currency\": \"EUR\",\n        })\n>       self.mo.validate_create_order(body)  # must not raise\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\ntests/test_cross_repo_mo_contract.py:183: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n../../_temp/mays-rc4/lambda/src/validation.py:71: in validate_create_order\n    reject_unknown_keys(body, [\"customer\", \"items\", \"currency\", \"orderType\"], \"body\")\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nvalue = {'customer': {'name': 'Mays', 'email': 'ops@example.com'}, 'currency': 'EUR', 'items': [{'sku': 'ATS', 'quantity': 1, 'unitPrice': 100}], 'orderType': 'agent.execution', ...}\nallowed = ['customer', 'items', 'currency', 'orderType'], path = 'body'\n\n    def reject_unknown_keys(value: Dict[str, Any], allowed: List[str], path: str) -> None:\n        unknown = [key for key in value if key not in allowed]\n        if unknown:\n>           raise validation_error(\n                f\"Unknown field '{unknown[0]}' at {path}\",\n                {\"path\": f\"{path}.{unknown[0]}\"},\n            )\nE           errors.OrderError: Unknown field 'orderDescription' at body\n\n../../_temp/mays-rc4/lambda/src/validation.py:28: OrderError\n=========================== short test summary info ============================\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_orders_dispatch_is_accepted_by_ris - ModuleNotFoundError: No module named 'result_envelope'\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_orders_rejects_an_unsupported_ris_version - ModuleNotFoundError: No module named 'result_envelope'\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_orders_rejects_unknown_result_field - ModuleNotFoundError: No module named 'result_envelope'\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_required_dispatch_fields_are_pinned - ModuleNotFoundError: No module named 'result_envelope'\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_required_result_fields_are_pinned - ModuleNotFoundError: No module named 'result_envelope'\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_result_direction_is_ris_to_orders - ModuleNotFoundError: No module named 'result_envelope'\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_result_message_types_match - ModuleNotFoundError: No module named 'result_envelope'\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_ris_result_is_accepted_by_orders - ModuleNotFoundError: No module named 'result_envelope'\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_ris_schema_version_is_accepted_by_orders - ModuleNotFoundError: No module named 'result_envelope'\nFAILED tests/test_cross_repo_mo_contract.py::TestMaysOrdersContract::test_adapter_body_is_accepted_by_real_mo_validator - errors.OrderError: Unknown field 'orderDescription' at body\nFAILED tests/test_cross_repo_mo_contract.py::TestMaysOrdersContract::test_documented_divergence_exactly_one_item - errors.OrderError: Unknown field 'orderDescription' at body\nFAILED tests/test_cross_repo_mo_contract.py::TestMaysOrdersContract::test_mo_normalised_description_round_trips_into_ris - errors.OrderError: Unknown field 'orderDescription' at body\nFAILED tests/test_cross_repo_mo_contract.py::TestMaysOrdersContract::test_payload_accepted_by_mo_is_accepted_by_reader - errors.OrderError: Unknown field 'orderDescription' at body\n13 failed, 120 passed, 4 subtests passed in 0.75s\n",
+      "stderr_tail": ""
+    }
+  ],
+  "profile_status": "BLOCKED",
+  "module_artifact": {
+    "path": "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/terraform/modules/mays_orders",
+    "source_commit": null,
+    "zip_sha256": null,
+    "manifest_sha256": null,
+    "status": "BLOCKED",
+    "errors": []
+  }
+}

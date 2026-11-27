@@ -13643,3 +13643,42 @@ and remained clean.
   `docs/reports/RIS-MAYS-ORDERS-QA-BLOCKER-RESOLUTION-19F3.md`; combined machine
   result `docs/reports/RIS-MAYS-ORDERS-QA-BLOCKER-RESOLUTION-19F3.results.json`.
   Stop after 19F3; no automatic 19F4/19G execution.
+
+[RIS-MAYS-ORDERS-COMPATIBILITY-RESOLUTION-19F4]
+Date: 2026-11-27
+Branch: feature/ris-analysis-integration-07 (final HEAD recorded in report)
+Outcome: RIS OpenAPI contract fixed; worker ZIP bytes reproduced across Windows
+and Ubuntu; current `FULL` profile passes. RC4 upgrade remains BLOCKED by
+Mays-owned source/generated-module contracts; candidate originals pass.
+OpenAPI: implemented APIProfile binding documented; original 3 failures pass;
+  relevant OpenAPI/API group 87 passed + 322 subtests; runtime unchanged.
+Bundle: 115 normalized archive members matched current Git sources; mixed
+  checkout line endings, DEFLATE implementation, and ZIP create_system
+  differences verified. Stored ZIP has matching independent Windows/Ubuntu
+  clean-build hashes for worker, analysis, and reader. Worker hash:
+  `507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d`.
+  Historical `78eb6eda...` retained; no pin activated. Evidence run 45965830933.
+Current XRepo: 133 contract passed + 4 subtests; 39 E2E passed.
+Current Ubuntu original Mays suites: Lambda 240; module builder 100 + 6
+  subtests; installer 81; seed 28; Cognito backup 2. Current generated module
+  contract 9/9 and Terraform validation pass. Candidate originals all pass:
+  Lambda 440; builder 129; installer 81; seed 28; Cognito backup 2.
+RC4 XRepo: 120 contract passed / 13 failed + 4 subtests; 3 E2E passed / 36
+  failed. Candidate lacks dispatch/result/agent-order modules and rejects
+  `orderDescription`; generated Terraform has undeclared inputs/module refs and
+  a short source SHA. No RIS adapter justified; do not discard order data or
+  bypass HMAC, idempotency, tenant/owner checks.
+Ubuntu QA: run 45965830933 verifies cross-platform bundle hashes and all current
+  module/XRepo checks; candidate originals pass, while RC4 generated Terraform
+  validation and XRepo fail. Final run 45966656833 at 4cd7042 passes current
+  FULL: RIS Native 3,291 passed / 133 skipped / 450 subtests; current Mays
+  originals, XRepo, and generated-module checks pass. UPGRADE_GATE remains
+  failed only on the documented RC4 XRepo and generated-module contract gates.
+  Evidence is checked in under docs/reports/evidence/19F4/.
+Mays task: `docs/reports/MO-RC4-RIS-COMPATIBILITY-FIX.md`.
+Safety: AWS mutations 0; live invocations 0; redrives 0; module pin changes 0;
+  installations 0; Terraform plans/applies/state mutations 0; LIVE locked;
+  MODE=true unchanged. No Mays source or repository was modified.
+Evidence: `docs/reports/RIS-MAYS-ORDERS-COMPATIBILITY-RESOLUTION-19F4.md` and
+  `.results.json`; contract index updated at
+  `docs/reports/RIS-MAYS-ORDERS-CONTRACT-EVIDENCE-19F2.md`.

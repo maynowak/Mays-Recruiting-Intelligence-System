@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-11-27T08:37:18.119595+00:00",
+  "profile": "MODULE_BUILD",
+  "ris_commit": "4cd7042ff30b8c29f6c8e4d32f235776f6b349bb",
+  "mays_orders": {
+    "version_key": "upgrade_candidate",
+    "expected_commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+    "release": "v0.6.0-rc.1",
+    "checkout": "/home/runner/work/_temp/mays-rc4",
+    "provenance_status": "VERIFIED",
+    "errors": []
+  },
+  "platform": "linux",
+  "python": "3.14.10 (main, Oct 26 2026, 14:17:03) [GCC 15.2.0]",
+  "artifact_hashes": {
+    "worker_bundle_terraform/lambda.zip": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "worker_bundle_expected": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
+    "worker_bundle_matches_baseline": false,
+    "mays_test_version_map": "b61a7244da57f9cb0a2f8cea4310838b83c939676a31e1e0de7c4fadef7578be"
+  },
+  "live_profile": "LOCKED_NOT_EXECUTED",
+  "aggregate_counts": "Per-group only; overlapping profile executions are not summed.",
+  "groups": [
+    {
+      "group": "mays_module_builder",
+      "repository": "MAYS_ORDERS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 129,
+      "failed": 0,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 1.24,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "module_builder/tests"
+      ],
+      "stdout_tail": "........................................................................ [ 55%]\n.........................................................                [100%]\n129 passed in 1.24s\n",
+      "stderr_tail": "",
+      "source_commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+      "source_mode": "temporary_detached_git_clone_with_rebuilt_lambda_artifact",
+      "preparation": {
+        "action": "rebuild lambda/dist/lambda.zip in disposable exact-commit test clone",
+        "return_code": 0,
+        "stdout_tail": "Built /tmp/ris-qa-sandbox-h5ymf5m3/source/lambda/dist/lambda.zip (46929 bytes, sha256 20f4bab5766529e3340273cfde3b35c601a389122759051f2aef801337b76377)\n  errors.py  (2879 bytes)\n  hmac_contract.py  (12135 bytes)\n  identity.py  (15527 bytes)\n  index.py  (10961 bytes)\n  order_handlers.py  (4671 bytes)\n  order_service.py  (35113 bytes)\n  order_types.py  (1671 bytes)\n  processing_result.py  (8356 bytes)\n  recovery.py  (15167 bytes)\n  secret_provider.py  (28473 bytes)\n  sqs_handler.py  (24634 bytes)\n  state_machine.py  (474 bytes)\n  validation.py  (6455 bytes)\n",
+        "stderr_tail": ""
+      }
+    },
+    {
+      "group": "mays_installer",
+      "repository": "MAYS_ORDERS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 81,
+      "failed": 0,
+      "skipped": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 22.291,
+      "tests_run": 81,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--unittest-module",
+        "installer.tests.test_installer"
+      ],
+      "stdout_tail": "",
+      "stderr_tail": "reate_run_dir (installer.tests.test_installer.TestRunDirectoryManager.test_create_run_dir) ... ok\ntest_save_context (installer.tests.test_installer.TestRunDirectoryManager.test_save_context) ... ok\ntest_no_secret_leakage_in_sarif (installer.tests.test_installer.TestSarifAdapter.test_no_secret_leakage_in_sarif)\nTest that SARIF doesn't leak secrets. ... ok\ntest_sarif_adapter_exists (installer.tests.test_installer.TestSarifAdapter.test_sarif_adapter_exists)\nTest that SARIF adapter script exists. ... ok\ntest_sarif_conversion (installer.tests.test_installer.TestSarifAdapter.test_sarif_conversion)\nTest that native dependency result converts to SARIF. ... ok\ntest_sarif_deterministic (installer.tests.test_installer.TestSarifAdapter.test_sarif_deterministic)\nTest that SARIF generation is deterministic. ... ok\ntest_sarif_error_conversion (installer.tests.test_installer.TestSarifAdapter.test_sarif_error_conversion)\nTest SARIF conversion for error status. ... ok\ntest_sarif_multiple_findings (installer.tests.test_installer.TestSarifAdapter.test_sarif_multiple_findings)\nTest SARIF with multiple dependency findings. ... ok\ntest_sarif_no_native_top_level_fields (installer.tests.test_installer.TestSarifAdapter.test_sarif_no_native_top_level_fields)\nTest that SARIF doesn't contain native top-level fields. ... ok\ntest_state_list (installer.tests.test_installer.TestStateCommands.test_state_list)\nTest state list command. ... ok\ntest_plan_result_from_json (installer.tests.test_installer.TestTerraformRunner.test_plan_result_from_json)\nTest PlanResult from JSON. ... ok\ntest_validate_failure (installer.tests.test_installer.TestTerraformRunner.test_validate_failure)\nTest validate failure. ... ok\ntest_validate_success (installer.tests.test_installer.TestTerraformRunner.test_validate_success)\nTest validate success. ... ok\ntest_version (installer.tests.test_installer.TestTerraformRunner.test_version)\nTest version command. ... ok\ntest_aws_profile_check_fail (installer.tests.test_installer.TestValidationLayer.test_aws_profile_check_fail)\nTest AWS profile check fails. ... ok\ntest_aws_profile_check_pass (installer.tests.test_installer.TestValidationLayer.test_aws_profile_check_pass)\nTest AWS profile check passes. ... ok\ntest_terraform_cli_check (installer.tests.test_installer.TestValidationLayer.test_terraform_cli_check)\nTest Terraform CLI check. ... ok\ntest_validation_result_summary (installer.tests.test_installer.TestValidationLayer.test_validation_result_summary)\nTest validation result summary. ... ok\ntest_without_yes_requires_approval (installer.tests.test_installer.TestYesFlagBehavior.test_without_yes_requires_approval)\nAn empty answer at the approval prompt is a safe default-deny. ... ok\ntest_yes_flag_skips_approval_prompt (installer.tests.test_installer.TestYesFlagBehavior.test_yes_flag_skips_approval_prompt)\n--yes must apply exactly once without reading from stdin. ... ok\n\n----------------------------------------------------------------------\nRan 81 tests in 22.291s\n\nOK\n",
+      "source_commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+      "source_mode": "temporary_detached_git_clone"
+    },
+    {
+      "group": "ris_builder_contract",
+      "repository": "RIS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 57,
+      "failed": 0,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 0.3,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "tests/test_build_mays_orders_transport_outputs.py",
+        "tests/test_orders_aws_name_limits.py"
+      ],
+      "stdout_tail": ".........................................................                [100%]\n57 passed in 0.30s\n",
+      "stderr_tail": ""
+    },
+    {
+      "group": "generated_module_artifact",
+      "repository": "RIS",
+      "status": "FAIL",
+      "return_code": 1,
+      "passed": 2,
+      "failed": 7,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 0.35,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "tests/test_generated_module_artifact.py"
+      ],
+      "stdout_tail": "dynamodb-design.md, database/access-patterns.md, ADR-002, ADR-007\\n#\\n# ⚠️ UPGRADE NOTE — DATA TRANSFORMATION REQUIRED\\n# Änderungen an bestehendem DynamoDB Datenmodell, Schema,\\n# Partition-/Sort-Key-Struktur oder inkompatiblen Attributmodellen\\n# können eine versionierte Datenmigration/Transformation erfordern.\\n# PITR/Backup schützt Daten vor Verlust, ersetzt aber keine\\n# Schema-/Datenmigration.\\n#\\nresource \"aws_dynamodb_table\" \"orders\" {\\n  name         = var.project_name\\n  billing_mode = \"PAY_PER_REQUEST\" # ADR-007: On-Demand\\n  hash_key     = \"pk\"\\n  range_key    = \"sk\"\\n\\n  attribute {\\n    name = \"pk\"\\n    type = \"S\"\\n  }\\n\\n  attribute {\\n    name = \"sk\"\\n    type = \"S\"\\n  }\\n\\n  attribute {\\n    name = \"gsi1pk\"\\n    type = \"S\"\\n  }\\n\\n  attribute {\\n    name = \"gsi1sk\"\\n    type = \"S\"\\n  }\\n\\n  attribute {\\n    name = \"gsi2pk\"\\n    type = \"S\"\\n  }\\n\\n  attribute {\\n    name = \"gsi2sk\"\\n    type = \"S\"\\n  }\\n\\n  # MO-RC4-P02I-B2: Index fuer aktive Processing-Claims (KEYS_ONLY, keine PII).\\n  attribute {\\n    name = \"gsi3pk\"\\n    type = \"S\"\\n  }\\n\\n  attribute {\\n    name = \"gsi3sk\"\\n    type = \"S\"\\n  }\\n\\n  global_secondary_index {\\n    name               = \"gsi1\"\\n    projection_type    = \"INCLUDE\"\\n    non_key_attributes = [\"orderId\", \"status\", \"customer\", \"totalAmount\", \"createdAt\", \"updatedAt\"]\\n\\n    key_schema {\\n      attribute_name = \"gsi1pk\"\\n      key_type       = \"HASH\"\\n    }\\n\\n    key_schema {\\n      attribute_name = \"gsi1sk\"\\n      key_type       = \"RANGE\"\\n    }\\n  }\\n\\n  global_secondary_index {\\n    name               = \"gsi2\"\\n    projection_type    = \"INCLUDE\"\\n    non_key_attributes = [\"orderId\", \"subjectId\", \"version\", \"createdAt\", \"status\", \"updatedAt\", \"customer\", \"totalAmount\", \"currency\"]\\n\\n    key_schema {\\n      attribute_name = \"gsi2pk\"\\n      key_type       = \"HASH\"\\n    }\\n\\n    key_schema {\\n      attribute_name = \"gsi2sk\"\\n      key_type       = \"RANGE\"\\n    }\\n  }\\n\\n  # Nur aktive Claims: Attribute werden beim Claim gesetzt und bei\\n  # Completion/Release entfernt (siehe sqs_handler). KEYS_ONLY -> keine\\n  # personenbezogenen Daten im Index; Details per GetItem.\\n  global_secondary_index {\\n    name            = \"gsi3\"\\n    projection_type = \"KEYS_ONLY\"\\n\\n    key_schema {\\n      attribute_name = \"gsi3pk\"\\n      key_type       = \"HASH\"\\n    }\\n\\n    key_schema {\\n      attribute_name = \"gsi3sk\"\\n      key_type       = \"RANGE\"\\n    }\\n  }\\n\\n  point_in_time_recovery {\\n    enabled = true\\n  }\\n\\n  tags = merge({ \"Project\" = var.project_name }, var.tags)\\n}'\nFAILED tests/test_generated_module_artifact.py::GeneratedModuleArtifactTest::test_every_handler_module_imports_from_the_zip_only - AssertionError: 1 != 0 : Traceback (most recent call last):\n  File \"<string>\", line 7, in <module>\n    module = importlib.import_module(name)\n  File \"/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/importlib/__init__.py\", line 88, in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<frozen importlib._bootstrap>\", line 1406, in _gcd_import\n  File \"<frozen importlib._bootstrap>\", line 1371, in _find_and_load\n  File \"<frozen importlib._bootstrap>\", line 1335, in _find_and_load_unlocked\nModuleNotFoundError: No module named 'agent_order'\nFAILED tests/test_generated_module_artifact.py::GeneratedModuleArtifactTest::test_lambda_handlers_expose_a_callable_handler - AssertionError: 1 != 0 : Traceback (most recent call last):\n  File \"<string>\", line 5, in <module>\n    module = importlib.import_module(name)\n  File \"/opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/importlib/__init__.py\", line 88, in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<frozen importlib._bootstrap>\", line 1406, in _gcd_import\n  File \"<frozen importlib._bootstrap>\", line 1371, in _find_and_load\n  File \"<frozen importlib._bootstrap>\", line 1335, in _find_and_load_unlocked\nModuleNotFoundError: No module named 'result_consumer'\nFAILED tests/test_generated_module_artifact.py::GeneratedModuleArtifactTest::test_manifest_records_the_exact_source_commit - AssertionError: Regex didn't match: '^[0-9a-f]{40}$' not found in '5bc154e' : source.commit must be a full SHA\nFAILED tests/test_generated_module_artifact.py::GeneratedModuleArtifactTest::test_ris_transport_outputs_are_exposed_additively - AssertionError: unexpectedly None : results_queue_url\nFAILED tests/test_generated_module_artifact.py::GeneratedModuleArtifactTest::test_zip_is_intact_and_has_the_deployment_set - AssertionError: Items in the first set but not the second:\n'order_handlers.py'\n'secret_provider.py'\n'recovery.py'\n'processing_result.py'\n'hmac_contract.py'\nItems in the second set but not the first:\n'result_handler.py'\n'result_consumer.py'\n'dispatch.py'\n'result_envelope.py'\n'agent_order.py' : unexpected deployment file set\n7 failed, 2 passed in 0.35s\n",
+      "stderr_tail": ""
+    }
+  ],
+  "profile_status": "BLOCKED",
+  "module_artifact": {
+    "path": "/home/runner/work/_temp/generated/rc4",
+    "source_commit": "5bc154e",
+    "zip_sha256": "20f4bab5766529e3340273cfde3b35c601a389122759051f2aef801337b76377",
+    "manifest_sha256": "2301dcdf7658b9617306f4227755615066272a297f7ba0d5ec25feb14be424de",
+    "status": "BLOCKED",
+    "errors": [
+      "generated module source commit differs from selected Mays test version"
+    ]
+  }
+}
