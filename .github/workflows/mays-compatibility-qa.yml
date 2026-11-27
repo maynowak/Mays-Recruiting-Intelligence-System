@@ -126,6 +126,7 @@ jobs:
             exit 2
           fi
           mkdir -p "$RUNNER_TEMP/qa/results" "$RUNNER_TEMP/generated/current" "$RUNNER_TEMP/generated/rc4"
+          mkdir -p "$GITHUB_WORKSPACE/installer/projects"
           ris_source_alias="$GITHUB_WORKSPACE/installer/projects/mays_order_builder"
           if [ -e "$ris_source_alias" ] && [ ! -L "$ris_source_alias" ]; then
             echo "Refusing to replace pre-existing path: $ris_source_alias"
