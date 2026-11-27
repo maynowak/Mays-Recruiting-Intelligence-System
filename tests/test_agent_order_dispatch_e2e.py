@@ -276,10 +276,17 @@ class TestAgentOrderDispatchE2E(unittest.TestCase):
         from result_handler import process_records
         from order_service import OrderService
 
-        response = self._create_agent_order()
+        # Match the Mays original contract: orderDescription is opaque text,
+        # persisted verbatim, and exposed on the public owner projection.
+        request_body = agent_body()
+        expected_description = request_body["orderDescription"]
+        response = self._create_agent_order(request_body)
         self.assertEqual(201, response["statusCode"], response["body"])
         created = json.loads(response["body"])
+        self.assertEqual(expected_description, created["orderDescription"])
         order_id = created["orderId"]
+        self.assertEqual(expected_description,
+                         self.orders.items[order_id]["orderDescription"])
         self.assertEqual(1, len(self.dispatched))
         envelope = self.dispatched[0]
         self.assertEqual(order_id, envelope["orderId"])
@@ -324,6 +331,7 @@ class TestAgentOrderDispatchE2E(unittest.TestCase):
             event("GET /orders/{orderId}", order_id=order_id), None, self.orders)
         self.assertEqual(200, read["statusCode"])
         public = json.loads(read["body"])
+        self.assertEqual(expected_description, public["orderDescription"])
         self.assertEqual("agent.execution", public["orderType"])
         self.assertEqual("2.0", public["processing"]["result"]["bodyVersion"])
         self.assertEqual(50, public["processing"]["result"]["analysis"]["score"])
