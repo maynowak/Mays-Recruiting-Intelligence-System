@@ -126,6 +126,13 @@ jobs:
             exit 2
           fi
           mkdir -p "$RUNNER_TEMP/qa/results" "$RUNNER_TEMP/generated/current" "$RUNNER_TEMP/generated/rc4"
+          ris_source_alias="$GITHUB_WORKSPACE/installer/projects/mays_order_builder"
+          if [ -e "$ris_source_alias" ] && [ ! -L "$ris_source_alias" ]; then
+            echo "Refusing to replace pre-existing path: $ris_source_alias"
+            exit 2
+          fi
+          if [ -L "$ris_source_alias" ]; then rm "$ris_source_alias"; fi
+          ln -s "$RUNNER_TEMP/mays-current" "$ris_source_alias"
           fail=0
           run_profile() {
             name="$1"; version="$2"; source="$3"; extra="$4"
@@ -169,6 +176,7 @@ jobs:
             fi
           done
           sudo rm -f "$source_alias"
+          rm -f "$ris_source_alias"
           exit "$fail"
 
       - name: Upload machine-readable QA evidence
