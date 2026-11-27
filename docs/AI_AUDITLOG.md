@@ -13725,3 +13725,15 @@ single-source pin, no versioned overlay; Installer replaces rather than merges
 the generated module. No patch was applied, no permanent source/pin/module
 change. `MODE=true` unchanged; LIVE=false; no AWS/Terraform operations or Main
 merge. Report: `docs/reports/RIS-MAYS-ORDERS-DESCRIPTION-PATCH-19F6.md`.
+
+[RIS-DEV2-DEPLOYMENT-BASELINE-19F7]
+Phase 1 complete: verified clean RIS branch at baseline
+`95c9a90a9c237ecdfe3bb0f7ea723dc09cee7597`; remote feature branch matched.
+Mays source pin and generated module manifest remain
+`db4f9e79980443de1cd3d5b688a33c0cf0eb771f`. OrderDescription is already
+present; no module upgrade is needed. Historical worker SHA
+`78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7` retained; candidate
+`507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d` remains
+review-only. Historical Canary-Recovery/Redrive is removed from the release
+critical path and remains unexecuted/separately authorized. Phases 2–6 pending.
+Report: `docs/reports/RIS-DEV2-DEPLOYMENT-BASELINE-19F7.md`.
