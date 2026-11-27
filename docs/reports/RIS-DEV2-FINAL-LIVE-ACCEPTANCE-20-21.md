@@ -339,3 +339,111 @@ invocation, queue receive/delete/visibility change, retry, redrive, recovery,
 or cleanup occurred in 20A2. The protected unstaged
 `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json` remains
 untouched. **STOP at Gate 1. No automatic continuation.**
+
+## Gate reconciliation — synthetic technical canary vs commercial operation
+
+**Review baseline:** `189b5c79acd00b56f1811258d1bd00f5bdb9a565`.
+This reconciliation reuses 20A2 AWS evidence and the 19H/19F8 artifacts; it
+does not repeat AWS reads, deployment verification, or QA.
+
+### A — Synthetic technical live acceptance
+
+**Decision: `LIVE_CANARY=BLOCKED`; Gate 1 and Gate 2 remain closed.**
+
+The configured `ANALYSIS_SYNTHETIC_MODE=true` does **not** reliably exclude all
+external provider calls in the proposed live canary:
+
+1. The planned order targets `ats-agent` / `analyze.job`. Its actual worker path
+   is `Agent-Worker → ATSAgent → ATSHttpClient → POST
+   https://mays-jobsearch.vercel.app/api/ats-analysis` with the job and
+   optional profile. `ATSAgent` does not read `ANALYSIS_SYNTHETIC_MODE`.
+2. That flag is consumed by the separate dedicated `analysis_runner` /
+   `AnalysisAgent` identity gate. It only grants an exact synthetic identity
+   for that internal analysis capability after matching persisted WorkItem
+   identity/status and unexpired configuration. It neither redirects nor
+   disables the ATS agent's HTTP request. Its configured expiry
+   `2026-11-26T17:40:28Z` is expired; this blocks that internal synthetic
+   analysis path but is not a necessary configuration change for a canary that
+   exclusively targets `ats-agent`. The prior proposal to extend that expiry
+   must not be treated as a requirement or authorization for this ATS canary.
+3. The RIS ATS client sends only `{job, profile?}`; it does not send the
+   optional `ai` opt-in. The pinned Jobsearch API contract says AI defaults
+   off and its documented deterministic path does not use an LLM. This is
+   evidence against an intentional AI-provider request by this client, **not**
+   proof that the currently deployed external service has no variable charge,
+   that its live implementation still honors the pin, or that its hosting/API
+   request is free. The endpoint is an external, independently deployed and
+   mutable service; no current billing attestation or enforceable price bound
+   is in the accepted evidence.
+4. HTTP-library selection (`httpx`, else `requests`, else stdlib `urllib`) is
+   only a transport-library fallback to the same URL; it is not a local or
+   free-provider fallback. There is no explicit retry loop in `ATSHttpClient`.
+   HTTP/network/contract errors become unsuccessful agent results. The worker
+   classifies `ATSAPIError`/`ATSContractError` as non-permanent, persists the
+   failed attempt and raises; the existing SQS work-queue redelivery can then
+   start a new attempt and call the ATS endpoint again. Worker conditional
+   claims suppress a competing delivery while an item is RUNNING, but a
+   `FAILED` retry is a new attempt. With the existing `maxReceiveCount=3`, one
+   WorkItem has at most three receives/agent attempts under that queue policy;
+   each valid ATS attempt can make one POST. This is a finite call-count bound
+   per WorkItem, **not** a monetary bound or provider idempotency guarantee.
+   Result-queue redelivery concerns result delivery, not another ATS analysis.
+
+**Cost boundary:** AWS charges remain possible even if the Jobsearch AI branch
+is not used: API Gateway, Lambda (including retries), SQS, DynamoDB, and
+CloudWatch Logs are on the path. The existing retry policy bounds receives per
+message but does not impose a dollar ceiling. Metered AWS usage is not zero,
+and the existing evidence contains neither a per-canary price calculation nor
+an inline spend stop. The external Jobsearch request/hosting charge and any
+provider-side charge are likewise unverified. No defensible numeric total or
+all-in enforceable cap can be stated from the current code/evidence. Therefore
+a “no monetary billing” guarantee, and a cost-safe approval without new
+provider evidence or a synthetic no-egress path, are **not demonstrated**.
+
+**Minimum technical path to a non-provider-billed technical E2E:** add a
+default-off, exact-identity synthetic ATS adapter in the existing `ats-agent`
+execution path which returns a deterministic fixture and fails closed without
+any outbound HTTP when selected; test that the real worker/dispatch/result
+path executes while the HTTP client is never called. Keep production routing,
+entitlements, retries, and billing untouched. This requires a runtime source
+change and redeployment, so it is outside this request and is not implemented.
+It would test orchestration/roundtrip, not the external Jobsearch integration.
+If the external endpoint itself must be exercised, obtain a dated service-owner
+and billing-owner statement for the exact live endpoint/deployment confirming
+AI disabled and maximum/no-variable charge for up to three ATS POST attempts,
+plus an explicit accepted AWS usage allowance. If a hard all-in monetary cap
+is required, the current stack has no synchronous enforcement; add a narrowly
+scoped spend-control design or provider-side cap before reopening Gate 2. Do
+not disable shared retries or use a budget alert as if it were a hard stop.
+
+No revised approval template is issued: neither no-provider-egress nor a
+verified external-provider/AWS cost limit is presently established. The earlier
+20A3 approval text remains historical preparation only; it does not authorize
+mutations and its Analysis expiry extension is not part of the ATS-agent path.
+
+### B — Commercial agent entitlement and billing backlog
+
+Recorded separately as
+`docs/roadmap/RIS-AGENT-ENTITLEMENT-BILLING-01.md` (**BACKLOG; NOT
+IMPLEMENTED, NOT AUTHORIZED**). Scope includes owner/tenant-bound entitlement;
+`apiProfileId`, Capability, and Work-Type scoping; atomic usage limits;
+idempotent cost reservation/settlement; explicit currency and monetary meaning
+of `unitPrice`; retry-safe provider charging; and enforceable cost ceilings.
+No code, schema, Terraform, IAM, or provider configuration for this work item
+was changed. It is a commercial-agent capability, separate from this blocked
+synthetic technical canary.
+
+### Reconciled release gates
+
+| Target | Decision |
+|---|---|
+| A — `ANALYSIS_SYNTHETIC_MODE=true` as provider-cost exclusion | **NO** — applies only to the separate internal Analysis identity path; ATS order path still POSTs externally |
+| Synthetic technical canary with no external provider charge | **BLOCKED** — needs a strict no-egress synthetic ATS adapter or provider-owner cost evidence |
+| All-in cost boundary using current mechanisms | **NOT ESTABLISHED** — finite SQS receives per WorkItem, no enforceable dollar cap; AWS usage remains billable |
+| B — `RIS-AGENT-ENTITLEMENT-BILLING-01` | **BACKLOG ONLY** — not implemented |
+| Gate 1 | **CLOSED** — no authorization for mutations or runtime changes |
+| Gate 2 / live canary | **CLOSED; `LIVE_CANARY=BLOCKED`** |
+| Orders, invocations, retries, redrive, AWS mutations | **0 performed in this reconciliation** |
+
+The protected 19F2 results file was not included in these changes. No Main
+merge, deployment, Terraform plan/Apply, or new QA was performed.

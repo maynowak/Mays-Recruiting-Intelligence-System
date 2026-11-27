@@ -14115,3 +14115,50 @@ operation, deployment, or QA was run.
 - Protected 19F2 file was not staged or changed by this step. Its worktree
   status remains reported as modified, but `git diff` shows no content change
   against the index; left untouched.
+
+## RIS-DEV2-FINAL-LIVE-ACCEPTANCE — Gate Reconciliation — 2026-11-27
+
+Baseline: `189b5c79acd00b56f1811258d1bd00f5bdb9a565`. Gates 1 and 2 remain
+closed. No previous AWS queries, deployment checks, or QA were repeated. This
+step used local source and already committed evidence only; no AWS-backed
+command, plan/Apply, mutation, invocation, order, queue action, deployment, or
+test suite was run.
+
+- Reconciled `ANALYSIS_SYNTHETIC_MODE` with the real proposed canary path. The
+  flag gates only the dedicated internal `analysis_runner`/`AnalysisAgent`
+  synthetic identity and checks exact identity plus a persisted RUNNING
+  WorkItem. It does not gate `ats-agent`. The proposed `ats-agent/analyze.job`
+  worker calls the configured external Jobsearch `/api/ats-analysis` endpoint.
+  The old Analysis synthetic expiry is expired, but extending it is not
+  functionally required for a canary that exclusively targets `ats-agent`.
+- RIS sends `{job, profile?}` and omits the optional `ai` field. The pinned
+  endpoint contract says AI defaults off and documents a deterministic path;
+  this does not establish current external deployment behavior or prove the
+  endpoint/hosting is free. Transport-library fallback (httpx/requests/urllib)
+  targets the same URL; it is not a free/local provider fallback.
+- ATS HTTP/contract failures become unsuccessful agent results. Worker
+  `PERMANENT_ERROR_CODES` does not include `ATSAPIError` or `ATSContractError`,
+  so the pipeline persists failure and raises for SQS redelivery. Conditional
+  worker claim suppresses competing RUNNING deliveries; a FAILED retry starts
+  a new attempt. Existing Work queue `maxReceiveCount=3` bounds receives per
+  WorkItem, with at most one ATS POST per valid attempt; this is not provider
+  billing idempotency or a dollar cap. Result redelivery retries result
+  delivery, not the ATS agent.
+- AWS charges remain possible for API Gateway, Lambda, SQS, DynamoDB and logs.
+  No all-in hard cap or defensible numeric total exists in accepted evidence.
+  Decision: **`LIVE_CANARY=BLOCKED`**; no revised approval template because
+  provider no-charge behavior and total spend are unproven. Minimal no-provider-
+  egress technical route would require a default-off, exact-match deterministic
+  ATS synthetic adapter plus a no-network assertion; this requires runtime
+  changes/deployment and was not implemented. If exercising the external
+  endpoint, require provider/billing-owner cost evidence and an accepted AWS
+  usage allowance; a hard cap needs synchronous enforcement.
+- Created separate backlog record
+  `docs/roadmap/RIS-AGENT-ENTITLEMENT-BILLING-01.md` covering owner/tenant and
+  profile/capability/Work-Type scoping, atomic use limits, idempotent reserve/
+  settlement, price/currency semantics, retry-safe provider charges, and
+  enforceable ceilings. This is documentation only; no implementation.
+- Updated orchestration report
+  `docs/reports/RIS-DEV2-FINAL-LIVE-ACCEPTANCE-20-21.md`. The protected 19F2
+  file was not staged; it remains worktree-marked modified but has no content
+  diff against the index. No Main merge.
