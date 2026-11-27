@@ -13692,11 +13692,19 @@ pinned to this exact SHA in `6d0b6ba5d865f4f78968154f89a8d847462188ce`.
 Candidate original tests: Lambda 456 PASS, seed 28 PASS, Cognito backup 2 PASS;
 module Builder 113 PASS / 16 FAIL; Installer 71 PASS / 9 errors / 1 skipped.
 RIS XREPO_CONTRACT 124 PASS / 9 FAIL / 4 subtests; XREPO_E2E 3 PASS / 36 FAIL.
-Contract gate reports missing candidate `result_envelope`; E2E reports missing
-`result_consumer`, plus the broader dispatch/handoff failures. Required gates
-failed, so no module build, Generated Module Validation, installer invocation,
-Terraform init/validate, UPGRADE_GATE, or FULL was run. Existing generated
-module and builder pin remain unchanged. MODE=true unchanged; LIVE=false;
-AWS mutations 0; Terraform plan/apply 0; Main merge 0. Report:
-`docs/reports/RIS-MAYS-ORDERS-MAIN-UPGRADE-19F5.md`. Raw result JSONs remain in
-the session Temp workspace at the paths listed in that report.
+Contract reports missing candidate `result_envelope`; E2E reports missing
+`result_consumer` and broader dispatch/handoff failures. Builder source copy
+replaces `lambda/src/*.py` with candidate files; Installer replaces the generated
+module directory rather than merging it. Candidate deletes integrated
+`dispatch.py`, `result_envelope.py`, `result_handler.py`, `result_consumer.py`,
+`agent_order.py`, and `terraform/modules/agent_transport/{main.tf,lambda.tf}`.
+No supported path preserves these while honoring exact-candidate provenance.
+Separate profiles: UPGRADE_GATE BLOCKED (RIS builder contract 57 PASS; generated
+artifact 8 PASS / 1 FAIL on stale integrated manifest); FULL BLOCKED (RIS Native
+collection errors: missing moto/requests; 3 skipped). Required original suites
+also report Builder 113/16 and Installer 71/9 errors/1 skipped. Therefore no
+candidate build, generated-module install, or Terraform validate. Existing
+module and active builder pin unchanged. MODE=true unchanged; LIVE=false; AWS
+mutations 0; Terraform plan/apply 0; Main merge 0. Report:
+`docs/reports/RIS-MAYS-ORDERS-MAIN-UPGRADE-19F5.md`. Unified JSON evidence is
+outside the repository at paths listed in that report.
