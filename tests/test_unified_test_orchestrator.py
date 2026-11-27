@@ -35,6 +35,7 @@ class ProfileIsolationTests(unittest.TestCase):
         xrepo_job = next(job for job in jobs if job.key == "xrepo_contract")
         native_job = next(job for job in jobs if job.key == "ris_native")
         self.assertIn("lambda", lambda_job.python_path.lower())
+        self.assertIn("src", lambda_job.python_path.lower())
         self.assertTrue(xrepo_job.mays_source)
         self.assertFalse(native_job.mays_source)
         self.assertEqual("", native_job.python_path)

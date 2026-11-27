@@ -118,7 +118,7 @@ def profile_jobs(profile: str, mays: Path) -> list[Job]:
         ],
         "MAYS_MODULE": [
             _unittest("mays_lambda", "MAYS_ORDERS", mays / "lambda", "tests",
-                      str(lambda_src)),
+                      os.pathsep.join((str(mays / "lambda"), str(lambda_src)))),
             _mays_pytest("mays_module_builder", mays, ["module_builder/tests"]),
             Job("mays_installer", "MAYS_ORDERS", str(mays_root),
                 "unittest_module", ["installer.tests.test_installer"], str(mays_root)),
@@ -358,6 +358,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--mays-version", default="integrated",
                         choices=("integrated", "upgrade_candidate"))
     parser.add_argument("--mays-source", type=Path, default=DEFAULT_MAYS)
+    parser.add_argument(
+        "--module-artifact-dir", type=Path,
+        help="Read-only generated module artifact to contract-test (e.g. isolated candidate build).",
+    )
     parser.add_argument("--ris-python", default=sys.executable)
     parser.add_argument("--mays-python", default=sys.executable)
     parser.add_argument("--json-report", type=Path, default=DEFAULT_REPORT)
@@ -421,20 +425,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         result["groups"].append({"group": "provenance", "status": "BLOCKED",
                                  "reason": "; ".join(provenance_errors)})
     else:
-        module_dir = ROOT / "terraform" / "modules" / "mays_orders"
+        module_dir = args.module_artifact_dir or (ROOT / "terraform" / "modules" / "mays_orders")
         manifest_path = module_dir / "module-builder.manifest.json"
         artifact_path = module_dir / "lambda" / "dist" / "lambda.zip"
         module_manifest = None
         module_sha = ""
+        artifact_errors: list[str] = []
         if manifest_path.is_file() and artifact_path.is_file():
             module_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             module_sha = sha256(artifact_path)
             expected_sha = module_manifest.get("artifacts_sha256", {}).get("lambda/dist/lambda.zip")
             if expected_sha != module_sha:
-                provenance_errors.append("generated-module ZIP hash differs from its manifest")
+                artifact_errors.append("generated-module ZIP hash differs from its manifest")
                 module_dir = None
             elif module_manifest.get("source", {}).get("commit") != mays_entry["commit"]:
-                provenance_errors.append("generated module source commit differs from selected Mays test version")
+                artifact_errors.append(
+                    "generated module source commit differs from selected Mays test version"
+                )
                 module_dir = None
         else:
             module_dir = None
@@ -444,11 +451,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "zip_sha256": module_sha or None,
             "manifest_sha256": sha256(manifest_path) if manifest_path.is_file() else None,
             "status": "VERIFIED" if module_dir else "BLOCKED",
-            "errors": provenance_errors,
+            "errors": artifact_errors,
         }
-        if provenance_errors:
-            result["mays_orders"]["provenance_status"] = "BLOCKED"
-            result["mays_orders"]["errors"].extend(provenance_errors)
         if profile in ("FULL", "UPGRADE_GATE") and args.mays_version == "upgrade_candidate":
             result["upgrade_candidate_status"] = "CANDIDATE_TESTS_ONLY_NOT_UPGRADE_AUTHORIZATION"
         if profile == "UPGRADE_GATE" and args.mays_version == "integrated":
