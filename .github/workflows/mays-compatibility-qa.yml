@@ -1,0 +1,158 @@
+name: RIS Mays Compatibility QA (read-only)
+
+on:
+  push:
+    branches: [feature/ris-analysis-integration-07]
+    paths:
+      - ".github/workflows/mays-compatibility-qa.yml"
+      - "lambda/build_zip.py"
+      - "tests/**"
+      - "scripts/unified_test*.py"
+      - "installer/mays-orders-test-versions.json"
+      - "docs/api/openapi-platform.yaml"
+      - "agents/orders/**"
+      - "agents/transport/**"
+      - "terraform/**"
+      - "module_builder/**"
+
+permissions:
+  contents: read
+
+jobs:
+  pinned-local-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      AWS_EC2_METADATA_DISABLED: "true"
+      AWS_CONFIG_FILE: ${{ runner.temp }}/ris-qa-empty-aws-config
+      AWS_SHARED_CREDENTIALS_FILE: ${{ runner.temp }}/ris-qa-empty-aws-credentials
+      TF_IN_AUTOMATION: "true"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+    steps:
+      - name: Checkout RIS feature branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.14.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14.10"
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.17.0"
+          terraform_wrapper: false
+
+      - name: Create empty AWS configuration and install local test dependencies
+        run: |
+          : > "$AWS_CONFIG_FILE"
+          : > "$AWS_SHARED_CREDENTIALS_FILE"
+          python -m pip install -r requirements.txt
+
+      - name: Fetch exact Mays source commits read-only
+        env:
+          CURRENT_SHA: db4f9e79980443de1cd3d5b688a33c0cf0eb771f
+          CANDIDATE_SHA: 5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420
+        run: |
+          set -euo pipefail
+          git clone --no-checkout https://github.com/maynowak/mays-order-aws.git "$RUNNER_TEMP/mays-current"
+          git -C "$RUNNER_TEMP/mays-current" checkout --detach "$CURRENT_SHA"
+          git clone --no-checkout https://github.com/maynowak/mays-order-aws.git "$RUNNER_TEMP/mays-rc4"
+          git -C "$RUNNER_TEMP/mays-rc4" checkout --detach "$CANDIDATE_SHA"
+          test "$(git -C "$RUNNER_TEMP/mays-current" rev-parse HEAD)" = "$CURRENT_SHA"
+          test "$(git -C "$RUNNER_TEMP/mays-rc4" rev-parse HEAD)" = "$CANDIDATE_SHA"
+          test -z "$(git -C "$RUNNER_TEMP/mays-current" status --porcelain)"
+          test -z "$(git -C "$RUNNER_TEMP/mays-rc4" status --porcelain)"
+
+      - name: Build RIS bundles twice in independent clean clones
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/qa"
+          for n in one two; do
+            git clone --no-hardlinks --no-checkout "$GITHUB_WORKSPACE" "$RUNNER_TEMP/ris-build-$n"
+            git -C "$RUNNER_TEMP/ris-build-$n" checkout --detach "$GITHUB_SHA"
+            (cd "$RUNNER_TEMP/ris-build-$n" && python lambda/build_zip.py --bundle all)
+          done
+          python - "$RUNNER_TEMP/ris-build-one" "$RUNNER_TEMP/ris-build-two" "$RUNNER_TEMP/qa/bundle-reproducibility.json" <<'PY'
+          import hashlib, json, platform, sys, zlib
+          from pathlib import Path
+          roots = [Path(p) for p in sys.argv[1:3]]
+          files = ("terraform/lambda.zip", "terraform/analysis-lambda.zip", "lambda/dist/orders-reader.zip")
+          rows = {}
+          failed = False
+          for relative in files:
+              hashes = [hashlib.sha256((root / relative).read_bytes()).hexdigest() for root in roots]
+              rows[relative] = {"build_one_sha256": hashes[0], "build_two_sha256": hashes[1], "matches": hashes[0] == hashes[1]}
+              failed |= hashes[0] != hashes[1]
+          data = {"python": sys.version, "platform": platform.platform(), "zlib_build": zlib.ZLIB_VERSION, "zlib_runtime": zlib.ZLIB_RUNTIME_VERSION, "runs": rows, "reproducible": not failed}
+          Path(sys.argv[3]).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+          print(json.dumps(data, indent=2))
+          raise SystemExit(1 if failed else 0)
+          PY
+          # Materialize the same declared-source artifacts in the actual QA
+          # checkout: the existing Unified RIS_NATIVE profile validates them.
+          python lambda/build_zip.py --bundle all
+
+      - name: Run unified current and candidate QA profiles
+        env:
+          PYTHONPATH: ""
+          MO_ORDERS_SRC: ""
+          AWS_PROFILE: ""
+          AWS_DEFAULT_PROFILE: ""
+          AWS_ACCESS_KEY_ID: ""
+          AWS_SECRET_ACCESS_KEY: ""
+          AWS_SESSION_TOKEN: ""
+          AWS_SECURITY_TOKEN: ""
+        run: |
+          set -uo pipefail
+          mkdir -p "$RUNNER_TEMP/qa/results" "$RUNNER_TEMP/generated/current" "$RUNNER_TEMP/generated/rc4"
+          fail=0
+          run_profile() {
+            name="$1"; version="$2"; source="$3"; extra="$4"
+            report="$RUNNER_TEMP/qa/results/${name}-${version}.json"
+            args=("$name" --mays-version "$version" --mays-source "$source" --json-report "$report")
+            if [ -n "$extra" ]; then args+=(--module-artifact-dir "$extra"); fi
+            if python scripts/unified_tests.py "${args[@]}"; then
+              echo "PROFILE_RESULT $name $version PASS"
+            else
+              code=$?
+              echo "PROFILE_RESULT $name $version FAIL exit=$code"
+              fail=1
+            fi
+          }
+
+          # Generate throwaway Terraform modules only under RUNNER_TEMP; this does
+          # not install, replace, or pin a module in RIS or the Mays source repo.
+          for spec in "integrated:$RUNNER_TEMP/mays-current:current" "upgrade_candidate:$RUNNER_TEMP/mays-rc4:rc4"; do
+            version=${spec%%:*}; rest=${spec#*:}; source=${rest%%:*}; label=${rest##*:}
+            (cd "$source" && python lambda/build_zip.py)
+            (cd "$source" && python -m module_builder build --target "$RUNNER_TEMP/generated/$label" --project-name "ris-mays-$label-qa" --preset orders-service --source "$source") || fail=1
+            if [ -d "$RUNNER_TEMP/generated/$label" ]; then
+              terraform -chdir="$RUNNER_TEMP/generated/$label" fmt -check -recursive || fail=1
+              TF_DATA_DIR="$RUNNER_TEMP/tfdata-$label" terraform -chdir="$RUNNER_TEMP/generated/$label" init -backend=false -input=false -no-color || fail=1
+              TF_DATA_DIR="$RUNNER_TEMP/tfdata-$label" terraform -chdir="$RUNNER_TEMP/generated/$label" validate -no-color || fail=1
+            fi
+            if [ "$version" = integrated ]; then source_key=integrated; else source_key=upgrade_candidate; fi
+            run_profile MAYS_MODULE "$source_key" "$source" ""
+            run_profile MODULE_BUILD "$source_key" "$source" "$RUNNER_TEMP/generated/$label"
+            if [ "$source_key" = integrated ]; then
+              run_profile FULL integrated "$source" "$RUNNER_TEMP/generated/$label"
+            else
+              run_profile XREPO_CONTRACT upgrade_candidate "$source" ""
+              run_profile XREPO_E2E upgrade_candidate "$source" ""
+              run_profile UPGRADE_GATE upgrade_candidate "$source" "$RUNNER_TEMP/generated/$label"
+            fi
+          done
+          exit "$fail"
+
+      - name: Upload machine-readable QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ris-mays-compatibility-qa-${{ github.sha }}
+          path: ${{ runner.temp }}/qa/
+          if-no-files-found: warn
+          retention-days: 30
