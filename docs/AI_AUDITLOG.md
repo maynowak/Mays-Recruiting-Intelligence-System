@@ -14073,3 +14073,45 @@ Status: **READ-ONLY PREPARATION COMPLETE; GATE 1 NOT APPROVED; STOP**.
   entitlement/configuration/AWS mutation, recovery, redrive, or cleanup.
 - Protected unstaged 19F2 file remains untouched. **STOP at Gate 1; no
   automatic continuation.**
+
+## RIS-DEV2-FINAL-LIVE-ACCEPTANCE — Gate 1 continuation — 2026-11-27
+
+Baseline: `dfcbde4137668a2874b5faf5bda7b47a9ef236eb`. 20A2 was not repeated;
+existing report and sanitized 20A2 evidence were reused. Work was limited to
+local code/config/report inspection and documentation. `AWS_READ_ONLY=true`;
+no AWS-backed command, AWS mutation, Terraform plan, order, invocation, queue
+operation, deployment, or QA was run.
+
+- Consolidated Gate 1 proposal into
+  `docs/reports/RIS-DEV2-FINAL-LIVE-ACCEPTANCE-20-21.md`. It identifies the
+  exact owner/tenant through the previously verified
+  `analysis_synthetic_user_id`/`analysis_synthetic_tenant_id` bindings without
+  putting raw IDs in Git; specifies `ats-agent`, `analyze.job`, and WorkItem
+  type `ats_process`; and records that the actual entitlement schema only
+  grants at agentId granularity.
+- Proposed only two Terraform input changes: one `foundation_entitlements`
+  seed entry for that user/tenant/agent with validity from scheduled `T0-1m`
+  through `T0+15m`, and `analysis_synthetic_expires_at=T0+15m`, retaining
+  synthetic mode and allowlist. `T0` must be an explicit approved UTC value;
+  exact calendar time is not fabricated because there is no scheduled canary.
+  Separate plan review and Apply approval remain required.
+- Explicitly recorded mechanism limitations: no `apiProfileId` persistence,
+  capability/work-type restriction, single-use counter, or TTL cleanup. The
+  seed is reusable user/tenant/agent-level authorization during its time
+  window; the row remains after expiry. If one-shot or narrower authorization
+  is mandatory, Gate 1 cannot proceed with this mechanism.
+- No reliable numeric per-order estimate or all-in hard cap can be established:
+  Mays `unitPrice` has no verified monetary schedule/maximum, external ATS
+  charging is unknown, and AWS usage dimensions are not fixed. Existing
+  dispatch/work/result queues retain `maxReceiveCount=3` and their DLQs; the
+  prior approximate Work DLQ count was one. No retry/DLQ change proposed.
+  Stable idempotency reduces duplicate processing but does not bound a new
+  order or provider charges. Gate 2 remains blocked pending a binding external
+  price/cost cap and explicit retry policy acceptance.
+- A complete Gate 1 decision block now states current/proposed values and
+  read-only verification after separately approved Apply. Gate 1 is **NOT
+  GRANTED**; no continuation to 20A3 until explicit approval. Gate 2 remains
+  mandatory before any live canary.
+- Protected 19F2 file was not staged or changed by this step. Its worktree
+  status remains reported as modified, but `git diff` shows no content change
+  against the index; left untouched.

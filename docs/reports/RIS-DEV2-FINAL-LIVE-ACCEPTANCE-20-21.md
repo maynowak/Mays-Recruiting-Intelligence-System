@@ -166,6 +166,153 @@ entitlement window, idempotency key, maximum one order, cost limit, and
 observation limits. The existing 20A report contains the draft 20B contract;
 its profile placeholder and cost proposal are not authorization.
 
+## Gate 1 continuation — consolidated change review and limits
+
+This section makes the approval proposal concrete without repeating 20A2 or
+performing AWS reads/writes. Owner and tenant are deliberately referenced by
+the exact already-verified configuration bindings rather than copied as raw
+identifiers into Git:
+
+- **Owner/user:** `var.analysis_synthetic_user_id`, the same configured
+  Cognito `sub` that owns the one verified ACTIVE APIProfile
+  (`ownerUserId == sub`).
+- **Tenant:** `var.analysis_synthetic_tenant_id`, the tenant already bound to
+  that owner and matched by the verified Cognito tenant attribute and profile.
+- **Requested operation:** agent `ats-agent`, capability `analyze.job`,
+  WorkItem type `ats_process`. The entitlement row schema stores `agentId`,
+  not capability or WorkItem type; therefore the proposed grant cannot
+  technically restrict use to only `analyze.job`/`ats_process`. Do not describe
+  it as capability-scoped.
+
+| Mutation | Verified current state | Exact proposed state | Verification if separately approved |
+|---|---|---|---|
+| Temporary entitlement seed | `foundation_entitlements` input map is empty; targeted lookup found no required ATS row. | Add exactly one map entry with key `ris-dev2-live-acceptance-ats-agent-2026-11-27`; `userId=var.analysis_synthetic_user_id`; `tenantId=var.analysis_synthetic_tenant_id`; `agentId=ats-agent`; `validFrom=T0-PT1M`; `validUntil=T0+PT15M`. No other entry. | Before Apply: independently review saved plan and require exactly one `aws_dynamodb_table_item.foundation_entitlement` add. After separately approved Apply: targeted `GetItem` for the exact entitlementId; compare user/tenant/agent/window, then read-only confirm the active worker authorization check accepts only the intended owner/tenant/agent during that window and denies outside it. Never scan. |
+| Analysis synthetic expiry | `ANALYSIS_SYNTHETIC_MODE=true`; expiry is `2026-11-26T17:40:28Z` (expired); current capability allowlist unchanged. | Root Terraform input `analysis_synthetic_expires_at = <T0+PT15M formatted RFC3339 UTC>`; retain mode `true`, current allowlist, and all other environment values. T0 must be an explicitly scheduled UTC 20B start entered in the approval before a plan; no guessed or rolling timestamp. | Before Apply: review saved plan for exactly the intended Analysis Lambda environment update and no other actions. After separately approved Apply: read-only `GetFunctionConfiguration` comparison of expiry, `ANALYSIS_SYNTHETIC_MODE=true`, allowlist, and unrelated environment values; verify function update is successful. |
+
+The timestamp expressions above are exact intervals but intentionally are not
+fabricated calendar timestamps: no canary schedule has been approved. The
+approver must enter a concrete UTC `T0`, from which the entitlement values and
+Lambda expiry are mechanically derived, before a Terraform plan is prepared.
+If the Terraform input cannot represent an ISO timestamp for the entitlement
+window in the existing accepted format, STOP and resolve that in plan review;
+do not change runtime code or schema under this approval.
+
+**Important authorization limit:** the Terraform seed drops optional
+`apiProfileId`, and the stored entitlement has no capability, WorkItem-type,
+use-count, or balance field. Its `validUntil` limits time only; within the
+window it permits repeated authorized executions for that same user/tenant/
+agent. It is not a one-time grant. The above proposal accepts that broader
+user/tenant/agent scope only if the approver explicitly writes `ACCEPT`; if
+one-use or profile/capability restriction is mandatory, the existing seed
+mechanism cannot meet the requirement and Gate 1 must remain closed. Expiry
+also does not delete the DynamoDB row: later Terraform removal is separate,
+requires separate approval, and is not automatic.
+
+### Cost, idempotency, retries, and DLQ — Gate 2 remains blocked
+
+- **Estimated cost:** no defensible numeric estimate is available from the
+  accepted evidence. The order `unitPrice` is a positive integer passed
+  through by RIS; no verified price schedule, maximum, or non-billable SKU
+  defines its monetary meaning. The external ATS endpoint's pricing/charge
+  behavior is unknown. AWS request counts, duration, logs, data transfer, and
+  pricing dimensions for the actual run are also not pinned. A cost estimate
+  must therefore be reported as **unknown / not estimable from verified
+  inputs**, not as `$0` or as the literal `unitPrice`.
+- **Technically enforceable cost ceiling:** none was verified. A one-order
+  operator limit, entitlement time window, idempotency key, AWS Budgets alert,
+  or retrospective Cost Explorer reading is not an all-in per-order hard cap;
+  none prevents an external provider charge. The concrete blocker is the lack
+  of a verified provider price/charge contract and an enforceable cap spanning
+  both provider and AWS charges. Until the provider/billing owner supplies a
+  binding maximum and a mechanism that refuses execution above it, Gate 2
+  cannot be approved.
+- **Existing retry/DLQ behavior:** dispatch, work, and result queues retain
+  their existing redrive policies (`maxReceiveCount=3`); the reused deployment
+  evidence records enabled mappings. In the checked-in Terraform, Dispatch
+  Ingress reports partial batch failures, while the core worker mapping has
+  `batch_size=5` and no `function_response_types` override (so do not assume
+  per-record retry isolation there). Result-consumer mapping details are not
+  inferred beyond the reused deployment evidence. A processing failure can be
+  redelivered up to the configured receive limit and then sent to its existing
+  DLQ. The Work DLQ already had an approximate visible count of one in the
+  20A2 read. No queue setting, message, DLQ, mapping, or existing order is to
+  be changed as part of this proposal. Do not disable retries or drain/re-drive
+  the existing DLQ.
+- **Idempotency:** preserve the single canary's one order ID/work ID and stable
+  keys through dispatch and result delivery. The result transport derives
+  `messageId=msg_<workId>_order_result` and
+  `idempotencyKey=<orderId>:<workId>:ORDER_RESULT`; duplicate deliveries are
+  intended to avoid duplicate completion. Reused Worker Claim Fix 19C evidence
+  establishes conditional `QUEUED→RUNNING` initial claim and suppresses a
+  competing claim; a retry from `FAILED` conditionally increments the attempt
+  and transient errors still raise for SQS redelivery. This is duplicate and
+  attempt control, not a spend cap: an error after an external request may
+  result in a later retry attempt, a new order with a different key is
+  distinct, and provider-side idempotency/charge deduplication is not
+  established by the existing evidence. Any exact canary key belongs in Gate
+  2, not in this Gate 1 approval.
+- **Retry exposure:** maximum receive count is known per queue, but the total
+  number of external ATS calls and chargeable effects per logical order is not
+  bounded by evidence because cross-stage retries and provider-side
+  idempotency/charging are not jointly proven for the live path. The 19C claim
+  guard suppresses a competing claim for the same active WorkItem; it does not
+  prove that a downstream timeout/error after an ATS request is non-billable or
+  deduplicated on a later FAILED attempt. Do not multiply per-queue receive
+  counts into a purported dollar bound. Accepting deployed retries would
+  require an explicit, informed exception at Gate 2; it still would not solve
+  unknown billing.
+
+Thus the requested “maximum one new order including possible automatic
+retries” is an operator-level order limit only. It is **not** currently an
+enforceable maximum of one external execution or one charge. No broad retry
+deactivation or infrastructure redesign is proposed. The existing behavior
+must remain unchanged unless a narrowly scoped, separately reviewed change is
+later explicitly authorized; no such change is needed or authorized for Gate 1.
+
+### Immediately usable Gate 1 decision text — NOT GRANTED
+
+```text
+Decision for RIS-DEV2 Gate 1 / 20A3 (not Gate 2 / not live-canary approval):
+
+I authorize only preparation and review of one Terraform plan against the
+verified baseline in this report, for exactly these two input changes:
+1) one foundation_entitlements entry:
+   key = ris-dev2-live-acceptance-ats-agent-2026-11-27
+   userId = the existing var.analysis_synthetic_user_id (verified Cognito sub
+            and ACTIVE APIProfile owner)
+   tenantId = the existing var.analysis_synthetic_tenant_id (verified matching
+              owner/profile/Cognito tenant)
+   agentId = ats-agent
+   validFrom = <approved T0 minus 1 minute, RFC3339 UTC>
+   validUntil = <approved T0 plus 15 minutes, RFC3339 UTC>
+2) analysis_synthetic_expires_at = <the same approved T0 plus 15 minutes,
+   RFC3339 UTC>; retain ANALYSIS_SYNTHETIC_MODE=true and current allowlist.
+
+Approved T0 (UTC): ____________________
+I understand and ACCEPT that this seed is user/tenant/agent-wide, not
+apiProfileId-, analyze.job-, ats_process-, or single-use-scoped: YES / NO
+I understand the entitlement row remains after validUntil and later removal
+requires a separate approved Terraform change: YES / NO
+
+Expected plan is exactly one entitlement item add plus one Analysis Lambda
+environment update. Any other action, replacement, delete, or drift: STOP.
+Plan review approval: separate named approver/reference ____________________
+Apply approval after reviewing the exact saved plan: separate approval only.
+
+No permission is granted here for an order, Lambda invocation, queue receive,
+retry-policy change, redrive, recovery, cleanup, live canary, or Main merge.
+Billing/cost blocker acknowledged; Gate 2 remains closed: YES / NO
+
+Approver / authority / timestamp / reference: ____________________
+Decision: NOT GRANTED. Gate 1 remains closed until a complete explicit
+approval is recorded; a NO or blank field means STOP.
+```
+
+If the approver requires strict one-time/capability-level authorization, or
+requires an enforceable all-in cost cap, this proposal is **not approvable as
+written**. Do not silently broaden this Gate 1 change set to solve either
+limitation.
+
 ## 20A3, 20B and 21 status
 
 | Phase / gate | Result |
