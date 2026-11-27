@@ -14162,3 +14162,22 @@ test suite was run.
   `docs/reports/RIS-DEV2-FINAL-LIVE-ACCEPTANCE-20-21.md`. The protected 19F2
   file was not staged; it remains worktree-marked modified but has no content
   diff against the index. No Main merge.
+
+## RIS-DEV2-FINAL-LIVE-ACCEPTANCE — Controlled Suspension — 2026-11-27
+
+Baseline: `3e855b27ac8c8a35139dd72c437471060d62ea43`. Orchestration is
+**SUSPENDED / STOP**. Final statuses recorded as directed:
+`DEVELOPMENT=VERIFIED`, `UNIFIED_FULL_QA=PASS`, `MAYS_MODULE=LOCAL_VERIFIED`,
+`ORDER_DESCRIPTION=LOCAL_E2E_VERIFIED`, `WORKER_FIX=DEPLOYED`,
+`INFRASTRUCTURE=VERIFIED`, `LIVE_CANARY=BLOCKED`,
+`APPROVAL_GATE_1=CLOSED`, `APPROVAL_GATE_2=CLOSED`,
+`COMMERCIAL_READINESS=NO_GO`.
+
+- Updated only the existing orchestration report with this final disposition,
+  reused evidence references, and explicit resume conditions. Retained
+  `RIS-AGENT-ENTITLEMENT-BILLING-01` as backlog only; no ATS test adapter.
+- No AWS query, QA, deployment check, mutation, Terraform action, order,
+  invocation, recovery, redrive, or Main merge was performed. No automatic
+  continuation authorized.
+- Protected 19F2 file not staged or changed; before this update it remained
+  worktree-marked modified with no content diff against the index. **STOP.**

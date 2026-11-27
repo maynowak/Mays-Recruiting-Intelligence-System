@@ -447,3 +447,66 @@ synthetic technical canary.
 
 The protected 19F2 results file was not included in these changes. No Main
 merge, deployment, Terraform plan/Apply, or new QA was performed.
+
+## Controlled suspension — final disposition
+
+**Suspended at baseline `3e855b27ac8c8a35139dd72c437471060d62ea43`. STOP.**
+This is a controlled pause, not a release-readiness or live-canary approval.
+
+| Area | Final status | Existing evidence to reuse |
+|---|---|---|
+| Development | `VERIFIED` | Completed implementation and existing source/contract evidence; no development work reopened. |
+| Unified full QA | `PASS` | Existing unified QA result and original Mays tests recorded in the referenced reports; do not rerun. |
+| Mays module | `LOCAL_VERIFIED` | Existing pinned module/build/contract verification; no Mays module change. |
+| OrderDescription | `LOCAL_E2E_VERIFIED` | 19F8 local mocked end-to-end contract and original Mays `orderDescription` suite evidence; not live proof. |
+| Worker fix | `DEPLOYED` | `docs/reports/RIS-DEV2-WORKER-CONTROLLED-APPLY-19H.md` and `docs/reports/evidence/19H/post-apply-verification.json`. |
+| Infrastructure | `VERIFIED` | Reused 19H deployment verification and State baseline documented above; no new AWS verification. |
+| Live canary | `BLOCKED` | 20A2 targeted read-only findings, 20A preflight, and Gate Reconciliation in this report. |
+| Approval Gate 1 | `CLOSED` | No authorization for entitlement/configuration mutation or Terraform activity. |
+| Approval Gate 2 | `CLOSED` | No authorization for order creation or live execution. |
+| Commercial readiness | `NO_GO` | External Jobsearch/provider cost is unverified; AWS spend has no proven all-in enforceable cap; retry-side provider billing is not contractually deduplicated. |
+
+The statuses above distinguish completed engineering/local verification from
+live and commercial readiness. They do not imply live Agent execution, a
+provider charge of zero, a bounded all-in AWS cost, or readiness for Main.
+`RIS-AGENT-ENTITLEMENT-BILLING-01` remains a separate backlog item at
+`docs/roadmap/RIS-AGENT-ENTITLEMENT-BILLING-01.md`; it is not implemented.
+No ATS test adapter will be implemented as part of this suspended
+orchestration.
+
+### Conditions to resume — all must be met; no automatic continuation
+
+1. Resume only from a fresh, explicitly named operator/approver decision that
+   references the then-current branch/commit and selects the exact next step.
+   Gate 1 and Gate 2 are independent approvals; neither this suspension nor
+   earlier proposal text grants either one.
+2. Before any Gate 1 mutation, settle the synthetic-path scope: for the planned
+   `ats-agent/analyze.job` order, `ANALYSIS_SYNTHETIC_MODE` is not the provider
+   cost control and its expired Analysis Lambda setting is not to be extended
+   as an unrelated side effect. Identify the actual execution path, owner and
+   tenant binding, required entitlement scope, and approved mechanism. The
+   current foundation seed's user/tenant/agent-wide scope and lack of
+   single-use/profile/capability/work-type enforcement must be expressly
+   accepted or Gate 1 remains closed. Any Terraform plan requires fresh
+   baseline/state verification, exact plan review, and separate Apply approval.
+3. Before Gate 2, provide authoritative current evidence from the Jobsearch
+   service/billing owner for the exact endpoint's AI/provider behavior and
+   maximum charge under the permitted retry count, plus an accepted AWS usage
+   allowance or other enforceable all-in cost boundary. The pinned contract's
+   AI-default-off rule alone is insufficient. If this cannot be supplied,
+   `LIVE_CANARY=BLOCKED` remains.
+4. Gate 2 must separately approve the verified identity/profile, exact
+   synthetic payload/hash, entitlement window, stable idempotency identity,
+   maximum one order, cost boundary, treatment of the existing SQS retries,
+   polling/observation limits, and explicit STOP behavior. Existing retry/DLQ
+   settings and historical DLQ contents remain untouched unless a later
+   separately scoped approval explicitly says otherwise.
+5. After approvals, perform only the approved next step and its required
+   read-only verification. Do not repeat passed QA or deployment work without
+   a concrete discrepancy. No order, invocation, retry, recovery, redrive, or
+   Main merge is authorized by this suspension record.
+
+At suspension: AWS mutations `0`; Terraform plans/applies `0`; live orders `0`;
+live invocations `0`; recoveries/redrives `0`; Main merges `0`. The protected
+`docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json` was not
+staged or changed by this documentation update. **STOP.**
