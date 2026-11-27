@@ -1,6 +1,7 @@
 name: RIS Mays Compatibility QA (read-only)
 
 on:
+  workflow_dispatch:
   push:
     branches: [feature/ris-analysis-integration-07]
     paths:
@@ -60,20 +61,15 @@ jobs:
             'PyYAML>=6.0'
           python -m pip freeze > "$RUNNER_TEMP/qa/python-dependencies.txt"
 
-      - name: Fetch exact Mays source commits read-only
+      - name: Fetch exact integrated Mays source read-only
         env:
           CURRENT_SHA: db4f9e79980443de1cd3d5b688a33c0cf0eb771f
-          CANDIDATE_SHA: 5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420
         run: |
           set -euo pipefail
           git clone --no-checkout https://github.com/maynowak/mays-order-aws.git "$RUNNER_TEMP/mays-current"
           git -C "$RUNNER_TEMP/mays-current" checkout --detach "$CURRENT_SHA"
-          git clone --no-checkout https://github.com/maynowak/mays-order-aws.git "$RUNNER_TEMP/mays-rc4"
-          git -C "$RUNNER_TEMP/mays-rc4" checkout --detach "$CANDIDATE_SHA"
           test "$(git -C "$RUNNER_TEMP/mays-current" rev-parse HEAD)" = "$CURRENT_SHA"
-          test "$(git -C "$RUNNER_TEMP/mays-rc4" rev-parse HEAD)" = "$CANDIDATE_SHA"
           test -z "$(git -C "$RUNNER_TEMP/mays-current" status --porcelain)"
-          test -z "$(git -C "$RUNNER_TEMP/mays-rc4" status --porcelain)"
 
       - name: Build RIS bundles twice in independent clean clones
         run: |
@@ -104,7 +100,7 @@ jobs:
           # checkout: the existing Unified RIS_NATIVE profile validates them.
           python lambda/build_zip.py --bundle all
 
-      - name: Run unified current and candidate QA profiles
+      - name: Run required integrated-baseline QA profiles
         env:
           PYTHONPATH: ""
           MO_ORDERS_SRC: ""
@@ -125,7 +121,7 @@ jobs:
             echo "Refusing to replace pre-existing path: $source_alias"
             exit 2
           fi
-          mkdir -p "$RUNNER_TEMP/qa/results" "$RUNNER_TEMP/generated/current" "$RUNNER_TEMP/generated/rc4"
+          mkdir -p "$RUNNER_TEMP/qa/results" "$RUNNER_TEMP/generated/current"
           mkdir -p "$GITHUB_WORKSPACE/installer/projects"
           ris_source_alias="$GITHUB_WORKSPACE/installer/projects/mays_order_builder"
           if [ -e "$ris_source_alias" ] && [ ! -L "$ris_source_alias" ]; then
@@ -156,32 +152,27 @@ jobs:
             fi
           }
 
-          # Generate throwaway Terraform modules only under RUNNER_TEMP; this does
-          # not install, replace, or pin a module in RIS or the Mays source repo.
-          for spec in "integrated:$RUNNER_TEMP/mays-current:current" "upgrade_candidate:$RUNNER_TEMP/mays-rc4:rc4"; do
-            version=${spec%%:*}; rest=${spec#*:}; source=${rest%%:*}; label=${rest##*:}
-            if [ -L "$source_alias" ]; then rm "$source_alias"; fi
-            sudo ln -s "$source" "$source_alias"
-            build_source="$RUNNER_TEMP/mays-module-build-$label"
-            git clone --no-hardlinks --no-checkout "$source" "$build_source"
-            git -C "$build_source" checkout --detach "$(git -C "$source" rev-parse HEAD)"
-            (cd "$build_source" && python lambda/build_zip.py)
-            (cd "$build_source" && python -m module_builder build --target "$RUNNER_TEMP/generated/$label" --project-name "ris-mays-$label-qa" --preset orders-service --source "$build_source") || fail=1
-            if [ -d "$RUNNER_TEMP/generated/$label" ]; then
-              terraform -chdir="$RUNNER_TEMP/generated/$label" fmt -check -recursive || fail=1
-              TF_DATA_DIR="$RUNNER_TEMP/tfdata-$label" terraform -chdir="$RUNNER_TEMP/generated/$label" init -backend=false -input=false -no-color || fail=1
-              TF_DATA_DIR="$RUNNER_TEMP/tfdata-$label" terraform -chdir="$RUNNER_TEMP/generated/$label" validate -no-color || fail=1
+          # Build one disposable module from the immutable integrated source.
+          # No module is installed into RIS and no Mays source is modified.
+          source="$RUNNER_TEMP/mays-current"
+          if [ -L "$source_alias" ]; then rm "$source_alias"; fi
+          sudo ln -s "$source" "$source_alias"
+          build_source="$RUNNER_TEMP/mays-module-build-current"
+          git clone --no-hardlinks --no-checkout "$source" "$build_source"
+          git -C "$build_source" checkout --detach "$(git -C "$source" rev-parse HEAD)"
+          (cd "$build_source" && python lambda/build_zip.py)
+          (cd "$build_source" && python -m module_builder build --target "$RUNNER_TEMP/generated/current" --project-name "ris-mays-current-qa" --preset orders-service --source "$build_source") || fail=1
+          if [ -d "$RUNNER_TEMP/generated/current" ]; then
+            terraform -chdir="$RUNNER_TEMP/generated/current" fmt -check -recursive || fail=1
+            TF_DATA_DIR="$RUNNER_TEMP/tfdata-current" terraform -chdir="$RUNNER_TEMP/generated/current" init -backend=false -input=false -no-color || fail=1
+            TF_DATA_DIR="$RUNNER_TEMP/tfdata-current" terraform -chdir="$RUNNER_TEMP/generated/current" validate -no-color || fail=1
+          fi
+          for profile in RIS_NATIVE MAYS_MODULE MODULE_BUILD XREPO_CONTRACT XREPO_E2E FULL; do
+            extra=""
+            if [ "$profile" = MODULE_BUILD ] || [ "$profile" = FULL ]; then
+              extra="$RUNNER_TEMP/generated/current"
             fi
-            if [ "$version" = integrated ]; then source_key=integrated; else source_key=upgrade_candidate; fi
-            run_profile MAYS_MODULE "$source_key" "$source" ""
-            run_profile MODULE_BUILD "$source_key" "$source" "$RUNNER_TEMP/generated/$label"
-            if [ "$source_key" = integrated ]; then
-              run_profile FULL integrated "$source" "$RUNNER_TEMP/generated/$label"
-            else
-              run_profile XREPO_CONTRACT upgrade_candidate "$source" ""
-              run_profile XREPO_E2E upgrade_candidate "$source" ""
-              run_profile UPGRADE_GATE upgrade_candidate "$source" "$RUNNER_TEMP/generated/$label"
-            fi
+            run_profile "$profile" integrated "$source" "$extra"
           done
           sudo rm -f "$source_alias"
           rm -f "$ris_source_alias"
