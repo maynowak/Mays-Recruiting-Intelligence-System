@@ -24,8 +24,8 @@ jobs:
     timeout-minutes: 120
     env:
       AWS_EC2_METADATA_DISABLED: "true"
-      AWS_CONFIG_FILE: ${{ runner.temp }}/ris-qa-empty-aws-config
-      AWS_SHARED_CREDENTIALS_FILE: ${{ runner.temp }}/ris-qa-empty-aws-credentials
+      AWS_CONFIG_FILE: /tmp/ris-qa-empty-aws-config
+      AWS_SHARED_CREDENTIALS_FILE: /tmp/ris-qa-empty-aws-credentials
       TF_IN_AUTOMATION: "true"
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
