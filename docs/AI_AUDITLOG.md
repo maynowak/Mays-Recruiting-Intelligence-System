@@ -13551,3 +13551,41 @@ Status: **LOCAL QA COMPLETE; `READY_FOR_PLAN` recommendation only**. Evidence:
   `RIS-DEV2-WORKER-DEPLOYMENT-PLAN-19G`, verify current identity/state and exact
   Agent Worker + Dispatch Ingress scope; stop on drift or unexpected actions.
   No Terraform plan or deployment is authorized by 19F.
+
+[RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2]
+Date: 2026-11-27; baseline RIS `253e929e635bc4b79fe25773dd09e3f68c329af5`.
+Integrated generated-module source: `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`,
+verified against builder JSON pin, source constant, module manifest, and clean
+exact test checkout. Legacy clone pin `5cf50a0` remains distinct. RC4
+`v0.6.0-rc.1` / `5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420` is only a candidate;
+its exact checkout was unavailable and no candidate QA was claimed.
+
+- Added a central process-isolated runner, locked `LIVE`, profile-scoped
+  environments, exact source verification, and orchestrator regression tests.
+  Original Mays suites use temporary detached local clones so Git commit identity
+  is preserved while installer side effects cannot alter the ignored source
+  clone. The source clone was clean after the final run.
+- `FULL` on Windows/Python 3.14.10: RIS Native 3,276 pass / 5 fail / 142 skip /
+  446 subtests; Mays Lambda 240 pass; Mays Module Builder 86 pass / 14 fail;
+  Mays Installer 69 pass / 11 errors / 1 skip; Seed 28 pass; Cognito Backup 2 pass;
+  XRepo Contract 133 pass / 4 subtests; XRepo E2E 39 pass; RIS builder 57 pass;
+  Generated Module Artifact 9 pass. Overlapping profile counts are not summed.
+- Failures are not suppressed: RIS retains three OpenAPI assertion failures,
+  one missing-`mayaws`-profile test-environment failure and one historical bundle assertion;
+  Mays builder has Windows path-separator failures; Mays installer requires
+  Linux paths/`python3`. These are not represented as Linux passes.
+- Worker bundle SHA-256 remains exactly
+  `78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7`.
+  Generated Mays ZIP SHA-256:
+  `aa70eaaa1cb6e01b972dba05893573559e8aa0d945eb5691ce31e079e2521c89`.
+- `UNIFIED_TESTSUITE=BLOCKED`; Mays test integration PARTIAL; provenance of
+  integrated artifact VERIFIED; process isolation PASS; XRepo gates PASS;
+  upgrade readiness BLOCKED. `LIVE` returned `LOCKED_NOT_EXECUTED`. CI workflow
+  unchanged because the required Mays source tests are not yet portable and
+  candidate provenance is unavailable.
+- No runtime or Mays repository source changes, dependency upgrade, AWS mutation,
+  live invocation, Terraform plan/apply, redrive, recovery, or deployment.
+  `MODE=true` preserved. Stop after 19F2; no 19G follow-on authorized here.
+- Detailed report: `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.md`;
+  machine results: `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json`;
+  contract index: `docs/reports/RIS-MAYS-ORDERS-CONTRACT-EVIDENCE-19F2.md`.

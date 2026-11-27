@@ -98,6 +98,28 @@ as if it were RIS infrastructure.
   as `python -m pytest tests/test_p20_api_contract_consistency.py -q`.
 - Full Python suite: `python -m pytest tests/ -q`; it requires dependencies from
   `requirements.txt`, including `moto` for AWS mocks.
+- Unified local RIS/Mays-Orders QA: `python scripts/unified_tests.py <PROFILE>`;
+  profiles are `RIS_NATIVE`, `MAYS_MODULE`, `XREPO_CONTRACT`, `XREPO_E2E`,
+  `MODULE_BUILD`, `UPGRADE_GATE`, `FULL`, and locked `LIVE`. The exact source
+  SHAs are recorded in `installer/mays-orders-test-versions.json`; the runner
+  verifies the clean Mays checkout against the active builder pin and generated
+  module manifest before reporting module tests as provenance-valid. Its JSON
+  report defaults to `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json`.
+- Mays-Orders upgrades require the exact candidate checkout, candidate original
+  tests, generated-module artifact/contract checks, and RIS XRepo contract/E2E
+  profiles together. Run `UPGRADE_GATE --mays-version upgrade_candidate
+  --mays-source <clean-exact-checkout>` only after the candidate source is
+  available; a current integrated-version PASS is not an upgrade-candidate PASS.
+  `LIVE` never runs from this orchestrator; live tests require a separate task.
+- **Process isolation is mandatory:** do not combine the general Temp root with
+  `MO_ORDERS_SRC` in a full RIS `PYTHONPATH`. RIS, Mays-Orders, and XRepo jobs
+  run in separate child processes with job-scoped environments. RIS native
+  jobs have no `MO_ORDERS_SRC`; only XRepo jobs receive the explicit Mays
+  `lambda/src`; Mays jobs use only their own source path. Never export a global
+  `MO_ORDERS_SRC` or merge the two source trees into one `PYTHONPATH`. Child
+  processes also receive empty AWS config/credential files, with ambient AWS
+  credential/profile variables removed, so local tests cannot discover host
+  credentials or silently invoke live AWS APIs.
 - `./scripts/parallel_tests.sh static` runs the repository regression checks;
   `./scripts/parallel_tests.sh ris-dev` runs the live installation verifier.
   These scripts default to `AWS_PROFILE=mayaws` and `/tmp/tfS3`; override them

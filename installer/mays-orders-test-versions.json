@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "purpose": "QA-only version map; does not change runtime, module, installer, or deployment pins.",
+  "versions": {
+    "integrated": {
+      "commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+      "release": "builder-integrated-source",
+      "source_of_truth": [
+        "installer/mays-orders-builder.pinned.json",
+        "installer/build_mays_orders_module.py:PINNED_COMMIT",
+        "terraform/modules/mays_orders/module-builder.manifest.json:source.commit"
+      ],
+      "status": "CURRENT_GENERATED_MODULE_SOURCE"
+    },
+    "upgrade_candidate": {
+      "commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+      "release": "v0.6.0-rc.1",
+      "source_of_truth": "docs/reports/RIS-MO-RC4-BUILDER-UPGRADE-06.md",
+      "status": "CANDIDATE_ONLY_NOT_INTEGRATED"
+    }
+  }
+}
