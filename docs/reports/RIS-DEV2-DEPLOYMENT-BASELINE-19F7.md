@@ -1,9 +1,9 @@
 # RIS-DEV2-DEPLOYMENT-BASELINE-19F7
 
-**Status:** LOCAL CANDIDATE PREPARED — STOP AT EXPLICIT APPROVAL GATE  
+**Status:** LOCAL CANDIDATE PREPARED — STOP AT EXPLICIT APPROVAL GATE
 **Branch:** `feature/ris-analysis-integration-07`  
 **Baseline HEAD:** `95c9a90a9c237ecdfe3bb0f7ea723dc09cee7597`  
-**QA workflow commit:** `d0a5bdecddbcc35ded6f62ff51bd5dc4f1bc76e1`  
+**QA workflow commit:** `d0a5bdecddbcc35ded6f62ff51bd5dc4f1bc76e1`
 **Evidence/report commits:** `4bf8014`, `c1a45c6` (see final commit section).
 
 ## Phase 1 — Baseline consolidation
@@ -168,4 +168,4 @@ planning/apply, pin change, live canary, recovery/redrive, or Main merge.
 - `d0a5bde` — integrated-only Ubuntu QA workflow, pushed; run `45993779301`
   succeeded.
 - `c1a45c6` — machine-readable Ubuntu and Windows QA evidence, pushed.
-- Final report/Auditlog completion commit: recorded after this report update.
+- `010e9f8` — completed deployment gate report and Auditlog, pushed.
