@@ -18,12 +18,9 @@ HISTORICAL_WORKER_BUNDLE_SHA256 = (
 )
 REVIEW_CANDIDATE_BUNDLE_SHA256 = {
     "worker": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
-    # Separate native-artifact builder still uses DEFLATE; its review hashes
-    # are platform/toolchain-specific and are not Agent-Worker deployment pins.
-    "analysis": {
-        "win32": "370890d459488304481d99255cfa6a2891b5f19a8c5df2723556905195c7c621",
-        "linux": "817438fec758705385e48e969de0c175a8363a537c9a8863691119b8d2652639",
-    }.get(sys.platform, ""),
+    # The analysis bundle is reviewed separately from the worker deployment
+    # pin; build_bundle now canonicalizes its ZIP metadata/compression too.
+    "analysis": "370890d459488304481d99255cfa6a2891b5f19a8c5df2723556905195c7c621",
 }
 
 from agents.runtime.pipeline import process_record  # noqa: E402
