@@ -214,7 +214,7 @@ class ParserRuntimeRootWiringTest(unittest.TestCase):
                       block)
         self.assertIn("parser_artifact_path    = var.analysis_parser_zip_path",
                       block)
-        self.assertIn("analysis_zip_path       = var.analysis_lambda_zip_path",
+        self.assertIn("analysis_zip_path       = local.analysis_artifact_filename",
                       block)
         for table in ("work_items_table", "entitlements_table",
                       "partner_profiles_table"):

@@ -182,23 +182,33 @@ class ManifestPinTest(unittest.TestCase):
         self.assertEqual(0, manifest["plan"]["destroys"])
         self.assertEqual("NO_SHARED_DESTROY", manifest["plan"]["guard"])
         self.assertFalse(manifest["plan"]["applyApproved"])
-        for relative, key in (("terraform/lambda.zip", "worker"),
-                              ("terraform/analysis-lambda.zip", "analysis")):
-            artifact = ROOT / relative
-            if not artifact.is_file():
-                continue
-            digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
-            # 16B/16C0 changed agents/orders. The historical 15B plan is
-            # stale; the current bundle is pinned by the reviewed correlation
-            # fix (RIS-ORDER-RESULT-CORRELATION-FIX-01, d767a198…/e268b028…).
-            # Update this pin only together with a reviewed bundle rebuild.
-            self.assertEqual(
-                REVIEW_CANDIDATE_BUNDLE_SHA256[key],
-                digest, relative)
-            if key == "worker":
-                self.assertNotEqual(HISTORICAL_WORKER_BUNDLE_SHA256, digest)
-            self.assertNotEqual(manifest["bundles"][key]["sha256"], digest,
-                                f"{relative}: historical plan must be stale")
+        # Worker remains on the canonical builder/review-candidate contract.
+        worker_relative = "terraform/lambda.zip"
+        worker_digest = hashlib.sha256((ROOT / worker_relative).read_bytes()).hexdigest()
+        self.assertEqual(
+            REVIEW_CANDIDATE_BUNDLE_SHA256["worker"], worker_digest, worker_relative
+        )
+        self.assertNotEqual(HISTORICAL_WORKER_BUNDLE_SHA256, worker_digest)
+        self.assertNotEqual(
+            manifest["bundles"]["worker"]["sha256"],
+            worker_digest,
+            f"{worker_relative}: historical plan must be stale",
+        )
+
+        # Analysis now deliberately points at the preserved deployed ZIP at
+        # terraform/analysis-lambda.zip for RIS-DEV2 path reconciliation;
+        # verify its identity from the committed preserved archive instead of
+        # treating it as a freshly built review candidate.
+        preserved_analysis = (
+            ROOT
+            / "terraform"
+            / "artifacts"
+            / "ris-dev2-analysis-276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10.zip"
+        )
+        self.assertEqual(
+            "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10",
+            hashlib.sha256(preserved_analysis.read_bytes()).hexdigest(),
+        )
 
 
     def test_dispatch_queue_to_work_queue_to_worker_for_both_agents(self):
