@@ -134,6 +134,13 @@ jobs:
           fi
           if [ -L "$ris_source_alias" ]; then rm "$ris_source_alias"; fi
           ln -s "$RUNNER_TEMP/mays-current" "$ris_source_alias"
+          ris_native_alias="$GITHUB_WORKSPACE/installer/projects/mays_orders"
+          if [ -e "$ris_native_alias" ] && [ ! -L "$ris_native_alias" ]; then
+            echo "Refusing to replace pre-existing path: $ris_native_alias"
+            exit 2
+          fi
+          if [ -L "$ris_native_alias" ]; then rm "$ris_native_alias"; fi
+          ln -s "$RUNNER_TEMP/mays-current" "$ris_native_alias"
           fail=0
           run_profile() {
             name="$1"; version="$2"; source="$3"; extra="$4"
@@ -178,6 +185,7 @@ jobs:
           done
           sudo rm -f "$source_alias"
           rm -f "$ris_source_alias"
+          rm -f "$ris_native_alias"
           exit "$fail"
 
       - name: Upload machine-readable QA evidence
