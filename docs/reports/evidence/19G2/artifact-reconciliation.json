@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "baseline": {
+    "branch": "feature/ris-analysis-integration-07",
+    "head": "9a1e59b4aea53632438dd7e2fb0c1b8e17d46be1",
+    "worker_pin_commit": "febab54cfe6e0b4c6c67a4e94b7afb9083643576",
+    "worker_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "mays_source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f"
+  },
+  "read_only_plan_evidence": {
+    "path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-dev2-worker-19g.tfplan",
+    "sha256_verified": "7d8bfbb282795feb66b0e072250b8454f2cd111302aa920f7dc56d8268d65851",
+    "actions": "0 add / 4 change / 0 destroy",
+    "changed_attribute_set": ["source_code_hash", "last_modified"],
+    "resource_drift_count": 0,
+    "applied": false,
+    "used_for_19G2_only_as_local_evidence": true
+  },
+  "lambda_matrix": [
+    {
+      "lambda": "Agent-Worker",
+      "prior_deployed_sha256": "8ec50a61408d28efb2b85ff6c83b05dd0ee6075b9b46081ef16d649793cc6383",
+      "19g_planned_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+      "local_bundle": "terraform/lambda.zip",
+      "source_pin": "scripts/unified_tests.py EXPECTED_WORKER_BUNDLE_SHA256",
+      "build": "python lambda/build_zip.py --bundle agent",
+      "terraform_reference": "main.tf lambda_zip_path -> shared module lambda/aws_lambda_function.agent"
+    },
+    {
+      "lambda": "Dispatch-Ingress",
+      "prior_deployed_sha256": "8ec50a61408d28efb2b85ff6c83b05dd0ee6075b9b46081ef16d649793cc6383",
+      "19g_planned_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+      "local_bundle": "terraform/lambda.zip",
+      "source_pin": "same shared worker bundle pin",
+      "build": "python lambda/build_zip.py --bundle agent",
+      "terraform_reference": "main.tf lambda_zip_path -> agent_transport/aws_lambda_function.dispatch_ingress"
+    },
+    {
+      "lambda": "Analysis",
+      "prior_deployed_sha256": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10",
+      "19g_planned_sha256": "370890d459488304481d99255cfa6a2891b5f19a8c5df2723556905195c7c621",
+      "local_candidate_bundle": "terraform/analysis-lambda.zip",
+      "preserved_bundle": "terraform/artifacts/ris-dev2-analysis-276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10.zip",
+      "source_pin": "No artifact hash pin; exact deployed ZIP captured and hashed by 19B.",
+      "canonical_build": "python lambda/build_zip.py --bundle analysis",
+      "terraform_reference": "main.tf analysis_zip_path=var.analysis_lambda_zip_path; module source_code_hash=filebase64sha256(var.analysis_zip_path)"
+    },
+    {
+      "lambda": "Orders-Reader",
+      "prior_deployed_sha256": "610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b",
+      "19g_planned_sha256": "bea4c3e59666bed8ad071ad4e405bcdfd57dafdac68096ce648667f0effb1b41",
+      "local_candidate_bundle": "lambda/dist/orders-reader.zip",
+      "preserved_bundle": "terraform/artifacts/ris-dev2-orders-reader-610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b.zip",
+      "source_pin": "Source snapshot f08dfff; all four reader bundle source files unchanged at baseline 9a1e59b.",
+      "canonical_build": "python lambda/build_zip.py --bundle reader",
+      "historical_build": "scripts/build_preserved_ris_dev2_reader.py",
+      "terraform_reference": "main.tf orders_reader filename=var.filename; module source_code_hash=filebase64sha256(var.filename)"
+    }
+  ],
+  "root_causes": {
+    "analysis": {
+      "status": "VERIFIED_MIXED_PACKAGING_AND_RUNTIME_CONTENT",
+      "archive_members": 113,
+      "member_order_and_membership_match": true,
+      "byte_identical_members": 23,
+      "newline_only_members": 89,
+      "runtime_content_diff_members": ["agents/runtime/pipeline.py"],
+      "old_compression_method": "DEFLATE",
+      "canonical_compression_method": "STORED",
+      "old_and_new_create_system": 0,
+      "old_and_new_timestamp": "1980-01-01T00:00:00",
+      "old_and_new_permissions": "0644"
+    },
+    "reader": {
+      "status": "VERIFIED_PACKAGING_ONLY_BY_EXACT_HASH_REPRODUCTION",
+      "archive_members": 4,
+      "member_order_and_membership_match": true,
+      "byte_identical_members": 1,
+      "newline_only_members": 3,
+      "runtime_content_diff_members": [],
+      "old_compression_method": "DEFLATE",
+      "canonical_compression_method": "STORED",
+      "old_and_new_create_system": 0,
+      "old_and_new_timestamp": "1980-01-01T00:00:00",
+      "old_and_new_permissions": "0644",
+      "legacy_sha256_reproduced_twice": "610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b"
+    }
+  },
+  "terraform_artifact_override_file": "terraform/ris-dev2-19g2-artifact-overrides.tfvars.json",
+  "terraform_plan_created": false,
+  "terraform_apply_executed": false,
+  "aws_access_or_mutation": false,
+  "runtime_source_changes": 0,
+  "worker_pin_changes": 0,
+  "mays_pin_changes": 0
+}
