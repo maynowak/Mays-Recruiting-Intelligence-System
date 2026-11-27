@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "branch": "feature/ris-analysis-integration-07",
+  "head": "be51f5eca69262fb3a793d3eb693faa812788d59",
+  "ubuntu_workflow": {
+    "run_id": 46005456362,
+    "url": "https://github.com/maynowak/Mays-Recruiting-Intelligence-System/actions/runs/46005456362",
+    "conclusion": "success",
+    "python": "3.14.10",
+    "mays_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+    "profiles": {
+      "RIS_NATIVE": {"status": "PASS", "passed": 3293, "failed": 0, "skipped": 133, "subtests_passed": 450, "collection_errors": 0},
+      "MAYS_MODULE": {"status": "PASS", "mays_lambda": 240, "mays_module_builder": 100, "mays_module_builder_subtests": 6, "mays_installer": 81, "mays_seed_tools": 28, "mays_cognito_backup": 2},
+      "MODULE_BUILD": {"status": "PASS", "mays_module_builder": 100, "mays_module_builder_subtests": 6, "mays_installer": 81, "ris_builder_contract": 57, "generated_module_artifact": 9},
+      "XREPO_CONTRACT": {"status": "PASS", "passed": 133, "subtests_passed": 4},
+      "XREPO_E2E": {"status": "PASS", "passed": 39},
+      "FULL": {"status": "PASS", "all_groups_pass": true}
+    }
+  },
+  "local": {
+    "focused_artifact_and_worker": "56 passed, 2 skipped",
+    "tfvars_contract": "9 passed",
+    "order_result_e2e": "8 passed",
+    "ris_native_after_test_contract_correction": "3284 passed, 0 failed",
+    "terraform_init_backend_false": "PASS",
+    "terraform_validate": "PASS",
+    "terraform_fmt_check_recursive": "PASS",
+    "plans_created": 0
+  },
+  "previous_run": {
+    "run_id": 46004384113,
+    "conclusion": "failure",
+    "sole_failure": "test_no_tfvars_file_is_required rejected the explicitly selected RIS-DEV2-only artifact override",
+    "resolution": "Test now rejects auto-loaded and unrelated tfvars while explicitly permitting the one named environment-specific override; no skip or test disablement."
+  },
+  "safety": {
+    "aws_access": false,
+    "aws_mutations": 0,
+    "terraform_plans": 0,
+    "terraform_applies": 0,
+    "state_mutations": 0,
+    "live_tests": 0,
+    "runtime_source_changes": 0,
+    "worker_pin_changes": 0,
+    "mays_pin_changes": 0,
+    "main_merge": false
+  }
+}

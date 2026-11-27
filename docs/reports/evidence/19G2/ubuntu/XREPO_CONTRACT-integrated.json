@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-11-27T13:16:36.059960+00:00",
+  "profile": "XREPO_CONTRACT",
+  "ris_commit": "be51f5eca69262fb3a793d3eb693faa812788d59",
+  "mays_orders": {
+    "version_key": "integrated",
+    "expected_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+    "release": "builder-integrated-source",
+    "checkout": "/home/runner/work/_temp/mays-current",
+    "provenance_status": "VERIFIED",
+    "errors": []
+  },
+  "platform": "linux",
+  "python": "3.14.10 (main, Oct 26 2026, 14:17:03) [GCC 15.2.0]",
+  "artifact_hashes": {
+    "worker_bundle_terraform/lambda.zip": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "worker_bundle_expected": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "worker_bundle_matches_baseline": true,
+    "mays_test_version_map": "e7c0eafcfe3d6ff73739f08fb1a3d6aa1dc49f78de658bfebdb546019b63bc47"
+  },
+  "live_profile": "LOCKED_NOT_EXECUTED",
+  "aggregate_counts": "Per-group only; overlapping profile executions are not summed.",
+  "groups": [
+    {
+      "group": "xrepo_contract",
+      "repository": "RIS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 133,
+      "failed": 0,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 4,
+      "duration_seconds": 0.34,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "tests/test_mo_contract_compat.py",
+        "tests/test_cross_repo_mo_contract.py",
+        "tests/test_order_transport_contract.py",
+        "tests/test_agent_order_body.py",
+        "tests/test_agent_order_order_description.py",
+        "tests/test_dispatch_ingress_env.py"
+      ],
+      "stdout_tail": ".................................................................... [ 51%]\n.................................................................        [100%]\n133 passed, 4 subtests passed in 0.34s\n",
+      "stderr_tail": ""
+    }
+  ],
+  "profile_status": "PASS",
+  "module_artifact": {
+    "path": "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/terraform/modules/mays_orders",
+    "source_commit": null,
+    "zip_sha256": null,
+    "manifest_sha256": null,
+    "status": "BLOCKED",
+    "errors": []
+  }
+}

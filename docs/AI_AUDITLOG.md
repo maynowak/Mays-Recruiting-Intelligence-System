@@ -13799,3 +13799,52 @@ Finaler Report und nicht-sensitive Evidenz:
 `docs/reports/evidence/19G/plan-summary.json`. Binärplan und sensitive
 Plan-JSON-Daten sind nicht eingecheckt. Apply-Freigabe ausdrücklich nicht
 erteilt.
+
+## RIS-DEV2-ARTIFACT-SCOPE-RECONCILIATION-19G2 — 2026-11-27
+
+Status: **ARTIFACT_SCOPE PASS; UNIFIED QA PASS; STOP AT 19G3 PLAN-APPROVAL GATE**.
+
+- Verified the existing 19G plan only as local evidence (SHA-256
+  `7d8bfbb282795feb66b0e072250b8454f2cd111302aa920f7dc56d8268d65851`):
+  0 add / 4 change / 0 destroy, 270 no-op; changed attributes were
+  `source_code_hash` and computed `last_modified`. The plan remains locked and
+  was not applied or reused.
+- Analysis root cause VERIFIED: the exact 19B read-only deployed ZIP was
+  preserved at SHA-256 `276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10`.
+  Against the canonical bundle, 113 members/order match; 23 are byte-identical,
+  89 differ only CRLF/LF, and `agents/runtime/pipeline.py` has a real runtime
+  content difference. Old/new ZIP methods are DEFLATE/STORED; timestamp,
+  permissions, and create_system=0 match.
+- Reader root cause VERIFIED: all four normalized member contents match
+  current sources; three members differ only CRLF/LF. The legacy DEFLATE build
+  from source revision `f08dfff36b8d4727ebdbbe92b641fb60a4da88fd` reproduced
+  deployed SHA-256 `610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b`
+  twice. Both historical artifacts are versioned and referenced only through
+  `terraform/ris-dev2-19g2-artifact-overrides.tfvars.json`; canonical builder
+  behavior is unchanged.
+- Agent-Worker and Dispatch-Ingress continue sharing the verified worker bundle
+  SHA-256 `507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d`.
+  No worker pin, Mays pin (`db4f9e79980443de1cd3d5b688a33c0cf0eb771f`), MODE,
+  runtime source, or state was changed.
+- Local checks: worker/artifact focused tests 56 passed / 2 skipped; corrected
+  tfvars contract 9 passed; isolated order/result E2E 8 passed; full local
+  RIS_NATIVE 3,284 passed / 0 failed. Backend-free Terraform init, validate,
+  and recursive fmt check passed; no Terraform plan was created.
+- First Ubuntu run `46004384113` exposed one test-contract mismatch: the old
+  test rejected every committed tfvars filename. The only correction permits
+  the explicitly passed RIS-DEV2 artifact override, while rejecting automatic
+  and unrelated tfvars. No test was skipped or weakened. Corrected Ubuntu run
+  `46005456362` on HEAD `be51f5eca69262fb3a793d3eb693faa812788d59` passed all
+  six profiles: RIS_NATIVE 3,293 passed / 0 failed / 133 skipped / 450 subtests;
+  Mays original suites 240 Lambda, 100 builder (+6 subtests), 81 installer,
+  28 seed, 2 Cognito backup; MODULE_BUILD, XREPO_CONTRACT (133 + 4 subtests),
+  XREPO_E2E (39), and FULL all PASS. Exact Mays provenance verified.
+- Evidence: `docs/reports/evidence/19G2/` (artifact matrix, six profile JSONs,
+  bundle reproducibility, dependencies, QA summary). Final report:
+  `docs/reports/RIS-DEV2-ARTIFACT-SCOPE-RECONCILIATION-19G2.md`.
+- Gates: analysis/reader roots VERIFIED; artifact scope and preservation PASS;
+  worker reproducibility PASS; RIS_NATIVE, Mays original, FULL QA, and local
+  Terraform validation PASS; replan readiness is for separate plan approval
+  only. Previous 19G plan is NOT_APPLICABLE. New Terraform plans 0, applies 0,
+  AWS mutations 0, runtime source changes 0. A concrete 19G3 approval template
+  is recorded in the report; no plan or apply approval is granted. No Main merge.
