@@ -1,6 +1,6 @@
 # RIS-MAYS-ORDERS-MAIN-UPGRADE-19F5 — Candidate Gate Blocker
 
-**Status:** BLOCKED — CANDIDATE CONTRACT CANNOT PRESERVE INTEGRATED RIS FEATURES  
+**Status:** BLOCKED — CANDIDATE CONTRACT CANNOT PRESERVE INTEGRATED RIS FEATURES
 **RIS branch:** `feature/ris-analysis-integration-07`  
 **Initial RIS HEAD:** `9e1cff4f392410de887ddef10e86edc9008d2bdb`  
 **Candidate-pin checkpoint:** `6d0b6ba5d865f4f78968154f89a8d847462188ce`
