@@ -13708,3 +13708,20 @@ module and active builder pin unchanged. MODE=true unchanged; LIVE=false; AWS
 mutations 0; Terraform plan/apply 0; Main merge 0. Report:
 `docs/reports/RIS-MAYS-ORDERS-MAIN-UPGRADE-19F5.md`. Unified JSON evidence is
 outside the repository at paths listed in that report.
+
+[RIS-MAYS-ORDERS-DESCRIPTION-PATCH-19F6]
+Outcome: `orderDescription` already exists in integrated source
+`db4f9e79980443de1cd3d5b688a33c0cf0eb771f` and its generated RIS module.
+Exact candidate `80a84ca2f146d5efaa31d41ba425359283333f21` was examined by
+functional-file diff only. Isolated `git apply --check` failed on the three
+source hunks; the dedicated test file already exists. Existing validation,
+retail/agent persistence, privacy inspect/export/anonymize are covered by the
+integrated source's 15 dedicated original tests (15 PASS). Unified integrated
+XREPO_CONTRACT 133 + 4 subtests PASS; XREPO_E2E 39 PASS. MAYS_MODULE and FULL
+are BLOCKED by baseline Builder/Installer test failures on Windows; FULL also
+has missing `moto`/`requests` collection dependencies. RIS Builder contract
+57/57 and generated-module contract 9/9 pass in FULL. Builder has only a
+single-source pin, no versioned overlay; Installer replaces rather than merges
+the generated module. No patch was applied, no permanent source/pin/module
+change. `MODE=true` unchanged; LIVE=false; no AWS/Terraform operations or Main
+merge. Report: `docs/reports/RIS-MAYS-ORDERS-DESCRIPTION-PATCH-19F6.md`.
