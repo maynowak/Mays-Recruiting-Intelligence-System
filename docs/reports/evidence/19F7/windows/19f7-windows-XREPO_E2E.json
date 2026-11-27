@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-11-27T11:54:59.313186+00:00",
+  "profile": "XREPO_E2E",
+  "ris_commit": "d0a5bdecddbcc35ded6f62ff51bd5dc4f1bc76e1",
+  "mays_orders": {
+    "version_key": "integrated",
+    "expected_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+    "release": "builder-integrated-source",
+    "checkout": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\mo-db4f9e7-baseline",
+    "provenance_status": "VERIFIED",
+    "errors": []
+  },
+  "platform": "win32",
+  "python": "3.14.10 (tags/v3.14.10:b703b2c, Oct 25 2026, 17:36:52) [MSC v.1944 64 bit (AMD64)]",
+  "artifact_hashes": {
+    "worker_bundle_terraform/lambda.zip": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "worker_bundle_expected": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
+    "worker_bundle_matches_baseline": false,
+    "mays_test_version_map": "e7c0eafcfe3d6ff73739f08fb1a3d6aa1dc49f78de658bfebdb546019b63bc47"
+  },
+  "live_profile": "LOCKED_NOT_EXECUTED",
+  "aggregate_counts": "Per-group only; overlapping profile executions are not summed.",
+  "groups": [
+    {
+      "group": "xrepo_e2e",
+      "repository": "RIS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 39,
+      "failed": 0,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 0.86,
+      "collection_errors": 0,
+      "command": [
+        "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-19f-venv314\\Scripts\\python.exe",
+        "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\scripts\\unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "tests/test_mo_dispatch_handoff.py",
+        "tests/test_agent_order_dispatch_e2e.py",
+        "tests/test_partner_e2e_real.py",
+        "tests/test_lambda_bridge_e2e.py"
+      ],
+      "stdout_tail": ".......................................                                  [100%]\n39 passed in 0.86s\n",
+      "stderr_tail": ""
+    }
+  ],
+  "profile_status": "PASS",
+  "module_artifact": {
+    "path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\terraform\\modules\\mays_orders",
+    "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+    "zip_sha256": "aa70eaaa1cb6e01b972dba05893573559e8aa0d945eb5691ce31e079e2521c89",
+    "manifest_sha256": "effa182c2a0406741ef2d03d73c3cdf7bab2e10317c1a892e70ff62210e5a90a",
+    "status": "VERIFIED",
+    "errors": []
+  }
+}

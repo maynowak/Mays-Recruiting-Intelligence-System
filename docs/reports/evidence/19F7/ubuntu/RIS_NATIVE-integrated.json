@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-11-27T11:51:14.392405+00:00",
+  "profile": "RIS_NATIVE",
+  "ris_commit": "d0a5bdecddbcc35ded6f62ff51bd5dc4f1bc76e1",
+  "mays_orders": {
+    "version_key": "integrated",
+    "expected_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+    "release": "builder-integrated-source",
+    "checkout": "/home/runner/work/_temp/mays-current",
+    "provenance_status": "VERIFIED",
+    "errors": []
+  },
+  "platform": "linux",
+  "python": "3.14.10 (main, Oct 26 2026, 14:17:03) [GCC 15.2.0]",
+  "artifact_hashes": {
+    "worker_bundle_terraform/lambda.zip": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "worker_bundle_expected": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
+    "worker_bundle_matches_baseline": false,
+    "mays_test_version_map": "e7c0eafcfe3d6ff73739f08fb1a3d6aa1dc49f78de658bfebdb546019b63bc47"
+  },
+  "live_profile": "LOCKED_NOT_EXECUTED",
+  "aggregate_counts": "Per-group only; overlapping profile executions are not summed.",
+  "groups": [
+    {
+      "group": "ris_native",
+      "repository": "RIS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 3291,
+      "failed": 0,
+      "skipped": 133,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 450,
+      "duration_seconds": 37.36,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "tests/"
+      ],
+      "stdout_tail": "3: captured real plan not present in this environment\nSKIPPED [1] tests/test_generated_module_artifact.py:155: MO_ORDERS_MODULE not set\nSKIPPED [1] tests/test_generated_module_artifact.py:136: MO_ORDERS_MODULE not set\nSKIPPED [1] tests/test_generated_module_artifact.py:130: MO_ORDERS_MODULE not set\nSKIPPED [1] tests/test_generated_module_artifact.py:87: MO_ORDERS_MODULE not set\nSKIPPED [1] tests/test_generated_module_artifact.py:115: MO_ORDERS_MODULE not set\nSKIPPED [1] tests/test_generated_module_artifact.py:61: MO_ORDERS_MODULE not set\nSKIPPED [1] tests/test_generated_module_artifact.py:173: MO_ORDERS_MODULE not set\nSKIPPED [1] tests/test_generated_module_artifact.py:71: MO_ORDERS_MODULE not set\nSKIPPED [1] tests/test_generated_module_artifact.py:77: MO_ORDERS_MODULE not set\nSKIPPED [1] tests/test_health_security.py:68: CloudFront OAC for public health presentation not implemented – security finding\nSKIPPED [1] tests/test_lambda_bridge_e2e.py:283: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_lambda_bridge_e2e.py:276: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_lambda_bridge_e2e.py:264: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_lambda_bridge_e2e.py:297: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_lambda_bridge_e2e.py:290: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_lambda_packaging.py:158: keine mayaws-Credentials\nSKIPPED [1] tests/test_lambda_packaging.py:188: keine mayaws-Credentials\nSKIPPED [1] tests/test_mo_contract_compat.py:65: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_contract_compat.py:131: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_contract_compat.py:109: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_contract_compat.py:60: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_contract_compat.py:56: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_contract_compat.py:50: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_contract_compat.py:46: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_contract_compat.py:83: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_contract_compat.py:42: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_dispatch_handoff.py:132: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_dispatch_handoff.py:180: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_dispatch_handoff.py:156: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_dispatch_handoff.py:127: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_dispatch_handoff.py:87: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_dispatch_handoff.py:118: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_dispatch_handoff.py:167: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_dispatch_handoff.py:138: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_dispatch_handoff.py:112: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_mo_dispatch_handoff.py:145: MO_ORDERS_SRC not set\nSKIPPED [6] ../../../../../opt/hostedtoolcache/Python/3.14.10/x64/lib/python3.14/site-packages/_pytest/unittest.py:521: keine AWS-Credentials (Contract-Tests brauchen Live)\nSKIPPED [1] tests/test_parser_agents.py:185: jobsearch parser CLI not available\nSKIPPED [1] tests/test_parser_agents.py:176: jobsearch parser CLI not available\nSKIPPED [1] tests/test_partner_e2e_real.py:281: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:140: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:247: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:184: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:305: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:171: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:218: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:152: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:129: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:163: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:237: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:269: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:292: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:204: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:148: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_partner_e2e_real.py:258: MO_ORDERS_SRC not set\nSKIPPED [1] tests/test_privacy_capability_planned.py:32: R08-C planned: partner-profile/S3-version erasure not implemented\nSKIPPED [1] tests/test_privacy_capability_planned.py:28: R08-C planned: erasure lifecycle not implemented\nSKIPPED [1] tests/test_privacy_capability_planned.py:24: R08-C planned: erasure lifecycle not implemented\nSKIPPED [1] tests/test_privacy_capability_planned.py:20: R08-B planned: RIS inspect/export not implemented\nSKIPPED [1] tests/test_privacy_capability_planned.py:16: R08-A1 internal repository exists; CRUD emission is R08-A2\nSKIPPED [1] tests/test_privacy_capability_planned.py:12: R08-A1 internal repository exists; public privacy.receipts read model is R08-B\n3291 passed, 133 skipped, 1 warning, 450 subtests passed in 37.36s\n",
+      "stderr_tail": ""
+    }
+  ],
+  "profile_status": "PASS",
+  "module_artifact": {
+    "path": "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/terraform/modules/mays_orders",
+    "source_commit": null,
+    "zip_sha256": null,
+    "manifest_sha256": null,
+    "status": "BLOCKED",
+    "errors": []
+  }
+}

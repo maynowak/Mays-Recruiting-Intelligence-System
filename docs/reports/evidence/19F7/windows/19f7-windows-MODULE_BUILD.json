@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-11-27T11:54:34.896362+00:00",
+  "profile": "MODULE_BUILD",
+  "ris_commit": "d0a5bdecddbcc35ded6f62ff51bd5dc4f1bc76e1",
+  "mays_orders": {
+    "version_key": "integrated",
+    "expected_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+    "release": "builder-integrated-source",
+    "checkout": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\mo-db4f9e7-baseline",
+    "provenance_status": "VERIFIED",
+    "errors": []
+  },
+  "platform": "win32",
+  "python": "3.14.10 (tags/v3.14.10:b703b2c, Oct 25 2026, 17:36:52) [MSC v.1944 64 bit (AMD64)]",
+  "artifact_hashes": {
+    "worker_bundle_terraform/lambda.zip": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "worker_bundle_expected": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
+    "worker_bundle_matches_baseline": false,
+    "mays_test_version_map": "e7c0eafcfe3d6ff73739f08fb1a3d6aa1dc49f78de658bfebdb546019b63bc47"
+  },
+  "live_profile": "LOCKED_NOT_EXECUTED",
+  "aggregate_counts": "Per-group only; overlapping profile executions are not summed.",
+  "groups": [
+    {
+      "group": "mays_module_builder",
+      "repository": "MAYS_ORDERS",
+      "status": "FAIL",
+      "return_code": 1,
+      "passed": 86,
+      "failed": 14,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 6,
+      "duration_seconds": 9.55,
+      "collection_errors": 0,
+      "command": [
+        "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-19f-venv314\\Scripts\\python.exe",
+        "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\scripts\\unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "module_builder/tests"
+      ],
+      "stdout_tail": "da\\\\main.tf', 'lambda\\\\src\\\\state_machine.py', 'database\\\\seed\\\\orders_seed_1000.jsonl', 'terraform\\\\terraform.tfvars.example', 'terraform\\\\modules\\\\lambda\\\\variables.tf', 'scripts\\\\seed_orders.py', 'lambda\\\\src\\\\errors.py', 'lambda\\\\src\\\\order_types.py', 'lambda\\\\src\\\\result_handler.py', 'lambda\\\\src\\\\validation.py', 'terraform\\\\variables.tf', 'terraform\\\\policy\\\\resource-policy.json', 'terraform\\\\modules\\\\iam\\\\variables.tf', 'README.md', 'lambda\\\\src\\\\order_service.py', 'lambda\\\\src\\\\agent_order.py', 'terraform\\\\outputs.tf', 'terraform\\\\modules\\\\dynamodb\\\\main.tf', 'lambda\\\\src\\\\identity.py', 'terraform\\\\modules\\\\dynamodb\\\\variables.tf', 'lambda\\\\src\\\\index.py', 'lambda\\\\dist\\\\lambda.zip', 'terraform\\\\main.tf', 'terraform\\\\modules\\\\dynamodb\\\\outputs.tf', 'database\\\\seed\\\\orders_seed_demo_50.json', 'terraform\\\\modules\\\\lambda\\\\outputs.tf', 'lambda\\\\src\\\\dispatch.py', 'terraform\\\\modules\\\\iam\\\\main.tf', 'lambda\\\\build_zip.py', 'module-builder.manifest.json', 'lambda\\\\src\\\\result_consumer.py', 'lambda\\\\src\\\\result_envelope.py', 'lambda\\\\src\\\\sqs_handler.py', 'terraform\\\\README.md', 'terraform\\\\modules\\\\iam\\\\outputs.tf', 'terraform\\\\policy\\\\validate-plan.py'}\n\nmodule_builder\\tests\\test_module_builder.py:439: AssertionError\n_________________ TestOrdersServiceModule.test_module_layout __________________\n\nself = <test_module_builder.TestOrdersServiceModule testMethod=test_module_layout>\n\n    def test_module_layout(self):\n        tree = self._tree()\n        for expected in [\n            \"main.tf\", \"variables.tf\", \"outputs.tf\", \"versions.tf\", \"README.md\",\n            \"modules/dynamodb/main.tf\", \"modules/sqs/main.tf\", \"modules/iam/main.tf\",\n            \"modules/lambda/main.tf\", \"modules/cognito/main.tf\", \"modules/api/main.tf\",\n            \"modules/sqs-worker/main.tf\",\n            \"lambda/dist/lambda.zip\", \"lambda/build_zip.py\", \"lambda/src/index.py\",\n            \"module-builder.manifest.json\",\n        ]:\n>           self.assertIn(expected, tree, f\"Fehlt: {expected}\")\nE           AssertionError: 'modules/dynamodb/main.tf' not found in {'outputs.tf', 'modules\\\\cognito\\\\main.tf', 'lambda\\\\src\\\\state_machine.py', 'modules\\\\dynamodb\\\\variables.tf', 'modules\\\\iam\\\\variables.tf', 'modules\\\\sqs-worker\\\\main.tf', 'lambda\\\\src\\\\errors.py', 'lambda\\\\src\\\\order_types.py', 'modules\\\\dynamodb\\\\outputs.tf', 'modules\\\\sqs\\\\main.tf', 'modules\\\\cognito\\\\variables.tf', 'modules\\\\api\\\\variables.tf', 'lambda\\\\src\\\\result_handler.py', 'lambda\\\\src\\\\validation.py', 'README.md', 'lambda\\\\src\\\\order_service.py', 'modules\\\\iam\\\\outputs.tf', 'modules\\\\lambda\\\\variables.tf', 'modules\\\\cognito\\\\outputs.tf', 'lambda\\\\src\\\\agent_order.py', 'lambda\\\\src\\\\identity.py', 'modules\\\\iam\\\\main.tf', 'lambda\\\\src\\\\index.py', 'lambda\\\\dist\\\\lambda.zip', 'variables.tf', 'modules\\\\dynamodb\\\\main.tf', 'modules\\\\agent_transport\\\\main.tf', 'modules\\\\lambda\\\\main.tf', 'modules\\\\agent_transport\\\\lambda.tf', 'main.tf', 'modules\\\\api\\\\outputs.tf', 'versions.tf', 'modules\\\\api\\\\main.tf', 'lambda\\\\src\\\\dispatch.py', 'modules\\\\lambda\\\\outputs.tf', 'lambda\\\\build_zip.py', 'module-builder.manifest.json', 'lambda\\\\src\\\\result_consumer.py', 'lambda\\\\src\\\\result_envelope.py', 'lambda\\\\src\\\\sqs_handler.py', 'modules\\\\sqs-worker\\\\variables.tf', 'modules\\\\sqs-worker\\\\iam.tf'} : Fehlt: modules/dynamodb/main.tf\n\nmodule_builder\\tests\\test_module_builder.py:869: AssertionError\n=========================== short test summary info ===========================\nFAILED module_builder/tests/test_module_builder.py::TestGeneratedProject::test_cognito_backup_artifact_reproducible_in_target\nFAILED module_builder/tests/test_module_builder.py::TestGeneratedProject::test_expected_layout\nFAILED module_builder/tests/test_module_builder.py::TestGeneratedProject::test_manifest_content\nFAILED module_builder/tests/test_module_builder.py::TestGeneratedProject::test_no_original_repo_dependency_in_terraform\nFAILED module_builder/tests/test_module_builder.py::TestGeneratedProject::test_policy_files_present_in_target\nFAILED module_builder/tests/test_module_builder.py::TestGeneratedProject::test_policy_gate_negative_missing_tag\nFAILED module_builder/tests/test_module_builder.py::TestGeneratedProject::test_policy_gate_negative_region\nFAILED module_builder/tests/test_module_builder.py::TestGeneratedProject::test_policy_gate_negative_resource_type\nFAILED module_builder/tests/test_module_builder.py::TestGeneratedProject::test_policy_gate_positive\nFAILED module_builder/tests/test_module_builder.py::TestModuleSelectionB1::test_lambda_without_sqs_readme_note\nFAILED module_builder/tests/test_module_builder.py::TestModuleSelectionB1::test_nothing_added_silently\nFAILED module_builder/tests/test_module_builder.py::TestModuleSelectionB1::test_single_module_dynamodb\nFAILED module_builder/tests/test_module_builder.py::TestModuleSelectionB1::test_valid_combination_lambda_chain\nFAILED module_builder/tests/test_module_builder.py::TestOrdersServiceModule::test_module_layout\n14 failed, 86 passed, 6 subtests passed in 9.55s\n",
+      "stderr_tail": "",
+      "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+      "source_mode": "temporary_detached_git_clone_with_rebuilt_lambda_artifact",
+      "preparation": {
+        "action": "rebuild lambda/dist/lambda.zip in disposable exact-commit test clone",
+        "return_code": 0,
+        "stdout_tail": "Built C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\ris-qa-sandbox-0wxnjf8g\\source\\lambda\\dist\\lambda.zip (31041 bytes, sha256 aa70eaaa1cb6e01b972dba05893573559e8aa0d945eb5691ce31e079e2521c89)\n  agent_order.py  (10857 bytes)\n  dispatch.py  (4075 bytes)\n  errors.py  (2608 bytes)\n  identity.py  (5409 bytes)\n  index.py  (7149 bytes)\n  order_service.py  (39464 bytes)\n  order_types.py  (1463 bytes)\n  result_consumer.py  (3972 bytes)\n  result_envelope.py  (7299 bytes)\n  result_handler.py  (5072 bytes)\n  sqs_handler.py  (3202 bytes)\n  state_machine.py  (474 bytes)\n  validation.py  (9469 bytes)\n",
+        "stderr_tail": ""
+      }
+    },
+    {
+      "group": "mays_installer",
+      "repository": "MAYS_ORDERS",
+      "status": "FAIL",
+      "return_code": 1,
+      "passed": 69,
+      "failed": 11,
+      "skipped": 1,
+      "subtests_passed": 0,
+      "duration_seconds": 0.953,
+      "tests_run": 81,
+      "collection_errors": 0,
+      "command": [
+        "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-19f-venv314\\Scripts\\python.exe",
+        "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\scripts\\unified_test_process.py",
+        "--unittest-module",
+        "installer.tests.test_installer"
+      ],
+      "stdout_tail": "",
+      "stderr_tail": "5 lines>...\n                        gid, gids, uid, umask,\n                        ^^^^^^^^^^^^^^^^^^^^^^\n                        start_new_session, process_group)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\DCI-Student\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\subprocess.py\", line 1553, in _execute_child\n    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,\n                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n                             # no special security\n                             ^^^^^^^^^^^^^^^^^^^^^\n    ...<4 lines>...\n                             cwd,\n                             ^^^^\n                             startupinfo)\n                             ^^^^^^^^^^^^\nFileNotFoundError: [WinError 2] Das System kann die angegebene Datei nicht finden\n\n======================================================================\nERROR: test_sarif_no_native_top_level_fields (installer.tests.test_installer.TestSarifAdapter.test_sarif_no_native_top_level_fields)\nTest that SARIF doesn't contain native top-level fields.\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"C:\\Users\\DCI-ST~1\\AppData\\Local\\Temp\\ris-qa-sandbox-4u92z6ol\\source\\installer\\tests\\test_installer.py\", line 1522, in test_sarif_no_native_top_level_fields\n    result = subprocess.run(\n        [\"python3\", \"security/dependency_detector.py\"],\n    ...<2 lines>...\n        cwd=\"/home/dci-student/projects/Mays-Orders-AWS\"\n    )\n  File \"C:\\Users\\DCI-Student\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\subprocess.py\", line 555, in run\n    with Popen(*popenargs, **kwargs) as process:\n         ~~~~~^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\DCI-Student\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\subprocess.py\", line 1039, in __init__\n    self._execute_child(args, executable, preexec_fn, close_fds,\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n                        pass_fds, cwd, env,\n                        ^^^^^^^^^^^^^^^^^^^\n    ...<5 lines>...\n                        gid, gids, uid, umask,\n                        ^^^^^^^^^^^^^^^^^^^^^^\n                        start_new_session, process_group)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\DCI-Student\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\subprocess.py\", line 1553, in _execute_child\n    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,\n                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n                             # no special security\n                             ^^^^^^^^^^^^^^^^^^^^^\n    ...<4 lines>...\n                             cwd,\n                             ^^^^\n                             startupinfo)\n                             ^^^^^^^^^^^^\nFileNotFoundError: [WinError 2] Das System kann die angegebene Datei nicht finden\n\n----------------------------------------------------------------------\nRan 81 tests in 0.953s\n\nFAILED (errors=11, skipped=1)\n",
+      "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+      "source_mode": "temporary_detached_git_clone"
+    },
+    {
+      "group": "ris_builder_contract",
+      "repository": "RIS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 57,
+      "failed": 0,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 0.35,
+      "collection_errors": 0,
+      "command": [
+        "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-19f-venv314\\Scripts\\python.exe",
+        "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\scripts\\unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "tests/test_build_mays_orders_transport_outputs.py",
+        "tests/test_orders_aws_name_limits.py"
+      ],
+      "stdout_tail": ".........................................................                [100%]\n57 passed in 0.35s\n",
+      "stderr_tail": ""
+    },
+    {
+      "group": "generated_module_artifact",
+      "repository": "RIS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 0.73,
+      "collection_errors": 0,
+      "command": [
+        "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-19f-venv314\\Scripts\\python.exe",
+        "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\scripts\\unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "tests/test_generated_module_artifact.py"
+      ],
+      "stdout_tail": ".........                                                                [100%]\n9 passed in 0.73s\n",
+      "stderr_tail": ""
+    }
+  ],
+  "profile_status": "BLOCKED",
+  "module_artifact": {
+    "path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\terraform\\modules\\mays_orders",
+    "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+    "zip_sha256": "aa70eaaa1cb6e01b972dba05893573559e8aa0d945eb5691ce31e079e2521c89",
+    "manifest_sha256": "effa182c2a0406741ef2d03d73c3cdf7bab2e10317c1a892e70ff62210e5a90a",
+    "status": "VERIFIED",
+    "errors": []
+  }
+}
