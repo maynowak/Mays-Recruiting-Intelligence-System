@@ -14038,3 +14038,38 @@ Status: **DEPLOYMENT PASS; CONTRACT DRAFTED; LIVE CANARY NO-GO; STOP AT 20B APPR
   approval is NOT GRANTED.
 - Pre-existing unstaged 19F2 result file was not touched. STOP at 20B live
   execution approval; no automatic continuation.
+
+## RIS-DEV2-FINAL-LIVE-ACCEPTANCE-20-21 — 20A2 — 2026-11-27
+
+Status: **READ-ONLY PREPARATION COMPLETE; GATE 1 NOT APPROVED; STOP**.
+
+- Baseline branch/HEAD, AWS account/region and RIS-DEV2 State identity matched
+  the requested baseline (HEAD `bfb9a666` at start; State serial 76, expected
+  lineage and S3 VersionId).
+- Targeted, non-scanning identity checks found the configured synthetic
+  Cognito account confirmed/enabled and its one ACTIVE APIProfile matched the
+  configured owner/tenant. Raw identifiers and personal data were not
+  committed. A targeted entitlement GSI query found no `ats-agent`
+  entitlement for that account; no entitlement mutation.
+- Current Analysis synthetic mode remains true, but
+  `ANALYSIS_SYNTHETIC_EXPIRES_AT=2026-11-26T17:40:28Z` is expired. Existing
+  Terraform management points to `foundation_entitlements` for a seed row and
+  `analysis_synthetic_expires_at` for Lambda configuration. The seed resource
+  omits `apiProfileId` and DynamoDB TTL, so it is user/tenant/agent-wide and
+  logical expiry does not remove the row. No Terraform plan/apply.
+- Cost boundary is not enforceable from verified configuration: no confirmed
+  Mays unit-price cap, zero-charge guarantee, or external ATS cost ceiling.
+  Existing SQS dispatch/work/result queues allow up to three receives; an
+  approximate read found one visible message in `ris-dev2-dev-dlq`. No message
+  content was read or changed. These retries conflict with the requested
+  automatic-retry prohibition; queue changes need separate impact approval.
+- Reused 19H deployment verification, 19F8 local mocked E2E, original Mays
+  tests (15 passed), and 19G4/19G5 QA evidence. Live canary, 20A3, Gate 2 and
+  Phase 21 were not run.
+- Report/evidence:
+  `docs/reports/RIS-DEV2-FINAL-LIVE-ACCEPTANCE-20-21.md` and
+  `docs/reports/evidence/20A2/read-only-findings.json`. One Gate 1 approval
+  template is prepared; it is not granted. No order, invocation, queue receive,
+  entitlement/configuration/AWS mutation, recovery, redrive, or cleanup.
+- Protected unstaged 19F2 file remains untouched. **STOP at Gate 1; no
+  automatic continuation.**

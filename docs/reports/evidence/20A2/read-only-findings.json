@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "phase": "20A2_READ_ONLY_PARALLEL_PREPARATION",
+  "observed_at_utc": "2026-11-27T17:22Z",
+  "baseline": {
+    "branch": "feature/ris-analysis-integration-07",
+    "head": "bfb9a666b623dbb7a8aae55035dac67d8e77c665",
+    "account": "262370457690",
+    "region": "eu-central-1",
+    "workspace": "ris-dev2",
+    "state_serial": 76,
+    "state_lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "s3_version": "M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T"
+  },
+  "identity_entitlement": {
+    "lookup_scope": "exact configured synthetic Cognito subject via sub filter; exact-owner DynamoDB GSI queries only; no scan",
+    "cognito_match_count": 1,
+    "cognito_enabled": true,
+    "cognito_status": "CONFIRMED",
+    "tenant_claim_matches_configured_synthetic_tenant": true,
+    "active_owner_profiles_for_subject": 1,
+    "active_profile_owner_tenant_binding_matches": true,
+    "raw_subject_profile_and_tenant_ids_committed": false,
+    "required_ats_agent_entitlement_rows_found": 0,
+    "required_analysis_agent_entitlement_rows_found": 0,
+    "entitlement_contract_fields": [
+      "userId",
+      "tenantId",
+      "agentId",
+      "validFrom",
+      "validUntil",
+      "optional apiProfileId"
+    ],
+    "balance_or_single_use_counter_in_contract": false,
+    "result": "IDENTITY_PROFILE_PASS; ENTITLEMENT_BLOCKED"
+  },
+  "synthetic_authorization": {
+    "analysis_synthetic_mode": "true",
+    "analysis_synthetic_expires_at": "2026-11-26T17:40:28Z",
+    "expired_on_observation_date": true,
+    "current_allowlist_unchanged": true,
+    "terraform_varfile_foundation_entitlements_count": 0,
+    "existing_seed_resource": "aws_dynamodb_table_item.foundation_entitlement",
+    "seed_persists_apiProfileId": false,
+    "seed_sets_expiresAt_ttl": false,
+    "validity_enforced_by_application_validUntil": true,
+    "minimum_proposed_window": "scheduled 20B start minus 1 minute through start plus 15 minutes (10-minute execution cap plus 5-minute buffer)",
+    "result": "BLOCKED; NO CONFIG OR ENTITLEMENT MUTATION"
+  },
+  "management_mechanisms": {
+    "terraform_foundation_entitlements": "Existing Terraform-only synthetic seed; one row scoped to userId+tenantId+agentId+validFrom+validUntil. Current resource implementation omits optional apiProfileId and expiresAt; logical expiry does not remove the row.",
+    "offer_grant": "Profile-scope grant_offer code exists, but repository comments identify no productive caller and require an ACTIVE offer; no live profile-scoped grant path was verified.",
+    "analysis_validity": "Existing root Terraform variable analysis_synthetic_expires_at drives Analysis Lambda environment; mode and capability allowlist need not change."
+  },
+  "cost_and_retries": {
+    "unitPrice": "RIS adapter validates positive integer and forwards it; no rate/maximum or zero-charge guarantee verified.",
+    "external_provider": "ATS agent POSTs synthetic job/profile to Mays Jobsearch /api/ats-analysis; provider pricing not verified.",
+    "hard_per_canary_cost_cap_available": false,
+    "automatic_sqs_retry_configured": true,
+    "max_receive_count": 3,
+    "affected_queues": [
+      "ris-dev2-dev-agent-dispatch",
+      "ris-dev2-dev-work-queue",
+      "ris-dev2-mays-orders-agent-results"
+    ],
+    "approximate_queue_counts_readonly": {
+      "dispatch": {
+        "visible": 0,
+        "inflight": 0,
+        "delayed": 0
+      },
+      "work": {
+        "visible": 0,
+        "inflight": 0,
+        "delayed": 0
+      },
+      "results": {
+        "visible": 0,
+        "inflight": 0,
+        "delayed": 0
+      },
+      "dispatch_dlq": {
+        "visible": 0,
+        "inflight": 0,
+        "delayed": 0
+      },
+      "work_dlq": {
+        "visible": 1,
+        "inflight": 0,
+        "delayed": 0
+      },
+      "results_dlq": {
+        "visible": 0,
+        "inflight": 0,
+        "delayed": 0
+      }
+    },
+    "work_dlq_message_content_read": false,
+    "result": "BLOCKED; COST CAP AND NO-AUTOMATIC-RETRY REQUIREMENT NOT ENFORCEABLE WITH CURRENT VERIFIED CONFIG"
+  },
+  "mutations": {
+    "aws_resource_mutations": 0,
+    "entitlement_writes": 0,
+    "terraform_plan": 0,
+    "terraform_apply": 0,
+    "lambda_invocations": 0,
+    "orders_created": 0,
+    "sqs_receive_delete_visibility_calls": 0,
+    "redrive_recovery_cleanup": 0
+  },
+  "protected_19f2_untouched": true
+}
