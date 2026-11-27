@@ -11,12 +11,14 @@ for path in (ROOT, ROOT / "tests", ROOT / "lambda"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-# Current reviewed local worker bundle after the claim fix; it is not deployed.
-# The Analysis bundle remains the reviewed Fix-16B artifact. Update only with a
-# reviewed bundle rebuild; never relax the stale-plan assertion below.
-CURRENT_BUNDLE_SHA256 = {
-    "worker": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
-    "analysis": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10",
+# Review-only outputs after LF-canonical packaging. These are not Terraform
+# deployment pins; the historical worker digest remains recorded separately.
+HISTORICAL_WORKER_BUNDLE_SHA256 = (
+    "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7"
+)
+REVIEW_CANDIDATE_BUNDLE_SHA256 = {
+    "worker": "4d880b4856067b7d8b9d17e8a0257abf49d6208f9fb1743b711f516091ce928a",
+    "analysis": "b29f5b3b966375150f4aa70cbeee83be57e3292dfae8466ff842c0c48fbf90dc",
 }
 
 from agents.runtime.pipeline import process_record  # noqa: E402
@@ -189,8 +191,10 @@ class ManifestPinTest(unittest.TestCase):
             # fix (RIS-ORDER-RESULT-CORRELATION-FIX-01, d767a198…/e268b028…).
             # Update this pin only together with a reviewed bundle rebuild.
             self.assertEqual(
-                CURRENT_BUNDLE_SHA256[key],
+                REVIEW_CANDIDATE_BUNDLE_SHA256[key],
                 digest, relative)
+            if key == "worker":
+                self.assertNotEqual(HISTORICAL_WORKER_BUNDLE_SHA256, digest)
             self.assertNotEqual(manifest["bundles"][key]["sha256"], digest,
                                 f"{relative}: historical plan must be stale")
 
