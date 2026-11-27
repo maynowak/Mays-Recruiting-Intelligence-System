@@ -13682,3 +13682,21 @@ Safety: AWS mutations 0; live invocations 0; redrives 0; module pin changes 0;
 Evidence: `docs/reports/RIS-MAYS-ORDERS-COMPATIBILITY-RESOLUTION-19F4.md` and
   `.results.json`; contract index updated at
   `docs/reports/RIS-MAYS-ORDERS-CONTRACT-EVIDENCE-19F2.md`.
+
+[RIS-MAYS-ORDERS-MAIN-UPGRADE-19F5]
+Status: BLOCKED before module generation/installation. Mays short SHA `80a84ca`
+resolved directly in the Mays worktree to
+`80a84ca2f146d5efaa31d41ba425359283333f21`; expected title verified and commit
+is an ancestor of origin/main. Clean detached checkout used. RIS QA version map
+pinned to this exact SHA in `6d0b6ba5d865f4f78968154f89a8d847462188ce`.
+Candidate original tests: Lambda 456 PASS, seed 28 PASS, Cognito backup 2 PASS;
+module Builder 113 PASS / 16 FAIL; Installer 71 PASS / 9 errors / 1 skipped.
+RIS XREPO_CONTRACT 124 PASS / 9 FAIL / 4 subtests; XREPO_E2E 3 PASS / 36 FAIL.
+Contract gate reports missing candidate `result_envelope`; E2E reports missing
+`result_consumer`, plus the broader dispatch/handoff failures. Required gates
+failed, so no module build, Generated Module Validation, installer invocation,
+Terraform init/validate, UPGRADE_GATE, or FULL was run. Existing generated
+module and builder pin remain unchanged. MODE=true unchanged; LIVE=false;
+AWS mutations 0; Terraform plan/apply 0; Main merge 0. Report:
+`docs/reports/RIS-MAYS-ORDERS-MAIN-UPGRADE-19F5.md`. Raw result JSONs remain in
+the session Temp workspace at the paths listed in that report.
