@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-11-27T14:24:40.595462+00:00",
+  "profile": "MODULE_BUILD",
+  "ris_commit": "41ebddae2c2aee1ff9677d4ec281dc4ff18e1d72",
+  "mays_orders": {
+    "version_key": "integrated",
+    "expected_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+    "release": "builder-integrated-source",
+    "checkout": "/home/runner/work/_temp/mays-current",
+    "provenance_status": "VERIFIED",
+    "errors": []
+  },
+  "platform": "linux",
+  "python": "3.14.10 (main, Oct 26 2026, 14:17:03) [GCC 15.2.0]",
+  "artifact_hashes": {
+    "worker_bundle_terraform/lambda.zip": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "worker_bundle_expected": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "worker_bundle_matches_baseline": true,
+    "mays_test_version_map": "e7c0eafcfe3d6ff73739f08fb1a3d6aa1dc49f78de658bfebdb546019b63bc47"
+  },
+  "live_profile": "LOCKED_NOT_EXECUTED",
+  "aggregate_counts": "Per-group only; overlapping profile executions are not summed.",
+  "groups": [
+    {
+      "group": "mays_module_builder",
+      "repository": "MAYS_ORDERS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 100,
+      "failed": 0,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 6,
+      "duration_seconds": 1.99,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "module_builder/tests"
+      ],
+      "stdout_tail": "........................................................................ [ 72%]\n............................                                       [100%]\n100 passed, 6 subtests passed in 1.99s\n",
+      "stderr_tail": "",
+      "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+      "source_mode": "temporary_detached_git_clone_with_rebuilt_lambda_artifact",
+      "preparation": {
+        "action": "rebuild lambda/dist/lambda.zip in disposable exact-commit test clone",
+        "return_code": 0,
+        "stdout_tail": "Built /tmp/ris-qa-sandbox-za3m36f_/source/lambda/dist/lambda.zip (31096 bytes, sha256 cc796473d1670ca46ca7e3f352cd8c384468b6d0e4634251b6989b692d378763)\n  agent_order.py  (10857 bytes)\n  dispatch.py  (4075 bytes)\n  errors.py  (2608 bytes)\n  identity.py  (5409 bytes)\n  index.py  (7149 bytes)\n  order_service.py  (39464 bytes)\n  order_types.py  (1463 bytes)\n  result_consumer.py  (3972 bytes)\n  result_envelope.py  (7299 bytes)\n  result_handler.py  (5072 bytes)\n  sqs_handler.py  (3202 bytes)\n  state_machine.py  (474 bytes)\n  validation.py  (9469 bytes)\n",
+        "stderr_tail": ""
+      }
+    },
+    {
+      "group": "mays_installer",
+      "repository": "MAYS_ORDERS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 81,
+      "failed": 0,
+      "skipped": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 26.739,
+      "tests_run": 81,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--unittest-module",
+        "installer.tests.test_installer"
+      ],
+      "stdout_tail": "",
+      "stderr_tail": "te_plan_file_invalid) ... ok\ntest_create_run_dir (installer.tests.test_installer.TestRunDirectoryManager.test_create_run_dir) ... ok\ntest_save_context (installer.tests.test_installer.TestRunDirectoryManager.test_save_context) ... ok\ntest_no_secret_leakage_in_sarif (installer.tests.test_installer.TestSarifAdapter.test_no_secret_leakage_in_sarif)\nTest that SARIF doesn't leak secrets. ... ok\ntest_sarif_adapter_exists (installer.tests.test_installer.TestSarifAdapter.test_sarif_adapter_exists)\nTest that SARIF adapter script exists. ... ok\ntest_sarif_conversion (installer.tests.test_installer.TestSarifAdapter.test_sarif_conversion)\nTest that native dependency result converts to SARIF. ... ok\ntest_sarif_deterministic (installer.tests.test_installer.TestSarifAdapter.test_sarif_deterministic)\nTest that SARIF generation is deterministic. ... ok\ntest_sarif_error_conversion (installer.tests.test_installer.TestSarifAdapter.test_sarif_error_conversion)\nTest SARIF conversion for error status. ... ok\ntest_sarif_multiple_findings (installer.tests.test_installer.TestSarifAdapter.test_sarif_multiple_findings)\nTest SARIF with multiple dependency findings. ... ok\ntest_sarif_no_native_top_level_fields (installer.tests.test_installer.TestSarifAdapter.test_sarif_no_native_top_level_fields)\nTest that SARIF doesn't contain native top-level fields. ... ok\ntest_state_list (installer.tests.test_installer.TestStateCommands.test_state_list)\nTest state list command. ... ok\ntest_plan_result_from_json (installer.tests.test_installer.TestTerraformRunner.test_plan_result_from_json)\nTest PlanResult from JSON. ... ok\ntest_validate_failure (installer.tests.test_installer.TestTerraformRunner.test_validate_failure)\nTest validate failure. ... ok\ntest_validate_success (installer.tests.test_installer.TestTerraformRunner.test_validate_success)\nTest validate success. ... ok\ntest_version (installer.tests.test_installer.TestTerraformRunner.test_version)\nTest version command. ... ok\ntest_aws_profile_check_fail (installer.tests.test_installer.TestValidationLayer.test_aws_profile_check_fail)\nTest AWS profile check fails. ... ok\ntest_aws_profile_check_pass (installer.tests.test_installer.TestValidationLayer.test_aws_profile_check_pass)\nTest AWS profile check passes. ... ok\ntest_terraform_cli_check (installer.tests.test_installer.TestValidationLayer.test_terraform_cli_check)\nTest Terraform CLI check. ... ok\ntest_validation_result_summary (installer.tests.test_installer.TestValidationLayer.test_validation_result_summary)\nTest validation result summary. ... ok\ntest_without_yes_requires_approval (installer.tests.test_installer.TestYesFlagBehavior.test_without_yes_requires_approval)\nTest that without --yes, approval is required. ... ok\ntest_yes_flag_skips_approval_prompt (installer.tests.test_installer.TestYesFlagBehavior.test_yes_flag_skips_approval_prompt)\nTest that --yes skips approval prompt. ... ok\n\n----------------------------------------------------------------------\nRan 81 tests in 26.739s\n\nOK\n",
+      "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+      "source_mode": "temporary_detached_git_clone"
+    },
+    {
+      "group": "ris_builder_contract",
+      "repository": "RIS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 57,
+      "failed": 0,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 0.26,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "tests/test_build_mays_orders_transport_outputs.py",
+        "tests/test_orders_aws_name_limits.py"
+      ],
+      "stdout_tail": ".........................................................                [100%]\n57 passed in 0.26s\n",
+      "stderr_tail": ""
+    },
+    {
+      "group": "generated_module_artifact",
+      "repository": "RIS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 0.59,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "tests/test_generated_module_artifact.py"
+      ],
+      "stdout_tail": ".........                                                                [100%]\n9 passed in 0.59s\n",
+      "stderr_tail": ""
+    }
+  ],
+  "profile_status": "PASS",
+  "module_artifact": {
+    "path": "/home/runner/work/_temp/generated/current",
+    "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+    "zip_sha256": "cc796473d1670ca46ca7e3f352cd8c384468b6d0e4634251b6989b692d378763",
+    "manifest_sha256": "f1e91ee67593bd82670f3871559b6e3fee46f5b55849fbbacc578cb2b286578c",
+    "status": "VERIFIED",
+    "errors": []
+  }
+}

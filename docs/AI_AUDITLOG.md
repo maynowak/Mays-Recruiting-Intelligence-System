@@ -13889,3 +13889,45 @@ Status: **PREFLIGHT PASS; ONE FULL PLAN CREATED; SCOPE FAIL; APPLY BLOCKED**.
 - Report/evidence: `docs/reports/RIS-DEV2-WORKER-CONTROLLED-REPLAN-19G3.md` and
   `docs/reports/evidence/19G3/`. The 19H apply gate is explicitly BLOCKED; no
   Apply authorization is granted.
+
+## RIS-DEV2-ARTIFACT-PATH-RECONCILIATION-19G4 — 2026-11-27
+
+Status: **PATH ROOT CAUSE CONFIRMED; LOCAL ARTIFACT/TERRAFORM GATES PASS;
+UBUNTU FULL QA PASS; STOP AT 19G5 APPROVAL GATE**.
+
+- Read the existing 19G3 plan only locally after verifying SHA-256
+  `8daf05702d4e0ff27bd6668582f5e39162d0ab660935d52fdf1145703a722752`. It
+  showed Analysis and Reader `filename` changes with unchanged source-code
+  hashes; Worker and Ingress filenames were unchanged. This isolates the
+  deviation to the 19G2 Analysis/Reader override paths.
+- Restored the RIS-DEV2 override inputs to `analysis-lambda.zip` and
+  `../lambda/dist/orders-reader.zip`. Terraform normalizes relative inputs at
+  `path.root`; Reader retains the historical Windows separator form. The exact
+  saved Windows filename identities resolve to local files on this checkout.
+- Guarded, byte-for-byte staging verified Analysis SHA-256
+  `276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10` at
+  `terraform/analysis-lambda.zip` and Reader SHA-256
+  `610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b` at
+  `lambda/dist/orders-reader.zip`. Worker remained
+  `507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d`. The
+  staging operation was repeated and safely reported both existing archives;
+  no archive was rebuilt or edited.
+- Focused artifact/path/Analysis regression tests: 29 passed. Unified Windows
+  `RIS_NATIVE`: 3,284 passed, 0 failed, 142 skipped, 450 subtests passed.
+  Backend-free Terraform init, fmt-check, and validate passed (existing
+  provider deprecation warnings only). QA dependencies were confined to a
+  temporary Venv outside the repository.
+- Established Ubuntu workflow `mays-compatibility-qa.yml` run
+  `46015361867` passed on HEAD `41ebddae2c2aee1ff9677d4ec281dc4ff18e1d72`, with
+  original Mays tests from pin `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` and
+  successful reproducibility in independent clean builds. Raw results are in
+  `docs/reports/evidence/19G4/ubuntu/`. Two initial runs failed on a stale
+  Analysis wiring test; the test was corrected and the final workflow passed.
+- No AWS access/mutations, Terraform plans/applies, State operations, live
+  invocations, runtime source changes, Worker/Mays pin changes, or Main merge.
+  Both 19G and 19G3 plans remain blocked. Follow-up 19G5 text is a proposal only;
+  separate explicit approval is required before any plan. Stop at the
+  replan-approval gate.
+- Commits pushed only for this task: `0d2ac83` (path reconciliation),
+  `838e5be` (regression assertions), and `41ebdda` (idempotent safe staging).
+  Protected unstaged 19F2 result file was not touched.

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow": ".github/workflows/mays-compatibility-qa.yml",
+  "run_id": 46015361867,
+  "run_url": "https://github.com/maynowak/Mays-Recruiting-Intelligence-System/actions/runs/46015361867",
+  "conclusion": "success",
+  "git_commit": "41ebddae2c2aee1ff9677d4ec281dc4ff18e1d72",
+  "python": "3.14.10",
+  "terraform": "1.17.0",
+  "mays_source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+  "full_profile_groups": {
+    "ris_native": {"passed": 3293, "failed": 0},
+    "mays_lambda": {"passed": 240, "failed": 0},
+    "mays_module_builder": {"passed": 100, "failed": 0},
+    "mays_installer": {"passed": 81, "failed": 0},
+    "mays_seed_tools": {"passed": 28, "failed": 0},
+    "mays_cognito_backup": {"passed": 2, "failed": 0},
+    "xrepo_contract": {"passed": 133, "failed": 0},
+    "xrepo_e2e": {"passed": 39, "failed": 0},
+    "ris_builder_contract": {"passed": 57, "failed": 0},
+    "generated_module_artifact": {"passed": 9, "failed": 0}
+  },
+  "bundle_reproducibility": {
+    "status": "PASS",
+    "worker_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "analysis_canonical_builder_sha256": "370890d459488304481d99255cfa6a2891b5f19a8c5df2723556905195c7c621",
+    "reader_canonical_builder_sha256": "bea4c3e59666bed8ad071ad4e405bcdfd57dafdac68096ce648667f0effb1b41"
+  },
+  "previous_attempt": {
+    "run_ids": [46012498801, 46012509742],
+    "result": "FAILED_ON_STALE_TEST_EXPECTATION",
+    "resolution": "Updated the Analysis Terraform wiring regression assertion and separated preserved deployment ZIP identity from canonical review-build output; final run 46015361867 passed on final HEAD."
+  },
+  "aws_credentials": "empty; workflow configured no AWS access",
+  "terraform_plan_apply_or_state_operations": 0
+}

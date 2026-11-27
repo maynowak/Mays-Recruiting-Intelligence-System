@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "git_commit_validated": "41ebddae2c2aee1ff9677d4ec281dc4ff18e1d72",
+  "aws_access": false,
+  "terraform_plan_count": 0,
+  "terraform_apply_count": 0,
+  "state_mutations": 0,
+  "checks": [
+    {
+      "command": "python scripts/stage_preserved_ris_dev2_artifact_paths.py",
+      "result": "PASS",
+      "detail": "Guarded byte copies; Analysis and Reader destination hashes verified. Re-run safely recognized both as already staged."
+    },
+    {
+      "command": "python -m pytest tests/test_preserved_ris_dev2_artifacts.py tests/test_analysis_runtime_terraform.py tests/test_analysis_ecosystem_wiring.py -q",
+      "result": "PASS",
+      "passed": 29,
+      "failed": 0
+    },
+    {
+      "command": "python scripts/unified_tests.py RIS_NATIVE --mays-version integrated --mays-source installer/projects/mays_order_builder",
+      "result": "PASS",
+      "passed": 3284,
+      "failed": 0,
+      "skipped": 142,
+      "subtests_passed": 450,
+      "mays_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f"
+    },
+    {
+      "command": "terraform -chdir=terraform fmt -check",
+      "result": "PASS"
+    },
+    {
+      "command": "terraform -chdir=terraform init -backend=false -input=false -lockfile=readonly -no-color",
+      "result": "PASS",
+      "terraform_version": "1.17.0",
+      "providers": {"hashicorp/aws": "6.67.0", "hashicorp/time": "0.14.2"}
+    },
+    {
+      "command": "terraform -chdir=terraform validate -no-color",
+      "result": "PASS_WITH_EXISTING_DEPRECATION_WARNINGS",
+      "warnings": "Existing AWS provider DynamoDB hash_key/range_key deprecations; no validation errors."
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "artifact_sha256": {
+    "terraform/lambda.zip": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "terraform/analysis-lambda.zip": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10",
+    "lambda/dist/orders-reader.zip": "610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b"
+  },
+  "qa_dependency_environment": {
+    "type": "isolated-temporary-venv",
+    "path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-19g4-qa-venv",
+    "project_dependencies_changed": false,
+    "global_python_environment_changed": false
+  },
+  "windows_full_unified_suite": {
+    "status": "PLATFORM_LIMITATION_NOT_USED_AS_FINAL_GATE",
+    "detail": "Final Windows RIS_NATIVE passes. Original Mays module-builder and installer groups require the established Ubuntu environment for POSIX paths/executables; authoritative full Ubuntu workflow passes."
+  }
+}
