@@ -14626,3 +14626,35 @@ Baseline `726541164a80bed28cc46250d273d553851965a2`.
   entitlement deletion, Terraform state change, or other AWS mutation. Apply
   remains NOT AUTHORIZED. Report updated; protected 19F2 results JSON remains
   unedited and unstaged.
+
+## RIS-MAYS-ORDERS — corrected entitlement cleanup plan PASS — 2026-11-28
+
+Baseline `c6b764ec94a19d9e950d49a2c50817d4e20883c3`.
+
+- Local diagnosis: previous `TF_DATA_DIR` pointed one level above the actual
+  `.terraform` data directory, causing missing-module errors. Correct existing
+  RIS-DEV2 cached directory had matching backend/workspace but lacked four
+  newer local module entries. Ordinary `terraform init -input=false
+  -lockfile=readonly` installed local module metadata and reused locked
+  providers; no reconfigure/migration, no provider lockfile change, no AWS
+  infrastructure mutation. `terraform validate` passed with deprecation
+  warnings.
+- Fresh preflight: account `262370457690`, `eu-central-1`, `ris-dev2`, State
+  serial 78 / lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082` / VersionId
+  `Nv9DBw9WQi48972QdhqULqPlpG3Ddi4y`; sole managed foundation entitlement and
+  live target row match; ATS `INACTIVE`, Addition catalog `ABSENT`; order/work
+  evidence intact; 19G5 input and preserved artifacts unchanged.
+- Exactly one full-refresh, normal-lock Terraform 1.17.0 plan ran. Exit 0;
+  stdout and stderr fully captured with test-owner values redacted to external
+  files (stdout 41,668 chars; stderr 0). Plan file external to repo:
+  `%TEMP%\opencode\ris-dev2-addition-entitlement-cleanup-c6b764e.tfplan`.
+  SHA-256 `d4c14cfb45105b76e689aa81b65ef6b645ba802cc1c59f7fe3f4b647265ccb10`.
+- Plan exactly 0 Add / 0 Change / 1 Destroy / 0 Replace. Sole action is delete
+  `module.dynamodb.aws_dynamodb_table_item.foundation_entitlement["addition-acceptance-b939b2ba7c27430b"]`;
+  planned prior item exactly matches target table/key/owner/tenant/agent. Shared
+  guard `safe=true`, code `SHARED_TEARDOWN_AUTHORIZED`, exact cleanup intent and
+  plan hash; sole finding is the specific entitlement item, not a shared table
+  or infrastructure resource. Remote State unchanged; lock released.
+- Apply approval remains **NOT GRANTED**. No Apply/cleanup. Approval template
+  added to status report. Protected 19F2 results JSON remains unedited and
+  unstaged; no Main merge.

@@ -701,3 +701,67 @@ version; no active Terraform lock record was found (only backend checksum
 metadata). No Apply, entitlement deletion, or other AWS mutation occurred.
 Cleanup Apply remains **NOT AUTHORIZED**. Status/audit checkpoint only; protected
 19F2 results JSON remains untouched and unstaged.
+
+## Cleanup-plan correction — PASS; awaiting Apply authorization
+
+Baseline `c6b764ec94a19d9e950d49a2c50817d4e20883c3`. Local diagnostics found the
+previous runner had pointed `TF_DATA_DIR` at the parent of the actual Terraform
+data directory. Terraform therefore lacked module-install metadata. The
+correct existing RIS-DEV2 `.terraform` directory had the exact cached backend
+and workspace, but four local module entries added since that cache was made
+were missing. Ran ordinary `terraform init -input=false -lockfile=readonly`
+against that existing cache: it installed those local modules and reused the
+locked AWS/time providers; no backend reconfiguration/migration occurred and
+`terraform/.terraform.lock.hcl` remained unchanged. `terraform validate` then
+passed (with existing deprecation warnings). No build, runtime change, or AWS
+infrastructure mutation.
+
+Immediately before the single authorized plan, preflight reconfirmed account
+`262370457690`, region `eu-central-1`, workspace `ris-dev2`, State serial 78 /
+lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082` / S3 VersionId
+`Nv9DBw9WQi48972QdhqULqPlpG3Ddi4y`; exact target row and sole managed
+`foundation_entitlement`; ATS catalog `INACTIVE`; Addition catalog `ABSENT`;
+and preservation of the completed live order/work evidence. Existing 19G5
+inputs and artifact hashes matched. The only supplemental variable remained
+`foundation_entitlements={}`.
+
+Exactly one full-refresh plan ran with normal state locking using the corrected
+existing `TF_DATA_DIR`. Terraform 1.17.0 exit code **0**. Complete stdout and
+stderr were captured and redacted outside the repository:
+
+- stdout: `%TEMP%\opencode\ris-dev2-addition-entitlement-cleanup-c6b764e.stdout.redacted.txt`
+  (41,668 characters)
+- stderr: `%TEMP%\opencode\ris-dev2-addition-entitlement-cleanup-c6b764e.stderr.redacted.txt`
+  (0 characters)
+- Saved plan:
+  `%TEMP%\opencode\ris-dev2-addition-entitlement-cleanup-c6b764e.tfplan`
+- Plan SHA-256: `d4c14cfb45105b76e689aa81b65ef6b645ba802cc1c59f7fe3f4b647265ccb10`
+
+Plan scope **exactly 0 Add / 0 Change / 1 Destroy / 0 Replace**. The sole
+action is delete of
+`module.dynamodb.aws_dynamodb_table_item.foundation_entitlement["addition-acceptance-b939b2ba7c27430b"]`;
+the planned prior item matches table `ris-dev2-dev-entitlements`, the approved
+entitlement ID, owner, tenant and `addition_agent`. No other resource action.
+The shared-infrastructure guard returned `safe=true`,
+`SHARED_TEARDOWN_AUTHORIZED`, with the exact scoped cleanup intent and this plan
+hash; its sole finding is that one entitlement item in the shared DynamoDB
+module. No shared table or infrastructure resource is planned for deletion.
+Remote State version remained unchanged and the Terraform lock was released.
+
+### Apply approval — pending; NOT GRANTED
+
+> Approve at most one Apply of saved plan SHA-256
+> `d4c14cfb45105b76e689aa81b65ef6b645ba802cc1c59f7fe3f4b647265ccb10` in AWS
+> account `262370457690`, region `eu-central-1`, workspace `ris-dev2`, State
+> serial 78 / lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082` / S3 VersionId
+> `Nv9DBw9WQi48972QdhqULqPlpG3Ddi4y`. Exact scope: 0 Add / 0 Change / 1 Destroy
+> / 0 Replace, deleting only the foundation entitlement
+> `addition-acceptance-b939b2ba7c27430b` from
+> `ris-dev2-dev-entitlements`. ATS remains INACTIVE; Addition catalog remains
+> ABSENT; retain user, profile, Orders/WorkItem/result evidence, queues and all
+> shared infrastructure. Apply authorization: **NOT GRANTED**.
+
+**STOP at the cleanup-Apply gate.** No Apply or cleanup was performed. Recheck
+the exact target row, State serial/version, saved-plan hash and guard immediately
+before any separately approved Apply. Protected 19F2 results JSON remains
+untouched and unstaged.
