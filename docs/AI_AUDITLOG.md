@@ -14751,3 +14751,11 @@ Scope: Read-only source, test, Terraform declaration, report and branch-history 
 Findings: RIS inspect/export and bounded G5/profile erasure are partial; full cross-domain DSAR, all-version S3 purge, backup/restore reconciliation and legal retention remain open. Orders internal privacy endpoints exist at the pin, but RIS-originated AgentOrders lack gsi2pk subject linkage and embedded agentOrder anonymization is incomplete. Current Jobsearch Main contains purpose-specific consent interfaces; this does not establish legal approval, complete rights fulfillment or deployed behavior.
 Safety: No runtime changes, Mays-Orders pin change, AWS/Terraform action, deployment, queue redrive, Main merge or real-data approval. Synthetic data boundary retained.
 Evidence: docs/reports/RIS-DSGVO-COMPLIANCE-01-PHASE-1-DISCOVERY.md. Phase 1 checkpoint committed/pushed before Phase 2.
+
+[RIS-DSGVO-COMPLIANCE-01 — PHASE 2 DOCUMENTATION]
+Status: COMPLETE (review package; legal determinations remain open)
+Date: 2026-11-28
+Branch: feature/ris-dsgvo-compliance-01; Phase 1 checkpoint fc73408.
+Scope: Added central docs/privacy index, working ROPA/legal/TOM/DPIA register, proposed cross-repository privacy contract, and explicit human acceptance gate. Existing inventory, capability contract, notice/consent drafts, receipt/backup contracts and historical gate reports are linked rather than duplicated.
+Classification: Source-level evidence and candidate legal bases only; not a signed ROPA, DPIA, legal opinion, deployed-state assertion, or real-data approval. Status labels are bounded to cited evidence.
+Evidence: docs/privacy/README.md, DSGVO-REVIEW-REGISTER.md, XREPO-PRIVACY-CONTRACT.md, PRIVACY-ACCEPTANCE-GATE.md. Phase 2 checkpoint committed/pushed before Phase 3.
