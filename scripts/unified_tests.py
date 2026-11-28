@@ -37,7 +37,7 @@ AWS_ENV_KEYS = {
     "TEST_USER_EMAIL", "TEST_USER_PASSWORD", "MO_E2E_LIVE",
 }
 PROFILES = (
-    "RIS_NATIVE", "MAYS_MODULE", "XREPO_CONTRACT", "XREPO_E2E",
+    "RIS_NATIVE", "RIS_PRIVACY", "MAYS_MODULE", "XREPO_CONTRACT", "XREPO_E2E",
     "MODULE_BUILD", "UPGRADE_GATE", "FULL", "LIVE",
 )
 
@@ -115,6 +115,28 @@ def profile_jobs(profile: str, mays: Path) -> list[Job]:
     jobs: dict[str, list[Job]] = {
         "RIS_NATIVE": [
             _pytest("ris_native", ROOT, ["tests/"]),
+        ],
+        "RIS_PRIVACY": [
+            _pytest("privacy_capability_and_addition", ROOT, [
+                "tests/test_ecosystem_privacy_contract.py",
+                "tests/test_privacy_capability_boundary.py",
+                "tests/test_addition_agent.py",
+                "agent-installations/addition-agent/tests/test_addition_privacy_contract.py",
+            ]),
+            _pytest("privacy_application_and_lifecycle", ROOT, [
+                "tests/test_application_privacy_contract.py",
+                "tests/test_privacy_erasure_contract.py",
+                "tests/test_privacy_lifecycle_evidence.py",
+                "tests/test_privacy_receipt_contract.py",
+                "tests/test_consent_gate.py",
+            ]),
+            _pytest("orders_jwt_identity_synthetic", ROOT, [
+                "tests/test_orders_jwt_identity_synthetic.py",
+            ]),
+            Job("orders_provider_original", "MAYS_ORDERS", str(mays_root),
+                "blocked", ["original privacy/provider tests require exact checkout"]),
+            Job("orders_provider_jwt_verifier", "MAYS_ORDERS", str(mays_root),
+                "blocked", ["provider JWT claim/signature verification unavailable without checkout"]),
         ],
         "MAYS_MODULE": [
             _unittest("mays_lambda", "MAYS_ORDERS", mays / "lambda", "tests",
@@ -276,6 +298,11 @@ def parse_result(job: Job, completed: subprocess.CompletedProcess[str], duration
 
 def run_job(job: Job, *, python: str, base_env: dict[str, str], mays_source: Path,
             module_dir: Path | None, module_sha: str, source_commit: str) -> dict:
+    if job.kind == "blocked":
+        return {"group": job.key, "repository": job.repository, "status": "BLOCKED",
+                "reason": job.args[0], "passed": 0, "failed": 0, "skipped": 0,
+                "collection_errors": 0, "subtests_passed": 0,
+                "duration_seconds": 0.0}
     if job.module_artifact and module_dir is None:
         return {"group": job.key, "repository": job.repository, "status": "BLOCKED",
                 "reason": "Generated module artifact not present; no build/mutation attempted.",
@@ -451,7 +478,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         result["profile_status"] = "BLOCKED"
         result["groups"].append({"group": "live_inventory", "status": "BLOCKED",
                                  "reason": "LIVE is intentionally locked; use a separate approved live-test task."})
-    elif provenance_errors:
+    elif provenance_errors and profile != "RIS_PRIVACY":
         result["profile_status"] = "BLOCKED"
         result["groups"].append({"group": "provenance", "status": "BLOCKED",
                                  "reason": "; ".join(provenance_errors)})

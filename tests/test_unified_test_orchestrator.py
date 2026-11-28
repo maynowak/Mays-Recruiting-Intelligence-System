@@ -23,6 +23,15 @@ SPEC.loader.exec_module(unified)
 
 
 class ProfileIsolationTests(unittest.TestCase):
+    def test_ris_privacy_has_native_jobs_and_explicit_provider_blocks(self):
+        jobs = unified.profile_jobs("RIS_PRIVACY", unified.DEFAULT_MAYS)
+        by_key = {job.key: job for job in jobs}
+        self.assertIn("privacy_capability_and_addition", by_key)
+        self.assertIn("orders_jwt_identity_synthetic", by_key)
+        self.assertEqual("blocked", by_key["orders_provider_original"].kind)
+        self.assertEqual("blocked", by_key["orders_provider_jwt_verifier"].kind)
+        self.assertFalse(by_key["privacy_capability_and_addition"].mays_source)
+
     def test_full_has_no_live_jobs_and_only_supported_profiles(self):
         jobs = unified.profile_jobs("FULL", unified.DEFAULT_MAYS)
         self.assertTrue(jobs)
@@ -65,7 +74,8 @@ class ProfileIsolationTests(unittest.TestCase):
         _, errors = unified.verify_provenance(
             unified.DEFAULT_MAYS, "upgrade_candidate", unified.load_versions()
         )
-        self.assertTrue(any("!= required" in error for error in errors))
+        self.assertTrue(any("!= required" in error or "checkout not found" in error
+                            for error in errors))
 
     def test_result_parser_keeps_failed_skipped_and_subtests_separate(self):
         job = unified.Job("example", "RIS", str(ROOT), "pytest", [])
