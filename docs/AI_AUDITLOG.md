@@ -14537,17 +14537,32 @@ Baseline `12a1d49f9991575a63ff166da41797ad3a51750b`.
   are required before a future live attempt. Report updated; protected 19F2
   results JSON not edited or staged.
 
-## RIS-MAYS-ORDERS — auth follow-up stopped on route mismatch — 2026-11-28
+## RIS-MAYS-ORDERS — live endpoint reconciliation — 2026-11-28
 
-- Reused-identity credential file was inspected only in-process; no username,
-  password, or token was emitted. It resolves to the previously documented
-  `ris-dev2-canary-07` user in the expected pool. Existing Human Client
-  `5jgjivk9k9rrjos62so1qhq8o3` is present and has `ALLOW_USER_PASSWORD_AUTH`.
-- Fresh read-only API Gateway route inspection for API `r95qvhg2p3` returned no
-  `POST /orders` route (no route authorization type or authorizer ID). This
-  conflicts with the prior preflight, so execution stopped before Cognito
-  authentication and before the HTTP POST. No token obtained, no order sent,
-  no retry, no Cognito/API mutation, and no cleanup.
-- The live roundtrip remains **NOT RUN**. Resolve the route/deployment mismatch
-  and perform a fresh preflight before any separately authorized live attempt.
-  Report updated; protected 19F2 results JSON not edited or staged.
+- Read-only verified STS account `262370457690`, region `eu-central-1`, State
+  serial 78 / lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082` / S3 VersionId
+  `Nv9DBw9WQi48972QdhqULqPlpG3Ddi4y`. State outputs name API
+  `r95qvhg2p3`, endpoint `https://r95qvhg2p3.execute-api.eu-central-1.amazonaws.com`,
+  stage `$default`, authorizer `0iqec5`, and Orders Reader
+  `ris-dev2-dev-orders-reader`.
+- Fully paginated API Gateway inventory: `r95qvhg2p3` has 75 routes, including
+  `POST /orders` (JWT, authorizer `0iqec5`, integration `o2ci057`) to the RIS
+  Orders Reader. All four `orders_reader` route/integration identities in State
+  match live API Gateway. `$default` has auto-deploy enabled. No `ANY` or proxy
+  route is involved. The initial earlier scan was not paginated and its
+  “missing route” conclusion was incorrect.
+- The actual separate Mays-Orders API is `7ency74vs0`
+  (`ris-dev2-mays-orders-api`), with four explicit routes and a distinct
+  handler, Cognito issuer/pool, and audience. It is not the approved RIS test
+  identity’s endpoint. RIS authorizer `0iqec5` matches the RIS pool and Human
+  Client `5jgjivk9k9rrjos62so1qhq8o3`; existing auth method is
+  `USER_PASSWORD_AUTH` (ID token). The 2026-11-18 Addition pilot establishes
+  successful deployed-path behavior but does not itself print a URL; current
+  Terraform State and API inventory bind that path to `r95qvhg2p3`.
+- Addition grant read-only checked valid at `2026-11-28T11:18:54Z`, ending
+  `2026-11-28T14:36:29Z`. Request-ID and approved payload unchanged. This task
+  stops at the live-order gate: no auth/token request, POST, API/Cognito
+  mutation, Terraform operation, retry, or cleanup. No endpoint correction to
+  prior order authorization is needed. Roundtrip remains NOT RUN.
+- Status report updated. Protected 19F2 results JSON remains untouched and
+  unstaged.

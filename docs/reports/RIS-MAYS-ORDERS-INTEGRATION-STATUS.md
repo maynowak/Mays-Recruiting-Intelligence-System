@@ -36,20 +36,36 @@ This block does not authorize use of the request after the grant expiry. Since
 the live test did not succeed, no entitlement-cleanup plan was prepared; cleanup
 remains separately gated.
 
-### Follow-up authentication attempt — STOP on live route mismatch
+### Follow-up endpoint reconciliation — resolved; STOP at live-order gate
 
-On 2026-11-28, the existing bootstrap credential file was checked without
-printing its contents. It resolves to the previously documented
-`ris-dev2-canary-07` identity in the expected pool; the established Human Client
-is present and permits `USER_PASSWORD_AUTH`. Before obtaining a token or
-sending an order, a fresh API Gateway read did **not** find `POST /orders` in
-the current API route listing (therefore no JWT authorizer/audience could be
-matched). This contradicts the prior route preflight and is a stop condition.
-No Cognito authentication was attempted, no token was obtained, and no HTTP
-request was sent. No route/configuration mutation or retry was made. The earlier
-“auth context unavailable” status above remains true for the order attempt;
-roundtrip remains **NOT RUN**. Reconcile the live API/route deployment and
-repeat all read-only gates before any new attempt. No cleanup plan was prepared.
+The initial 2026-11-28 route check used only the first page of API Gateway
+routes and incorrectly reported that `POST /orders` was absent. A paginated,
+read-only inventory corrected that observation: RIS API `r95qvhg2p3`
+(`ris-dev2-dev-api`) has 75 routes and includes `POST /orders`, JWT authorizer
+`0iqec5`, and integration `o2ci057` to Lambda
+`ris-dev2-dev-orders-reader`. Its `$default` stage has auto-deploy enabled.
+The corresponding Terraform State serial 78 records the same API endpoint,
+route key, route ID, authorizer, and integration. No `ANY` or proxy route is
+needed for this path.
+
+The separate API `7ency74vs0` (`ris-dev2-mays-orders-api`) also has four
+explicit order routes, including `POST /orders`, but its authorizer uses a
+different Cognito issuer/pool and audience. It is not interchangeable with the
+RIS endpoint for the existing test identity. The documented historical
+Addition pilot and the approved payload therefore reconcile to
+`POST https://r95qvhg2p3.execute-api.eu-central-1.amazonaws.com/orders`.
+The RIS authorizer issuer/audience match the existing RIS pool and Human Client;
+the established authentication method is `USER_PASSWORD_AUTH`, returning the
+ID token accepted by that JWT authorizer. No Cognito authentication or token
+request was made in this reconciliation.
+
+The existing Addition grant was read-only verified valid from
+`2026-11-28T10:36:29Z` through `2026-11-28T14:36:29Z` at 11:18:54Z. Request-ID
+and approved payload remain unchanged. **STOP at the live-order gate:** this
+task authorizes discovery only; no POST, token acquisition, configuration
+change, Terraform operation, retry, or cleanup was performed. No endpoint
+correction to the prior live-order authorization is needed. The roundtrip
+remains **NOT RUN** and cleanup remains separately gated.
 
 ## Four-hour entitlement renewal Apply — PASS; STOP at Live-Order gate
 
