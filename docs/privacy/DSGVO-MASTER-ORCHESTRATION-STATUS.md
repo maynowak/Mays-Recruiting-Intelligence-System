@@ -1,11 +1,11 @@
 # DSGVO Master Orchestration Status
 
-**Version:** 2.3
+**Version:** 2.4
 **Updated:** 2026-11-28
-**Branch baseline:** `feature/ris-dsgvo-compliance-01` @ `e25e900667a18f9123a89a2ea7fdc0ca96e7b553`
+**Implementation baseline:** `feature/ris-dsgvo-compliance-01` @ `db2e09419931fc64e9377aed8fdd35c720023045`
 **Orders pin constraint:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` — immutable for this orchestration.
 **Current review base:** RIS `d8a7fffb112fc39ad839aef4a87e5722b521db1f`; Orders pin `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`; provider Main reviewed `716a16590673cdb649df414c08fc0bf7814caac7`.
-**Overall:** `RIS ECOSYSTEM PRIVACY CONTRACT & UNIFIED QA READY FOR IMPLEMENTATION REVIEW` — design only; DSGVO-02C remains `PARTIAL`; STOP before implementation.
+**Overall:** `PARTIAL — A CONTRACT/GATE IMPLEMENTED; B–F PENDING/BLOCKED`; DSGVO-02C remains `PARTIAL`.
 
 ## Package graph
 
@@ -48,11 +48,13 @@ Interpretation (v2.3): A–E are ecosystem-centered workstreams; F depends on st
 | DSGVO-02A | RIS coordinator; parallel read-only reviews A–D | Identity architecture, Orders paths, RIS capabilities, QA inventory | DSGVO-02 | COMPLETE AS REVIEW; recommendation unapproved |
 | DSGVO-02B | RIS coordinator; Mays-Orders provider reviewed read-only | Pin/Main capability and evidence matrix, adapter gaps, provider CR drafts | 02A | READY FOR REVIEW; no implementation |
 | DSGVO-02C | RIS coordinator | Actual AgentOrder/result producers, storage/lifecycle, existing privacy flow and provider-CR need | 02B | PARTIAL; content boundary and terminal/provider data coverage remain unresolved |
-| DSGVO-03 | RIS Ecosystem + Orders contract owners | Capability privacy schema/eligibility; verify Orders JWT principal; provider CR disposition | DSGVO-02C + owner identity decision | DESIGN READY FOR IMPLEMENTATION REVIEW; no provider feature presumed |
-| DSGVO-04 | RIS domain/runtime/privacy owners | Capability input/result policy, existing resolver/erasure/fence integration, lifecycle outcomes | DSGVO-03 contract | DESIGN READY; no runtime changes |
-| DSGVO-05 | Agent owners / Factory | Manifest + original-test/build evidence binding and invalidation | DSGVO-03 schema | DESIGN READY; no package/build change |
-| DSGVO-06 | RIS QA | Add `RIS_PRIVACY` to existing isolated Unified Test runner, ten groups, exact SHA/artifact provenance | DSGVO-03…05 test selectors | DESIGN READY; no runner/CI change |
-| DSGVO-07 | RIS/provider/security/privacy reviewers | Review exact-SHA implementation evidence; separately gate live/legal acceptance | 03…06 implemented and approved | NOT STARTED / NOT AUTHORIZED |
+| A / DSGVO-03 | RIS Ecosystem | Typed capability contract, descriptor, Eligibility and direct-execution gate | 02C | IMPLEMENTED; synthetic tests green; shipped capabilities blocked pending evidence |
+| B / DSGVO-05 | Agent owners / Factory | Manifest + original-test/build evidence binding and invalidation | A | NOT STARTED; installer/build contracts unchanged |
+| C / DSGVO-04 | RIS domain/runtime/privacy owners | Capability input/result policy and resolver integration | A + owner-approved policy | NOT STARTED; boundary remains PARTIAL |
+| D | RIS runtime/privacy owners | Existing fence, erasure and lifecycle integration | C policy stable | NOT STARTED |
+| E | RIS/Orders contract owners | Synthetic JWT identity proof, provider originals and CR disposition | A/C + identity decision | NOT STARTED; provider and pin unchanged |
+| F / DSGVO-06 | RIS QA | `RIS_PRIVACY`, ten groups, exact SHA/artifact provenance | A–E selectors/evidence | NOT STARTED; existing profiles not run in this checkpoint |
+| DSGVO-07 | RIS/provider/security/privacy reviewers | Review exact-SHA implementation evidence; separately gate live/legal acceptance | A–F complete | NOT STARTED / NOT AUTHORIZED |
 
 ## Shared quality constraints
 
@@ -77,7 +79,8 @@ Interpretation (v2.3): A–E are ecosystem-centered workstreams; F depends on st
 | 2.1 | Provider pin/Main aligned; provider functions/evidence distinguished from RIS adapter gaps; 03–07 recentered on contract compliance and reuse; stop before implementation | [`DSGVO-02B-PROVIDER-INTEGRATION-REVIEW.md`](DSGVO-02B-PROVIDER-INTEGRATION-REVIEW.md) |
 | 2.2 | AgentOrder/result source paths inspected; input/result payloads can be stored and transported; existing RIS privacy flows reused; provider CR scope corrected; boundary remains PARTIAL | [`DSGVO-02C-ORDER-DATA-BOUNDARY-AND-LIFECYCLE.md`](DSGVO-02C-ORDER-DATA-BOUNDARY-AND-LIFECYCLE.md) |
 | 2.3 | Ecosystem capability privacy contract, agent evidence/build binding, payload/result boundary, lifecycle and `RIS_PRIVACY` profile prepared for implementation review; no implementation authorization | [`RIS-DSGVO-ECOSYSTEM-ORCHESTRATION-01.md`](RIS-DSGVO-ECOSYSTEM-ORCHESTRATION-01.md) |
+| 2.4 | A implemented with fail-closed Eligibility/direct execution; existing capability regression fixtures expose missing declarations/evidence; B–F remain pending and DSGVO-02C remains PARTIAL | [`RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-01-EXECUTION.md`](RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-01-EXECUTION.md) |
 
 ## Stop gate
 
-Current stop point is **RIS Ecosystem Privacy Contract & Unified QA Implementation Review**. DSGVO-02C remains `PARTIAL`: generic input/results and terminal WorkItems do not yet prove the required boundary. A–F design, file map, dependencies and RED/GREEN criteria are documented; missing/stale evidence is proposed as an Eligibility blocker. Reuse existing resolvers, privacy routes, lifecycle fences and provider capabilities. No pin upgrade, provider/RIS runtime/build/test-runner/CI change, AWS/Terraform action, deployment, or real-data processing is in scope. This status authorizes review only, not implementation, legal approval or live deployment.
+Implementation is active under explicit authorization. A is implemented and tested synthetically; current shipped capabilities lack reviewed declarations/evidence and therefore fail closed. B–F are incomplete. DSGVO-02C remains `PARTIAL`; generic input/results and terminal WorkItems do not yet prove the required boundary. Regression failures caused by missing privacy evidence are recorded, not bypassed. Reuse existing resolvers, privacy routes, lifecycle fences and provider capabilities. No pin upgrade, Provider change, AWS/Terraform action, deployment, installation, merge, real-data processing, legal retention decision, or operational/legal approval has occurred.

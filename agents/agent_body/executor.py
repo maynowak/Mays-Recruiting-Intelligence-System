@@ -14,6 +14,8 @@ sys.path.insert(0, '.')
 
 from agents.agent_body.context import AgentContext
 from agents.agent_body.router import AgentRouter
+from agents.ecosystem.registry import get_registry
+from agents.ecosystem.eligibility import authorize_direct_work_item
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +28,15 @@ class AgentExecutor:
     Executes agents with standard lifecycle management.
     """
 
-    def __init__(self, router: Optional[AgentRouter] = None, context_class=AgentContext):
+    def __init__(self, router: Optional[AgentRouter] = None, context_class=AgentContext,
+                 privacy_authorizer: Optional[Callable[[Dict[str, Any]], bool]] = None,
+                 registry: Any = None):
         self.router = router or AgentRouter()
         self.context_class = context_class
+        self.registry = registry or get_registry()
+        self.privacy_authorizer = privacy_authorizer or (
+            lambda item: authorize_direct_work_item(self.registry, item)
+        )
 
     def execute(self, work_item: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -58,6 +66,19 @@ class AgentExecutor:
                 work_item,
                 "No agent found for this work",
                 "NOT_FOUND"
+            )
+
+        # This legacy direct router does not have an AgentDescriptor to run
+        # Ecosystem Eligibility. Require an injected authority rather than
+        # silently bypassing the capability privacy evidence gate.
+        try:
+            authorized = self.privacy_authorizer(work_item)
+        except Exception:
+            authorized = False
+        if authorized is not True:
+            return self._error_result(
+                work_item, "Privacy contract/evidence gate denied execution",
+                "PRIVACY_EVIDENCE_INVALID",
             )
 
         try:

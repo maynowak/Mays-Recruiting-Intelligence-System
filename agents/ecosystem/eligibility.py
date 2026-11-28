@@ -13,6 +13,9 @@ from dataclasses import dataclass
 from enum import Enum
 
 from agents.ecosystem.registry import AgentDescriptor, AgentStatus
+from agents.ecosystem.privacy_contract import (
+    PRIVACY_CONTRACT_VERSION, validate_capability_privacy,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +97,25 @@ def check_eligibility(agent_id: str,
     # Check capability support
     if capability and not descriptor.supports_capability(capability):
         reasons.append(f"Agent does not support capability: {capability}")
+
+    if capability:
+        if descriptor.privacy_contract_version != PRIVACY_CONTRACT_VERSION:
+            reasons.append("PRIVACY_CONTRACT_VERSION_UNSUPPORTED")
+        validation = validate_capability_privacy(
+            agent_id=descriptor.agent_id,
+            agent_version=descriptor.version,
+            capability=capability,
+            declaration=(descriptor.privacy_declarations.get(capability)
+                         if isinstance(descriptor.privacy_declarations, dict)
+                         else None),
+            evidence=(descriptor.privacy_evidence.get(capability)
+                      if isinstance(descriptor.privacy_evidence, dict)
+                      else None),
+            source_sha=descriptor.source_sha,
+            artifact_sha256=descriptor.artifact_sha256,
+        )
+        if not validation.valid:
+            reasons.append(validation.reason)
     
     # Check body compatibility
     if body_version and not descriptor.is_compatible_with_body(body_version):
@@ -103,9 +125,7 @@ def check_eligibility(agent_id: str,
     if runtime and not descriptor.is_compatible_with_runtime(runtime):
         reasons.append(f"Incompatible runtime: {runtime}")
     
-    eligible = len(reasons) == 0 or all(
-        "does not support" not in r for r in reasons
-    )
+    eligible = len(reasons) == 0
     
     if eligible:
         reasons.insert(0, "Agent is eligible")
@@ -133,6 +153,29 @@ class EligibilityChecker:
         """Check eligibility for an agent."""
         descriptor = self.registry.get(agent_id)
         return check_eligibility(agent_id, descriptor, **kwargs)
+
+
+def authorize_direct_work_item(registry, work_item: Dict[str, Any]) -> bool:
+    """Apply the same capability privacy gate to legacy direct execution.
+
+    The direct AgentBody router has no candidate descriptor of its own, so it
+    must resolve the registered descriptor and pass normal Eligibility. Missing
+    identity/capability/registry data is a denial.
+    """
+    if not isinstance(work_item, dict):
+        return False
+    agent_id = work_item.get("agentId")
+    capability = work_item.get("capability")
+    if not isinstance(agent_id, str) or not agent_id.strip():
+        return False
+    if not isinstance(capability, str) or not capability.strip():
+        return False
+    descriptor = registry.get(agent_id)
+    return check_eligibility(
+        agent_id, descriptor, capability=capability,
+        tenant_id=work_item.get("tenantId"),
+        user_id=work_item.get("userId"),
+    ).eligible
 
 
 @dataclass

@@ -12,6 +12,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 from enum import Enum
+from agents.ecosystem.privacy_contract import (
+    CapabilityPrivacyDeclaration, PrivacyEvidence,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +52,11 @@ class AgentDescriptor:
     risk_level: str = "low"
     description: str = ""
     metadata: Dict[str, Any] = field(default_factory=dict)
+    privacy_contract_version: Optional[str] = None
+    privacy_declarations: Dict[str, CapabilityPrivacyDeclaration] = field(default_factory=dict)
+    privacy_evidence: Dict[str, PrivacyEvidence] = field(default_factory=dict)
+    source_sha: Optional[str] = None
+    artifact_sha256: Optional[str] = None
     
     def is_compatible_with_body(self, body_version: str) -> bool:
         """Check if this agent supports the given agent body version."""
