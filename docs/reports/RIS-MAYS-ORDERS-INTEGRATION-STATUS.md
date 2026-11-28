@@ -5,6 +5,32 @@
 guard. **STOP at Apply gate**: no Apply, AWS resource mutation, state
 migration, queue receive/redrive, or live order was performed.
 
+## Apply preflight correction — PASS; Apply remains disabled
+
+The previous preflight stop was caused by an incorrect expected-value literal
+in the checker (it omitted the final `b`), not by a changed artifact. The
+historical value was independently confirmed against 19G4 local validation and
+path reconciliation, 19G5 artifact matrix, and 19H deployed Lambda
+`CodeSha256`; the saved plan itself records the matching reader path, code hash,
+and `no-op` action. Local bytes match the same SHA-256:
+`610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b`. No
+artifact was built, replaced, or modified.
+
+- Read-only recheck passed for the unchanged saved plan hash
+  `ca0933a296610d2cae2ad80e12c8d27a3aeed892856ed2ee18d155abdf4fcd3b`, account
+  `262370457690`, region `eu-central-1`, workspace `ris-dev2`, expected backend
+  bucket/key, lock table ACTIVE, State serial `76`, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, and S3 version
+  `M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T`. 19G5 base inputs still match SHA-256
+  `1ada876c6c98080206c9d29ca55549b4b8f254e1f2a5c0e915f9d6097016e6e7`.
+- Saved plan was inspected read-only; no Terraform plan or Apply command ran.
+  Shared-infrastructure guard **PASS** (`NO_SHARED_DESTROY`). At the preflight
+  check, the 60-minute grant remained valid with 1,099 seconds before expiry
+  (`2026-11-28T10:28:22Z`).
+- Apply remains **NOT PERFORMED / NOT AUTHORIZED by this correction task**;
+  live-order execution remains disabled and separately gated. Stop at Apply
+  gate. No change was made to protected 19F2 results.
+
 ## Newly authorized RIS-DEV2 60-minute plan — PASS; STOP at Apply gate
 
 Comparison baseline: passing plan

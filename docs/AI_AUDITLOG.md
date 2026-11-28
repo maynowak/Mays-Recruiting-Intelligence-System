@@ -14356,3 +14356,30 @@ checkpoint `8831a44e2f510660887e329015063f3c6d285a4e`.
   mutations `0`, live orders `0`. Apply remains **NOT APPROVED**; stop at Apply
   gate. The updated central report includes a pending Apply approval template.
   Protected 19F2 results JSON was not staged or edited. No Main merge.
+
+## RIS-MAYS-ORDERS — Apply preflight correction — 2026-11-28
+
+Modes: preflight correction only; artifact build, Terraform plan, Terraform
+Apply, and live order disabled.
+
+- Resolved the previous reader-hash stop as a checker literal typo: its expected
+  string omitted the last `b`. Independently cross-checked the correct SHA-256
+  `610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b` against
+  19G4 local validation/path reconciliation, 19G5 artifact matrix, and 19H
+  deployed Orders-Reader `CodeSha256`. The unchanged local ZIP matches.
+- Inspected the exact saved plan read-only: SHA-256
+  `ca0933a296610d2cae2ad80e12c8d27a3aeed892856ed2ee18d155abdf4fcd3b`; its
+  Orders-Reader action is `no-op`, with historical filename and source hash.
+  Shared-infrastructure guard passed (`NO_SHARED_DESTROY`). No plan/apply
+  command was run.
+- Read-only verification confirmed the approved account, region, workspace,
+  backend, active lock-table status, State serial 76, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, latest S3 version
+  `M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T`, and unchanged 19G5 input hash
+  `1ada876c6c98080206c9d29ca55549b4b8f254e1f2a5c0e915f9d6097016e6e7`.
+- Grant window `2026-11-28T09:28:22Z`–`2026-11-28T10:28:22Z` was still valid;
+  1,099 seconds remained at the preflight check. This is not Apply
+  authorization. Apply and live order remain unperformed/disabled; STOP at
+  Apply gate. Report updated at
+  `docs/reports/RIS-MAYS-ORDERS-INTEGRATION-STATUS.md`. Protected 19F2 results
+  JSON was not staged or edited; no Main merge.
