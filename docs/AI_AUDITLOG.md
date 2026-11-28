@@ -14208,3 +14208,37 @@ Baseline: `ad4886d1f23bf40f65a05e3b3b8744c9cd740131`.
   or infrastructure change.
 - Protected 19F2 JSON was not used as output, staged, or changed. No order,
   invocation, mutation, plan, apply, recovery, redrive, or Main merge.
+
+## ATS canary source-path correction and regression test — 2026-11-28
+
+Baseline: `2f1a6f1332b1bd61889ad950bb531c263248d0e8`.
+
+- Rechecked `agents/ats_agent/agent.py`: `ATSHttpClient.analyze` posts only
+  `{job, profile?}` to `/api/ats-analysis`; it does not include `ai`. Inspected
+  Jobsearch handler checkout `656566b9dcb14114f3c6c91a18e076b400a50e02`
+  computes deterministic ATS results unconditionally and executes the AI
+  provider path only when `ai.enabled === true && ai.consent === true`. The
+  inspected checkout differs from the RIS-pinned `29d8b730...` and is not
+  verified deployed code. Therefore provider execution is **not established**;
+  neither a paid provider call nor a free external endpoint is asserted. A
+  network POST to the external API is part of the configured execution path.
+- Corrected the report's active decision: expired
+  `ANALYSIS_SYNTHETIC_EXPIRES_AT` belongs to the separate internal
+  `analysis_runner`/`AnalysisAgent` path and is not a blocker for `ats-agent`.
+  The 20A2 exact-identity discovery remains valid; its concrete blocker is zero
+  `ats-agent` entitlement rows. Gate 1 mutation and Gate 2 live execution remain
+  unauthorized. No AWS query or live call was made.
+- Added a focused assertion in
+  `tests/unit/ats_agent/test_ats_agent.py` that captures the actual HTTP client
+  request and verifies `ai` is omitted. Retest:
+  `python -m pytest tests/unit/ats_agent/test_ats_agent.py::TestATSHttpClient::test_analyze_job_calls_api tests/test_ats_result_link.py -q`
+  → **11 passed**. Existing test harness only; no network/AWS access.
+- No runtime, API, infrastructure, entitlement, provider, billing, adapter, or
+  deployment change. The only implementation change is this request-contract
+  regression assertion; no confirmed runtime defect was found. Historical
+  language implying provider execution/cost as an established blocker is
+  superseded by the corrected report text. External endpoint/AWS price remains
+  unknown, not presumed paid or free.
+- Protected 19F2 results JSON was not used as output, staged, or changed. No
+  order, invocation, mutation, Terraform plan/Apply, recovery, redrive, or Main
+  merge.

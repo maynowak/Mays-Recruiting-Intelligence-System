@@ -65,20 +65,27 @@ class TestATSHttpClient:
         client = ATSHttpClient(timeout=60)
         assert client.timeout == 60
     
-    @pytest.mark.skipif(importlib.util.find_spec('requests') is None, reason='requests not installed')
-    @patch('requests.post')
-    def test_analyze_job_calls_api(self, mock_post):
+    def test_analyze_job_calls_api(self):
         """Test analyze_job makes HTTP request to correct endpoint."""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {'score': 50}
-        mock_response.raise_for_status = Mock()
-        mock_post.return_value = mock_response
         
         client = ATSHttpClient()
+        client._http_lib = 'httpx'
+        client._session = Mock()
+        client._session.post.return_value = mock_response
         result = client.analyze({'title': 'Test'}, {'skills': 'python'})
         
         assert result['score'] == 50
+        client._session.post.assert_called_once_with(
+            'https://mays-jobsearch.vercel.app/api/ats-analysis',
+            json={
+            'job': {'title': 'Test'},
+            'profile': {'skills': 'python'},
+            },
+        )
+        assert 'ai' not in client._session.post.call_args.kwargs['json']
 
 
 class TestATSAgent:

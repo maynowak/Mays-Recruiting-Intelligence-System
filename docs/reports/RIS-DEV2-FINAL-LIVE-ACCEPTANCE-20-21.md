@@ -319,7 +319,7 @@ limitation.
 |---|---|
 | 20A2 identity discovery | PASS for existing confirmed synthetic user and matching ACTIVE owner profile |
 | 20A2 entitlement readiness | BLOCKED — no required ATS entitlement for that identity |
-| 20A2 synthetic validity | BLOCKED — Analysis synthetic expiry is past |
+| 20A2 synthetic validity | Analysis synthetic expiry is past; **not applicable to the `ats-agent` canary path** |
 | 20A2 billing/cost boundary | BLOCKED — no verified all-in cap or non-billable test SKU |
 | 20A2 retry boundary | BLOCKED — existing SQS retry policy allows up to three receives; one Work DLQ item exists |
 | `APPROVAL GATE 1` | **STOP — no approval; no mutations** |
@@ -348,78 +348,49 @@ does not repeat AWS reads, deployment verification, or QA.
 
 ### A — Synthetic technical live acceptance
 
-**Decision: `LIVE_CANARY=BLOCKED`; Gate 1 and Gate 2 remain closed.**
+**Decision: `LIVE_CANARY=BLOCKED`; Gate 1 and Gate 2 remain closed for the
+existing authorization reasons below, not because a paid AI-provider call was
+established.**
 
-The configured `ANALYSIS_SYNTHETIC_MODE=true` does **not** reliably exclude all
-external provider calls in the proposed live canary:
+1. The target order is `ats-agent` / `analyze.job`. The actual path is
+   `Agent-Worker → ATSAgent → ATSHttpClient → POST
+   https://mays-jobsearch.vercel.app/api/ats-analysis`, sending job and optional
+   profile. `ATSAgent` does not read `ANALYSIS_SYNTHETIC_MODE`.
+2. `ANALYSIS_SYNTHETIC_MODE` and its expired value
+   `2026-11-26T17:40:28Z` gate the distinct internal `analysis_runner` /
+   `AnalysisAgent` path. The expiry is **not a blocker** for an order that
+   exclusively selects `ats-agent`; do not extend it for this canary.
+3. `ATSHttpClient.analyze` constructs only `{job, profile?}`. The Jobsearch
+   handler source inspected at checkout `656566b9dcb14114f3c6c91a18e076b400a50e02`
+   always runs deterministic analysis and only enters its AI/provider branch
+   when both `body.ai.enabled === true` and `body.ai.consent === true`. Since
+   this client omits `ai`, that inspected handler would not execute its AI
+   provider branch. The RIS-pinned Jobsearch source is `29d8b730...`, however,
+   and the inspected checkout is not that pin or verified deployed code. Thus
+   do not claim either provider execution or provider non-execution by the
+   deployed service. A network POST to the external API is established; its
+   service/hosting price is unknown, not presumed paid or free.
+4. Transport fallback (`httpx`/`requests`/`urllib`) targets the same endpoint;
+   it is not a local fallback. No explicit retry loop exists in the client.
+   Existing worker/SQS redelivery can repeat a POST after a failed attempt,
+   up to the queue's `maxReceiveCount=3`; this is a request-count bound, not
+   evidence of provider billing or a cost amount.
+5. The concrete current authorization blocker is the 20A2 read-only finding:
+   the exact confirmed synthetic user/profile has **zero `ats-agent`
+   entitlement rows**. Gate 1 is closed and no entitlement mutation is
+   authorized. Gate 2 is also closed; no live order/invocation was authorized.
+   The expired Analysis synthetic setting is unrelated. AWS usage cost and the
+   external endpoint's price are unknown; no charge is asserted. Existing
+   safety approvals still prohibit unapproved mutations or live execution.
 
-1. The planned order targets `ats-agent` / `analyze.job`. Its actual worker path
-   is `Agent-Worker → ATSAgent → ATSHttpClient → POST
-   https://mays-jobsearch.vercel.app/api/ats-analysis` with the job and
-   optional profile. `ATSAgent` does not read `ANALYSIS_SYNTHETIC_MODE`.
-2. That flag is consumed by the separate dedicated `analysis_runner` /
-   `AnalysisAgent` identity gate. It only grants an exact synthetic identity
-   for that internal analysis capability after matching persisted WorkItem
-   identity/status and unexpired configuration. It neither redirects nor
-   disables the ATS agent's HTTP request. Its configured expiry
-   `2026-11-26T17:40:28Z` is expired; this blocks that internal synthetic
-   analysis path but is not a necessary configuration change for a canary that
-   exclusively targets `ats-agent`. The prior proposal to extend that expiry
-   must not be treated as a requirement or authorization for this ATS canary.
-3. The RIS ATS client sends only `{job, profile?}`; it does not send the
-   optional `ai` opt-in. The pinned Jobsearch API contract says AI defaults
-   off and its documented deterministic path does not use an LLM. This is
-   evidence against an intentional AI-provider request by this client, **not**
-   proof that the currently deployed external service has no variable charge,
-   that its live implementation still honors the pin, or that its hosting/API
-   request is free. The endpoint is an external, independently deployed and
-   mutable service; no current billing attestation or enforceable price bound
-   is in the accepted evidence.
-4. HTTP-library selection (`httpx`, else `requests`, else stdlib `urllib`) is
-   only a transport-library fallback to the same URL; it is not a local or
-   free-provider fallback. There is no explicit retry loop in `ATSHttpClient`.
-   HTTP/network/contract errors become unsuccessful agent results. The worker
-   classifies `ATSAPIError`/`ATSContractError` as non-permanent, persists the
-   failed attempt and raises; the existing SQS work-queue redelivery can then
-   start a new attempt and call the ATS endpoint again. Worker conditional
-   claims suppress a competing delivery while an item is RUNNING, but a
-   `FAILED` retry is a new attempt. With the existing `maxReceiveCount=3`, one
-   WorkItem has at most three receives/agent attempts under that queue policy;
-   each valid ATS attempt can make one POST. This is a finite call-count bound
-   per WorkItem, **not** a monetary bound or provider idempotency guarantee.
-   Result-queue redelivery concerns result delivery, not another ATS analysis.
-
-**Cost boundary:** AWS charges remain possible even if the Jobsearch AI branch
-is not used: API Gateway, Lambda (including retries), SQS, DynamoDB, and
-CloudWatch Logs are on the path. The existing retry policy bounds receives per
-message but does not impose a dollar ceiling. Metered AWS usage is not zero,
-and the existing evidence contains neither a per-canary price calculation nor
-an inline spend stop. The external Jobsearch request/hosting charge and any
-provider-side charge are likewise unverified. No defensible numeric total or
-all-in enforceable cap can be stated from the current code/evidence. Therefore
-a “no monetary billing” guarantee, and a cost-safe approval without new
-provider evidence or a synthetic no-egress path, are **not demonstrated**.
-
-**Minimum technical path to a non-provider-billed technical E2E:** add a
-default-off, exact-identity synthetic ATS adapter in the existing `ats-agent`
-execution path which returns a deterministic fixture and fails closed without
-any outbound HTTP when selected; test that the real worker/dispatch/result
-path executes while the HTTP client is never called. Keep production routing,
-entitlements, retries, and billing untouched. This requires a runtime source
-change and redeployment, so it is outside this request and is not implemented.
-It would test orchestration/roundtrip, not the external Jobsearch integration.
-If the external endpoint itself must be exercised, obtain a dated service-owner
-and billing-owner statement for the exact live endpoint/deployment confirming
-AI disabled and maximum/no-variable charge for up to three ATS POST attempts,
-plus an explicit accepted AWS usage allowance. If a hard all-in monetary cap
-is required, the current stack has no synchronous enforcement; add a narrowly
-scoped spend-control design or provider-side cap before reopening Gate 2. Do
-not disable shared retries or use a budget alert as if it were a hard stop.
-
-No revised approval template is issued: neither no-provider-egress nor a
-verified external-provider/AWS cost limit is presently established. The earlier
-20A3 approval text remains historical preparation only; it does not authorize
-mutations and its Analysis expiry extension is not part of the ATS-agent path.
+No adapter, synthetic mode, runtime change, deployment, or entitlement was
+introduced. The correct next live prerequisites are explicit authorization
+for the narrowly scoped existing entitlement mechanism (if its broad
+user/tenant/agent scope is accepted), then a separately explicit one-order
+Gate 2 approval with the final payload/hash and retry acceptance. If the
+approver requires a cost guarantee, obtain actual endpoint and AWS cost terms;
+do not infer a paid provider invocation from this request path. No billing
+architecture or hard-cap implementation is proposed here.
 
 ### B — Commercial agent entitlement and billing backlog
 
@@ -437,11 +408,12 @@ synthetic technical canary.
 
 | Target | Decision |
 |---|---|
-| A — `ANALYSIS_SYNTHETIC_MODE=true` as provider-cost exclusion | **NO** — applies only to the separate internal Analysis identity path; ATS order path still POSTs externally |
-| Synthetic technical canary with no external provider charge | **BLOCKED** — needs a strict no-egress synthetic ATS adapter or provider-owner cost evidence |
-| All-in cost boundary using current mechanisms | **NOT ESTABLISHED** — finite SQS receives per WorkItem, no enforceable dollar cap; AWS usage remains billable |
+| ATS execution path provider behavior | **No provider call established** — RIS omits `ai`; inspected handler gates provider branch on explicit enabled+consent; deployed code identity differs/is unverified |
+| `ANALYSIS_SYNTHETIC_MODE` expiry | **NOT APPLICABLE** to the `ats-agent` order path |
+| Exact `ats-agent` entitlement | **BLOCKED** — 20A2 found zero rows for the verified synthetic identity |
+| External API/AWS price | **UNKNOWN** — neither paid provider execution nor zero cost is asserted |
 | B — `RIS-AGENT-ENTITLEMENT-BILLING-01` | **BACKLOG ONLY** — not implemented |
-| Gate 1 | **CLOSED** — no authorization for mutations or runtime changes |
+| Gate 1 | **CLOSED** — entitlement absent; no mutation authorization |
 | Gate 2 / live canary | **CLOSED; `LIVE_CANARY=BLOCKED`** |
 | Orders, invocations, retries, redrive, AWS mutations | **0 performed in this reconciliation** |
 
@@ -618,3 +590,85 @@ blocked until the existing approval gates are explicitly reopened. The
 commercial entitlement/billing backlog remains separate. The protected 19F2
 JSON was not read as a test output, staged, or changed; no test used its default
 output path.
+
+## Functional test execution — current checkpoint
+
+**Execution baseline:** `2f1a6f1332b1bd61889ad950bb531c263248d0e8` on
+`feature/ris-analysis-integration-07`; integrated Mays version key `integrated`
+(`db4f9e79980443de1cd3d5b688a33c0cf0eb771f`). These are targeted local
+integration tests, not another FULL QA run.
+
+| Test | Result | Execution boundary |
+|---|---:|---|
+| Unified `XREPO_CONTRACT` | **PASS — 133 passed + 4 subtests** | Process-isolated runner; exact integrated Mays checkout provenance verified; no AWS/network operation. JSON outside repo: `C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-mo-xrepo-contract-current.json`. |
+| Unified `XREPO_E2E` | **PASS — 39 passed** | Existing RIS↔Mays dispatch/agent/result harness; process-isolated; no AWS/network operation. JSON outside repo: `C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-mo-xrepo-e2e-current.json`. |
+| `tests/test_ats_result_link.py` | **PASS — 10 passed** | Existing local result-link harness; ATS client and AWS credentials isolated, outbound network blocked, infrastructure boundaries faked. |
+| Unified `LIVE` | **BLOCKED — `LOCKED_NOT_EXECUTED`, zero test groups** | Existing harness refuses live execution absent a separate approved live-test task. JSON outside repo: `C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-mo-live-locked.json`. No AWS call was made. |
+
+The exact integrated Mays original `orderDescription` tests (15/15) and
+reference-platform FULL pass remain reused from 19F8; they were not repeated.
+The focused reruns had no failures, so no defect was confirmed and no fix,
+rebuild, deployment, or Terraform action was necessary. Local functional
+acceptance is PASS. The external live order/agent/result/owner-readback path
+remains untested and blocked.
+
+### Bundled request for remaining live actions — NOT APPROVED
+
+No already-granted authorization covers a live Create/dispatch/Agent execution.
+If a future operator wants that test, one combined approval decision must
+authorize the following exact scope, while still recording Gate 1 and Gate 2
+separately as explicit decisions:
+
+```text
+Target: RIS-DEV2 / account 262370457690 / eu-central-1 / workspace ris-dev2
+Source: feature/ris-analysis-integration-07 at the reviewed then-current HEAD
+Worker artifact: existing deployed Worker fix; do not deploy or change pins
+Mays source: integrated db4f9e79980443de1cd3d5b688a33c0cf0eb771f
+
+Gate 1 (AWS mutation, only if separately approved): add exactly one temporary
+foundation_entitlements row for the already verified synthetic test owner and
+matching tenant, agentId=ats-agent, validFrom=T0-1 minute, validUntil=T0+15
+minutes. This existing seed is user/tenant/agent-wide; it does not enforce
+apiProfileId, capability, WorkItem type, or one-use. Explicitly accept this
+scope or do not authorize the change. No ANALYSIS_SYNTHETIC_EXPIRES_AT update:
+the target ats-agent path does not use that separate Analysis identity gate.
+Expected Terraform plan: exactly one entitlement item add; otherwise STOP.
+Plan review and Apply require their own approvals.
+
+Gate 2 (live execution): at most one authenticated POST /orders, using the
+final synthetic agent.execution payload for ats-agent/analyze.job and the
+final exact payload SHA-256 + idempotency key supplied in the approval. No
+manual POST retry, second order, direct Lambda invocation, queue receive,
+redrive, recovery, or cleanup. Observe only the matching work/order and
+authorized owner GET; stop on ambiguity or mismatch.
+
+Existing retry behavior: the work queue allows maxReceiveCount=3. A failed
+WorkItem can therefore lead to up to three agent attempts and up to three ATS
+POSTs for one logical order. Gate 2 must explicitly accept this exposure; this
+request does not disable or alter shared retries.
+
+Cost disclosure (currently unknown, not presumed chargeable): the inspected RIS
+request omits the API's AI opt-in, and the inspected handler runs its provider
+branch only with explicit enabled+consent. The checked-out handler is not the
+pinned/deployment identity, so this does not prove deployed behavior or endpoint
+pricing. Before Gate 2, the approver must either accept this unresolved
+service/AWS usage exposure explicitly or require verified price evidence as a
+condition. Do not describe a paid provider invocation as expected or proven.
+`unitPrice=1` and a budget alert are not monetary caps if a cap is required.
+
+Approver / authority / date / T0 / payload SHA-256 / idempotency key /
+explicit acceptance or resolution of unknown endpoint/AWS usage exposure /
+retry acceptance / plan hash and Apply reference (if Gate 1): <required>
+Gate 1 decision: NOT GRANTED. Gate 2 decision: NOT GRANTED.
+```
+
+This is a request for a future decision, not permission to prepare a plan or
+execute a live test. Current concrete blockers remain missing entitlement and
+closed Gate 1/Gate 2. Endpoint/AWS cost is unknown; this report does not treat a
+paid provider call as a fact or claim the test is cost-bounded.
+
+At this checkpoint: XRepo contract `133 + 4` PASS; XRepo E2E `39` PASS;
+ATS result-link `10` PASS; LIVE profile blocked; new orders `0`; AWS
+invocations/mutations `0`; deployment/plan/apply `0`; recovery/redrive `0`.
+The protected 19F2 JSON was not used as a test output, staged, or changed.
+**STOP at the live approval gate.**
