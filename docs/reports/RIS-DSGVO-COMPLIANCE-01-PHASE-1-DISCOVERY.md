@@ -1,9 +1,9 @@
 # RIS-DSGVO-COMPLIANCE-01 — Phase 1 Discovery
 
-**Status:** COMPLETE (repository/source discovery only; review required)  
-**Date:** 2026-11-28  
-**RIS branch/base:** `feature/ris-dsgvo-compliance-01` / `073fb5f5384736b6b6d8f0d1a0b987e4e9ceb070`  
-**Mays-Orders evidence pin:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`  
+**Status:** COMPLETE (repository/source discovery only; review required)
+**Date:** 2026-11-28
+**RIS branch/base:** `feature/ris-dsgvo-compliance-01` / `073fb5f5384736b6b6d8f0d1a0b987e4e9ceb070`
+**Mays-Orders evidence pin:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`
 **Mays-Jobsearch source reviewed:** `origin/main` `c298d223e38407781b4f63426be9f9228ccb4467`
 
 ## Scope and method

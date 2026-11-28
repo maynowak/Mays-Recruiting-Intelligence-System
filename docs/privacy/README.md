@@ -1,6 +1,6 @@
 # Privacy / DSGVO review package
 
-**Package status:** DOCUMENTATION READY FOR REVIEW — not a legal opinion, deployment attestation, or permission to process real personal data.  
+**Package status:** DOCUMENTATION READY FOR REVIEW — not a legal opinion, deployment attestation, or permission to process real personal data.
 **Evidence date:** 2026-11-28. Status values apply to repository evidence at the pins below.
 
 ## Evidence index

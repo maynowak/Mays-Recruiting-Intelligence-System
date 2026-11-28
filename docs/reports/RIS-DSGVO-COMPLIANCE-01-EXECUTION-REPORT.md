@@ -1,7 +1,7 @@
 # RIS-DSGVO-COMPLIANCE-01 — Execution report
 
-**Final status:** `DSGVO DISCOVERY COMPLETE / DOCUMENTATION READY FOR REVIEW`  
-**Decision boundary:** documentation only; **NO-GO** for live release or automatic approval of real personal data.  
+**Final status:** `DSGVO DISCOVERY COMPLETE / DOCUMENTATION READY FOR REVIEW`
+**Decision boundary:** documentation only; **NO-GO** for live release or automatic approval of real personal data.
 **Branch:** `feature/ris-dsgvo-compliance-01` from verified RIS Main baseline `073fb5f5384736b6b6d8f0d1a0b987e4e9ceb070`.
 
 ## Phase checkpoints
