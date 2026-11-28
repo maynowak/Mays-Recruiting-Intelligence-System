@@ -28,6 +28,7 @@
 | DSGVO-02A technical contract resolution | COMPLETE AS PROPOSAL; no approval or implementation | [`DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md`](DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md) |
 | DSGVO-02B Mays-Orders provider integration alignment | READY FOR REVIEW; RIS documentation only; provider CR drafts unsubmitted | [`DSGVO-02B-PROVIDER-INTEGRATION-REVIEW.md`](DSGVO-02B-PROVIDER-INTEGRATION-REVIEW.md) |
 | DSGVO-02C Order data boundary and lifecycle | PARTIAL; AgentOrder input/result paths can persist/transport domain and personal data; no exclusive RIS-store claim | [`DSGVO-02C-ORDER-DATA-BOUNDARY-AND-LIFECYCLE.md`](DSGVO-02C-ORDER-DATA-BOUNDARY-AND-LIFECYCLE.md) |
+| Ecosystem privacy contract and Unified QA orchestration | READY FOR IMPLEMENTATION REVIEW; design only, STOP before implementation | [`RIS-DSGVO-ECOSYSTEM-ORCHESTRATION-01.md`](RIS-DSGVO-ECOSYSTEM-ORCHESTRATION-01.md) |
 
 ## System boundaries and pins
 

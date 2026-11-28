@@ -585,3 +585,7 @@ Use the existing RIS privacy inspect/export/erasure routes; never create an
 AgentOrder for a privacy request. See
 [`../privacy/DSGVO-02C-ORDER-DATA-BOUNDARY-AND-LIFECYCLE.md`](../privacy/DSGVO-02C-ORDER-DATA-BOUNDARY-AND-LIFECYCLE.md)
 for source paths, limitations and the `PARTIAL` conclusion.
+
+The capability-level privacy declaration, input/result policy and proposed
+`RIS_PRIVACY` QA gate are design-only; see
+[`../privacy/RIS-DSGVO-ECOSYSTEM-ORCHESTRATION-01.md`](../privacy/RIS-DSGVO-ECOSYSTEM-ORCHESTRATION-01.md).
