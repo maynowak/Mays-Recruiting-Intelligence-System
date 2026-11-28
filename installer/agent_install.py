@@ -217,11 +217,27 @@ def generate_privacy_evidence(package: Path, artifact_path: Path) -> Dict[str, A
     repo_root = Path(__file__).resolve().parent.parent
     info = analyze(package)
     privacy, contract, contract_path = _privacy_inputs(package, info)
-    artifact_path = artifact_path.resolve()
-    if not artifact_path.is_file():
-        raise AgentInstallError(f"privacy evidence artifact is missing: {artifact_path}")
     import yaml
     manifest_data = yaml.safe_load(info["manifest"])
+    declared_artifact = (repo_root / manifest_data["privacy"]["evidenceArtifact"]).resolve()
+    artifact_path = artifact_path.resolve()
+    if artifact_path != declared_artifact:
+        raise AgentInstallError("privacy evidence artifact must match manifest evidenceArtifact")
+    build_command = [sys.executable, "lambda/build_zip.py", "--bundle", "agent"]
+    build_result = subprocess.run(build_command, cwd=repo_root,
+                                  capture_output=True, text=True, check=False)
+    if build_result.returncode != 0 or not artifact_path.is_file():
+        raise AgentInstallError("declared deterministic agent artifact build failed")
+    try:
+        import zipfile
+        with zipfile.ZipFile(artifact_path) as archive:
+            names = set(archive.namelist())
+        required = {"agents/addition_agent/agent.py",
+                    "agents/ecosystem/privacy_contract.py"}
+        if not required.issubset(names):
+            raise AgentInstallError("built artifact omits declared agent/privacy runtime")
+    except (OSError, zipfile.BadZipFile) as exc:
+        raise AgentInstallError("built privacy evidence artifact is not a valid ZIP") from exc
     test_paths = manifest_data["privacy"]["testPaths"]
     test_args = manifest_data["privacy"].get("testArgs", [])
     source_paths = manifest_data["privacy"]["sourcePaths"]
@@ -243,6 +259,10 @@ def generate_privacy_evidence(package: Path, artifact_path: Path) -> Dict[str, A
     output = (completed.stdout or "") + "\n" + (completed.stderr or "")
     skipped = sum(int(value) for value in re.findall(r"\b(\d+) skipped\b", output))
     report = {
+        "buildCommand": build_command,
+        "buildExitCode": build_result.returncode,
+        "buildStdout": build_result.stdout,
+        "buildStderr": build_result.stderr,
         "command": command, "exitCode": completed.returncode,
         "testPaths": test_paths, "testArgs": test_args, "stdout": completed.stdout,
         "stderr": completed.stderr, "sourceSha256": source_sha,
@@ -283,7 +303,7 @@ def generate_privacy_evidence(package: Path, artifact_path: Path) -> Dict[str, A
         tests_passed=True, required_tests_skipped=False,
         source_commit=source_commit,
         test_selection_sha256=selection_sha,
-        build_tool_version="lambda.build_zip deterministic bundle v1",
+        build_tool_version="lambda.build_zip --bundle agent; deterministic bundle v1",
     )
     report_path.write_bytes(report_bytes)
     evidence_data = {

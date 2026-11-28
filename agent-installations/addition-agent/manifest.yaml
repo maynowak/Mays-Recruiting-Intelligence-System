@@ -19,6 +19,8 @@ privacy:
     - agents/ecosystem/eligibility.py
     - agents/ecosystem/registry.py
     - agents/agent_body/executor.py
+    - installer/agent_install.py
+    - lambda/build_zip.py
   testPaths:
     - tests/test_addition_agent.py
     - agent-installations/addition-agent/tests/test_addition_privacy_contract.py

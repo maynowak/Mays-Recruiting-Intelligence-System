@@ -1,6 +1,6 @@
 # RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-01 — Execution
 
-**Status:** `PARTIAL — A implemented; B evidence pipeline implemented; C–F pending/blocked`
+**Status:** `PARTIAL — A/B implemented for Addition reference capability; C–F pending/blocked`
 **Branch:** `feature/ris-dsgvo-compliance-01`
 **Baseline:** `db2e09419931fc64e9377aed8fdd35c720023045`
 **Orders pin:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` (unchanged)
@@ -15,7 +15,7 @@ Compatibility/regression checks expose an intentional migration block, not a gre
 
 ## Remaining work and blockers
 
-- **B:** installer validates a typed capability policy, and its `privacy-evidence` stage executes manifest-selected tests and binds a canonical test report, contract hash, source-file digest, source commit, test selection and built artifact SHA. Cached stage PASS is fingerprinted against package files, referenced source/test inputs and artifact bytes. Addition is the first package with a synthetic numeric-only declaration and tests; registry loading rejects evidence if source, contract/test report or local artifact no longer matches. Final post-commit evidence generation is pending.
+- **B:** installer validates a typed capability policy, rebuilds the manifest-declared deterministic agent bundle itself, checks required Addition/privacy runtime entries, executes manifest-selected original/privacy tests, and binds a canonical report, contract hash, source-file digest, source commit, test selection and artifact SHA. Cached stage PASS is fingerprinted against package files, referenced source/test/build inputs and artifact bytes. Addition is the first package with a synthetic numeric-only declaration; local registry loading rejects evidence if source, contract/test report or built artifact no longer matches. Final evidence generation against the next committed tool source is pending.
 - **C:** not started. No capability input/result enforcement; existing generic Order/WorkItem/result boundaries remain `PARTIAL`.
 - **D:** not started. No late-result/fence lifecycle changes; terminal WorkItem retention remains unresolved.
 - **E:** not started. No synthetic Orders JWT issuer/client/subject test or Provider original suite was run; no Provider/pin modifications made.
