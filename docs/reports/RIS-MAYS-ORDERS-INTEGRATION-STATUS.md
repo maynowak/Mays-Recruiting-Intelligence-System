@@ -4,6 +4,51 @@
 post-Apply read-only verification **PASS**. **STOP at Live-Order gate**: no
 live order, redrive, further Terraform operation, or Main merge was performed.
 
+## Addition live E2E — payload prepared, execution BLOCKED; STOP at gate
+
+Fresh read-only checks confirmed the single enabled/confirmed synthetic test
+identity still matches the verified 19G5 identity, its owner profile is ACTIVE
+and tenant-matched, State remains serial `77` / lineage
+`a0bd361d-5cd1-a207-a8c0-e6888f0be082` / S3 version
+`zOnRrKUXkb3CvoHhGcosBHYkAExMwHmT`, and the deployed RIS-DEV2 `POST /orders`
+route is JWT-authorized. However, the temporary Addition entitlement expired
+at `2026-11-28T10:28:22Z`; the read-only check at `10:29:53Z` found no valid
+owner grant. Therefore **no live order was sent** and this candidate cannot be
+executed without a separately authorized fresh entitlement path and renewed
+preflight.
+
+### One-order proposal — exact payload binding; pending, not approval
+
+- Endpoint: `POST https://r95qvhg2p3.execute-api.eu-central-1.amazonaws.com/orders`
+- Request-ID and idempotency key:
+  `ris-addition-live-f871426bc9444d4c98e4a9fb24dc925c`
+- Exact UTF-8 compact-JSON payload SHA-256:
+  `9db3d7ecf238bd5b3875ab3958ea9a4a9cb0173d07c04270a21caeea8790d907`
+- Payload (the `orderDescription` string is canonical compact JSON):
+
+```json
+{"orderType":"agent.execution","customer":{"name":"Synthetic Addition QA","email":"addition-qa@example.invalid"},"items":[{"sku":"ADD","quantity":1,"unitPrice":1}],"currency":"EUR","orderDescription":"{\"input\":{\"data\":{\"left\":19,\"right\":23},\"schemaVersion\":\"1.0\"},\"metadata\":{\"apiProfileRef\":\"aprof_cdbd3b6f803744bf\",\"idempotencyKey\":\"ris-addition-live-f871426bc9444d4c98e4a9fb24dc925c\",\"requestId\":\"ris-addition-live-f871426bc9444d4c98e4a9fb24dc925c\",\"source\":\"ris-addition-live-e2e\"},\"schemaVersion\":\"1.0\",\"target\":{\"agentId\":\"addition_agent\",\"capability\":\"math.add\"}}"}
+```
+
+Requested semantics: one synthetic `addition_agent/math.add` execution (`19 +
+23`, expected `42`), preserve the exact `orderDescription`; no ATS, second
+order, retry, direct invocation, or queue operation. Approval of this hash is
+not sufficient to bypass the expired entitlement. **Live-order approval: NOT
+GRANTED; execution blocked.** If a renewed grant is separately authorized,
+reconfirm this exact hash/request ID and all live preconditions before sending.
+No second authorized Cognito identity exists; reuse only the existing local
+foreign-owner-404 evidence (`tests/test_agent_order_dispatch_e2e.py`), not a
+live foreign-owner request.
+
+### Entitlement cleanup — approval preparation only
+
+Prepare a separate reviewed Terraform change limited to deleting the one
+temporary `module.dynamodb.aws_dynamodb_table_item.foundation_entitlement`
+Addition grant instance. Preserve the ATS catalog state, all order/work/result
+evidence, shared infrastructure, and all other resources. No cleanup plan or
+Apply was run or is authorized here; recheck current State and exact instance
+address, then request explicit approval before any future Terraform operation.
+
 ## Authorized Apply — PASS; STOP at Live-Order gate
 
 - Applied exactly once the saved plan SHA-256

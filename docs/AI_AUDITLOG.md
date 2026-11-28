@@ -14416,3 +14416,32 @@ Apply, and live order disabled.
   required; **Live-Order gate remains NOT APPROVED**. Grant expires
   `2026-11-28T10:28:22Z`; no execution after expiry. Protected 19F2 results JSON
   was not edited or staged. No Main merge.
+
+## RIS-MAYS-ORDERS — Addition live E2E payload proposal — 2026-11-28
+
+- Live-order execution was not performed. AWS read-only checks confirmed the
+  existing test identity is still enabled/confirmed and matches 19G5, its
+  owner/tenant profile remains ACTIVE, and State remains serial 77, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, S3 version
+  `zOnRrKUXkb3CvoHhGcosBHYkAExMwHmT`. The current RIS-DEV2 `POST /orders` route
+  is JWT-authorized.
+- The one temporary Addition grant expired at `2026-11-28T10:28:22Z`; read-only
+  check at `10:29:53Z` found no currently valid owner grant. This blocks the
+  order. No grant was created/renewed; no Terraform command or live API request
+  was issued.
+- Prepared one candidate only: request/idempotency ID
+  `ris-addition-live-f871426bc9444d4c98e4a9fb24dc925c`, endpoint
+  `POST https://r95qvhg2p3.execute-api.eu-central-1.amazonaws.com/orders`,
+  exact compact UTF-8 payload SHA-256
+  `9db3d7ecf238bd5b3875ab3958ea9a4a9cb0173d07c04270a21caeea8790d907`.
+  Payload targets only `addition_agent/math.add` with 19 and 23 and requests
+  exact orderDescription preservation. Full payload is recorded in the current
+  status report. Approval remains **NOT GRANTED** and this candidate must not
+  be sent on an expired grant; fresh authorization/preflight is required.
+- The pool contains no second authorized test identity. Existing local
+  foreign-owner-404 evidence is reused; no live foreign-owner request.
+- Prepared, but did not execute, a cleanup scope limited to the single
+  temporary foundation Addition entitlement instance. A fresh State/address
+  check and separate explicit approval are required before any cleanup plan or
+  Apply. Status report updated; protected 19F2 JSON not edited/staged; no Main
+  merge.
