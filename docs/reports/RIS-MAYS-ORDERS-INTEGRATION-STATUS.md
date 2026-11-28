@@ -1,10 +1,57 @@
 # RIS–Mays-Orders Integration — Current Status
 
-**Status at 2026-11-28:** local Addition roundtrip **PASS**; one initial plan was
-rejected for scope deviation; the explicitly authorized corrected full-refresh
-plan now **PASSES** exact scope and shared-infrastructure guard. **STOP at Apply
-gate**: no Apply, AWS resource mutation, state migration, queue receive/redrive,
-or live order was performed.
+**Status at 2026-11-28:** local Addition roundtrip **PASS**; the newly authorized
+60-minute full-refresh plan **PASSES** exact scope and shared-infrastructure
+guard. **STOP at Apply gate**: no Apply, AWS resource mutation, state
+migration, queue receive/redrive, or live order was performed.
+
+## Newly authorized RIS-DEV2 60-minute plan — PASS; STOP at Apply gate
+
+Comparison baseline: passing plan
+`33c0e65ef0ada1bb046c487502d796e95d1251b6ce378eb76e48397c9745d515`; checkpoint
+commit `8831a44e2f510660887e329015063f3c6d285a4e`. The one new plan was run
+against unchanged verified 19G5 inputs, backend metadata, artifacts and paths.
+
+- Read-only preflight reconfirmed account `262370457690`, region `eu-central-1`,
+  bucket `ris-dev2-tf-state-dev`, effective key
+  `env:/ris-dev2/dev/terraform.tfstate`, workspace `ris-dev2`, lock table
+  `ris-dev2-tf-lock`, State serial `76`, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, S3 version
+  `M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T`; state was not migrated.
+- Reused 19G5 base input SHA-256
+  `1ada876c6c98080206c9d29ca55549b4b8f254e1f2a5c0e915f9d6097016e6e7` (83
+  inputs). Worker, Analysis, parser and Orders-Reader artifacts retained their
+  verified hashes and historical paths; no bundle was built or changed.
+- Read-only identity/profile/catalog/entitlement checks passed: same verified
+  test identity and tenant, active owner profile, ATS catalog `ACTIVE`,
+  Addition catalog `ABSENT`, and no valid ATS or Addition entitlement.
+- Separate fresh grant tfvars SHA-256
+  `5bd76b7b89330cdd39dcffea226de9de5baced728456a2acebbbd1040e3af796` provided
+  exactly one `addition_agent` entitlement for that identity/tenant. Effective
+  saved-plan values and after-image match the file. Validity:
+  `2026-11-28T09:28:22Z`–`2026-11-28T10:28:22Z` (exactly 60 minutes). File is
+  outside the repository and was not committed.
+- Exactly one Terraform `1.17.0` full-refresh plan, normal state lock:
+  `%TEMP%\opencode\ris-dev2-addition-acceptance-60m-8831a44.tfplan`; SHA-256
+  `ca0933a296610d2cae2ad80e12c8d27a3aeed892856ed2ee18d155abdf4fcd3b`.
+  Scope: **1 Add / 1 Change / 0 Destroy / 0 Replace / 273 No-op**.
+- Only changes: ATS catalog seed `ACTIVE→INACTIVE`; create exactly one
+  temporary Addition entitlement. No Lambda, IAM, Queue, or other resource
+  changes. Shared-infrastructure guard **PASS** (`NO_SHARED_DESTROY`); transport
+  remains enabled and lifecycle managed.
+- **Apply approval: NOT GRANTED.** Saved plan is review-only. Do not apply or
+  place a live order. Any further plan requires a new explicit authorization.
+
+### Apply approval template — pending; not authorization
+
+> Approver/authority/date: **NOT PROVIDED**. Proposed action: at most one Apply
+> of plan SHA-256
+> `ca0933a296610d2cae2ad80e12c8d27a3aeed892856ed2ee18d155abdf4fcd3b` in account
+> `262370457690`, region `eu-central-1`, workspace `ris-dev2`, State serial 76 /
+> lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`; exact scope 1 Add / 1 Change /
+> 0 Destroy / 0 Replace (one temporary Addition entitlement, ATS catalog
+> `ACTIVE→INACTIVE`). Grant expires `2026-11-28T10:28:22Z`. Apply authorization:
+> **NOT GRANTED**. No live order; separately gated.
 
 ## Authorized corrected RIS-DEV2 plan — PASS; STOP at Apply gate
 

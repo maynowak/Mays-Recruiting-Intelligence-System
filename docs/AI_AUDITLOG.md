@@ -14324,3 +14324,35 @@ Baseline: `e115b201542706266c274e2d223ac58bf3e80ad0`, branch
   requires a fresh grant window and newly authorized plan. Report updated at
   `docs/reports/RIS-MAYS-ORDERS-INTEGRATION-STATUS.md`. Protected 19F2 file was
   not edited or staged. No Main merge.
+
+## RIS-MAYS-ORDERS-INTEGRATION — authorized RIS-DEV2 60-minute replan — 2026-11-28
+
+Comparison plan SHA-256:
+`33c0e65ef0ada1bb046c487502d796e95d1251b6ce378eb76e48397c9745d515`;
+checkpoint `8831a44e2f510660887e329015063f3c6d285a4e`.
+
+- Read-only preflight reconfirmed the account/region, `ris-dev2` workspace,
+  backend bucket/effective key/lock table, State serial 76, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, and latest State S3 version
+  `M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T`. No migration or State mutation.
+- Reused the verified 19G5 input file unchanged (SHA-256
+  `1ada876c6c98080206c9d29ca55549b4b8f254e1f2a5c0e915f9d6097016e6e7`),
+  backend metadata and artifact bytes/paths. No bundle build or FULL QA.
+  Read-only test identity, profile, entitlement and Catalog gates passed.
+- Created separate temporary grant tfvars (SHA-256
+  `5bd76b7b89330cdd39dcffea226de9de5baced728456a2acebbbd1040e3af796`) with
+  exactly one `addition_agent` entitlement for the verified identity/tenant.
+  Effective plan values and planned row matched. Validity is
+  `2026-11-28T09:28:22Z` through `2026-11-28T10:28:22Z`, exactly 3,600 seconds.
+  No identity or entitlement IDs recorded.
+- Exactly one Terraform 1.17.0 full-refresh plan was run, with normal locking:
+  `%TEMP%\opencode\ris-dev2-addition-acceptance-60m-8831a44.tfplan`, SHA-256
+  `ca0933a296610d2cae2ad80e12c8d27a3aeed892856ed2ee18d155abdf4fcd3b`.
+  **1 Add / 1 Change / 0 Destroy / 0 Replace / 273 No-op.** Sole actions:
+  ATS catalog `ACTIVE→INACTIVE`, and one temporary Addition entitlement add.
+  No other resource changes.
+- Shared-infrastructure guard **PASS**, `NO_SHARED_DESTROY`; transport enabled
+  and lifecycle managed. Exact approved scope verified. Apply `0`, AWS resource
+  mutations `0`, live orders `0`. Apply remains **NOT APPROVED**; stop at Apply
+  gate. The updated central report includes a pending Apply approval template.
+  Protected 19F2 results JSON was not staged or edited. No Main merge.
