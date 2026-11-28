@@ -97,6 +97,49 @@ def create_partner_application(
         raise PartnerRegistryError(f"Failed to create partner application: {e}")
 
 
+def get_partner_application(
+    application_id: Optional[str],
+    table_name: Optional[str] = None,
+    dynamodb_client: Optional[Any] = None,
+) -> Optional[Dict[str, Any]]:
+    """Read one partner application row by its applicationId (consistent).
+
+    Read-only helper for the APIProfile identity binding. Reservation items
+    (``CLIENT#...``) are not applications and are refused. Any miss or error
+    fails closed with ``None``.
+    """
+    if not application_id or application_id.startswith(CLIENT_RESERVATION_PREFIX):
+        return None
+    try:
+        if dynamodb_client is None:
+            import boto3
+            table_name = table_name or os.getenv('RIS_PARTNER_APPLICATIONS_TABLE')
+            if not table_name:
+                return None
+            dynamodb = boto3.client('dynamodb', region_name=os.getenv('AWS_REGION', 'eu-central-1'))
+        else:
+            dynamodb = dynamodb_client
+
+        item = dynamodb.get_item(
+            TableName=table_name,
+            Key={'applicationId': {'S': application_id}},
+            ConsistentRead=True,
+        ).get('Item')
+        if not isinstance(item, dict) or not item:
+            return None
+
+        def unmarshal(value):
+            if isinstance(value, dict) and 'S' in value:
+                return value['S']
+            if isinstance(value, dict) and 'N' in value:
+                return int(value['N'])
+            return value
+
+        return {key: unmarshal(value) for key, value in item.items()}
+    except Exception:
+        return None
+
+
 def resolve_partner_application(
     client_id: Optional[str],
     table_name: Optional[str] = None,

@@ -93,10 +93,45 @@ class ParserRuntimeGateTest(unittest.TestCase):
     def test_analysis_configuration_defaults_deny(self):
         for name, value in ((("ANALYSIS_ENTITLEMENTS"), '""'),
                             (("ANALYSIS_CONSENT"), '"false"'),
-                            (("ANALYSIS_NOTICE_APPROVED"), '"false"'),
-                            (("ANALYSIS_SYNTHETIC_MODE"), '"false"')):
+                            (("ANALYSIS_NOTICE_APPROVED"), '"false"')):
             self.assertRegex(self.module, name + r"\s*=\s*" + value)
         self.assertNotRegex(self.module, r"ANALYSIS_CONSENT\s*=\s*\"true\"")
+        # Synthetic mode is parameterized but defaults off.
+        self.assertRegex(
+            self.module,
+            r'ANALYSIS_SYNTHETIC_MODE\s*=\s*var\.analysis_synthetic_mode\s*\?\s*"true"\s*:\s*"false"')
+        self.assertRegex(
+            self.variables,
+            r'variable "analysis_synthetic_mode"\s*\{[^}]*default\s*=\s*false')
+        self.assertRegex(
+            self.variables,
+            r'variable "analysis_synthetic_installation"\s*\{[^}]*default\s*=\s*"ris-dev2"')
+        for name in ("analysis_synthetic_tenant_id",
+                     "analysis_synthetic_user_id",
+                     "analysis_synthetic_partner_application_id",
+                     "analysis_synthetic_issuer",
+                     "analysis_synthetic_entitlements",
+                     "analysis_synthetic_expires_at"):
+            self.assertRegex(
+                self.variables,
+                r'variable "' + name + r'"\s*\{[^}]*default\s*=\s*""')
+
+    def test_synthetic_profile_env_is_wired_to_variables(self):
+        expected = {
+            "ANALYSIS_SYNTHETIC_INSTALLATION": "var.analysis_synthetic_installation",
+            "ANALYSIS_SYNTHETIC_TENANT_ID": "var.analysis_synthetic_tenant_id",
+            "ANALYSIS_SYNTHETIC_USER_ID": "var.analysis_synthetic_user_id",
+            "ANALYSIS_SYNTHETIC_PARTNER_APPLICATION_ID":
+                "var.analysis_synthetic_partner_application_id",
+            "ANALYSIS_SYNTHETIC_ISSUER": "var.analysis_synthetic_issuer",
+            "ANALYSIS_SYNTHETIC_ENTITLEMENTS": "var.analysis_synthetic_entitlements",
+            "ANALYSIS_SYNTHETIC_EXPIRES_AT": "var.analysis_synthetic_expires_at",
+        }
+        for key, variable in expected.items():
+            self.assertRegex(self.module, key + r"\s*=\s*" + re.escape(variable))
+        # Consent/notice stay deny; the synthetic path must not relax them.
+        self.assertNotRegex(self.module, r"ANALYSIS_CONSENT\s*=\s*\"true\"")
+        self.assertNotRegex(self.module, r"ANALYSIS_NOTICE_APPROVED\s*=\s*\"true\"")
 
     def test_data_policy_is_dedicated_and_least_privilege(self):
         block = self.module.split('resource "aws_iam_role_policy" "analysis_runtime_data"', 1)[1]
@@ -112,6 +147,35 @@ class ParserRuntimeGateTest(unittest.TestCase):
         self.assertNotIn("var.entitlements_table_arn", block)
         for forbidden in ("s3:", "sqs:", "secretsmanager:", "lambda:"):
             self.assertNotIn(forbidden, block)
+        granted = set(re.findall(r"dynamodb:[A-Za-z]+", block))
+        self.assertEqual({"dynamodb:GetItem"}, granted)
+
+    def test_partner_profiles_is_get_item_only(self):
+        """RIS-DEV2-IAM-AUTHORIZATION-01: no unused Query/index grants."""
+        block = self.module.split('resource "aws_iam_role_policy" "analysis_runtime_data"', 1)[1]
+        block = block.split('resource "', 1)[0]
+        partner = block.split('Sid = "OwnedPartnerProfiles"', 1)[1].split("},", 1)[0]
+        self.assertIn("var.partner_profiles_table_arn", partner)
+        self.assertIn('["dynamodb:GetItem"]', partner)
+        self.assertNotIn("dynamodb:Query", partner)
+        self.assertNotIn("index/*", partner)
+
+    def test_analysis_runtime_has_no_order_table_access(self):
+        """Orders are read through the RIS order API, never by this Lambda."""
+        self.assertNotIn("mays-orders", self.module)
+        self.assertNotIn("ORDERS_TABLE", self.module)
+        source_root = os.path.join(ROOT, "lambda")
+        sources = [os.path.join(source_root, "analysis_runner.py")]
+        analysis_dir = os.path.join(ROOT, "agents", "analysis")
+        sources += [os.path.join(analysis_dir, name)
+                    for name in sorted(os.listdir(analysis_dir))
+                    if name.endswith(".py")]
+        for path in sources:
+            with open(path, encoding="utf-8") as handle:
+                text = handle.read()
+            self.assertNotIn("ORDERS_TABLE", text, path)
+            self.assertNotIn("mays-orders", text, path)
+            self.assertNotIn("orders_table", text, path)
 
     def test_build_bundle_contains_the_analysis_runner(self):
         import importlib.util
@@ -150,7 +214,7 @@ class ParserRuntimeRootWiringTest(unittest.TestCase):
                       block)
         self.assertIn("parser_artifact_path    = var.analysis_parser_zip_path",
                       block)
-        self.assertIn("analysis_zip_path       = var.analysis_lambda_zip_path",
+        self.assertIn("analysis_zip_path       = local.analysis_artifact_filename",
                       block)
         for table in ("work_items_table", "entitlements_table",
                       "partner_profiles_table"):

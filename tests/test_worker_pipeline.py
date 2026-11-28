@@ -10,6 +10,7 @@ Registry-/Discovery-/Eligibility-/Router-/Engine-Klassen:
 
 import sys
 import os
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -50,6 +51,7 @@ class FakeTable:
     def __init__(self):
         self.items = {}
         self.puts = 0
+        self.update_conditions = []
 
     def put_item(self, Item, ConditionExpression=None):
         if ConditionExpression == "attribute_not_exists(workId)" and Item["workId"] in self.items:
@@ -63,12 +65,20 @@ class FakeTable:
 
     def update_item(self, Key, UpdateExpression, ExpressionAttributeNames=None,
                     ExpressionAttributeValues=None, ConditionExpression=None):
+        self.update_conditions.append(ConditionExpression)
         item = self.items[Key["workId"]]
         names = ExpressionAttributeNames or {}
         values = ExpressionAttributeValues or {}
+        if ConditionExpression == "#status = :queued":
+            if item.get(names.get("#status", "#status")) != values[":queued"]:
+                raise FakeTable.ConditionalFailed()
         if ConditionExpression == "#status = :failed AND attempt_no = :expectedAttempt":
             if (item.get(names.get("#status", "#status")) != values[":failed"]
                     or item.get("attempt_no") != values[":expectedAttempt"]):
+                raise FakeTable.ConditionalFailed()
+        if ConditionExpression == "#status = :running AND attempt_no = :attempt":
+            if (item.get(names.get("#status", "#status")) != values[":running"]
+                    or item.get("attempt_no") != values[":attempt"]):
                 raise FakeTable.ConditionalFailed()
         # minimaler Parser fuer die in pipeline.py verwendeten SET/REMOVE-Ausdruecke
         expr = UpdateExpression.split("REMOVE")[0].strip()
@@ -128,6 +138,185 @@ def fresh_wiring():
 
 
 class TestWorkerPipeline(unittest.TestCase):
+    def test_existing_queued_item_claim_executes_without_retry_claim(self):
+        """An ingress-created QUEUED row gets one initial claim, then runs."""
+        table = FakeTable()
+        registry, body = fresh_wiring()
+        calls = []
+
+        def execute(work):
+            calls.append(work["workId"])
+            return {"success": True, "data": {"executed": True}}
+
+        from agents.ecosystem.registry import AgentDescriptor, AgentStatus
+        registry.register("worker-test-agent", AgentDescriptor(
+            agent_id="worker-test-agent", name="worker-test-agent",
+            version="1.0.0", status=AgentStatus.ACTIVE,
+            capabilities=["worker.test"],
+        ))
+        body.register_agent(capability="worker.test", handler=execute)
+        body.register_agent(agent_id="worker-test-agent", handler=execute)
+        item = work_item("work-prequeued", capability="worker.test",
+                         agent_id="worker-test-agent")
+        item.update({"status": "QUEUED", "attempt_no": 0})
+        table.items[item["workId"]] = dict(item)
+
+        out = process_record(record(item), table=table,
+                             registry=registry, body=body)
+
+        self.assertEqual("#status = :queued", table.update_conditions[0])
+        self.assertNotIn(
+            "#status = :failed AND attempt_no = :expectedAttempt",
+            table.update_conditions,
+        )
+        self.assertEqual(["work-prequeued"], calls)
+        self.assertFalse(out["duplicate"])
+        self.assertEqual("COMPLETED", out["status"])
+        self.assertEqual(1, out["attempt_no"])
+        self.assertEqual("COMPLETED", table.items["work-prequeued"]["status"])
+
+    def test_lost_initial_claim_suppresses_execution(self):
+        class CompetingInitialClaimTable(FakeTable):
+            def update_item(self, Key, UpdateExpression,
+                            ExpressionAttributeNames=None,
+                            ExpressionAttributeValues=None,
+                            ConditionExpression=None):
+                if ConditionExpression == "#status = :queued":
+                    item = self.items[Key["workId"]]
+                    item.update({"status": "RUNNING", "attempt_no": 1})
+                    self.update_conditions.append(ConditionExpression)
+                    raise FakeTable.ConditionalFailed()
+                return super().update_item(
+                    Key, UpdateExpression, ExpressionAttributeNames,
+                    ExpressionAttributeValues, ConditionExpression)
+
+        table = CompetingInitialClaimTable()
+        registry, body = fresh_wiring()
+        calls = []
+        item = work_item("work-initial-race", "worker.test", "worker-test-agent")
+        item.update({"status": "QUEUED", "attempt_no": 0})
+        table.items[item["workId"]] = dict(item)
+        from agents.ecosystem.registry import AgentDescriptor, AgentStatus
+        registry.register("worker-test-agent", AgentDescriptor(
+            agent_id="worker-test-agent", name="worker-test-agent",
+            version="1.0.0", status=AgentStatus.ACTIVE,
+            capabilities=["worker.test"],
+        ))
+        body.register_agent(capability="worker.test",
+                            handler=lambda work: calls.append(work["workId"]))
+        body.register_agent(agent_id="worker-test-agent",
+                            handler=lambda work: calls.append(work["workId"]))
+
+        out = process_record(record(item), table=table,
+                             registry=registry, body=body)
+
+        self.assertTrue(out["duplicate"])
+        self.assertTrue(out["suppressed"])
+        self.assertEqual("RUNNING", out["status"])
+        self.assertEqual([], calls)
+
+    def test_preexisting_running_item_remains_suppressed(self):
+        table = FakeTable()
+        registry, body = fresh_wiring()
+        calls = []
+        item = work_item("work-running", "worker.test", "worker-test-agent")
+        item.update({"status": "RUNNING", "attempt_no": 1})
+        table.items[item["workId"]] = dict(item)
+        from agents.ecosystem.registry import AgentDescriptor, AgentStatus
+        registry.register("worker-test-agent", AgentDescriptor(
+            agent_id="worker-test-agent", name="worker-test-agent",
+            version="1.0.0", status=AgentStatus.ACTIVE,
+            capabilities=["worker.test"],
+        ))
+        body.register_agent(capability="worker.test",
+                            handler=lambda work: calls.append(work["workId"]))
+        body.register_agent(agent_id="worker-test-agent",
+                            handler=lambda work: calls.append(work["workId"]))
+
+        out = process_record(record(item), table=table,
+                             registry=registry, body=body)
+
+        self.assertTrue(out["duplicate"])
+        self.assertTrue(out["suppressed"])
+        self.assertEqual("RUNNING", out["status"])
+        self.assertEqual([], calls)
+        self.assertEqual("RUNNING", table.items[item["workId"]]["status"])
+
+    def test_retry_claim_lost_does_not_execute_agent(self):
+        class CompetingRetryClaimTable(FakeTable):
+            def update_item(self, Key, UpdateExpression,
+                            ExpressionAttributeNames=None,
+                            ExpressionAttributeValues=None,
+                            ConditionExpression=None):
+                if ConditionExpression == "#status = :failed AND attempt_no = :expectedAttempt":
+                    self.update_conditions.append(ConditionExpression)
+                    raise FakeTable.ConditionalFailed()
+                return super().update_item(
+                    Key, UpdateExpression, ExpressionAttributeNames,
+                    ExpressionAttributeValues, ConditionExpression)
+
+        table = CompetingRetryClaimTable()
+        registry, body = fresh_wiring()
+        calls = []
+        item = work_item("work-retry-race", "worker.test", "worker-test-agent")
+        item.update({"status": "FAILED", "attempt_no": 1,
+                     "error": {"type": "Transient", "message": "retry"}})
+        table.items[item["workId"]] = dict(item)
+        from agents.ecosystem.registry import AgentDescriptor, AgentStatus
+        registry.register("worker-test-agent", AgentDescriptor(
+            agent_id="worker-test-agent", name="worker-test-agent",
+            version="1.0.0", status=AgentStatus.ACTIVE,
+            capabilities=["worker.test"],
+        ))
+        body.register_agent(capability="worker.test",
+                            handler=lambda work: calls.append(work["workId"]))
+        body.register_agent(agent_id="worker-test-agent",
+                            handler=lambda work: calls.append(work["workId"]))
+
+        out = process_record(record(item), table=table,
+                             registry=registry, body=body)
+
+        self.assertTrue(out["duplicate"])
+        self.assertTrue(out["suppressed"])
+        self.assertEqual([], calls)
+        self.assertEqual("FAILED", table.items[item["workId"]]["status"])
+
+    def test_two_concurrent_retry_claims_have_one_winner(self):
+        class AtomicRetryTable(FakeTable):
+            def __init__(self):
+                super().__init__()
+                self.lock = threading.Lock()
+
+            def update_item(self, Key, UpdateExpression,
+                            ExpressionAttributeNames=None,
+                            ExpressionAttributeValues=None,
+                            ConditionExpression=None):
+                with self.lock:
+                    return super().update_item(
+                        Key, UpdateExpression, ExpressionAttributeNames,
+                        ExpressionAttributeValues, ConditionExpression)
+
+        from concurrent.futures import ThreadPoolExecutor
+        from agents.runtime.pipeline import _RetryClaimLost, _start_retry_attempt
+
+        table = AtomicRetryTable()
+        failed = {"workId": "work-retry-concurrent", "status": "FAILED",
+                  "attempt_no": 1, "processing_id": "proc-retry"}
+        table.items[failed["workId"]] = dict(failed)
+
+        def claim():
+            try:
+                return _start_retry_attempt(table, dict(failed))
+            except _RetryClaimLost:
+                return None
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: claim(), range(2)))
+
+        self.assertEqual(1, sum(result is not None for result in results))
+        self.assertEqual("RUNNING", table.items[failed["workId"]]["status"])
+        self.assertEqual(2, table.items[failed["workId"]]["attempt_no"])
+
     def test_production_admission_blocks_replay_after_fence_and_missing_row(self):
         table = TransactionalFenceTable()
         registry, body = fresh_wiring()

@@ -339,3 +339,63 @@ def test_grant_without_tenant_scope_fails_closed():
                    offer_store=offers, entitlement_store=entitlements,
                    catalog=CATALOG)
     assert entitlements.find_by_user(CONSUMER) == []
+
+# ----------------------------------------------------------------------
+# Withdraw (cleanup path)
+# ----------------------------------------------------------------------
+
+def _seed_entitlement(store):
+    store.put_entitlements_batch([{
+        "entitlementId": "ent-cleanup", "userId": CONSUMER,
+        "tenantId": TENANT, "agentId": "jobsearch-agent",
+        "grantId": "grt-cleanup", "offerId": "offer-cleanup",
+        "expiresAt": 4102444800,
+    }])
+
+
+def test_withdraw_requires_admin_and_reason():
+    _offers, entitlements = _stores()
+    _seed_entitlement(entitlements)
+    with pytest.raises(Exception):
+        offs.withdraw("ent-cleanup", _actor(role="owner"), "cleanup",
+                      entitlement_store=entitlements)
+    with pytest.raises(Exception):
+        offs.withdraw("ent-cleanup", _actor(), "", entitlement_store=entitlements)
+    assert entitlements.get_entitlement("ent-cleanup") is not None
+
+
+def test_withdraw_removes_entitlement():
+    _offers, entitlements = _stores()
+    _seed_entitlement(entitlements)
+    out = offs.withdraw("ent-cleanup", _actor(), "cleanup",
+                        entitlement_store=entitlements)
+    assert out == {"entitlementId": "ent-cleanup", "status": "WITHDRAWN"}
+    assert entitlements.get_entitlement("ent-cleanup") is None
+
+
+def test_parser_exposes_withdraw():
+    parser = build_parser()
+    args = parser.parse_args(["offer", "withdraw", "--entitlementId",
+                              "ent-1", "--reason", "cleanup"])
+    assert args.offer_cmd == "withdraw"
+
+def test_set_status_inactive_admin_only_and_reason():
+    offers, _ents = _stores()
+    o = _offer(offers)
+    with pytest.raises(Exception):
+        offs.set_status(o["offerId"], _actor(role="owner"), "INACTIVE",
+                        "cleanup", offer_store=offers)
+    with pytest.raises(Exception):
+        offs.set_status(o["offerId"], _actor(), "INACTIVE", "",
+                        offer_store=offers)
+    out = offs.set_status(o["offerId"], _actor(), "INACTIVE", "cleanup",
+                          offer_store=offers)
+    assert out["status"] == "INACTIVE"
+    assert offers.get_offer(o["offerId"])["status"] == "INACTIVE"
+
+
+def test_parser_exposes_offer_status():
+    parser = build_parser()
+    args = parser.parse_args(["offer", "status", "--offerId", "off_1",
+                              "--status", "INACTIVE", "--reason", "cleanup"])
+    assert args.offer_cmd == "status"

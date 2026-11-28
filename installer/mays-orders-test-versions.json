@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "purpose": "QA-only version map; does not change runtime, module, installer, or deployment pins.",
+  "versions": {
+    "integrated": {
+      "commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+      "release": "builder-integrated-source",
+      "source_of_truth": [
+        "installer/mays-orders-builder.pinned.json",
+        "installer/build_mays_orders_module.py:PINNED_COMMIT",
+        "terraform/modules/mays_orders/module-builder.manifest.json:source.commit"
+      ],
+      "status": "CURRENT_GENERATED_MODULE_SOURCE"
+    },
+    "upgrade_candidate": {
+      "commit": "80a84ca2f146d5efaa31d41ba425359283333f21",
+      "release": "main-orderDescription-compatibility-patch",
+      "source_of_truth": "Mays-Orders origin/main: feat(orders): add optional orderDescription field",
+      "status": "CANDIDATE_ONLY_NOT_INTEGRATED"
+    }
+  }
+}

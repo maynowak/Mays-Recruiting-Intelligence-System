@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-11-27T08:08:57.398607+00:00",
+  "profile": "XREPO_CONTRACT",
+  "ris_commit": "404714c73001fd91c9a106b7d76b5060761d2ef4",
+  "mays_orders": {
+    "version_key": "upgrade_candidate",
+    "expected_commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+    "release": "v0.6.0-rc.1",
+    "checkout": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-19f3-mays-rc4",
+    "provenance_status": "VERIFIED",
+    "errors": []
+  },
+  "platform": "win32",
+  "python": "3.14.10 (tags/v3.14.10:b703b2c, Oct 25 2026, 17:36:52) [MSC v.1944 64 bit (AMD64)]",
+  "artifact_hashes": {
+    "worker_bundle_terraform/lambda.zip": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
+    "worker_bundle_expected": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
+    "worker_bundle_matches_baseline": true,
+    "mays_test_version_map": "b61a7244da57f9cb0a2f8cea4310838b83c939676a31e1e0de7c4fadef7578be"
+  },
+  "live_profile": "LOCKED_NOT_EXECUTED",
+  "aggregate_counts": "Per-group only; overlapping profile executions are not summed.",
+  "groups": [
+    {
+      "group": "xrepo_contract",
+      "repository": "RIS",
+      "status": "FAIL",
+      "return_code": 1,
+      "passed": 120,
+      "failed": 13,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 4,
+      "duration_seconds": 1.24,
+      "collection_errors": 0,
+      "command": [
+        "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-19f-venv314\\Scripts\\python.exe",
+        "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\scripts\\unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "tests/test_mo_contract_compat.py",
+        "tests/test_cross_repo_mo_contract.py",
+        "tests/test_order_transport_contract.py",
+        "tests/test_agent_order_body.py",
+        "tests/test_agent_order_order_description.py",
+        "tests/test_dispatch_ingress_env.py"
+      ],
+      "stdout_tail": "ysOrdersAdapter\n    \n        sent = []\n    \n        def request_fn(method, url, headers, body, timeout):\n            sent.append(body)\n            return 201, {\"orderId\": \"ord_xrepo\", \"status\": \"PENDING\"}\n    \n        RealMaysOrdersAdapter(request_fn=request_fn).submit_order(\n            {}, \"orders.create\",\n            payload={\"agentOrder\": my_agent_order(),\n                     \"customer\": {\"name\": \"M\", \"email\": \"m@example.com\"}})\n>       normalised = self.mo.validate_create_order(sent[0])\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\ntests\\test_cross_repo_mo_contract.py:171: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n..\\ris-19f3-mays-rc4\\lambda\\src\\validation.py:71: in validate_create_order\n    reject_unknown_keys(body, [\"customer\", \"items\", \"currency\", \"orderType\"], \"body\")\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\nvalue = {'customer': {'name': 'M', 'email': 'm@example.com'}, 'currency': 'EUR', 'items': [{'sku': 'orders.create', 'quantity': 1, 'unitPrice': 1}], 'orderType': 'agent.execution', ...}\nallowed = ['customer', 'items', 'currency', 'orderType'], path = 'body'\n\n    def reject_unknown_keys(value: Dict[str, Any], allowed: List[str], path: str) -> None:\n        unknown = [key for key in value if key not in allowed]\n        if unknown:\n>           raise validation_error(\n                f\"Unknown field '{unknown[0]}' at {path}\",\n                {\"path\": f\"{path}.{unknown[0]}\"},\n            )\nE           errors.OrderError: Unknown field 'orderDescription' at body\n\n..\\ris-19f3-mays-rc4\\lambda\\src\\validation.py:28: OrderError\n__ TestMaysOrdersContract.test_payload_accepted_by_mo_is_accepted_by_reader ___\n\nself = <test_cross_repo_mo_contract.TestMaysOrdersContract testMethod=test_payload_accepted_by_mo_is_accepted_by_reader>\n\n    def test_payload_accepted_by_mo_is_accepted_by_reader(self):\n        body = self._adapter_body({\n            \"agentOrder\": my_agent_order(),\n            \"customer\": {\"name\": \"Mays\", \"email\": \"ops@example.com\"},\n            \"items\": [{\"sku\": \"ATS\", \"quantity\": 1, \"unitPrice\": 100}],\n            \"currency\": \"EUR\",\n        })\n>       self.mo.validate_create_order(body)  # must not raise\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\ntests\\test_cross_repo_mo_contract.py:183: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n..\\ris-19f3-mays-rc4\\lambda\\src\\validation.py:71: in validate_create_order\n    reject_unknown_keys(body, [\"customer\", \"items\", \"currency\", \"orderType\"], \"body\")\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\nvalue = {'customer': {'name': 'Mays', 'email': 'ops@example.com'}, 'currency': 'EUR', 'items': [{'sku': 'ATS', 'quantity': 1, 'unitPrice': 100}], 'orderType': 'agent.execution', ...}\nallowed = ['customer', 'items', 'currency', 'orderType'], path = 'body'\n\n    def reject_unknown_keys(value: Dict[str, Any], allowed: List[str], path: str) -> None:\n        unknown = [key for key in value if key not in allowed]\n        if unknown:\n>           raise validation_error(\n                f\"Unknown field '{unknown[0]}' at {path}\",\n                {\"path\": f\"{path}.{unknown[0]}\"},\n            )\nE           errors.OrderError: Unknown field 'orderDescription' at body\n\n..\\ris-19f3-mays-rc4\\lambda\\src\\validation.py:28: OrderError\n=========================== short test summary info ===========================\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_orders_dispatch_is_accepted_by_ris\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_orders_rejects_an_unsupported_ris_version\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_orders_rejects_unknown_result_field\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_required_dispatch_fields_are_pinned\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_required_result_fields_are_pinned\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_result_direction_is_ris_to_orders\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_result_message_types_match\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_ris_result_is_accepted_by_orders\nFAILED tests/test_mo_contract_compat.py::TransportContractCompatibility::test_ris_schema_version_is_accepted_by_orders\nFAILED tests/test_cross_repo_mo_contract.py::TestMaysOrdersContract::test_adapter_body_is_accepted_by_real_mo_validator\nFAILED tests/test_cross_repo_mo_contract.py::TestMaysOrdersContract::test_documented_divergence_exactly_one_item\nFAILED tests/test_cross_repo_mo_contract.py::TestMaysOrdersContract::test_mo_normalised_description_round_trips_into_ris\nFAILED tests/test_cross_repo_mo_contract.py::TestMaysOrdersContract::test_payload_accepted_by_mo_is_accepted_by_reader\n13 failed, 120 passed, 4 subtests passed in 1.24s\n",
+      "stderr_tail": ""
+    }
+  ],
+  "profile_status": "BLOCKED",
+  "module_artifact": {
+    "path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\terraform\\modules\\mays_orders",
+    "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+    "zip_sha256": "aa70eaaa1cb6e01b972dba05893573559e8aa0d945eb5691ce31e079e2521c89",
+    "manifest_sha256": "effa182c2a0406741ef2d03d73c3cdf7bab2e10317c1a892e70ff62210e5a90a",
+    "status": "BLOCKED",
+    "errors": [
+      "generated module source commit differs from selected Mays test version"
+    ]
+  }
+}

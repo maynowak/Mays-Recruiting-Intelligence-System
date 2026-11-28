@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "source_plan": {
+    "path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-dev2-worker-19g3.tfplan",
+    "sha256": "8daf05702d4e0ff27bd6668582f5e39162d0ab660935d52fdf1145703a722752",
+    "evaluated_read_only": true
+  },
+  "root_cause": {
+    "status": "CONFIRMED_19G2_ARTIFACT_WIRING_ONLY",
+    "analysis_19g2_input": "artifacts/ris-dev2-analysis-276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10.zip",
+    "analysis_historical_input": "analysis-lambda.zip",
+    "reader_19g2_input": "artifacts/ris-dev2-orders-reader-610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b.zip",
+    "reader_historical_input": "../lambda/dist/orders-reader.zip",
+    "explanation": "The existing 19G3 plan records changed filename values for Analysis and Reader while their source_code_hash values remain identical before and after. Worker and Dispatch-Ingress filenames are unchanged. The 19G2 var-file changed only the Analysis/Reader artifact inputs; the restored inputs resolve to the exact state-recorded Windows path identities."
+  },
+  "resources": [
+    {
+      "lambda": "Agent-Worker",
+      "address": "module.lambda.aws_lambda_function.agent",
+      "state_filename": "lambda.zip",
+      "configured_filename": "lambda.zip",
+      "filename_before_19g3": "lambda.zip",
+      "filename_after_19g3": "lambda.zip",
+      "state_source_code_hash": "jsUKYUCNKO+yuF/2yDsF3Q7mB1ubRgge8W1kl5PMY4M=",
+      "state_code_sha256": "8ec50a61408d28efb2b85ff6c83b05dd0ee6075b9b46081ef16d649793cc6383",
+      "configured_source_code_hash": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0=",
+      "local_artifact_path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\terraform\\lambda.zip",
+      "local_artifact_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+      "expected_change": "Lambda code update only; preserve worker bundle SHA 507bc17…"
+    },
+    {
+      "lambda": "Dispatch-Ingress",
+      "address": "module.agent_transport[0].aws_lambda_function.dispatch_ingress",
+      "state_filename": "./lambda.zip",
+      "configured_filename": "./lambda.zip",
+      "filename_before_19g3": "./lambda.zip",
+      "filename_after_19g3": "./lambda.zip",
+      "state_source_code_hash": "jsUKYUCNKO+yuF/2yDsF3Q7mB1ubRgge8W1kl5PMY4M=",
+      "state_code_sha256": "8ec50a61408d28efb2b85ff6c83b05dd0ee6075b9b46081ef16d649793cc6383",
+      "configured_source_code_hash": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0=",
+      "local_artifact_path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\terraform\\lambda.zip",
+      "local_artifact_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+      "expected_change": "Lambda code update only; preserve worker bundle SHA 507bc17…"
+    },
+    {
+      "lambda": "Analysis",
+      "address": "module.analysis_runtime.aws_lambda_function.analysis[0]",
+      "state_filename": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-mo-addition-e2e/terraform/analysis-lambda.zip",
+      "configured_filename_on_windows": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-mo-addition-e2e/terraform/analysis-lambda.zip",
+      "filename_before_19g3": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-mo-addition-e2e/terraform/analysis-lambda.zip",
+      "filename_after_19g3": "artifacts/ris-dev2-analysis-276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10.zip",
+      "state_source_code_hash": "J2tORCAnIWfdMsWQ1tur7UAIckpwkeTYZQTVRE/iaxA=",
+      "state_code_sha256": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10",
+      "configured_source_code_hash": "J2tORCAnIWfdMsWQ1tur7UAIckpwkeTYZQTVRE/iaxA=",
+      "local_artifact_paths_and_sha256": [
+        {
+          "path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\terraform\\analysis-lambda.zip",
+          "sha256": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10"
+        },
+        {
+          "path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\terraform\\artifacts\\ris-dev2-analysis-276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10.zip",
+          "sha256": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10"
+        }
+      ],
+      "expected_change": "No Analysis change in the later authorized plan: restored filename identity and preserved deployed ZIP hash"
+    },
+    {
+      "lambda": "Orders-Reader",
+      "address": "module.orders_reader[0].aws_lambda_function.reader",
+      "state_filename": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip",
+      "configured_filename_on_windows": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip",
+      "filename_before_19g3": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip",
+      "filename_after_19g3": "artifacts/ris-dev2-orders-reader-610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b.zip",
+      "state_source_code_hash": "YQAE9urjUx5MhyNkOeSRvL8MEC6ikWH+8kfCcTyBrms=",
+      "state_code_sha256": "610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b",
+      "configured_source_code_hash": "YQAE9urjUx5MhyNkOeSRvL8MEC6ikWH+8kfCcTyBrms=",
+      "local_artifact_paths_and_sha256": [
+        {
+          "path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip",
+          "sha256": "610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b"
+        },
+        {
+          "path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\terraform\\artifacts\\ris-dev2-orders-reader-610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b.zip",
+          "sha256": "610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b"
+        }
+      ],
+      "expected_change": "No Reader change in the later authorized plan: restored filename identity and preserved deployed ZIP hash"
+    }
+  ],
+  "staging": {
+    "script": "scripts/stage_preserved_ris_dev2_artifact_paths.py",
+    "action": "byte-for-byte copies from committed preserved ZIP archives; no build/repack",
+    "analysis_sha256": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10",
+    "orders_reader_sha256": "610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b",
+    "worker_bundle_sha256_after_staging": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d"
+  }
+}

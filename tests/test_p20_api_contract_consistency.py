@@ -185,14 +185,18 @@ class TestTerraformRouteInventory(unittest.TestCase):
         Aktualisierung: die Aufteilung wird per terraform_routes()
         nachgezaehlt und die jeweils hinzugefuegten Routen mitgeprueft, damit
         eine stille Ruecknahme nicht durchgeht.
+
+        CANARY-CONTRACT-FIX-03: 74 -> 75 durch genau EINE admin-only Route
+        (`POST /v1/apiprofiles/{apiProfileId}/binding`).
         """
         routes = terraform_routes()
-        self.assertEqual(74, len(routes))
-        self.assertEqual(70, sum(1 for v in routes.values()
+        self.assertEqual(75, len(routes))
+        self.assertEqual(71, sum(1 for v in routes.values()
                                  if v["target"] == "agent"))
         self.assertEqual(4, sum(1 for v in routes.values()
                                 if v["target"] == "orders"))
         # Die Routen, die den Zaehler verschoben haben, muessen existieren.
+        self.assertIn("POST /v1/apiprofiles/{apiProfileId}/binding", routes)
         self.assertIn("DELETE /me/profile", routes)
         self.assertIn("POST /me/erasure", routes)
         self.assertIn("GET /v1/partner/me/privacy/inspect", routes)

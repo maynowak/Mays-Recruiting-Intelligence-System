@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "plan_id": "RIS-DEV2-WORKER-CONTROLLED-REPLAN-19G3",
+  "status": "CREATED_SCOPE_FAIL_APPLY_BLOCKED",
+  "source_commit": "7ccc34c3da3fbe4a686dd34fca7d7d2439c480cb",
+  "terraform_version": "1.17.0",
+  "workspace": "ris-dev2",
+  "plan": {
+    "path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-dev2-worker-19g3.tfplan",
+    "sha256": "8daf05702d4e0ff27bd6668582f5e39162d0ab660935d52fdf1145703a722752",
+    "bytes": 252941,
+    "full_refresh": true,
+    "plan_count": 1,
+    "committed": false
+  },
+  "state": {
+    "serial": 75,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "s3_version_before": "oacaI13gBig4EZiLdlTGuGHb_WB6ksmQ",
+    "s3_version_after": "oacaI13gBig4EZiLdlTGuGHb_WB6ksmQ",
+    "content_mutations": 0
+  },
+  "actions": {"add": 0, "change": 4, "destroy": 0, "replace": 0, "no_op": 270},
+  "resource_drift_count": 0,
+  "changes": [
+    {
+      "address": "module.agent_transport[0].aws_lambda_function.dispatch_ingress",
+      "actions": ["update"],
+      "changed_attributes": ["source_code_hash", "last_modified"],
+      "source_code_hash_before": "jsUKYUCNKO+yuF/2yDsF3Q7mB1ubRgge8W1kl5PMY4M=",
+      "source_code_hash_after": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0="
+    },
+    {
+      "address": "module.lambda.aws_lambda_function.agent",
+      "actions": ["update"],
+      "changed_attributes": ["source_code_hash", "last_modified"],
+      "source_code_hash_before": "jsUKYUCNKO+yuF/2yDsF3Q7mB1ubRgge8W1kl5PMY4M=",
+      "source_code_hash_after": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0="
+    },
+    {
+      "address": "module.analysis_runtime.aws_lambda_function.analysis[0]",
+      "actions": ["update"],
+      "changed_attributes": ["filename", "last_modified"],
+      "source_code_hash_before": "J2tORCAnIWfdMsWQ1tur7UAIckpwkeTYZQTVRE/iaxA=",
+      "source_code_hash_after": "J2tORCAnIWfdMsWQ1tur7UAIckpwkeTYZQTVRE/iaxA=",
+      "filename_before": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-mo-addition-e2e/terraform/analysis-lambda.zip",
+      "filename_after": "artifacts/ris-dev2-analysis-276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10.zip"
+    },
+    {
+      "address": "module.orders_reader[0].aws_lambda_function.reader",
+      "actions": ["update"],
+      "changed_attributes": ["filename", "last_modified"],
+      "source_code_hash_before": "YQAE9urjUx5MhyNkOeSRvL8MEC6ikWH+8kfCcTyBrms=",
+      "source_code_hash_after": "YQAE9urjUx5MhyNkOeSRvL8MEC6ikWH+8kfCcTyBrms=",
+      "filename_before": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-mo-addition-e2e\\lambda\\dist\\orders-reader.zip",
+      "filename_after": "artifacts/ris-dev2-orders-reader-610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b.zip"
+    }
+  ],
+  "apply_readiness": "BLOCKED",
+  "previous_19g_plan": "BLOCKED_NOT_USED",
+  "safety": {
+    "terraform_applies": 0,
+    "aws_resource_mutations": 0,
+    "state_content_mutations": 0,
+    "live_invocations": 0,
+    "new_orders": 0,
+    "redrives": 0,
+    "recovery": 0,
+    "runtime_source_changes": 0,
+    "worker_pin_changes": 0,
+    "mays_pin_changes": 0,
+    "main_merge": false
+  }
+}

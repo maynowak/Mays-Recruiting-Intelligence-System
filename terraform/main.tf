@@ -25,9 +25,22 @@ locals {
   identity_managed = var.identity_mode == "managed"
   orders_managed   = var.orders_lifecycle == "managed"
   orders_enabled   = var.orders_lifecycle != "disabled"
-  identity_issuer  = local.identity_managed ? "https://${module.cognito[0].user_pool_endpoint}" : var.external_cognito_issuer
-  m2m_issuer       = local.identity_managed && !var.identity_m2m_enabled ? var.identity_m2m_fallback_issuer : local.identity_issuer
-  m2m_client_id    = local.identity_managed && !var.identity_m2m_enabled ? var.identity_m2m_fallback_client_id : (local.identity_managed ? module.cognito[0].user_pool_m2m_client_id : var.external_cognito_m2m_client_id)
+  # Keep the local filename identities stable for the RIS-DEV2 preserved
+  # bundles. Relative artifact inputs are rooted at this Terraform root; the
+  # reader keeps the Windows separator form recorded in the existing state,
+  # while remaining native-path on non-Windows hosts.
+  analysis_artifact_path_is_absolute = startswith(var.analysis_lambda_zip_path, "/") || (
+    length(var.analysis_lambda_zip_path) >= 3 && substr(var.analysis_lambda_zip_path, 1, 1) == ":"
+  )
+  analysis_artifact_filename = local.analysis_artifact_path_is_absolute ? var.analysis_lambda_zip_path : abspath("${path.root}/${var.analysis_lambda_zip_path}")
+  reader_artifact_path_is_absolute = startswith(var.filename, "/") || (
+    length(var.filename) >= 3 && substr(var.filename, 1, 1) == ":"
+  )
+  reader_artifact_path     = local.reader_artifact_path_is_absolute ? var.filename : abspath("${path.root}/${var.filename}")
+  reader_artifact_filename = length(local.reader_artifact_path) >= 3 && substr(local.reader_artifact_path, 1, 1) == ":" ? replace(local.reader_artifact_path, "/", "\\") : local.reader_artifact_path
+  identity_issuer          = local.identity_managed ? "https://${module.cognito[0].user_pool_endpoint}" : var.external_cognito_issuer
+  m2m_issuer               = local.identity_managed && !var.identity_m2m_enabled ? var.identity_m2m_fallback_issuer : local.identity_issuer
+  m2m_client_id            = local.identity_managed && !var.identity_m2m_enabled ? var.identity_m2m_fallback_client_id : (local.identity_managed ? module.cognito[0].user_pool_m2m_client_id : var.external_cognito_m2m_client_id)
 
   # Dispatch (Orders -> RIS) uses the existing agent_transport module.
   agent_dispatch_enabled   = var.enable_agent_transport && local.orders_enabled
@@ -211,7 +224,7 @@ module "orders_reader" {
   cognito_issuer    = local.identity_issuer
   cognito_client_id = local.identity_managed ? module.cognito[0].user_pool_client_id : var.external_cognito_human_client_id
   aws_region        = var.aws_region
-  filename          = var.filename
+  filename          = local.reader_artifact_filename
   tags              = var.tags
   orders_table_name = local.orders_managed ? module.mays_orders[0].dynamodb_table_name : var.external_orders_table_name
   orders_table_arn  = local.orders_managed ? module.mays_orders[0].dynamodb_table_arn : var.external_orders_table_arn
@@ -239,7 +252,11 @@ module "mays_orders" {
   # Preserve the existing RIS -> Orders result/dispatch transport when enabled.
   enable_agent_transport        = var.enable_agent_transport
   ris_result_producer_role_arns = var.ris_result_producer_role_arns
-  order_dispatch_queue_url      = var.order_dispatch_queue_url
+  # Dispatch env is passed through the module's generic extension point, not
+  # by patching generated files.
+  additional_environment = var.order_dispatch_queue_url == "" ? {} : {
+    ORDER_DISPATCH_QUEUE_URL = var.order_dispatch_queue_url
+  }
   # external_cognito = null  # MANAGED (Default) oder EXTERNAL
 }
 # Preserve the legacy Orders-handler -> RIS dispatch queue permission. It
@@ -358,7 +375,7 @@ module "analysis_runtime" {
   # Gated (default false): the baseline plan stays 11/2/0.
   enable_analysis_runtime = var.enable_analysis_runtime
   parser_artifact_path    = var.analysis_parser_zip_path
-  analysis_zip_path       = var.analysis_lambda_zip_path
+  analysis_zip_path       = local.analysis_artifact_filename
 
   documents_bucket_name       = module.documents.bucket_name
   work_items_table_name       = module.dynamodb.work_items_table_name
@@ -367,6 +384,15 @@ module "analysis_runtime" {
   entitlements_table_arn      = module.dynamodb.entitlements_table_arn
   partner_profiles_table_name = module.dynamodb.partner_profiles_table_name
   partner_profiles_table_arn  = module.dynamodb.partner_profiles_table_arn
+
+  analysis_synthetic_mode                   = var.analysis_synthetic_mode
+  analysis_synthetic_installation           = var.analysis_synthetic_installation
+  analysis_synthetic_tenant_id              = var.analysis_synthetic_tenant_id
+  analysis_synthetic_user_id                = var.analysis_synthetic_user_id
+  analysis_synthetic_partner_application_id = var.analysis_synthetic_partner_application_id
+  analysis_synthetic_issuer                 = var.analysis_synthetic_issuer
+  analysis_synthetic_entitlements           = var.analysis_synthetic_entitlements
+  analysis_synthetic_expires_at             = var.analysis_synthetic_expires_at
 }
 
 # The shared worker/ingress invoke the dedicated analysis function through the

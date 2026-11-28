@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "environment": "RIS-DEV2",
+  "worker_pin": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+  "terraform_var_file": "terraform/ris-dev2-19g2-artifact-overrides.tfvars.json",
+  "preserved_artifacts": {
+    "analysis": {
+      "path": "terraform/artifacts/ris-dev2-analysis-276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10.zip",
+      "sha256": "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10",
+      "provenance": "Exact read-only Lambda ZIP snapshot recorded by 19B; digest agrees with 16B applied code hash.",
+      "source_snapshot": "No Git source pin asserted for this opaque deployed artifact.",
+      "replacement_during_19G2": false
+    },
+    "orders_reader": {
+      "path": "terraform/artifacts/ris-dev2-orders-reader-610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b.zip",
+      "sha256": "610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b",
+      "source_snapshot": "f08dfff36b8d4727ebdbbe92b641fb60a4da88fd; reader source members unchanged through 9a1e59b.",
+      "build_tool": "scripts/build_preserved_ris_dev2_reader.py; legacy ZIP_DEFLATED format, fixed timestamp/permissions, create_system=0, verified per-member LF/CRLF pattern.",
+      "reproduced_twice_on": "Python 3.14.10 / zlib-ng 1.3.1",
+      "replacement_during_19G2": false
+    }
+  },
+  "current_canonical_review_bundles_not_used_for_ris_dev2_analysis_or_reader": {
+    "analysis_sha256": "370890d459488304481d99255cfa6a2891b5f19a8c5df2723556905195c7c621",
+    "reader_sha256": "bea4c3e59666bed8ad071ad4e405bcdfd57dafdac68096ce648667f0effb1b41"
+  }
+}

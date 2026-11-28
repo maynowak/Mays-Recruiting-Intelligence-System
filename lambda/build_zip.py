@@ -185,12 +185,24 @@ def build_bundle(repo_root, files: list, arcname_fn, output: str) -> dict:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     entries = sorted((f, arcname_fn(f)) for f in files)
-    with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as archive:
+    # Stored entries avoid host-library-dependent DEFLATE streams. The source
+    # bundles are small enough that uncompressed ZIPs remain well within the
+    # Lambda package limits, while the complete artifact becomes byte-stable
+    # across zlib implementations (e.g. zlib-ng on Windows vs zlib on Ubuntu).
+    with zipfile.ZipFile(output_path, "w", zipfile.ZIP_STORED) as archive:
         for source_rel, arcname in entries:
             arcname = _safe_archive_name(arcname)
-            data = (repo_root / source_rel).read_bytes()
+            # Git checkouts on Windows may contain CRLF while Unix checkouts
+            # contain LF (and autocrlf can leave a single worktree mixed).
+            # Canonicalize Python source bytes so identical Git inputs produce
+            # identical Lambda artifacts regardless of the build host.
+            data = (repo_root / source_rel).read_bytes().replace(b"\r\n", b"\n")
             info = zipfile.ZipInfo(arcname, date_time=FIXED_ZIP_DATE)
-            info.compress_type = zipfile.ZIP_DEFLATED
+            # zipfile otherwise writes platform-dependent create_system
+            # values (3 on Unix, 0 on Windows) into each central-directory
+            # entry. Use the historical DOS creator marker everywhere.
+            info.create_system = 0
+            info.compress_type = zipfile.ZIP_STORED
             info.external_attr = (0o644 << 16)
             archive.writestr(info, data)
 

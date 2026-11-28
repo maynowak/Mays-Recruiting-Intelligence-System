@@ -211,6 +211,14 @@ resource "aws_apigatewayv2_route" "apiprofiles_status" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
 }
 
+resource "aws_apigatewayv2_route" "apiprofiles_binding" {
+  api_id             = aws_apigatewayv2_api.ris_api.id
+  route_key          = "POST /v1/apiprofiles/{apiProfileId}/binding"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
 resource "aws_apigatewayv2_route" "credentials_create" {
   api_id             = aws_apigatewayv2_api.ris_api.id
   route_key          = "POST /v1/apiprofiles/{apiProfileId}/credentials"

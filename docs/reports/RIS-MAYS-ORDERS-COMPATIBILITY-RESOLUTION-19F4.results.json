@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "mission": "RIS-MAYS-ORDERS-COMPATIBILITY-RESOLUTION-19F4",
+  "branch": "feature/ris-analysis-integration-07",
+  "baseline_ris_head": "d181a2aa399da8f47cd14d42bde76d184c29ad5a",
+  "current_module_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+  "rc4_candidate": {
+    "tag": "v0.6.0-rc.1",
+    "tag_object": "79628819717e4609d828581dff53055f2b32f8ec",
+    "commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+    "checkout_mutated": false
+  },
+  "ris_changes": {
+    "runtime_semantics": false,
+    "compatibility_adapter": false,
+    "module_pin": false,
+    "module_installation": false
+  },
+  "openapi": {
+    "result": "PASS",
+    "commit": "06f918175a2d736fe19586345cda5fe5f3460567",
+    "original_failures": 3,
+    "original_failures_passed": 3,
+    "relevant_api_contract_passed": 87,
+    "subtests_passed": 322
+  },
+  "bundle": {
+    "root_cause": "VERIFIED",
+    "root_cause_detail": "Mixed checkout line endings changed uncompressed source bytes; Windows and Unix ZIP_INFO create_system markers differed; and platform-specific DEFLATE implementations changed compressed ZIP bytes. ZIP entry ordering, fixed timestamps, and modes were deterministic.",
+    "reproducibility": "PASS",
+    "worker_sha256_historical_unchanged": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
+    "worker_sha256_review_candidate": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "worker_sha256_ubuntu_review_candidate": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "analysis_sha256_windows_review_only": "370890d459488304481d99255cfa6a2891b5f19a8c5df2723556905195c7c621",
+    "analysis_sha256_ubuntu_review_only": "370890d459488304481d99255cfa6a2891b5f19a8c5df2723556905195c7c621",
+    "reader_sha256_review_candidate": "bea4c3e59666bed8ad071ad4e405bcdfd57dafdac68096ce648667f0effb1b41",
+    "reader_sha256_ubuntu_review_candidate": "bea4c3e59666bed8ad071ad4e405bcdfd57dafdac68096ce648667f0effb1b41",
+    "independent_windows_clean_builds": 2,
+    "worker_hashes_match": true,
+    "analysis_hashes_match": true,
+    "reader_hashes_match": true,
+    "cross_platform_hashes_match": true,
+    "pin_review_required": true,
+    "deployment_pin_changed": false,
+    "worker_test_result": "26 passed, 2 skipped, 4 subtests"
+  },
+  "reference_platform": {
+    "platform": "ubuntu-latest",
+    "workflow": "mays-compatibility-qa.yml",
+    "run_id": 45963538873,
+    "run_head": "fb1715b61b1b23ef987a1ed45ec008c413c7a822",
+    "run_result": "FAIL",
+    "run_diagnostic": "Initial valid Ubuntu run; current provenance was blocked by generated ZIP contamination. Candidate Lambda/installer passed; fixed-path builder errors and expected RC4 XRepo/Terraform failures reproduced.",
+    "corrected_run_id": 45965830933,
+    "corrected_run_head": "f61b295f692b85905f6513f67adee4d1fc2d633d",
+    "corrected_run_result": "FAIL",
+    "corrected_run_diagnostic": "All worker/analysis/reader hashes match between Windows and Ubuntu clean builds. Current Mays originals pass: Lambda 240; builder 100 + 6 subtests; installer 81; seed 28; Cognito 2. Current XRepo passes 133 + 4 and 39; current generated artifact 9/9 and Terraform validate pass. RC4 originals pass: Lambda 440, builder 129, installer 81, seed 28, Cognito 2. RC4 generated contract 2/9 and Terraform validate fail; XRepo remains 120/13 and 3/36. FULL and UPGRADE_GATE fail 3 RIS-native assertions because expected RIS checkout alias was absent; alias added in commit 4cd7042.",
+    "rerun_id": 45966656833,
+    "rerun_head": "4cd7042ff30b8c29f6c8e4d32f235776f6b349bb",
+    "rerun_result": "RC4_UPGRADE_GATE_FAIL; CURRENT_FULL_PASS",
+    "current_full_profile": "PASS",
+    "current_ris_native_ubuntu": {"passed": 3291, "failed": 0, "skipped": 133, "subtests_passed": 450},
+    "rc4_upgrade_gate": "FAIL",
+    "current_module_qa": "PASS",
+    "rc4_module_original_tests": "PASS",
+    "rc4_module_upgrade_gate": "FAIL",
+    "cross_platform_bundle_reproducibility": "PASS",
+    "generated_terraform_validation": "PASS current / FAIL RC4"
+  },
+  "xrepo": {
+    "current_contract": {"status": "PASS", "passed": 133, "failed": 0, "subtests_passed": 4},
+    "current_e2e": {"status": "PASS", "passed": 39, "failed": 0},
+    "rc4_contract": {"status": "FAIL", "passed": 120, "failed": 13, "subtests_passed": 4},
+    "rc4_e2e": {"status": "FAIL", "passed": 3, "failed": 36}
+  },
+  "rc4_root_causes": [
+    {
+      "id": "RC4-TRANSPORT-CONSUMER-MODULES-MISSING",
+      "tests": "9 transport contract failures and most failed handoff/consumer E2E cases",
+      "candidate_source": ["lambda/src/dispatch.py", "lambda/src/result_envelope.py", "lambda/src/result_handler.py", "lambda/src/result_consumer.py", "lambda/src/agent_order.py"],
+      "current_source": "These modules exist in integrated commit db4f9e7; all five are absent in RC4.",
+      "classification": "MODULE_SOURCE_FAILURE",
+      "owner": "Mays-Orders"
+    },
+    {
+      "id": "RC4-CREATE-ORDERDESCRIPTION-REJECTED",
+      "tests": "4 XRepo create/orderDescription contract failures",
+      "candidate_behavior": "validation.validate_create_order rejects RIS adapter body with Unknown field 'orderDescription' at body.",
+      "classification": "MODULE_SOURCE_FAILURE",
+      "owner": "Mays-Orders"
+    },
+    {
+      "id": "RC4-GENERATED-TERRAFORM-CONTRACT-BROKEN",
+      "tests": "Generated module artifact contract 2 passed/7 failed; backend-free Terraform validate fails.",
+      "candidate_behavior": "Undeclared privacy_secret_enabled, privacy_kms_key_arn, sqs_visibility_timeout_seconds, sqs_message_retention_seconds, sqs_dlq_message_retention_seconds, sqs_max_receive_count, deployment_version, and module.privacy_secret references; manifest source.commit is abbreviated 5bc154e.",
+      "classification": "GENERATED_MODULE_CONTRACT_FAILURE",
+      "owner": "Mays-Orders module builder"
+    },
+    {
+      "id": "RC4-BUILDER-POLICY-FIXTURE-PATH",
+      "tests": "Ubuntu module_builder originals 125 passed/4 failed for both candidate and current source in run 45963538873.",
+      "candidate_behavior": "Policy-gate tests try to read /tmp/opencode/tmp*.json files that are absent.",
+      "classification": "ENVIRONMENT_PREREQUISITE_RESOLVED_BY_QA_WORKFLOW",
+      "owner": "QA workflow"
+    }
+  ],
+  "mays_source_fix_required": true,
+  "mays_fix_request": "docs/reports/MO-RC4-RIS-COMPATIBILITY-FIX.md",
+  "safety": {
+    "aws_mutations": 0,
+    "live_invocations": 0,
+    "redrives": 0,
+    "module_pin_changes": 0,
+    "module_installations": 0,
+    "terraform_plans": 0,
+    "terraform_applies": 0,
+    "terraform_state_mutations": 0
+  }
+}

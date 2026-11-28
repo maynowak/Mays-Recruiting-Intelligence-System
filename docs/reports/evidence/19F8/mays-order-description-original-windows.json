@@ -1,0 +1,13 @@
+﻿{
+    "schema_version":  1,
+    "profile":  "Mays original orderDescription suite",
+    "mays_commit":  "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+    "platform":  "Windows",
+    "python":  "3.14.10",
+    "test_file":  "lambda/tests/test_order_description.py",
+    "passed":  15,
+    "failed":  0,
+    "skipped":  0,
+    "command":  "python -m pytest \u003cMays source\u003e/lambda/tests/test_order_description.py -q",
+    "result":  "PASS"
+}

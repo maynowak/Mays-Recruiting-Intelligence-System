@@ -1,0 +1,24 @@
+{
+  "python": "3.14.10 (main, Oct 26 2026, 14:17:03) [GCC 15.2.0]",
+  "platform": "Linux-7.0.0-1020-azure-x86_64-with-glibc2.43",
+  "zlib_build": "1.3.1",
+  "zlib_runtime": "1.3.1",
+  "runs": {
+    "terraform/lambda.zip": {
+      "build_one_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+      "build_two_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+      "matches": true
+    },
+    "terraform/analysis-lambda.zip": {
+      "build_one_sha256": "370890d459488304481d99255cfa6a2891b5f19a8c5df2723556905195c7c621",
+      "build_two_sha256": "370890d459488304481d99255cfa6a2891b5f19a8c5df2723556905195c7c621",
+      "matches": true
+    },
+    "lambda/dist/orders-reader.zip": {
+      "build_one_sha256": "bea4c3e59666bed8ad071ad4e405bcdfd57dafdac68096ce648667f0effb1b41",
+      "build_two_sha256": "bea4c3e59666bed8ad071ad4e405bcdfd57dafdac68096ce648667f0effb1b41",
+      "matches": true
+    }
+  },
+  "reproducible": true
+}

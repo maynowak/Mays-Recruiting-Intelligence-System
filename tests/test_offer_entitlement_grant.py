@@ -429,5 +429,31 @@ class TestP7P10(Base):
         self.assertIsNotNone(DynamoDBEntitlementStore(table_name="t"))
 
 
+class TestSeededAnalysisAgentOffer(Base):
+    """The Terraform catalog must make analysis-agent offerable and grantable."""
+
+    def _seed_catalog(self):
+        from test_agent_catalog_terraform_seed import _declared_seeds
+
+        return {agent_id: declared["status"]
+                for agent_id, declared in _declared_seeds().items()}
+
+    def test_seeded_analysis_agent_can_be_offered_and_granted(self):
+        catalog = self._seed_catalog()
+        self.assertIn("analysis-agent", catalog)
+        offer = self.mk_offer("Analysis Pack", ["analysis-agent"],
+                              catalog=catalog)
+        out = self.grant(offer["offerId"], catalog=catalog)
+        row = self.ents.get_entitlement(out["entitlementIds"][0])
+        self.assertEqual(row["agentId"], "analysis-agent")
+        self.assertEqual(row["userId"], "u1")
+        self.assertEqual(row["tenantId"], "t1")
+        self.assertNotIn("apiProfileId", row)
+
+    def test_analysis_agent_is_rejected_by_the_unseeded_catalog(self):
+        with self.assertRaises(GrantDenied):
+            self.mk_offer("Analysis Pack", ["analysis-agent"])
+
+
 if __name__ == "__main__":
     unittest.main()

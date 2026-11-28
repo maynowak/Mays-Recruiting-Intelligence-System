@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "report": "docs/reports/RIS-DEV2-WORKER-DEPLOYMENT-PLAN-19G.md",
+  "branch": "feature/ris-analysis-integration-07",
+  "pin_commit": "febab54cfe6e0b4c6c67a4e94b7afb9083643576",
+  "aws_account": "262370457690",
+  "region": "eu-central-1",
+  "workspace": "ris-dev2",
+  "terraform_version": "1.17.0",
+  "state": {
+    "serial": 75,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "s3_version_before_and_after": "oacaI13gBig4EZiLdlTGuGHb_WB6ksmQ",
+    "resource_drift_count": 0
+  },
+  "worker_bundle_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+  "rollback_bundle_sha256": "8ec50a61408d28efb2b85ff6c83b05dd0ee6075b9b46081ef16d649793cc6383",
+  "plan": {
+    "path": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-dev2-worker-19g.tfplan",
+    "sha256": "7d8bfbb282795feb66b0e072250b8454f2cd111302aa920f7dc56d8268d65851",
+    "bytes": 252463,
+    "actions": {
+      "add": 0,
+      "change": 4,
+      "destroy": 0,
+      "replace": 0,
+      "no_op": 270
+    },
+    "changed_resources": [
+      "module.lambda.aws_lambda_function.agent",
+      "module.agent_transport[0].aws_lambda_function.dispatch_ingress",
+      "module.analysis_runtime.aws_lambda_function.analysis[0]",
+      "module.orders_reader[0].aws_lambda_function.reader"
+    ],
+    "changed_attributes": ["source_code_hash", "last_modified"],
+    "scope_status": "FAIL",
+    "apply_readiness": "BLOCKED"
+  },
+  "local_checks": {
+    "focused_pytest": "16 passed, 2 skipped",
+    "terraform_validate": "PASS_WITH_EXISTING_DEPRECATION_WARNINGS",
+    "terraform_fmt_check": "PASS",
+    "ris_native_profile": "BLOCKED_BY_MISSING_TEST_DEPENDENCIES_AND_COLLECTION_ERRORS"
+  },
+  "gates": {
+    "aws_resource_mutations": 0,
+    "terraform_applies": 0,
+    "live_invocations": 0,
+    "new_orders": 0,
+    "redrives": 0
+  },
+  "sensitive_plan_json_committed": false,
+  "binary_plan_committed": false
+}

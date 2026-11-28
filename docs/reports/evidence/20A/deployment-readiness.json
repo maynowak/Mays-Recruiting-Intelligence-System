@@ -1,0 +1,169 @@
+{
+  "git_head": "a496fcddee753fbb61dc3ecdb5cb694dcc5bbc02",
+  "remote_head": "a496fcddee753fbb61dc3ecdb5cb694dcc5bbc02",
+  "protected_unstaged_only": "M docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json",
+  "account": "262370457690",
+  "region": "eu-central-1",
+  "state": {
+    "serial": 76,
+    "lineage": "a0bd361d-5cd1-a207-a8c0-e6888f0be082",
+    "s3_version": "M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T",
+    "content_length": 891611,
+    "last_modified": "2026-11-27T16:10:21+00:00"
+  },
+  "lambdas": {
+    "ris-dev2-dev-agent": {
+      "code_sha256_base64": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0=",
+      "state": "Active",
+      "last_update_status": "Successful",
+      "environment_fingerprint_sha256": "9826da0c73e8880cdc7b08f4ecc974f76b6e53f93ab32127384be5a27f281429",
+      "environment_unchanged_since_19H": true,
+      "analysis_synthetic_mode": null,
+      "analysis_synthetic_expires_at": null
+    },
+    "ris-dev2-dev-agent-dispatch-ingress": {
+      "code_sha256_base64": "UHvBfbny7gky5C3gOaUIqz8B47srVRDqefLlT5WzpY0=",
+      "state": "Active",
+      "last_update_status": "Successful",
+      "environment_fingerprint_sha256": "d3f7fec0ab6305267967db7b2a47544c18a814b01e4da2e4d4d90cd67a482e90",
+      "environment_unchanged_since_19H": true,
+      "analysis_synthetic_mode": null,
+      "analysis_synthetic_expires_at": null
+    },
+    "ris-dev2-dev-analysis": {
+      "code_sha256_base64": "J2tORCAnIWfdMsWQ1tur7UAIckpwkeTYZQTVRE/iaxA=",
+      "state": "Active",
+      "last_update_status": "Successful",
+      "environment_fingerprint_sha256": "bf4c5aaa9ef2e714c2143710e58364d315fe55e69eb204b0dd9bc53cef69fc17",
+      "environment_unchanged_since_19H": true,
+      "analysis_synthetic_mode": "true",
+      "analysis_synthetic_expires_at": "2026-11-26T17:40:28Z"
+    },
+    "ris-dev2-dev-orders-reader": {
+      "code_sha256_base64": "YQAE9urjUx5MhyNkOeSRvL8MEC6ikWH+8kfCcTyBrms=",
+      "state": "Active",
+      "last_update_status": "Successful",
+      "environment_fingerprint_sha256": "d2c71ab50de577207a919ced2f5d9faf3181cc950595017b78221f078629e996",
+      "environment_unchanged_since_19H": true,
+      "analysis_synthetic_mode": null,
+      "analysis_synthetic_expires_at": null
+    }
+  },
+  "event_source_mappings": [
+    {
+      "function_name": "ris-dev2-dev-agent",
+      "event_source_arn": "arn:aws:sqs:eu-central-1:262370457690:ris-dev2-dev-work-queue",
+      "state": "Enabled",
+      "batch_size": 5,
+      "maximum_batching_window_seconds": 0
+    },
+    {
+      "function_name": "ris-dev2-dev-agent-dispatch-ingress",
+      "event_source_arn": "arn:aws:sqs:eu-central-1:262370457690:ris-dev2-dev-agent-dispatch",
+      "state": "Enabled",
+      "batch_size": 5,
+      "maximum_batching_window_seconds": 0
+    }
+  ],
+  "queues": {
+    "ris-dev2-dev-agent-dispatch": {
+      "queue_arn": "arn:aws:sqs:eu-central-1:262370457690:ris-dev2-dev-agent-dispatch",
+      "visibility_timeout_seconds": "300",
+      "message_retention_seconds": "345600",
+      "redrive_policy": "{\"deadLetterTargetArn\":\"arn:aws:sqs:eu-central-1:262370457690:ris-dev2-dev-agent-dispatch-dlq\",\"maxReceiveCount\":3}",
+      "matches_state_arn": true
+    },
+    "ris-dev2-dev-agent-dispatch-dlq": {
+      "queue_arn": "arn:aws:sqs:eu-central-1:262370457690:ris-dev2-dev-agent-dispatch-dlq",
+      "visibility_timeout_seconds": "30",
+      "message_retention_seconds": "1209600",
+      "redrive_policy": null,
+      "matches_state_arn": true
+    },
+    "ris-dev2-mays-orders-agent-results": {
+      "queue_arn": "arn:aws:sqs:eu-central-1:262370457690:ris-dev2-mays-orders-agent-results",
+      "visibility_timeout_seconds": "60",
+      "message_retention_seconds": "345600",
+      "redrive_policy": "{\"deadLetterTargetArn\":\"arn:aws:sqs:eu-central-1:262370457690:ris-dev2-mays-orders-agent-results-dlq\",\"maxReceiveCount\":3}",
+      "matches_state_arn": true
+    },
+    "ris-dev2-mays-orders-agent-results-dlq": {
+      "queue_arn": "arn:aws:sqs:eu-central-1:262370457690:ris-dev2-mays-orders-agent-results-dlq",
+      "visibility_timeout_seconds": "30",
+      "message_retention_seconds": "1209600",
+      "redrive_policy": null,
+      "matches_state_arn": true
+    },
+    "ris-dev2-mays-orders-orders-queue": {
+      "queue_arn": "arn:aws:sqs:eu-central-1:262370457690:ris-dev2-mays-orders-orders-queue",
+      "visibility_timeout_seconds": "30",
+      "message_retention_seconds": "120",
+      "redrive_policy": null,
+      "matches_state_arn": true
+    },
+    "ris-dev2-dev-dlq": {
+      "queue_arn": "arn:aws:sqs:eu-central-1:262370457690:ris-dev2-dev-dlq",
+      "visibility_timeout_seconds": "30",
+      "message_retention_seconds": "1209600",
+      "redrive_policy": null,
+      "matches_state_arn": true
+    },
+    "ris-dev2-dev-work-queue": {
+      "queue_arn": "arn:aws:sqs:eu-central-1:262370457690:ris-dev2-dev-work-queue",
+      "visibility_timeout_seconds": "300",
+      "message_retention_seconds": "1209600",
+      "redrive_policy": "{\"deadLetterTargetArn\":\"arn:aws:sqs:eu-central-1:262370457690:ris-dev2-dev-dlq\",\"maxReceiveCount\":3}",
+      "matches_state_arn": true
+    }
+  },
+  "mays_orders_source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+  "worker_bundle_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+  "19F8_mays_original_suite": "15 passed",
+  "observed_at_utc": "2026-11-27",
+  "queue_message_apis_called": false,
+  "aws_mutations": 0,
+  "result_consumer_mapping": {
+    "function_name": "ris-dev2-mays-orders-agent-result-consumer",
+    "event_source_queue": "ris-dev2-mays-orders-agent-results",
+    "state": "Enabled",
+    "batch_size": 10,
+    "maximum_batching_window_seconds": 0
+  },
+  "api_gateway_authentication": {
+    "orders_routes": [
+      "POST /orders",
+      "GET /orders/{orderId}"
+    ],
+    "authorization_type": "JWT",
+    "authorizer_name": "ris-dev2-dev-jwt-human",
+    "issuer": "https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_OYN9QiHc5",
+    "audience_client_id": "5jgjivk9k9rrjos62so1qhq8o3",
+    "live_test_token_obtained": false
+  },
+  "ats_external_api_base_url": "https://mays-jobsearch.vercel.app",
+  "identity_entitlement_status": {
+    "live_test_subject_verified": false,
+    "active_owner_bound_api_profile_verified": false,
+    "active_ats_agent_analyze_job_entitlement_verified": false,
+    "existing_entitlement_data_read": false,
+    "reason": "19F8 used mocked owner/profile/entitlement objects; no live test identity was specified; no user/entitlement table was scanned or queried."
+  },
+  "synthetic_analysis_validity": {
+    "mode": "true",
+    "expires_at": "2026-11-26T17:40:28Z",
+    "valid_on_2026_11_27": false
+  },
+  "billing_status": {
+    "mays_order_price_semantics_confirmed": false,
+    "maximum_charge_approved": false,
+    "external_ats_cost_scope_confirmed": false
+  },
+  "read_only_boundaries": {
+    "sqs_receive_message_called": false,
+    "sqs_delete_message_called": false,
+    "sqs_change_visibility_called": false,
+    "lambda_invoke_called": false,
+    "orders_api_called": false,
+    "queue_message_counts_read": false
+  }
+}

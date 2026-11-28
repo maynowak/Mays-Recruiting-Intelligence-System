@@ -449,6 +449,63 @@ def set_client_ref(store: Any, actor: Dict[str, Any], api_profile_id: str,
     return _public(item)
 
 
+def set_identity_binding(store: Any, actor: Dict[str, Any],
+                         api_profile_id: str,
+                         partner_application_id: str,
+                         issuer: str,
+                         reason: Optional[str] = None,
+                         partner_application: Optional[Dict[str, Any]] = None,
+                         ) -> Dict[str, Any]:
+    """Admin-only: bind the trusted partner application and issuer.
+
+    The issuer is supplied by the caller from a verified source (JWT ``iss``
+    for the HTTP path, operator configuration for the CLI) and is never
+    accepted from an arbitrary request body. The partner application is read
+    from the authoritative registry and must be ACTIVE, in the same tenant,
+    and not already bound to another profile. Owners cannot self-assign.
+    """
+    if not _is_admin(actor):
+        _audit("profile-identity-binding", "denied",
+               {"actor": _actor_label(actor), "reason": "not-admin"})
+        raise UnauthorizedProfileAction("identity binding is admin-only")
+    clean_reason = (reason or "").strip()
+    if not clean_reason:
+        raise ValueError("reason is required")
+    partner_id = (partner_application_id or "").strip()
+    if not partner_id:
+        raise ValueError("partnerApplicationId is required")
+    clean_issuer = (issuer or "").strip()
+    if not clean_issuer.startswith("https://") or len(clean_issuer) > 512:
+        raise ValueError("issuer must be an https URL")
+    item = store.get_profile(api_profile_id)
+    if item is None:
+        raise ProfileNotFound(api_profile_id)
+    _check_tenant(item, actor, "bind-identity", clean_reason)
+    app = partner_application if isinstance(partner_application, dict) else {}
+    if not app:
+        raise UnauthorizedProfileAction("partner application cannot be resolved")
+    if str(app.get("status") or "") != "ACTIVE":
+        raise UnauthorizedProfileAction("partner application is not active")
+    if str(app.get("applicationId") or "") != partner_id:
+        raise UnauthorizedProfileAction("partner application mismatch")
+    if str(app.get("tenantId") or "") != str(item.get("tenantId") or ""):
+        raise UnauthorizedProfileAction("partner application tenant mismatch")
+    bound_profile = app.get("apiProfileId")
+    if bound_profile and str(bound_profile) != api_profile_id:
+        raise UnauthorizedProfileAction(
+            "partner application is bound to another profile")
+    item["partnerApplicationId"] = partner_id
+    item["issuer"] = clean_issuer
+    item["updatedAt"] = _utcnow_iso()
+    item["updatedBy"] = {"actor": _actor_label(actor), "role": "admin"}
+    store.update_profile(item["apiProfileId"], item)
+    _audit("profile-identity-binding", "success",
+           {"profile": item["apiProfileId"], "actor": _actor_label(actor),
+            "partnerApplicationId": partner_id, "issuer": clean_issuer,
+            "tenant": item.get("tenantId")})
+    return _public(item)
+
+
 def set_expires_at(store: Any, actor: Dict[str, Any], api_profile_id: str,
                    expires_at: Optional[str],
                    reason: Optional[str] = None) -> Dict[str, Any]:

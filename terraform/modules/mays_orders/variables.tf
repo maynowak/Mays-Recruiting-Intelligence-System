@@ -58,6 +58,31 @@ variable "lambda_execution_boundary" {
   default     = ""
 }
 
+# Non-secret extension point for integrating consumers; values enter Terraform state.
+variable "additional_environment" {
+  description = "Non-secret, non-reserved Orders Lambda environment variables."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for key in keys(var.additional_environment) :
+      can(regex("^[A-Za-z][A-Za-z0-9_]+$", key)) &&
+      !startswith(upper(key), "AWS_") &&
+      !startswith(upper(key), "ORDERS_") &&
+      !startswith(upper(key), "PRIVACY_") &&
+      !startswith(upper(key), "COGNITO_") &&
+      !startswith(upper(key), "ORDER_RESULT_") &&
+      !contains([
+        "SQS_QUEUE_URL", "LAMBDA_TASK_ROOT", "LAMBDA_RUNTIME_DIR",
+        "PATH", "TZ", "LANG", "LD_LIBRARY_PATH", "NODE_PATH",
+        "PYTHONPATH", "PYTHONHOME", "X_AMZN_TRACE_ID", "HOME"
+      ], upper(key))
+    ])
+    error_message = "additional_environment keys must be valid and must not override AWS, Orders, Cognito, Privacy, Result or runtime variables."
+  }
+}
+
 # Cognito-Bereitstellungsart (MAYS-ORDERS-EXTERNAL-COGNITO-INTEGRATION-01):
 # null (Default) = MANAGED: das Modul erstellt und verwaltet den eigenen
 # Cognito User Pool + App Client + Gruppe "staff" (bisheriges Verhalten).
@@ -80,10 +105,4 @@ variable "external_cognito" {
     )
     error_message = "external_cognito erfordert einen vollstaendigen user_pool_endpoint im Format 'cognito-idp.<region>.amazonaws.com/<pool-id>' (ohne https://) und eine nicht leere user_pool_client_id - unvollstaendige Referenzen werden fail-closed abgelehnt."
   }
-}
-
-variable "order_dispatch_queue_url" {
-  description = "Optional existing RIS dispatch queue URL for the order handler env."
-  type        = string
-  default     = ""
 }

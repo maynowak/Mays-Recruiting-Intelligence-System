@@ -87,7 +87,11 @@ def resolve_admin_authorization(
         raise AdminAuthorizationError(
             "authorization file not readable (%s); refusing to %s"
             % (type(exc).__name__, operation))
-    if info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+    # Windows st_mode does not represent ACL bits: a normally ACL-restricted
+    # file still reports 0666. The same rule is already applied to the parent
+    # directory checks in precheck_output_destination; POSIX keeps the strict
+    # group/other-writable refusal.
+    if os.name != "nt" and info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
         raise AdminAuthorizationError(
             "authorization file is group/other writable; refusing to %s"
             % operation)

@@ -1,0 +1,368 @@
+{
+  "schema_version": 1,
+  "mission": "RIS-MAYS-ORDERS-QA-BLOCKER-RESOLUTION-19F3",
+  "created_at_utc": "2026-11-27",
+  "ris_branch": "feature/ris-analysis-integration-07",
+  "ris_final_commit": "58818064981a26802c806d69cbad19873692f145",
+  "ris_remote_head_before_final_document_checkpoint": "58818064981a26802c806d69cbad19873692f145",
+  "baseline": {
+    "ris_commit": "83711470af9a1a6a464bef5e58f58ce99925033a",
+    "integrated_mays_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f"
+  },
+  "candidate_provenance": {
+    "remote": "https://github.com/maynowak/mays-order-aws.git",
+    "release": "v0.6.0-rc.1",
+    "tag_object": "79628819717e4609d828581dff53055f2b32f8ec",
+    "peeled_commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+    "detached_checkout": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-19f3-mays-rc4",
+    "checkout_clean": true,
+    "disposable_build_clone": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-19f3-mays-rc4-buildsrc",
+    "build_clone_only_change": "lambda/dist/lambda.zip regenerated from exact RC4 source",
+    "rebuilt_candidate_lambda_zip_sha256": "f1031a86da0083ad034075598f89e0c4b178cbb20ce93743a1bd28ab56678e86",
+    "generated_module_dir": "C:/Users/DCI-Student/AppData/Local/Temp/opencode/ris-19f3-mays-rc4-generated",
+    "generated_module_zip_sha256": "f1031a86da0083ad034075598f89e0c4b178cbb20ce93743a1bd28ab56678e86",
+    "generated_module_manifest_sha256": "758a423b92b803f8d7490ca149edc8a2ee7e9f8dfba635a5228acee8e3138306",
+    "generated_module_manifest_source_commit": "5bc154e"
+  },
+  "environment": {
+    "platform": "win32",
+    "python": "3.14.10",
+    "terraform": "1.17.0",
+    "documented_reference_platform": "ubuntu-latest (Mays docs/TEST-STRATEGY.md)",
+    "reference_platform_verified": false,
+    "reason": "WSL not installed; Docker unavailable; no active unit-test GitHub workflow found",
+    "terraform_candidate_validation": {
+      "fmt_check": "PASS",
+      "init_backend_false": "PASS",
+      "validate": "FAIL"
+    },
+    "aws_environment": "AWS credentials/profile vars removed; per-process empty AWS config and credentials files"
+  },
+  "runs": {
+    "CURRENT_MODULE_RIS_NATIVE_XREPO_FULL": {
+      "profile": "FULL",
+      "status": "BLOCKED",
+      "ris_commit": "58818064981a26802c806d69cbad19873692f145",
+      "result_file": "RIS-MAYS-ORDERS-QA-BLOCKER-RESOLUTION-19F3.current.results.json",
+      "groups": [
+        {
+          "group": "ris_native",
+          "status": "FAIL",
+          "passed": 3278,
+          "failed": 3,
+          "skipped": 142,
+          "subtests_passed": 450,
+          "duration_seconds": 122.68,
+          "collection_errors": 0,
+          "source_commit": null,
+          "source_mode": null
+        },
+        {
+          "group": "mays_lambda",
+          "status": "PASS",
+          "passed": 240,
+          "failed": 0,
+          "skipped": 0,
+          "subtests_passed": 0,
+          "duration_seconds": 0.081,
+          "collection_errors": 0,
+          "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+          "source_mode": "temporary_detached_git_clone"
+        },
+        {
+          "group": "mays_module_builder",
+          "status": "FAIL",
+          "passed": 86,
+          "failed": 14,
+          "skipped": 0,
+          "subtests_passed": 6,
+          "duration_seconds": 10.27,
+          "collection_errors": 0,
+          "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+          "source_mode": "temporary_detached_git_clone_with_rebuilt_lambda_artifact"
+        },
+        {
+          "group": "mays_installer",
+          "status": "FAIL",
+          "passed": 69,
+          "failed": 11,
+          "skipped": 1,
+          "subtests_passed": 0,
+          "duration_seconds": 1.136,
+          "collection_errors": 0,
+          "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+          "source_mode": "temporary_detached_git_clone"
+        },
+        {
+          "group": "mays_seed_tools",
+          "status": "PASS",
+          "passed": 28,
+          "failed": 0,
+          "skipped": 0,
+          "subtests_passed": 0,
+          "duration_seconds": 0.075,
+          "collection_errors": 0,
+          "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+          "source_mode": "temporary_detached_git_clone"
+        },
+        {
+          "group": "mays_cognito_backup",
+          "status": "PASS",
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "subtests_passed": 0,
+          "duration_seconds": 0.04,
+          "collection_errors": 0,
+          "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+          "source_mode": "temporary_detached_git_clone"
+        },
+        {
+          "group": "xrepo_contract",
+          "status": "PASS",
+          "passed": 133,
+          "failed": 0,
+          "skipped": 0,
+          "subtests_passed": 4,
+          "duration_seconds": 0.77,
+          "collection_errors": 0,
+          "source_commit": null,
+          "source_mode": null
+        },
+        {
+          "group": "xrepo_e2e",
+          "status": "PASS",
+          "passed": 39,
+          "failed": 0,
+          "skipped": 0,
+          "subtests_passed": 0,
+          "duration_seconds": 0.78,
+          "collection_errors": 0,
+          "source_commit": null,
+          "source_mode": null
+        },
+        {
+          "group": "ris_builder_contract",
+          "status": "PASS",
+          "passed": 57,
+          "failed": 0,
+          "skipped": 0,
+          "subtests_passed": 0,
+          "duration_seconds": 0.36,
+          "collection_errors": 0,
+          "source_commit": null,
+          "source_mode": null
+        },
+        {
+          "group": "generated_module_artifact",
+          "status": "PASS",
+          "passed": 9,
+          "failed": 0,
+          "skipped": 0,
+          "subtests_passed": 0,
+          "duration_seconds": 0.73,
+          "collection_errors": 0,
+          "source_commit": null,
+          "source_mode": null
+        }
+      ]
+    },
+    "UPGRADE_CANDIDATE": {
+      "profile": "UPGRADE_GATE",
+      "status": "BLOCKED",
+      "ris_commit": "58818064981a26802c806d69cbad19873692f145",
+      "mays_version": {
+        "version_key": "upgrade_candidate",
+        "expected_commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+        "release": "v0.6.0-rc.1",
+        "checkout": "C:\\Users\\DCI-Student\\AppData\\Local\\Temp\\opencode\\ris-19f3-mays-rc4",
+        "provenance_status": "VERIFIED",
+        "errors": []
+      },
+      "result_file": "RIS-MAYS-ORDERS-QA-BLOCKER-RESOLUTION-19F3.candidate.results.json",
+      "groups": [
+        {
+          "group": "ris_native",
+          "status": "FAIL",
+          "passed": 3278,
+          "failed": 3,
+          "skipped": 142,
+          "subtests_passed": 450,
+          "duration_seconds": 122.07,
+          "collection_errors": 0,
+          "source_commit": null,
+          "source_mode": null
+        },
+        {
+          "group": "mays_lambda",
+          "status": "PASS",
+          "passed": 440,
+          "failed": 0,
+          "skipped": 0,
+          "subtests_passed": 0,
+          "duration_seconds": 0.536,
+          "collection_errors": 0,
+          "source_commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+          "source_mode": "temporary_detached_git_clone"
+        },
+        {
+          "group": "mays_module_builder",
+          "status": "FAIL",
+          "passed": 111,
+          "failed": 18,
+          "skipped": 0,
+          "subtests_passed": 0,
+          "duration_seconds": 7.11,
+          "collection_errors": 0,
+          "source_commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+          "source_mode": "temporary_detached_git_clone_with_rebuilt_lambda_artifact"
+        },
+        {
+          "group": "mays_installer",
+          "status": "FAIL",
+          "passed": 71,
+          "failed": 9,
+          "skipped": 1,
+          "subtests_passed": 0,
+          "duration_seconds": 0.323,
+          "collection_errors": 0,
+          "source_commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+          "source_mode": "temporary_detached_git_clone"
+        },
+        {
+          "group": "mays_seed_tools",
+          "status": "PASS",
+          "passed": 28,
+          "failed": 0,
+          "skipped": 0,
+          "subtests_passed": 0,
+          "duration_seconds": 0.085,
+          "collection_errors": 0,
+          "source_commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+          "source_mode": "temporary_detached_git_clone"
+        },
+        {
+          "group": "mays_cognito_backup",
+          "status": "PASS",
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "subtests_passed": 0,
+          "duration_seconds": 0.04,
+          "collection_errors": 0,
+          "source_commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+          "source_mode": "temporary_detached_git_clone"
+        },
+        {
+          "group": "xrepo_contract",
+          "status": "FAIL",
+          "passed": 120,
+          "failed": 13,
+          "skipped": 0,
+          "subtests_passed": 4,
+          "duration_seconds": 0.83,
+          "collection_errors": 0,
+          "source_commit": null,
+          "source_mode": null
+        },
+        {
+          "group": "xrepo_e2e",
+          "status": "FAIL",
+          "passed": 3,
+          "failed": 36,
+          "skipped": 0,
+          "subtests_passed": 0,
+          "duration_seconds": 0.57,
+          "collection_errors": 0,
+          "source_commit": null,
+          "source_mode": null
+        },
+        {
+          "group": "ris_builder_contract",
+          "status": "PASS",
+          "passed": 57,
+          "failed": 0,
+          "skipped": 0,
+          "subtests_passed": 0,
+          "duration_seconds": 0.36,
+          "collection_errors": 0,
+          "source_commit": null,
+          "source_mode": null
+        },
+        {
+          "group": "generated_module_artifact",
+          "status": "FAIL",
+          "passed": 2,
+          "failed": 7,
+          "skipped": 0,
+          "subtests_passed": 0,
+          "duration_seconds": 0.36,
+          "collection_errors": 0,
+          "source_commit": null,
+          "source_mode": null
+        }
+      ]
+    }
+  },
+  "gates": {
+    "RIS_NATIVE_QA": "FAIL: 3,278 passed, 3 failed, 142 skipped, 450 subtests; three OpenAPI route assertions",
+    "CURRENT_MODULE_QA": "PARTIAL: current Lambda/seed/backup/XRepo/generated artifact PASS; Mays builder/installer only Windows runs fail",
+    "MODULE_BUILDER_QA": "PARTIAL: current generated artifact PASS; RC4 generated Terraform validation FAIL",
+    "INSTALLER_QA": "BLOCKED for reference platform verification; Windows errors recorded separately",
+    "REFERENCE_PLATFORM_VERIFIED": "NOT_VERIFIED",
+    "RC4_CANDIDATE_PROVENANCE": "VERIFIED",
+    "RC4_CANDIDATE_MODULE_QA": "BLOCKED: Lambda originals pass; builder/installer platform unknown and generated Terraform/manifest contract fails",
+    "RC4_CANDIDATE_INTEGRATION_QA": "FAIL: XRepo Contract 120 passed / 13 failed; XRepo E2E 3 passed / 36 failed",
+    "XREPO_QA": "CURRENT PASS: 133 passed + 4 subtests; E2E 39 passed; CANDIDATE FAIL as above",
+    "WORKER_DEPLOYMENT_READINESS": "BLOCKED: bundle reproducibility not established; no plan executed",
+    "MAYS_ORDERS_UPGRADE_READINESS": "BLOCKED"
+  },
+  "remaining_blockers": [
+    {
+      "owner": "RIS API/OpenAPI",
+      "finding": "Terraform/dispatcher route POST /v1/apiprofiles/{apiProfileId}/binding missing from canonical OpenAPI; three tests correctly fail",
+      "fix_request": "RIS-API-OPENAPI-APIPROFILE-BINDING-FIX-REQUEST.md"
+    },
+    {
+      "owner": "Mays-Orders module builder/generated module",
+      "finding": "RC4 generated Terraform has undeclared variables and module.privacy_secret refs; manifest source.commit is abbreviated"
+    },
+    {
+      "owner": "Mays-Orders contract/module",
+      "finding": "RC4 rejects RIS adapter orderDescription; 13 XRepo contract failures and 36 XRepo E2E failures"
+    },
+    {
+      "owner": "Reference platform / test execution",
+      "finding": "Ubuntu ubuntu-latest documented but not executable locally; no WSL or Docker"
+    }
+  ],
+  "safety": {
+    "aws_mutations": 0,
+    "live_invocations": 0,
+    "redrives": 0,
+    "runtime_source_changes": 0,
+    "mays_repository_source_changes": 0,
+    "module_pin_changes": 0,
+    "module_installation": 0,
+    "terraform_plans": 0,
+    "terraform_applies": 0
+  },
+  "contract_evidence_index": "RIS-MAYS-ORDERS-CONTRACT-EVIDENCE-19F2.md (updated with 19F3 addendum)",
+  "worker_bundle_reproducibility": {
+    "required_sha256": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
+    "existing_worktree_sha256": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
+    "disposable_lf_checkout": {
+      "core_autocrlf": false,
+      "worker_sha256": "4d880b4856067b7d8b9d17e8a0257abf49d6208f9fb1743b711f516091ce928a",
+      "matches_required": false,
+      "zip_member_line_endings": "LF"
+    },
+    "disposable_crlf_checkout": {
+      "core_autocrlf": true,
+      "worker_sha256": "747b749ed674aad40954b85a2d628631131684230d4145e52e627e4ed58bd7b5",
+      "matches_required": false,
+      "zip_member_line_endings": "CRLF"
+    },
+    "conclusion": "BLOCKED: neither controlled rebuild reproduces required SHA; cause unresolved"
+  }
+}

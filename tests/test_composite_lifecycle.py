@@ -593,12 +593,22 @@ class TestStateCommandBackend:
     def test_discover_subprocess_env_keeps_path(self):
         """aws_ctx.to_env() returns ONLY AWS_* keys. Passing it verbatim as the
         subprocess env dropped PATH and broke every `aws` call with
-        FileNotFoundError: 'aws'."""
+        FileNotFoundError: 'aws'. STS identity validation is isolated because
+        this test verifies environment composition, not AWS connectivity."""
+        from unittest.mock import patch
+
         from installer.identity_context import validate_aws_context
 
-        aws_env = validate_aws_context(
-            profile="mayaws", region="eu-central-1"
-        ).to_env()
+        identity = {
+            "UserId": "LOCALTEST",
+            "Account": "000000000000",
+            "Arn": "arn:aws:iam::000000000000:user/local-test",
+        }
+        with patch("installer.identity_context._run_sts", return_value=identity) as run_sts:
+            aws_env = validate_aws_context(
+                profile="mayaws", region="eu-central-1"
+            ).to_env()
+        run_sts.assert_called_once_with("mayaws", timeout=60)
         assert "PATH" not in aws_env  # the trap this test guards
         merged = {**dict(__import__("os").environ), **aws_env}
         assert "PATH" in merged

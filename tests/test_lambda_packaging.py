@@ -89,6 +89,27 @@ class TestPackage(unittest.TestCase):
             h2 = build_zip.build_bundle(Path(REPO_ROOT), files, arc, o2)["sha256"]
             self.assertEqual(h1, h2)
 
+    def test_i_line_endings_do_not_change_bundle_bytes(self):
+        from pathlib import Path
+        import build_zip
+
+        with tempfile.TemporaryDirectory() as lf_root, \
+                tempfile.TemporaryDirectory() as crlf_root:
+            for root, content in ((lf_root, b"first\nsecond\n"),
+                                  (crlf_root, b"first\r\nsecond\r\n")):
+                source = Path(root) / "source.py"
+                source.write_bytes(content)
+            lf = build_zip.build_bundle(
+                Path(lf_root), ["source.py"], lambda name: name,
+                os.path.join(lf_root, "bundle.zip"))
+            crlf = build_zip.build_bundle(
+                Path(crlf_root), ["source.py"], lambda name: name,
+                os.path.join(crlf_root, "bundle.zip"))
+            self.assertEqual(lf["sha256"], crlf["sha256"])
+            with zipfile.ZipFile(os.path.join(crlf_root, "bundle.zip")) as archive:
+                self.assertEqual(b"first\nsecond\n", archive.read("source.py"))
+                self.assertEqual(0, archive.getinfo("source.py").create_system)
+
 
 class TestSourceChange(unittest.TestCase):
     def test_f_change_detected_and_g_restored_noop(self):

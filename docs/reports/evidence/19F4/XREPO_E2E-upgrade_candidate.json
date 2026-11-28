@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-11-27T08:37:45.131156+00:00",
+  "profile": "XREPO_E2E",
+  "ris_commit": "4cd7042ff30b8c29f6c8e4d32f235776f6b349bb",
+  "mays_orders": {
+    "version_key": "upgrade_candidate",
+    "expected_commit": "5bc154e079b4d7ee9eedbbf5b45b1ecca5c35420",
+    "release": "v0.6.0-rc.1",
+    "checkout": "/home/runner/work/_temp/mays-rc4",
+    "provenance_status": "VERIFIED",
+    "errors": []
+  },
+  "platform": "linux",
+  "python": "3.14.10 (main, Oct 26 2026, 14:17:03) [GCC 15.2.0]",
+  "artifact_hashes": {
+    "worker_bundle_terraform/lambda.zip": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "worker_bundle_expected": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
+    "worker_bundle_matches_baseline": false,
+    "mays_test_version_map": "b61a7244da57f9cb0a2f8cea4310838b83c939676a31e1e0de7c4fadef7578be"
+  },
+  "live_profile": "LOCKED_NOT_EXECUTED",
+  "aggregate_counts": "Per-group only; overlapping profile executions are not summed.",
+  "groups": [
+    {
+      "group": "xrepo_e2e",
+      "repository": "RIS",
+      "status": "FAIL",
+      "return_code": 1,
+      "passed": 3,
+      "failed": 36,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 0.62,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "tests/test_mo_dispatch_handoff.py",
+        "tests/test_agent_order_dispatch_e2e.py",
+        "tests/test_partner_e2e_real.py",
+        "tests/test_lambda_bridge_e2e.py"
+      ],
+      "stdout_tail": "spatch'\nFAILED tests/test_mo_dispatch_handoff.py::TestDispatchHandoff::test_full_round_trip_returns_42_to_the_same_order - ModuleNotFoundError: No module named 'dispatch'\nFAILED tests/test_mo_dispatch_handoff.py::TestDispatchHandoff::test_send_state_is_recorded_and_repeatable - ModuleNotFoundError: No module named 'dispatch'\nFAILED tests/test_mo_dispatch_handoff.py::TestDispatchHandoff::test_stale_attempt_is_rejected - ModuleNotFoundError: No module named 'dispatch'\nFAILED tests/test_mo_dispatch_handoff.py::TestDispatchHandoff::test_tampered_fingerprint_blocks_dispatch - ModuleNotFoundError: No module named 'dispatch'\nFAILED tests/test_mo_dispatch_handoff.py::TestDispatchHandoff::test_work_id_is_stable_across_repeated_dispatch_attempts - ModuleNotFoundError: No module named 'dispatch'\nFAILED tests/test_mo_dispatch_handoff.py::TestDispatchHandoff::test_wrong_work_id_result_is_rejected - ModuleNotFoundError: No module named 'dispatch'\nFAILED tests/test_agent_order_dispatch_e2e.py::TestAgentOrderDispatchE2E::test_agent_order_round_trip_and_authorized_read_back - ModuleNotFoundError: No module named 'result_envelope'\nFAILED tests/test_agent_order_dispatch_e2e.py::TestAgentOrderDispatchE2E::test_duplicate_result_does_not_write_twice - ModuleNotFoundError: No module named 'result_envelope'\nFAILED tests/test_agent_order_dispatch_e2e.py::TestAgentOrderDispatchE2E::test_internal_agent_order_is_mo_compatible - ModuleNotFoundError: No module named 'dispatch'\nFAILED tests/test_agent_order_dispatch_e2e.py::TestAgentOrderDispatchE2E::test_invalid_signature_is_rejected_without_persistence - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_agent_order_dispatch_e2e.py::TestAgentOrderDispatchE2E::test_wrong_correlation_and_work_id_fail_closed - ModuleNotFoundError: No module named 'result_envelope'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_cancelled_order_accepts_no_result - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_dispatch_envelope_uses_the_bound_work_id - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_duplicate_result_is_idempotent - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_foreign_tenant_is_denied - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_html_contains_no_credentials - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_missing_dispatch_message_never_reports_success - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_missing_identity_reference_blocks_dispatch - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_no_secret_in_transport_or_response - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_partner_a_gets_42_through_the_real_stack - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_partner_b_cannot_read_a_foreign_order - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_repeated_dispatch_does_not_duplicate_the_execution - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_stale_attempt_is_rejected - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_tampered_result_signature_is_rejected - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_unsupported_capability_is_denied - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_work_item_reaches_the_addition_agent_unchanged - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_partner_e2e_real.py::PartnerE2E::test_wrong_work_id_is_rejected - ModuleNotFoundError: No module named 'result_handler'\nFAILED tests/test_lambda_bridge_e2e.py::LambdaBridgeE2E::test_duplicate_result_is_idempotent - ModuleNotFoundError: No module named 'result_consumer'\nFAILED tests/test_lambda_bridge_e2e.py::LambdaBridgeE2E::test_foreign_partner_gets_404 - ModuleNotFoundError: No module named 'result_consumer'\nFAILED tests/test_lambda_bridge_e2e.py::LambdaBridgeE2E::test_full_bridge_returns_42_to_the_owner - ModuleNotFoundError: No module named 'result_consumer'\nFAILED tests/test_lambda_bridge_e2e.py::LambdaBridgeE2E::test_no_secret_material_anywhere - ModuleNotFoundError: No module named 'result_consumer'\nFAILED tests/test_lambda_bridge_e2e.py::LambdaBridgeE2E::test_tampered_result_is_rejected_by_the_consumer - ModuleNotFoundError: No module named 'result_consumer'\n36 failed, 3 passed in 0.62s\n",
+      "stderr_tail": ""
+    }
+  ],
+  "profile_status": "BLOCKED",
+  "module_artifact": {
+    "path": "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/terraform/modules/mays_orders",
+    "source_commit": null,
+    "zip_sha256": null,
+    "manifest_sha256": null,
+    "status": "BLOCKED",
+    "errors": []
+  }
+}

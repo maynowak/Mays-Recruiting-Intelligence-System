@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "execution_status": "DRAFT_BLOCKED_NOT_EXECUTABLE",
+  "endpoint": "POST https://r95qvhg2p3.execute-api.eu-central-1.amazonaws.com/orders",
+  "auth": "Cognito JWT human authorizer; bearer token must be provided at runtime outside repository",
+  "order_type": "agent.execution",
+  "agent_id": "ats-agent",
+  "capability": "analyze.job",
+  "correlation_id": "corr-20a-9f959f34d8cf42c4be70636fb247ea35",
+  "idempotency_key": "idem-20a-673c5a7706f34aeb88ad4aa4d988c0c2",
+  "payload": {
+    "customer": {
+      "name": "RIS DEV2 Synthetic Canary",
+      "email": "ris-dev2-canary@example.com"
+    },
+    "items": [
+      {
+        "sku": "ATS",
+        "quantity": 1,
+        "unitPrice": 1
+      }
+    ],
+    "currency": "EUR",
+    "orderType": "agent.execution",
+    "orderDescription": "{\"input\":{\"data\":{\"job\":{\"descriptionPlain\":\"Synthetic-only test role; no real employer or vacancy.\",\"tags\":[\"Python\",\"AWS\"],\"title\":\"Synthetic QA Engineer\"},\"profile\":{\"skills\":\"Python, AWS\"}},\"schemaVersion\":\"1.0\"},\"metadata\":{\"apiProfileRef\":\"__FILL_ONLY_WITH_APPROVED_EXISTING_ACTIVE_SYNTHETIC_PROFILE__\",\"idempotencyKey\":\"idem-20a-673c5a7706f34aeb88ad4aa4d988c0c2\",\"requestId\":\"corr-20a-9f959f34d8cf42c4be70636fb247ea35\",\"source\":\"ris-dev2-20a-live-canary\"},\"schemaVersion\":\"1.0\",\"target\":{\"agentId\":\"ats-agent\",\"capability\":\"analyze.job\"}}"
+  },
+  "payload_sha256_with_unresolved_profile_placeholder": "2cf5b4a7c1d2548cd6c302e96aab88cdba30d9a1cbb6eba0b069ac3731d3bc3e",
+  "order_description_length_chars": 545,
+  "order_description_limit_chars": 1024,
+  "payload_is_synthetic": true,
+  "customer_fields_are_reserved_example_data": true,
+  "unit_price_proposal": {
+    "value": 1,
+    "currency": "EUR",
+    "status": "UNAPPROVED",
+    "meaning_and_maximum_charge_not_confirmed": true
+  },
+  "identity_profile_placeholder": true,
+  "entitlement_status": "BLOCKED_NOT_VERIFIED",
+  "external_ats_call": "https://mays-jobsearch.vercel.app/api/ats-analysis",
+  "not_authorized_to_execute": true
+}

@@ -11,6 +11,18 @@ for path in (ROOT, ROOT / "tests", ROOT / "lambda"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
+# Review-only outputs after LF-canonical packaging. These are not Terraform
+# deployment pins; the historical worker digest remains recorded separately.
+HISTORICAL_WORKER_BUNDLE_SHA256 = (
+    "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7"
+)
+REVIEW_CANDIDATE_BUNDLE_SHA256 = {
+    "worker": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    # The analysis bundle is reviewed separately from the worker deployment
+    # pin; build_bundle now canonicalizes its ZIP metadata/compression too.
+    "analysis": "370890d459488304481d99255cfa6a2891b5f19a8c5df2723556905195c7c621",
+}
+
 from agents.runtime.pipeline import process_record  # noqa: E402
 from agents.runtime.remote_agent import LambdaAgentHandler  # noqa: E402
 from test_analysis_runner_pipeline import (  # noqa: E402
@@ -170,28 +182,33 @@ class ManifestPinTest(unittest.TestCase):
         self.assertEqual(0, manifest["plan"]["destroys"])
         self.assertEqual("NO_SHARED_DESTROY", manifest["plan"]["guard"])
         self.assertFalse(manifest["plan"]["applyApproved"])
-        preflight_path = (ROOT / "docs" / "reports" /
-                          "RIS-ANALYSIS-16C0-PREFLIGHT.json")
-        preflight = (json.loads(preflight_path.read_text(encoding="utf-8"))
-                     if preflight_path.is_file() else None)
-        for relative, key in (("terraform/lambda.zip", "worker"),
-                              ("terraform/analysis-lambda.zip", "analysis")):
-            artifact = ROOT / relative
-            if not artifact.is_file():
-                continue
-            digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
-            if preflight is None:
-                self.assertEqual(manifest["bundles"][key]["sha256"],
-                                 digest, relative)
-                continue
-            # 16B/16C0 changed agents/orders. The historical 15B plan is
-            # stale; the current bundle is pinned by the 16C0 preflight.
-            self.assertEqual(
-                preflight["planFreshness"]["bundles"][
-                    "currentAfter16BAnd16C0"][key],
-                digest, relative)
-            self.assertNotEqual(manifest["bundles"][key]["sha256"], digest,
-                                f"{relative}: historical plan must be stale")
+        # Worker remains on the canonical builder/review-candidate contract.
+        worker_relative = "terraform/lambda.zip"
+        worker_digest = hashlib.sha256((ROOT / worker_relative).read_bytes()).hexdigest()
+        self.assertEqual(
+            REVIEW_CANDIDATE_BUNDLE_SHA256["worker"], worker_digest, worker_relative
+        )
+        self.assertNotEqual(HISTORICAL_WORKER_BUNDLE_SHA256, worker_digest)
+        self.assertNotEqual(
+            manifest["bundles"]["worker"]["sha256"],
+            worker_digest,
+            f"{worker_relative}: historical plan must be stale",
+        )
+
+        # Analysis now deliberately points at the preserved deployed ZIP at
+        # terraform/analysis-lambda.zip for RIS-DEV2 path reconciliation;
+        # verify its identity from the committed preserved archive instead of
+        # treating it as a freshly built review candidate.
+        preserved_analysis = (
+            ROOT
+            / "terraform"
+            / "artifacts"
+            / "ris-dev2-analysis-276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10.zip"
+        )
+        self.assertEqual(
+            "276b4e4420272167dd32c590d6dbabed4008724a7091e4d86504d5444fe26b10",
+            hashlib.sha256(preserved_analysis.read_bytes()).hexdigest(),
+        )
 
 
     def test_dispatch_queue_to_work_queue_to_worker_for_both_agents(self):

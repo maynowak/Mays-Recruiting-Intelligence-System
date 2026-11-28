@@ -352,7 +352,7 @@ class TestOrdersReaderProjection(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, serialized)
 
-    def test_list_projects_agent_orders_without_retail_fields(self):
+    def test_list_projects_agent_orders_with_retail_envelope(self):
         item = self._agent_order()
         table = FakeTable([item])
         resp = orders_reader.handler(
@@ -362,8 +362,8 @@ class TestOrdersReaderProjection(unittest.TestCase):
         self.assertEqual(body["count"], 1)
         entry = body["orders"][0]
         self.assertEqual(entry["orderType"], "agent.execution")
-        self.assertNotIn("customer", entry)
-        self.assertNotIn("totalAmount", entry)
+        self.assertEqual(entry["customer"], {"name": item["customer"]["name"]})
+        self.assertEqual(entry["totalAmount"], item["totalAmount"])
         self.assertEqual(entry["status"], "PROCESSING")
 
     def test_pending_order_has_no_fabricated_processing_result(self):
@@ -509,18 +509,29 @@ class TestAgentOrderCreate(unittest.TestCase):
     def tearDown(self):
         self._patch.stop()
 
-    def agent_body(self, **overrides):
+    def agent_doc(self):
+        return {
+            "schemaVersion": "1.0",
+            "target": {"agentId": "ats-agent", "capability": "analyze.job"},
+            "input": {"schemaVersion": "1.0",
+                      "data": {"job": {"title": "QA Engineer"}}},
+            "metadata": {"source": "test",
+                         "requestId": "corr-1",
+                         "apiProfileRef": "aprof_test"},
+        }
+
+    def agent_body(self, doc=None, **overrides):
+        import copy
+
+        from agents.orders.agent_order import serialize_agent_order_description
+
+        document = copy.deepcopy(doc if doc is not None else self.agent_doc())
         body = {
             "orderType": "agent.execution",
-            "agentOrder": {
-                "schemaVersion": "1.0",
-                "target": {"agentId": "ats-agent", "capability": "analyze.job"},
-                "input": {"schemaVersion": "1.0",
-                          "data": {"job": {"title": "QA Engineer"}}},
-                "metadata": {"source": "test",
-                             "requestId": "corr-1",
-                             "apiProfileRef": "aprof_test"},
-            },
+            "customer": {"name": "Mays", "email": "ops@example.com"},
+            "items": [{"sku": "ATS", "quantity": 1, "unitPrice": 100}],
+            "currency": "EUR",
+            "orderDescription": serialize_agent_order_description(document),
         }
         body.update(overrides)
         return body
@@ -534,6 +545,7 @@ class TestAgentOrderCreate(unittest.TestCase):
             entitlement_resolver=self.entitlements)
 
     def test_valid_agent_order_is_persisted_and_dispatched(self):
+        from agents.orders.agent_order import parse_agent_order_description
         from agents.transport.order_transport import (
             ORDER_DISPATCH,
             validate_envelope,
@@ -543,10 +555,16 @@ class TestAgentOrderCreate(unittest.TestCase):
         self.assertEqual(201, resp["statusCode"], resp["body"])
         created = json.loads(resp["body"])
         self.assertEqual("agent.execution", created["orderType"])
+        self.assertNotIn("agentOrder", created)
         order_id = created["orderId"]
         stored = self.table._items[order_id]
         self.assertEqual("PENDING", stored["status"])
-        self.assertEqual("corr-1", stored["agentOrder"]["metadata"]["requestId"])
+        parsed = parse_agent_order_description(stored["orderDescription"])
+        self.assertEqual(parsed, stored["agentOrder"])
+        self.assertEqual("corr-1", parsed["metadata"]["requestId"])
+        self.assertEqual("Mays", stored["customer"]["name"])
+        self.assertEqual(1, len(stored["items"]))
+        self.assertEqual(100, stored["totalAmount"])
         self.assertTrue(stored["expectedWorkId"].startswith("work-"))
         self.assertEqual("SENT", stored["dispatch"]["status"])
         self.assertEqual(stored["ownerKey"], OWNER_KEY)
@@ -558,38 +576,42 @@ class TestAgentOrderCreate(unittest.TestCase):
         self.assertEqual("ats-agent", envelope["recipient"]["agentId"])
         self.assertEqual("analyze.job", envelope["recipient"]["capability"])
 
-    def test_agent_order_without_order_type_is_rejected(self):
+    def test_description_without_order_type_is_a_retail_order(self):
+        from unittest.mock import patch
+
         body = self.agent_body()
         body.pop("orderType")
-        resp = self._post(body)
-        self.assertEqual(400, resp["statusCode"])
-        self.assertEqual({}, self.table._items)
+        with patch.object(orders_reader, "_send_order_created", return_value=None):
+            resp = self._post(body)
+        self.assertEqual(201, resp["statusCode"], resp["body"])
+        self.assertEqual([], self.sent)
 
-    def test_agent_order_without_agent_order_is_rejected(self):
+    def test_agent_order_without_description_is_rejected(self):
         body = {"orderType": "agent.execution"}
         resp = self._post(body)
         self.assertEqual(400, resp["statusCode"])
         self.assertEqual({}, self.table._items)
 
-    def test_mixed_retail_and_agent_is_rejected(self):
+    def test_root_agent_order_field_is_rejected(self):
         body = self.agent_body()
-        body["customer"] = {"name": "T", "email": "t@x.io"}
+        body["agentOrder"] = {"schemaVersion": "1.0"}
         resp = self._post(body)
         self.assertEqual(400, resp["statusCode"])
+        self.assertIn("unsupported field", resp["body"])
         self.assertEqual({}, self.table._items)
 
     def test_agent_order_requires_correlation(self):
-        body = self.agent_body()
-        body["agentOrder"]["metadata"].pop("requestId")
-        resp = self._post(body)
+        doc = self.agent_doc()
+        doc["metadata"].pop("requestId")
+        resp = self._post(self.agent_body(doc))
         self.assertEqual(400, resp["statusCode"])
         self.assertIn("requestId", resp["body"])
         self.assertEqual({}, self.table._items)
 
     def test_agent_order_requires_profile_reference(self):
-        body = self.agent_body()
-        body["agentOrder"]["metadata"].pop("apiProfileRef")
-        resp = self._post(body)
+        doc = self.agent_doc()
+        doc["metadata"].pop("apiProfileRef")
+        resp = self._post(self.agent_body(doc))
         self.assertEqual(400, resp["statusCode"])
         self.assertIn("apiProfileRef", resp["body"])
 
@@ -627,20 +649,26 @@ class TestAgentOrderDispatchConfiguration(unittest.TestCase):
     def test_missing_dispatch_queue_fails_closed(self):
         from unittest.mock import patch
 
+        from agents.orders.agent_order import serialize_agent_order_description
+
         table = FakeTable([])
         profile = ProfileTable([{
             "apiProfileId": "aprof_test", "status": "ACTIVE",
             "ownerUserId": OWNER_SUB, "tenantId": "tenant-a",
         }])
+        document = {
+            "schemaVersion": "1.0",
+            "target": {"agentId": "ats-agent", "capability": "analyze.job"},
+            "input": {"schemaVersion": "1.0", "data": {"job": {}}},
+            "metadata": {"requestId": "corr-1",
+                         "apiProfileRef": "aprof_test"},
+        }
         body = {
             "orderType": "agent.execution",
-            "agentOrder": {
-                "schemaVersion": "1.0",
-                "target": {"agentId": "ats-agent", "capability": "analyze.job"},
-                "input": {"schemaVersion": "1.0", "data": {"job": {}}},
-                "metadata": {"requestId": "corr-1",
-                             "apiProfileRef": "aprof_test"},
-            },
+            "customer": {"name": "Mays", "email": "ops@example.com"},
+            "items": [{"sku": "ATS", "quantity": 1, "unitPrice": 100}],
+            "currency": "EUR",
+            "orderDescription": serialize_agent_order_description(document),
         }
         with patch.object(orders_reader, "RIS_DISPATCH_QUEUE_URL", ""):
             resp = orders_reader.handler(

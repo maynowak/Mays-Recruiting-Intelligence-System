@@ -245,11 +245,37 @@ def show(offer_id: str, offer_store=None) -> Optional[Dict[str, Any]]:
     return get_offer(_offer_store(offer_store), offer_id)
 
 
+def set_status(offer_id: str,
+               actor: Dict[str, Any],
+               status: str,
+               reason: str,
+               offer_store=None) -> Dict[str, Any]:
+    """Admin-only ACTIVE/INACTIVE transition through the existing domain."""
+    from agents.ecosystem.offers import set_offer_status
+
+    return set_offer_status(_offer_store(offer_store), domain_actor(actor),
+                            offer_id, status, reason=reason)
+
+
+def withdraw(entitlement_id: str,
+             actor: Dict[str, Any],
+             reason: str,
+             entitlement_store=None) -> Dict[str, Any]:
+    """Admin-only entitlement withdrawal through the existing domain."""
+    from agents.ecosystem.offers import withdraw_entitlement
+
+    withdraw_entitlement(_entitlement_store(entitlement_store),
+                         domain_actor(actor), entitlement_id, reason=reason)
+    return {"entitlementId": entitlement_id, "status": "WITHDRAWN"}
+
+
 __all__ = [
     "OfferOperationError",
     "create",
     "domain_actor",
     "grant",
     "list_all",
+    "set_status",
     "show",
+    "withdraw",
 ]

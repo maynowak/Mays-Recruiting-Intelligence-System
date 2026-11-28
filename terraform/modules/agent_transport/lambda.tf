@@ -133,7 +133,8 @@ resource "aws_iam_role_policy" "dispatch_ingress" {
         Sid    = "WorkItems"
         Effect = "Allow"
         Action = ["dynamodb:GetItem", "dynamodb:PutItem",
-        "dynamodb:UpdateItem", "dynamodb:Query"]
+          "dynamodb:UpdateItem", "dynamodb:Query",
+        "dynamodb:ConditionCheckItem"]
         Resource = [
           var.work_items_table_arn,
           "${var.work_items_table_arn}/index/*",

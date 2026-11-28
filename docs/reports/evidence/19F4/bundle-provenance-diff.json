@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "scope": "Agent-Worker bundle only; review evidence, not a deployment pin",
+  "source_commit_for_canonical_bundle": "f110f97780f78912c48852ce64661687f4002fc6",
+  "historical": {
+    "sha256": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
+    "entries": 115,
+    "all_members_match_git_after_crlf_to_lf_normalization": true,
+    "entry_order_matches": true,
+    "fixed_timestamp": "1980-01-01T00:00:00",
+    "entry_mode_octal": "0644",
+    "create_system": 0,
+    "compression_method": "DEFLATE",
+    "mixed_line_endings_in_worktree": true
+  },
+  "prior_controlled_rebuilds": {
+    "lf_sha256": "4d880b4856067b7d8b9d17e8a0257abf49d6208f9fb1743b711f516091ce928a",
+    "crlf_sha256": "747b749ed674aad40954b85a2d628631131684230d4145e52e627e4ed58bd7b5",
+    "interpretation": "source member bytes differed due checkout line endings"
+  },
+  "root_cause": {
+    "source_bytes": "Windows autocrlf and mixed checkout line endings produced CRLF in some Python entries and LF in others; normalizing every Python member to LF resolves this input difference.",
+    "archive_bytes": "DEFLATE output differed between Windows zlib-ng and Ubuntu zlib for identical normalized inputs; ZIP create_system was 0 on Windows and 3 on Unix.",
+    "metadata_excluded_as_cause": ["entry ordering", "timestamps", "permissions", "archive membership"],
+    "metadata_root_cause": "ZIP create_system field was platform-dependent before it was explicitly set to 0."
+  },
+  "fix": {
+    "ris_commit": "29380218d7a9e807e5f4a11dc7491c3654a21c9b",
+    "source_normalization": "CRLF to LF",
+    "compression": "ZIP_STORED for deterministic Python-only RIS bundles",
+    "create_system": 0,
+    "worker_runtime_semantics_changed": false,
+    "agent_worker_and_dispatch_ingress_scope_only": true
+  },
+  "review_candidate": {
+    "worker_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "windows_clean_build_a_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "windows_clean_build_b_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "ubuntu_clean_build_a_sha256_before_stored_zip_fix": "83b913d3f7fbac7a3a94f4f6e80c8d413601faf5e48fe0a99bd8baf37522e145",
+    "ubuntu_clean_build_b_sha256_before_stored_zip_fix": "83b913d3f7fbac7a3a94f4f6e80c8d413601faf5e48fe0a99bd8baf37522e145",
+    "ubuntu_post_fix_sha256": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "ubuntu_post_fix_build_run": 45965830933,
+    "deployment_pin_review_required": true,
+    "historical_hash_overwritten": false,
+    "pin_changed": false
+  },
+  "build_toolchain": {
+    "windows_python": "3.14.10",
+    "windows_zlib": "1.3.1.zlib-ng",
+    "ubuntu_python": "3.14.10",
+    "ubuntu_zlib": "1.3.1"
+  },
+  "parallel_bundle_observation": {
+    "analysis_windows_review_sha256": "370890d459488304481d99255cfa6a2891b5f19a8c5df2723556905195c7c621",
+    "analysis_ubuntu_review_sha256": "370890d459488304481d99255cfa6a2891b5f19a8c5df2723556905195c7c621",
+    "analysis_ubuntu_review_build_run": 45965830933,
+    "analysis_builder_changed": false,
+    "analysis_is_agent_worker_deployment_pin": false,
+    "reader_review_sha256": "bea4c3e59666bed8ad071ad4e405bcdfd57dafdac68096ce648667f0effb1b41",
+    "all_three_bundles_cross_platform_match": true
+  }
+}

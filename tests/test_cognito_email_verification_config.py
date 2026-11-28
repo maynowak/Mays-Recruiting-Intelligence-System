@@ -63,13 +63,29 @@ class TestRootVariableDefault(unittest.TestCase):
             "email verification default must never silently revert to false")
 
     def test_no_tfvars_file_is_required(self):
-        """The fix must not depend on an untracked local tfvars."""
+        """The root default must not depend on an automatically loaded tfvars.
+
+        A separately named RIS-DEV2 artifact override is intentionally passed
+        explicitly for the 19G2 scope correction. Terraform does not auto-load
+        that environment-specific filename, so it cannot affect an ordinary
+        plan or fresh installer run.
+        """
         tfvars = [f for f in os.listdir(os.path.join(REPO, "terraform"))
                   if f.endswith(".tfvars") or f.endswith(".tfvars.json")]
-        self.assertEqual([], tfvars,
-                         "a committed tfvars would re-create the "
-                         "flag-or-nothing problem; the root default is the "
-                         "source of truth")
+        explicit_environment_overrides = {
+            "ris-dev2-19g2-artifact-overrides.tfvars.json",
+        }
+        auto_loaded = [
+            name for name in tfvars
+            if name in {"terraform.tfvars", "terraform.tfvars.json"}
+            or name.endswith(".auto.tfvars")
+            or name.endswith(".auto.tfvars.json")
+            or name not in explicit_environment_overrides
+        ]
+        self.assertEqual(
+            [], auto_loaded,
+            "automatic or unrelated tfvars would re-create the "
+            "flag-or-nothing problem; the root default is the source of truth")
 
 
 class TestModuleWiring(unittest.TestCase):

@@ -26,8 +26,10 @@ from typing import Any, Dict, Optional
 try:  # repository layout / tests (package takes precedence)
     from agents.orders.agent_order import (
         AgentOrderError,
+        ORDER_TYPE_AGENT,
         fingerprint as agent_order_fingerprint,
-        validate_order_document,
+        parse_agent_order_description,
+        validate_order_description_text,
     )
     from agents.transport.order_transport import (
         ORDER_DISPATCH,
@@ -37,8 +39,10 @@ try:  # repository layout / tests (package takes precedence)
 except ImportError:  # Lambda reader bundle (flat contract modules)
     from agent_order import (
         AgentOrderError,
+        ORDER_TYPE_AGENT,
         fingerprint as agent_order_fingerprint,
-        validate_order_document,
+        parse_agent_order_description,
+        validate_order_description_text,
     )
     from order_transport import (
         ORDER_DISPATCH,
@@ -92,6 +96,22 @@ PUBLIC_RESULT_CONTRACT_FIELDS = (
     "schemaVersion", "format", "expectedCapability", "delivery")
 PUBLIC_PROCESSING_FIELDS = ("status", "attempt", "completedAt")
 MAX_ERROR_MESSAGE = 500
+
+#: Root fields of the Mays-Orders OrderV1 create contract (MO main @ 543ef75).
+#: An agent execution order is a normal MO order: ``customer``, exactly one
+#: ``items[]`` entry, ``currency``, ``orderType`` and ``orderDescription``.
+#: A root ``agentOrder`` is NOT part of this contract — the validated RIS
+#: AgentOrder V1 body travels inside ``orderDescription`` (<= 1024 chars).
+AGENT_ORDER_ROOT_FIELDS = frozenset({
+    "customer",
+    "items",
+    "currency",
+    "orderType",
+    "orderDescription",
+})
+
+MO_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+MO_CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
 
 # Same credential-shaped rule as the transport; the reader refuses to release
 # a stored result that contains a secret-like key or value.
@@ -249,7 +269,7 @@ def _public_agent_order(agent: Any) -> Dict[str, Any]:
     if not isinstance(agent, dict):
         return {}
     projected: Dict[str, Any] = {}
-    for key in ("schemaVersion",):
+    for key in ("schemaVersion", "orderDescription"):
         if key in agent:
             projected[key] = agent[key]
     for key, fields in (
@@ -290,12 +310,17 @@ def _public(item: Dict[str, Any]) -> Dict[str, Any]:
         ],
         "currency": item.get("currency"),
         "totalAmount": item.get("totalAmount"),
+        "orderDescription": item.get("orderDescription"),
         "createdAt": item.get("createdAt"),
         "updatedAt": item.get("updatedAt"),
     }
-    agent_order = _public_agent_order(item.get("agentOrder"))
-    if agent_order:
-        projected["agentOrder"] = agent_order
+    # New OrderV1 rows keep the validated AgentOrder only as an internal
+    # correlation copy (the public field is orderDescription). Legacy rows
+    # without orderDescription keep the previous read projection unchanged.
+    if "orderDescription" not in item:
+        agent_order = _public_agent_order(item.get("agentOrder"))
+        if agent_order:
+            projected["agentOrder"] = agent_order
     processing = _public_processing(item.get("processing"))
     if processing:
         projected["processing"] = processing
@@ -304,24 +329,22 @@ def _public(item: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _list_item(item: Dict[str, Any]) -> Dict[str, Any]:
-    if item.get("orderType") == "agent.execution":
-        # Agent orders carry no retail fields; mirror the Orders-side list
-        # projection instead of raising KeyError on customer/totalAmount.
-        return {
-            "orderId": item["orderId"],
-            "orderType": item["orderType"],
-            "status": item["status"],
-            "createdAt": item.get("createdAt"),
-            "updatedAt": item.get("updatedAt"),
-        }
-    return {
+    # Tolerant projection: an agent order is a normal MO order (customer/items/
+    # currency); a legacy agent row without retail fields stays readable.
+    projected: Dict[str, Any] = {
         "orderId": item["orderId"],
         "status": item["status"],
-        "customer": {"name": item["customer"]["name"]},
-        "totalAmount": item["totalAmount"],
         "createdAt": item.get("createdAt"),
         "updatedAt": item.get("updatedAt"),
     }
+    if item.get("orderType"):
+        projected["orderType"] = item["orderType"]
+    customer = item.get("customer")
+    if isinstance(customer, dict) and customer.get("name"):
+        projected["customer"] = {"name": customer["name"]}
+    if item.get("totalAmount") is not None:
+        projected["totalAmount"] = item["totalAmount"]
+    return projected
 
 
 def _list_orders(table: Any, limit: int, identity: Dict[str, Any]) -> Dict[str, Any]:
@@ -546,15 +569,30 @@ def _create_agent_order(table: Any, raw: Dict[str, Any],
     import secrets
     from datetime import datetime, timezone
 
-    unknown = set(raw) - {"orderType", "agentOrder"}
+    unknown = set(raw) - AGENT_ORDER_ROOT_FIELDS
     if unknown:
         raise AgentOrderRejected(
             400, "VALIDATION_ERROR",
             f"agent order contains unsupported field '{sorted(unknown)[0]}'")
+
+    order_type = raw.get("orderType")
+    if order_type != ORDER_TYPE_AGENT:
+        raise AgentOrderRejected(
+            400, "VALIDATION_ERROR",
+            f"agent order requires orderType '{ORDER_TYPE_AGENT}'")
+
+    description = raw.get("orderDescription")
+    if description is None:
+        raise AgentOrderRejected(
+            400, "VALIDATION_ERROR",
+            "agentOrder is not part of the MO OrderV1 contract; send the "
+            "serialised RIS AgentOrder V1 JSON in 'orderDescription'")
     try:
-        agent_order = validate_order_document(raw)
+        agent_order = parse_agent_order_description(description)
     except AgentOrderError as exc:
         raise AgentOrderRejected(400, "VALIDATION_ERROR", exc.message) from exc
+
+    customer, item, currency = _validate_mo_envelope(raw)
 
     metadata = agent_order["metadata"]
     correlation_id = metadata.get("requestId")
@@ -587,12 +625,23 @@ def _create_agent_order(table: Any, raw: Dict[str, Any],
         idempotency_key=idempotency_key,
     )
 
-    item = {
+    # Stored row is a normal Mays-Orders OrderV1 item (customer/items/currency/
+    # orderType/orderDescription) plus the RIS ownership and dispatch metadata.
+    # ``agentOrder`` is an internal copy of the validated body: the Mays-Orders
+    # result consumer and its dispatch builder read the correlation reference
+    # from that attribute, so it must exist on the row. It is never accepted
+    # from a client request and never re-published by the reader (see _public).
+    stored_item = {
         "pk": f"{ORDER_ID_PREFIX}{order_id}",
         "sk": ORDER_SK,
         "orderId": order_id,
-        "orderType": "agent.execution",
+        "orderType": ORDER_TYPE_AGENT,
         "status": "PENDING",
+        "customer": customer,
+        "items": [item],
+        "currency": currency,
+        "totalAmount": item["lineTotal"],
+        "orderDescription": description,
         "agentOrder": agent_order,
         "agentOrderFingerprint": agent_order_fingerprint(agent_order),
         "expectedWorkId": work_id,
@@ -611,7 +660,8 @@ def _create_agent_order(table: Any, raw: Dict[str, Any],
         "gsi3pk": identity["ownerKey"],
         "gsi3sk": f"{now}#{order_id}",
     }
-    table.put_item(Item=item, ConditionExpression="attribute_not_exists(pk)")
+    table.put_item(Item=stored_item,
+                   ConditionExpression="attribute_not_exists(pk)")
 
     try:
         _send_order_dispatch(envelope)
@@ -632,7 +682,63 @@ def _create_agent_order(table: Any, raw: Dict[str, Any],
         "workId": work_id,
         "messageId": envelope["messageId"],
     })
-    return _public(item)
+    return _public(stored_item)
+
+
+def _validate_mo_envelope(raw: Dict[str, Any]) -> tuple:
+    """Validate the MO OrderV1 envelope of an agent order.
+
+    Mirrors the authoritative Mays-Orders rules (validation.py @ main 543ef75):
+    customer.name/email, exactly one item with sku + integer quantity/unitPrice
+    >= 1, a 3-letter uppercase currency and a control-character-free
+    orderDescription (already checked by the parser).
+    """
+    customer = raw.get("customer")
+    if not isinstance(customer, dict):
+        raise AgentOrderRejected(400, "VALIDATION_ERROR",
+                                 "customer must be an object")
+    name = customer.get("name")
+    email = customer.get("email")
+    if not isinstance(name, str) or not name.strip():
+        raise AgentOrderRejected(400, "VALIDATION_ERROR",
+                                 "customer.name is required")
+    if not isinstance(email, str) or not email.strip():
+        raise AgentOrderRejected(400, "VALIDATION_ERROR",
+                                 "customer.email is required")
+    if not MO_EMAIL_RE.match(email):
+        raise AgentOrderRejected(400, "VALIDATION_ERROR",
+                                 "customer.email must be a valid email address")
+
+    items = raw.get("items")
+    if not isinstance(items, list) or len(items) != 1:
+        raise AgentOrderRejected(
+            400, "VALIDATION_ERROR",
+            "agent execution requires exactly one items[] entry")
+    entry = items[0]
+    if not isinstance(entry, dict):
+        raise AgentOrderRejected(400, "VALIDATION_ERROR",
+                                 "items[0] must be an object")
+    sku = entry.get("sku")
+    if not isinstance(sku, str) or not sku.strip():
+        raise AgentOrderRejected(400, "VALIDATION_ERROR",
+                                 "items[0].sku is required")
+    clean: Dict[str, Any] = {"sku": sku}
+    for field in ("quantity", "unitPrice"):
+        value = entry.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise AgentOrderRejected(
+                400, "VALIDATION_ERROR",
+                f"items[0].{field} must be an integer >= 1")
+        clean[field] = value
+    clean["lineTotal"] = clean["quantity"] * clean["unitPrice"]
+
+    currency = raw.get("currency")
+    if not isinstance(currency, str) or not MO_CURRENCY_RE.match(currency):
+        raise AgentOrderRejected(
+            400, "VALIDATION_ERROR",
+            "currency must be a 3-letter ISO-4217 code (uppercase)")
+
+    return {"name": name, "email": email}, clean, currency
 
 
 def _validate_create(body: Any) -> tuple:
@@ -659,8 +765,15 @@ def _validate_create(body: Any) -> tuple:
         clean.append({"sku": it["sku"], "quantity": qty, "unitPrice": price,
                       "lineTotal": qty * price})
     currency = body.get("currency", "EUR")
-    return {"customer": {"name": customer["name"], "email": customer["email"]},
-            "items": clean, "currency": currency}, ""
+    description = body.get("orderDescription")
+    data = {"customer": {"name": customer["name"], "email": customer["email"]},
+            "items": clean, "currency": currency}
+    if description is not None:
+        try:
+            data["orderDescription"] = validate_order_description_text(description)
+        except AgentOrderError as exc:
+            return None, exc.message
+    return data, ""
 
 
 def _send_order_created(order_id: str) -> None:
@@ -708,6 +821,8 @@ def _create_order(table: Any, data: Dict[str, Any],
         "gsi3pk": identity["ownerKey"],
         "gsi3sk": f"{now}#{order_id}",
     }
+    if data.get("orderDescription") is not None:
+        item["orderDescription"] = data["orderDescription"]
     table.put_item(Item=item, ConditionExpression="attribute_not_exists(pk)")
     try:
         _send_order_created(order_id)
@@ -745,10 +860,11 @@ def handler(event: Dict[str, Any], context: Any, table: Any = None,
                     return _err(exc.status_code, exc.code, exc.message)
                 return _ok(201, created)
             if isinstance(raw, dict) and raw.get("orderType") not in (
-                    None, "", "retail"):
+                    None, "", "retail", "generic"):
                 return _err(400, "VALIDATION_ERROR",
                             "Unsupported orderType; agent orders require "
-                            "orderType 'agent.execution' and an agentOrder")
+                            "orderType 'agent.execution' and a serialised "
+                            "agentOrder in 'orderDescription'")
             data, problem = _validate_create(raw)
             if data is None:
                 return _err(400, "VALIDATION_ERROR", problem)

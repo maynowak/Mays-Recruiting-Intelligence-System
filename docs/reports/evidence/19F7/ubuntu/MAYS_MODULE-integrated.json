@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-11-27T11:51:53.495695+00:00",
+  "profile": "MAYS_MODULE",
+  "ris_commit": "d0a5bdecddbcc35ded6f62ff51bd5dc4f1bc76e1",
+  "mays_orders": {
+    "version_key": "integrated",
+    "expected_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+    "release": "builder-integrated-source",
+    "checkout": "/home/runner/work/_temp/mays-current",
+    "provenance_status": "VERIFIED",
+    "errors": []
+  },
+  "platform": "linux",
+  "python": "3.14.10 (main, Oct 26 2026, 14:17:03) [GCC 15.2.0]",
+  "artifact_hashes": {
+    "worker_bundle_terraform/lambda.zip": "507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d",
+    "worker_bundle_expected": "78eb6edaed19026d4149a7a73e0ef22378e73fe3eff761b9f56b31fe54b51bf7",
+    "worker_bundle_matches_baseline": false,
+    "mays_test_version_map": "e7c0eafcfe3d6ff73739f08fb1a3d6aa1dc49f78de658bfebdb546019b63bc47"
+  },
+  "live_profile": "LOCKED_NOT_EXECUTED",
+  "aggregate_counts": "Per-group only; overlapping profile executions are not summed.",
+  "groups": [
+    {
+      "group": "mays_lambda",
+      "repository": "MAYS_ORDERS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 240,
+      "failed": 0,
+      "skipped": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 0.056,
+      "tests_run": 240,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--unittest-start",
+        "tests"
+      ],
+      "stdout_tail": "Identity rejected: missing_identity_context\nIdentity configuration missing (ORDERS_COGNITO_ISSUER/CLIENT_ID)\n",
+      "stderr_tail": "ransport_module.TestResultConsumerWiring.test_expected_resources_exist) ... ok\ntest_handler_is_the_consumer_entrypoint (test_terraform_transport_module.TestResultConsumerWiring.test_handler_is_the_consumer_entrypoint) ... ok\ntest_kms_is_opt_in (test_terraform_transport_module.TestResultConsumerWiring.test_kms_is_opt_in) ... ok\ntest_no_api_route_is_added (test_terraform_transport_module.TestResultConsumerWiring.test_no_api_route_is_added) ... ok\ntest_no_owner_rights_for_the_service_role (test_terraform_transport_module.TestResultConsumerWiring.test_no_owner_rights_for_the_service_role) ... ok\ntest_secret_has_no_value_in_code (test_terraform_transport_module.TestResultConsumerWiring.test_secret_has_no_value_in_code) ... ok\ntest_secret_policy_is_scoped_to_the_secret (test_terraform_transport_module.TestResultConsumerWiring.test_secret_policy_is_scoped_to_the_secret) ... ok\ntest_accepts_valid_body (test_validation.TestValidateCreateOrder.test_accepts_valid_body) ... ok\ntest_rejects_empty_items (test_validation.TestValidateCreateOrder.test_rejects_empty_items) ... ok\ntest_rejects_float_unit_price (test_validation.TestValidateCreateOrder.test_rejects_float_unit_price) ... ok\ntest_rejects_invalid_currency (test_validation.TestValidateCreateOrder.test_rejects_invalid_currency) ... ok\ntest_rejects_invalid_email (test_validation.TestValidateCreateOrder.test_rejects_invalid_email) ... ok\ntest_rejects_missing_customer_name (test_validation.TestValidateCreateOrder.test_rejects_missing_customer_name) ... ok\ntest_rejects_non_object_body (test_validation.TestValidateCreateOrder.test_rejects_non_object_body) ... ok\ntest_rejects_quantity_with_fraction (test_validation.TestValidateCreateOrder.test_rejects_quantity_with_fraction) ... ok\ntest_rejects_quantity_zero (test_validation.TestValidateCreateOrder.test_rejects_quantity_zero) ... ok\ntest_rejects_unknown_item_field (test_validation.TestValidateCreateOrder.test_rejects_unknown_item_field) ... ok\ntest_rejects_unknown_top_level_field (test_validation.TestValidateCreateOrder.test_rejects_unknown_top_level_field) ... ok\ntest_accepts_limit_range (test_validation.TestValidateListParams.test_accepts_limit_range) ... ok\ntest_default_limit_20 (test_validation.TestValidateListParams.test_default_limit_20) ... ok\ntest_passes_next_token_through (test_validation.TestValidateListParams.test_passes_next_token_through) ... ok\ntest_rejects_limit_out_of_range (test_validation.TestValidateListParams.test_rejects_limit_out_of_range) ... ok\ntest_accepts_ord_alphanumeric (test_validation.TestValidateOrderId.test_accepts_ord_alphanumeric) ... ok\ntest_rejects_invalid_format (test_validation.TestValidateOrderId.test_rejects_invalid_format) ... ok\ntest_accepts_valid_status (test_validation.TestValidateStatus.test_accepts_valid_status) ... ok\ntest_rejects_invalid_status (test_validation.TestValidateStatus.test_rejects_invalid_status) ... ok\n\n----------------------------------------------------------------------\nRan 240 tests in 0.056s\n\nOK\n",
+      "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+      "source_mode": "temporary_detached_git_clone"
+    },
+    {
+      "group": "mays_module_builder",
+      "repository": "MAYS_ORDERS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 100,
+      "failed": 0,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 6,
+      "duration_seconds": 1.77,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "module_builder/tests"
+      ],
+      "stdout_tail": "........................................................................ [ 72%]\n............................                                       [100%]\n100 passed, 6 subtests passed in 1.77s\n",
+      "stderr_tail": "",
+      "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+      "source_mode": "temporary_detached_git_clone_with_rebuilt_lambda_artifact",
+      "preparation": {
+        "action": "rebuild lambda/dist/lambda.zip in disposable exact-commit test clone",
+        "return_code": 0,
+        "stdout_tail": "Built /tmp/ris-qa-sandbox-1l8m8z1q/source/lambda/dist/lambda.zip (31096 bytes, sha256 cc796473d1670ca46ca7e3f352cd8c384468b6d0e4634251b6989b692d378763)\n  agent_order.py  (10857 bytes)\n  dispatch.py  (4075 bytes)\n  errors.py  (2608 bytes)\n  identity.py  (5409 bytes)\n  index.py  (7149 bytes)\n  order_service.py  (39464 bytes)\n  order_types.py  (1463 bytes)\n  result_consumer.py  (3972 bytes)\n  result_envelope.py  (7299 bytes)\n  result_handler.py  (5072 bytes)\n  sqs_handler.py  (3202 bytes)\n  state_machine.py  (474 bytes)\n  validation.py  (9469 bytes)\n",
+        "stderr_tail": ""
+      }
+    },
+    {
+      "group": "mays_installer",
+      "repository": "MAYS_ORDERS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 81,
+      "failed": 0,
+      "skipped": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 20.431,
+      "tests_run": 81,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--unittest-module",
+        "installer.tests.test_installer"
+      ],
+      "stdout_tail": "",
+      "stderr_tail": "te_plan_file_invalid) ... ok\ntest_create_run_dir (installer.tests.test_installer.TestRunDirectoryManager.test_create_run_dir) ... ok\ntest_save_context (installer.tests.test_installer.TestRunDirectoryManager.test_save_context) ... ok\ntest_no_secret_leakage_in_sarif (installer.tests.test_installer.TestSarifAdapter.test_no_secret_leakage_in_sarif)\nTest that SARIF doesn't leak secrets. ... ok\ntest_sarif_adapter_exists (installer.tests.test_installer.TestSarifAdapter.test_sarif_adapter_exists)\nTest that SARIF adapter script exists. ... ok\ntest_sarif_conversion (installer.tests.test_installer.TestSarifAdapter.test_sarif_conversion)\nTest that native dependency result converts to SARIF. ... ok\ntest_sarif_deterministic (installer.tests.test_installer.TestSarifAdapter.test_sarif_deterministic)\nTest that SARIF generation is deterministic. ... ok\ntest_sarif_error_conversion (installer.tests.test_installer.TestSarifAdapter.test_sarif_error_conversion)\nTest SARIF conversion for error status. ... ok\ntest_sarif_multiple_findings (installer.tests.test_installer.TestSarifAdapter.test_sarif_multiple_findings)\nTest SARIF with multiple dependency findings. ... ok\ntest_sarif_no_native_top_level_fields (installer.tests.test_installer.TestSarifAdapter.test_sarif_no_native_top_level_fields)\nTest that SARIF doesn't contain native top-level fields. ... ok\ntest_state_list (installer.tests.test_installer.TestStateCommands.test_state_list)\nTest state list command. ... ok\ntest_plan_result_from_json (installer.tests.test_installer.TestTerraformRunner.test_plan_result_from_json)\nTest PlanResult from JSON. ... ok\ntest_validate_failure (installer.tests.test_installer.TestTerraformRunner.test_validate_failure)\nTest validate failure. ... ok\ntest_validate_success (installer.tests.test_installer.TestTerraformRunner.test_validate_success)\nTest validate success. ... ok\ntest_version (installer.tests.test_installer.TestTerraformRunner.test_version)\nTest version command. ... ok\ntest_aws_profile_check_fail (installer.tests.test_installer.TestValidationLayer.test_aws_profile_check_fail)\nTest AWS profile check fails. ... ok\ntest_aws_profile_check_pass (installer.tests.test_installer.TestValidationLayer.test_aws_profile_check_pass)\nTest AWS profile check passes. ... ok\ntest_terraform_cli_check (installer.tests.test_installer.TestValidationLayer.test_terraform_cli_check)\nTest Terraform CLI check. ... ok\ntest_validation_result_summary (installer.tests.test_installer.TestValidationLayer.test_validation_result_summary)\nTest validation result summary. ... ok\ntest_without_yes_requires_approval (installer.tests.test_installer.TestYesFlagBehavior.test_without_yes_requires_approval)\nTest that without --yes, approval is required. ... ok\ntest_yes_flag_skips_approval_prompt (installer.tests.test_installer.TestYesFlagBehavior.test_yes_flag_skips_approval_prompt)\nTest that --yes skips approval prompt. ... ok\n\n----------------------------------------------------------------------\nRan 81 tests in 20.431s\n\nOK\n",
+      "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+      "source_mode": "temporary_detached_git_clone"
+    },
+    {
+      "group": "mays_seed_tools",
+      "repository": "MAYS_ORDERS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 28,
+      "failed": 0,
+      "skipped": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 0.073,
+      "tests_run": 28,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--unittest-start",
+        "tests"
+      ],
+      "stdout_tail": "",
+      "stderr_tail": "eedData.test_t03_primary_keys_correct) ... ok\ntest_t04_gsi_fields_correct (test_seed_orders.TestDemoSeedData.test_t04_gsi_fields_correct) ... ok\ntest_t05_statuses_valid (test_seed_orders.TestDemoSeedData.test_t05_statuses_valid) ... ok\ntest_t06_version_present_and_numeric (test_seed_orders.TestDemoSeedData.test_t06_version_present_and_numeric) ... ok\ntest_t07_is_test_data_true (test_seed_orders.TestDemoSeedData.test_t07_is_test_data_true) ... ok\ntest_t08_line_total_correct (test_seed_orders.TestDemoSeedData.test_t08_line_total_correct) ... ok\ntest_t09_total_amount_equals_sum_line_total (test_seed_orders.TestDemoSeedData.test_t09_total_amount_equals_sum_line_total) ... ok\ntest_delete_removes_only_demo_seed_items_with_is_test_data (test_seed_orders.TestDemoSeedDeletion.test_delete_removes_only_demo_seed_items_with_is_test_data) ... ok\ntest_delete_skips_demo_key_without_is_test_data (test_seed_orders.TestDemoSeedDeletion.test_delete_skips_demo_key_without_is_test_data) ... ok\ntest_demo_keys_are_exactly_50_from_file (test_seed_orders.TestDemoSeedDeletion.test_demo_keys_are_exactly_50_from_file) ... ok\ntest_demo_normalization_preserves_is_test_data_and_version (test_seed_orders.TestDemoSeedImport.test_demo_normalization_preserves_is_test_data_and_version) ... ok\ntest_t10_importer_validates_all_50 (test_seed_orders.TestDemoSeedImport.test_t10_importer_validates_all_50) ... ok\ntest_t11_dry_run_writes_nothing (test_seed_orders.TestDemoSeedImport.test_t11_dry_run_writes_nothing) ... ok\ntest_t12_second_seed_run_creates_no_duplicates (test_seed_orders.TestDemoSeedImport.test_t12_second_seed_run_creates_no_duplicates) ... ok\ntest_t01_has_exactly_1000_orders (test_seed_orders.TestSeedData.test_t01_has_exactly_1000_orders) ... ok\ntest_t02_pk_and_sk_fields (test_seed_orders.TestSeedData.test_t02_pk_and_sk_fields) ... ok\ntest_t03_no_duplicate_pk_sk (test_seed_orders.TestSeedData.test_t03_no_duplicate_pk_sk) ... ok\ntest_t04_gsi_fields_correct (test_seed_orders.TestSeedData.test_t04_gsi_fields_correct) ... ok\ntest_t05_statuses_valid (test_seed_orders.TestSeedData.test_t05_statuses_valid) ... ok\ntest_t06_amounts_valid (test_seed_orders.TestSeedData.test_t06_amounts_valid) ... ok\ntest_t07_timestamps_valid_iso8601 (test_seed_orders.TestSeedData.test_t07_timestamps_valid_iso8601) ... ok\ntest_dry_run_writes_nothing (test_seed_orders.TestSeedImport.test_dry_run_writes_nothing) ... ok\ntest_normalize_sets_line_total_and_version (test_seed_orders.TestSeedImport.test_normalize_sets_line_total_and_version) ... ok\ntest_t08_import_writes_1000_items (test_seed_orders.TestSeedImport.test_t08_import_writes_1000_items) ... ok\ntest_t09_second_run_is_idempotent_no_extra_items (test_seed_orders.TestSeedImport.test_t09_second_run_is_idempotent_no_extra_items) ... ok\ntest_t10_item_count_is_1000_after_import (test_seed_orders.TestSeedImport.test_t10_item_count_is_1000_after_import) ... ok\n\n----------------------------------------------------------------------\nRan 28 tests in 0.073s\n\nOK\n",
+      "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+      "source_mode": "temporary_detached_git_clone"
+    },
+    {
+      "group": "mays_cognito_backup",
+      "repository": "MAYS_ORDERS",
+      "status": "PASS",
+      "return_code": 0,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "deselected": 0,
+      "xfailed": 0,
+      "xpassed": 0,
+      "subtests_passed": 0,
+      "duration_seconds": 0.01,
+      "collection_errors": 0,
+      "command": [
+        "/opt/hostedtoolcache/Python/3.14.10/x64/bin/python",
+        "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/scripts/unified_test_process.py",
+        "--pytest",
+        "-q",
+        "-ra",
+        "cognito_backup/tests"
+      ],
+      "stdout_tail": "..                                                                       [100%]\n2 passed in 0.01s\n",
+      "stderr_tail": "",
+      "source_commit": "db4f9e79980443de1cd3d5b688a33c0cf0eb771f",
+      "source_mode": "temporary_detached_git_clone"
+    }
+  ],
+  "profile_status": "PASS",
+  "module_artifact": {
+    "path": "/home/runner/work/Mays-Recruiting-Intelligence-System/Mays-Recruiting-Intelligence-System/terraform/modules/mays_orders",
+    "source_commit": null,
+    "zip_sha256": null,
+    "manifest_sha256": null,
+    "status": "BLOCKED",
+    "errors": []
+  }
+}

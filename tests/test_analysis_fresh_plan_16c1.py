@@ -64,18 +64,21 @@ class FreshPlan16C1Test(unittest.TestCase):
                          state["lineage"])
         self.assertEqual(283, state["resources"])
 
-    def test_bundles_match_local_artifacts_when_present(self):
-        files = {
-            "worker": ROOT / "terraform" / "lambda.zip",
-            "analysis": ROOT / "terraform" / "analysis-lambda.zip",
-            "parser": ROOT / "lambda" / "dist" / "analysis-parser.zip",
-            "reader": ROOT / "lambda" / "dist" / "orders-reader.zip",
+    def test_historical_bundle_hashes_are_preserved(self):
+        # This 16C1 manifest records artifacts from the historical 16C1 plan.
+        # The old plan was explicitly superseded after later source changes;
+        # comparing its hashes with today's local bundles would conflate two
+        # different artifact versions. Current artifact hashes are guarded by
+        # test_analysis_ecosystem_wiring.ManifestPinTest.
+        historical_hashes = {
+            "worker": "85775f685eda57fbd2f49e6351b40f59301de0150c63cb67289fb5c324897096",
+            "analysis": "420bf8610920e03868daf8e593a71c2a9de7cc637ca006a5192dd2800a4a0c9e",
+            "parser": "fb741fb25e7cd29232a43a63137a6e2a8ca0e948cc2efdf6764b8779119f301a",
+            "reader": "464b991f784f0ea14da761fca355e676490f9a399209d4d3c2149165c25b1c4d",
         }
-        for key, path in files.items():
-            if not path.is_file():
-                continue
-            self.assertEqual(self.data["bundles"][key]["sha256"],
-                             sha256(path), str(path))
+        for key, expected in historical_hashes.items():
+            with self.subTest(bundle=key):
+                self.assertEqual(expected, self.data["bundles"][key]["sha256"])
         parser = self.data["bundles"]["parser"]
         self.assertEqual("e77ee94", parser["sourceCommit"])
         self.assertEqual("c40bf78", parser["artifactSourceCommit"])

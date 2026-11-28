@@ -348,17 +348,41 @@ class TestTerraformDeclaration(unittest.TestCase):
         self.assertEqual(declared["capabilities"], [ATS_ANALYZE_CAPABILITY])
         self.assertEqual(declared["supported_bodies"], ["1.0.0"])
         self.assertEqual(declared["supported_runtimes"], ["python3.14"])
+        self.assertEqual(declared["status"], "INACTIVE")
+        self.assertFalse(is_executable_status(declared["status"]))
+
+    def test_declared_analysis_agent_matches_the_runtime(self):
+        """The analysis seed entry must mirror the runtime descriptor."""
+        import importlib
+
+        agent = importlib.import_module("agents.analysis_agent.agent")
+        registry = importlib.import_module("agents.analysis_agent.registry")
+        descriptor = registry.get_analysis_descriptor()
+
+        declared = _declared_seed(agent.ANALYSIS_AGENT_ID)
+        self.assertEqual(declared["agentId"], descriptor.agent_id)
+        self.assertEqual(declared["version"], descriptor.version)
+        self.assertEqual(declared["capabilities"], list(descriptor.capabilities))
+        self.assertEqual(declared["supported_bodies"],
+                         list(descriptor.supported_bodies))
+        self.assertEqual(declared["supported_runtimes"],
+                         list(descriptor.supported_runtimes))
         self.assertEqual(declared["status"], "ACTIVE")
+        self.assertEqual(declared["status"], descriptor.status.value)
         self.assertTrue(is_executable_status(declared["status"]))
 
     def test_every_seeded_agent_is_executable_and_unique(self):
-        """Each seed entry is executable, and no agentId is declared twice."""
+        """Each seed entry is unique; ATS is intentionally disabled."""
         entries = _declared_seeds()
         self.assertTrue(entries)
         for agent_id, declared in entries.items():
             self.assertEqual(declared["agentId"], agent_id)
-            self.assertTrue(is_executable_status(declared["status"]),
-                            f"{agent_id} is not executable")
+            if agent_id == "ats-agent":
+                self.assertEqual(declared["status"], "INACTIVE")
+                self.assertFalse(is_executable_status(declared["status"]))
+            else:
+                self.assertTrue(is_executable_status(declared["status"]),
+                                f"{agent_id} is not executable")
             self.assertNotIn("expiresAt", declared)
 
     def test_declared_status_is_known_to_existing_normaliser(self):
