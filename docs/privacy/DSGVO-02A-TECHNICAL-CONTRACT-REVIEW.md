@@ -103,3 +103,35 @@ Required additions: each create/write branch indexes a synthetic approved ref; r
 Original RIS tests to reuse: `test_privacy_erasure_contract.py`, `test_privacy_erasure_repository.py`, `test_privacy_erasure_security.py`, `test_partner_privacy_inspection.py`, `test_application_privacy_contract.py`, `test_application_erasure.py`, `test_privacy_capability_planned.py`, `test_privacy_lifecycle_evidence.py`, `test_r08_c1a_profile_only_erasure.py`, `test_r08_c1b_document_erasure_integration.py`, `test_r08_c0f_s3_erasure.py`, `test_durable_deletion_ledger.py`, and `test_public_application_erasure.py`. Add synthetic adapter conformance, absent-adapter blocker, per-domain partial/retry/resume, cross-tenant denial and proof that no adapter can overstate global completion. Tests not run.
 
 **Blockers:** DSGVO-02 identity and legal/retention decisions; DSGVO-03 service interfaces; separate platform/security approval for logs, queues, backups and secrets. No RIS runtime change was made.
+
+## D — Unified Privacy QA review
+
+### Existing suites and CI provenance
+
+| Repository / exact source | Original tests to retain | Existing CI/workflow observation |
+|---|---|---|
+| RIS `77e215282a661b5c1ce7dcb66d703e1eb4432212` | Consent/notice: `test_consent_gate.py`, `test_consent_notice_lifecycle.py`, `test_consent_special_categories.py`; receipts: `test_privacy_receipt_contract.py`, `test_privacy_receipt_journal.py`; erasure: `test_privacy_erasure_contract.py`, `test_privacy_erasure_repository.py`, `test_privacy_erasure_security.py`, `test_public_application_erasure.py`, `test_r08_c1a_profile_only_erasure.py`, `test_r08_c1b_document_erasure_integration.py`; plus the RIS-specific list in §C. | `.github/workflows/mays-compatibility-qa.yml` is an existing model for pinned Orders source, isolated Unified QA profiles and evidence upload. `.github/workflows/ci-cd.yml` is Terraform-static validation, not a dedicated privacy acceptance gate. |
+| Mays-Orders `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` | Core behavior: `lambda/tests/test_order_service.py`, `test_order_description.py`, `test_ownership.py`, `test_index.py`, `test_result_handoff.py`, `test_result_consumer_lambda.py`; backup-related: `cognito_backup/tests/test_manifest.py`, `test_restore.py`; seed/import tests if import contract changes. | Existing CI is not a demonstrated required full unit/privacy suite: `ci/buildspecs/validate.yml` documents unit-test skip; `.github/workflows/security.yml` is security/dependency oriented. Reuse repository-native `lambda` unittest command; coordinate an owner-approved CI job separately. |
+| Mays-Jobsearch `origin/main` `c298d223e38407781b4f63426be9f9228ccb4467` | API: `tests/api/ris-consents.test.mjs`, `ris-account-erasure.test.mjs`, `ris-cvs.test.mjs`, `ris-applications.test.mjs`, `ris-search-profiles.test.mjs`, `ris-boundary.test.mjs`; UI/storage: `src/lib/storageConsent.test.ts`, `accountErasureApi.test.ts`, consent component tests; synthetic mocked BFF E2E: `tests/e2e/account-erasure.mjs`. | `.github/workflows/codeql.yml` runs npm CI/build/test with path filters. Per Jobsearch guidance, `npm test` excludes `api/**`; API node tests/syntax must be explicitly verified in the gate instead of assuming frontend Vitest covers them. Local checkout is a feature branch; source provenance for this review is `origin/main`, not that worktree HEAD. |
+
+### Compact synthetic catalog
+
+Reuse existing frameworks; no new test framework or shared writable checkout:
+
+1. **Identity/linkage:** synthetic source principals; identity tuple issuer+subject; tenant separation; account-link proof required; email/forged client ID rejected; ref stable according to approved version; unlink/conflict and key/mapping rotation behavior.
+2. **Orders writers/DSAR:** both retail and AgentOrder create, retries, every state/result mutation and import; GSI lookup discovers exactly the matching records; privacy inspect/export/erase; nested-field residual assertions and internal-field redaction.
+3. **RIS orchestration:** domain adapter missing/unavailable blocks global completion; scoped auth and write freeze; idempotent partial/retry/resume; profile/application/document/S3 categories; third-party-requested vs verified outcome.
+4. **Consent and Jobsearch boundary:** granted/withdrawn/missing purposes, invalid notice/version, identity mismatch; denied flow causes no durable write; API tests explicitly run; mocked BFF only.
+5. **Retention/recovery/queue/security:** local fake restore no resurrection, manifest/project mismatch, stale WorkItem cancellation, DLQ payload minimization without any redrive, secret negative auth and redaction. Live AWS restore/queue tests are not part of this gate.
+
+Use deterministic synthetic fixtures only. Tests should assert full record state and per-domain evidence, not only returned counts or HTTP success.
+
+### Runner isolation and provenance
+
+- One repository-native job/checkout per repository; no shared writable source tree and no global `MO_ORDERS_SRC` in RIS environment. RIS Unified QA already supports job-scoped child-process environments; keep Orders-only source restricted to its XRepo jobs.
+- Disable ambient AWS discovery/credentials in test processes; mock service clients. Do not run deployed E2E, migrations, cleanup scripts, plan/apply or redrive in the privacy PR gate.
+- Jobsearch CI uses its native Node/npm lockfile environment; run API node tests/syntax separately because Vitest excludes `api/**` per repo instructions.
+- Evidence manifest records repository, immutable SHA, branch only as descriptive metadata, workflow/run ID, command, runtime, dependency-lock hash, fixture provenance (`synthetic`), pass/fail/skip, artifact digest and limitations. Cross-repo result is valid only when all three SHAs match the approved matrix; absent/skipped boundary is never PASS.
+- CI is blocking/non-approving: it may reject missing or failing evidence, but cannot establish lawful basis, legal consent, live configuration, deployment authorization or real-data release.
+
+**Limitations:** This is a source/workflow inventory and test design; no suite ran. Jobsearch `origin/main` differs from the local checked-out branch, so future CI must fetch/verify the immutable Main SHA instead of treating the local feature checkout as proof.
