@@ -2,15 +2,15 @@
   "agent_id": "addition_agent",
   "agent_version": "1.0.0",
   "artifact_path": "terraform/lambda.zip",
-  "artifact_sha256": "d039a5e82b3ed4a6484714ae3c25f9386140145d5c6215696dfdabbfe5487067",
+  "artifact_sha256": "7f082ccf7b47195e712d968eecac81ca785f9030211da8d77b5e639aaa50478f",
   "build_tool_version": "lambda.build_zip --bundle agent; deterministic bundle v1",
   "capability": "math.add",
   "contract_path": "agent-installations/addition-agent/privacy-contract.json",
-  "contract_sha256": "342eec88ae32cf84531771fcd0d5b5485f82e9b9baff14dc635578c6059b2fe5",
+  "contract_sha256": "b6ab1d98ab2659bc2fa25eea82f751ae536d7c908850d64d0c428b87cb9fbeb4",
   "contract_version": "RIS-CAPABILITY-PRIVACY/1",
   "manifest_path": "agent-installations/addition-agent/manifest.yaml",
   "required_tests_skipped": false,
-  "source_commit": "d4d802ab082c3fd559aea0cb15973aaac70195ed",
+  "source_commit": "ee6055acd1856e9fdaf09fe09c7a30a698a0da58",
   "source_paths": [
     "agents/addition_agent/agent.py",
     "agents/addition_agent/registry.py",
@@ -18,20 +18,22 @@
     "agents/ecosystem/eligibility.py",
     "agents/ecosystem/registry.py",
     "agents/agent_body/executor.py",
+    "agents/runtime/pipeline.py",
     "installer/agent_install.py",
     "lambda/build_zip.py"
   ],
-  "source_sha": "0e2052c60f2db7de6c4c0f4521f9b1b0107aed602baf104ee0ae68806344be73",
+  "source_sha": "20b488916e770dae84594c714663ee582104aae5b125505235f1c2b189924f53",
   "test_args": [
     "-k",
     "not executes_through_existing_agent_body and not body_routes_by_capability"
   ],
   "test_paths": [
     "tests/test_addition_agent.py",
-    "agent-installations/addition-agent/tests/test_addition_privacy_contract.py"
+    "agent-installations/addition-agent/tests/test_addition_privacy_contract.py",
+    "tests/test_privacy_capability_boundary.py"
   ],
   "test_report_path": "agent-installations/addition-agent/privacy-test-report.json",
-  "test_report_sha256": "4ed9a92355a4bc6cb488de70fa9e795377336563dc284198a18f8287d7f03e06",
-  "test_selection_sha256": "7ef7cb9df8dadd1a72e09d3f30a914625b7c59f096f7901ffa9ea29d7c2a22a5",
+  "test_report_sha256": "5dd8caddac2f95ad14c2745bde2186f66bf9cfd22b093349c97e4f68d8b38937",
+  "test_selection_sha256": "1b8c68317b80b36f9e9b4e4146bacea15d997f23104af2fdec825966511c3194",
   "tests_passed": true
 }
