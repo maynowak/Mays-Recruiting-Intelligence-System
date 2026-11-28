@@ -36,6 +36,21 @@ This block does not authorize use of the request after the grant expiry. Since
 the live test did not succeed, no entitlement-cleanup plan was prepared; cleanup
 remains separately gated.
 
+### Follow-up authentication attempt — STOP on live route mismatch
+
+On 2026-11-28, the existing bootstrap credential file was checked without
+printing its contents. It resolves to the previously documented
+`ris-dev2-canary-07` identity in the expected pool; the established Human Client
+is present and permits `USER_PASSWORD_AUTH`. Before obtaining a token or
+sending an order, a fresh API Gateway read did **not** find `POST /orders` in
+the current API route listing (therefore no JWT authorizer/audience could be
+matched). This contradicts the prior route preflight and is a stop condition.
+No Cognito authentication was attempted, no token was obtained, and no HTTP
+request was sent. No route/configuration mutation or retry was made. The earlier
+“auth context unavailable” status above remains true for the order attempt;
+roundtrip remains **NOT RUN**. Reconcile the live API/route deployment and
+repeat all read-only gates before any new attempt. No cleanup plan was prepared.
+
 ## Four-hour entitlement renewal Apply — PASS; STOP at Live-Order gate
 
 - At checkpoint `d2592867572b88bee8d7607ceed2d8ea1e76ae1d`, immediately

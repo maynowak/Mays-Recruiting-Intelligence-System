@@ -14536,3 +14536,18 @@ Baseline `12a1d49f9991575a63ff166da41797ad3a51750b`.
   prepared. A secure authentication context plus fresh preflight and approval
   are required before a future live attempt. Report updated; protected 19F2
   results JSON not edited or staged.
+
+## RIS-MAYS-ORDERS — auth follow-up stopped on route mismatch — 2026-11-28
+
+- Reused-identity credential file was inspected only in-process; no username,
+  password, or token was emitted. It resolves to the previously documented
+  `ris-dev2-canary-07` user in the expected pool. Existing Human Client
+  `5jgjivk9k9rrjos62so1qhq8o3` is present and has `ALLOW_USER_PASSWORD_AUTH`.
+- Fresh read-only API Gateway route inspection for API `r95qvhg2p3` returned no
+  `POST /orders` route (no route authorization type or authorizer ID). This
+  conflicts with the prior preflight, so execution stopped before Cognito
+  authentication and before the HTTP POST. No token obtained, no order sent,
+  no retry, no Cognito/API mutation, and no cleanup.
+- The live roundtrip remains **NOT RUN**. Resolve the route/deployment mismatch
+  and perform a fresh preflight before any separately authorized live attempt.
+  Report updated; protected 19F2 results JSON not edited or staged.
