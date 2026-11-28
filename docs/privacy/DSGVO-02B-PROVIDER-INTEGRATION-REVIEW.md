@@ -1,9 +1,9 @@
 # RIS-DSGVO-02B — Mays-Orders Provider Integration Review
 
-**Status:** `RIS PRIVACY PROVIDER INTEGRATION READY FOR REVIEW` — STOP before implementation.  
-**RIS baseline:** `d8a7fffb112fc39ad839aef4a87e5722b521db1f`.  
-**Integrated Orders pin:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`.  
-**Current provider Main reviewed read-only:** `716a16590673cdb649df414c08fc0bf7814caac7`.  
+**Status:** `RIS PRIVACY PROVIDER INTEGRATION READY FOR REVIEW` — STOP before implementation.
+**RIS baseline:** `d8a7fffb112fc39ad839aef4a87e5722b521db1f`.
+**Integrated Orders pin:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`.
+**Current provider Main reviewed read-only:** `716a16590673cdb649df414c08fc0bf7814caac7`.
 **Scope:** RIS documentation only. No tests, provider edits, runtime changes, pin change, deployment or legal/productive approval.
 
 ## 1. Provider capability and evidence
