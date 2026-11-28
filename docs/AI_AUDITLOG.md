@@ -14740,4 +14740,4 @@ Scope: Preserve and technically reconcile the supplied 14-chapter integration do
 Evidence: RIS PR #17 merged at 8b9a706; accepted synthetic Addition result 19 + 23 = 42; entitlement cleanup complete at state serial 79; main CI run 46147058539 PASS. Integrated Mays pin db4f9e79980443de1cd3d5b688a33c0cf0eb771f is distinct from RC4 5bc154e and candidate 80a84ca.
 Privacy: Synthetic technical acceptance is not approval for real personal data. Existing privacy findings remain open. Protected local 19F2 results JSON in the other checkout was not accessed or modified.
 Files: docs/integration/RIS-MAYS-ORDERS-INTEGRATION-DOSSIER.md; docs/reports/RIS-MAYS-ORDERS-INTEGRATION-STATUS.md; README.md; docs/AI_AUDITLOG.md.
-Cross-repository reference: maynowak/mays-order-aws documentation branch docs/mo-ris-integration-reference-01; separate PR to be prepared. No merge authorized.
+Cross-repository reference: Mays-Orders PR #3 https://github.com/maynowak/mays-order-aws/pull/3. RIS documentation PR #18 https://github.com/maynowak/Mays-Recruiting-Intelligence-System/pull/18. Neither merge is authorized.
