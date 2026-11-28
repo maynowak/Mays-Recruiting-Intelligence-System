@@ -566,3 +566,22 @@ Produkt-/API-Autorisierung innerhalb dieses authentifizierten Kontexts.*
 | Orders-Übergänge, `limit` | `lambda/orders_reader.py` |
 | Live-Verhalten der Kernrouten | `tests/test_p17_credential_lifecycle.py`, `tests/test_machine_entrypoint.py`, `tests/test_p20_health_contract.py` |
 | Offer-Vertrag, Grant, Rollen | `agents/ecosystem/offers.py`, `tests/test_p23_offer_product_admin.py` |
+
+# Privacy boundary note (DSGVO-02C)
+
+An AgentOrder is an execution request, not a document store, but `input.data`
+is opaque domain payload and is not content-classified by the schema validator.
+The serialized AgentOrder may be stored in `orderDescription` and in the
+provider's internal `agentOrder` copy; RIS dispatch copies `input.data` into a
+WorkItem. RIS WorkItems persist result bodies, and ORDER_RESULT transport may
+send those bodies to the Orders result queue. The Orders public projection also
+allows `processing.result`. Therefore do not claim that AgentOrders are
+metadata-only or that sensitive results remain exclusively in RIS stores.
+
+Stored CV PDFs resolved by `cvId` use the existing tenant/user-scoped RIS S3
+document path and are not copied to WorkItems by `RequestCvResolver`. This is
+distinct from accepted inline structured CV data and CV-derived result bodies.
+Use the existing RIS privacy inspect/export/erasure routes; never create an
+AgentOrder for a privacy request. See
+[`../privacy/DSGVO-02C-ORDER-DATA-BOUNDARY-AND-LIFECYCLE.md`](../privacy/DSGVO-02C-ORDER-DATA-BOUNDARY-AND-LIFECYCLE.md)
+for source paths, limitations and the `PARTIAL` conclusion.
