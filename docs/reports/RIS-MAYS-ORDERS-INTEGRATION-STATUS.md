@@ -765,3 +765,46 @@ Remote State version remained unchanged and the Terraform lock was released.
 the exact target row, State serial/version, saved-plan hash and guard immediately
 before any separately approved Apply. Protected 19F2 results JSON remains
 untouched and unstaged.
+
+## Final cleanup Apply — PASS; post-Apply verification complete
+
+Baseline `1c98bd681619bd02f19be6711495a185f35f2657`. Immediately before Apply,
+reconfirmed the approved saved-plan SHA-256
+`d4c14cfb45105b76e689aa81b65ef6b645ba802cc1c59f7fe3f4b647265ccb10`, AWS
+account `262370457690`, region `eu-central-1`, workspace `ris-dev2`, State
+serial 78 / lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082` / S3 VersionId
+`Nv9DBw9WQi48972QdhqULqPlpG3Ddi4y`, exact target item and resource address,
+correct cached backend/TF_DATA_DIR, guard `safe=true` /
+`SHARED_TEARDOWN_AUTHORIZED` for exactly that entitlement, and preserved
+artifact hashes. The plan remained exactly 0 Add / 0 Change / 1 Destroy / 0
+Replace.
+
+Applied the saved plan once, with Terraform 1.17.0; exit code 0. No replan,
+retry, or Terraform command followed. Complete stdout/stderr were captured and
+redacted outside the repository (stdout 3,695 characters; stderr 0):
+
+- `%TEMP%\opencode\ris-dev2-addition-entitlement-cleanup-c6b764e.apply.stdout.redacted.txt`
+- `%TEMP%\opencode\ris-dev2-addition-entitlement-cleanup-c6b764e.apply.stderr.redacted.txt`
+
+Read-only post-Apply verification **PASS**:
+
+- `addition-acceptance-b939b2ba7c27430b` is absent from
+  `ris-dev2-dev-entitlements` and no longer managed in State. State diff removed
+  only `module.dynamodb.aws_dynamodb_table_item.foundation_entitlement["addition-acceptance-b939b2ba7c27430b"]`;
+  no resource address was added.
+- ATS catalog remains `INACTIVE`; Addition catalog remains `ABSENT`.
+- State lineage is unchanged; serial advanced `78 → 79`; new S3 VersionId
+  `69Mksseizux6JercRCm0BTdIVF5S5GeUF`. Terraform lock released.
+- Entitlements table ARN/schema/index configuration and all 10 managed
+  RIS-DEV2 Lambda `CodeSha256` values are unchanged. Preserved local artifact
+  hashes also remain unchanged.
+- Live order `ord_e83b1c15a32901a2622acc7f` and WorkItem
+  `work-dae09d78518965e1` rows are byte/value-equivalent to their pre-Apply
+  readbacks: processing remains `COMPLETED`, sum 42; WorkItem remains
+  `COMPLETED`, result delivery remains `SENT`.
+
+Cleanup is **COMPLETE**. No Orders, WorkItems, results, catalog rows, queues,
+users, profiles, shared tables, Lambda functions or other infrastructure were
+deleted or changed. No live order, redrive, Main merge, or QA/build was run.
+Feature branch integration is prepared for final approval; no main merge was
+performed. Protected 19F2 results JSON remains untouched and unstaged.

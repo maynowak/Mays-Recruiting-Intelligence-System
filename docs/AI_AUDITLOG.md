@@ -14658,3 +14658,30 @@ Baseline `c6b764ec94a19d9e950d49a2c50817d4e20883c3`.
 - Apply approval remains **NOT GRANTED**. No Apply/cleanup. Approval template
   added to status report. Protected 19F2 results JSON remains unedited and
   unstaged; no Main merge.
+
+## RIS-MAYS-ORDERS — final entitlement cleanup Apply PASS — 2026-11-28
+
+- Immediately before Apply reconfirmed the exact saved-plan SHA-256
+  `d4c14cfb45105b76e689aa81b65ef6b645ba802cc1c59f7fe3f4b647265ccb10`,
+  account `262370457690`, `eu-central-1`, workspace `ris-dev2`, State serial 78
+  / lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082` / VersionId
+  `Nv9DBw9WQi48972QdhqULqPlpG3Ddi4y`, backend/TF_DATA_DIR, exact entitlement
+  target and prior item, artifact hashes, and guard `safe=true`,
+  `SHARED_TEARDOWN_AUTHORIZED` with exactly one finding for that row.
+- Applied that saved plan exactly once (Terraform 1.17.0, exit 0). No replan,
+  retry or Terraform command after Apply. Complete stdout/stderr captured and
+  redacted outside repo: stdout 3,695 characters, stderr empty.
+- Read-only verification: entitlement absent from DynamoDB and Terraform State;
+  only state address removed was
+  `module.dynamodb.aws_dynamodb_table_item.foundation_entitlement["addition-acceptance-b939b2ba7c27430b"]`;
+  no added addresses. State serial 78 → 79, same lineage, new S3 VersionId
+  `69Mksseizux6JercRCm0BTdIVF5S5GeUF`. State lock released.
+- ATS catalog remains `INACTIVE`, Addition catalog remains `ABSENT`. Entitlement
+  table ARN/schema/indexes and all 10 managed RIS-DEV2 Lambda code hashes are
+  unchanged. Completed live order `ord_e83b1c15a32901a2622acc7f` and WorkItem
+  `work-dae09d78518965e1` match pre-Apply readbacks; order result remains 42,
+  processing `COMPLETED`, WorkItem `COMPLETED`, result delivery `SENT`.
+- Cleanup complete. No order/work/result/catalog/queue/user/profile/shared
+  infrastructure deletion, no redrive, no further live order and no Main
+  merge. Feature-branch integration handoff prepared for final approval.
+  Protected 19F2 results JSON remains unedited and unstaged.
