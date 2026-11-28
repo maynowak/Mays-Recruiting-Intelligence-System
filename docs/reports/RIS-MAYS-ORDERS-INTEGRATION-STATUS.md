@@ -5,6 +5,37 @@ their reviewed saved plans; the latest post-Apply read-only verification
 **PASS** (State serial 78). **STOP at Live-Order gate**: no live order, retry,
 redrive, further Terraform operation, or Main merge was performed.
 
+## Final Addition live E2E — STOP before POST (auth context unavailable)
+
+Baseline `12a1d49f9991575a63ff166da41797ad3a51750b`. Immediately before the
+intended single request, read-only preflight confirmed account
+`262370457690`, region `eu-central-1`, workspace `ris-dev2`, State serial `78`,
+lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, S3 version
+`Nv9DBw9WQi48972QdhqULqPlpG3Ddi4y`, the enabled/confirmed verified synthetic
+identity, its ACTIVE owner/tenant profile, and one valid `addition_agent`
+entitlement through `2026-11-28T14:36:29Z` (12,793 seconds remained at check).
+The deployed `POST /orders` route on API `r95qvhg2p3` was confirmed JWT
+authorized. The exact prepared body reproduced the approved payload SHA-256
+`9db3d7ecf238bd5b3875ab3958ea9a4a9cb0173d07c04270a21caeea8790d907` and
+Request-ID/Idempotency-Key
+`ris-addition-live-f871426bc9444d4c98e4a9fb24dc925c`.
+
+**Execution stopped before sending:** no valid bearer token or approved
+authentication credential context for the test identity was available in the
+execution environment. No password reset, credential guessing, or identity
+mutation was attempted. No HTTP POST was made; no order, dispatch, WorkItem, or
+result was created. Therefore the requested live roundtrip was **NOT RUN** and
+has no pass/fail result. No retry, redrive, Terraform operation, or cleanup
+operation was performed. The pre-existing local foreign-owner-404 test evidence
+remains the only such evidence; no live foreign-owner request was made.
+
+**Next gate:** provide/authorize a secure authentication context for the
+existing test identity, then repeat read-only checks of grant, payload hash,
+State, and endpoint immediately before any separately approved single POST.
+This block does not authorize use of the request after the grant expiry. Since
+the live test did not succeed, no entitlement-cleanup plan was prepared; cleanup
+remains separately gated.
+
 ## Four-hour entitlement renewal Apply — PASS; STOP at Live-Order gate
 
 - At checkpoint `d2592867572b88bee8d7607ceed2d8ea1e76ae1d`, immediately

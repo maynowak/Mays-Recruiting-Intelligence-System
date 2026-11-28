@@ -14509,3 +14509,30 @@ Baseline `ae8a72525e43ee69f09ae1266a38fa02c47753d4`; State serial 77.
   SHA-256 `9db3d7ecf238bd5b3875ab3958ea9a4a9cb0173d07c04270a21caeea8790d907`.
   No order/retry/redrive/cleanup performed; stop at Live-Order gate. Report
   updated. Protected 19F2 JSON not edited/staged; no Main merge.
+
+## RIS-MAYS-ORDERS — final Addition live E2E stopped before POST — 2026-11-28
+
+Baseline `12a1d49f9991575a63ff166da41797ad3a51750b`.
+
+- Read-only preflight confirmed account `262370457690`, `eu-central-1`,
+  `ris-dev2`, State serial 78 / lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082` / S3 version
+  `Nv9DBw9WQi48972QdhqULqPlpG3Ddi4y`; enabled/confirmed verified test identity,
+  ACTIVE owner/tenant profile, one valid Addition grant expiring
+  `2026-11-28T14:36:29Z` (12,793 seconds remained), and JWT-protected route
+  `POST /orders` on API `r95qvhg2p3`.
+- Reconstructed the exact approved payload and verified SHA-256
+  `9db3d7ecf238bd5b3875ab3958ea9a4a9cb0173d07c04270a21caeea8790d907` and
+  Request-ID/Idempotency-Key
+  `ris-addition-live-f871426bc9444d4c98e4a9fb24dc925c` match.
+- **Stopped before POST** because no valid bearer token or approved
+  authentication credential context for this test identity was available.
+  No unauthenticated request, credential reset/guess, user mutation, or HTTP
+  call was made. No order, dispatch, WorkItem or result exists from this attempt;
+  roundtrip NOT RUN. No retry, redrive, Terraform operation, cleanup, or Main
+  merge. Existing local foreign-owner-404 evidence remains reused; no live
+  foreign-owner request.
+- Because the live test did not succeed, no entitlement cleanup plan was
+  prepared. A secure authentication context plus fresh preflight and approval
+  are required before a future live attempt. Report updated; protected 19F2
+  results JSON not edited or staged.
