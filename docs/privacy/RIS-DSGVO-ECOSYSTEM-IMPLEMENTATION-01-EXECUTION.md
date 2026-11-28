@@ -36,6 +36,76 @@ Current Addition evidence checkpoint: source commit `ee6055acd1856e9fdaf09fe09c7
 
 Final unified run at RIS commit `3bc59ef202ba4ced2665af561f898a827bb9f2ec`: `RIS_PRIVACY` is BLOCKED overall; groups capability/addition **42 PASS**, application/lifecycle **76 PASS**, runtime fences/erasure **34 PASS**, synthetic JWT **2 PASS**, Provider originals **BLOCKED**, Provider verifier **BLOCKED**. `FULL`, `XREPO_CONTRACT`, and `XREPO_E2E` each BLOCKED before test execution because pinned checkout `installer/projects/mays_order_builder` is absent (expected commit `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`). The runner also reports local worker ZIP SHA `7f082ccf7b47195e712d968eecac81ca785f9030211da8d77b5e639aaa50478f` differs from its existing review baseline `507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d`; the change is from the privacy runtime build and was not silently blessed by changing that baseline. Runner/JWT tests: **10 passed**. `test_ats_result_link.py`: **26 passed, 5 failed** before result-link assertions due to absent ATS Eligibility policy/evidence: `test_duplicate_delivery_reemits_the_same_result`, `test_full_sequence_and_authorized_read_back`, `test_invalid_correlation_is_not_forwarded`, `test_missing_transport_configuration_does_not_claim_delivery`, and `test_work_row_keeps_correlation_but_no_secret`. These remain unverified, not recovered.
 
+## Checkpoint — IMPLEMENTATION-04 (2026-11-28; current working tree, not yet committed)
+
+**Baseline remains** `e186df5cc1ac8caa5690d404229aa0cee3e6f935`; Orders pin remains
+`db4f9e79980443de1cd3d5b688a33c0cf0eb771f`. No provider checkout, pin, target
+environment, AWS resource, Terraform state, deployment, or main branch was changed.
+
+- **A — QA environment:** Created an isolated temporary Python 3.14 environment
+  at `%TEMP%\opencode\ris04-qa-venv` from the existing Mays compatibility CI
+  dependency contract. WSL is not installed and Docker is unavailable; no host
+  installation was attempted. Mays originals ran on Windows and failed in
+  14 builder tests (including Windows path separator expectations) and 11
+  installer tests (`python3` executable not found); these are platform-specific
+  evidence, not a Linux run or provider regression verdict. `mays_lambda` exact
+  pin suite passed **240**. Seed and Cognito-backup groups passed **28** and **2**.
+  RIS builder contract passed **57**. Linux-only original-suite acceptance is
+  BLOCKED on unavailable Linux.
+- **B — agent policy migration:** Added the source-derived, unapproved review
+  packet `docs/privacy/RIS-DSGVO-AGENT-PRIVACY-IMPLEMENTATION-04-APPROVAL.md`.
+  It records input/result/storage/recipient boundaries and decision questions
+  for Reference, Dummy, ATS, CV, Job and Analysis. It intentionally activates no
+  policies and creates no package Evidence. The original groups are now required
+  by `RIS_PRIVACY`: Reference/Dummy **61 pass / 25 fail**; ATS plus result-link
+  **11 / 8**; CV/Job parser **39 / 0**; Analysis **23 / 19**. The failures are
+  explicit and fail-closed, not masked. Addition's full included group is
+  **40 / 2** in this profile because its two legacy AgentBody integration tests
+  have no currently matching package-bound Evidence. XRepo result-link acceptance
+  remains blocked by missing ATS policy/Evidence.
+- **C — atomic lifecycle fence:** Result completion now uses a DynamoDB
+  `TransactWriteItems` ConditionCheck for absence of the existing subject-fence
+  row together with the existing `RUNNING`/`attempt_no` conditional update.
+  A fenced transaction suppresses result delivery; terminal replay checks the
+  fence before re-emitting ORDER_RESULT. Synthetic result-race, successful
+  transaction/CAS, and fenced replay tests passed **3**; fence/erasure suites
+  passed **34**. This does not make external ORDER_RESULT delivery atomic with
+  DynamoDB; that boundary remains documented. Full worker legacy tests continue
+  to show missing policy/evidence failures.
+- **D — artifact reconciliation:** Historical 19G2 ZIP is independently
+  available at SHA-256 `507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d`
+  with recorded two-build Ubuntu evidence. Its ZIP inventory has 115 entries.
+  Two local deterministic candidate builds from the IMPLEMENTATION-04 working
+  tree both produced SHA-256
+  `7e8c45dc0330965e34f337583ed0486646dd37611f7123e391b8a11b826aace1`
+  with 116 entries. Delta: one added `agents/ecosystem/privacy_contract.py`;
+  modified `agents/addition_agent/registry.py`, `agents/agent_body/executor.py`,
+  `agents/ecosystem/eligibility.py`, `agents/ecosystem/registry.py`, and
+  `agents/runtime/pipeline.py`; no removed entries. Candidate is reproducible on
+  this host, but not an Ubuntu reproduction, release, or newly approved review
+  baseline. Its package-bound Addition Evidence must be regenerated against a
+  committed/reviewed candidate before claiming that package build as accepted.
+- **E — unified QA:** Reports are temporary and explicitly current Windows runs:
+  `%TEMP%\ris-privacy-04.json`, `%TEMP%\ris-native-04.json`,
+  `%TEMP%\mays-module-04.json`, `%TEMP%\module-build-04.json`,
+  `%TEMP%\xrepo-contract-04.json`, `%TEMP%\xrepo-e2e-04.json`,
+  `%TEMP%\full-04.json`. `RIS_PRIVACY` is BLOCKED: boundary/addition 40/2,
+  lifecycle/application 76/0, fences 34/0, result fence races 3/0,
+  Reference/Dummy 61/25, ATS/result link 11/8, CV/Job 39/0, Analysis 23/19,
+  explicit policy approval gate BLOCKED, synthetic Orders JWT 2/0, pinned
+  provider originals 240/0 and verifier 53/0. `RIS_NATIVE` reported 3,218/81
+  (143 skipped, 450 subtests) in its dedicated run; `FULL` reported 3,203/99
+  (143 skipped, 450 subtests). Both FAIL underlying groups and are BLOCKED
+  overall. `MAYS_MODULE` and `MODULE_BUILD` are BLOCKED by the Windows-only
+  failures and absent generated-module artifact. `XREPO_CONTRACT` 130/3 and
+  `XREPO_E2E` 21/19 fail; these include the known addition-policy and missing
+  agent Evidence boundaries. Counts are per report, not additive.
+
+**Status:** `PARTIAL — NOT READY FOR REVIEW`. Owner policy approvals, package-bound
+agent Evidence, Linux Mays originals, XRepo E2E, passing complete native suite,
+and post-review artifact Evidence remain outstanding. Historical results are not
+represented as current acceptance. Stop before merge/deployment.
+
 ## Resume order
 
 Proceed B/C/E only against owner-approved synthetic capability policies; develop F with required groups represented as blocked until selectors/provenance exist; integrate D after C stabilizes; run `RIS_PRIVACY`, `FULL`, and XRepo only after profiles can distinguish intentional policy-blocked fixtures from regression defects without weakening Eligibility. Keep DSGVO-02C `PARTIAL`.

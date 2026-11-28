@@ -136,6 +136,38 @@ def profile_jobs(profile: str, mays: Path) -> list[Job]:
                 "tests/test_privacy_erasure_security.py",
                 "tests/test_application_erasure.py",
             ]),
+            _pytest("runtime_result_fence_races", ROOT, [
+                "tests/test_worker_pipeline.py",
+                "-k", "result_persist_race_with_erasure_fence or "
+                     "completed_result_replay_is_suppressed_after_fence or "
+                     "result_persistence_uses_atomic_fence",
+            ]),
+            _pytest("reference_dummy_originals", ROOT, [
+                "tests/test_reference_agent.py",
+                "tests/test_agent_body.py",
+                "tests/test_multi_agent_ecosystem.py",
+                "tests/test_agent_status_normalization.py",
+                "tests/test_worker_entitlement_recheck.py",
+            ]),
+            _pytest("ats_originals_and_result_link", ROOT, [
+                "tests/test_ats_domain_agent.py",
+                "tests/test_ats_result_link.py",
+            ]),
+            _pytest("cv_job_parser_originals", ROOT, [
+                "tests/test_parser_agents.py",
+                "tests/test_parser_runtime_modes.py",
+                "tests/test_parser_timeouts.py",
+            ]),
+            _pytest("analysis_originals", ROOT, [
+                "tests/test_analysis_runner_pipeline.py",
+                "tests/test_analysis_order_boundary.py",
+                "tests/test_analysis_entitlements.py",
+                "tests/test_analysis_ecosystem_wiring.py",
+            ]),
+            Job("privacy_policy_approval_gates", "RIS", str(ROOT), "blocked",
+                ["Reference/Dummy, ATS, CV, Job and Analysis lack owner-approved "
+                 "capability declarations and package-bound build/test evidence; "
+                 "see the IMPLEMENTATION-04 approval packet."]),
             _pytest("orders_jwt_identity_synthetic", ROOT, [
                 "tests/test_orders_jwt_identity_synthetic.py",
             ]),
@@ -218,7 +250,8 @@ def verify_provenance(mays: Path, version_name: str, versions: dict) -> tuple[di
         ["git", "-C", str(mays), "rev-parse", "HEAD"],
         ["git", "-C", str(mays), "status", "--porcelain"],
     ]
-    results = [subprocess.run(cmd, capture_output=True, text=True, check=False) for cmd in commands]
+    results = [subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", check=False) for cmd in commands]
     if any(r.returncode for r in results):
         return entry, ["Mays-Orders checkout is not a readable Git repository"]
     actual = results[0].stdout.strip()
@@ -325,7 +358,8 @@ def run_job(job: Job, *, python: str, base_env: dict[str, str], mays_source: Pat
             clone = subprocess.run(
                 ["git", "clone", "--no-hardlinks", "--local", "--no-checkout",
                  str(mays_source), str(snapshot_root)],
-                capture_output=True, text=True, check=False,
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                check=False,
             )
             if clone.returncode:
                 return {"group": job.key, "repository": job.repository, "status": "BLOCKED",
@@ -336,7 +370,8 @@ def run_job(job: Job, *, python: str, base_env: dict[str, str], mays_source: Pat
                         "details": clone.stderr[-2000:]}
             checkout = subprocess.run(
                 ["git", "-C", str(snapshot_root), "checkout", "--detach", source_commit],
-                capture_output=True, text=True, check=False,
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                check=False,
             )
             if checkout.returncode:
                 return {"group": job.key, "repository": job.repository, "status": "BLOCKED",
@@ -376,7 +411,8 @@ def run_job(job: Job, *, python: str, base_env: dict[str, str], mays_source: Pat
         if build_script.is_file():
             prepared = subprocess.run(
                 [python, "build_zip.py"], cwd=build_script.parent, env=env,
-                capture_output=True, text=True, check=False,
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                check=False,
             )
             preparation = {
                 "action": "rebuild lambda/dist/lambda.zip in disposable exact-commit test clone",
@@ -399,7 +435,8 @@ def run_job(job: Job, *, python: str, base_env: dict[str, str], mays_source: Pat
     started = time.monotonic()
     try:
         completed = subprocess.run(command, cwd=job.cwd, env=env, capture_output=True,
-                                   text=True, check=False)
+                                   text=True, encoding="utf-8", errors="replace",
+                                   check=False)
     except OSError as exc:
         completed = subprocess.CompletedProcess(command, 127, "", str(exc))
     elapsed = time.monotonic() - started
@@ -445,7 +482,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if profile != "LIVE":
         ris_commit = subprocess.run(
             ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         ).stdout.strip()
     result = {
         "schema_version": 1,

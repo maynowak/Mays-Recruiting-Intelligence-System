@@ -420,7 +420,64 @@ def _final_fence_admission(table: Any, fence_table: Any,
         raise SubjectFenceUnavailable("subject fence admission failed") from exc
 
 
-def _persist_result(table: Any, work_id: str, attempt: int, result: Dict[str, Any]) -> None:
+def _persist_result(table: Any, work_id: str, attempt: int,
+                    result: Dict[str, Any], *, fence_table: Any = None,
+                    work: Optional[Dict[str, Any]] = None,
+                    require_fence: bool = False) -> None:
+    if require_fence:
+        if fence_table is None or work is None:
+            raise SubjectFenceUnavailable("subject fence is required for result persistence")
+        client = _ddb_transaction_client(fence_table)
+        table_name = getattr(fence_table, "name", None)
+        user_id = work.get("userId") or work.get("requestedBy") or ""
+        tenant_id = work.get("tenantId") or ""
+        if client is None or not table_name or not user_id or not tenant_id:
+            raise SubjectFenceUnavailable("subject fence transaction is unavailable")
+        fence_key = subject_fence_key(
+            user_id=user_id, tenant_id=tenant_id,
+            partner_application_id=work.get("partnerApplicationId", ""),
+            issuer=work.get("issuer", ""))
+        try:
+            # Persist and transition under the existing erasure fence using
+            # one DynamoDB transaction; preserve the status/attempt CAS.
+            client.transact_write_items(TransactItems=[
+                {"ConditionCheck": {
+                    "TableName": table_name,
+                    "Key": {"workId": {"S": fence_key}},
+                    "ConditionExpression": "attribute_not_exists(workId)",
+                }},
+                {"Update": {
+                    "TableName": table_name,
+                    "Key": {"workId": {"S": work_id}},
+                    "UpdateExpression": (
+                        "SET #status = :s, result_reference = :r, "
+                        "#result = :res, updatedAt = :u"),
+                    "ExpressionAttributeNames": {
+                        "#status": "status", "#result": "result"},
+                    "ExpressionAttributeValues": _ddb_client_item({
+                        ":s": "COMPLETED",
+                        ":r": f"work:{work_id}:attempt:{attempt}",
+                        ":res": _to_dynamo(result),
+                        ":u": _utcnow(),
+                        ":running": "RUNNING", ":attempt": attempt,
+                    }),
+                    "ConditionExpression": (
+                        "#status = :running AND attempt_no = :attempt"),
+                }},
+            ])
+            return
+        except Exception as exc:
+            if not _is_conditional_failed(exc):
+                raise SubjectFenceUnavailable("subject-fenced result persistence failed") from exc
+            try:
+                assert_fence_clear(
+                    fence_table, user_id=user_id, tenant_id=tenant_id,
+                    partner_application_id=work.get("partnerApplicationId", ""),
+                    issuer=work.get("issuer", ""))
+            except SubjectFenceBlocked:
+                raise
+            # No fence exists: the status/attempt CAS rejected a stale write.
+            raise
     table.update_item(
         Key={"workId": work_id},
         UpdateExpression="SET #status = :s, result_reference = :r, #result = :res, updatedAt = :u",
@@ -622,6 +679,22 @@ def process_record(
             )
             delivery = None
             failure_delivery = None
+            if require_subject_fence:
+                try:
+                    assert_fence_clear(
+                        subject_fence_table,
+                        user_id=work.get("userId") or work.get("requestedBy") or "",
+                        tenant_id=work.get("tenantId") or "",
+                        partner_application_id=work.get("partnerApplicationId", ""),
+                        issuer=work.get("issuer", ""),
+                    )
+                except SubjectFenceBlocked:
+                    return {
+                        "workId": work["workId"], "status": item.get("status"),
+                        "duplicate": True, "suppressed": True,
+                        "reason": "subject-fenced",
+                        "attempt_no": item.get("attempt_no", 1),
+                    }
             if item.get("status") == "COMPLETED":
                 # Crash window between persist and send: re-emit the same
                 # deterministic ORDER_RESULT; the Order side de-duplicates.
@@ -863,7 +936,18 @@ def process_record(
                 work_id=work_id,
                 agent_id=decision.agent_id,
                 attempt_id=str(attempt))
-        _persist_result(table, work["workId"], attempt, result)
+        try:
+            _persist_result(
+                table, work["workId"], attempt, result,
+                fence_table=subject_fence_table, work=work,
+                require_fence=require_subject_fence)
+        except SubjectFenceBlocked:
+            current = table.get_item(Key={"workId": work["workId"]}).get("Item") or {}
+            return {
+                "workId": work["workId"], "status": current.get("status", "CANCELLED"),
+                "duplicate": False, "suppressed": True,
+                "reason": "subject-fenced", "attempt_no": attempt,
+            }
         delivery = _forward_order_result(
             table=table, item=item, attempt=attempt, result=result,
             sender=result_sender, privacy_declaration=selected_declaration)

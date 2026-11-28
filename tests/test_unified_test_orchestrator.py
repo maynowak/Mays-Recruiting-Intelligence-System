@@ -31,6 +31,12 @@ class ProfileIsolationTests(unittest.TestCase):
         self.assertEqual("blocked", by_key["orders_provider_original"].kind)
         self.assertEqual("blocked", by_key["orders_provider_jwt_verifier"].kind)
         self.assertFalse(by_key["privacy_capability_and_addition"].mays_source)
+        for required_group in (
+                "runtime_result_fence_races", "reference_dummy_originals",
+                "ats_originals_and_result_link", "cv_job_parser_originals",
+                "analysis_originals", "privacy_policy_approval_gates"):
+            self.assertIn(required_group, by_key)
+        self.assertEqual("blocked", by_key["privacy_policy_approval_gates"].kind)
 
     def test_full_has_no_live_jobs_and_only_supported_profiles(self):
         jobs = unified.profile_jobs("FULL", unified.DEFAULT_MAYS)

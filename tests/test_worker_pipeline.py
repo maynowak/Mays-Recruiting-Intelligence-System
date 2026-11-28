@@ -101,8 +101,10 @@ class TransactionalFenceTable(FakeTable):
     class Client:
         def __init__(self, table):
             self.table = table
+            self.transactions = []
 
         def transact_write_items(self, TransactItems):
+            self.transactions.append(TransactItems)
             check = TransactItems[0]["ConditionCheck"]
             key = check["Key"]["workId"]["S"]
             put = TransactItems[1].get("Put")
@@ -124,8 +126,21 @@ class TransactionalFenceTable(FakeTable):
                 from boto3.dynamodb.types import TypeDeserializer
                 deserialize = TypeDeserializer()
                 item = self.table.items[work_id]
-                item["updatedAt"] = deserialize.deserialize(
-                    update["ExpressionAttributeValues"][":updated"])
+                values = {name: deserialize.deserialize(value)
+                          for name, value in
+                          update["ExpressionAttributeValues"].items()}
+                names = update.get("ExpressionAttributeNames", {})
+                if (":running" in values
+                        and (item.get(names.get("#status", "status")) != values[":running"]
+                             or item.get("attempt_no") != values.get(":attempt"))):
+                    raise FakeTable.ConditionalFailed()
+                set_expression = update["UpdateExpression"].split("REMOVE")[0]
+                set_expression = set_expression.removeprefix("SET ")
+                for assignment in set_expression.split(","):
+                    field_token, value_token = [part.strip()
+                                                for part in assignment.split("=", 1)]
+                    field = names.get(field_token, field_token)
+                    item[field] = values[value_token]
 
     def __init__(self):
         super().__init__()
@@ -135,6 +150,61 @@ class TransactionalFenceTable(FakeTable):
 
 def fresh_wiring():
     return AgentRegistry(), AgentBody()
+
+
+def fenced_test_wiring(handler):
+    """Verified synthetic-only declaration for atomic fence integration tests."""
+    import hashlib
+    from agents.ecosystem.privacy_contract import (
+        PRIVACY_CONTRACT_VERSION, CapabilityPrivacyDeclaration,
+        PrivacyEvidence, declaration_digest,
+    )
+    from agents.ecosystem.registry import AgentDescriptor, AgentStatus
+
+    capability = "test.fence-result"
+    source_sha = "a" * 40
+    artifact_sha = hashlib.sha256(b"synthetic-fence-artifact").hexdigest()
+    declaration = CapabilityPrivacyDeclaration(
+        capability=capability, processing_purpose="synthetic lifecycle race test",
+        technical_inputs=("reference",), business_inputs=("reference",),
+        allowed_input_fields=("reference",),
+        input_field_types=(("reference", "opaque-reference"),),
+        prohibited_inline_categories=("personal-data", "free-text"),
+        actor_identity="test-runtime", requester_identity="synthetic-user",
+        tenant_identity="synthetic-tenant", authorization_requirements=("test-only",),
+        storage_locations=("in-memory fake table",), external_recipients=(),
+        result_categories=("synthetic marker",),
+        allowed_result_fields=("marker",), order_result_disposition="forbidden",
+        allowed_order_result_fields=(), result_field_types=(("marker", "string"),),
+        lifecycle_phases=("create", "execution", "completion"),
+        cleanup_mechanism="in-memory fixture teardown",
+    )
+    evidence = PrivacyEvidence(
+        agent_id="fence-test-agent", agent_version="1.0.0",
+        capability=capability, contract_version=PRIVACY_CONTRACT_VERSION,
+        contract_sha256=declaration_digest(declaration), source_sha=source_sha,
+        test_report_sha256=hashlib.sha256(b"test-report").hexdigest(),
+        artifact_sha256=artifact_sha, tests_passed=True,
+    )
+    registry, body = fresh_wiring()
+    registry.register("fence-test-agent", AgentDescriptor(
+        agent_id="fence-test-agent", name="fence-test-agent", version="1.0.0",
+        status=AgentStatus.ACTIVE, capabilities=[capability],
+        privacy_contract_version=PRIVACY_CONTRACT_VERSION,
+        privacy_declarations={capability: declaration},
+        privacy_evidence={capability: evidence}, source_sha=source_sha,
+        artifact_sha256=artifact_sha,
+    ))
+    body.register_agent(capability=capability, handler=handler)
+    body.register_agent(agent_id="fence-test-agent", handler=handler)
+    item = {
+        "workId": "synthetic-fenced-work", "type": "agent_reference_agent",
+        "tenantId": "synthetic-tenant", "userId": "synthetic-user",
+        "idempotencyKey": "synthetic-fence-idempotency",
+        "agentId": "fence-test-agent", "capability": capability,
+        "payload": {"reference": "ref:synthetic"},
+    }
+    return registry, body, item
 
 
 class TestWorkerPipeline(unittest.TestCase):
@@ -365,6 +435,87 @@ class TestWorkerPipeline(unittest.TestCase):
                              require_subject_fence=True)
         self.assertEqual("COMPLETED", out["status"])
         self.assertEqual("COMPLETED", table.items["work-new"]["status"])
+
+    def test_result_persist_race_with_erasure_fence_is_atomic_and_suppressed(self):
+        table = TransactionalFenceTable()
+        calls = []
+        deliveries = []
+
+        def execute(work):
+            calls.append(work["workId"])
+            marker = fence_item(user_id="synthetic-user", tenant_id="synthetic-tenant")
+            table.items[marker["workId"]] = marker
+            return {"success": True, "data": {"marker": "synthetic-only"}}
+
+        registry, body, item = fenced_test_wiring(execute)
+        out = process_record(
+            record(item), table=table, registry=registry, body=body,
+            subject_fence_table=table, require_subject_fence=True,
+            result_sender=deliveries.append,
+        )
+
+        self.assertTrue(out["suppressed"])
+        self.assertEqual("subject-fenced", out["reason"])
+        self.assertEqual([item["workId"]], calls)
+        self.assertFalse(deliveries)
+        persisted = table.items[item["workId"]]
+        self.assertEqual("RUNNING", persisted["status"])
+        self.assertNotIn("result", persisted)
+        result_update = table.meta.client.transactions[-1][1]["Update"]
+        self.assertEqual(
+            "#status = :running AND attempt_no = :attempt",
+            result_update["ConditionExpression"],
+        )
+
+    def test_result_persistence_uses_atomic_fence_and_attempt_transaction(self):
+        table = TransactionalFenceTable()
+        registry, body, item = fenced_test_wiring(
+            lambda work: {"success": True,
+                          "data": {"marker": "synthetic-only"}})
+
+        out = process_record(
+            record(item), table=table, registry=registry, body=body,
+            subject_fence_table=table, require_subject_fence=True,
+        )
+
+        self.assertEqual("COMPLETED", out["status"])
+        persisted = table.items[item["workId"]]
+        self.assertEqual(1, persisted["attempt_no"])
+        self.assertEqual("COMPLETED", persisted["status"])
+        self.assertTrue(persisted["result"]["success"])
+        self.assertEqual({"marker": "synthetic-only"},
+                         persisted["result"]["data"])
+        self.assertEqual(
+            "#status = :running AND attempt_no = :attempt",
+            table.meta.client.transactions[-1][1]["Update"]["ConditionExpression"],
+        )
+
+    def test_completed_result_replay_is_suppressed_after_fence(self):
+        table = TransactionalFenceTable()
+        deliveries = []
+        calls = []
+        registry, body, item = fenced_test_wiring(
+            lambda work: calls.append(work))
+        item.update({"status": "COMPLETED", "attempt_no": 2,
+                     "result": {"success": True,
+                                "data": {"marker": "synthetic-only"}},
+                     "result_reference": "work:synthetic-fenced-work:attempt:2"})
+        table.items[item["workId"]] = dict(item)
+        marker = fence_item(user_id=item["userId"], tenant_id=item["tenantId"])
+        table.items[marker["workId"]] = marker
+
+        out = process_record(
+            record(item), table=table, registry=registry, body=body,
+            subject_fence_table=table, require_subject_fence=True,
+            result_sender=deliveries.append,
+        )
+
+        self.assertTrue(out["duplicate"])
+        self.assertTrue(out["suppressed"])
+        self.assertEqual("subject-fenced", out["reason"])
+        self.assertFalse(deliveries)
+        self.assertFalse(calls)
+
     def test_terminal_dead_letter_is_suppressed(self):
         table = FakeTable()
         table.items["work-dead"] = {
