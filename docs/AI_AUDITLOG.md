@@ -14181,3 +14181,30 @@ Baseline: `3e855b27ac8c8a35139dd72c437471060d62ea43`. Orchestration is
   continuation authorized.
 - Protected 19F2 file not staged or changed; before this update it remained
   worktree-marked modified with no content diff against the index. **STOP.**
+
+## RIS-MAYS-ORDERS-INTEGRATION — final completion reconciliation — 2026-11-28
+
+Baseline: `ad4886d1f23bf40f65a05e3b3b8744c9cd740131`.
+
+- Consolidated prior evidence in
+  `docs/reports/RIS-DEV2-FINAL-LIVE-ACCEPTANCE-20-21.md`: integrated Mays
+  source `db4f9e7`, OrderDescription originals (15/15), JSON Transport V1,
+  dispatch, HMAC/result consumer, owner/privacy checks, local E2E, Ubuntu FULL
+  QA run `45996079592`, and approved Terraform/Apply 19G5/19H (0 add, 2 change,
+  0 destroy; Worker + Dispatch-Ingress; State serial 76).
+- Reused 19F8 as local mocked roundtrip proof; no QA, Mays originals, XRepo, or
+  deployment check was repeated. The existing unified `LIVE` profile was run
+  once with external Temp report path; it returned `BLOCKED /
+  LOCKED_NOT_EXECUTED`, zero groups. Per runner contract it performs no network
+  or AWS operations. Its output was not committed.
+- Explicitly separated successful local integrated-source acceptance and 19H
+  deployment from unverified AWS live order/result/owner readback. Gates 1 and
+  2 remain closed. RC4 `v0.6.0-rc.1` has historical local candidate test
+  failures in XRepo/generated Terraform and was not deployed to AWS; current
+  integrated module remains `db4f9e7`. No integrated-source defect requiring
+  runtime change was established, so no fix was made.
+- `RIS-AGENT-ENTITLEMENT-BILLING-01` remains separate backlog; no commercial
+  billing, entitlement architecture, adapter, runtime, Mays module, Terraform,
+  or infrastructure change.
+- Protected 19F2 JSON was not used as output, staged, or changed. No order,
+  invocation, mutation, plan, apply, recovery, redrive, or Main merge.

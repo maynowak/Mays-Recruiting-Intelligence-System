@@ -510,3 +510,111 @@ At suspension: AWS mutations `0`; Terraform plans/applies `0`; live orders `0`;
 live invocations `0`; recoveries/redrives `0`; Main merges `0`. The protected
 `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json` was not
 staged or changed by this documentation update. **STOP.**
+
+## RIS–Mays-Orders integration completion reconciliation
+
+**Review baseline:** `ad4886d1f23bf40f65a05e3b3b8744c9cd740131`.
+This section consolidates existing evidence. It does not repeat completed QA,
+deployment, plan/apply, or AWS checks.
+
+### Integrated source and completed local scope
+
+- The active generated-module provenance is Mays-Orders source
+  `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`, cross-referenced by
+  `installer/mays-orders-builder.pinned.json`, the builder, and generated
+  manifest in the cited 19F2/19F4/19F8 evidence. The legacy clone pin
+  `5cf50a0...` is not the generated-module source identity.
+- Mays `orderDescription` is already implemented in this integrated source:
+  optional opaque text validation, verbatim persistence/projection, privacy
+  handling, and original Mays tests. The original Mays suite passed **15/15**.
+  The attempted `80a84ca...` patch was not applicable to the integrated tree and
+  was not applied; no patch or source change is needed.
+- JSON Transport V1, dispatch/context binding, stable work/result identifiers,
+  signed `ORDER_RESULT` HMAC contract, result-consumer validation, lifecycle
+  completion, owner-only reader behavior, and negative security cases are
+  indexed in `docs/reports/RIS-MAYS-ORDERS-CONTRACT-EVIDENCE-19F2.md` and
+  `docs/reports/RIS-ATS-RESULT-LINK-01.md`. The latter's local integration
+  test fakes only persistence/sender/ATS HTTP boundaries and runs the worker
+  pipeline, ATS result body, Transport V1 mapping, and real reader handler.
+- DSGVO/privacy coverage is part of the cited Mays ownership/projection and
+  `orderDescription` originals plus RIS Native privacy/erasure suites. It is
+  local contract/test evidence, not a new production-data or live-erasure test.
+
+### QA and functional acceptance evidence
+
+- The later reference-platform run in
+  `docs/reports/RIS-DEV2-ORDER-DESCRIPTION-E2E-GATE-19F8.md` supersedes the
+  earlier Windows `FULL`-blocked snapshot for the integrated source: Ubuntu
+  Unified `FULL` run `45996079592` passed with zero failures/collection errors.
+  Recorded groups include RIS Native 3,291 passed; Mays Lambda 240; Mays module
+  builder 100 plus 6 subtests; installer 81; seed 28; Cognito backup 2; XRepo
+  Contract 133 plus 4 subtests; XRepo E2E 39; RIS builder 57; generated module
+  artifact 9. Original Mays `orderDescription` tests passed 15/15 at the exact
+  integrated source. No new FULL or candidate QA was run for this completion.
+- The existing 19F8 roundtrip verifies locally: Create 201 → exact
+  `orderDescription` persisted → initial WorkItem claim and mocked agent
+  execution → signed `ORDER_RESULT` accepted → `processing.status=COMPLETED` →
+  owner GET 200 returns the exact description. Foreign-owner denial and
+  transport/result negative cases are included. It is **mocked local E2E**,
+  not a live AWS/provider result.
+- Independently reusable local scenarios include the Mays original
+  `orderDescription` suite, XRepo contracts, XRepo E2E, and the ATS result-link
+  integration test. Their existing PASS evidence is reused; none was rerun.
+  No separate live, mutation-free scenario exercises the same full order flow:
+  Create is a mutation and the current live profile is locked pending explicit
+  identity, cost, and execution approvals.
+
+### Plan, Apply, deployment, and live boundary
+
+- Existing approved Terraform evidence is
+  `docs/reports/RIS-DEV2-WORKER-CONTROLLED-REPLAN-19G5.md` and
+  `docs/reports/RIS-DEV2-WORKER-CONTROLLED-APPLY-19H.md`, with machine evidence
+  at `docs/reports/evidence/19H/post-apply-verification.json`. The approved
+  saved plan was applied once: 0 added, 2 changed, 0 destroyed (Agent Worker
+  and Dispatch-Ingress only); read-only verification passed and State reached
+  serial 76. This proves deployment of the Worker fix and verified
+  infrastructure state; it does **not** prove a live order or result roundtrip.
+- The existing Unified `LIVE` harness was invoked once at this checkpoint with
+  its JSON output directed outside the repository to
+  `C:\Users\DCI-Student\AppData\Local\Temp\opencode\ris-mo-addition-e2e-live-locked.json`.
+  It returned `BLOCKED / LOCKED_NOT_EXECUTED` by design, with zero test groups;
+  it performed no network/AWS operation. The report's selected integrated
+  version key and bundle hash are metadata, not a fresh Mays checkout or AWS
+  provenance verification.
+- **Live status remains blocked:** no authenticated live Create, actual AWS
+  queue-driven Agent run, deployed result-consumer transaction, or live owner
+  readback was performed under this completion request. Gates 1 and 2 remain
+  closed; no external paid execution is authorized.
+
+### RC4 / upgrade distinction and defect disposition
+
+- The integrated Mays module remains at `db4f9e7`. RC4
+  `v0.6.0-rc.1` / `5bc154e...` was separately tested locally in the 19F3/19F4
+  candidate gates; its original suites passed, but candidate XRepo/dispatch-
+  result compatibility and generated Terraform validation failed. RC4 was not
+  installed or deployed to AWS and did not pass live E2E. The failure report is
+  `docs/reports/RIS-MAYS-ORDERS-COMPATIBILITY-RESOLUTION-19F4.md`; the required
+  compatibility fixes are Mays-owned. Do not label RC4/RC4++ as deployed or
+  accepted.
+- No confirmed defect was found in the already integrated `db4f9e7` local
+  contract/E2E evidence requiring a RIS runtime correction. No runtime,
+  infrastructure, Mays source, module pin, or adapter change was made.
+
+### Completion disposition
+
+| Scope | Result |
+|---|---|
+| Original RIS/Mays integration on current integrated source | **LOCAL ACCEPTANCE COMPLETE**; reuse the cited test/evidence set |
+| `orderDescription`, JSON transport, dispatch, HMAC/result consumer, owner/privacy contracts | **LOCAL CONTRACT/E2E VERIFIED** |
+| Unified full QA and Mays originals | **PASS on the cited Ubuntu integrated-source run**; not repeated |
+| Worker fix and Terraform deployment | **DEPLOYED / VERIFIED** for the exact 19H scope only |
+| AWS live order/result E2E | **NOT VERIFIED; LIVE HARNESS LOCKED** |
+| RC4/RC4++ upgrade | **NOT ACCEPTED / NOT DEPLOYED**; candidate compatibility gates fail |
+| Confirmed in-scope runtime defect | **NONE**; no fix required |
+| Main merge | **NOT PERFORMED**; documentation/evidence is prepared for review |
+
+No additional work is authorized by this reconciliation. Keep the live canary
+blocked until the existing approval gates are explicitly reopened. The
+commercial entitlement/billing backlog remains separate. The protected 19F2
+JSON was not read as a test output, staged, or changed; no test used its default
+output path.
