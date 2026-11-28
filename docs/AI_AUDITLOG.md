@@ -14714,3 +14714,16 @@ Baseline `c6b764ec94a19d9e950d49a2c50817d4e20883c3`.
   recommendation is conditional on current-head required checks and complete
   PR file-list review. `MAIN_MERGE=false`; no merge performed. Existing local
   protected 19F2 results JSON remains untouched, unstaged and excluded.
+
+### PR #17 opened — 2026-11-28
+
+- Opened `https://github.com/maynowak/Mays-Recruiting-Intelligence-System/pull/17`
+  from `feature/ris-analysis-integration-07` to `main`. Initial head
+  `f35bbaafe8d973d787447f52362f6d85db9970e8`; base
+  `97a60df83a5db56ea750e4342d7a01b00c8ad56b`.
+- GitHub reports `MERGEABLE`; required `terraform-static` Ground Zero CI is
+  `IN_PROGRESS`; review decision pending. Concrete approval request: once the
+  check passes and PR file list/review requirements are satisfied, authorize a
+  regular merge of PR #17 at the then-current head. No merge authorization or
+  merge was made. The protected 19F2 local modification remains unstaged and
+  excluded.
