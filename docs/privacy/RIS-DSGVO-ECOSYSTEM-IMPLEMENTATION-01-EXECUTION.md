@@ -2,7 +2,7 @@
 
 **Status:** `PARTIAL — A/B implemented for Addition; C boundary implemented; D–F pending/blocked`
 **Branch:** `feature/ris-dsgvo-compliance-01`
-**Baseline:** `db2e09419931fc64e9377aed8fdd35c720023045`
+**Baseline:** `7fe524f7ffdab33ffe5b336bbba89c2a48e8dfb3`
 **Orders pin:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` (unchanged)
 
 ## Checkpoint A — capability privacy contrac
@@ -34,7 +34,7 @@ No test was converted from success to denied to claim recovery. These 25 failure
 
 Current Addition evidence checkpoint: source commit `ee6055acd1856e9fdaf09fe09c7a30a698a0da58`; source SHA-256 `20b488916e770dae84594c714663ee582104aae5b125505235f1c2b189924f53`; contract SHA-256 `b6ab1d98ab2659bc2fa25eea82f751ae536d7c908850d64d0c428b87cb9fbeb4`; selected test-report SHA-256 `5dd8caddac2f95ad14c2745bde2186f66bf9cfd22b093349c97e4f68d8b38937`; built `terraform/lambda.zip` SHA-256 `7f082ccf7b47195e712d968eecac81ca785f9030211da8d77b5e639aaa50478f`. Declared evidence suite: **32 passed, 2 deselected, 0 skipped**; complete original `tests/test_addition_agent.py`: **29 passed**; installer/contract/boundary suites: **23 passed**. Synthetic registry→Eligibility→AgentBody smoke: eligible, successful, result 42. The deselected original integration tests were subsequently executed with freshly generated valid evidence; no test bypass is used to claim their result. No AWS/Terraform operation, installation, Provider modification, pin update, Main merge, real-data processing, retention-period decision, or legal/operational approval occurred.
 
-`RIS_PRIVACY` run report was written outside the repository. Groups: capability/addition 42 passed; application/lifecycle 76 passed; runtime fences/erasure 34 passed; synthetic JWT 2 passed; Provider originals and Provider JWT verifier BLOCKED. Runner/JWT tests: **10 passed**. Broader `tests/test_ats_result_link.py`: **26 passed, 5 failed** at ATS Eligibility before result-link assertions because ATS has no approved privacy declaration/evidence; these remain unverified.
+Final unified run at RIS commit `3bc59ef202ba4ced2665af561f898a827bb9f2ec`: `RIS_PRIVACY` is BLOCKED overall; groups capability/addition **42 PASS**, application/lifecycle **76 PASS**, runtime fences/erasure **34 PASS**, synthetic JWT **2 PASS**, Provider originals **BLOCKED**, Provider verifier **BLOCKED**. `FULL`, `XREPO_CONTRACT`, and `XREPO_E2E` each BLOCKED before test execution because pinned checkout `installer/projects/mays_order_builder` is absent (expected commit `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`). The runner also reports local worker ZIP SHA `7f082ccf7b47195e712d968eecac81ca785f9030211da8d77b5e639aaa50478f` differs from its existing review baseline `507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d`; the change is from the privacy runtime build and was not silently blessed by changing that baseline. Runner/JWT tests: **10 passed**. `test_ats_result_link.py`: **26 passed, 5 failed** before result-link assertions due to absent ATS Eligibility policy/evidence: `test_duplicate_delivery_reemits_the_same_result`, `test_full_sequence_and_authorized_read_back`, `test_invalid_correlation_is_not_forwarded`, `test_missing_transport_configuration_does_not_claim_delivery`, and `test_work_row_keeps_correlation_but_no_secret`. These remain unverified, not recovered.
 
 ## Resume order
 

@@ -53,7 +53,7 @@ Interpretation (v2.3): A–E are ecosystem-centered workstreams; F depends on st
 | C / DSGVO-04 | RIS domain/runtime/privacy owners | Capability input/result policy and resolver integration | A + owner-approved policy | PARTIAL; typed input/result/ORDER_RESULT runtime gates tested for Addition; generic retention and unclassified capabilities remain open |
 | D | RIS runtime/privacy owners | Existing fence, erasure and lifecycle integration | C policy stable | PENDING; existing fence/erasure tests pass (34 in RIS_PRIVACY), but terminal WorkItem retention/stale-result policy unresolved; no behavior changed |
 | E | RIS/Orders contract owners | Synthetic JWT identity proof, provider originals and CR disposition | A/C + identity decision | PARTIAL; RIS-side synthetic JWT priority/claims tested; provider verification/originals BLOCKED because pinned checkout absent; provider/pin unchanged |
-| F / DSGVO-06 | RIS QA | `RIS_PRIVACY`, ten groups, exact SHA/artifact provenance | A–E selectors/evidence | PARTIAL; local groups PASS, unavailable Provider groups explicitly BLOCKED, profile BLOCKED overall |
+| F / DSGVO-06 | RIS QA | `RIS_PRIVACY`, existing groups, exact SHA/artifact provenance | A–E selectors/evidence | PARTIAL; local groups PASS, Provider groups and FULL/XRepo explicitly BLOCKED by absent pinned checkout; worker artifact differs from unchanged historical review baseline |
 | DSGVO-07 | RIS/provider/security/privacy reviewers | Review exact-SHA implementation evidence; separately gate live/legal acceptance | A–F complete | NOT STARTED / NOT AUTHORIZED |
 
 ## Shared quality constraints
