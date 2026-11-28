@@ -55,6 +55,90 @@ no main merge.
 The protected 19F2 results file remains untouched by this follow-up and is not
 included in the checkpoint commit.
 
+## Plan input reconciliation — PREPARED; replan gate CLOSED
+
+**2026-11-28, baseline `e98b9ef5621a9b04d19139d76db08debeb9c2924`.** Modes:
+existing rejected-plan read only; installation-input reconciliation; local
+configuration preparation; AWS mutations `false`; Terraform plan/apply
+`false`; runtime/artifact changes `false`; live order `false`; status/commit/
+feature push `true`; main merge `false`.
+
+The rejected plan hash was verified locally against
+`29af00f2a2597d0ddd759aa860164ed72b62f9bae0e016c5ead318c6a0312ddb`. The
+successful historical 19G5 plan was also verified locally against
+`d78c0fcfaee991c774895c583604f0ea270dee600f59af7e37c9cf1e804985c3`; 19H
+applied that exact plan and changed only Worker/Ingress code. Comparing both
+serialized plan inputs identified these 20 differences:
+
+| Parameter(s) | 19G5/19H expected | Rejected plan effective input | Effect / interpretation |
+|---|---|---|---|
+| `enable_analysis_runtime`; `analysis_lambda_zip_path`; `analysis_parser_zip_path` | `true`; `analysis-lambda.zip`; preserved parser path | `false`; empty; empty | Analysis module was disabled. This accounts for the two root Analysis Lambda permissions and eight Analysis Runtime/parser resources in the 13 destroys. |
+| `analysis_synthetic_mode`; `analysis_synthetic_user_id`; `analysis_synthetic_tenant_id`; `analysis_synthetic_partner_application_id`; `analysis_synthetic_issuer`; `analysis_synthetic_entitlements`; `analysis_synthetic_expires_at` | Enabled and populated from the prior approved installation input | `false`; remaining values empty | Historical Analysis environment inputs were not restored. Reuse the 19G5 values unchanged; do not refresh/rewrite this Analysis configuration in this task. Values remain only in the external local tfvars file. |
+| `order_result_secret_arn` | Present in 19G5/19H | Empty | Accounts for the three result-secret IAM policy deletes, the `dispatch_result_secret` IAM-policy update, and removal of `ORDER_RESULT_SECRET_ARN` from both Worker and Dispatch-Ingress environments. |
+| `orders_table_name`, `orders_table_arn`, `orders_queue_url`, `orders_queue_arn` | Present in the 19G5 input set | Empty | Installation-input mismatch. With `orders_lifecycle=managed`, the root derives these from the managed Mays-Orders module; no separate plan action was attributed to these four values. Retain them for exact configuration reproduction. |
+| `enable_agent_transport` | Boolean `true` | String-form `"true"` from the project overlay | Semantically enabled in both plans; not a cause of destroy. Restore the typed 19G5 input. |
+| `identity_m2m_enabled`, `identity_oauth_enabled`, `identity_custom_domain_enabled` | Boolean `true`, `false`, `false` | String-form values from the project overlay | Same effective toggles; representation differs, not a cause of the observed plan actions. Restore the typed 19G5 inputs. |
+| `filename` | `../lambda/dist/orders-reader.zip` | Absolute checkout path emitted by the Installer | Raw input form differs, but the evaluated Reader filename/artifact is unchanged; no Reader action appeared. The corrected template uses the 19G5 input form from the repository Terraform root, preserving the 19G4/19G5 resolved path. |
+
+**Action attribution.** The 13 destroys are exactly 10 Analysis-related resources
+(two `aws_lambda_permission.analysis_*` entries plus eight resources under
+`module.analysis_runtime`) gated by `enable_analysis_runtime=false`, and three
+result-secret IAM policies gated by the missing `order_result_secret_arn`.
+The four changes are: the intended ATS catalog item update; Worker and
+Dispatch-Ingress environment updates caused by the missing Analysis function
+settings and result-secret ARN; and the `dispatch_result_secret` policy update
+caused by the missing secret ARN. No artifact hash difference caused those
+Worker/Ingress changes. The Addition resource was absent because the rejected
+plan's effective `foundation_entitlements` value was `{}` and there was no
+`aws_dynamodb_table_item.foundation_entitlement` Add action. An attempted
+ambient `TF_VAR_foundation_entitlements` input was not reflected in the
+effective plan; the next plan input must pass the temporary grant explicitly
+through a supplemental JSON tfvars file and verify the resulting planned Add.
+Its sole map entry must have the existing mechanism's shape:
+`{ "<unique-entitlement-id>": { "userId": "<verified-sub>", "tenantId":
+"<matching-tenant>", "agentId": "addition_agent", "validFrom": "<T0-1m>",
+"validUntil": "<T0+15m>" } }`; do not add `apiProfileId`, `expiresAt`, or an
+Addition catalog row.
+
+**Local corrected base input prepared (not committed; contains installation-
+specific identity/configuration values):**
+`%TEMP%\ris-addition-final-e2e\ris-dev2-19g5-installation-inputs.tfvars.json`,
+SHA-256 `1ada876c6c98080206c9d29ca55549b4b8f254e1f2a5c0e915f9d6097016e6e7`.
+It was reconstructed read-only from the hash-verified 19G5 saved plan and
+contains its 83 effective inputs except `foundation_entitlements`. A separate
+grant tfvars file is intentionally **not** created yet; generate it only
+immediately before a newly authorized plan, with exactly one verified owner,
+tenant and `addition_agent` row, and the then-current 15-minute validity
+window. Do not commit either file.
+
+Historical artifact identities and resolved paths were checked locally and
+remain unchanged: Worker `507bc17…`; Analysis `276b4e44…`; Analysis parser
+`fb741fb2…`; Orders-Reader `610004f6…`. The 19G4 staging procedure is the only
+approved byte-copy restoration path. No new bundles or artifact edits were
+made in this reconciliation.
+
+**Corrected plan template — documentation only; NOT executed:** from the
+repository Terraform root, reuse the verified `ris-dev2` backend context and
+historical base tfvars above, then add one separately created, time-limited
+grant tfvars file:
+
+```text
+$env:TF_DATA_DIR = '<existing 19G5 TF_DATA_DIR>'
+$env:TF_WORKSPACE = 'ris-dev2'
+terraform -chdir=terraform plan -input=false -lock=true -out=<new external plan path> -var-file=<19G5 installation-inputs.tfvars.json> -var-file=<fresh addition-grant.tfvars.json>
+```
+
+Use the existing `TF_DATA_DIR`/backend configuration for bucket
+`ris-dev2-tf-state-dev`, region `eu-central-1`, effective state key
+`env:/ris-dev2/dev/terraform.tfstate`, lock table `ris-dev2-tf-lock`, and
+workspace `ris-dev2`; do not reconfigure/migrate State or create backend
+resources. Immediately before any future plan, verify current state and the
+grant identity/window. Inspect the one plan for exactly **1 Add / 1 Change / 0
+Destroy**, with only the Addition entitlement row and ATS catalog status
+transition; any Lambda, IAM, queue, Analysis, or other action is a STOP. No
+plan was run in this reconciliation. Replan requires a new explicit approval;
+Apply remains separately unauthorized.
+
 | Work package | Soll | Ist / mode | Implementation / deployment | Test result | Offene Abweichung | Nächster Schritt | Commit / Evidenz |
 |---|---|---|---|---|---|---|---|
 | A — Historical ATS deactivation | Deactivate `ats-agent` through existing lifecycle; retain results and shared infrastructure | **Read-only inventory complete; live disable NOT APPLIED**. Local `DISABLE` dry-run returned `DRY_RUN`, zero blockers. | Catalog is `ACTIVE`; global ATS entitlement query found one expired-only historical row and no currently valid row. `INACTIVE` is a discovery gate, not the worker execution gate. No uninstall/purge. | All 4 ATS orders in the live Orders index have `processing=COMPLETED`; no open ATS order/result. Dispatch, work and result queues are 0. Shared worker DLQ has 1 approximate visible message; its body was not read/received. | Rejected plan had additional deletes and unexpected Lambda/policy changes. Expired entitlement is not in current state; do not delete it manually. DLQ untouched. | Reconcile exact 19G5/19H variable set. A new plan requires explicit authorization; preserve shared resources/history and stop on any other action. | Lifecycle `installer/agent-installations/ats-agent/lifecycle.yaml`; dry-run inventory digest `38fd2c0f…`; backend/state evidence 2026-11-28; rejected plan hash above. |
@@ -90,8 +174,9 @@ included in the checkpoint commit.
   outside the repo at `%TEMP%\ris-addition-final-e2e\ats-disable-impact-current.json`.
 - Terraform context was verified read-only: workspace `ris-dev2`, state serial
   `76`, lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`; only the catalog seed
-  is managed in state, no foundation-entitlement resources. No plan or apply has
-  yet been made.
+  is managed in state, no foundation-entitlement resources. At that pre-plan
+  checkpoint, no plan/apply had been made; the rejected plan and its scope
+  deviation are documented in the follow-up section above.
 - No code/runtime defect was established. Phase 2 changes the Terraform ATS
   catalog seed to `INACTIVE` and updates its seed regression. The targeted seed
   regression passed (**26 passed**); no existing Addition/live test suite was
@@ -100,11 +185,11 @@ included in the checkpoint commit.
 
 ## Approval packet — no approvals granted
 
-Target scope from existing evidence (must be re-verified read-only before any
-plan): account `262370457690`, region `eu-central-1`, workspace `ris-dev2`,
-historical state serial `76`, lineage
-`a0bd361d-5cd1-a207-a8c0-e6888f0be082`. The serial/lineage are historical, not
-fresh state verification.
+Target scope: account `262370457690`, region `eu-central-1`, workspace
+`ris-dev2`, latest read-only state serial `76`, lineage
+`a0bd361d-5cd1-a207-a8c0-e6888f0be082`, S3 version
+`M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T`. Re-verify immediately before any newly
+authorized plan.
 
 ### A. Disable historical ATS agent
 
@@ -167,7 +252,7 @@ entitlement Apply: **NOT APPROVED**. Gate C initial order: **NOT APPROVED**.
 No further live action is taken until those approvals are explicit. The first
 requested plan was created and rejected for scope deviation; its hash and
 full-refresh summary are recorded above. Do not use that binary for apply.
-Correct variable/backend state reconciliation and a new explicit approval are
-required before any second plan. Main merge was not performed. The protected
+Correct variable inputs are prepared externally; the new plan still requires
+new explicit authorization. Main merge was not performed. The protected
 `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json` was not used
 as output or touched/staged by this follow-up.
