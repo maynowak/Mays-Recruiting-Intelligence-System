@@ -14829,3 +14829,12 @@ Recommendation: persistent random opaque subjectRef with protected, tenant-bound
 Evidence: docs/privacy/DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md; docs/privacy/DSGVO-02-DECISIONS-AND-CONTRACT.md; docs/privacy/DSGVO-MASTER-ORCHESTRATION-STATUS.md v2.0.
 Validation: No tests run; documentation diff/link QA only. No runtime/schema/generated module changes, pin upgrades, AWS/Terraform, deployment, redrive, Main merge, migration, or real personal data.
 Current stop point: named human decision on identity resolver, lawful purpose/retention, data-field policy and operational gates. Status is READY FOR DECISION, not READY FOR IMPLEMENTATION.
+
+[RIS-DSGVO-02B — PROVIDER PRIVACY INTEGRATION ALIGNMENT]
+Status: RIS PRIVACY PROVIDER INTEGRATION READY FOR REVIEW — STOP BEFORE IMPLEMENTATION.
+Date: 2026-11-28
+RIS baseline: d8a7fffb112fc39ad839aef4a87e5722b521db1f. Integrated Mays-Orders pin: db4f9e79980443de1cd3d5b688a33c0cf0eb771f. Current provider Main reviewed read-only: 716a16590673cdb649df414c08fc0bf7814caac7.
+Findings: Mays-Orders owns inspect/export/erase and internal direct-Lambda dispatch; RIS has no demonstrated subjectRef delegation on create, internal invoke/IAM+secret configuration, or response/timeout reconciliation adapter. Provider `COMPLETED`/partial/blocked semantics and PREVIEW/EXECUTE are specified in the integration review. Historical synthetic provider acceptance is not current deployment proof.
+Orchestration: DSGVO-03 provider contract compliance; 04 RIS adapter; 05 XRepo integration tests; 06 unified QA; 07 evidence review. Reuse provider reports/original tests; no duplicate provider engine or redundant report. Provider CR-01 (trusted subject delegation) and CR-02 (agentOrder anonymization coverage) are drafts and not submitted.
+Evidence: docs/privacy/DSGVO-02B-PROVIDER-INTEGRATION-REVIEW.md; provider report/source references therein.
+Validation: documentation-only. No tests, provider changes, RIS runtime changes, pin upgrades, AWS/Terraform, deployment, live call, legal/productive approval, or real personal data. Working tree/commit/push status will be recorded at checkpoint.

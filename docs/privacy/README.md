@@ -23,9 +23,10 @@
 | Release acceptance | NO-GO for real data | [`PRIVACY-ACCEPTANCE-GATE.md`](PRIVACY-ACCEPTANCE-GATE.md), [`../reports/RIS-DEV2-PRIVACY-RELEASE-GATE-02.md`](../reports/RIS-DEV2-PRIVACY-RELEASE-GATE-02.md), [`../reports/RIS-PRIVACY-R08-GATE-B-ORCH-01-ABSCHLUSS.md`](../reports/RIS-PRIVACY-R08-GATE-B-ORCH-01-ABSCHLUSS.md) |
 | Remediation sequence and tests | PLANNED | [`PRIVACY-REMEDIATION-PLAN.md`](PRIVACY-REMEDIATION-PLAN.md) |
 | Final execution report | COMPLETE (documentation scope only) | [`../reports/RIS-DSGVO-COMPLIANCE-01-EXECUTION-REPORT.md`](../reports/RIS-DSGVO-COMPLIANCE-01-EXECUTION-REPORT.md) |
-| DSGVO master orchestration status | TECHNICAL CONTRACT READY FOR DECISION — STOP before implementation | [`DSGVO-MASTER-ORCHESTRATION-STATUS.md`](DSGVO-MASTER-ORCHESTRATION-STATUS.md) |
+| DSGVO master orchestration status | RIS PRIVACY PROVIDER INTEGRATION READY FOR REVIEW — STOP before implementation | [`DSGVO-MASTER-ORCHESTRATION-STATUS.md`](DSGVO-MASTER-ORCHESTRATION-STATUS.md) |
 | DSGVO-02 decisions and XRepo subject identity draft | COMPLETE AS PROPOSAL; approval OPEN | [`DSGVO-02-DECISIONS-AND-CONTRACT.md`](DSGVO-02-DECISIONS-AND-CONTRACT.md) |
-| DSGVO-02A technical contract resolution | READY FOR DECISION; no approval or implementation | [`DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md`](DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md) |
+| DSGVO-02A technical contract resolution | COMPLETE AS PROPOSAL; no approval or implementation | [`DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md`](DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md) |
+| DSGVO-02B Mays-Orders provider integration alignment | READY FOR REVIEW; RIS documentation only; provider CR drafts unsubmitted | [`DSGVO-02B-PROVIDER-INTEGRATION-REVIEW.md`](DSGVO-02B-PROVIDER-INTEGRATION-REVIEW.md) |
 
 ## System boundaries and pins
 

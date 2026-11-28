@@ -71,42 +71,48 @@ If a durable mapping is rejected, owners must explicitly choose a versioned keye
 
 ## 4. Follow-up implementation work orders
 
-### DSGVO-03 — Mays-Orders subject linkage and DSAR
+### DSGVO-03 — Provider contract compliance and subject linkage
 
-**Ownership:** Orders `lambda/src/order_service.py`, `index.py`, `order_types.py`, tests and import behavior owned by Mays-Orders; RIS `agents/orders/real.py`, dispatch/result producer and compatibility tests owned by RIS. Separate changes/PRs; no generated module edits.
-**Depends on:** approved resolver/ref and tenant contract (D02-04/05); legal field/retention policy (D02-01/02/03/06); source pin/module contract reconfirmed.
-**Tasks:** cover `create_order`, `_create_agent_order`, dispatch/result/status/SQS updates and seed/import path; add subject discovery attributes without changing ownerKey/GSI3; permit only trusted service-context propagation (never request-body passthrough); enumerate/sanitize nested `agentOrder`, `processing.result`, customer and owner fields under policy; make legacy rows explicitly unresolved or mapped via verified mapping; prepare but do not run backfill. GSI2 is already declared; verify schema, do not assume new Terraform is needed.
-**Acceptance:** synthetic producer tests for every write path; retries/results preserve index; no spoof/bypass; privacy queries find created fixtures; export excludes internals/secrets; anonymization asserts complete residual field state; migration counts and unresolved category reconcile. Extend Orders `test_order_service.py`, `test_order_description.py`, `test_ownership.py`, `test_index.py`, `test_result_handoff.py`, `test_result_consumer_lambda.py`, seed tests as applicable and RIS `test_agent_order_dispatch_e2e.py`, `test_real_orders_adapter.py`, `test_orders_reader.py`. See review §B.
+**Ownership:** Mays-Orders owns provider capability and source changes; RIS owns consumer contract verification and adapter requirements. Separate repositories/PRs.
+**Depends on:** approved resolver/ref and tenant contract (D02-04/05), provider owner response to 02B CR drafts, policy for data scope and retention, exact immutable pin confirmation.
+**Tasks:** consume provider `inspect_subject`, `export_subject`, `erase_subject`; verify current pin support and distinguish current provider Main from the pin. Resolve, with the provider, trusted subjectRef delegation on create, direct-Lambda invoke authorization/secret contract, and operation outcome semantics. Do not recreate provider operations or change the pin. Mark unsupported subject binding and legacy rows `BLOCKED/UNAVAILABLE`; no body-provided identity and no backfill.
+**Acceptance:** source/contract matrix at both SHAs; provider original tests cited (not duplicated); written provider-owner disposition of CR-01/02; exact input/output/auth/error/partial semantics documented. No implementation or test pass implied. See `DSGVO-02B-PROVIDER-INTEGRATION-REVIEW.md`.
 
-### DSGVO-04 — RIS privacy orchestration
+### DSGVO-04 — RIS Privacy Adapter
 
-**Ownership:** RIS privacy/runtime and data-store owners; service calls remain scoped to Orders/Jobsearch owners.
-**Depends on:** approved D02 identity/policy; DSGVO-03 linked lookup and DSAR outcome contract.
-**Tasks:** extend existing `ErasureOperationV1`/operation repository/checkpoint and G5/domain executors; add explicit Orders and Jobsearch adapter contracts, per-domain terminal state and evidence; preserve write-freeze, idempotency, retry/resume, tenant authorization; do not duplicate erasure engines or start execution before separate approval.
-**Acceptance:** original RIS privacy tests listed in review §C; synthetic adapter contract, missing-adapter blocker, failure/resume, scope denial and no false global completion. Receipts/checkpoints contain opaque minimal evidence only.
+**Ownership:** RIS privacy/runtime owner; Orders owns its privacy execution and status.
+**Depends on:** DSGVO-03 provider-supported contract, approved subject resolver and policy; separate RIS runtime authorization.
+**Tasks:** add a RIS-side adapter to the existing resumable operation path only. Invoke provider internal actions using approved IAM + secret handling; preserve action permission and project scope; gate EXECUTE separately from PREVIEW; map COMPLETED/PARTIALLY_COMPLETED/BLOCKED and transport-unknown faithfully; prevent blind execute retries without provider reconciliation. Persist only minimized evidence. Do not implement Orders inspect/export/erase logic in RIS.
+**Acceptance:** synthetic adapter contract, auth/secret negative cases, tenant/scope isolation, preview nonmutation, explicit execute gate, timeout/partial/resume handling and no false global completion. No provider secret or payload in receipts.
 
-### DSGVO-05 — retention, backup, queue and security
+### DSGVO-05 — XRepo Integration Tests
 
-**Ownership:** RIS platform/operations, Orders/Jobsearch operators and Security; Privacy/Legal decides policy.
-**Depends on:** D02 legal/retention/processor decisions; 03/04 category inventories. Policy/design can proceed in parallel; implementation requires separate task authorization.
-**Tasks:** cover S3 versions/PITR/ledger/restore, WorkItems/results/SQS/DLQ, CloudWatch/CloudTrail, receipts, caches/providers and internal secrets; define no-resurrection, stale-message, PII minimization, rotation/revocation and evidence expiry. Do not run redrive or AWS actions.
-**Acceptance:** approved schedules/exceptions, synthetic-only restore/queue/security tests and explicit residual-state reporting. No live state proof inferred. See review §C/D.
+**Ownership:** RIS QA owner and Mays-Orders test owner; each repository runs its own suite.
+**Depends on:** approved provider contract and exact source SHAs; isolated child-process jobs.
+**Tasks:** reuse provider Lambda unit suites and RIS compatibility tests; add only RIS-to-provider contract cases: create binding, inspect/export lookup, erase preview, authorized execute outcome, spoof denial, action auth, timeout ambiguity and partial result. Do not develop a new shared framework or run provider AWS E2E.
+**Acceptance:** synthetic fixtures only, exact SHA manifest, tests assert provider semantic statuses not merely invocation/HTTP success; missing/skipped integration test fails the gate. No test is run under this documentation work order.
 
-### DSGVO-06 — Unified Privacy CI/CD gate
+### DSGVO-06 — Unified Privacy QA
 
-**Ownership:** RIS CI owner with Orders and Jobsearch CI owners.
-**Depends on:** approved contract vectors; gate implementation consumes stable 03–05 tests. Gate design may start now.
-**Tasks:** reuse RIS pinned Unified QA runner and native Orders unittest/Jobsearch npm tools; separate repository jobs/processes and exact SHAs; run Jobsearch API node tests explicitly (Vitest excludes `api/**`); fail closed on skipped/unavailable coverage; publish provenance manifest. No shared writable checkout or new test framework.
-**Acceptance:** synthetic-only CI blocks on fail/skip/missing SHA, contains no ambient AWS credentials and produces auditable result; manual human gate remains separate. See review §D.
+**Ownership:** RIS CI owner plus Mays-Orders CI owner; Jobsearch only where its contracts participate.
+**Depends on:** stable 03–05 contract vectors and native test commands; CI owner approval.
+**Tasks:** reuse `scripts/unified_tests.py`/existing compatibility workflow and provider-native unit suite. Execute RIS, provider and XRepo jobs in separate processes/checkouts with explicit immutable SHAs; do not inject provider source into RIS-native jobs or provide ambient AWS credentials. Keep Jobsearch API tests explicit if in scope. Distinguish current integrated pin from provider Main; no implicit upgrade.
+**Acceptance:** blocking on missing SHA, skipped suite, or boundary failure; evidence manifest identifies commands, exact source SHAs, fixture type and artifacts. Green CI is technical evidence only, not legal, deployment or live-state approval.
 
-### DSGVO-07 — Synthetic XRepo acceptance
+### DSGVO-07 — Provider Integration Review / Acceptance
 
-**Ownership:** coordinator plus all three repository owners; Security and Privacy review.
-**Depends on:** approved D02 identity/legal/operational decisions; 03–06 implemented and reviewed in separate authorized PRs at immutable SHAs.
-**Tasks:** new synthetic subject lifecycle from identity proof/link through every Orders write, RIS adapter, Jobsearch consent/storage boundary, export/erase, queue/result, retained data and backup restore; reconcile record counts and each partial/excluded outcome.
-**Acceptance:** exact SHA matrix; original and new suites; cross-tenant negatives; complete per-domain evidence or approved exception; no false completion or restore resurrection; human sign-off. No live redrive/deployment or real PII.
+**Ownership:** RIS coordinator, Mays-Orders provider owner, Security/Privacy reviewers.
+**Depends on:** approved decisions and 03–06 implementation/test work in separately authorized PRs; no pin upgrade unless explicitly scoped elsewhere.
+**Tasks:** review synthetic provider contract evidence and per-domain outcomes; confirm source provenance and unresolved gaps; obtain provider disposition for separate CRs. No live invocation, deployment, real PII or production approval in this package.
+**Acceptance:** exact SHA matrix, provider-owned test evidence, RIS adapter evidence and explicit blocked/partial limitations. Human review remains separate from CI.
 
-## 5. Contract, migration and RED/GREEN test plan
+### DSGVO-02B — Provider alignment supersession
+
+The provider-specific contract, evidence distinctions, RIS adapter design and separate unsubmitted provider change requests are consolidated in [`DSGVO-02B-PROVIDER-INTEGRATION-REVIEW.md`](DSGVO-02B-PROVIDER-INTEGRATION-REVIEW.md). Where earlier 02A wording could be read as assigning Orders privacy implementation to RIS, this provider-first work-order set supersedes that interpretation. No provider feature is reimplemented in RIS.
+
+## 5. Contract, migration and RED/GREEN test plan (proposal; provider scope clarified by 02B)
+
+This section remains a proposed test/migration design, not authorization. For Mays-Orders, its implementation and native tests belong to the provider repository; RIS work is limited to consumer contract tests and adapter behavior. The provider-specific split and the fact that trusted subject delegation is currently unsupported are defined in [`DSGVO-02B-PROVIDER-INTEGRATION-REVIEW.md`](DSGVO-02B-PROVIDER-INTEGRATION-REVIEW.md). No provider changes or pin upgrades are implied by the test vectors below.
 
 ### Contract tests
 

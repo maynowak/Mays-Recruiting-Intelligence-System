@@ -1,11 +1,11 @@
 # DSGVO Master Orchestration Status
 
-**Version:** 2.0
+**Version:** 2.1
 **Updated:** 2026-11-28
 **Branch baseline:** `feature/ris-dsgvo-compliance-01` @ `e25e900667a18f9123a89a2ea7fdc0ca96e7b553`
 **Orders pin constraint:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` — immutable for this orchestration.
-**Current review base:** `77e215282a661b5c1ce7dcb66d703e1eb4432212`
-**Overall:** `DSGVO TECHNICAL CONTRACT READY FOR DECISION` — A–D reviews consolidated; STOP before implementation.
+**Current review base:** RIS `d8a7fffb112fc39ad839aef4a87e5722b521db1f`; Orders pin `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`; provider Main reviewed `716a16590673cdb649df414c08fc0bf7814caac7`.
+**Overall:** `RIS PRIVACY PROVIDER INTEGRATION READY FOR REVIEW` — provider capability mapped to RIS gaps; STOP before implementation.
 
 ## Package graph
 
@@ -13,13 +13,16 @@
 DSGVO-01 Discovery (COMPLETE)
           |
           v
-DSGVO-02 Decision package + XRepo subject identity contract (CURRENT)
+DSGVO-02 / 02A decisions and technical review (COMPLETE AS PROPOSAL)
+           |
+           v
+DSGVO-02B Provider integration alignment (CURRENT; REVIEW GATE)
    |             |                 |                  |
    v             v                 v                  v
 DSGVO-03       DSGVO-04          DSGVO-05           DSGVO-06
-Orders         RIS privacy       retention/backup/   unified CI/CD
-linkage +      orchestration     queue/security      gate design
-DSAR           (depends on 03)   (policy from 02)   (design can parallel;
+Provider       RIS privacy       XRepo integration   Unified privacy
+contract       adapter           tests               QA
+compliance     (depends on 03)   (depends on 03/04)  (depends on 03-05;
    \             |                 /                implementation awaits 03-05)
     \____________|________________/________________/
                          |
@@ -28,7 +31,7 @@ DSAR           (depends on 03)   (policy from 02)   (design can parallel;
                   (only after 03–06 implementation and approvals)
 ```
 
-Interpretation: DSGVO-03, the policy/design portion of DSGVO-05, and the CI-gate design in DSGVO-06 can be prepared independently after DSGVO-02 decisions/contract are reviewed. Their technical execution is not authorized by this plan. DSGVO-04 depends on the subject-linkage and DSAR interface from DSGVO-03. DSGVO-07 depends on integrated implementations from 03–06 plus a test-ready approved contract. Legal/operational approvals are cross-cutting prerequisites, not tasks that CI can satisfy.
+Interpretation: DSGVO-03 verifies and obtains provider contract dispositions; it does not reimplement Mays-Orders capabilities in RIS. DSGVO-04 is only the RIS consumer adapter. DSGVO-05/06 reuse provider originals and existing RIS QA; no redundant provider suite/report. DSGVO-07 is review of evidence at exact SHAs, not a live acceptance/deployment. Separate legal and operational approvals remain outside these technical packages.
 
 ## Ownership and work-package ledger
 
@@ -36,12 +39,13 @@ Interpretation: DSGVO-03, the policy/design portion of DSGVO-05, and the CI-gate
 |---|---|---|---|---|
 | DSGVO-01 | RIS / Privacy coordinator | Discovery, evidence index and plan | — | COMPLETE, documentation |
 | DSGVO-02 | RIS docs / Privacy coordinator; decisions by named service and legal owners | Decision register, proposed subject identity contract, follow-up tickets, contract/migration/test plans | DSGVO-01 | DOCUMENTATION COMPLETE; technical recommendation ready; owner/legal decisions OPEN |
-| DSGVO-02A | RIS coordinator; parallel read-only reviews A–D | Identity architecture, Orders paths, RIS capabilities, unified QA; consolidated contract recommendation | DSGVO-02 | COMPLETE AS REVIEW; no decisions approved, no implementation |
-| DSGVO-03 | Mays-Orders / Orders owner; RIS adapter owner | Subject linkage on every write path, legacy strategy, inspect/export/erase coverage, anonymization, original tests | 02 approved contract + data/legal decisions | PREPARED ONLY |
-| DSGVO-04 | RIS / Privacy runtime + data owners | Cross-domain operation orchestration, freeze, per-domain progress, partial/resume and receipts | 03 interface/linkage + 02 policy | PREPARED ONLY |
-| DSGVO-05 | RIS platform/operations + Orders/Jobsearch owners + Security | Retention, S3 versions, PITR/restore, WorkItems/results/SQS/DLQ, logs and secret lifecycle | 02 policy decisions; affected implementation dependencies noted in plan | PREPARED ONLY |
-| DSGVO-06 | RIS CI owner + Orders and Jobsearch CI owners | Unified, isolated, synthetic-only blocking gate and provenance report | 02 contract/test vectors; execution tests from 03–05 | DESIGN PREPARABLE; no gate implemented |
-| DSGVO-07 | Cross-repository release coordinator + all owners | Synthetic integrated acceptance, reconciled evidence and unresolved-status report | 03–06 complete; human/security approvals | NOT STARTED / NOT AUTHORIZED |
+| DSGVO-02A | RIS coordinator; parallel read-only reviews A–D | Identity architecture, Orders paths, RIS capabilities, QA inventory | DSGVO-02 | COMPLETE AS REVIEW; recommendation unapproved |
+| DSGVO-02B | RIS coordinator; Mays-Orders provider reviewed read-only | Pin/Main capability and evidence matrix, adapter gaps, provider CR drafts | 02A | READY FOR REVIEW; no implementation |
+| DSGVO-03 | Mays-Orders provider owner + RIS contract owner | Provider contract compliance, trusted subject binding and CR disposition | 02 decisions + provider owner response | PREPARED ONLY; no RIS reimplementation |
+| DSGVO-04 | RIS privacy/runtime owner | RIS Privacy Adapter, auth/secret, status and timeout mapping | 03 supported contract + separate authorization | PREPARED ONLY |
+| DSGVO-05 | RIS QA + Mays-Orders test owners | Synthetic XRepo integration tests reusing provider originals | 03/04 exact contract and SHAs | PREPARED ONLY |
+| DSGVO-06 | RIS CI + provider CI owners | Unified isolated synthetic QA and provenance | Stable 03–05 suites; CI owner approval | DESIGN ONLY |
+| DSGVO-07 | RIS coordinator + provider/security/privacy reviewers | Evidence review and unresolved-status review | 03–06 separately authorized/completed | NOT STARTED / NOT AUTHORIZED |
 
 ## Shared quality constraints
 
@@ -63,7 +67,8 @@ Interpretation: DSGVO-03, the policy/design portion of DSGVO-05, and the CI-gate
 | 1.4 | RIS erasure components, missing XRepo adapters, coverage and minimal extension plan reviewed | [`DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md`](DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md), section C |
 | 1.5 | Native suites/CI, synthetic catalog, isolated runners and SHA provenance reviewed | [`DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md`](DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md), section D |
 | 2.0 | A–D consolidated; persistent opaque mapping recommended over default HMAC; DSGVO-03…07 work orders updated; decision stop gate active | [`DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md`](DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md), consolidated recommendation |
+| 2.1 | Provider pin/Main aligned; provider functions/evidence distinguished from RIS adapter gaps; 03–07 recentered on contract compliance and reuse; stop before implementation | [`DSGVO-02B-PROVIDER-INTEGRATION-REVIEW.md`](DSGVO-02B-PROVIDER-INTEGRATION-REVIEW.md) |
 
 ## Stop gate
 
-Current stop point is **DSGVO-02A Contract and Decision Gate**. No implementation work may begin until named owners decide the identity resolver/reference model, legal/purpose/retention matters, legacy data treatment and operational controls listed in `DSGVO-02-DECISIONS-AND-CONTRACT.md` and `DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md`. This is READY FOR DECISION, not READY FOR IMPLEMENTATION. Real personal data remains prohibited; no AWS/Terraform mutation, deployment, redrive, or Main merge is in scope.
+Current stop point is **DSGVO-02B Provider Integration Review Gate**. The provider contract is not a RIS implementation authorization. Provider CRs are drafts and unsubmitted. No pin upgrade, provider edit, RIS runtime work, AWS/Terraform action, deployment, or real-data processing is in scope. Obtain provider, identity, security, legal/policy and RIS owner decisions before any separately authorized implementation. This status is READY FOR REVIEW, not READY FOR IMPLEMENTATION or live deployment proof.
