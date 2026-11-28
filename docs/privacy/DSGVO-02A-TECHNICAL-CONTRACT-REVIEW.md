@@ -1,7 +1,7 @@
 # DSGVO-02A — Parallel Technical Contract Review
 
-**Status:** Technical evidence consolidated; proposed contract awaits owner decisions.  
-**Review baseline:** RIS `77e215282a661b5c1ce7dcb66d703e1eb4432212`; Orders `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`; Jobsearch Main `c298d223e38407781b4f63426be9f9228ccb4467`.  
+**Status:** Technical evidence consolidated; proposed contract awaits owner decisions.
+**Review baseline:** RIS `77e215282a661b5c1ce7dcb66d703e1eb4432212`; Orders `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`; Jobsearch Main `c298d223e38407781b4f63426be9f9228ccb4467`.
 **Method:** four independent read-only reviews; no tests run and no source files edited.
 
 ## A — Identity architecture review
@@ -135,3 +135,35 @@ Use deterministic synthetic fixtures only. Tests should assert full record state
 - CI is blocking/non-approving: it may reject missing or failing evidence, but cannot establish lawful basis, legal consent, live configuration, deployment authorization or real-data release.
 
 **Limitations:** This is a source/workflow inventory and test design; no suite ran. Jobsearch `origin/main` differs from the local checked-out branch, so future CI must fetch/verify the immutable Main SHA instead of treating the local feature checkout as proof.
+
+## Consolidated recommendation and decision gate
+
+### Recommended XRepo identity contract
+
+1. **Native principal:** verified source namespace + normalized issuer + subject, with tenant obtained from trusted server context. The native principal tuple is never accepted from a request body and is not replaced by email.
+2. **Cross-site association:** separate RIS and Jobsearch principals remain distinct unless an approved flow proves control of both and an accountable resolver records the link. A valid token at one site alone does not prove ownership of a principal at the other site.
+3. **Canonical reference:** prefer a high-entropy, randomly generated, persistent opaque `subjectRef` with a version prefix, held in a protected mapping registry. Mapping is tenant-bound and resolves each verified native principal to its reference. Only authorized service contexts may resolve it; owner authorization continues to use each service's native contract.
+4. **Orders integration:** propagate the canonical reference only over an authenticated server-to-server path; use it for GSI2 privacy discovery while retaining Orders `ownerKey`/GSI3. Populate every required writer/update. Do not expose it to public clients or use it as an authorization credential.
+5. **DSAR semantics:** mapping must allow a verified principal to find all linked references, records and aliases; link/unlink/conflict and unresolved legacy data are explicit. Any missing mapping/domain yields partial/blocked status, never silent success.
+6. **Alternative:** tenant-scoped HMAC SubjectRef is acceptable only if owners reject the mapping registry and approve key custody, versioned dual-resolution/rotation, compromise recovery and historical reindexing. Existing unkeyed Orders owner_key is not the privacy index contract.
+
+**Rationale:** A persistent random reference separates privacy discovery from native owner authorization and avoids requiring a secret-derived index to be recomputed after every key rotation. A mapping registry provides rediscovery, but creates its own sensitive dataset and retention/security obligations. HMAC reduces stored mapping state but still needs deterministic identity input, fails to link separate pools by itself, and makes key loss/rotation a data-discoverability risk. Neither option solves lawfulness or account-linking without an approved proof flow.
+
+### Updated DSGVO-03…07 readiness
+
+| Package | Technical readiness after 02A | Remaining gate |
+|---|---|---|
+| DSGVO-03 Orders subject linkage/DSAR | Concrete file-path/write-path and test proposal in §B and `DSGVO-02-DECISIONS-AND-CONTRACT.md`; no implementation | Approve identity resolver, scope, data-field erasure/retention and legacy handling; Orders/RIS owner authorization |
+| DSGVO-04 RIS orchestration | Reuse path and missing adapter contract in §C; no implementation | DSGVO-03 adapter contract plus legal scope/retention and domain owner approvals |
+| DSGVO-05 retention/backup/queue/security | Categories and owners identified in §C/D; design may proceed independently | Privacy/legal retention decisions, platform/security owner acceptance; separate mutation authorization |
+| DSGVO-06 unified CI/CD | Existing runner/tooling and test gaps in §D; design can proceed | Approved contract vectors and stable 03–05 suites; CI owners approve workflow changes |
+| DSGVO-07 synthetic XRepo acceptance | Synthetic catalog and evidence-manifest criteria in §D; no execution | 03–06 complete at exact SHAs, identity/retention decisions and human acceptance sign-offs |
+
+### Decisions that remain explicitly open
+
+- Resolver and cross-account-link proof, canonical mapping owner, tenant model, reference generation and map retention/recovery.
+- Controller/processor roles; legal bases including Article 9 conditions; consent/notice/withdrawal; retention and legal exceptions; DPIA decision; processor/transfer terms; DSAR workflow and timing.
+- Treatment of embedded Orders AgentOrder/result/customer/owner fields and legacy records; what can be erased vs retained, and on what approved basis.
+- Production migration/backfill, secrets, logs, S3/PITR/restore, queue/terminal-result handling, and release approvals.
+
+**Final status:** `DSGVO TECHNICAL CONTRACT READY FOR DECISION`. This is not `READY FOR IMPLEMENTATION`. No tests were run, no migration performed, no legal decision made, and no technical/runtime/operational mutation authorized. Stop here until named owners return explicit decisions and separately authorize the next package.

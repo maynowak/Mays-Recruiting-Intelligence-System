@@ -1,10 +1,11 @@
 # DSGVO Master Orchestration Status
 
-**Version:** 1.5
+**Version:** 2.0
 **Updated:** 2026-11-28
 **Branch baseline:** `feature/ris-dsgvo-compliance-01` @ `e25e900667a18f9123a89a2ea7fdc0ca96e7b553`
 **Orders pin constraint:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` — immutable for this orchestration.
-**Overall:** `DSGVO MASTER ORCHESTRATION READY` — DSGVO-02 package complete; STOP at Contract and Decision Gate. No technical remediation authorized.
+**Current review base:** `77e215282a661b5c1ce7dcb66d703e1eb4432212`
+**Overall:** `DSGVO TECHNICAL CONTRACT READY FOR DECISION` — A–D reviews consolidated; STOP before implementation.
 
 ## Package graph
 
@@ -34,7 +35,8 @@ Interpretation: DSGVO-03, the policy/design portion of DSGVO-05, and the CI-gate
 | Package | Repository / accountable owner | Scope | Depends on | Current state |
 |---|---|---|---|---|
 | DSGVO-01 | RIS / Privacy coordinator | Discovery, evidence index and plan | — | COMPLETE, documentation |
-| DSGVO-02 | RIS docs / Privacy coordinator; decisions by named service and legal owners | Decision register, proposed subject identity contract, follow-up tickets, contract/migration/test plans | DSGVO-01 | DOCUMENTATION COMPLETE; owner/legal decisions OPEN; stop at approval gate |
+| DSGVO-02 | RIS docs / Privacy coordinator; decisions by named service and legal owners | Decision register, proposed subject identity contract, follow-up tickets, contract/migration/test plans | DSGVO-01 | DOCUMENTATION COMPLETE; technical recommendation ready; owner/legal decisions OPEN |
+| DSGVO-02A | RIS coordinator; parallel read-only reviews A–D | Identity architecture, Orders paths, RIS capabilities, unified QA; consolidated contract recommendation | DSGVO-02 | COMPLETE AS REVIEW; no decisions approved, no implementation |
 | DSGVO-03 | Mays-Orders / Orders owner; RIS adapter owner | Subject linkage on every write path, legacy strategy, inspect/export/erase coverage, anonymization, original tests | 02 approved contract + data/legal decisions | PREPARED ONLY |
 | DSGVO-04 | RIS / Privacy runtime + data owners | Cross-domain operation orchestration, freeze, per-domain progress, partial/resume and receipts | 03 interface/linkage + 02 policy | PREPARED ONLY |
 | DSGVO-05 | RIS platform/operations + Orders/Jobsearch owners + Security | Retention, S3 versions, PITR/restore, WorkItems/results/SQS/DLQ, logs and secret lifecycle | 02 policy decisions; affected implementation dependencies noted in plan | PREPARED ONLY |
@@ -60,7 +62,8 @@ Interpretation: DSGVO-03, the policy/design portion of DSGVO-05, and the CI-gate
 | 1.3 | Orders write paths, GSI2 coverage, anonymization gap and native test changes reviewed; no implementation | [`DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md`](DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md), section B |
 | 1.4 | RIS erasure components, missing XRepo adapters, coverage and minimal extension plan reviewed | [`DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md`](DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md), section C |
 | 1.5 | Native suites/CI, synthetic catalog, isolated runners and SHA provenance reviewed | [`DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md`](DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md), section D |
+| 2.0 | A–D consolidated; persistent opaque mapping recommended over default HMAC; DSGVO-03…07 work orders updated; decision stop gate active | [`DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md`](DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md), consolidated recommendation |
 
 ## Stop gate
 
-Current stop point is **DSGVO-02 Contract and Decision Gate**. No implementation work may begin until the contract is reviewed and the decisions listed in `DSGVO-02-DECISIONS-AND-CONTRACT.md` have named owners and explicit outcomes. Real personal data remains prohibited; no AWS/Terraform mutation, deployment, redrive, or Main merge is in scope.
+Current stop point is **DSGVO-02A Contract and Decision Gate**. No implementation work may begin until named owners decide the identity resolver/reference model, legal/purpose/retention matters, legacy data treatment and operational controls listed in `DSGVO-02-DECISIONS-AND-CONTRACT.md` and `DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md`. This is READY FOR DECISION, not READY FOR IMPLEMENTATION. Real personal data remains prohibited; no AWS/Terraform mutation, deployment, redrive, or Main merge is in scope.

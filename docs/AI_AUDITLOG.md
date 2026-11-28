@@ -14819,3 +14819,13 @@ Source pins: RIS 77e215282a661b5c1ce7dcb66d703e1eb4432212; Orders db4f9e79980443
 Findings: Existing native suites can be reused; RIS has a pinned/isolated compatibility QA pattern; Orders CI validate buildspec documents unit-test skip; Jobsearch API tests require explicit coverage because npm/Vitest excludes api/**. Defined synthetic catalog, isolated per-repo jobs and immutable SHA evidence manifest; no new test framework proposed.
 Evidence: docs/privacy/DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md §D.
 No source/tests/AWS/Terraform changed or run. Step D checkpoint; consolidation of recommended contract and DSGVO-03…07 work orders remains.
+
+[RIS-DSGVO-02A — CONSOLIDATION / FINAL]
+Status: DSGVO TECHNICAL CONTRACT READY FOR DECISION — STOP BEFORE IMPLEMENTATION.
+Date: 2026-11-28
+Requested baseline: feature/ris-dsgvo-compliance-01 @ 77e215282a661b5c1ce7dcb66d703e1eb4432212. Orders pin db4f9e79980443de1cd3d5b688a33c0cf0eb771f unchanged; Jobsearch reviewed Main c298d223e38407781b4f63426be9f9228ccb4467.
+Scope complete: Four independent read-only investigations A identity, B Orders writes/privacy, C RIS capabilities/adapters, D original tests/CI were consolidated. DSGVO-03…07 work orders were updated with specific source paths, tests, dependencies, acceptance and owner gates.
+Recommendation: persistent random opaque subjectRef with protected, tenant-bound mapping and explicit dual-account proof is preferred over using an HMAC-derived index as default; HMAC remains an alternative requiring key lifecycle and migration decisions. Not approved; legal/operator/security decisions remain open.
+Evidence: docs/privacy/DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md; docs/privacy/DSGVO-02-DECISIONS-AND-CONTRACT.md; docs/privacy/DSGVO-MASTER-ORCHESTRATION-STATUS.md v2.0.
+Validation: No tests run; documentation diff/link QA only. No runtime/schema/generated module changes, pin upgrades, AWS/Terraform, deployment, redrive, Main merge, migration, or real personal data.
+Current stop point: named human decision on identity resolver, lawful purpose/retention, data-field policy and operational gates. Status is READY FOR DECISION, not READY FOR IMPLEMENTATION.
