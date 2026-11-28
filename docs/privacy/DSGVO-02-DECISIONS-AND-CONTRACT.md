@@ -1,7 +1,7 @@
 # DSGVO-02 — Privacy Decision Package and XRepo Subject Identity Contract
 
-**Package state:** DOCUMENTATION COMPLETE; DECISION GATE OPEN.  
-**Technical implementation:** NOT STARTED / NOT AUTHORIZED.  
+**Package state:** DOCUMENTATION COMPLETE; DECISION GATE OPEN.
+**Technical implementation:** NOT STARTED / NOT AUTHORIZED.
 **Evidence baseline:** RIS `e25e900667a18f9123a89a2ea7fdc0ca96e7b553`; Mays-Orders pin `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`; Jobsearch Main reviewed `c298d223e38407781b4f63426be9f9228ccb4467`. This document proposes contracts and work orders; it does not change any repository integration contract or legal position.
 
 ## 1. Decision statement
@@ -65,37 +65,37 @@ This is a proposed contract version, not a public endpoint change. Existing `Ord
 
 ### DSGVO-03 — Mays-Orders subject linkage and DSAR
 
-**Ownership:** Orders code/schema/tests owned by Mays-Orders maintainer; RIS AgentOrder producers and adapter owned by RIS maintainer. Cross-repo work needs separate changes/PRs.  
-**Depends on:** D02-04/D02-05 approved; privacy/legal scope D02-01/02/03/06; exact source pin and module contract reconfirmed.  
-**Tasks:** enumerate every order create/update/import/consumer write; define additive subject-index schema; update producers and order storage consistently; maintain separate owner auth; enumerate embedded `agentOrder` personal fields and define export/anonymize projection; implement/verify inspect/export/erase against indexed records; design legacy rows as `indexed`, `unresolvable`, or `excluded-with-approved-basis`; document a dry-run/backfill and rollback plan. Do not execute migration here.  
+**Ownership:** Orders code/schema/tests owned by Mays-Orders maintainer; RIS AgentOrder producers and adapter owned by RIS maintainer. Cross-repo work needs separate changes/PRs.
+**Depends on:** D02-04/D02-05 approved; privacy/legal scope D02-01/02/03/06; exact source pin and module contract reconfirmed.
+**Tasks:** enumerate every order create/update/import/consumer write; define additive subject-index schema; update producers and order storage consistently; maintain separate owner auth; enumerate embedded `agentOrder` personal fields and define export/anonymize projection; implement/verify inspect/export/erase against indexed records; design legacy rows as `indexed`, `unresolvable`, or `excluded-with-approved-basis`; document a dry-run/backfill and rollback plan. Do not execute migration here.
 **Acceptance:** synthetic every-path producer tests prove `subjectRef` and GSI fields; idempotent retry/result update preserves index; tenant/subject isolation negatives; export excludes internal/secrets/other subjects; erase/anonymize is complete only for policy-approved fields and leaves no indexed personal payload; legacy reconciliation counts exactly, with no silent skip. Original Orders tests remain required.
 
 ### DSGVO-04 — RIS privacy orchestration
 
-**Ownership:** RIS privacy/runtime and data-store owners.  
-**Depends on:** approved D02 contract; DSGVO-03 subject lookup and DSAR response shape; D02 legal/retention policy.  
-**Tasks:** build on existing `privacy_erasure`/checkpoint/repository and inspect/export contracts; orchestrate authorized domain adapters; propagate idempotency and operation status; guard concurrent writes; distinguish preview/execute, verified/partial/blocked and third-party-requested states; do not call new execution paths until separately authorized.  
+**Ownership:** RIS privacy/runtime and data-store owners.
+**Depends on:** approved D02 contract; DSGVO-03 subject lookup and DSAR response shape; D02 legal/retention policy.
+**Tasks:** build on existing `privacy_erasure`/checkpoint/repository and inspect/export contracts; orchestrate authorized domain adapters; propagate idempotency and operation status; guard concurrent writes; distinguish preview/execute, verified/partial/blocked and third-party-requested states; do not call new execution paths until separately authorized.
 **Acceptance:** original RIS privacy/erasure/security/partner-profile/ApplicationV1 tests plus synthetic XRepo adapter contract; partial failure/resume; identity/tenant isolation; no global completion when any required adapter is unavailable; no raw identifiers in receipts.
 
 ### DSGVO-05 — retention, backup, queue and security
 
-**Ownership:** RIS platform/operations, Orders operations, Jobsearch operations and Security; Privacy/Legal sets policy.  
-**Depends on:** approved D02-01/02/06/08 decisions; DSGVO-03/04 inventories for affected records. Documentation and test design can proceed in parallel; implementation/deployment requires separate task authorization.  
-**Tasks:** category-by-category retention matrix including versions/PITR/ledger/logs/SQS/DLQ/results/caches/providers; restore no-resurrection design; queue cancellation and redrive safety (no redrive in this task); secret inventory/rotation ownership; payload/log minimization; provider deletion/retention request evidence.  
+**Ownership:** RIS platform/operations, Orders operations, Jobsearch operations and Security; Privacy/Legal sets policy.
+**Depends on:** approved D02-01/02/06/08 decisions; DSGVO-03/04 inventories for affected records. Documentation and test design can proceed in parallel; implementation/deployment requires separate task authorization.
+**Tasks:** category-by-category retention matrix including versions/PITR/ledger/logs/SQS/DLQ/results/caches/providers; restore no-resurrection design; queue cancellation and redrive safety (no redrive in this task); secret inventory/rotation ownership; payload/log minimization; provider deletion/retention request evidence.
 **Acceptance:** approved periods and exceptions; synthetic restore and queue tests; no subject resurrection or stale processing; explicit limits where physical deletion waits for expiry; secret negative tests and redaction proof. No Apply/AWS mutation under this work order.
 
 ### DSGVO-06 — Unified Privacy CI/CD gate
 
-**Ownership:** RIS CI owner with Orders and Jobsearch CI owners.  
-**Depends on:** D02 contract/test vectors for design; execution rollout depends on stable 03–05 tests and isolated runner contracts.  
-**Tasks:** define per-repo test jobs with exact SHA provenance and process isolation; contract schema/version checks; synthetic-only fixtures; static test for every producer's subject linkage; forbidden data/secret logging checks; signed evidence manifest.  
+**Ownership:** RIS CI owner with Orders and Jobsearch CI owners.
+**Depends on:** D02 contract/test vectors for design; execution rollout depends on stable 03–05 tests and isolated runner contracts.
+**Tasks:** define per-repo test jobs with exact SHA provenance and process isolation; contract schema/version checks; synthetic-only fixtures; static test for every producer's subject linkage; forbidden data/secret logging checks; signed evidence manifest.
 **Acceptance:** CI blocks on fail/skip/missing evidence and reports exact SHAs/commands; tests cannot access cloud credentials; manual named approval required and cannot be bypassed by a green job to authorize legal basis, live data, deployment or Apply.
 
 ### DSGVO-07 — Synthetic XRepo acceptance
 
-**Ownership:** cross-repository release coordinator; each repository owner signs its evidence; Privacy/Security review.  
-**Depends on:** 03–06 implementations merged only through their own authorized PRs; D02 legal/contract decisions; exact immutable source pins.  
-**Tasks:** run fresh synthetic subject lifecycle across consent/mapping, every Orders write, RIS inspect/export/erase, result/queue handling, retained logs/backup and restore; reconcile counts/partial states; produce evidence bundle.  
+**Ownership:** cross-repository release coordinator; each repository owner signs its evidence; Privacy/Security review.
+**Depends on:** 03–06 implementations merged only through their own authorized PRs; D02 legal/contract decisions; exact immutable source pins.
+**Tasks:** run fresh synthetic subject lifecycle across consent/mapping, every Orders write, RIS inspect/export/erase, result/queue handling, retained logs/backup and restore; reconcile counts/partial states; produce evidence bundle.
 **Acceptance:** all required categories reconcile or have approved exception; cross-tenant negative cases pass; no residual subject-linked records beyond approved retention; restore does not resurrect; original and new suites pass; human gate sign-off recorded. No real PII, live redrive or deployment implied.
 
 ## 5. Contract, migration and RED/GREEN test plan

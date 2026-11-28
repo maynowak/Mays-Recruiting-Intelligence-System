@@ -1,9 +1,9 @@
 # DSGVO Master Orchestration Status
 
 **Version:** 1.1
-**Updated:** 2026-11-28  
-**Branch baseline:** `feature/ris-dsgvo-compliance-01` @ `e25e900667a18f9123a89a2ea7fdc0ca96e7b553`  
-**Orders pin constraint:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` — immutable for this orchestration.  
+**Updated:** 2026-11-28
+**Branch baseline:** `feature/ris-dsgvo-compliance-01` @ `e25e900667a18f9123a89a2ea7fdc0ca96e7b553`
+**Orders pin constraint:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` — immutable for this orchestration.
 **Overall:** `DSGVO MASTER ORCHESTRATION READY` — DSGVO-02 package complete; STOP at Contract and Decision Gate. No technical remediation authorized.
 
 ## Package graph
