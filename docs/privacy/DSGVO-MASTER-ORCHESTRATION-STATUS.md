@@ -1,10 +1,10 @@
 # DSGVO Master Orchestration Status
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Updated:** 2026-11-28  
 **Branch baseline:** `feature/ris-dsgvo-compliance-01` @ `e25e900667a18f9123a89a2ea7fdc0ca96e7b553`  
 **Orders pin constraint:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` — immutable for this orchestration.  
-**Overall:** IN PROGRESS — DSGVO-02 contract/decision gate. No technical remediation authorized.
+**Overall:** `DSGVO MASTER ORCHESTRATION READY` — DSGVO-02 package complete; STOP at Contract and Decision Gate. No technical remediation authorized.
 
 ## Package graph
 
@@ -34,7 +34,7 @@ Interpretation: DSGVO-03, the policy/design portion of DSGVO-05, and the CI-gate
 | Package | Repository / accountable owner | Scope | Depends on | Current state |
 |---|---|---|---|---|
 | DSGVO-01 | RIS / Privacy coordinator | Discovery, evidence index and plan | — | COMPLETE, documentation |
-| DSGVO-02 | RIS docs / Privacy coordinator; decisions by named service and legal owners | Decision register, proposed subject identity contract, follow-up tickets, contract/migration/test plans | DSGVO-01 | IN PROGRESS; stop at approval gate |
+| DSGVO-02 | RIS docs / Privacy coordinator; decisions by named service and legal owners | Decision register, proposed subject identity contract, follow-up tickets, contract/migration/test plans | DSGVO-01 | DOCUMENTATION COMPLETE; owner/legal decisions OPEN; stop at approval gate |
 | DSGVO-03 | Mays-Orders / Orders owner; RIS adapter owner | Subject linkage on every write path, legacy strategy, inspect/export/erase coverage, anonymization, original tests | 02 approved contract + data/legal decisions | PREPARED ONLY |
 | DSGVO-04 | RIS / Privacy runtime + data owners | Cross-domain operation orchestration, freeze, per-domain progress, partial/resume and receipts | 03 interface/linkage + 02 policy | PREPARED ONLY |
 | DSGVO-05 | RIS platform/operations + Orders/Jobsearch owners + Security | Retention, S3 versions, PITR/restore, WorkItems/results/SQS/DLQ, logs and secret lifecycle | 02 policy decisions; affected implementation dependencies noted in plan | PREPARED ONLY |
@@ -55,6 +55,7 @@ Interpretation: DSGVO-03, the policy/design portion of DSGVO-05, and the CI-gate
 | Version | State | Evidence |
 |---|---|---|
 | 1.0 | Orchestration graph/ownership ledger established; DSGVO-02 active | This file; commit recorded in Git history |
+| 1.1 | DSGVO-02 decision package and draft XRepo identity contract complete; 03–07 work orders prepared; stop gate active | [`DSGVO-02-DECISIONS-AND-CONTRACT.md`](DSGVO-02-DECISIONS-AND-CONTRACT.md); commit recorded in Git history |
 
 ## Stop gate
 

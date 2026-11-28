@@ -14777,3 +14777,13 @@ Scope: Documentation-only orchestration setup; independent preparation paths ide
 Evidence: docs/privacy/DSGVO-MASTER-ORCHESTRATION-STATUS.md and docs/privacy/README.md.
 Safety: No runtime/infrastructure changes, sister-repository changes, AWS/Terraform/deployment/redrive/Main merge or real-data processing.
 Next: DSGVO-02 decision package and proposed XRepo subject-identity contract; stop at owner/legal contract gate.
+
+[RIS-DSGVO-MASTER-ORCHESTRATION-01 — STEP 2 / DSGVO-02]
+Status: COMPLETE AS DOCUMENTATION; CONTRACT/DECISION APPROVAL OPEN; STOP.
+Date: 2026-11-28
+Baseline: feature/ris-dsgvo-compliance-01 @ 49818ed (orchestration checkpoint); Orders source pin db4f9e79980443de1cd3d5b688a33c0cf0eb771f unchanged.
+Scope: Prepared purpose/legal/operator decision register; draft versioned XRepo subject identity contract; repository-owned follow-up work orders DSGVO-03 through DSGVO-07; compatibility and read-only migration strategy; RED/GREEN contract and original/additional test plan. No technical work executed.
+Key boundary: Proposed keyed subjectRef and mapping flow are unapproved. Separate Jobsearch/RIS principals must not be equated by email or client values. No test execution or migration/read was performed.
+Evidence: docs/privacy/DSGVO-02-DECISIONS-AND-CONTRACT.md; docs/privacy/DSGVO-MASTER-ORCHESTRATION-STATUS.md v1.1.
+Safety: No runtime/schema/generated-module/pin changes; no AWS/Terraform/deployment/redrive/Main merge or real data.
+Current resume/stop point: named owners must decide D02-01…D02-10 and approve/version the identity contract before DSGVO-03 implementation. Master orchestration is prepared; STOP at Contract and Decision Gate.
