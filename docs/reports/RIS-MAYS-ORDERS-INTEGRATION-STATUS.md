@@ -1,5 +1,19 @@
 # RIS–Mays-Orders Integration — Current Status
 
+> **FINAL STATUS (2026-11-28; RIS Main `8b9a706`):**
+> `TECHNICAL_INTEGRATION=VERIFIED` · `ADDITION_LIVE_E2E=PASS` ·
+> `ATS_HTTP_AGENT=DISABLED` · `TEMPORARY_ENTITLEMENT_CLEANUP=COMPLETE` ·
+> `SHARED_INFRASTRUCTURE=UNCHANGED` · `STATE_SERIAL=79` ·
+> `MAIN_INTEGRATION=COMPLETE` · `PR_17=MERGED` · `PR_CI=PASS` · `MAIN_CI=PASS`.
+> This final, synthetic DEV2 technical acceptance does **not** approve real PII
+> processing or close the privacy findings below. Historical STOP/BLOCKED
+> sections are timestamped evidence and are not current status. Full dossier:
+> [RIS × Mays-Orders Integration Dossier](../integration/RIS-MAYS-ORDERS-INTEGRATION-DOSSIER.md).
+
+**Main head at acceptance:** `8b9a70604e94cc96124c132253c802f8b048825f`.
+**Integrated Mays source pin:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`;
+not the separate RC4 tag `5bc154e` or upgrade candidate `80a84ca`.
+
 **Status at 2026-11-28:** both authorized entitlement Applies completed with
 their reviewed saved plans; the latest post-Apply read-only verification
 **PASS** (State serial 78). **STOP at Live-Order gate**: no live order, retry,

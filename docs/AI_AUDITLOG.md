@@ -14732,3 +14732,12 @@ Baseline `c6b764ec94a19d9e950d49a2c50817d4e20883c3`.
   open PR head, `MERGEABLE`, with `terraform-static` still `IN_PROGRESS`. The
   status report records this current approval target. No AWS/Terraform or code
   changes were made.
+[RIS-MAYS-ORDERS-INTEGRATION-DOCUMENTATION-01]
+Status: COMPLETE — documentation-only release prepared; STOP at Main-merge gate.
+Date: 2026-11-28
+Branch/base: docs/ris-mays-orders-integration-dossier-01 from RIS main 8b9a706.
+Scope: Preserve and technically reconcile the supplied 14-chapter integration dossier; add final acceptance status, source-contract clarifications, README/report links, and this audit entry. No runtime/module, AWS, Terraform, build, live-order, or FULL-QA action.
+Evidence: RIS PR #17 merged at 8b9a706; accepted synthetic Addition result 19 + 23 = 42; entitlement cleanup complete at state serial 79; main CI run 46147058539 PASS. Integrated Mays pin db4f9e79980443de1cd3d5b688a33c0cf0eb771f is distinct from RC4 5bc154e and candidate 80a84ca.
+Privacy: Synthetic technical acceptance is not approval for real personal data. Existing privacy findings remain open. Protected local 19F2 results JSON in the other checkout was not accessed or modified.
+Files: docs/integration/RIS-MAYS-ORDERS-INTEGRATION-DOSSIER.md; docs/reports/RIS-MAYS-ORDERS-INTEGRATION-STATUS.md; README.md; docs/AI_AUDITLOG.md.
+Cross-repository reference: maynowak/mays-order-aws documentation branch docs/mo-ris-integration-reference-01; separate PR to be prepared. No merge authorized.
