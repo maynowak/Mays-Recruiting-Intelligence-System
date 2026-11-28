@@ -344,6 +344,91 @@ class TestAgentOrderDispatchE2E(unittest.TestCase):
             None, self.orders)
         self.assertEqual(404, foreign["statusCode"])
 
+    def test_addition_order_round_trip_and_authorized_read_back(self):
+        """Exercise the existing real worker/result path with math.add only."""
+        from agents.orders.agent_order import serialize_agent_order_description
+        from result_envelope import sign
+        from result_handler import process_records
+        from order_service import OrderService
+
+        self.entitlements.rows = [{
+            "userId": OWNER, "tenantId": "tenant-e2e",
+            "agentId": "addition_agent", "entitlementId": "addition-e2e",
+        }]
+        agent_order = {
+            "schemaVersion": "1.0",
+            "target": {"agentId": "addition_agent", "capability": "math.add"},
+            "input": {"schemaVersion": "1.0",
+                      "data": {"left": 19, "right": 23}},
+            "metadata": {"source": "ris-addition-e2e",
+                         "requestId": "corr-addition-e2e",
+                         "apiProfileRef": PROFILE_ID},
+        }
+        request_body = {
+            "orderType": "agent.execution",
+            "customer": {"name": "Synthetic Addition QA",
+                         "email": "addition-qa@example.invalid"},
+            "items": [{"sku": "ADD", "quantity": 1, "unitPrice": 1}],
+            "currency": "EUR",
+            "orderDescription": serialize_agent_order_description(agent_order),
+        }
+        expected_description = request_body["orderDescription"]
+        response = self._create_agent_order(request_body)
+        self.assertEqual(201, response["statusCode"], response["body"])
+        created = json.loads(response["body"])
+        self.assertEqual(expected_description, created["orderDescription"])
+        order_id = created["orderId"]
+
+        self.assertEqual(1, len(self.dispatched))
+        envelope = self.dispatched[0]
+        self.assertEqual(order_id, envelope["orderId"])
+        self.assertEqual("addition_agent", envelope["recipient"]["agentId"])
+        self.assertEqual("math.add", envelope["recipient"]["capability"])
+        out = self._dispatch(envelope)
+        self.assertEqual([], out["batchItemFailures"])
+
+        work_id = envelope["execution"]["workId"]
+        work = self.work.items[work_id]
+        self.assertEqual("COMPLETED", work["status"])
+        self.assertEqual(order_id, work["orderId"])
+        self.assertEqual("corr-addition-e2e", work["correlationId"])
+        self.assertEqual("SENT", work["orderResultDelivery"]["status"])
+        self.assertEqual(1, len(self.results))
+        result = self.results[0]
+        self.assertEqual("ORDER_RESULT", result["messageType"])
+        self.assertEqual(order_id, result["orderId"])
+        self.assertEqual(work_id, result["execution"]["workId"])
+        self.assertEqual(42, result["payload"]["sum"])
+
+        body = json.dumps(result, separators=(",", ":"))
+        record = {
+            "messageId": "addition-result-e2e",
+            "body": body,
+            "messageAttributes": {"serviceSignature": {
+                "stringValue": sign("test-secret", result["messageId"], body)}},
+        }
+        service = OrderService("orders", client=self.orders)
+        consumer = process_records([record], ["test-secret"], service=service)
+        self.assertEqual({"processed": 1, "rejected": 0},
+                         json.loads(consumer["body"]))
+
+        stored = self.orders.items[order_id]
+        self.assertEqual("COMPLETED", stored["processing"]["status"])
+        self.assertEqual(42, stored["processing"]["result"]["sum"])
+        read = orders_reader.handler(
+            event("GET /orders/{orderId}", order_id=order_id), None, self.orders)
+        self.assertEqual(200, read["statusCode"])
+        public = json.loads(read["body"])
+        self.assertEqual(expected_description, public["orderDescription"])
+        self.assertEqual("COMPLETED", public["processing"]["status"])
+        self.assertEqual(42, public["processing"]["result"]["sum"])
+        self.assertNotIn("agentOrder", public)
+
+        foreign = orders_reader.handler(
+            event("GET /orders/{orderId}", order_id=order_id, sub="owner-other"),
+            None, self.orders)
+        self.assertEqual(404, foreign["statusCode"])
+
     def test_duplicate_result_does_not_write_twice(self):
         from result_envelope import sign
         from result_handler import process_records

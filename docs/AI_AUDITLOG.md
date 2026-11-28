@@ -14242,3 +14242,42 @@ Baseline: `2f1a6f1332b1bd61889ad950bb531c263248d0e8`.
 - Protected 19F2 results JSON was not used as output, staged, or changed. No
   order, invocation, mutation, Terraform plan/Apply, recovery, redrive, or Main
   merge.
+
+## RIS-MAYS-ORDERS Addition final E2E — local checkpoint — 2026-11-28
+
+Baseline: `b915f5731a76fb9f024acda7d8afa390d2c87be4`, branch
+`feature/ris-analysis-integration-07`.
+
+- Added a focused Addition-only case to the existing
+  `tests/test_agent_order_dispatch_e2e.py` harness. It submits synthetic
+  `agent.execution` with `addition_agent/math.add`, executes the existing
+  dispatch ingress/shared worker/AdditionAgent path, builds and signs
+  `ORDER_RESULT`, invokes the pinned Mays result consumer, and checks
+  `processing=COMPLETED`, `19+23=42`, exact `orderDescription` persistence and
+  owner projection, hidden internal `agentOrder`, and foreign-owner 404.
+- Mays source was consumed read-only from
+  `installer/projects/mays_order_builder` at integrated commit
+  `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`; no Mays repository file or ref
+  changed. Local test commands/results:
+  `tests/test_addition_agent.py tests/test_mo_addition_authorization_matrix.py tests/test_agent_lifecycle.py` → **70 passed**;
+  focused Addition roundtrip plus `tests/test_mo_dispatch_handoff.py` with
+  `MO_ORDERS_SRC` set to the integrated source → **11 passed**. No external
+  HTTP, ATS, AWS or live order call.
+- Ran existing agent-lifecycle `DISABLE` dry-run for `ats-agent`, with all
+  output/state paths outside the repo. It correctly returned
+  `inventory_required_for_impact`; the empty default inventory is not treated
+  as live state. No lifecycle local state was applied. Current report records
+  catalog INACTIVE as discoverability only; entitlement withdrawal is the
+  actual reader/dispatch/worker execution gate. No shared resource, history,
+  order, work item or result is to be deleted.
+- Created `docs/reports/RIS-MAYS-ORDERS-INTEGRATION-STATUS.md` with package
+  statuses, test evidence, source pin, exact remaining read-only verification,
+  and a combined approval packet. Fresh inventory/state digest, ATS lifecycle
+  plan/apply, any Addition entitlement mutation/cleanup, and the maximum-one
+  initial Addition order are **not approved**. No Cognito/profile creation is
+  assumed; an additional foreign-owner live check is conditional on an existing
+  second synthetic identity and explicit approval.
+- No runtime, API, Terraform, Mays module, worker, queue, dispatch, result
+  consumer, HMAC, AnalysisAgent, parser, ATS or billing change. No deployment,
+  AWS mutation, queue action, order, retry/redrive, Main merge or deletion of
+  historical ATS evidence. Protected 19F2 JSON remains unstaged and untouched.
