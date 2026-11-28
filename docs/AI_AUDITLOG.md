@@ -14727,3 +14727,8 @@ Baseline `c6b764ec94a19d9e950d49a2c50817d4e20883c3`.
   regular merge of PR #17 at the then-current head. No merge authorization or
   merge was made. The protected 19F2 local modification remains unstaged and
   excluded.
+- A documentation-only follow-up commit advanced PR #17 to
+  `a2b7d8127341220e019b359e596fcbc45531fb48`; GitHub confirms it is the current
+  open PR head, `MERGEABLE`, with `terraform-static` still `IN_PROGRESS`. The
+  status report records this current approval target. No AWS/Terraform or code
+  changes were made.

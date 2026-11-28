@@ -877,9 +877,10 @@ unstaged and untouched.
 
 New PR #17 is open: `https://github.com/maynowak/Mays-Recruiting-Intelligence-System/pull/17`,
 base `main` at `97a60df83a5db56ea750e4342d7a01b00c8ad56b`, feature head
-`f35bbaafe8d973d787447f52362f6d85db9970e8`. GitHub reports `MERGEABLE`; the
-required `terraform-static` Ground Zero CI check is **IN_PROGRESS**. Review
-decision is pending. The concrete requested decision is: after this check
-completes successfully and the PR file list/review requirements are satisfied,
-authorize a regular merge of PR #17 at its then-current head into `main`.
-That authorization has not been granted here; do not merge while CI is running.
+`a2b7d8127341220e019b359e596fcbc45531fb48`. GitHub reports `MERGEABLE`; the
+required `terraform-static` Ground Zero CI check for this head is
+**IN_PROGRESS**. Review decision is pending. The concrete requested decision
+is: after this check completes successfully and the PR file list/review
+requirements are satisfied, authorize a regular merge of PR #17 at its then-
+current head into `main`. That authorization has not been granted here; do not
+merge while CI is running.
