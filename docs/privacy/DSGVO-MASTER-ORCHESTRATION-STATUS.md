@@ -1,6 +1,6 @@
 # DSGVO Master Orchestration Status
 
-**Version:** 1.1
+**Version:** 1.2
 **Updated:** 2026-11-28
 **Branch baseline:** `feature/ris-dsgvo-compliance-01` @ `e25e900667a18f9123a89a2ea7fdc0ca96e7b553`
 **Orders pin constraint:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` — immutable for this orchestration.
@@ -56,6 +56,7 @@ Interpretation: DSGVO-03, the policy/design portion of DSGVO-05, and the CI-gate
 |---|---|---|
 | 1.0 | Orchestration graph/ownership ledger established; DSGVO-02 active | This file; commit recorded in Git history |
 | 1.1 | DSGVO-02 decision package and draft XRepo identity contract complete; 03–07 work orders prepared; stop gate active | [`DSGVO-02-DECISIONS-AND-CONTRACT.md`](DSGVO-02-DECISIONS-AND-CONTRACT.md); commit recorded in Git history |
+| 1.2 | Identity architecture investigation complete; persistent opaque mapping recommended for decision; no contract approved | [`DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md`](DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md), section A |
 
 ## Stop gate
 

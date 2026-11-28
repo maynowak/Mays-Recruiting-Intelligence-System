@@ -14787,3 +14787,11 @@ Key boundary: Proposed keyed subjectRef and mapping flow are unapproved. Separat
 Evidence: docs/privacy/DSGVO-02-DECISIONS-AND-CONTRACT.md; docs/privacy/DSGVO-MASTER-ORCHESTRATION-STATUS.md v1.1.
 Safety: No runtime/schema/generated-module/pin changes; no AWS/Terraform/deployment/redrive/Main merge or real data.
 Current resume/stop point: named owners must decide D02-01…D02-10 and approve/version the identity contract before DSGVO-03 implementation. Master orchestration is prepared; STOP at Contract and Decision Gate.
+
+[RIS-DSGVO-02A — PACKAGE A: IDENTITY ARCHITECTURE]
+Status: COMPLETE — read-only technical review; recommendation for owner decision documented.
+Date: 2026-11-28
+Baseline: RIS 77e215282a661b5c1ce7dcb66d703e1eb4432212; Orders db4f9e79980443de1cd3d5b688a33c0cf0eb771f; Jobsearch Main c298d223e38407781b4f63426be9f9228ccb4467.
+Findings: Native identities are issuer+subject scoped; Orders owner_key is an unkeyed SHA256 ownership key and distinct from GSI2 privacy subjectId; Jobsearch uses a separate verified issuer/subject boundary. HMAC does not establish account linking. A protected persistent opaque mapping is recommended for decision, with HMAC retained as an alternative; neither is approved.
+Evidence: docs/privacy/DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md §A.
+No source/tests/AWS/Terraform changed or run. Step A checkpoint; remaining B/C/D are still in progress.

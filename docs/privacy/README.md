@@ -25,6 +25,7 @@
 | Final execution report | COMPLETE (documentation scope only) | [`../reports/RIS-DSGVO-COMPLIANCE-01-EXECUTION-REPORT.md`](../reports/RIS-DSGVO-COMPLIANCE-01-EXECUTION-REPORT.md) |
 | DSGVO master orchestration status | READY — STOP at DSGVO-02 decision gate | [`DSGVO-MASTER-ORCHESTRATION-STATUS.md`](DSGVO-MASTER-ORCHESTRATION-STATUS.md) |
 | DSGVO-02 decisions and XRepo subject identity draft | COMPLETE AS PROPOSAL; approval OPEN | [`DSGVO-02-DECISIONS-AND-CONTRACT.md`](DSGVO-02-DECISIONS-AND-CONTRACT.md) |
+| DSGVO-02A technical contract resolution | IN PROGRESS; identity review complete, no approval | [`DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md`](DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md) |
 
 ## System boundaries and pins
 
