@@ -4,6 +4,56 @@
 post-Apply read-only verification **PASS**. **STOP at Live-Order gate**: no
 live order, redrive, further Terraform operation, or Main merge was performed.
 
+## Four-hour Addition entitlement renewal plan — PASS; Apply pending
+
+Baseline `ae8a72525e43ee69f09ae1266a38fa02c47753d4`; State serial 77. Reused
+the exact 19G5 inputs, backend configuration, and preserved artifacts; no FULL
+QA or bundle build. Read-only preflight confirmed account `262370457690`,
+region `eu-central-1`, workspace `ris-dev2`, bucket `ris-dev2-tf-state-dev`,
+effective key `env:/ris-dev2/dev/terraform.tfstate`, lock table ACTIVE, State
+lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, and current S3 version
+`zOnRrKUXkb3CvoHhGcosBHYkAExMwHmT`. Existing temporary entitlement and its
+managed Terraform key were reused; no second grant was added. ATS remains
+`INACTIVE`, Addition catalog remains `ABSENT`.
+
+- One separate renewal tfvars file (outside the repository) updates only
+  `validFrom` and `validUntil` on the existing entitlement. SHA-256
+  `129a1395bbbab10d7112074d80ef0ad3de94f2a9f43b15d1159b8507328b625d`;
+  validity `2026-11-28T10:36:29Z` through `2026-11-28T14:36:29Z`, exactly four
+  hours. User, tenant, agent and entitlement key are unchanged.
+- Exactly one Terraform `1.17.0` full-refresh plan was created, with normal
+  state locking. Saved plan:
+  `%TEMP%\opencode\ris-dev2-addition-renewal-4h-ae8a725.tfplan`; SHA-256
+  `5bba7cfce9b84e6bdd24d7ff6a7120907b78b3aeee78fec684ecbfa43589fd7f`.
+  Summary: **0 Add / 1 Change / 0 Destroy / 0 Replace / 274 No-op**.
+- The only non-no-op action is an **in-place update** of the existing
+  `module.dynamodb.aws_dynamodb_table_item.foundation_entitlement[<redacted>]`;
+  only the two time fields change. No create, delete, replacement, ATS
+  reactivation, Lambda, IAM, Queue, or other resource action.
+- Shared-infrastructure guard **PASS** (`NO_SHARED_DESTROY`). The initial
+  inspection wrapper stopped on an incorrect expectation of 273 rather than
+  274 no-op resources; no second plan was run. Read-only inspection of the one
+  saved plan confirmed the exact approved scope and guard.
+- **Apply not performed.** This plan is pending its separate explicit Apply
+  approval. Reconfirm the same plan hash, State, entitlement expiry and grant
+  time immediately before any authorized Apply. Existing live-order candidate
+  remains pending: request ID
+  `ris-addition-live-f871426bc9444d4c98e4a9fb24dc925c`, payload SHA-256
+  `9db3d7ecf238bd5b3875ab3958ea9a4a9cb0173d07c04270a21caeea8790d907`; it must
+  be revalidated after renewal Apply and separately approved before sending.
+
+### Apply approval template — pending; not authorization
+
+> Approver/authority/date: **NOT PROVIDED**. Proposed action: one Apply of saved
+> plan SHA-256
+> `5bba7cfce9b84e6bdd24d7ff6a7120907b78b3aeee78fec684ecbfa43589fd7f` for
+> account `262370457690`, region `eu-central-1`, workspace `ris-dev2`, State
+> serial 77 / lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`; exact scope
+> `0 Add / 1 Change / 0 Destroy / 0 Replace`, updating only the existing
+> Addition entitlement's validity interval to four hours. Guard
+> `NO_SHARED_DESTROY` PASS. Apply authorization: **NOT GRANTED**. This grants no
+> live-order, cleanup, retry, redrive, or ATS authorization.
+
 ## Addition live E2E — payload prepared, execution BLOCKED; STOP at gate
 
 Fresh read-only checks confirmed the single enabled/confirmed synthetic test

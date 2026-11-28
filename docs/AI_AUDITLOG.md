@@ -14445,3 +14445,39 @@ Apply, and live order disabled.
   check and separate explicit approval are required before any cleanup plan or
   Apply. Status report updated; protected 19F2 JSON not edited/staged; no Main
   merge.
+
+## RIS-MAYS-ORDERS — four-hour Addition entitlement renewal plan — 2026-11-28
+
+Baseline `ae8a72525e43ee69f09ae1266a38fa02c47753d4`; State serial 77.
+
+- Read-only preflight reverified the AWS account/region, `ris-dev2` workspace,
+  backend bucket/effective key/ACTIVE lock table, State serial 77, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, and S3 version
+  `zOnRrKUXkb3CvoHhGcosBHYkAExMwHmT`. Reused the unchanged 19G5 input file
+  SHA-256 `1ada876c6c98080206c9d29ca55549b4b8f254e1f2a5c0e915f9d6097016e6e7`.
+  Preserved Worker, Analysis, Orders-Reader and Analysis-parser artifacts
+  matched historical hashes; none were built or replaced.
+- Verified the exact existing managed Addition entitlement key/item against
+  remote State and DynamoDB. The same user/tenant/agent/key were retained; only
+  `validFrom` and `validUntil` were changed in a separate temporary tfvars file.
+  Input SHA-256 `129a1395bbbab10d7112074d80ef0ad3de94f2a9f43b15d1159b8507328b625d`;
+  interval `2026-11-28T10:36:29Z`–`2026-11-28T14:36:29Z` (14,400 seconds).
+  ATS catalog was already INACTIVE and Addition catalog ABSENT.
+- Exactly one Terraform 1.17.0 full-refresh plan ran with normal locking:
+  `%TEMP%\opencode\ris-dev2-addition-renewal-4h-ae8a725.tfplan`, SHA-256
+  `5bba7cfce9b84e6bdd24d7ff6a7120907b78b3aeee78fec684ecbfa43589fd7f`.
+  Inspection confirmed **0 Add / 1 Change / 0 Destroy / 0 Replace / 274 No-op**.
+  Sole action: in-place update of the existing
+  `foundation_entitlement[<redacted>]`, changing only validity timestamps.
+  No ATS, Lambda, IAM, Queue, shared infrastructure, or other changes.
+- Shared-infrastructure guard **PASS** (`NO_SHARED_DESTROY`). The first
+  inspection wrapper stopped because it assumed 273 instead of 274 no-op
+  resources; the saved plan was inspected read-only, no replan occurred, and
+  exact authorized change scope was confirmed. Terraform Apply `0`; no Apply
+  authorization inferred. The report includes a pending Apply approval template.
+- Existing candidate live order remains separate and unexecuted: request ID
+  `ris-addition-live-f871426bc9444d4c98e4a9fb24dc925c`, payload SHA-256
+  `9db3d7ecf238bd5b3875ab3958ea9a4a9cb0173d07c04270a21caeea8790d907`. It
+  requires successful authorized renewal Apply, fresh entitlement/State
+  preflight and its own explicit approval. No live order, retry, redrive,
+  cleanup, or Main merge. Protected 19F2 JSON was not edited or staged.
