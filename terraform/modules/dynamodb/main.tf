@@ -709,7 +709,7 @@ locals {
       agentId            = "ats-agent"
       name               = "ats-agent"
       version            = "1.0.0"
-      status             = "ACTIVE"
+      status             = "INACTIVE"
       description        = "ATS-Domain-Agent (Delegation an mays-jobsearch)"
       capabilities       = ["analyze.job"]
       supported_bodies   = ["1.0.0"]

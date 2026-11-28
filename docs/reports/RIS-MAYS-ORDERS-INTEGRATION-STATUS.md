@@ -1,15 +1,16 @@
 # RIS–Mays-Orders Integration — Current Status
 
-**Status at 2026-11-28:** local Addition roundtrip **PASS**; live completion
-**BLOCKED pending explicit mutation and live-order approvals**. No AWS call,
-Terraform plan/apply, Cognito/entitlement/catalog mutation, or live order was
-performed for this checkpoint.
+**Status at 2026-11-28:** local Addition roundtrip **PASS**; shared read-only
+preflight **COMPLETE**; live completion **BLOCKED pending explicit mutation and
+live-order approvals**. Read-only AWS calls were performed. No AWS write,
+Terraform plan/apply, Cognito/entitlement/catalog mutation, queue receive or
+redrive, or live order was performed.
 
 | Work package | Soll | Ist / mode | Implementation / deployment | Test result | Offene Abweichung | Nächster Schritt | Commit / Evidenz |
 |---|---|---|---|---|---|---|---|
-| A — Historical ATS deactivation | Deactivate `ats-agent` through existing lifecycle; retain results and shared infrastructure | **BLOCKED at approval gate**; local lifecycle `DISABLE` dry-run only | Existing lifecycle requires withdrawing agent-scoped entitlement(s) and Terraform catalog `INACTIVE`; no uninstall/purge. No live change. `agent-catalog` INACTIVE alone does not block worker execution. | Dry-run returned `inventory_required_for_impact`; inventory was not supplied, so its default `entitlementStatus=absent` is **not live evidence**. | Latest read-only 20A2 check found zero ATS entitlements for the exact synthetic test owner only; it does not establish all current ATS grants or queue/in-flight state. | Approve fresh read-only inventory; then present a plan limited to exact ATS entitlement withdrawal(s) and ATS catalog row status update. Preserve shared queues, worker, dispatch, result consumer, HMAC, orders, work and results. | Lifecycle package `agent-installations/ats-agent/lifecycle.yaml`; prior lifecycle evidence `docs/reports/RIS-AGENT-LIFECYCLE-12.md`; 20A2 `docs/reports/evidence/20A2/read-only-findings.json`; local dry-run output under Temp `ris-addition-final-e2e/ats-disable-impact.json`. |
-| B — Addition local order roundtrip | Reuse `addition_agent` / `math.add`; check order through signed result and owner readback | **LOCAL TESTED**; external Mays source read-only at integrated pin `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` | Existing addition runtime and shared transport unchanged; addition catalog remains intentionally ABSENT/dispatch-only. No AWS deployment. | New focused Addition roundtrip **1 passed**; `tests/test_mo_dispatch_handoff.py` plus the focused roundtrip **11 passed**; Addition/auth/lifecycle suites **70 passed**. | No live proof at current deployed target. | Reuse this test; after approval, run at most one live synthetic order, no manual retry. | `tests/test_agent_order_dispatch_e2e.py`; Mays source checkout `installer/projects/mays_order_builder`; source identity verified read-only. |
-| C — Addition live authorization | One authenticated synthetic order with `orderDescription` + `agentOrder`, `math.add(19,23)=42`; signed result, consumer persistence, completed state, owner GET; preserve idempotency/privacy | **NOT RUN**; no live order authorized | Current source supports deterministic addition without ATS/AI provider. Existing dispatch/result infrastructure is reused. | Local tests pass; no live test. Existing 19F8 and Mays-original evidence remains reused, not repeated. | Current addition entitlement and test identity/profile state have not been freshly inventoried. A temporary entitlement may require an approved Terraform mutation. | Freshly verify existing synthetic Cognito identity, ACTIVE owner profile, tenant binding, relevant entitlement rows and in-flight/queue state. Present the exact entitlement plan and one-order payload/hash for approval. | Prior local test evidence: `docs/reports/RIS-AGENT-INSTALLATION-09-ADDITION-PILOT.md`; prior integration evidence: 19F8; current tests above. |
+| A — Historical ATS deactivation | Deactivate `ats-agent` through existing lifecycle; retain results and shared infrastructure | **Read-only inventory complete; live disable NOT APPLIED**. Local `DISABLE` dry-run returned `DRY_RUN`, zero blockers. | Catalog is `ACTIVE`; global ATS entitlement query found one expired-only historical row and no currently valid row. `INACTIVE` is a discovery gate, not the worker execution gate. No uninstall/purge. | All 4 ATS orders in the live Orders index have `processing=COMPLETED`; no open ATS order/result. Dispatch, work and result queues are 0. Shared worker DLQ has 1 approximate visible message; its body was not read/received. | Expired entitlement is not represented in current Terraform state and has no `createdBy`; do not delete it manually. DLQ message remains unclassified and untouched. | Prepare a tightly scoped plan for ATS catalog `ACTIVE→INACTIVE` and the temporary Addition grant only. Preserve all shared resources and historical data; stop if plan includes anything else. | Lifecycle `installer/agent-installations/ats-agent/lifecycle.yaml`; dry-run inventory digest `38fd2c0f…`; read-only checks 2026-11-28; Terraform workspace `ris-dev2`, state serial `76`, lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`. |
+| B — Addition identity and local roundtrip | Reuse existing identity/profile and `addition_agent` / `math.add`; signed result and owner readback | **Read-only identity check complete; local evidence reused**, not rerun. Mays source pin `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`. | One enabled Cognito test user and one ACTIVE owner/tenant-matched profile exist. The identity has no entitlements; global Addition query found one expired-only row. Addition catalog remains ABSENT/dispatch-only. | Prior local suites: 70 and 11 passed. | One temporary `addition_agent` entitlement is necessary. A live foreign-owner 404 requires a second valid Cognito principal; pool currently has one user. | Include only the short-lived Addition grant in the combined plan; request separate explicit approval for a temporary second principal, or report foreign-owner 404 as local-only. | `tests/test_agent_order_dispatch_e2e.py`; read-only Cognito/profile/entitlement checks; integrated Mays source. |
+| C — Addition live authorization | One synthetic order `19 + 23 = 42`; signed result, consumer persistence, `COMPLETED`, owner GET; preserve idempotency/privacy | **NOT RUN**; no live order authorized | Deterministic Addition runtime; no ATS/AI provider. Shared transport reused. | Local evidence retained; no live test. | No valid test entitlement or execution-time token available in repository. Existing Analysis-agent has two unrelated PENDING orders; untouched. | After explicit gates, use one authenticated POST only, no retry; verify exact WorkItem/result/owner readback. Prepare exact serialized payload hash for approval. | Prior local evidence `RIS-AGENT-INSTALLATION-09-ADDITION-PILOT.md`; current checkpoint baseline `21aa96a`. |
 | D — Shared contracts/security | Keep `ORDER_DISPATCH`, WorkItem, worker, HMAC `ORDER_RESULT`, Mays result consumer, idempotency and owner-only result projection | **LOCAL TESTED / HISTORICAL LIVE EVIDENCE REUSED** | No contract or shared infrastructure change. | The new test verifies same order/work correlation, signed result acceptance, `processing=COMPLETED`, exact result 42, unchanged `orderDescription`, no public `agentOrder`, and foreign-owner GET 404. Existing suites cover stable dispatch/result idempotency and auth/privacy negatives. | Live repeat of these assertions remains unverified at current state. | Recheck only within the one approved live order/readback; do not replay or redrive. | New test `test_addition_order_round_trip_and_authorized_read_back`; prior local and live evidence cited above. |
 | E — ATS/API scope | Exclude HTTP ATS canary; preserve historical source/tests/results | **SCOPE EXCLUDED**, not erased | No ATS source, AnalysisAgent, JS parser, historical result, or test was deleted or modified. | No ATS integration test or ATS provider call was executed in this Addition-only checkpoint. | Actual ATS deactivation is still pending Phase A lifecycle approvals; excluding ATS from the test scope alone does not disable it. | Complete Phase A before claiming deactivation; leave historical evidence intact. | Prior history retained in existing ATS reports and tests. |
 
@@ -27,12 +28,26 @@ performed for this checkpoint.
   RIS reader, dispatch ingress, pipeline, AdditionAgent, Transport V1, Mays
   signed-result validation/consumer and owner projection. No AWS or external
   HTTP/ATS endpoint is contacted.
-- Local lifecycle dry-run command for `ats-agent` returned `DRY_RUN` with
-  blocker `inventory_required_for_impact`; it did not mutate state or AWS.
-  Output is outside the repository at
-  `%TEMP%\ris-addition-final-e2e\ats-disable-impact.json`.
-- No code/runtime defect was established. The only implementation change is a
-  focused regression test; no Build/QA/Plan/Apply/deployment step is needed.
+- Read-only AWS preflight 2026-11-28 verified account `262370457690`, region
+  `eu-central-1`, identity pool with one enabled synthetic user, one ACTIVE
+  tenant-matched profile, zero current test-owner entitlements, and one
+  expired-only global row each for ATS and Addition. The four ATS and four
+  Addition historical orders are all `processing=COMPLETED`; no open relevant
+  work or results. Shared worker DLQ approximate visible count is 1; not
+  received or inspected.
+- Lifecycle `DISABLE` dry-run used a fresh redacted inventory and returned
+  `DRY_RUN`, zero blockers, `ACTIVE→INACTIVE`, `expired_only`, and no
+  entitlement withdrawals. Inventory digest starts `38fd2c0f`; output remains
+  outside the repo at `%TEMP%\ris-addition-final-e2e\ats-disable-impact-current.json`.
+- Terraform context was verified read-only: workspace `ris-dev2`, state serial
+  `76`, lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`; only the catalog seed
+  is managed in state, no foundation-entitlement resources. No plan or apply has
+  yet been made.
+- No code/runtime defect was established. Phase 2 changes the Terraform ATS
+  catalog seed to `INACTIVE` and updates its seed regression. The targeted seed
+  regression passed (**26 passed**); no existing Addition/live test suite was
+  repeated. The required deployment bundle build completed; agent bundle SHA
+  prefix `507bc17d`, analysis bundle `370890d4`, reader bundle `bea4c3e5`.
 
 ## Approval packet — no approvals granted
 
@@ -62,9 +77,9 @@ fresh state verification.
 
 ### B. One Addition order
 
-1. Freshly verify the existing synthetic Cognito subject is enabled, its
-   ACTIVE API profile is owner/tenant-bound, and the tenant matches. Do not
-   create a user/profile unless separately listed and approved.
+1. Current read-only check found one enabled user in the target pool and one
+   ACTIVE profile with matching tenant claim. Do not create a user/profile
+   unless separately listed and approved.
 2. Freshly check only the exact test owner's `addition_agent` entitlements and
    open/queued work. If missing, request exactly one short-lived row using the
    existing Terraform foundation-entitlement mechanism:
@@ -100,7 +115,12 @@ payload SHA-256 and idempotency key; one-order approval; retry acceptance;
 owner-read permission: **not supplied**. Gate A Apply: **NOT APPROVED**. Gate B
 entitlement Apply: **NOT APPROVED**. Gate C initial order: **NOT APPROVED**.
 
-No further live action is taken until those approvals are explicit. Main merge
-was not performed. The protected
+No further live action is taken until those approvals are explicit. A combined
+backend Terraform plan is **not yet prepared**: the active configuration declares
+an S3 backend lock table `mays-ris-tf-lock`, while the prior verified RIS-DEV2
+installation evidence identifies `ris-dev2-tf-lock`; backend/state-key inputs
+must be re-established from the actual installation context rather than guessed.
+The planned entitlement window also needs a fresh T0 immediately before plan
+creation. No plan/apply was run. Main merge was not performed. The protected
 `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json` was not used
 as output, staged or changed.
