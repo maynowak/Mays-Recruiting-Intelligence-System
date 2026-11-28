@@ -36,7 +36,7 @@ Current Addition evidence checkpoint: source commit `ee6055acd1856e9fdaf09fe09c7
 
 Final unified run at RIS commit `3bc59ef202ba4ced2665af561f898a827bb9f2ec`: `RIS_PRIVACY` is BLOCKED overall; groups capability/addition **42 PASS**, application/lifecycle **76 PASS**, runtime fences/erasure **34 PASS**, synthetic JWT **2 PASS**, Provider originals **BLOCKED**, Provider verifier **BLOCKED**. `FULL`, `XREPO_CONTRACT`, and `XREPO_E2E` each BLOCKED before test execution because pinned checkout `installer/projects/mays_order_builder` is absent (expected commit `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`). The runner also reports local worker ZIP SHA `7f082ccf7b47195e712d968eecac81ca785f9030211da8d77b5e639aaa50478f` differs from its existing review baseline `507bc17db9f2ee0932e42de039a508ab3f01e3bb2b5510ea79f2e54f95b3a58d`; the change is from the privacy runtime build and was not silently blessed by changing that baseline. Runner/JWT tests: **10 passed**. `test_ats_result_link.py`: **26 passed, 5 failed** before result-link assertions due to absent ATS Eligibility policy/evidence: `test_duplicate_delivery_reemits_the_same_result`, `test_full_sequence_and_authorized_read_back`, `test_invalid_correlation_is_not_forwarded`, `test_missing_transport_configuration_does_not_claim_delivery`, and `test_work_row_keeps_correlation_but_no_secret`. These remain unverified, not recovered.
 
-## Checkpoint — IMPLEMENTATION-04 (2026-11-28; current working tree, not yet committed)
+## Checkpoint — IMPLEMENTATION-04 (2026-11-28; committed as `7ff2912daa6af3b1a403675fc71e1bff8c197017`)
 
 **Baseline remains** `e186df5cc1ac8caa5690d404229aa0cee3e6f935`; Orders pin remains
 `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`. No provider checkout, pin, target

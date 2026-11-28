@@ -2,7 +2,7 @@
 
 **Version:** 2.6
 **Updated:** 2026-11-28
-**Implementation baseline:** `feature/ris-dsgvo-compliance-01` @ `e186df5cc1ac8caa5690d404229aa0cee3e6f935` (IMPLEMENTATION-04 working changes uncommitted)
+**Implementation baseline:** `feature/ris-dsgvo-compliance-01` @ `7ff2912daa6af3b1a403675fc71e1bff8c197017` (IMPLEMENTATION-04 checkpoint pushed)
 **Orders pin constraint:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` — immutable for this orchestration.
 **Current review base:** RIS `d8a7fffb112fc39ad839aef4a87e5722b521db1f`; Orders pin `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`; provider Main reviewed `716a16590673cdb649df414c08fc0bf7814caac7`.
 **Overall:** `PARTIAL — RIS_PRIVACY, RIS_NATIVE, MAYS_MODULE, MODULE_BUILD, XREPO_CONTRACT, XREPO_E2E and FULL have current blockers; DSGVO-02C remains PARTIAL`.
