@@ -84,6 +84,9 @@ python -m installer.build_mays_orders_module --clean
 
 ## Doku-Struktur / Reports
 
+- [RIS × Mays-Orders Integrations- und Abnahmedossier](docs/integration/RIS-MAYS-ORDERS-INTEGRATION-DOSSIER.md)
+- [Finaler Integrationsstatus und historische Gate-Nachweise](docs/reports/RIS-MAYS-ORDERS-INTEGRATION-STATUS.md)
+
 `docs/architecture/`, `docs/api/`, `docs/ecosystem/`, `docs/roadmap/ROADMAP.md`,
 `docs/reports/` (Gate-Nachweise G0–G9 + Execution-Logs, bleiben erhalten).
 Wiederverwendbares DEV2-E2E-Runbook:
