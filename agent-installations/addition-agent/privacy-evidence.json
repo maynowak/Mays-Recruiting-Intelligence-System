@@ -2,7 +2,7 @@
   "agent_id": "addition_agent",
   "agent_version": "1.0.0",
   "artifact_path": "terraform/lambda.zip",
-  "artifact_sha256": "7f082ccf7b47195e712d968eecac81ca785f9030211da8d77b5e639aaa50478f",
+  "artifact_sha256": "471166c1b178d48437cc5dc310349567e55e214ca990f1bbb7c78eda1f539e7d",
   "build_tool_version": "lambda.build_zip --bundle agent; deterministic bundle v1",
   "capability": "math.add",
   "contract_path": "agent-installations/addition-agent/privacy-contract.json",
@@ -10,7 +10,7 @@
   "contract_version": "RIS-CAPABILITY-PRIVACY/1",
   "manifest_path": "agent-installations/addition-agent/manifest.yaml",
   "required_tests_skipped": false,
-  "source_commit": "ee6055acd1856e9fdaf09fe09c7a30a698a0da58",
+  "source_commit": "54a4871d6df9904ae13bfb3019be1f7d8e45085e",
   "source_paths": [
     "agents/addition_agent/agent.py",
     "agents/addition_agent/registry.py",
@@ -22,7 +22,7 @@
     "installer/agent_install.py",
     "lambda/build_zip.py"
   ],
-  "source_sha": "20b488916e770dae84594c714663ee582104aae5b125505235f1c2b189924f53",
+  "source_sha": "6986b0815fed1c4db40579ceacf55cd529788e58ab335ef7907c4f7f4967860a",
   "test_args": [
     "-k",
     "not executes_through_existing_agent_body and not body_routes_by_capability"
@@ -33,7 +33,7 @@
     "tests/test_privacy_capability_boundary.py"
   ],
   "test_report_path": "agent-installations/addition-agent/privacy-test-report.json",
-  "test_report_sha256": "5dd8caddac2f95ad14c2745bde2186f66bf9cfd22b093349c97e4f68d8b38937",
+  "test_report_sha256": "c0672a8e191e795193b98623cdcde9c2ce329e6c2a12ef3168b7ae015643aa37",
   "test_selection_sha256": "1b8c68317b80b36f9e9b4e4146bacea15d997f23104af2fdec825966511c3194",
   "tests_passed": true
 }

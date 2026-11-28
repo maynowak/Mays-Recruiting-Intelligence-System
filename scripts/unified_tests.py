@@ -140,9 +140,9 @@ def profile_jobs(profile: str, mays: Path) -> list[Job]:
                 "tests/test_orders_jwt_identity_synthetic.py",
             ]),
             Job("orders_provider_original", "MAYS_ORDERS", str(mays_root),
-                "blocked", ["original privacy/provider tests require exact checkout"]),
+                "blocked", ["original provider tests require exact checkout provenance"]),
             Job("orders_provider_jwt_verifier", "MAYS_ORDERS", str(mays_root),
-                "blocked", ["provider JWT claim/signature verification unavailable without checkout"]),
+                "blocked", ["provider JWT verification requires exact checkout provenance"]),
         ],
         "MAYS_MODULE": [
             _unittest("mays_lambda", "MAYS_ORDERS", mays / "lambda", "tests",
@@ -520,6 +520,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         if profile == "UPGRADE_GATE" and args.mays_version == "integrated":
             result["upgrade_candidate_status"] = "BLOCKED: UPGRADE_GATE requires --mays-version upgrade_candidate"
         selected = profile_jobs(profile, args.mays_source)
+        if profile == "RIS_PRIVACY":
+            if provenance_errors:
+                # Continue independent RIS-local QA, but never execute provider
+                # tests from a missing, dirty, or wrong-revision checkout.
+                selected = [job for job in selected if job.repository == "RIS"] + [
+                    Job("orders_provider_original", "MAYS_ORDERS", str(args.mays_source),
+                        "blocked", ["original provider tests require exact clean pinned checkout"]),
+                    Job("orders_provider_jwt_verifier", "MAYS_ORDERS", str(args.mays_source),
+                        "blocked", ["provider JWT verification requires exact clean pinned checkout"]),
+                ]
+            else:
+                lambda_src = args.mays_source / "lambda" / "src"
+                selected = [
+                    _unittest("orders_provider_original", "MAYS_ORDERS",
+                              args.mays_source / "lambda", "tests",
+                              os.pathsep.join((str(args.mays_source / "lambda"),
+                                              str(lambda_src))))
+                    if job.key == "orders_provider_original" else
+                    Job("orders_provider_jwt_verifier", "MAYS_ORDERS",
+                        str(args.mays_source), "pytest",
+                        ["-q", "-ra", "lambda/tests/test_ownership.py",
+                         "lambda/tests/test_index.py"],
+                        os.pathsep.join((str(args.mays_source / "lambda"),
+                                        str(lambda_src))))
+                    if job.key == "orders_provider_jwt_verifier" else job
+                    for job in selected
+                ]
         for job in selected:
             python = args.mays_python if job.repository == "MAYS_ORDERS" else args.ris_python
             row = run_job(job, python=python, base_env=os.environ,

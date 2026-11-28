@@ -1,8 +1,8 @@
 # RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-01 — Execution
 
-**Status:** `PARTIAL — A/B implemented for Addition; C boundary implemented; D–F pending/blocked`
+**Status:** `PARTIAL — RIS_PRIVACY PASS; Mays/XRepo/FULL remain blocked; policy and artifact review open`
 **Branch:** `feature/ris-dsgvo-compliance-01`
-**Baseline:** `7fe524f7ffdab33ffe5b336bbba89c2a48e8dfb3`
+**Baseline:** `6ddb6f32c2b85b876ede3682cdfbdb1899e6be7d`
 **Orders pin:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` (unchanged)
 
 ## Checkpoint A — capability privacy contrac
@@ -39,3 +39,14 @@ Final unified run at RIS commit `3bc59ef202ba4ced2665af561f898a827bb9f2ec`: `RIS
 ## Resume order
 
 Proceed B/C/E only against owner-approved synthetic capability policies; develop F with required groups represented as blocked until selectors/provenance exist; integrate D after C stabilizes; run `RIS_PRIVACY`, `FULL`, and XRepo only after profiles can distinguish intentional policy-blocked fixtures from regression defects without weakening Eligibility. Keep DSGVO-02C `PARTIAL`.
+
+## Checkpoint — IMPLEMENTATION-03 (2026-11-28)
+
+- **A:** restored through the existing builder checkout mechanism; provider repository is `https://github.com/maynowak/mays-order-aws.git`, detached HEAD `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`, clean. Pin unchanged. Provider originals pass **240**; provider ownership/index JWT-focused tests pass **53**.
+- **B/C:** Addition remains the only policy/evidence-enabled capability; all other undeclared capabilities fail closed. Refreshed evidence at RIS source commit `54a4871d6df9904ae13bfb3019be1f7d8e45085e`: source SHA `6986b0815fed1c4db40579ceacf55cd529788e58ab335ef7907c4f7f4967860a`, contract SHA `b6ab1d98ab2659bc2fa25eea82f751ae536d7c908850d64d0c428b87cb9fbeb4`, report SHA `c0672a8e191e795193b98623cdcde9c2ce329e6c2a12ef3168b7ae015643aa37`, artifact SHA `471166c1b178d48437cc5dc310349567e55e214ca990f1bbb7c78eda1f539e7d`. Addition original suite **29 passed**; focused contracts **21 passed**.
+- **D:** reviewed the runtime admission and result-persistence paths. The fence is checked before execution; persistence conditions protect `RUNNING` and attempt identity, but do not atomically re-check the subject fence at result write. No change made: safe persistence/recovery semantics need a focused design/test and must preserve duplicate suppression; retention policy remains undecided.
+- **E:** rebuilt with `python lambda/build_zip.py --bundle all`; agent ZIP reproducibly remains SHA `471166c1…539e7d` (116 entries). It differs from the historical review SHA `507bc17d…b3a58d`. The historical ZIP is not present as a Git blob, so a definitive old/new ZIP inventory delta cannot be verified here; candidate SHA is recorded, not approved as a new baseline.
+- **F:** `RIS_PRIVACY` **PASS**: capability/addition 42, application/lifecycle 76, fences/erasure 34, synthetic JWT 2, pinned provider originals 240, JWT-focused provider tests 53; no skipped/failed tests. `RIS_NATIVE` BLOCKED at collection (missing `moto` and `requests`; 3 dependency skips, 2 collection errors). `MAYS_MODULE` BLOCKED: Lambda 240, seed 28, Cognito backup 2 pass; builder 88 pass/12 fail and installer 69 pass/11 fail/1 skip (Windows path conventions / Linux-specific `python3` assumptions). `MODULE_BUILD` BLOCKED: builder/installer failures above and no generated module artifact; RIS builder contract 57 pass. `XREPO_CONTRACT` PASS (133 + 4 subtests). `XREPO_E2E` BLOCKED (36 pass/4 fail; ATS policy/evidence prevents ATS assertions). `FULL` BLOCKED with the same dependency, platform, artifact and ATS blockers. Reports are local under `%TEMP%` (`ris-privacy-recovery.json`, `ris-native-recovery.json`, `mays-module-recovery.json`, `module-build-recovery.json`, `xrepo-contract-recovery.json`, `xrepo-e2e-recovery.json`, `full-recovery.json`).
+- Unified runner now keeps provider groups blocked by default and only substitutes real provider test jobs after exact clean pin provenance verifies. Orchestrator tests **8 passed**. No provider source/pin edits, installation, Terraform/AWS actions, deployment, merge, or baseline approval.
+
+Overall remains **PARTIAL**. ATS/CV/Job/Analysis, Reference/Dummy policy approvals, lifecycle write-time fencing, historical ZIP inventory reconciliation, and cross-repository ATS E2E remain open. No policy approval is inferred from tests.

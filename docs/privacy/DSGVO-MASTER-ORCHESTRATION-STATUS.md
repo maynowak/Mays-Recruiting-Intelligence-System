@@ -1,11 +1,11 @@
 # DSGVO Master Orchestration Status
 
-**Version:** 2.4
+**Version:** 2.5
 **Updated:** 2026-11-28
-**Implementation baseline:** `feature/ris-dsgvo-compliance-01` @ `db2e09419931fc64e9377aed8fdd35c720023045`
+**Implementation baseline:** `feature/ris-dsgvo-compliance-01` @ `54a4871d6df9904ae13bfb3019be1f7d8e45085e` (working checkpoint updates pending)
 **Orders pin constraint:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` — immutable for this orchestration.
 **Current review base:** RIS `d8a7fffb112fc39ad839aef4a87e5722b521db1f`; Orders pin `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`; provider Main reviewed `716a16590673cdb649df414c08fc0bf7814caac7`.
-**Overall:** `PARTIAL — A CONTRACT/GATE IMPLEMENTED; B–F PENDING/BLOCKED`; DSGVO-02C remains `PARTIAL`.
+**Overall:** `PARTIAL — RIS_PRIVACY PASS; Mays/XRepo-E2E/FULL have blockers; policy approvals and artifact reconciliation open`; DSGVO-02C remains `PARTIAL`.
 
 ## Package graph
 
@@ -51,9 +51,9 @@ Interpretation (v2.3): A–E are ecosystem-centered workstreams; F depends on st
 | A / DSGVO-03 | RIS Ecosystem | Typed capability contract, descriptor, Eligibility and direct-execution gate | 02C | IMPLEMENTED; synthetic tests green; shipped capabilities blocked pending evidence |
 | B / DSGVO-05 | Agent owners / Factory | Manifest + original-test/build evidence binding and invalidation | A | COMPLETE FOR ADDITION SYNTHETIC REFERENCE at `ee6055a`; exact post-C evidence recorded; other manifests blocked pending owner-reviewed contracts |
 | C / DSGVO-04 | RIS domain/runtime/privacy owners | Capability input/result policy and resolver integration | A + owner-approved policy | PARTIAL; typed input/result/ORDER_RESULT runtime gates tested for Addition; generic retention and unclassified capabilities remain open |
-| D | RIS runtime/privacy owners | Existing fence, erasure and lifecycle integration | C policy stable | PENDING; existing fence/erasure tests pass (34 in RIS_PRIVACY), but terminal WorkItem retention/stale-result policy unresolved; no behavior changed |
-| E | RIS/Orders contract owners | Synthetic JWT identity proof, provider originals and CR disposition | A/C + identity decision | PARTIAL; RIS-side synthetic JWT priority/claims tested; provider verification/originals BLOCKED because pinned checkout absent; provider/pin unchanged |
-| F / DSGVO-06 | RIS QA | `RIS_PRIVACY`, existing groups, exact SHA/artifact provenance | A–E selectors/evidence | PARTIAL; local groups PASS, Provider groups and FULL/XRepo explicitly BLOCKED by absent pinned checkout; worker artifact differs from unchanged historical review baseline |
+| D | RIS runtime/privacy owners | Existing fence, erasure and lifecycle integration | C policy stable | PARTIAL investigation; 34 fence/erasure tests pass. Fence is checked pre-execution, not atomically at result persistence; no behavior changed pending safe lifecycle design. Retention remains unresolved |
+| E | RIS/Orders contract owners | Synthetic JWT identity proof, provider originals and CR disposition | A/C + identity decision | PARTIAL; exact clean Orders pin restored; originals 240 and JWT-focused 53 pass. Pin unchanged; historical worker SHA differs and inventory delta remains unverified |
+| F / DSGVO-06 | RIS QA | `RIS_PRIVACY`, existing groups, exact SHA/artifact provenance | A–E selectors/evidence | PARTIAL; RIS_PRIVACY and XREPO_CONTRACT PASS. RIS_NATIVE dependency-collection failure; MAYS_MODULE/MODULE_BUILD Windows/Linux platform failures; XREPO_E2E ATS policy failures; FULL BLOCKED |
 | DSGVO-07 | RIS/provider/security/privacy reviewers | Review exact-SHA implementation evidence; separately gate live/legal acceptance | A–F complete | NOT STARTED / NOT AUTHORIZED |
 
 ## Shared quality constraints
@@ -82,7 +82,8 @@ Interpretation (v2.3): A–E are ecosystem-centered workstreams; F depends on st
 | 2.4 | A implemented with fail-closed Eligibility/direct execution; existing capability regression fixtures expose missing declarations/evidence; B–F remain pending and DSGVO-02C remains PARTIAL | [`RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-01-EXECUTION.md`](RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-01-EXECUTION.md) |
 | 2.5 | B installer/build evidence pipeline complete for Addition synthetic math capability; exact source/contract/test-report/artifact provenance recorded; all other agent capabilities remain fail-closed | [`RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-01-EXECUTION.md`](RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-01-EXECUTION.md) |
 | 2.6 | C typed runtime boundaries added; Addition evidence refreshed; RIS_PRIVACY local groups pass and unavailable Provider groups explicitly block; synthetic Orders JWT tests do not claim Provider verification | [`RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-01-EXECUTION.md`](RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-01-EXECUTION.md) |
+| 2.5 | Exact Orders pin recovered; RIS_PRIVACY PASS with provider originals/JWT tests; XREPO_CONTRACT PASS; platform/dependency/ATS and artifact-review blockers recorded; no pin or review-baseline change | [`RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-01-EXECUTION.md`](RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-01-EXECUTION.md), IMPLEMENTATION-03 checkpoint |
 
 ## Stop gate
 
-Implementation is active under explicit authorization. A is implemented; B is complete for Addition with fresh post-C evidence. C has typed runtime input/result and ORDER_RESULT gates, but generic Order/WorkItem retention and unclassified capabilities remain open. RIS_PRIVACY is implemented with local PASS groups and explicit blocked Provider groups; synthetic Orders JWT claim/priority tests do not substitute for Provider verification. D remains pending. Other capabilities lack owner-reviewed declarations/evidence and fail closed. DSGVO-02C remains `PARTIAL`. Regression failures caused by missing privacy evidence are classified, not bypassed. No pin upgrade, Provider change, AWS/Terraform action, deployment, installation, merge, real-data processing, legal retention decision, or operational/legal approval has occurred.
+Implementation is active under explicit authorization. A is implemented; B is complete for Addition with fresh evidence. C has typed runtime input/result and ORDER_RESULT gates, but generic retention and unclassified capabilities remain open. RIS_PRIVACY PASS includes provider originals/JWT tests on the exact unchanged pin. RIS_NATIVE, MAYS_MODULE, MODULE_BUILD, XREPO_E2E and FULL are PARTIAL/BLOCKED for documented dependency, platform, missing artifact and ATS-policy reasons. The historical worker SHA has not been approved or changed; D requires further write-time fence review. Other capabilities lack owner-reviewed declarations/evidence and fail closed. DSGVO-02C remains `PARTIAL`. No AWS/Terraform action, deployment, installation, merge, real-data processing, legal retention decision, policy approval, or operational approval has occurred.
