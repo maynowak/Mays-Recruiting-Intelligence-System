@@ -22,6 +22,7 @@
 | Cross-repository contract | PARTIAL | [`XREPO-PRIVACY-CONTRACT.md`](XREPO-PRIVACY-CONTRACT.md) |
 | Release acceptance | NO-GO for real data | [`PRIVACY-ACCEPTANCE-GATE.md`](PRIVACY-ACCEPTANCE-GATE.md), [`../reports/RIS-DEV2-PRIVACY-RELEASE-GATE-02.md`](../reports/RIS-DEV2-PRIVACY-RELEASE-GATE-02.md), [`../reports/RIS-PRIVACY-R08-GATE-B-ORCH-01-ABSCHLUSS.md`](../reports/RIS-PRIVACY-R08-GATE-B-ORCH-01-ABSCHLUSS.md) |
 | Remediation sequence and tests | PLANNED | [`PRIVACY-REMEDIATION-PLAN.md`](PRIVACY-REMEDIATION-PLAN.md) |
+| Final execution report | COMPLETE (documentation scope only) | [`../reports/RIS-DSGVO-COMPLIANCE-01-EXECUTION-REPORT.md`](../reports/RIS-DSGVO-COMPLIANCE-01-EXECUTION-REPORT.md) |
 
 ## System boundaries and pins
 
