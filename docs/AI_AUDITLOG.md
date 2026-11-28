@@ -14281,3 +14281,46 @@ Baseline: `b915f5731a76fb9f024acda7d8afa390d2c87be4`, branch
   consumer, HMAC, AnalysisAgent, parser, ATS or billing change. No deployment,
   AWS mutation, queue action, order, retry/redrive, Main merge or deletion of
   historical ATS evidence. Protected 19F2 JSON remains unstaged and untouched.
+
+## RIS-MAYS-ORDERS-INTEGRATION — authorized corrected RIS-DEV2 plan — 2026-11-28
+
+Baseline: `e115b201542706266c274e2d223ac58bf3e80ad0`, branch
+`feature/ris-analysis-integration-07`.
+
+- Used the single explicit full-refresh-plan authorization exactly once. Before
+  planning, read-only checks confirmed account `262370457690`, region
+  `eu-central-1`, bucket `ris-dev2-tf-state-dev`, effective key
+  `env:/ris-dev2/dev/terraform.tfstate`, workspace `ris-dev2`, lock table
+  `ris-dev2-tf-lock`, State serial 76, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, and latest S3 version
+  `M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T`. Reused the exact 19G5 base inputs
+  SHA-256 `1ada876c6c98080206c9d29ca55549b4b8f254e1f2a5c0e915f9d6097016e6e7`.
+- Verified preserved Worker `507bc17…`, Analysis `276b4e44…`, Analysis parser
+  `fb741fb2…`, and Orders-Reader `610004f6…` package identities and historical
+  paths. No bundle was built or changed. Fresh read-only Cognito/profile,
+  Catalog, and entitlement checks passed without emitting identity values.
+- Generated one separate temporary grant tfvars file immediately before the
+  plan; it contains one verified `addition_agent` user/tenant row, valid from
+  `2026-11-28T09:06:19Z` until `2026-11-28T09:22:19Z`. Input-file SHA-256:
+  `d1aaec733a5298c2a04ac1358faa046c0a28d1c2e03f93f3732b2ac09df5059e`. The
+  saved plan's effective `foundation_entitlements` was verified as exactly one
+  row matching that file; IDs remain redacted.
+- Exactly one Terraform 1.17.0 plan was created with normal full refresh and
+  lock. External plan:
+  `%TEMP%\opencode\ris-dev2-addition-acceptance-e115b20.tfplan`, SHA-256
+  `33c0e65ef0ada1bb046c487502d796e95d1251b6ce378eb76e48397c9745d515`.
+  Summary **1 Add / 1 Change / 0 Destroy / 0 Replace / 273 No-op**.
+- The only actions are `module.dynamodb.aws_dynamodb_table_item.agent_catalog_seed["ats-agent"]`
+  update `ACTIVE→INACTIVE` and one
+  `module.dynamodb.aws_dynamodb_table_item.foundation_entitlement[<redacted>]`
+  add. The temporary row's planned after-image matched the approved grant
+  input. No Lambda, IAM, Queue, Analysis, transport, or other resource action.
+- `installer.shared_infra_guard.evaluate_plan`: **PASS**, code
+  `NO_SHARED_DESTROY`; transport flags remained `enable_agent_transport=true`,
+  `orders_lifecycle=managed`. The plan scope exactly matched authorization.
+- Terraform Apply `0`; AWS resource mutations `0`; state migration `0`; live
+  order `0`; cleanup `0`. Plan lock was released by Terraform. Apply approval is
+  **NOT GRANTED**. Do not apply/test after `2026-11-28T09:22:19Z`; expiry
+  requires a fresh grant window and newly authorized plan. Report updated at
+  `docs/reports/RIS-MAYS-ORDERS-INTEGRATION-STATUS.md`. Protected 19F2 file was
+  not edited or staged. No Main merge.

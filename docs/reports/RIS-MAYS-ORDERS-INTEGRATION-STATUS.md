@@ -1,12 +1,74 @@
 # RIS–Mays-Orders Integration — Current Status
 
-**Status at 2026-11-28:** local Addition roundtrip **PASS**; shared read-only
-preflight **COMPLETE**; one full-refresh plan was created but **REJECTED for
-scope deviation**. No Apply, AWS resource mutation, state migration, queue
-receive/redrive, or live order was performed. Stop at the plan-reconciliation
-gate; no second plan or apply is authorized by this checkpoint.
+**Status at 2026-11-28:** local Addition roundtrip **PASS**; one initial plan was
+rejected for scope deviation; the explicitly authorized corrected full-refresh
+plan now **PASSES** exact scope and shared-infrastructure guard. **STOP at Apply
+gate**: no Apply, AWS resource mutation, state migration, queue receive/redrive,
+or live order was performed.
 
-## Bundled plan follow-up — STOPPED ON SCOPE DEVIATION
+## Authorized corrected RIS-DEV2 plan — PASS; STOP at Apply gate
+
+Baseline: `e115b201542706266c274e2d223ac58bf3e80ad0`. One explicit plan
+authorization was used exactly once. No plan retry, Apply, or Live Order.
+
+- Fresh read-only checks passed: account `262370457690`, region `eu-central-1`,
+  bucket `ris-dev2-tf-state-dev`, effective key
+  `env:/ris-dev2/dev/terraform.tfstate`, workspace `ris-dev2`, lock table
+  `ris-dev2-tf-lock`, state serial `76`, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, latest S3 version
+  `M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T`. 19G5 TF_DATA_DIR backend metadata and
+  exact 83-input base file hash
+  `1ada876c6c98080206c9d29ca55549b4b8f254e1f2a5c0e915f9d6097016e6e7`
+  matched. No state migration or backend resource creation.
+- Worker/Dispatch bundle `507bc17…`, Analysis `276b4e44…`, Analysis parser
+  `fb741fb2…`, and Orders-Reader `610004f6…` matched their preserved archive
+  hashes and historical path inputs. No build or bundle edit occurred.
+- Fresh read-only owner/profile/entitlement/Catalog checks matched the approved
+  synthetic identity and tenant. ATS Catalog=`ACTIVE`, Addition Catalog=`ABSENT`;
+  one expired-only global entitlement row each for ATS and Addition; none
+  currently valid and no current owner Addition grant. No raw identity or
+  entitlement IDs are included here.
+- A separate fresh grant tfvars file was created immediately before planning,
+  with exactly one `addition_agent` row for the verified user/tenant and
+  validity `2026-11-28T09:06:19Z` through `2026-11-28T09:22:19Z` (15 minutes).
+  File SHA-256:
+  `d1aaec733a5298c2a04ac1358faa046c0a28d1c2e03f93f3732b2ac09df5059e`.
+  The serialized plan's effective `foundation_entitlements` map was verified
+  to contain exactly that one row and matching times/agent/owner/tenant. The
+  temporary file is outside the repository; do not commit it.
+- Exactly one Terraform `1.17.0` plan ran with default full refresh, normal
+  state locking, and the 19G5 base plus separate grant tfvars. Saved plan:
+  `%TEMP%\opencode\ris-dev2-addition-acceptance-e115b20.tfplan`; SHA-256
+  `33c0e65ef0ada1bb046c487502d796e95d1251b6ce378eb76e48397c9745d515`.
+  Result: **1 Add / 1 Change / 0 Destroy / 0 Replace / 273 No-op**.
+- Exact non-noop scope only:
+  `module.dynamodb.aws_dynamodb_table_item.agent_catalog_seed["ats-agent"]`
+  updates `ACTIVE→INACTIVE`; one
+  `module.dynamodb.aws_dynamodb_table_item.foundation_entitlement[<redacted>]`
+  is added. The planned entitlement after-image matches the separate tfvars.
+  No Lambda, IAM, Queue, Analysis, shared transport, or other resource action.
+- Shared-infrastructure guard:
+  `installer.shared_infra_guard.evaluate_plan` **PASS** (`NO_SHARED_DESTROY`);
+  flags `enable_agent_transport=true`, `orders_lifecycle=managed`. The plan
+  matches the authorized `1/1/0/0` scope and all allowed resource addresses.
+- **Apply gate: NOT APPROVED.** The saved plan is review-only. Do not apply or
+  test after the grant expires at `2026-11-28T09:22:19Z`; after expiry, stop and
+  request a new grant window plus explicit plan authorization. No cleanup or
+  live-order authorization is implied.
+
+### Apply approval template — pending; not authorization
+
+> Approver/authority/date: **NOT PROVIDED**. Proposed action: at most one Apply
+> of saved plan SHA-256
+> `33c0e65ef0ada1bb046c487502d796e95d1251b6ce378eb76e48397c9745d515` for
+> account `262370457690`, region `eu-central-1`, workspace `ris-dev2`, current
+> state serial `76` / lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`; exact scope
+> `1 Add / 1 Change / 0 Destroy / 0 Replace` (one Addition grant row, ATS
+> Catalog `ACTIVE→INACTIVE`), no other resources. Grant expiry:
+> `2026-11-28T09:22:19Z`; no Apply/test after expiry. Apply authorization:
+> **NOT GRANTED**. Live order and cleanup remain separately gated.
+
+## Initial bundled plan — REJECTED ON SCOPE DEVIATION
 
 **2026-11-28, baseline `6ef378e327fcf9cfc35e7f04f2ad032bbd5d4569`.** Requested
 modes: `TEST_FIX_RETEST`; AWS read-only; backend reconciliation; reuse existing
@@ -183,7 +245,7 @@ Apply remains separately unauthorized.
   repeated. The required deployment bundle build completed; agent bundle SHA
   prefix `507bc17d`, analysis bundle `370890d4`, reader bundle `bea4c3e5`.
 
-## Approval packet — no approvals granted
+## Remaining approval gates — Apply and live order not approved
 
 Target scope: account `262370457690`, region `eu-central-1`, workspace
 `ris-dev2`, latest read-only state serial `76`, lineage
@@ -250,9 +312,8 @@ owner-read permission: **not supplied**. Gate A Apply: **NOT APPROVED**. Gate B
 entitlement Apply: **NOT APPROVED**. Gate C initial order: **NOT APPROVED**.
 
 No further live action is taken until those approvals are explicit. The first
-requested plan was created and rejected for scope deviation; its hash and
-full-refresh summary are recorded above. Do not use that binary for apply.
-Correct variable inputs are prepared externally; the new plan still requires
-new explicit authorization. Main merge was not performed. The protected
+plan was rejected; the corrected plan passed scope and guard, as recorded above.
+Do not use the rejected binary. Apply remains unauthorized and is constrained
+by the temporary grant expiry. Main merge was not performed. The protected
 `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json` was not used
 as output or touched/staged by this follow-up.
