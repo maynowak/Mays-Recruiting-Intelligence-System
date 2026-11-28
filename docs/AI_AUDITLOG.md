@@ -14685,3 +14685,32 @@ Baseline `c6b764ec94a19d9e950d49a2c50817d4e20883c3`.
   infrastructure deletion, no redrive, no further live order and no Main
   merge. Feature-branch integration handoff prepared for final approval.
   Protected 19F2 results JSON remains unedited and unstaged.
+
+## RIS-MAYS-ORDERS — final Main integration readiness — 2026-11-28
+
+- Compared feature `bb7aa1b393865a84e4a796720004e613a51249a6` with current
+  `origin/main` `97a60df83a5db56ea750e4342d7a01b00c8ad56b`; merge-base
+  `54dbf3527fa439944e686fe338e43fbfe92322bd`. `git merge-tree --write-tree`
+  returned candidate tree `6f6526c4081b2c2d7f688d0d9c2464a1aeb120cd` without
+  conflicts. No merge/rebase performed. Main has one unique commit (PR #16
+  merge); feature has 141 commits from the shared base.
+- PR #16 is already MERGED and represents the shared `54dbf35` base. Current
+  feature tip has no open PR and has no check run; existing PR #16 check
+  `45043508991` passed at historical `54dbf35`, not current head. Latest
+  successful read-only compatibility QA found was `46123512652` at `6ef378e`,
+  also not current head. Existing live E2E/cleanup evidence reused; no new QA,
+  build or regression was run because this reconciliation changed docs only.
+- Workflow review: Ground Zero CI triggers for PR-to-main and push-to-main;
+  it does Terraform fmt and backend-free static module validation only, with
+  no AWS credentials, deployment, Terraform plan or apply. Compatibility QA
+  push trigger is feature-branch scoped and is not a deploy. No deployment
+  trigger found in reviewed workflows; merge will enqueue read-only CI.
+- Acceptance matrix consolidated in `docs/reports/RIS-MAYS-ORDERS-INTEGRATION-STATUS.md`:
+  technical integration VERIFIED; Addition live E2E PASS; ATS HTTP agent
+  DISABLED; temporary entitlement cleanup COMPLETE; shared infrastructure
+  UNCHANGED; State serial 79. State lineage unchanged, S3 VersionId
+  `69Mksseizux6JercRCm0BTdIVF5S5GeUF`.
+- Prepare a new PR for current branch tip; do not reuse PR #16. Proposed merge
+  recommendation is conditional on current-head required checks and complete
+  PR file-list review. `MAIN_MERGE=false`; no merge performed. Existing local
+  protected 19F2 results JSON remains untouched, unstaged and excluded.

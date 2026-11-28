@@ -808,3 +808,67 @@ users, profiles, shared tables, Lambda functions or other infrastructure were
 deleted or changed. No live order, redrive, Main merge, or QA/build was run.
 Feature branch integration is prepared for final approval; no main merge was
 performed. Protected 19F2 results JSON remains untouched and unstaged.
+
+## Final main-integration readiness — VERIFIED; merge gate remains closed
+
+Closeout baseline: feature HEAD `bb7aa1b393865a84e4a796720004e613a51249a6`;
+`origin/main` `97a60df83a5db56ea750e4342d7a01b00c8ad56b`; merge-base
+`54dbf3527fa439944e686fe338e43fbfe92322bd`. Main has one commit not on the
+feature branch (merge commit for PR #16); the feature branch has 141 commits
+since that merge-base. `git merge-tree --write-tree HEAD origin/main` produced
+candidate tree `6f6526c4081b2c2d7f688d0d9c2464a1aeb120cd` with no conflicts.
+This was a read-only merge-tree calculation; neither branch was merged or
+rewritten. PR #16
+(`https://github.com/maynowak/Mays-Recruiting-Intelligence-System/pull/16`)
+is already MERGED and corresponds to shared baseline `54dbf35`. Therefore the
+current closeout commits require a new PR. No current open PR or successful
+check run for head `bb7aa1b` was found at review time.
+
+### CI/deployment impact
+
+- `.github/workflows/ci-cd.yml` (`Ground Zero CI`) triggers on PRs targeting
+  `main` and pushes to `main`. It runs Terraform format and backend-free static
+  validation only; comments state that it uses no AWS credentials and does no
+  plans, applies, or automated deployment. A PR schedules this static check;
+  a merge push to main schedules it again. No deployment trigger was found in
+  the reviewed workflows.
+- `.github/workflows/mays-compatibility-qa.yml` is push-scoped to the feature
+  branch and selected paths, plus manual dispatch; it is not a main-merge
+  deployment workflow. Latest successful run found was `46123512652` at
+  `6ef378e` (not current head `bb7aa1b`). Existing QA artifacts and focused
+  evidence are reused; no new build or FULL QA was run for this documentation-
+  only closeout.
+- Existing successful Ground Zero CI for PR #16 is run `45043508991`, head
+  `54dbf35`; historical evidence only, not a check on the current head.
+
+### Acceptance and reused evidence
+
+| Gate | Status | Evidence |
+|---|---|---|
+| `TECHNICAL_INTEGRATION` | VERIFIED | Existing integration/QA reports and evidence under `docs/reports/` and `docs/reports/evidence/19F*`–`20A2`; conflict-free merge-tree |
+| `ADDITION_LIVE_E2E` | PASS | Existing live E2E report/auditlog: exactly one POST, result 42, owner GET; OrderDescription unchanged |
+| `ATS_HTTP_AGENT` | DISABLED | ATS catalog `INACTIVE`; Addition catalog `ABSENT` |
+| `TEMPORARY_ENTITLEMENT_CLEANUP` | COMPLETE | One approved row removed; post-Apply read-only verification recorded above |
+| `SHARED_INFRASTRUCTURE` | UNCHANGED | State diff removed only the approved entitlement resource; shared table shape and 10 Lambda code hashes unchanged |
+| `STATE_SERIAL` | 79 | Lineage unchanged; S3 VersionId `69Mksseizux6JercRCm0BTdIVF5S5GeUF` |
+
+No source/runtime change was made during reconciliation, so no targeted
+regression was indicated. The working tree contains the pre-existing protected
+local modification to `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json`;
+it was not staged, changed, or included in the proposed PR. The feature-side
+diff from the shared base covers 203 paths (approximately 25.5k insertions and
+247 deletions); review the generated PR file list and current-head required CI
+before approval. No AWS, Terraform, live-order, build, redrive, or Main-merge
+action was performed.
+
+### PR and Main-merge approval request
+
+Prepare a new PR from `feature/ris-analysis-integration-07` at
+`bb7aa1b393865a84e4a796720004e613a51249a6` into `main`; do not reuse merged PR
+#16. After the new PR's required current-head checks pass and the complete file
+list is reviewed, recommended action is a regular merge of this exact head.
+The expected automated Main-side action is read-only Ground Zero CI. This is a
+request for a separate explicit Main-merge decision, not authorization to merge.
+
+**MAIN_MERGE=false — STOP at Main-merge gate.** Protected 19F2 file remains
+unstaged and untouched.
