@@ -1,9 +1,55 @@
 # RIS–Mays-Orders Integration — Current Status
 
-**Status at 2026-11-28:** local Addition roundtrip **PASS**; the newly authorized
-60-minute full-refresh plan **PASSES** exact scope and shared-infrastructure
-guard. **STOP at Apply gate**: no Apply, AWS resource mutation, state
-migration, queue receive/redrive, or live order was performed.
+**Status at 2026-11-28:** the authorized saved-plan Apply completed once and
+post-Apply read-only verification **PASS**. **STOP at Live-Order gate**: no
+live order, redrive, further Terraform operation, or Main merge was performed.
+
+## Authorized Apply — PASS; STOP at Live-Order gate
+
+- Applied exactly once the saved plan SHA-256
+  `ca0933a296610d2cae2ad80e12c8d27a3aeed892856ed2ee18d155abdf4fcd3b` after
+  immediate preflight passed at checkpoint `59150628246d718d1e38d70dbb5748c5afb94258`.
+  Account `262370457690`, `eu-central-1`, workspace `ris-dev2`; State serial 76,
+  lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, and S3 version
+  `M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T` matched. Plan scope was exactly 1 Add / 1
+  Change / 0 Destroy / 0 Replace; guard PASS (`NO_SHARED_DESTROY`). Reader
+  SHA-256 was independently checked against 19G4/19G5/19H and saved-plan
+  identity: `610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b`.
+- At the immediate pre-Apply check, the grant had 717 seconds remaining and
+  expired at `2026-11-28T10:28:22Z`. Terraform Apply exited successfully. No
+  retry, replan, or second Apply.
+- AWS read-only verification passed: ATS catalog `INACTIVE`; zero valid ATS
+  entitlements; exactly one valid `addition_agent` entitlement (two Addition
+  rows total, one expired); Addition catalog `ABSENT`. The active grant expires
+  at `2026-11-28T10:28:22Z`.
+- State advanced to serial `77`, same lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, latest S3 version
+  `zOnRrKUXkb3CvoHhGcosBHYkAExMwHmT`. Comparing the before/after S3 state
+  versions showed exactly two managed-resource changes: ATS catalog seed
+  update and one foundation entitlement create. All other managed resources,
+  including shared infrastructure, were unchanged.
+- Read-only Lambda verification found the Worker, Dispatch-Ingress, Analysis,
+  and Orders-Reader code hashes unchanged and update status successful. No live
+  order or redrive. No further Terraform operation is authorized or performed.
+
+### Live-Order approval request — pending; not authorization
+
+> **Requested action:** approve at most one authenticated `POST /orders` to the
+> RIS-DEV2 Orders endpoint, account `262370457690`, region `eu-central-1`, using
+> the existing verified synthetic owner/profile. Exactly one synthetic order:
+> customer `Addition QA` / `customer@example.invalid`; one `ADD` item, quantity
+> 1, unit price 1 EUR; `orderType=agent.execution`; target
+> `addition_agent/math.add`; inputs `left=19`, `right=23`; expected result `42`.
+> No ATS, external provider, or AI execution. No second POST, retry, direct
+> Lambda invocation, queue receive/redrive, or foreign-owner request. One
+> matching owner-result readback may be used only if included in the approval.
+>
+> Approval authority/date: **NOT PROVIDED**. Exact serialized payload SHA-256
+> and unique requestId/idempotency key: **MUST be filled and approved before
+> sending**; no order has been constructed or sent. Grant expiry:
+> `2026-11-28T10:28:22Z`; do not execute after expiry. Live-order approval:
+> **NOT GRANTED**. Any grant cleanup requires a separately reviewed IaC plan
+> and approval.
 
 ## Apply preflight correction — PASS; Apply remains disabled
 

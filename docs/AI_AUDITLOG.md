@@ -14383,3 +14383,36 @@ Apply, and live order disabled.
   Apply gate. Report updated at
   `docs/reports/RIS-MAYS-ORDERS-INTEGRATION-STATUS.md`. Protected 19F2 results
   JSON was not staged or edited; no Main merge.
+
+## RIS-MAYS-ORDERS — authorized RIS-DEV2 Apply and read-only verification — 2026-11-28
+
+- Immediately before Apply, verified checkpoint `59150628246d718d1e38d70dbb5748c5afb94258`,
+  exact saved-plan SHA-256
+  `ca0933a296610d2cae2ad80e12c8d27a3aeed892856ed2ee18d155abdf4fcd3b`, account
+  `262370457690`, region `eu-central-1`, workspace `ris-dev2`, State serial 76,
+  lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, and S3 version
+  `M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T`. Hash-verified Reader identity
+  `610004f6eae3531e4c87236439e491bcbf0c102ea29161fef247c2713c81ae6b` matched
+  19G4, 19G5, 19H, local bytes and the saved plan. Shared-infrastructure guard
+  passed (`NO_SHARED_DESTROY`); scope 1 Add / 1 Change / 0 Destroy / 0 Replace.
+- Grant validity was checked immediately before Apply: 717 seconds remained,
+  expiry `2026-11-28T10:28:22Z`. Invoked Terraform Apply exactly once with the
+  saved plan; exit code 0. No replan or retry.
+- Post-Apply read-only AWS checks: ATS catalog `INACTIVE`; zero valid ATS
+  entitlements; one valid Addition entitlement (two rows total, one expired);
+  Addition catalog `ABSENT`. No identity or entitlement IDs logged.
+- State advanced from serial 76 to 77, same lineage, latest S3 version
+  `zOnRrKUXkb3CvoHhGcosBHYkAExMwHmT`. Read-only comparison of the before/after
+  remote State versions showed exactly the authorized ATS catalog update and
+  one foundation entitlement create; every other managed resource and shared
+  infrastructure State entry remained unchanged.
+- Live AWS Lambda code hashes for Worker, Dispatch-Ingress, Analysis and
+  Orders-Reader matched the preserved artifact identities and all reported
+  successful update status. No live order, redrive, or further Terraform
+  operation.
+- Updated the central status report with post-Apply evidence and a pending,
+  bounded approval request for one synthetic Addition order (`math.add`,
+  `19 + 23 = 42`). Exact payload hash/requestId and approval authority remain
+  required; **Live-Order gate remains NOT APPROVED**. Grant expires
+  `2026-11-28T10:28:22Z`; no execution after expiry. Protected 19F2 results JSON
+  was not edited or staged. No Main merge.
