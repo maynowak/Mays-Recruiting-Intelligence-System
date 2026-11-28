@@ -1,14 +1,63 @@
 # RIS–Mays-Orders Integration — Current Status
 
 **Status at 2026-11-28:** local Addition roundtrip **PASS**; shared read-only
-preflight **COMPLETE**; live completion **BLOCKED pending explicit mutation and
-live-order approvals**. Read-only AWS calls were performed. No AWS write,
-Terraform plan/apply, Cognito/entitlement/catalog mutation, queue receive or
-redrive, or live order was performed.
+preflight **COMPLETE**; one full-refresh plan was created but **REJECTED for
+scope deviation**. No Apply, AWS resource mutation, state migration, queue
+receive/redrive, or live order was performed. Stop at the plan-reconciliation
+gate; no second plan or apply is authorized by this checkpoint.
+
+## Bundled plan follow-up — STOPPED ON SCOPE DEVIATION
+
+**2026-11-28, baseline `6ef378e327fcf9cfc35e7f04f2ad032bbd5d4569`.** Requested
+modes: `TEST_FIX_RETEST`; AWS read-only; backend reconciliation; reuse existing
+RIS-DEV2 installation; exactly one full-refresh Terraform plan; no apply, live
+order, state migration, or AWS resource mutation; status update, commit/push;
+no main merge.
+
+- Installation/backend verification passed read-only: account `262370457690`,
+  region `eu-central-1`, bucket `ris-dev2-tf-state-dev`, effective key
+  `env:/ris-dev2/dev/terraform.tfstate`, workspace `ris-dev2`, lock table
+  `ris-dev2-tf-lock`, state serial `76`, lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, and latest S3 version
+  `M1N4isxd7i0.iAsxP4jLq0U47ymxlw9T`. No state migration or backend resource
+  creation occurred.
+- Historical artifacts were restored byte-for-byte using
+  `scripts/stage_preserved_ris_dev2_artifact_paths.py`: Worker
+  `507bc17…`, Analysis `276b4e44…`, Reader `610004f6…`. No new bundle content
+  was used in the plan; the prior bundle-build step had regenerated canonical
+  local outputs, so the existing staging procedure restored the preserved
+  deployed bytes and historical filename paths.
+- Current read-only entitlement check confirmed one enabled synthetic user,
+  one ACTIVE tenant-matched profile, no current test-owner Addition grant, and
+  no currently valid global ATS or Addition entitlement. Exactly one temporary
+  Addition grant was supplied to the plan input with a 15-minute window
+  `2026-11-28T08:13:07Z`–`2026-11-28T08:29:07Z`.
+- Exactly one normal full-refresh Terraform plan was created after the explicit
+  plan authorization. Plan file (outside the repository):
+  `%TEMP%\opencode\ris-addition-bundled-6ef378e.tfplan`; SHA-256
+  `29af00f2a2597d0ddd759aa860164ed72b62f9bae0e016c5ead318c6a0312ddb`.
+  The shared-infrastructure guard rejected it. Read-only inspection found
+  **0 Add / 4 Change / 13 Destroy / 0 Replace**, not the authorized
+  `1 Add / 1 Change / 0 Destroy`. The Addition entitlement add is absent from
+  the plan; it also includes deletes of Analysis resources and shared IAM,
+  permissions, and logs, plus unexpected Worker/Ingress/policy changes.
+- **STOP:** the plan is invalid for this request and MUST NOT be applied. No
+  second plan was created. Terraform Apply `0`; AWS resource mutations `0`;
+  live orders `0`; state migration `0`. The ordinary plan lock was used by the
+  runner; no state/resource write was authorized or performed. Keep this plan
+  only as rejected evidence. The temporary tfvars input is outside the repo.
+- Apply approval is **NOT GRANTED**. Any corrected plan requires reconciliation
+  of the exact 19G5/19H Terraform inputs and a new explicit authorization before
+  creating another full-refresh plan. If the 15-minute entitlement window has
+  expired, do not apply or test with this grant/plan; request a fresh window and
+  authorization. No live-order gate was entered.
+
+The protected 19F2 results file remains untouched by this follow-up and is not
+included in the checkpoint commit.
 
 | Work package | Soll | Ist / mode | Implementation / deployment | Test result | Offene Abweichung | Nächster Schritt | Commit / Evidenz |
 |---|---|---|---|---|---|---|---|
-| A — Historical ATS deactivation | Deactivate `ats-agent` through existing lifecycle; retain results and shared infrastructure | **Read-only inventory complete; live disable NOT APPLIED**. Local `DISABLE` dry-run returned `DRY_RUN`, zero blockers. | Catalog is `ACTIVE`; global ATS entitlement query found one expired-only historical row and no currently valid row. `INACTIVE` is a discovery gate, not the worker execution gate. No uninstall/purge. | All 4 ATS orders in the live Orders index have `processing=COMPLETED`; no open ATS order/result. Dispatch, work and result queues are 0. Shared worker DLQ has 1 approximate visible message; its body was not read/received. | Expired entitlement is not represented in current Terraform state and has no `createdBy`; do not delete it manually. DLQ message remains unclassified and untouched. | Prepare a tightly scoped plan for ATS catalog `ACTIVE→INACTIVE` and the temporary Addition grant only. Preserve all shared resources and historical data; stop if plan includes anything else. | Lifecycle `installer/agent-installations/ats-agent/lifecycle.yaml`; dry-run inventory digest `38fd2c0f…`; read-only checks 2026-11-28; Terraform workspace `ris-dev2`, state serial `76`, lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`. |
+| A — Historical ATS deactivation | Deactivate `ats-agent` through existing lifecycle; retain results and shared infrastructure | **Read-only inventory complete; live disable NOT APPLIED**. Local `DISABLE` dry-run returned `DRY_RUN`, zero blockers. | Catalog is `ACTIVE`; global ATS entitlement query found one expired-only historical row and no currently valid row. `INACTIVE` is a discovery gate, not the worker execution gate. No uninstall/purge. | All 4 ATS orders in the live Orders index have `processing=COMPLETED`; no open ATS order/result. Dispatch, work and result queues are 0. Shared worker DLQ has 1 approximate visible message; its body was not read/received. | Rejected plan had additional deletes and unexpected Lambda/policy changes. Expired entitlement is not in current state; do not delete it manually. DLQ untouched. | Reconcile exact 19G5/19H variable set. A new plan requires explicit authorization; preserve shared resources/history and stop on any other action. | Lifecycle `installer/agent-installations/ats-agent/lifecycle.yaml`; dry-run inventory digest `38fd2c0f…`; backend/state evidence 2026-11-28; rejected plan hash above. |
 | B — Addition identity and local roundtrip | Reuse existing identity/profile and `addition_agent` / `math.add`; signed result and owner readback | **Read-only identity check complete; local evidence reused**, not rerun. Mays source pin `db4f9e79980443de1cd3d5b688a33c0cf0eb771f`. | One enabled Cognito test user and one ACTIVE owner/tenant-matched profile exist. The identity has no entitlements; global Addition query found one expired-only row. Addition catalog remains ABSENT/dispatch-only. | Prior local suites: 70 and 11 passed. | One temporary `addition_agent` entitlement is necessary. A live foreign-owner 404 requires a second valid Cognito principal; pool currently has one user. | Include only the short-lived Addition grant in the combined plan; request separate explicit approval for a temporary second principal, or report foreign-owner 404 as local-only. | `tests/test_agent_order_dispatch_e2e.py`; read-only Cognito/profile/entitlement checks; integrated Mays source. |
 | C — Addition live authorization | One synthetic order `19 + 23 = 42`; signed result, consumer persistence, `COMPLETED`, owner GET; preserve idempotency/privacy | **NOT RUN**; no live order authorized | Deterministic Addition runtime; no ATS/AI provider. Shared transport reused. | Local evidence retained; no live test. | No valid test entitlement or execution-time token available in repository. Existing Analysis-agent has two unrelated PENDING orders; untouched. | After explicit gates, use one authenticated POST only, no retry; verify exact WorkItem/result/owner readback. Prepare exact serialized payload hash for approval. | Prior local evidence `RIS-AGENT-INSTALLATION-09-ADDITION-PILOT.md`; current checkpoint baseline `21aa96a`. |
 | D — Shared contracts/security | Keep `ORDER_DISPATCH`, WorkItem, worker, HMAC `ORDER_RESULT`, Mays result consumer, idempotency and owner-only result projection | **LOCAL TESTED / HISTORICAL LIVE EVIDENCE REUSED** | No contract or shared infrastructure change. | The new test verifies same order/work correlation, signed result acceptance, `processing=COMPLETED`, exact result 42, unchanged `orderDescription`, no public `agentOrder`, and foreign-owner GET 404. Existing suites cover stable dispatch/result idempotency and auth/privacy negatives. | Live repeat of these assertions remains unverified at current state. | Recheck only within the one approved live order/readback; do not replay or redrive. | New test `test_addition_order_round_trip_and_authorized_read_back`; prior local and live evidence cited above. |
@@ -115,12 +164,10 @@ payload SHA-256 and idempotency key; one-order approval; retry acceptance;
 owner-read permission: **not supplied**. Gate A Apply: **NOT APPROVED**. Gate B
 entitlement Apply: **NOT APPROVED**. Gate C initial order: **NOT APPROVED**.
 
-No further live action is taken until those approvals are explicit. A combined
-backend Terraform plan is **not yet prepared**: the active configuration declares
-an S3 backend lock table `mays-ris-tf-lock`, while the prior verified RIS-DEV2
-installation evidence identifies `ris-dev2-tf-lock`; backend/state-key inputs
-must be re-established from the actual installation context rather than guessed.
-The planned entitlement window also needs a fresh T0 immediately before plan
-creation. No plan/apply was run. Main merge was not performed. The protected
+No further live action is taken until those approvals are explicit. The first
+requested plan was created and rejected for scope deviation; its hash and
+full-refresh summary are recorded above. Do not use that binary for apply.
+Correct variable/backend state reconciliation and a new explicit approval are
+required before any second plan. Main merge was not performed. The protected
 `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json` was not used
-as output, staged or changed.
+as output or touched/staged by this follow-up.
