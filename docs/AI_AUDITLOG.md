@@ -14803,3 +14803,11 @@ Orders pin: db4f9e79980443de1cd3d5b688a33c0cf0eb771f; RIS baseline 77e215282a661
 Findings: Retail/AgentOrder create and status/dispatch/result/worker/import paths do not establish gsi2pk subject linkage. GSI2 privacy functions exist but cannot discover unindexed rows. Anonymize path leaves nested agentOrder, processing.result and owner identity fields. RIS E2E test deliberately asserts absent GSI2, so contract change needs coordinated test revision.
 Evidence: docs/privacy/DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md §B; source and tests listed there.
 No source/tests/AWS/Terraform changed or run; Orders pin unchanged. Step B checkpoint; C/D remain in progress.
+
+[RIS-DSGVO-02A — PACKAGE C: RIS PRIVACY]
+Status: COMPLETE — read-only capability/coverage review; minimal extension plan documented.
+Date: 2026-11-28
+Baseline: RIS 77e215282a661b5c1ce7dcb66d703e1eb4432212.
+Findings: RIS has reusable ordered G5 and resumable operation/checkpoint foundations plus profile/document/Application/S3 executors. No demonstrated Orders or Jobsearch DSAR adapters exist in the RIS coordinator. Terminal WorkItems, logs/DLQ, backups and retained data need explicit per-domain outcomes; missing adapters must block overall completion.
+Evidence: docs/privacy/DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md §C.
+No source/tests/AWS/Terraform changed or run. Step C checkpoint; D remains in progress.

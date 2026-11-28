@@ -69,3 +69,37 @@ Original tests to retain/extend: `lambda/tests/test_order_service.py` (create/in
 Required additions: each create/write branch indexes a synthetic approved ref; retry/result updates preserve it; body spoof/missing auth denied; inspect/export/erase finds producer-created records; export projection excludes internals/secrets; anonymization asserts every covered nested field and retention exception; legacy import rows are visibly unresolved. Test list is planned only—no test ran.
 
 **Blockers:** approved subject mapping and scope; exact treatment of order/result/owner fields; legacy data strategy; Orders and RIS maintainers must coordinate versioned PRs. No Orders code or pin was changed.
+
+## C — RIS privacy review
+
+### Existing capabilities to reuse
+
+- Ordered legacy account erasure: `agents/ecosystem/privacy_erasure.py::PrivacyErasure.erase()` revokes credentials/profiles, cancels nonterminal work, invokes bounded application/document steps, then handles UserProfile. Its own contract states Orders are untouched; terminal work and other retained categories need explicit outcomes.
+- Resumable operation/checkpoint foundation: `privacy_erasure_contract.py` (`ErasureOperationV1`/execution context), `privacy_erasure_repository.py`, write-freeze repository and `AtomicG5MutationExecutor`.
+- Existing domain components: `privacy_profile_erasure.py::ProfileOnlyErasureExecutor`, `privacy_document_erasure.py::DocumentErasureIntegration`, `privacy_application_erasure.py::ApplicationErasureExecutor`, and `privacy_s3_erasure.py::FencedS3ErasureOrchestrator` / versioned adapter.
+- Receipts and deletion evidence: `privacy_receipt.py`, `privacy_receipt_journal.py`, `privacy_deletion_ledger.py`, and `privacy_durable_deletion_ledger.py`. These are evidence mechanisms, not proof that every domain has been visited.
+
+### Coverage matrix
+
+| Domain | Current RIS path/evidence | Gap / required adapter result |
+|---|---|---|
+| Credentials/API profiles, UserProfile | G5 ordered flow | Cognito account/session deletion is distinct; do not report account identity gone without verified outcome. |
+| Partner profile hierarchy / CV metadata | Profile-only resumable executor | Scope-specific coverage needs tests and operation integration; document records are not deleted by profile-only executor. |
+| S3 CV objects | Fenced versioned S3 executor and document integration | All-version/list reconciliation and live storage proof are separate; cannot infer from metadata deletion. |
+| ApplicationV1 | Resumable Application erasure executor | Extend into common operation ledger only if missing; preserve owner/consent contract. |
+| Jobsearch | No demonstrated identity resolver or inspect/export/erase adapter in RIS orchestration | Return `BLOCKED`/`UNAVAILABLE` until Jobsearch contract and account mapping exist; no email join. |
+| Mays-Orders | No demonstrated RIS adapter/call for pinned internal privacy actions; legacy erasure explicitly excludes Orders | Requires approved subjectRef, versioned internal contract, and Orders-owned execution. |
+| WorkItems/results/entitlements/jobsearch history | Existing G5 can cancel nonterminal work; terminal/retained records not globally covered | Per-domain policy and status; no completion from cancellation alone. |
+| Logs/DLQ/backups/PITR/receipts | Contracts and partial local recovery/evidence components | Operational expiry/reconciliation and no-resurrection evidence remain separate; must be explicit partial/retention statuses. |
+
+### Minimal extension plan
+
+1. Do not replace existing G5 or domain executors. Add a versioned domain-adapter protocol to the resumable operation path only after identity and policy approval.
+2. Each adapter declares its domain, required scope, operation/checkpoint fields, idempotency, retry behavior, evidence level, and terminal outcomes (`COMPLETE`, `PARTIAL`, `BLOCKED`, `UNAVAILABLE`, approved `RETAINED`). The coordinator must treat missing required adapters as blocking.
+3. Add Orders and Jobsearch adapters behind owner-authenticated service contracts; domain mutation remains in the owning repository. Preserve tenant checks, write-freeze semantics and existing API/module contracts.
+4. Keep distinct states for request accepted, provider/service request made, and independently verified deletion. Never make a receipt or queued request equivalent to physical erasure.
+5. Update `ErasureOperationV1` progress contract additively with domain IDs/version and opaque evidence only; do not store raw keys, CV text, secrets, or external URLs in checkpoints.
+
+Original RIS tests to reuse: `test_privacy_erasure_contract.py`, `test_privacy_erasure_repository.py`, `test_privacy_erasure_security.py`, `test_partner_privacy_inspection.py`, `test_application_privacy_contract.py`, `test_application_erasure.py`, `test_privacy_capability_planned.py`, `test_privacy_lifecycle_evidence.py`, `test_r08_c1a_profile_only_erasure.py`, `test_r08_c1b_document_erasure_integration.py`, `test_r08_c0f_s3_erasure.py`, `test_durable_deletion_ledger.py`, and `test_public_application_erasure.py`. Add synthetic adapter conformance, absent-adapter blocker, per-domain partial/retry/resume, cross-tenant denial and proof that no adapter can overstate global completion. Tests not run.
+
+**Blockers:** DSGVO-02 identity and legal/retention decisions; DSGVO-03 service interfaces; separate platform/security approval for logs, queues, backups and secrets. No RIS runtime change was made.
