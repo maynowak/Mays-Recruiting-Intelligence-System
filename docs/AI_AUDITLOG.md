@@ -14873,3 +14873,5 @@ Commit `ee6055acd1856e9fdaf09fe09c7a30a698a0da58`; Addition evidence regenerated
 
 [RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-02 — E/F partial]
 Added offline RIS-side signed synthetic JWT claim/priority tests and `RIS_PRIVACY`. Profile groups: 42 capability/addition, 76 privacy/application/lifecycle, and 2 synthetic JWT passed; Provider originals and JWT verifier explicitly BLOCKED because `installer/projects/mays_order_builder` is absent; overall profile BLOCKED. Existing profiles unchanged. Runner/JWT tests 10 passed. `test_ats_result_link.py`: 26 passed, 5 fail before result-link assertions due to missing ATS Eligibility policy/evidence. Synthetic JWT tests establish only RIS token selection, not Provider verification. No install/deploy/AWS/provider/pin action.
+
+`RIS_PRIVACY` also runs existing subject-fence/erasure security/repository/application erasure checks: 34 passed. D behavior was not changed because retention/stale-result policy remains unresolved.

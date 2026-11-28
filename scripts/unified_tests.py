@@ -130,6 +130,12 @@ def profile_jobs(profile: str, mays: Path) -> list[Job]:
                 "tests/test_privacy_receipt_contract.py",
                 "tests/test_consent_gate.py",
             ]),
+            _pytest("runtime_lifecycle_fences", ROOT, [
+                "tests/test_subject_fence.py",
+                "tests/test_privacy_erasure_repository.py",
+                "tests/test_privacy_erasure_security.py",
+                "tests/test_application_erasure.py",
+            ]),
             _pytest("orders_jwt_identity_synthetic", ROOT, [
                 "tests/test_orders_jwt_identity_synthetic.py",
             ]),
