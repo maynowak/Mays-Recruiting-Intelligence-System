@@ -14741,3 +14741,13 @@ Evidence: RIS PR #17 merged at 8b9a706; accepted synthetic Addition result 19 + 
 Privacy: Synthetic technical acceptance is not approval for real personal data. Existing privacy findings remain open. Protected local 19F2 results JSON in the other checkout was not accessed or modified.
 Files: docs/integration/RIS-MAYS-ORDERS-INTEGRATION-DOSSIER.md; docs/reports/RIS-MAYS-ORDERS-INTEGRATION-STATUS.md; README.md; docs/AI_AUDITLOG.md.
 Cross-repository reference: Mays-Orders PR #3 https://github.com/maynowak/mays-order-aws/pull/3. RIS documentation PR #18 https://github.com/maynowak/Mays-Recruiting-Intelligence-System/pull/18. Neither merge is authorized.
+
+[RIS-DSGVO-COMPLIANCE-01 — PHASE 1 DISCOVERY]
+Status: COMPLETE (source/documentation discovery; no remediation or live approval)
+Date: 2026-11-28
+Branch/base: feature/ris-dsgvo-compliance-01 / 073fb5f5384736b6b6d8f0d1a0b987e4e9ceb070
+Evidence pins: Mays-Orders db4f9e79980443de1cd3d5b688a33c0cf0eb771f; Mays-Jobsearch origin/main c298d223e38407781b4f63426be9f9228ccb4467.
+Scope: Read-only source, test, Terraform declaration, report and branch-history inventory across RIS and the specified sister-repository source pins. Required integration dossier and Privacy Release Gate 02 reconciled. No tests rerun; no sister-repository changes.
+Findings: RIS inspect/export and bounded G5/profile erasure are partial; full cross-domain DSAR, all-version S3 purge, backup/restore reconciliation and legal retention remain open. Orders internal privacy endpoints exist at the pin, but RIS-originated AgentOrders lack gsi2pk subject linkage and embedded agentOrder anonymization is incomplete. Current Jobsearch Main contains purpose-specific consent interfaces; this does not establish legal approval, complete rights fulfillment or deployed behavior.
+Safety: No runtime changes, Mays-Orders pin change, AWS/Terraform action, deployment, queue redrive, Main merge or real-data approval. Synthetic data boundary retained.
+Evidence: docs/reports/RIS-DSGVO-COMPLIANCE-01-PHASE-1-DISCOVERY.md. Phase 1 checkpoint committed/pushed before Phase 2.
