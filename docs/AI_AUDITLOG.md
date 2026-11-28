@@ -14481,3 +14481,31 @@ Baseline `ae8a72525e43ee69f09ae1266a38fa02c47753d4`; State serial 77.
   requires successful authorized renewal Apply, fresh entitlement/State
   preflight and its own explicit approval. No live order, retry, redrive,
   cleanup, or Main merge. Protected 19F2 JSON was not edited or staged.
+
+## RIS-MAYS-ORDERS — approved four-hour Addition grant Apply — 2026-11-28
+
+- Checkpoint `d2592867572b88bee8d7607ceed2d8ea1e76ae1d`. Immediately before the
+  single Apply, reverified saved plan SHA-256
+  `5bba7cfce9b84e6bdd24d7ff6a7120907b78b3aeee78fec684ecbfa43589fd7f`, AWS
+  account `262370457690`, region `eu-central-1`, workspace `ris-dev2`, backend
+  metadata, State serial 77 / lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082` / S3 version
+  `zOnRrKUXkb3CvoHhGcosBHYkAExMwHmT`, all preserved artifact hashes, and guard
+  PASS (`NO_SHARED_DESTROY`). Grant end was `2026-11-28T14:36:29Z`, with 13,816
+  seconds remaining at preflight.
+- Reconfirmed exact scope `0 Add / 1 Change / 0 Destroy / 0 Replace`;
+  274 no-op. Sole action was in-place update of the same managed entitlement,
+  only `validFrom`/`validUntil`; user, tenant, agent and entitlement key
+  unchanged. Applied saved plan exactly once; exit code 0. No replan/retry.
+- Post-Apply read-only checks passed: existing Addition entitlement currently
+  valid through `2026-11-28T14:36:29Z`; ATS catalog `INACTIVE`, no valid ATS
+  grants, Addition catalog `ABSENT`. State serial 78, same lineage, latest S3
+  version `Nv9DBw9WQi48972QdhqULqPlpG3Ddi4y`. Before/after State diff contains
+  only the existing entitlement update; shared infrastructure unchanged.
+  Worker, Dispatch-Ingress, Analysis and Orders-Reader live hashes match their
+  preserved archives. No Terraform command was run after Apply.
+- Existing live-order candidate remains unchanged and separately gated:
+  request ID `ris-addition-live-f871426bc9444d4c98e4a9fb24dc925c`, payload
+  SHA-256 `9db3d7ecf238bd5b3875ab3958ea9a4a9cb0173d07c04270a21caeea8790d907`.
+  No order/retry/redrive/cleanup performed; stop at Live-Order gate. Report
+  updated. Protected 19F2 JSON not edited/staged; no Main merge.

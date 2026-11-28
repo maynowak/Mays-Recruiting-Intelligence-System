@@ -1,10 +1,44 @@
 # RIS–Mays-Orders Integration — Current Status
 
-**Status at 2026-11-28:** the authorized saved-plan Apply completed once and
-post-Apply read-only verification **PASS**. **STOP at Live-Order gate**: no
-live order, redrive, further Terraform operation, or Main merge was performed.
+**Status at 2026-11-28:** both authorized entitlement Applies completed with
+their reviewed saved plans; the latest post-Apply read-only verification
+**PASS** (State serial 78). **STOP at Live-Order gate**: no live order, retry,
+redrive, further Terraform operation, or Main merge was performed.
 
-## Four-hour Addition entitlement renewal plan — PASS; Apply pending
+## Four-hour entitlement renewal Apply — PASS; STOP at Live-Order gate
+
+- At checkpoint `d2592867572b88bee8d7607ceed2d8ea1e76ae1d`, immediately
+  confirmed saved-plan SHA-256
+  `5bba7cfce9b84e6bdd24d7ff6a7120907b78b3aeee78fec684ecbfa43589fd7f`, account
+  `262370457690`, region `eu-central-1`, workspace `ris-dev2`, backend
+  `ris-dev2-tf-state-dev` / `env:/ris-dev2/dev/terraform.tfstate`, State serial
+  77, lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, and prior S3 version
+  `zOnRrKUXkb3CvoHhGcosBHYkAExMwHmT`. All preserved Worker, Analysis, parser,
+  and Reader hashes matched; guard **PASS** (`NO_SHARED_DESTROY`). Grant had
+  13,816 seconds remaining before its approved end `2026-11-28T14:36:29Z`.
+- Applied the exact saved plan once; Terraform exit code 0. No replan or retry.
+  Scope remained **0 Add / 1 Change / 0 Destroy / 0 Replace**: in-place update
+  of the already-existing Addition entitlement, changing only `validFrom` and
+  `validUntil`. No new entitlement, ATS change, or other resource action.
+- Post-Apply AWS read-only verification **PASS**: Addition entitlement exists
+  and is currently valid through `2026-11-28T14:36:29Z`; ATS catalog remains
+  `INACTIVE`, zero valid ATS entitlements, and Addition catalog remains
+  `ABSENT`. State advanced to serial `78`, same lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082`, latest S3 version
+  `Nv9DBw9WQi48972QdhqULqPlpG3Ddi4y`.
+- Comparing pre/post State versions found exactly one changed managed resource:
+  the existing entitlement instance. All other State resources, including
+  shared infrastructure, were unchanged. Live Worker, Dispatch-Ingress,
+  Analysis and Orders-Reader code hashes still match preserved artifacts.
+- The previously prepared live-order candidate is unchanged and remains
+  separately gated: request/idempotency ID
+  `ris-addition-live-f871426bc9444d4c98e4a9fb24dc925c`, payload SHA-256
+  `9db3d7ecf238bd5b3875ab3958ea9a4a9cb0173d07c04270a21caeea8790d907`.
+  **No live order is authorized or performed here.** Reconfirm State/grant and
+  obtain separate explicit approval for this exact request before sending;
+  do not execute after grant expiry. No Terraform command was run after Apply.
+
+## Four-hour Addition entitlement renewal plan — PASS; pre-Apply checkpoint
 
 Baseline `ae8a72525e43ee69f09ae1266a38fa02c47753d4`; State serial 77. Reused
 the exact 19G5 inputs, backend configuration, and preserved artifacts; no FULL
@@ -34,25 +68,24 @@ managed Terraform key were reused; no second grant was added. ATS remains
   inspection wrapper stopped on an incorrect expectation of 273 rather than
   274 no-op resources; no second plan was run. Read-only inspection of the one
   saved plan confirmed the exact approved scope and guard.
-- **Apply not performed.** This plan is pending its separate explicit Apply
-  approval. Reconfirm the same plan hash, State, entitlement expiry and grant
-  time immediately before any authorized Apply. Existing live-order candidate
-  remains pending: request ID
+- At this plan checkpoint, **Apply had not yet been performed**. The subsequent
+  explicit Apply approval and successful execution are recorded above. The
+  existing live-order candidate remains pending: request ID
   `ris-addition-live-f871426bc9444d4c98e4a9fb24dc925c`, payload SHA-256
   `9db3d7ecf238bd5b3875ab3958ea9a4a9cb0173d07c04270a21caeea8790d907`; it must
   be revalidated after renewal Apply and separately approved before sending.
 
-### Apply approval template — pending; not authorization
+### Apply approval record — subsequently approved and applied
 
-> Approver/authority/date: **NOT PROVIDED**. Proposed action: one Apply of saved
+> User explicitly approved one Apply. Proposed action: one Apply of saved
 > plan SHA-256
 > `5bba7cfce9b84e6bdd24d7ff6a7120907b78b3aeee78fec684ecbfa43589fd7f` for
 > account `262370457690`, region `eu-central-1`, workspace `ris-dev2`, State
 > serial 77 / lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082`; exact scope
 > `0 Add / 1 Change / 0 Destroy / 0 Replace`, updating only the existing
 > Addition entitlement's validity interval to four hours. Guard
-> `NO_SHARED_DESTROY` PASS. Apply authorization: **NOT GRANTED**. This grants no
-> live-order, cleanup, retry, redrive, or ATS authorization.
+> `NO_SHARED_DESTROY` PASS. Apply authorization: **GRANTED and executed once**.
+> This grants no live-order, cleanup, retry, redrive, or ATS authorization.
 
 ## Addition live E2E — payload prepared, execution BLOCKED; STOP at gate
 
