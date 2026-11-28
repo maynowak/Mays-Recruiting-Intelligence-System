@@ -14596,3 +14596,33 @@ Baseline `12a1d49f9991575a63ff166da41797ad3a51750b`.
   resources. Fresh exact-row check and explicit approval required before any
   cleanup. No Terraform operation, redrive or Main merge.
 - Report updated; protected 19F2 results JSON remains unedited and unstaged.
+
+## RIS-MAYS-ORDERS — cleanup plan attempt stopped; no Apply — 2026-11-28
+
+Baseline `726541164a80bed28cc46250d273d553851965a2`.
+
+- Read-only preflight verified account `262370457690`, `eu-central-1`, workspace
+  `ris-dev2`, backend `ris-dev2-tf-state-dev` / effective key
+  `env:/ris-dev2/dev/terraform.tfstate`, lock table `ris-dev2-tf-lock`, State
+  serial 78 / lineage `a0bd361d-5cd1-a207-a8c0-e6888f0be082` / S3 VersionId
+  `Nv9DBw9WQi48972QdhqULqPlpG3Ddi4y`. The sole managed foundation entitlement
+  and live DynamoDB item match
+  `addition-acceptance-b939b2ba7c27430b`; ATS catalog `INACTIVE`, Addition
+  catalog `ABSENT`, completed order/work evidence preserved.
+- Reused the unchanged 19G5 inputs (SHA-256
+  `1ada876c6c98080206c9d29ca55549b4b8f254e1f2a5c0e915f9d6097016e6e7`),
+  preserved artifact hashes, existing RIS-DEV2 TF_DATA_DIR/workspace, and
+  Terraform 1.17.0. No build/artifact change. External supplemental input sets
+  only `foundation_entitlements={}` (SHA-256
+  `85cb711ee43e1ce30542037df3431459576a5db0f4a3c89cc1e6445abe0d4405`).
+- Exactly one full-refresh, normal-lock Terraform plan invocation was made. It
+  exited 1 before producing a saved plan; the wrapper did not retain the
+  diagnostic. No plan file/hash exists, so exact scope is unverified and the
+  shared-infrastructure guard could not be run. **Guard PASS not established.**
+  Do not run another plan under the current one-plan authorization; resolve the
+  failure and obtain a new explicit plan authorization first.
+- Post-attempt read-only state check remained serial 78 / same S3 version; lock
+  table had only backend checksum metadata, no active lock record. No Apply,
+  entitlement deletion, Terraform state change, or other AWS mutation. Apply
+  remains NOT AUTHORIZED. Report updated; protected 19F2 results JSON remains
+  unedited and unstaged.

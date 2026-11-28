@@ -667,3 +667,37 @@ synthetic test identity and `addition_agent`. Do not change/delete the user,
 owner profile, order/work/result evidence, queues or any other entitlement.
 Re-read the exact row and obtain explicit approval immediately before cleanup;
 no Terraform operation is part of this proposal.
+
+## Addition entitlement cleanup plan — BLOCKED; Apply not authorized
+
+Baseline `726541164a80bed28cc46250d273d553851965a2`. Read-only preflight
+confirmed account `262370457690`, region `eu-central-1`, workspace `ris-dev2`,
+backend `ris-dev2-tf-state-dev` / `env:/ris-dev2/dev/terraform.tfstate`, lock
+table `ris-dev2-tf-lock`, State serial 78 / lineage
+`a0bd361d-5cd1-a207-a8c0-e6888f0be082` / S3 VersionId
+`Nv9DBw9WQi48972QdhqULqPlpG3Ddi4y`. The only Terraform-managed foundation
+entitlement is the approved key
+`addition-acceptance-b939b2ba7c27430b`; its live DynamoDB row matches the
+verified test owner and `addition_agent`. ATS catalog remains `INACTIVE`,
+Addition catalog `ABSENT`; completed order/work evidence remains present.
+Reused the existing 19G5 input file unchanged (SHA-256
+`1ada876c6c98080206c9d29ca55549b4b8f254e1f2a5c0e915f9d6097016e6e7`), preserved
+artifacts, existing TF_DATA_DIR/workspace, and Terraform 1.17.0. No build or
+artifact change occurred.
+
+Created only an external supplemental Terraform input setting
+`foundation_entitlements={}`; file SHA-256
+`85cb711ee43e1ce30542037df3431459576a5db0f4a3c89cc1e6445abe0d4405`.
+Exactly one full-refresh, normally locked `terraform plan` invocation was
+attempted. It exited 1 before saving a plan. The diagnostic was not retained by
+the invocation wrapper, so the failure cause is unknown. No saved plan exists;
+there is no plan hash or scope to approve. The shared-infrastructure guard could
+not be evaluated and **PASS is not established**. Do not retry/replan under the
+single-plan authorization; a new explicit plan authorization is required after
+the failure cause is resolved.
+
+Post-attempt read-only checks confirmed State remains serial 78 and the same S3
+version; no active Terraform lock record was found (only backend checksum
+metadata). No Apply, entitlement deletion, or other AWS mutation occurred.
+Cleanup Apply remains **NOT AUTHORIZED**. Status/audit checkpoint only; protected
+19F2 results JSON remains untouched and unstaged.
