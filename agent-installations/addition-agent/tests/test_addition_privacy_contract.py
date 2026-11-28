@@ -24,5 +24,6 @@ def test_result_body_is_limited_to_declared_numeric_fields():
     result = add_operands(17, 25)
     declaration = json.loads(CONTRACT.read_text(encoding="utf-8"))
     assert set(result) == {"left", "right", "sum"}
-    assert declaration["allowed_order_result_fields"] == ["sum"]
+    assert declaration["allowed_result_fields"] == ["left", "right", "sum"]
+    assert declaration["allowed_order_result_fields"] == ["left", "right", "sum"]
     assert result["sum"] == 42

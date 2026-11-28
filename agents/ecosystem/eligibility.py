@@ -14,7 +14,8 @@ from enum import Enum
 
 from agents.ecosystem.registry import AgentDescriptor, AgentStatus
 from agents.ecosystem.privacy_contract import (
-    PRIVACY_CONTRACT_VERSION, validate_capability_privacy,
+    PRIVACY_CONTRACT_VERSION, validate_capability_input,
+    validate_capability_privacy,
 )
 
 logger = logging.getLogger(__name__)
@@ -179,11 +180,15 @@ def authorize_direct_work_item(registry, work_item: Dict[str, Any]) -> bool:
             return False
         descriptor = matches[0]
         agent_id = descriptor.agent_id
-    return check_eligibility(
+    check = check_eligibility(
         agent_id, descriptor, capability=capability,
         tenant_id=work_item.get("tenantId"),
         user_id=work_item.get("userId"),
-    ).eligible
+    )
+    if not check.eligible:
+        return False
+    declaration = descriptor.privacy_declarations.get(capability)
+    return validate_capability_input(declaration, work_item.get("payload"))
 
 
 @dataclass

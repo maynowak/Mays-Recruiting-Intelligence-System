@@ -35,6 +35,9 @@ from typing import Any, Callable, Dict, Optional, Tuple
 from agents.base import WorkItem
 from agents.ecosystem.discovery import AgentDiscovery
 from agents.ecosystem.eligibility import EligibilityPipeline
+from agents.ecosystem.privacy_contract import (
+    validate_capability_input, validate_capability_result,
+)
 from agents.ecosystem.event_hook import Event, EventHook, ProcessingEnvelope, TriggerType
 from agents.ecosystem.health_plane import (
     Component,
@@ -85,6 +88,7 @@ PERMANENT_ERROR_CODES = frozenset({
     "INVALID_TRANSITION",
     "CONFLICT",
     "POST_UNKNOWN",
+    "PRIVACY_RESULT_REJECTED",
 })
 
 
@@ -587,6 +591,18 @@ def process_record(
             f"rejected={len(pipeline.rejected)})"
         )
 
+    selected_descriptor = registry.get(decision.agent_id)
+    selected_declaration = (
+        selected_descriptor.privacy_declarations.get(work.get("capability"))
+        if selected_descriptor and isinstance(selected_descriptor.privacy_declarations, dict)
+        else None
+    )
+    if (selected_declaration is None
+            or not validate_capability_input(selected_declaration, work.get("payload"))):
+        # Reject before WorkItem admission/persistence. Error text deliberately
+        # contains no rejected field names or payload values.
+        raise ValueError("PRIVACY_INPUT_REJECTED")
+
     item, is_duplicate = _register_processing(
         table, work, envelope, decision.agent_id,
         fence_table=subject_fence_table, require_fence=require_subject_fence)
@@ -615,6 +631,7 @@ def process_record(
                     attempt=int(item.get("attempt_no") or 1),
                     result=item.get("result"),
                     sender=result_sender,
+                    privacy_declaration=selected_declaration,
                 )
             elif item.get("status") == "DEAD_LETTER":
                 # Crash window between terminal failure and send: re-emit the
@@ -822,6 +839,24 @@ def process_record(
                 f"(workId={work['workId']}, attempt={attempt})"
             )
     else:
+        if not validate_capability_result(selected_declaration, result):
+            safe_error = {
+                "message": "Capability result violates its privacy declaration",
+                "type": "PRIVACY_RESULT_REJECTED",
+            }
+            _persist_failure(table, work["workId"], attempt,
+                             safe_error, terminal=True)
+            failure_delivery = _forward_order_failure(
+                table=table, item=work, attempt=attempt,
+                error=safe_error, sender=result_sender)
+            return {
+                "workId": work["workId"], "status": "DEAD_LETTER",
+                "duplicate": False, "attempt_no": attempt,
+                "agent_id": decision.agent_id, "denied": True,
+                "reason": "privacy-result-rejected",
+                "result_reference": f"work:{work['workId']}:attempt:{attempt}",
+                "order_failure_delivery": failure_delivery,
+            }
         _health("record_success",
                 Component.AGENT_EXECUTION,
                 tenant_id=tenant_id,
@@ -831,7 +866,7 @@ def process_record(
         _persist_result(table, work["workId"], attempt, result)
         delivery = _forward_order_result(
             table=table, item=item, attempt=attempt, result=result,
-            sender=result_sender)
+            sender=result_sender, privacy_declaration=selected_declaration)
 
     response = {
         "workId": work["workId"],
@@ -923,7 +958,8 @@ def _record_result_delivery(table: Any, work_id: str, *, status: str,
 
 def _forward_order_result(*, table: Any, item: Dict[str, Any], attempt: int,
                           result: Any,
-                          sender: Optional[Any] = None) -> str:
+                          sender: Optional[Any] = None,
+                          privacy_declaration: Any = None) -> str:
     """Forward a completed order work item via Transport V1, fail-closed.
 
     Returns the delivery outcome: ``SENT``, ``NOT_CONFIGURED``, ``SKIPPED``
@@ -932,6 +968,14 @@ def _forward_order_result(*, table: Any, item: Dict[str, Any], attempt: int,
     work_id = item.get("workId", "")
     if not item.get("orderId"):
         return "NOT_ORDER"
+    if (privacy_declaration is None
+            or privacy_declaration.order_result_disposition != "allowlisted"
+            or not validate_capability_result(privacy_declaration, result,
+                                              order_transport=True)):
+        logger.warning("order result not forwarded: capability privacy policy denied")
+        _record_result_delivery(table, work_id, status="REJECTED",
+                                attempt=attempt, code="privacy_boundary")
+        return "REJECTED"
     if not item.get("correlationId"):
         logger.warning("order result not forwarded: missing correlationId")
         _record_result_delivery(table, work_id, status="SKIPPED",

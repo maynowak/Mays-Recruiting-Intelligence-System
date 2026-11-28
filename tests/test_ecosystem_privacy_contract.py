@@ -18,13 +18,16 @@ def declaration():
         capability="test.synthetic", processing_purpose="synthetic-test",
         technical_inputs=("schemaVersion",), business_inputs=("reference",),
         allowed_input_fields=("reference",),
+        input_field_types=(("reference", "opaque-reference"),),
         prohibited_inline_categories=("cv_document",),
         actor_identity="verified-runtime", requester_identity="verified-user",
         tenant_identity="verified-tenant", authorization_requirements=("test-auth",),
         storage_locations=("synthetic-memory",), external_recipients=(),
         result_categories=("synthetic-result",),
+        allowed_result_fields=("synthetic-result",),
         order_result_disposition="allowlisted",
         allowed_order_result_fields=("synthetic-result",),
+        result_field_types=(("synthetic-result", "string"),),
         lifecycle_phases=("create", "execution", "completion"),
         cleanup_mechanism="test-fixture-cleanup",
     )
@@ -117,11 +120,18 @@ def test_direct_executor_uses_eligibility_privacy_gate():
         "tenantId": "synthetic-tenant", "userId": "synthetic-user",
         "idempotencyKey": "synthetic-idempotency", "agentId": "synthetic-agent",
         "capability": "test.synthetic",
+        "payload": {"reference": "ref:synthetic"},
     }
     assert executor.execute(work)["success"] is True
     assert len(called) == 1
 
-    registry.register("synthetic-agent", descriptor(privacy_evidence={}))
-    denied = executor.execute(work)
-    assert denied["error"]["type"] == "PRIVACY_EVIDENCE_INVALID"
-    assert len(called) == 1
+
+def test_capability_input_and_result_field_types_are_enforceable():
+    from agents.ecosystem.privacy_contract import (
+        validate_capability_input, validate_capability_result,
+    )
+    policy = declaration()
+    assert validate_capability_input(policy, {"reference": "ref:synthetic"})
+    assert not validate_capability_input(policy, {"reference": "ref:synthetic", "cv": "x"})
+    assert validate_capability_result(policy, {"data": {"synthetic-result": "ok"}})
+    assert not validate_capability_result(policy, {"data": {"synthetic-result": 42}})

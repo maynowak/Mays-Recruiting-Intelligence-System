@@ -1,6 +1,6 @@
 # RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-01 — Execution
 
-**Status:** `PARTIAL — A/B implemented for Addition reference capability; C–F pending/blocked`
+**Status:** `PARTIAL — A/B implemented for Addition; C boundary implemented; D–F pending/blocked`
 **Branch:** `feature/ris-dsgvo-compliance-01`
 **Baseline:** `db2e09419931fc64e9377aed8fdd35c720023045`
 **Orders pin:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` (unchanged)
@@ -25,13 +25,13 @@ No test was converted from success to denied to claim recovery. These 25 failure
 ## Remaining work and blockers
 
 - **B:** complete for Addition only. Installer validates its typed policy, rebuilds the manifest-declared deterministic agent bundle, checks required runtime entries, executes the declared original/privacy test selection, and binds report, contract hash, source-file digest, source commit, test selection and artifact SHA. Cached PASS is fingerprinted against package files, referenced source/test/build inputs and artifact bytes. Registry loading checks current source, report and artifact bytes. Other packages have no owner-approved contracts/evidence and remain blocked.
-- **C:** not started. No capability input/result enforcement; existing generic Order/WorkItem/result boundaries remain `PARTIAL`.
+- **C:** partial implementation: declarations now carry exact typed input, internal-result, and narrower ORDER_RESULT field allowlists. The runtime rejects undeclared/mistyped capability payloads before WorkItem admission, rejects undeclared/mistyped successful results before completion persistence, and refuses ORDER_RESULT fields outside that capability's transport allowlist. Addition has synthetic boundary tests, including rejected extra fields. Addition evidence is stale against in-progress C changes and will be regenerated after the C source commit. Generic Order/WorkItem storage retention and unreviewed capability policies remain open.
 - **D:** not started. No late-result/fence lifecycle changes; terminal WorkItem retention remains unresolved.
 - **E:** not started. No synthetic Orders JWT issuer/client/subject test or Provider original suite was run; no Provider/pin modifications made.
 - **F:** not started. `RIS_PRIVACY` is not yet added; no ten-group profile or integrated regression result exists.
 - All existing shipped capabilities lack the new declaration/evidence. They are blocked by design until policy and evidence are provided; do not treat this as authorization to execute them.
 
-Final Addition build/evidence checkpoint: source commit `d4d802ab082c3fd559aea0cb15973aaac70195ed`; source digest `0e2052c60f2db7de6c4c0f4521f9b1b0107aed602baf104ee0ae68806344be73`; contract SHA-256 `342eec88ae32cf84531771fcd0d5b5485f82e9b9baff14dc635578c6059b2fe5`; test report SHA-256 `4ed9a92355a4bc6cb488de70fa9e795377336563dc284198a18f8287d7f03e06`; built `terraform/lambda.zip` SHA-256 `d039a5e82b3ed4a6484714ae3c25f9386140145d5c6215696dfdabbfe5487067`. Evidence-selected run: 29 passed, 2 deselected by its declared selector, 0 skipped; full `tests/test_addition_agent.py`: **29 passed**. Manifest validation: PASS; installer/A/privacy tests: **19 passed**. Direct smoke confirmed evidence loaded → Eligibility eligible → AgentBody execution success, `17 + 25 = 42`. ZIP is local build evidence only, not installed/deployed. No AWS/Terraform operation, installation, Provider modification, pin update, Main merge, real-data processing, retention-period decision, or legal/operational approval occurred.
+Previous committed Addition evidence (source commit `d4d802ab082c3fd559aea0cb15973aaac70195ed`) is stale due to C source/contract/test changes and is not relied on for current Eligibility. Regenerate and record fresh source, contract, report, and artifact hashes after the C checkpoint. No AWS/Terraform operation, installation, Provider modification, pin update, Main merge, real-data processing, retention-period decision, or legal/operational approval occurred.
 
 ## Resume order
 

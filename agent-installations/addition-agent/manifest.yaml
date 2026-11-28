@@ -19,11 +19,13 @@ privacy:
     - agents/ecosystem/eligibility.py
     - agents/ecosystem/registry.py
     - agents/agent_body/executor.py
+    - agents/runtime/pipeline.py
     - installer/agent_install.py
     - lambda/build_zip.py
   testPaths:
     - tests/test_addition_agent.py
     - agent-installations/addition-agent/tests/test_addition_privacy_contract.py
+    - tests/test_privacy_capability_boundary.py
   testArgs:
     - -k
     - not executes_through_existing_agent_body and not body_routes_by_capability
