@@ -124,14 +124,31 @@ def test_direct_executor_uses_eligibility_privacy_gate():
     }
     assert executor.execute(work)["success"] is True
     assert len(called) == 1
+    wrapped_work = {
+        **work,
+        "workId": "synthetic-wrapped-work",
+        "payload": {
+            "workId": "synthetic-wrapped-work",
+            "capability": "test.synthetic",
+            "payload": {"reference": "ref:synthetic"},
+        },
+    }
+    assert executor.execute(wrapped_work)["success"] is True
+    assert len(called) == 2
 
 
 def test_capability_input_and_result_field_types_are_enforceable():
     from agents.ecosystem.privacy_contract import (
-        validate_capability_input, validate_capability_result,
+        capability_input_payload, validate_capability_input,
+        validate_capability_result,
     )
     policy = declaration()
     assert validate_capability_input(policy, {"reference": "ref:synthetic"})
     assert not validate_capability_input(policy, {"reference": "ref:synthetic", "cv": "x"})
+    wrapped = {"capability": "test.synthetic",
+               "payload": {"reference": "ref:synthetic"}}
+    assert capability_input_payload(policy, {"payload": wrapped}) == wrapped["payload"]
+    wrapped["capability"] = "other.capability"
+    assert capability_input_payload(policy, {"payload": wrapped}) is None
     assert validate_capability_result(policy, {"data": {"synthetic-result": "ok"}})
     assert not validate_capability_result(policy, {"data": {"synthetic-result": 42}})

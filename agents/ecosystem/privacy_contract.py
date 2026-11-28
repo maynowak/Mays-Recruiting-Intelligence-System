@@ -220,6 +220,27 @@ def validate_capability_input(declaration: CapabilityPrivacyDeclaration,
     return all(_value_matches(value, kinds[key]) for key, value in payload.items())
 
 
+def capability_input_payload(declaration: CapabilityPrivacyDeclaration,
+                             work_item: Any) -> Optional[dict]:
+    """Resolve direct and engine-wrapped payloads without widening the schema.
+
+    AgentInvoker may wrap the original work item in ``payload``. Only unwrap
+    that shape when its declared capability agrees, then validate the inner
+    capability payload exactly as if it arrived directly.
+    """
+    if not isinstance(work_item, dict):
+        return None
+    payload = work_item.get("payload")
+    if validate_capability_input(declaration, payload):
+        return payload
+    if (isinstance(payload, dict)
+            and payload.get("capability") == declaration.capability
+            and isinstance(payload.get("payload"), dict)
+            and validate_capability_input(declaration, payload["payload"])):
+        return payload["payload"]
+    return None
+
+
 def validate_capability_result(declaration: CapabilityPrivacyDeclaration,
                                result: Any, *, order_transport: bool = False) -> bool:
     """Check result payload before WorkItem persistence or ORDER_RESULT."""
