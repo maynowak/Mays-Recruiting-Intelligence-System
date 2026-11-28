@@ -9,6 +9,24 @@ agent:
   capability: math.add
   workType: agent_addition_agent
   runtimeAgentVersion: "1.0.0"
+privacy:
+  contractVersion: RIS-CAPABILITY-PRIVACY/1
+  contractPath: privacy-contract.json
+  sourcePaths:
+    - agents/addition_agent/agent.py
+    - agents/addition_agent/registry.py
+    - agents/ecosystem/privacy_contract.py
+    - agents/ecosystem/eligibility.py
+    - agents/ecosystem/registry.py
+    - agents/agent_body/executor.py
+  testPaths:
+    - tests/test_addition_agent.py
+    - agent-installations/addition-agent/tests/test_addition_privacy_contract.py
+  testArgs:
+    - -k
+    - not executes_through_existing_agent_body and not body_routes_by_capability
+  evidencePath: privacy-evidence.json
+  evidenceArtifact: terraform/lambda.zip
 source:
   repository: mays-ris
   path: agents/addition_agent

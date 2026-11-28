@@ -10,7 +10,7 @@ import hashlib
 import json
 import re
 from dataclasses import asdict, dataclass
-from typing import Optional
+from typing import Any, Mapping, Optional
 
 
 PRIVACY_CONTRACT_VERSION = "RIS-CAPABILITY-PRIVACY/1"
@@ -24,6 +24,7 @@ class CapabilityPrivacyDeclaration:
     processing_purpose: str
     technical_inputs: tuple[str, ...]
     business_inputs: tuple[str, ...]
+    allowed_input_fields: tuple[str, ...]
     prohibited_inline_categories: tuple[str, ...]
     actor_identity: str
     requester_identity: str
@@ -33,6 +34,7 @@ class CapabilityPrivacyDeclaration:
     external_recipients: tuple[str, ...]
     result_categories: tuple[str, ...]
     order_result_disposition: str
+    allowed_order_result_fields: tuple[str, ...]
     lifecycle_phases: tuple[str, ...]
     cleanup_mechanism: str
 
@@ -49,12 +51,34 @@ class PrivacyEvidence:
     artifact_sha256: str
     tests_passed: bool
     required_tests_skipped: bool = False
+    source_commit: str = ""
+    test_selection_sha256: str = ""
+    build_tool_version: str = ""
 
 
 @dataclass(frozen=True)
 class PrivacyValidation:
     valid: bool
     reason: str
+
+
+_TUPLE_FIELDS = (
+    "technical_inputs", "business_inputs", "prohibited_inline_categories",
+    "allowed_input_fields", "allowed_order_result_fields",
+    "authorization_requirements", "storage_locations", "external_recipients",
+    "result_categories", "lifecycle_phases",
+)
+
+
+def declaration_from_mapping(value: Mapping[str, Any]) -> CapabilityPrivacyDeclaration:
+    """Parse JSON/YAML-shaped policy data into the immutable typed contract."""
+    if not isinstance(value, Mapping):
+        raise ValueError("privacy declaration must be an object")
+    fields = dict(value)
+    for name in _TUPLE_FIELDS:
+        if name in fields and isinstance(fields[name], list):
+            fields[name] = tuple(fields[name])
+    return CapabilityPrivacyDeclaration(**fields)
 
 
 def declaration_digest(declaration: CapabilityPrivacyDeclaration) -> str:
@@ -80,6 +104,15 @@ def validate_capability_privacy(
     if declaration.order_result_disposition not in {
         "forbidden", "reference-only", "allowlisted"
     }:
+        return PrivacyValidation(False, "PRIVACY_CONTRACT_INVALID")
+    if (declaration.order_result_disposition == "allowlisted"
+            and not declaration.allowed_order_result_fields):
+        return PrivacyValidation(False, "PRIVACY_CONTRACT_INVALID")
+    if (declaration.order_result_disposition == "forbidden"
+            and declaration.allowed_order_result_fields):
+        return PrivacyValidation(False, "PRIVACY_CONTRACT_INVALID")
+    if (declaration.order_result_disposition == "reference-only"
+            and declaration.allowed_order_result_fields):
         return PrivacyValidation(False, "PRIVACY_CONTRACT_INVALID")
     required_text = (
         declaration.processing_purpose, declaration.actor_identity,
@@ -113,6 +146,12 @@ def validate_capability_privacy(
             or not _SOURCE_SHA.fullmatch(evidence.source_sha)
             or not _SHA256.fullmatch(evidence.test_report_sha256)
             or not _SHA256.fullmatch(evidence.artifact_sha256)):
+        return PrivacyValidation(False, "PRIVACY_EVIDENCE_INVALID")
+    if (evidence.source_commit
+            and not re.fullmatch(r"[0-9a-f]{40}", evidence.source_commit)):
+        return PrivacyValidation(False, "PRIVACY_EVIDENCE_INVALID")
+    if (evidence.test_selection_sha256
+            and not _SHA256.fullmatch(evidence.test_selection_sha256)):
         return PrivacyValidation(False, "PRIVACY_EVIDENCE_INVALID")
     if source_sha is not None and evidence.source_sha != source_sha:
         return PrivacyValidation(False, "PRIVACY_EVIDENCE_STALE")

@@ -17,12 +17,14 @@ def declaration():
     return CapabilityPrivacyDeclaration(
         capability="test.synthetic", processing_purpose="synthetic-test",
         technical_inputs=("schemaVersion",), business_inputs=("reference",),
+        allowed_input_fields=("reference",),
         prohibited_inline_categories=("cv_document",),
         actor_identity="verified-runtime", requester_identity="verified-user",
         tenant_identity="verified-tenant", authorization_requirements=("test-auth",),
         storage_locations=("synthetic-memory",), external_recipients=(),
         result_categories=("synthetic-result",),
-        order_result_disposition="forbidden",
+        order_result_disposition="allowlisted",
+        allowed_order_result_fields=("synthetic-result",),
         lifecycle_phases=("create", "execution", "completion"),
         cleanup_mechanism="test-fixture-cleanup",
     )

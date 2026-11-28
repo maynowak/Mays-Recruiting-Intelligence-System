@@ -166,11 +166,19 @@ def authorize_direct_work_item(registry, work_item: Dict[str, Any]) -> bool:
         return False
     agent_id = work_item.get("agentId")
     capability = work_item.get("capability")
-    if not isinstance(agent_id, str) or not agent_id.strip():
-        return False
     if not isinstance(capability, str) or not capability.strip():
         return False
-    descriptor = registry.get(agent_id)
+    if isinstance(agent_id, str) and agent_id.strip():
+        descriptor = registry.get(agent_id)
+    else:
+        # Capability-only routing is supported by AgentBody. Authorization is
+        # safe only when that capability resolves to exactly one registered
+        # descriptor; ambiguity must not choose an arbitrary principal.
+        matches = registry.list_by_capability(capability)
+        if len(matches) != 1:
+            return False
+        descriptor = matches[0]
+        agent_id = descriptor.agent_id
     return check_eligibility(
         agent_id, descriptor, capability=capability,
         tenant_id=work_item.get("tenantId"),

@@ -1,6 +1,6 @@
 # RIS-DSGVO-ECOSYSTEM-IMPLEMENTATION-01 — Execution
 
-**Status:** `PARTIAL — A implemented; B–F pending/blocked`
+**Status:** `PARTIAL — A implemented; B evidence pipeline implemented; C–F pending/blocked`
 **Branch:** `feature/ris-dsgvo-compliance-01`
 **Baseline:** `db2e09419931fc64e9377aed8fdd35c720023045`
 **Orders pin:** `db4f9e79980443de1cd3d5b688a33c0cf0eb771f` (unchanged)
@@ -15,14 +15,14 @@ Compatibility/regression checks expose an intentional migration block, not a gre
 
 ## Remaining work and blockers
 
-- **B:** not started. No installer/build evidence generation or stale `PASSED` invalidation yet. Runtime source/artifact hashes are currently optional descriptor pins; production manifests/builds are not bound.
+- **B:** installer validates a typed capability policy, and its `privacy-evidence` stage executes manifest-selected tests and binds a canonical test report, contract hash, source-file digest, source commit, test selection and built artifact SHA. Cached stage PASS is fingerprinted against package files, referenced source/test inputs and artifact bytes. Addition is the first package with a synthetic numeric-only declaration and tests; registry loading rejects evidence if source, contract/test report or local artifact no longer matches. Final post-commit evidence generation is pending.
 - **C:** not started. No capability input/result enforcement; existing generic Order/WorkItem/result boundaries remain `PARTIAL`.
 - **D:** not started. No late-result/fence lifecycle changes; terminal WorkItem retention remains unresolved.
 - **E:** not started. No synthetic Orders JWT issuer/client/subject test or Provider original suite was run; no Provider/pin modifications made.
 - **F:** not started. `RIS_PRIVACY` is not yet added; no ten-group profile or integrated regression result exists.
 - All existing shipped capabilities lack the new declaration/evidence. They are blocked by design until policy and evidence are provided; do not treat this as authorization to execute them.
 
-No agent bundle was built because A introduces no distributable agent artifact and A has not supplied build provenance. No AWS/Terraform operation, deployment, installation, Provider modification, pin update, Main merge, real-data processing, retention-period decision, or legal/operational approval occurred.
+An initial local agent bundle was built while stabilizing B; its hash is provisional because source changed afterward. Regenerate the deterministic bundle and evidence against the committed B source checkpoint before treating either hash as final. No AWS/Terraform operation, deployment, installation, Provider modification, pin update, Main merge, real-data processing, retention-period decision, or legal/operational approval occurred.
 
 ## Resume order
 

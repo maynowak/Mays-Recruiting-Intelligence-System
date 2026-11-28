@@ -1,0 +1,19 @@
+{
+  "capability": "math.add",
+  "processing_purpose": "deterministic-arithmetic",
+  "technical_inputs": ["workId", "idempotencyKey", "capability", "left", "right"],
+  "business_inputs": ["left", "right"],
+  "allowed_input_fields": ["left", "right"],
+  "prohibited_inline_categories": ["personal-data", "cv-content", "free-text"],
+  "actor_identity": "verified-runtime-context",
+  "requester_identity": "verified-request-context",
+  "tenant_identity": "verified-runtime-tenant",
+  "authorization_requirements": ["runtime-agent-eligibility", "existing-order-or-api-authorization"],
+  "storage_locations": ["existing-workitem-runtime-storage-if-invoked-through-worker"],
+  "external_recipients": [],
+  "result_categories": ["left-number", "right-number", "sum-number"],
+  "order_result_disposition": "allowlisted",
+  "allowed_order_result_fields": ["sum"],
+  "lifecycle_phases": ["create", "dispatch", "execution", "result-delivery", "completion", "failure", "cancellation"],
+  "cleanup_mechanism": "existing-runtime-workitem-retention-policy-owner-decision-pending"
+}
