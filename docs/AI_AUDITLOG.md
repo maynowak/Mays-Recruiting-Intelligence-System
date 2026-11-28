@@ -14795,3 +14795,11 @@ Baseline: RIS 77e215282a661b5c1ce7dcb66d703e1eb4432212; Orders db4f9e79980443de1
 Findings: Native identities are issuer+subject scoped; Orders owner_key is an unkeyed SHA256 ownership key and distinct from GSI2 privacy subjectId; Jobsearch uses a separate verified issuer/subject boundary. HMAC does not establish account linking. A protected persistent opaque mapping is recommended for decision, with HMAC retained as an alternative; neither is approved.
 Evidence: docs/privacy/DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md §A.
 No source/tests/AWS/Terraform changed or run. Step A checkpoint; remaining B/C/D are still in progress.
+
+[RIS-DSGVO-02A — PACKAGE B: MAYS-ORDERS PRIVACY]
+Status: COMPLETE — exact-pin source review; proposed changes/tests documented only.
+Date: 2026-11-28
+Orders pin: db4f9e79980443de1cd3d5b688a33c0cf0eb771f; RIS baseline 77e215282a661b5c1ce7dcb66d703e1eb4432212.
+Findings: Retail/AgentOrder create and status/dispatch/result/worker/import paths do not establish gsi2pk subject linkage. GSI2 privacy functions exist but cannot discover unindexed rows. Anonymize path leaves nested agentOrder, processing.result and owner identity fields. RIS E2E test deliberately asserts absent GSI2, so contract change needs coordinated test revision.
+Evidence: docs/privacy/DSGVO-02A-TECHNICAL-CONTRACT-REVIEW.md §B; source and tests listed there.
+No source/tests/AWS/Terraform changed or run; Orders pin unchanged. Step B checkpoint; C/D remain in progress.
