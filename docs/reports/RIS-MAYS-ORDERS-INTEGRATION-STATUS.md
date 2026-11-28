@@ -626,3 +626,44 @@ Do not use the rejected binary. Apply remains unauthorized and is constrained
 by the temporary grant expiry. Main merge was not performed. The protected
 `docs/reports/RIS-MAYS-ORDERS-UNIFIED-TESTSUITE-19F2.results.json` was not used
 as output or touched/staged by this follow-up.
+
+## Final Addition live E2E — PASS; cleanup awaits separate approval
+
+On 2026-11-28 at 12:01Z, final execution gates passed: AWS account
+`262370457690`, region `eu-central-1`, workspace `ris-dev2`, State serial 78,
+the approved State S3 version, matching owner profile and active Addition grant,
+and paginated `POST /orders` on API `r95qvhg2p3`. Exact request-body SHA-256:
+`9db3d7ecf238bd5b3875ab3958ea9a4a9cb0173d07c04270a21caeea8790d907`.
+Authentication used existing `USER_PASSWORD_AUTH`; the Cognito ID token's
+signature, issuer, audience, subject, tenant and expiry were checked in memory.
+No credentials or token were persisted or logged.
+
+Exactly one POST was sent to
+`https://r95qvhg2p3.execute-api.eu-central-1.amazonaws.com/orders`; HTTP 201
+created order `ord_e83b1c15a32901a2622acc7f`. No manual retry was sent.
+Read-only verification established:
+
+- Persisted and owner-GET `orderDescription` exactly match the approved
+  canonical description; Request-ID and idempotency key remain
+  `ris-addition-live-f871426bc9444d4c98e4a9fb24dc925c`.
+- Dispatch `SENT`; correlated WorkItem `work-dae09d78518965e1`,
+  `addition_agent/math.add`, inputs 19 and 23, status `COMPLETED`, sum 42;
+  `orderResultDelivery.status=SENT`.
+- The matching `ORDER_RESULT` message ID is recorded in the completed Orders
+  processing projection. The deployed result consumer was Active with its SQS
+  event-source mapping Enabled. Its result-handler contract verifies HMAC before
+  `apply_result`; the correlated result was applied as `processing=COMPLETED`,
+  sum 42. Result queue, result DLQ and dispatch DLQ had zero visible/in-flight
+  messages at readback.
+- Authenticated owner `GET /orders/{orderId}` returned HTTP 200 with the same
+  `orderDescription` and completed result 42.
+
+### Entitlement cleanup — proposed only; separate approval required
+
+No cleanup was executed. Proposed narrowly scoped operation: delete only the
+temporary row in `ris-dev2-dev-entitlements` with primary key
+`entitlementId=addition-acceptance-b939b2ba7c27430b`, scoped to the verified
+synthetic test identity and `addition_agent`. Do not change/delete the user,
+owner profile, order/work/result evidence, queues or any other entitlement.
+Re-read the exact row and obtain explicit approval immediately before cleanup;
+no Terraform operation is part of this proposal.

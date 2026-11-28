@@ -14566,3 +14566,33 @@ Baseline `12a1d49f9991575a63ff166da41797ad3a51750b`.
   prior order authorization is needed. Roundtrip remains NOT RUN.
 - Status report updated. Protected 19F2 results JSON remains untouched and
   unstaged.
+
+## RIS-MAYS-ORDERS — final Addition live E2E PASS — 2026-11-28
+
+- Immediately before execution, rechecked account `262370457690`, region
+  `eu-central-1`, RIS-DEV2 State serial 78 / lineage
+  `a0bd361d-5cd1-a207-a8c0-e6888f0be082` / S3 VersionId
+  `Nv9DBw9WQi48972QdhqULqPlpG3Ddi4y`, exact test identity and active owner
+  profile, valid Addition grant through `2026-11-28T14:36:29Z`, route/API
+  authorizer/integration, and approved payload SHA-256
+  `9db3d7ecf238bd5b3875ab3958ea9a4a9cb0173d07c04270a21caeea8790d907`.
+- Existing Cognito `USER_PASSWORD_AUTH` succeeded. ID token signature and
+  issuer/audience/subject/tenant/expiry were validated in memory; no token or
+  credential was logged or saved.
+- Exactly one POST to the approved `r95qvhg2p3/orders` endpoint returned HTTP
+  201: order `ord_e83b1c15a32901a2622acc7f`. No manual retry or second POST.
+- Read-only evidence: stored orderDescription exact; dispatch `SENT`; WorkItem
+  `work-dae09d78518965e1` `COMPLETED`; `addition_agent/math.add`, 19+23=42;
+  `orderResultDelivery=SENT` and result message ID correlates to completed
+  Orders processing. Result consumer Active / SQS mapping Enabled. Consumer
+  verifies HMAC before `apply_result`; correlated result projected as
+  `processing=COMPLETED`, sum 42. Results queue, result DLQ and dispatch DLQ
+  were empty at readback. Authenticated owner GET returned 200, same
+  orderDescription and completed result.
+- Cleanup was not run. Separate approval proposal only: remove the one row from
+  `ris-dev2-dev-entitlements` with key
+  `entitlementId=addition-acceptance-b939b2ba7c27430b` (Addition grant for the
+  synthetic identity); retain user/profile/order/work/result and all shared
+  resources. Fresh exact-row check and explicit approval required before any
+  cleanup. No Terraform operation, redrive or Main merge.
+- Report updated; protected 19F2 results JSON remains unedited and unstaged.
